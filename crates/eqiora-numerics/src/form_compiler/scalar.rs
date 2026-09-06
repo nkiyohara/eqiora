@@ -707,7 +707,8 @@ fn recognize_homogeneous_trace(
 fn is_literal_zero(expression: &ExprDag, value: ExprId) -> bool {
     matches!(
         expression.node(value),
-        Some(ExprNode::Constant(quantity)) if quantity.value().to_bits() == 0.0_f64.to_bits()
+        Some(ExprNode::Constant(quantity)) if quantity.real_scalar_value()
+            .is_some_and(|quantity| quantity.value().to_bits() == 0.0_f64.to_bits())
     )
 }
 

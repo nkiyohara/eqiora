@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use super::{AstConstructionError, SourceAstFactory, checked_range, validate_identifier};
 use crate::ast::{
-    ComponentItem, ComponentParameterDecl, Document, Expr, ExprKind, InstanceDecl, Item, NamePath,
+    ComponentItem, ComponentParameterDecl, Document, Expr, InstanceDecl, Item, NamePath,
     ParameterBindingDecl, TextRange, VisibilitySyntax,
 };
 
@@ -12,8 +12,8 @@ impl SourceAstFactory {
     pub fn elaborate_property_terms(
         document: &mut Document,
         contract_dimensions: &BTreeMap<String, Expr>,
-        release_values: &BTreeMap<String, f64>,
-        material_values: &BTreeMap<String, Vec<(String, f64)>>,
+        release_values: &BTreeMap<String, Expr>,
+        material_values: &BTreeMap<String, Vec<(String, Expr)>>,
     ) -> Result<(), AstConstructionError> {
         document.discard_retained_source();
         for component in &mut document.components {
@@ -31,7 +31,7 @@ impl SourceAstFactory {
                     .push(ComponentItem::Parameter(ComponentParameterDecl {
                         visibility: VisibilitySyntax::Public,
                         name: requirement.name.clone(),
-                        dimension: dimension.clone(),
+                        value_type: crate::ValueTypeSyntax::real(dimension.clone()),
                         default: None,
                         range: requirement.range,
                     }));
@@ -69,8 +69,8 @@ impl NamePath {
 
 fn elaborate_component_instances(
     items: &mut [ComponentItem],
-    release_values: &BTreeMap<String, f64>,
-    material_values: &BTreeMap<String, Vec<(String, f64)>>,
+    release_values: &BTreeMap<String, Expr>,
+    material_values: &BTreeMap<String, Vec<(String, Expr)>>,
 ) -> Result<(), AstConstructionError> {
     for item in items {
         if let ComponentItem::Instance(instance) = item {
@@ -82,11 +82,11 @@ fn elaborate_component_instances(
 
 fn elaborate_instance_properties(
     instance: &mut InstanceDecl,
-    release_values: &BTreeMap<String, f64>,
-    material_values: &BTreeMap<String, Vec<(String, f64)>>,
+    release_values: &BTreeMap<String, Expr>,
+    material_values: &BTreeMap<String, Vec<(String, Expr)>>,
 ) -> Result<(), AstConstructionError> {
     for binding in &instance.property_bindings {
-        let value = *release_values
+        let value = release_values
             .get(binding.release.as_str())
             .ok_or_else(|| {
                 AstConstructionError::new(format!(
@@ -94,17 +94,10 @@ fn elaborate_instance_properties(
                     binding.release
                 ))
             })?;
-        if !value.is_finite() {
-            return Err(AstConstructionError::new(
-                "property release value must be finite",
-            ));
-        }
+        super::validate_expression(value)?;
         instance.bindings.push(ParameterBindingDecl {
             parameter: binding.property.clone(),
-            value: Expr {
-                kind: ExprKind::Number(value),
-                range: binding.range,
-            },
+            value: value.clone(),
             range: binding.range,
         });
     }
@@ -113,12 +106,10 @@ fn elaborate_instance_properties(
             AstConstructionError::new(format!("unresolved material composition `{material}`"))
         })?;
         for (property, value) in values {
+            super::validate_expression(value)?;
             instance.bindings.push(ParameterBindingDecl {
                 parameter: property.clone(),
-                value: Expr {
-                    kind: ExprKind::Number(*value),
-                    range: instance.range,
-                },
+                value: value.clone(),
                 range: instance.range,
             });
         }

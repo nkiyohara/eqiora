@@ -320,7 +320,7 @@ impl PyField {
     }
 }
 
-/// Immutable scalar Parameter declaration.
+/// Immutable typed Parameter declaration with a real numeric initializer.
 #[pyclass(
     name = "Parameter",
     module = "eqiora._eqiora",
@@ -335,12 +335,20 @@ pub(crate) struct PyParameter {
 #[pymethods]
 impl PyParameter {
     #[new]
-    #[pyo3(signature = (name, *, dimension=None, value))]
-    fn new(name: String, dimension: Option<&PyDimension>, value: f64) -> Self {
+    #[pyo3(signature = (name, *, value_type=None, value))]
+    fn new(name: String, value_type: Option<&PyValueType>, value: f64) -> Self {
         Self {
             value: DraftParameter::new(
                 name,
-                dimension.map_or(DimExponents::DIMENSIONLESS, |value| value.value),
+                value_type.map_or_else(
+                    || {
+                        eqiora::ValueType::scalar(
+                            eqiora::ScalarDomain::Real,
+                            DimExponents::DIMENSIONLESS,
+                        )
+                    },
+                    |value| value.value.clone(),
+                ),
                 value,
             ),
         }
@@ -361,6 +369,13 @@ impl PyParameter {
     #[getter]
     const fn value(&self) -> f64 {
         self.value.value()
+    }
+
+    #[getter]
+    fn value_type(&self) -> PyValueType {
+        PyValueType {
+            value: self.value.value_type().clone(),
+        }
     }
 
     fn __neg__(&self) -> PyExpression {
@@ -405,9 +420,9 @@ impl PyParameter {
 
     fn __repr__(&self) -> String {
         format!(
-            "Parameter({:?}, dimension={:?}, value={:?})",
+            "Parameter({:?}, value_type={:?}, value={:?})",
             self.name(),
-            self.dimension().value.exponents(),
+            self.value.value_type(),
             self.value()
         )
     }
@@ -428,10 +443,14 @@ pub(crate) struct PyPhysicalDomain {
 #[pymethods]
 impl PyPhysicalDomain {
     #[new]
-    #[pyo3(signature = (name, *, across_dimension, through_dimension))]
-    fn new(name: String, across_dimension: &PyDimension, through_dimension: &PyDimension) -> Self {
+    #[pyo3(signature = (name, *, across_type, through_type))]
+    fn new(name: String, across_type: &PyValueType, through_type: &PyValueType) -> Self {
         Self {
-            value: DraftPhysicalDomain::new(name, across_dimension.value, through_dimension.value),
+            value: DraftPhysicalDomain::new(
+                name,
+                across_type.value.clone(),
+                through_type.value.clone(),
+            ),
         }
     }
 
@@ -441,25 +460,25 @@ impl PyPhysicalDomain {
     }
 
     #[getter]
-    const fn across_dimension(&self) -> PyDimension {
-        PyDimension {
-            value: self.value.across_dimension(),
+    fn across_type(&self) -> PyValueType {
+        PyValueType {
+            value: self.value.across_type().clone(),
         }
     }
 
     #[getter]
-    const fn through_dimension(&self) -> PyDimension {
-        PyDimension {
-            value: self.value.through_dimension(),
+    fn through_type(&self) -> PyValueType {
+        PyValueType {
+            value: self.value.through_type().clone(),
         }
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "PhysicalDomain({:?}, across_dimension={:?}, through_dimension={:?})",
+            "PhysicalDomain({:?}, across_type={:?}, through_type={:?})",
             self.name(),
-            self.across_dimension().value.exponents(),
-            self.through_dimension().value.exponents()
+            self.value.across_type(),
+            self.value.through_type()
         )
     }
 }

@@ -361,7 +361,10 @@ impl ExpressionContext<'_> {
     ) -> Result<AuthoredFormExpression, Diagnostic> {
         let raw = resolve_symbol(self.file, expression.range(), name, self.symbols)?;
         match self.index.nodes.get(&raw).copied() {
-            Some(KernelNode::Field(field)) if field.shape().is_scalar() => {
+            Some(KernelNode::Field(field))
+                if field.shape().is_scalar()
+                    && field.value_type().scalar_domain() == eqiora_core::ScalarDomain::Real =>
+            {
                 let support = self.field_support(expression, raw)?;
                 Ok(typed(
                     AuthoredFormExpressionKind::Field(field.id()),
@@ -373,9 +376,16 @@ impl ExpressionContext<'_> {
             Some(KernelNode::Field(_)) => Err(error(
                 self.file,
                 expression.range(),
-                "scalar-primal forms accept only scalar Fields",
+                "scalar-primal forms accept only real scalar Fields",
             )),
-            Some(KernelNode::Parameter(parameter)) => Ok(parameter_expression(parameter)),
+            Some(KernelNode::Parameter(parameter)) if parameter.real_scalar_value().is_some() => {
+                Ok(parameter_expression(parameter))
+            }
+            Some(KernelNode::Parameter(_)) => Err(error(
+                self.file,
+                expression.range(),
+                "scalar-primal forms accept only real scalar Parameters",
+            )),
             _ => Err(error(
                 self.file,
                 expression.range(),
@@ -778,7 +788,7 @@ impl ExpressionContext<'_> {
 fn parameter_expression(parameter: &ParameterDef) -> AuthoredFormExpression {
     typed(
         AuthoredFormExpressionKind::Parameter(parameter.id()),
-        parameter.value().dim(),
+        parameter.value_type().dimension(),
         ValueShape::scalar(),
         None,
     )

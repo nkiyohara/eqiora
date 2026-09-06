@@ -21,7 +21,7 @@ model Main {
     field velocity = velocity,
     field pressure = pressure,
     field force_potential = force_potential,
-    dynamic_viscosity = 6
+    dynamic_viscosity = 6[kg / (m * s)]
   );
 
   relation x_lower_value continuous on x_lower { trace(velocity) = 0; }

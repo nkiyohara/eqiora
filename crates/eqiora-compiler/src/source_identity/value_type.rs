@@ -56,20 +56,24 @@ mod tests {
             "array<vector<V, 2>, 2>",
             "tensor<V, 2, 2>",
         ] {
-            let source = format!("model M {{ parameter value: {value_type} = 0; }}");
-            let document = eqiora_lang::parse("types.eqi", &source)
-                .into_document()
-                .unwrap();
-            let identity = LocalSourceIdentity::from_document(&document).unwrap();
-            assert!(identities.insert(identity), "{value_type}");
-            let formatted = eqiora_lang::format(&document);
-            let reparsed = eqiora_lang::parse("moved.eqi", &formatted)
-                .into_document()
-                .unwrap();
-            assert_eq!(
-                LocalSourceIdentity::from_document(&reparsed).unwrap(),
-                identity
-            );
+            for source in [
+                format!("model M {{ parameter value: {value_type} = 0; }}"),
+                format!("component C {{ public parameter value: {value_type}; }}"),
+            ] {
+                let document = eqiora_lang::parse("types.eqi", &source)
+                    .into_document()
+                    .unwrap();
+                let identity = LocalSourceIdentity::from_document(&document).unwrap();
+                assert!(identities.insert(identity), "{value_type}");
+                let formatted = eqiora_lang::format(&document);
+                let reparsed = eqiora_lang::parse("moved.eqi", &formatted)
+                    .into_document()
+                    .unwrap();
+                assert_eq!(
+                    LocalSourceIdentity::from_document(&reparsed).unwrap(),
+                    identity
+                );
+            }
         }
     }
 }

@@ -24,8 +24,8 @@ model Main {
     field velocity = fluid_velocity,
     field pressure = fluid_pressure,
     field force_potential = fluid_load_potential,
-    density = 2,
-    dynamic_viscosity = 0.5
+    density = 2[kg / m^3],
+    dynamic_viscosity = 0.5[kg / (m * s)]
   );
   instance fluid_boundary: fluid.NewtonianMechanicalInterface2d(
     support body = fluid_domain,
@@ -34,7 +34,7 @@ model Main {
     ),
     field velocity = fluid_velocity,
     field pressure = fluid_pressure,
-    dynamic_viscosity = 0.5
+    dynamic_viscosity = 0.5[kg / (m * s)]
   );
 
   field solid_displacement on solid_domain as space: vector<m, 2>;
@@ -49,9 +49,9 @@ model Main {
     field displacement = solid_displacement,
     field velocity = solid_velocity,
     field load_potential = solid_load_potential,
-    density = 3,
-    mu = 4,
-    lambda = 2
+    density = 3[kg / m^3],
+    mu = 4[Pa],
+    lambda = 2[Pa]
   );
   instance solid_boundary: solid.ElastodynamicMechanicalInterface2d(
     support body = solid_domain,
@@ -60,8 +60,8 @@ model Main {
     ),
     field displacement = solid_displacement,
     field velocity = solid_velocity,
-    mu = 4,
-    lambda = 2
+    mu = 4[Pa],
+    lambda = 2[Pa]
   );
 
   instance fluid_x_lower_zero: mechanics.ZeroVelocity2d(

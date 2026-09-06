@@ -212,7 +212,7 @@ def test_native_declarations_share_the_canonical_compile_and_run_path() -> None:
     state = eqiora.Field("x", initial=1.0)
     rate = eqiora.Parameter(
         "rate",
-        dimension=eqiora.Dimension(time=-1),
+        value_type=eqiora.ValueType.real(eqiora.Dimension(time=-1)),
         value=1.0,
     )
     flow = eqiora.Relation(
@@ -221,7 +221,7 @@ def test_native_declarations_share_the_canonical_compile_and_run_path() -> None:
     )
 
     model = eqiora.Model.define("decay", state, rate, flow)
-    assert json.loads(model.to_bytes())["schema"] == "eqiora.model-envelope/v10"
+    assert json.loads(model.to_bytes())["schema"] == "eqiora.model-envelope/v11"
     field = model.field(model.field_ids[0])
     plan = eqiora.resolve(
         model,
@@ -254,7 +254,7 @@ def test_source_and_native_models_share_only_structural_identity() -> None:
     state = eqiora.Field("state", initial=1.0)
     rate = eqiora.Parameter(
         "coefficient",
-        dimension=eqiora.Dimension(time=-1),
+        value_type=eqiora.ValueType.real(eqiora.Dimension(time=-1)),
         value=1.0,
     )
     balance = eqiora.Relation(
@@ -268,14 +268,14 @@ def test_source_and_native_models_share_only_structural_identity() -> None:
     assert source != native
     assert source.structural_fingerprint == native.structural_fingerprint
     assert source.structural_fingerprint.generation == (
-        "eqiora.structural-semantic-fingerprint/v5"
+        "eqiora.structural-semantic-fingerprint/v6"
     )
     assert len(source.structural_fingerprint.digest) == 64
     assert source.structurally_equivalent(native)
 
     changed_rate = eqiora.Parameter(
         "coefficient",
-        dimension=eqiora.Dimension(time=-1),
+        value_type=eqiora.ValueType.real(eqiora.Dimension(time=-1)),
         value=2.0,
     )
     changed_balance = eqiora.Relation(
@@ -307,7 +307,7 @@ def test_native_spatial_model_reuses_shared_support_and_operator_semantics() -> 
     )
     source_scale = eqiora.Parameter(
         "source_scale",
-        dimension=eqiora.Dimension(length=-2),
+        value_type=eqiora.ValueType.real(eqiora.Dimension(length=-2)),
         value=1.0,
     )
     native = eqiora.Model.define(
@@ -384,7 +384,7 @@ def test_native_declarations_are_frozen_and_keep_typed_compiler_diagnostics() ->
     )
     duration = eqiora.Parameter(
         "duration",
-        dimension=eqiora.Dimension(time=1),
+        value_type=eqiora.ValueType.real(eqiora.Dimension(time=1)),
         value=1.0,
     )
     relation = eqiora.Relation(
@@ -418,8 +418,8 @@ def physical_pair() -> tuple[
     current = eqiora.Dimension(current=1)
     electrical = eqiora.PhysicalDomain(
         "electrical",
-        across_dimension=voltage,
-        through_dimension=current,
+        across_type=eqiora.ValueType.real(voltage),
+        through_type=eqiora.ValueType.real(current),
     )
     left = eqiora.ConservingPort("left", domain=electrical)
     right = eqiora.ConservingPort("right", domain=electrical)
@@ -470,8 +470,8 @@ def test_native_physical_handles_are_frozen_and_nominal() -> None:
 
     equal_but_foreign = eqiora.PhysicalDomain(
         "electrical",
-        across_dimension=electrical.across_dimension,
-        through_dimension=electrical.through_dimension,
+        across_type=electrical.across_type,
+        through_type=electrical.through_type,
     )
     foreign = eqiora.ConservingPort("foreign", domain=equal_but_foreign)
     invalid = eqiora.connect(left, foreign)

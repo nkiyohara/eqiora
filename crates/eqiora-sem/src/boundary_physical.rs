@@ -325,6 +325,7 @@ pub(crate) fn resolve_port_contract(
             .shape()
             .extents()
             .iter()
+            .skip(connector_contract.trace_type().array_rank())
             .any(|extent| usize::try_from(extent.get()).ok() != Some(embedding.ambient_dimension()))
     {
         return Err(port_error(

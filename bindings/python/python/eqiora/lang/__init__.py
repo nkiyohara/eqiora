@@ -550,7 +550,7 @@ class Component:
         )
         self._names: set[str] = set()
         self._supports: list[tuple[Support, str, object, tuple[str, ...]]] = []
-        self._parameters: list[tuple[_Parameter, Unit, tuple[str, ...]]] = []
+        self._parameters: list[tuple[_Parameter, str, tuple[str, ...]]] = []
         self._properties: list[
             tuple[_PropertyRequirement, PropertyContract, tuple[str, ...]]
         ] = []
@@ -638,14 +638,15 @@ class Component:
         self,
         name: str,
         *,
-        unit: Unit,
+        value_type: ValueType,
         doc: str | None = None,
     ) -> Expression:
-        if not isinstance(unit, Unit):
-            raise TypeError("unit must be an eqiora.lang.units.Unit")
+        if not isinstance(value_type, ValueType):
+            raise TypeError("value_type must be an eqiora.ValueType")
+        syntax = value_type.to_eqi()
         admitted = self._add_name(name)
         parameter = _Parameter(self._owner, self._component_token, admitted)
-        self._parameters.append((parameter, unit, _doc(doc)))
+        self._parameters.append((parameter, syntax, _doc(doc)))
         return parameter
 
     def property(
@@ -913,9 +914,9 @@ class Component:
             self._parameters or self._fields or self._relations or self._instances
         ):
             lines.append("")
-        for parameter, unit, doc in self._parameters:
+        for parameter, value_type, doc in self._parameters:
             lines.extend(_comment(doc, "  "))
-            lines.append(f"  public parameter {parameter._name}: {unit._text};")
+            lines.append(f"  public parameter {parameter._name}: {value_type};")
         if self._parameters and (self._fields or self._relations or self._instances):
             lines.append("")
         if self._fields:

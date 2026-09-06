@@ -29,6 +29,18 @@ pub(crate) struct WireExpression {
 }
 
 impl WireExpression {
+    pub(crate) fn ensure_value_shape_limits(
+        &self,
+        limits: ModelDecoderLimits,
+    ) -> Result<(), Diagnostic> {
+        for node in &self.nodes {
+            if let WireExpressionNode::Constant { value_type, .. } = node {
+                value_type.ensure_limits(limits)?;
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn encode(expression: &ExprDag) -> Result<Self, Diagnostic> {
         Ok(Self {
             definitions: expression
@@ -235,7 +247,8 @@ impl PureOperatorWireCounts {
 #[serde(tag = "op", rename_all = "kebab-case", deny_unknown_fields)]
 pub(crate) enum WireExpressionNode {
     Constant {
-        value: WireQuantity,
+        value_type: super::value_type::WireValueType,
+        literal: f64,
     },
     Symbol {
         symbol: WireSymbol,
@@ -298,7 +311,8 @@ impl WireExpressionNode {
     pub(crate) fn encode(node: &ExprNode) -> Result<Self, Diagnostic> {
         Ok(match node {
             ExprNode::Constant(value) => Self::Constant {
-                value: WireQuantity::encode(*value),
+                value_type: super::value_type::WireValueType::encode(value.value_type())?,
+                literal: value.literal(),
             },
             ExprNode::Symbol(symbol) => Self::Symbol {
                 symbol: WireSymbol::encode(*symbol)?,
@@ -372,7 +386,19 @@ impl WireExpressionNode {
         definitions: &BTreeMap<String, PureOperatorDefinition>,
     ) -> Result<ExprId, Diagnostic> {
         let result = match self {
-            Self::Constant { value } => builder.constant(value.decode()?),
+            Self::Constant {
+                value_type,
+                literal,
+            } => {
+                if *literal == 0.0 && literal.is_sign_negative() {
+                    return Err(invalid_artifact(
+                        "constant literal requires canonical positive zero",
+                    ));
+                }
+                let value = eqiora_core::ValueLiteral::new(value_type.decode()?, *literal)
+                    .map_err(|error| invalid_artifact(error.to_string()))?;
+                builder.constant(value)
+            }
             Self::Symbol { symbol } => builder.symbol(symbol.decode()?),
             Self::Neg { value } => builder.neg(operand(ids, *value)?),
             Self::Add { left, right } => builder.add(operand(ids, *left)?, operand(ids, *right)?),

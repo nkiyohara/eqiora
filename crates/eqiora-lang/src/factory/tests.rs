@@ -56,7 +56,7 @@ fn owned_flat_model_formats_and_parses_identically() {
         "output",
         PortSyntax::Signal {
             direction: SignalDirectionSyntax::Output,
-            dimension: dimension(),
+            value_type: crate::ValueTypeSyntax::real(dimension()),
         },
         range(0, 0),
     )
@@ -65,7 +65,7 @@ fn owned_flat_model_formats_and_parses_identically() {
         "input",
         PortSyntax::Signal {
             direction: SignalDirectionSyntax::Input,
-            dimension: dimension(),
+            value_type: crate::ValueTypeSyntax::real(dimension()),
         },
         range(0, 0),
     )
@@ -140,8 +140,8 @@ fn owned_declaration_only_document_preserves_package_visibility() {
         VisibilitySyntax::Public,
         "Pin",
         ConnectorSyntax::ScalarPhysical {
-            across_dimension: dimension(),
-            through_dimension: dimension(),
+            across_type: crate::ValueTypeSyntax::real(dimension()),
+            through_type: crate::ValueTypeSyntax::real(dimension()),
         },
         range(0, 0),
     )
@@ -149,7 +149,7 @@ fn owned_declaration_only_document_preserves_package_visibility() {
     let resistance = SourceAstFactory::component_parameter(
         VisibilitySyntax::Public,
         "resistance",
-        dimension(),
+        crate::ValueTypeSyntax::real(dimension()),
         Some(dimension()),
         range(0, 0),
     )
@@ -626,7 +626,7 @@ fn factory_constructs_complete_exterior_families_and_roundtrips() {
         "signal",
         PortSyntax::Signal {
             direction: SignalDirectionSyntax::Input,
-            dimension: dimension(),
+            value_type: crate::ValueTypeSyntax::real(dimension()),
         },
         range(0, 0),
     )

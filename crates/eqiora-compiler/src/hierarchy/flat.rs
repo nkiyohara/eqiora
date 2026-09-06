@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, VecDeque};
 
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, EntityKind, Id, OntologyId, RawId, Span};
-use eqiora_lang::{ActivationSyntax, ConnectionSyntax, Expr, RepresentationSyntax, TextRange};
+use eqiora_lang::{ActivationSyntax, ConnectionSyntax, RepresentationSyntax, TextRange};
 use eqiora_schema::Model;
 
 use crate::identity::{
@@ -93,7 +93,7 @@ pub(super) enum FlatItemBlueprint {
     },
     Parameter {
         name: String,
-        dimension: Expr,
+        value_type: eqiora_lang::ValueTypeSyntax,
         value: f64,
         range: TextRange,
         identity: EntityIdentity,
@@ -360,13 +360,13 @@ impl ExpandedBlueprint {
                 },
                 FlatItemBlueprint::Parameter {
                     name,
-                    dimension,
+                    value_type,
                     value,
                     range,
                     ..
                 } => LoweringItem::Parameter {
                     name: name.clone(),
-                    dimension: dimension.clone(),
+                    value_type: value_type.clone(),
                     value: *value,
                     range: *range,
                 },

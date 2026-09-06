@@ -79,7 +79,10 @@ fn from_dag(dag: &ExprDag, id: ExprId) -> Result<AuthoredFormExpressionV1, Diagn
     let convert = |id| from_dag(dag, id).map(Box::new);
     Ok(match node(dag, id)? {
         ExprNode::Constant(value) => AuthoredFormExpressionV1::Number {
-            value: value.value(),
+            value: value
+                .real_scalar_value()
+                .ok_or_else(|| rejection("authored scalar form requires real scalar constants"))?
+                .value(),
         },
         ExprNode::Symbol(SymbolRef::Field(id)) => AuthoredFormExpressionV1::Field {
             ulid: id.ulid().to_string(),

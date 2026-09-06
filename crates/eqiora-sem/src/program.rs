@@ -661,13 +661,11 @@ fn boundary_connection_error(
 fn semantic_scalar_port_contract(
     port: &eqiora_schema::kernel::PortDef,
 ) -> Option<ScalarPortContract<RawId>> {
-    if let Some((direction, dimension)) = port.signal_contract() {
+    if let Some((direction, value_type)) = port.signal_contract() {
         Some(ScalarPortContract::Signal {
             direction,
-            dimension,
+            value_type: value_type.clone(),
         })
-    } else if let Some(dimension) = port.marker_dimension() {
-        Some(ScalarPortContract::ConservingMarker { dimension })
     } else {
         port.physical_domain()
             .map(|domain| ScalarPortContract::ScalarPhysical {
@@ -678,9 +676,9 @@ fn semantic_scalar_port_contract(
 
 fn scalar_connection_error(connection: RawId, violation: ScalarConnectionViolation) -> Diagnostic {
     match violation {
-        ScalarConnectionViolation::SignalDimensionMismatch => relation_dimension_error(
+        ScalarConnectionViolation::SignalTypeMismatch => relation_dimension_error(
             connection,
-            "connected signal Ports must have identical physical dimensions",
+            "connected signal Ports must have identical physical dimensions and compatible scalar domains, shapes and frames",
         ),
         ScalarConnectionViolation::TooFewPorts { found } => kernel_error(
             connection,
@@ -696,11 +694,7 @@ fn scalar_connection_error(connection: RawId, violation: ScalarConnectionViolati
         ),
         ScalarConnectionViolation::MixedConservingFamilies => kernel_error(
             connection,
-            "conserving Connection cannot mix signal, marker, and scalar physical Ports",
-        ),
-        ScalarConnectionViolation::MarkerDimensionMismatch => relation_dimension_error(
-            connection,
-            "conserving marker Ports must have identical physical dimensions",
+            "conserving Connection cannot mix signal and scalar physical Ports",
         ),
         ScalarConnectionViolation::PhysicalNominalMismatch => kernel_error(
             connection,
@@ -849,16 +843,14 @@ fn symbol_type(
         },
         SymbolRef::Parameter(id) => match nodes.get(&id.erase()) {
             Some(KernelNode::Parameter(parameter)) => {
-                Ok(ExpressionType::scalar(parameter.value().dim(), None))
+                Ok(ExpressionType::new(parameter.value_type().clone(), None))
             }
             _ => Err(SymbolTypeError::Missing),
         },
         SymbolRef::Port(id) => match nodes.get(&id.erase()) {
             Some(KernelNode::Port(port)) => port
                 .signal_contract()
-                .map(|(_, dimension)| dimension)
-                .or_else(|| port.marker_dimension())
-                .map(|dimension| ExpressionType::scalar(dimension, None))
+                .map(|(_, value_type)| ExpressionType::new(value_type.clone(), None))
                 .ok_or(SymbolTypeError::WrongPortContract),
             _ => Err(SymbolTypeError::Missing),
         },
@@ -873,18 +865,18 @@ fn symbol_type(
                 return Err(SymbolTypeError::Missing);
             };
             let DomainKind::ScalarPhysical {
-                across_dimension,
-                through_dimension,
+                across_type,
+                through_type,
             } = domain.kind()
             else {
                 return Err(SymbolTypeError::WrongPortContract);
             };
-            let dimension = if matches!(symbol, SymbolRef::Across(_)) {
-                *across_dimension
+            let value_type = if matches!(symbol, SymbolRef::Across(_)) {
+                across_type
             } else {
-                *through_dimension
+                through_type
             };
-            Ok(ExpressionType::scalar(dimension, None))
+            Ok(ExpressionType::new(value_type.clone(), None))
         }
         SymbolRef::PortTrace(id) | SymbolRef::PortFlux(id) => {
             let Some(KernelNode::Port(port)) = nodes.get(&id.erase()) else {
@@ -902,18 +894,12 @@ fn symbol_type(
             let Some(support) = spatial_supports.get(&boundary.erase()).cloned() else {
                 return Err(SymbolTypeError::WrongPortContract);
             };
-            let dimension = if matches!(symbol, SymbolRef::PortTrace(_)) {
-                connector.trace_dimension()
+            let value_type = if matches!(symbol, SymbolRef::PortTrace(_)) {
+                connector.trace_type()
             } else {
-                connector.flux_dimension()
+                connector.flux_type()
             };
-            ExpressionType::shaped(
-                dimension,
-                connector.shape().clone(),
-                connector.frame(),
-                Some(support),
-            )
-            .map_err(|_| SymbolTypeError::WrongPortContract)
+            Ok(ExpressionType::new(value_type.clone(), Some(support)))
         }
         SymbolRef::Time => Ok(ExpressionType::scalar(
             DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension"),

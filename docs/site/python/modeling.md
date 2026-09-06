@@ -4,11 +4,11 @@ Python authoring produces immutable declarations that close into the same
 Rust-owned semantic model as Eqiora Language and Studio.
 
 The current source-tree Python surface includes native builders for typed `Field`,
-scalar `Parameter`, and continuous `Relation` declarations, physical domains and
+`Parameter`, and continuous `Relation` declarations, physical domains and
 ports, exact model identity, and one Rust-owned exact
 axis-aligned-rectangle-with-circular-hole geometry. That exact family can enter
 one explicit, error-controlled Gmsh meshing operation while the
-source remains exact. A typed `Realization` separately selects an admitted
+source remains exact. A resolved `Plan` separately selects an admitted
 numerical path; choosing FEM or FVM never changes model or geometry meaning.
 One explicit-store package operation consumes exact canonical resolution bytes
 and a bare root-local Model selector, then returns the ordinary immutable
@@ -32,16 +32,18 @@ lowerer, and Geometry binder; Python owns neither equation meaning nor a second
 lowerer. Its immutable `math.pi` expression and `math.sin(...)` operation emit
 those exact compiler-owned spellings and leave value and typing semantics to
 the native compiler. Equation-structure operators remain in the small implicit
-prelude; scalar mathematics lives under reserved `math.*`. The initial
-vocabulary is exactly the one needed by the complete steady-cylinder Stokes
-Component and scalar Poisson examples.
+prelude; scalar mathematics lives under reserved `math.*`. The complete
+steady-cylinder Stokes Component and scalar Poisson examples use this vocabulary.
+Native and Source declarations share
+`ValueType`: real or complex scalars with exact physical dimensions, spatial
+vectors/tensors, and channel arrays. Spatial axes must match the exact support;
+channel axes do not become spatial vectors merely because their extents agree.
+Complex execution remains under development.
 
-Native `Field` and Source `Component.field` share `ValueType`: real or complex
-scalar domains, exact rational physical dimensions, spatial vectors/tensors, and
-channel arrays. Spatial axes must match the exact Domain; equal extents do not
-make a channel array a spatial vector. A numeric Field initializer uses its
-declared coherent unit, and zero initializes the complete shaped type without
-scalar broadcasting. Complex execution remains under development.
+Numeric declaration initializers inherit an explicitly declared dimension's
+coherent unit, so `parameter rate: 1 / s = 1;` needs no repeated unit on the right.
+Explicit compatible input units still convert normally; general expressions
+do not gain this declaration-only context.
 
 Start with the complete [five-minute example](../get-started.md), then read
 the maintained

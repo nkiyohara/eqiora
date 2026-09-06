@@ -28,8 +28,8 @@ model Main {
     field velocity = fluid_velocity,
     field pressure = pressure,
     field force_potential = fluid_load,
-    density = 1,
-    dynamic_viscosity = 0.2
+    density = 1[kg / m ^ 3],
+    dynamic_viscosity = 0.2[kg / (m * s)]
   );
   instance fluid_boundary: fluid_laws.NewtonianMechanicalInterface3d(
     support body = fluid,
@@ -39,7 +39,7 @@ model Main {
     ),
     field velocity = fluid_velocity,
     field pressure = pressure,
-    dynamic_viscosity = 0.2
+    dynamic_viscosity = 0.2[kg / (m * s)]
   );
 
   field displacement on solid as space: vector<m, 3>;
@@ -54,9 +54,9 @@ model Main {
     field displacement = displacement,
     field velocity = solid_velocity,
     field load_potential = solid_load,
-    density = 1,
-    mu = 2,
-    lambda = 1
+    density = 1[kg / m ^ 3],
+    mu = 2[kg / (m * s ^ 2)],
+    lambda = 1[kg / (m * s ^ 2)]
   );
   instance solid_boundary: solid_laws.ElastodynamicMechanicalInterface3d(
     support body = solid,
@@ -66,8 +66,8 @@ model Main {
     ),
     field displacement = displacement,
     field velocity = solid_velocity,
-    mu = 2,
-    lambda = 1
+    mu = 2[kg / (m * s ^ 2)],
+    lambda = 1[kg / (m * s ^ 2)]
   );
 
   instance fluid_x_lower_zero: mechanics.ZeroVelocity3d(

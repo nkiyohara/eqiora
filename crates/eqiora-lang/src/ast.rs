@@ -3,6 +3,7 @@
 mod compile_time;
 pub(crate) mod document;
 pub(crate) mod formulation;
+mod name_path;
 mod value_type;
 
 pub use value_type::{ValueTypeSyntax, ValueTypeSyntaxKind};
@@ -55,37 +56,6 @@ pub struct NamePath {
 }
 
 impl NamePath {
-    pub(crate) fn from_parsed_segments(
-        segments: impl IntoIterator<Item = String>,
-        range: TextRange,
-    ) -> Self {
-        let mut text = String::new();
-        let mut ranges = Vec::new();
-        for segment in segments {
-            if !text.is_empty() {
-                text.push('.');
-            }
-            let start = text.len();
-            text.push_str(&segment);
-            ranges.push(start..text.len());
-        }
-        debug_assert!(!ranges.is_empty(), "a NamePath is nonempty");
-        Self {
-            text,
-            segments: ranges,
-            range,
-        }
-    }
-
-    pub(crate) fn single(name: String, range: TextRange) -> Self {
-        Self::from_parsed_segments([name], range)
-    }
-
-    pub(crate) fn with_range(mut self, range: TextRange) -> Self {
-        self.range = range;
-        self
-    }
-
     /// Canonical dotted source spelling.
     #[must_use]
     pub fn as_str(&self) -> &str {
@@ -339,12 +309,12 @@ impl ConnectorDecl {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ConnectorSyntax {
-    /// Scalar acausal connector with across and through SI dimensions.
+    /// Scalar acausal connector with complete across and through types.
     ScalarPhysical {
-        /// Dimension of the across variable.
-        across_dimension: Expr,
-        /// Dimension of the through variable.
-        through_dimension: Expr,
+        /// Complete scalar type of the across variable.
+        across_type: ValueTypeSyntax,
+        /// Complete scalar type of the through variable.
+        through_type: ValueTypeSyntax,
     },
     /// Field-valued trace/flux pair on one oriented boundary support.
     FieldPhysical {
@@ -461,7 +431,7 @@ pub enum VisibilitySyntax {
 pub struct ComponentParameterDecl {
     pub(crate) visibility: VisibilitySyntax,
     pub(crate) name: String,
-    pub(crate) dimension: Expr,
+    pub(crate) value_type: ValueTypeSyntax,
     pub(crate) default: Option<Expr>,
     pub(crate) range: TextRange,
 }
@@ -481,8 +451,14 @@ impl ComponentParameterDecl {
 
     /// Static SI dimension expression.
     #[must_use]
-    pub const fn dimension(&self) -> &Expr {
-        &self.dimension
+    pub fn dimension(&self) -> &Expr {
+        self.value_type.dimension()
+    }
+
+    /// Complete declared mathematical type.
+    #[must_use]
+    pub const fn value_type(&self) -> &ValueTypeSyntax {
+        &self.value_type
     }
 
     /// Optional compile-time default expression. `None` is a required public
@@ -998,10 +974,10 @@ pub enum DomainSyntax {
     /// One nominal scalar conserving domain. The declaration identity, not
     /// dimension coincidence, determines Port compatibility.
     ScalarPhysical {
-        /// Dimension of the across variable.
-        across_dimension: Expr,
-        /// Dimension of the through variable.
-        through_dimension: Expr,
+        /// Complete scalar type of the across variable.
+        across_type: ValueTypeSyntax,
+        /// Complete scalar type of the through variable.
+        through_type: ValueTypeSyntax,
     },
 }
 
@@ -1129,17 +1105,12 @@ impl PortDecl {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum PortSyntax {
-    /// Causal scalar signal.
+    /// Causal signal with a complete mathematical value type.
     Signal {
         /// Causal direction.
         direction: SignalDirectionSyntax,
-        /// Static SI dimension.
-        dimension: Expr,
-    },
-    /// Structural-only legacy conserving marker.
-    ConservingMarker {
-        /// Saved scalar dimension retained for legacy model meaning.
-        dimension: Expr,
+        /// Mathematical scalar domain, dimension and component roles.
+        value_type: ValueTypeSyntax,
     },
     /// Executable scalar conserving Port, nominally typed by one Domain.
     /// In the flat source slice, a Relation that reads this Port with

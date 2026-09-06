@@ -46,6 +46,54 @@ model = eqiora.Model.define("wave", field, balance)
 }
 
 #[test]
+fn python_native_parameters_lower_complex_scalars_and_shaped_zero() -> PyResult<()> {
+    Python::initialize();
+    Python::attach(|py| {
+        let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
+        let locals = PyDict::new(py);
+        locals.set_item("eqiora", native.bind(py))?;
+        py.run(
+            c_str!(
+                r#"
+scalar = eqiora.ValueType.complex(eqiora.Dimension(length=1))
+for value_type, value in [(scalar, 2.0), (eqiora.ValueType.array(scalar, 3), 0.0)]:
+    coefficient = eqiora.Parameter("coefficient", value_type=value_type, value=value)
+    field = eqiora.Field("state", value_type=value_type)
+    relation = eqiora.Relation("balance", residual=field - coefficient)
+    model = eqiora.Model.define("typed_parameter", coefficient, field, relation)
+    assert coefficient.value_type == value_type
+    assert eqiora.Model.from_bytes(model.to_bytes()).digest == model.digest
+"#
+            ),
+            Some(&locals),
+            None,
+        )
+    })
+}
+
+#[test]
+fn python_physical_domains_preserve_complete_scalar_types() -> PyResult<()> {
+    Python::initialize();
+    Python::attach(|py| {
+        let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
+        let locals = PyDict::new(py);
+        locals.set_item("eqiora", native.bind(py))?;
+        py.run(c_str!(r#"
+voltage = eqiora.ValueType.complex(eqiora.Dimension(mass=1, length=2, time=-3, current=-1))
+current = eqiora.ValueType.complex(eqiora.Dimension(current=1))
+domain = eqiora.PhysicalDomain("electrical", across_type=voltage, through_type=current)
+assert domain.across_type == voltage
+assert domain.through_type == current
+left = eqiora.ConservingPort("left", domain=domain)
+right = eqiora.ConservingPort("right", domain=domain)
+relation = eqiora.Relation("balance", residuals=[eqiora.across(left) - eqiora.across(right), eqiora.through(left) + eqiora.through(right)])
+model = eqiora.Model.define("complex_physical", domain, left, right, relation, eqiora.connect(left, right))
+assert eqiora.Model.from_bytes(model.to_bytes()).digest == model.digest
+"#), Some(&locals), None)
+    })
+}
+
+#[test]
 fn python_native_modeling_crosses_only_shared_rust_contracts() -> PyResult<()> {
     Python::initialize();
     Python::attach(|py| {
@@ -60,7 +108,7 @@ fn python_native_modeling_crosses_only_shared_rust_contracts() -> PyResult<()> {
 x = eqiora.Field("x", initial=1.0)
 rate = eqiora.Parameter(
     "rate",
-    dimension=eqiora.Dimension(time=-1),
+    value_type=eqiora.ValueType.real(eqiora.Dimension(time=-1)),
     value=1.0,
 )
 flow = eqiora.Relation(
@@ -73,8 +121,8 @@ voltage = eqiora.Dimension(mass=1, length=2, time=-3, current=-1)
 current = eqiora.Dimension(current=1)
 electrical = eqiora.PhysicalDomain(
     "electrical",
-    across_dimension=voltage,
-    through_dimension=current,
+    across_type=eqiora.ValueType.real(voltage),
+    through_type=eqiora.ValueType.real(current),
 )
 left = eqiora.ConservingPort("left", domain=electrical)
 right = eqiora.ConservingPort("right", domain=electrical)
@@ -117,7 +165,7 @@ potential = eqiora.Field(
 )
 source_scale = eqiora.Parameter(
     "source_scale",
-    dimension=eqiora.Dimension(length=-2),
+    value_type=eqiora.ValueType.real(eqiora.Dimension(length=-2)),
     value=1.0,
 )
 spatial_model = eqiora.Model.define(
@@ -279,7 +327,7 @@ temperature = eqiora.Field(
 )
 duration = eqiora.Parameter(
     "duration",
-    dimension=eqiora.Dimension(time=1),
+    value_type=eqiora.ValueType.real(eqiora.Dimension(time=1)),
     value=1.0,
 )
 invalid = eqiora.Relation("invalid", residual=temperature + duration)
@@ -300,13 +348,13 @@ voltage = eqiora.Dimension(mass=1, length=2, time=-3, current=-1)
 current = eqiora.Dimension(current=1)
 left_domain = eqiora.PhysicalDomain(
     "electrical_left",
-    across_dimension=voltage,
-    through_dimension=current,
+    across_type=eqiora.ValueType.real(voltage),
+    through_type=eqiora.ValueType.real(current),
 )
 equal_but_foreign = eqiora.PhysicalDomain(
     "electrical_foreign",
-    across_dimension=voltage,
-    through_dimension=current,
+    across_type=eqiora.ValueType.real(voltage),
+    through_type=eqiora.ValueType.real(current),
 )
 left = eqiora.ConservingPort("left", domain=left_domain)
 foreign = eqiora.ConservingPort("foreign", domain=equal_but_foreign)
@@ -337,8 +385,8 @@ voltage = eqiora.Dimension(mass=1, length=2, time=-3, current=-1)
 current = eqiora.Dimension(current=1)
 electrical = eqiora.PhysicalDomain(
     "electrical",
-    across_dimension=voltage,
-    through_dimension=current,
+    across_type=eqiora.ValueType.real(voltage),
+    through_type=eqiora.ValueType.real(current),
 )
 left = eqiora.ConservingPort("left", domain=electrical)
 omitted = eqiora.ConservingPort("omitted", domain=electrical)

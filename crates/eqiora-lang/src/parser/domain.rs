@@ -59,10 +59,10 @@ impl Parser<'_> {
             self.expect(TokenKind::RightParen, "`)` after boundary selector")?;
             DomainSyntax::Boundary { parent, axis, side }
         } else if self.at_keyword("scalar_physical") {
-            let (across_dimension, through_dimension) = self.parse_scalar_physical_dimensions()?;
+            let (across_type, through_type) = self.parse_scalar_physical_types()?;
             DomainSyntax::ScalarPhysical {
-                across_dimension,
-                through_dimension,
+                across_type,
+                through_type,
             }
         } else {
             self.error_here(

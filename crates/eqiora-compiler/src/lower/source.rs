@@ -27,8 +27,8 @@ impl LoweringModel {
                     },
                     Item::Parameter(declaration) => LoweringItem::Parameter {
                         name: declaration.name().to_owned(),
-                        dimension: declaration.dimension().clone(),
-                        value: crate::units::parameter_value(file, declaration)?,
+                        value_type: declaration.value_type().clone(),
+                        value: crate::units::parameter_literal(file, declaration)?.literal(),
                         range: declaration.range(),
                     },
                     Item::Port(declaration) => LoweringItem::Port {

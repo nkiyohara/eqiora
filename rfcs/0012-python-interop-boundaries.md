@@ -184,7 +184,7 @@ base-dimension exponents, arithmetic, and time derivatives:
 x = eqiora.Field("x", initial=1.0)
 rate = eqiora.Parameter(
     "rate",
-    dimension=eqiora.Dimension(time=-1),
+    value_type=eqiora.ValueType.real(eqiora.Dimension(time=-1)),
     value=1.0,
 )
 flow = eqiora.Relation(

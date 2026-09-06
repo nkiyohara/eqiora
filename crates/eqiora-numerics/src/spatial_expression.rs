@@ -578,7 +578,17 @@ pub(crate) fn lower(
             continue;
         }
         let instruction = match node {
-            ExprNode::Constant(value) => Instruction::Constant(value.value()),
+            ExprNode::Constant(value) => Instruction::Constant(
+                value
+                    .real_scalar_value()
+                    .ok_or_else(|| {
+                        invalid(
+                            owner,
+                            "scalar spatial lowering requires real scalar constants",
+                        )
+                    })?
+                    .value(),
+            ),
             ExprNode::Symbol(SymbolRef::Parameter(parameter)) => {
                 let value = program
                     .value(parameter.erase())

@@ -106,7 +106,7 @@ class Component:
         self,
         name: str,
         *,
-        unit: _Unit,
+        value_type: ValueType,
         doc: str | None = None,
     ) -> Expression: ...
     def property(

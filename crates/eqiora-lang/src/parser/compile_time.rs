@@ -29,9 +29,9 @@ impl Parser<'_> {
     pub(super) fn parse_let(&mut self) -> Option<LetDecl> {
         let start = self.expect_keyword("let")?.range().start();
         let name = self.expect_identifier("alias name")?.text().to_owned();
-        let dimension = if self.at(TokenKind::Colon) {
+        let value_type = if self.at(TokenKind::Colon) {
             self.bump();
-            Some(self.parse_dimension_expression()?)
+            Some(self.parse_value_type()?)
         } else {
             None
         };
@@ -43,7 +43,7 @@ impl Parser<'_> {
             .end();
         Some(LetDecl {
             name,
-            dimension,
+            value_type,
             value,
             range: TextRange::new(start, end),
         })
@@ -56,6 +56,19 @@ mod tests {
     use crate::{format, parse};
 
     #[test]
+    fn complete_let_type_annotations_round_trip() {
+        let source = "model M { let z: complex<m> = 0; let channels: array<complex<m>, 3> = 0; }";
+        let document = parse("typed-let.eqi", source).into_document().unwrap();
+        let formatted = format(&document);
+        assert!(formatted.contains("let z: complex<m> = 0;"));
+        assert!(formatted.contains("let channels: array<complex<m>, 3> = 0;"));
+        assert_eq!(
+            format(&parse("again.eqi", &formatted).into_document().unwrap()),
+            formatted
+        );
+    }
+
+    #[test]
     fn parser_and_formatter_retain_annotated_and_inferred_let_aliases() {
         let source =
             "model M { let wave_number = math.pi / length; let checked: 1 / m = wave_number; }";
@@ -66,11 +79,11 @@ mod tests {
             panic!("model item is a let alias");
         };
         assert_eq!(declaration.name(), "wave_number");
-        assert!(declaration.dimension().is_none());
+        assert!(declaration.value_type().is_none());
         let Item::Let(checked) = &document.models()[0].items()[1] else {
             panic!("second model item is a let alias");
         };
-        assert!(checked.dimension().is_some());
+        assert!(checked.value_type().is_some());
         let formatted = format(&document);
         assert_eq!(
             formatted,

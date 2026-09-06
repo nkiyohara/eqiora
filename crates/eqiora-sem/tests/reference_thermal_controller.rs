@@ -185,7 +185,7 @@ fn thermal_fixture() -> ThermalFixture {
             .with_initial(
                 DynQuantity::new(293.0, temperature_dimension)
                     .try_into()
-                    .expect("finite real Field initial"),
+                    .expect("finite real initial value"),
             )
             .expect("temperature initial"),
         ),
@@ -200,39 +200,77 @@ fn thermal_fixture() -> ThermalFixture {
             .with_initial(
                 DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)
                     .try_into()
-                    .expect("finite real Field initial"),
+                    .expect("finite real initial value"),
             )
             .expect("command initial"),
         ),
-        KernelNode::from(ParameterDef::new(
-            ambient,
-            DynQuantity::new(293.0, temperature_dimension),
-        )),
-        KernelNode::from(ParameterDef::new(
-            time_constant,
-            DynQuantity::new(10.0, time_dimension),
-        )),
-        KernelNode::from(ParameterDef::new(
-            heating_gain,
-            DynQuantity::new(2.0, temperature_rate_dimension),
-        )),
-        KernelNode::from(ParameterDef::new(
-            setpoint,
-            DynQuantity::new(300.0, temperature_dimension),
-        )),
-        KernelNode::from(ParameterDef::new(
-            controller_gain,
-            DynQuantity::new(0.1, inverse_temperature_dimension),
-        )),
+        KernelNode::from(
+            ParameterDef::new(
+                ambient,
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    temperature_dimension,
+                ),
+                293.0,
+            )
+            .unwrap(),
+        ),
+        KernelNode::from(
+            ParameterDef::new(
+                time_constant,
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, time_dimension),
+                10.0,
+            )
+            .unwrap(),
+        ),
+        KernelNode::from(
+            ParameterDef::new(
+                heating_gain,
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    temperature_rate_dimension,
+                ),
+                2.0,
+            )
+            .unwrap(),
+        ),
+        KernelNode::from(
+            ParameterDef::new(
+                setpoint,
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    temperature_dimension,
+                ),
+                300.0,
+            )
+            .unwrap(),
+        ),
+        KernelNode::from(
+            ParameterDef::new(
+                controller_gain,
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    inverse_temperature_dimension,
+                ),
+                0.1,
+            )
+            .unwrap(),
+        ),
         KernelNode::from(PortDef::signal(
             controller_output,
             SignalDirection::Output,
-            DimExponents::DIMENSIONLESS,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
         )),
         KernelNode::from(PortDef::signal(
             plant_input,
             SignalDirection::Input,
-            DimExponents::DIMENSIONLESS,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
         )),
         KernelNode::from(RelationDef::new(
             plant_relation,

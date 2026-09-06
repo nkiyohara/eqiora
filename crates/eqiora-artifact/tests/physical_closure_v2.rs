@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use eqiora_artifact::{ModelEnvelope, ModelTransactionEnvelope};
 use eqiora_core::entity::kinds;
-use eqiora_core::{DimExponents, DynQuantity, Id, OntologyId, RawId};
+use eqiora_core::{DimExponents, Id, OntologyId, RawId};
 use eqiora_graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora_schema::kernel::{
     ActivationDef, ConnectionDef, ConnectionSemantics, DomainDef, ExprDagBuilder, KernelNode,
@@ -64,8 +64,20 @@ fn relation(id: Id<kinds::Relation>, symbols: &[SymbolRef], subtract: bool) -> R
 fn closure_transaction(ids: ClosureIds, unrelated: bool, reversed: bool) -> Transaction {
     let dimension = DimExponents::DIMENSIONLESS;
     let mut nodes = vec![
-        DomainDef::scalar_physical(ids.domain, dimension, dimension).into(),
-        ParameterDef::new(ids.parameter, DynQuantity::new(2.0, dimension)).into(),
+        DomainDef::scalar_physical(
+            ids.domain,
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension),
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension),
+        )
+        .unwrap()
+        .into(),
+        ParameterDef::new(
+            ids.parameter,
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension),
+            2.0,
+        )
+        .unwrap()
+        .into(),
         ActivationDef::continuous(ids.activation).into(),
         ConnectionDef::new(ids.joined_connections[0], ConnectionSemantics::Conserving).into(),
         ConnectionDef::new(ids.joined_connections[1], ConnectionSemantics::Conserving).into(),

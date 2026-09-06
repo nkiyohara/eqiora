@@ -49,7 +49,10 @@ fn typed_dimensions_and_expression_references_become_source_ast() {
     );
     let rate = DraftParameter::new(
         "rate",
-        DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),
+        ),
         1.0,
     );
     let residual = DraftExpression::derivative(&state) + rate.expression() * state.expression();
@@ -67,6 +70,14 @@ fn typed_dimensions_and_expression_references_become_source_ast() {
     assert_eq!(native.model().name(), "decay");
     assert_eq!(native.model().items().len(), 3);
     assert!(native.graph_path(native.model().range()).is_some());
+    for item in &native.model().items()[..2] {
+        let initializer = match item {
+            Item::Field(field) => field.initial().unwrap(),
+            Item::Parameter(parameter) => parameter.value(),
+            _ => panic!("expected a numeric declaration"),
+        };
+        assert!(matches!(initializer.kind(), ExprKind::Number(1.0)));
+    }
 }
 
 #[test]
@@ -109,13 +120,19 @@ fn native_draft_rejects_names_and_numbers_source_could_not_express() {
 
 #[test]
 fn physical_vocabulary_projects_only_to_existing_source_ast_forms() {
-    let electrical =
-        DraftPhysicalDomain::new("electrical", voltage_dimension(), current_dimension());
+    let electrical = DraftPhysicalDomain::new(
+        "electrical",
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage_dimension()),
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, current_dimension()),
+    );
     let positive = DraftConservingPort::new("positive", &electrical);
     let negative = DraftConservingPort::new("negative", &electrical);
     let resistance = DraftParameter::new(
         "resistance",
-        DimExponents::from_integers([1, 2, -3, -2, 0, 0, 0]).expect("bounded dimension"),
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::from_integers([1, 2, -3, -2, 0, 0, 0]).expect("bounded dimension"),
+        ),
         2.0,
     );
     let relation = DraftRelation::continuous(
@@ -177,10 +194,16 @@ fn physical_vocabulary_projects_only_to_existing_source_ast_forms() {
 
 #[test]
 fn draft_closure_rejects_foreign_domain_and_port_identity_before_rebinding_names() {
-    let declared_domain =
-        DraftPhysicalDomain::new("electrical", voltage_dimension(), current_dimension());
-    let foreign_domain =
-        DraftPhysicalDomain::new("electrical", voltage_dimension(), current_dimension());
+    let declared_domain = DraftPhysicalDomain::new(
+        "electrical",
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage_dimension()),
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, current_dimension()),
+    );
+    let foreign_domain = DraftPhysicalDomain::new(
+        "electrical",
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage_dimension()),
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, current_dimension()),
+    );
     let declared_port = DraftConservingPort::new("terminal", &declared_domain);
     let foreign_domain_port = DraftConservingPort::new("foreign_domain", &foreign_domain);
     let foreign_port = DraftConservingPort::new("terminal", &declared_domain);
@@ -215,9 +238,16 @@ fn draft_closure_rejects_foreign_domain_and_port_identity_before_rebinding_names
 
 #[test]
 fn draft_closure_rejects_invalid_connection_membership_atomically() {
-    let electrical =
-        DraftPhysicalDomain::new("electrical", voltage_dimension(), current_dimension());
-    let other = DraftPhysicalDomain::new("other", voltage_dimension(), current_dimension());
+    let electrical = DraftPhysicalDomain::new(
+        "electrical",
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage_dimension()),
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, current_dimension()),
+    );
+    let other = DraftPhysicalDomain::new(
+        "other",
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage_dimension()),
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, current_dimension()),
+    );
     let a = DraftConservingPort::new("a", &electrical);
     let b = DraftConservingPort::new("b", &electrical);
     let incompatible = DraftConservingPort::new("incompatible", &other);
@@ -266,7 +296,11 @@ fn draft_closure_rejects_invalid_connection_membership_atomically() {
 
 #[test]
 fn duplicate_names_are_rejected_across_physical_and_scalar_declarations() {
-    let domain = DraftPhysicalDomain::new("shared", voltage_dimension(), current_dimension());
+    let domain = DraftPhysicalDomain::new(
+        "shared",
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage_dimension()),
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, current_dimension()),
+    );
     let field = DraftField::new(
         "shared",
         eqiora_core::ValueType::scalar(
@@ -285,7 +319,11 @@ fn duplicate_names_are_rejected_across_physical_and_scalar_declarations() {
 
 #[test]
 fn anonymous_connection_diagnostic_paths_follow_membership_not_declaration_position() {
-    let domain = DraftPhysicalDomain::new("electrical", voltage_dimension(), current_dimension());
+    let domain = DraftPhysicalDomain::new(
+        "electrical",
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage_dimension()),
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, current_dimension()),
+    );
     let terminal = DraftConservingPort::new("terminal", &domain);
     let unrelated = DraftField::new(
         "x",

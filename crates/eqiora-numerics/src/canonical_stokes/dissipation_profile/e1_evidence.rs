@@ -425,7 +425,10 @@ fn design_parameters(
             continue;
         };
         let identity = definition.id().erase();
-        let value = program.value(identity).unwrap_or(definition.value());
+        let Some(initial) = definition.real_scalar_value() else {
+            continue;
+        };
+        let value = program.value(identity).unwrap_or(initial);
         if value.dim() == LENGTH && value.value() == area_radius_m {
             if area_radius.replace(identity).is_some() {
                 return Err(invalid("the E1 scaffold has an ambiguous `r_A` Parameter"));

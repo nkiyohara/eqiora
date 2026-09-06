@@ -52,7 +52,7 @@ fn direct_sources_resolve_once_and_match_both_precommitted_revisions() {
         StructuralSemanticFingerprint::from_program(&base)
             .unwrap()
             .generation(),
-        SemanticFingerprintGeneration::V5
+        SemanticFingerprintGeneration::V6
     );
 
     let before = base.value(parameter.erase()).unwrap();
@@ -141,7 +141,7 @@ fn closed_language_and_whole_model_invariants_fail_before_exposure() {
     assert_compile_rejected_with(
         "model m { parameter extent: s = 1; domain body = box(0, extent); relation r continuous on body { coordinate(0) - coordinate(0) = 0; } }",
         codes::LANGUAGE_TYPE_ERROR,
-        "Cartesian coordinate Parameter `extent` is not a length",
+        "Cartesian coordinate Parameter `extent` is not a real scalar length",
     );
     assert_compile_rejected_with(
         "model m { parameter extent: m = 1; domain body = box(0, extent + 1); relation r continuous on body { coordinate(0) - coordinate(0) = 0; } }",
@@ -349,17 +349,17 @@ fn absent_parameter_definition_and_non_finite_value_fail_whole_model_resolution(
 }
 
 #[test]
-fn v8_decoding_rejects_wrong_kind_and_foreign_coordinate_parameter_ids() {
+fn current_decoding_rejects_wrong_kind_and_foreign_coordinate_parameter_ids() {
     let (_, base, body, _) = compile_program(SOURCE);
-    let wire = v8_wire(&base);
-    decode_v8(&wire).expect("the unmutated v8 model decodes");
+    let wire = current_wire(&base);
+    decode_current(&wire).expect("the unmutated current model decodes");
 
     let mut wrong_kind = wire.clone();
     assert_eq!(
         retarget_coordinate_parameters(&mut wrong_kind, &wire_id("domain", body.ulid())),
         2
     );
-    assert!(decode_v8(&wrong_kind).is_err());
+    assert!(decode_current(&wrong_kind).is_err());
 
     let mut foreign = wire.clone();
     assert_eq!(
@@ -369,40 +369,40 @@ fn v8_decoding_rejects_wrong_kind_and_foreign_coordinate_parameter_ids() {
         ),
         2
     );
-    assert!(decode_v8(&foreign).is_err());
+    assert!(decode_current(&foreign).is_err());
 }
 
 #[test]
-fn v8_decoding_rejects_duplicate_and_forged_dependency_edges() {
+fn current_decoding_rejects_duplicate_and_forged_dependency_edges() {
     let (_, base, body, parameter) = compile_program(SOURCE);
-    let wire = v8_wire(&base);
+    let wire = current_wire(&base);
     let edge = dependency_edge_index(&wire, body, parameter);
 
     let mut duplicated = wire.clone();
     let repeated = duplicated["edges"][edge].clone();
     duplicated["edges"].as_array_mut().unwrap().push(repeated);
-    assert!(decode_v8(&duplicated).is_err());
+    assert!(decode_current(&duplicated).is_err());
 
     // The recipe still names the real Parameter; only the persisted
     // dependency claims an identity the Model does not contain.
     let mut forged = wire.clone();
     forged["edges"][edge]["to"] = wire_id("parameter", Id::<kinds::Parameter>::new().ulid());
-    assert!(decode_v8(&forged).is_err());
+    assert!(decode_current(&forged).is_err());
 
     let mut wrong_kind = wire.clone();
     wrong_kind["edges"][edge]["to"] = node_id(&wire, "relation");
-    assert!(decode_v8(&wrong_kind).is_err());
+    assert!(decode_current(&wrong_kind).is_err());
 }
 
 #[test]
-fn v8_decoding_rejects_a_parameter_definition_that_omits_its_mandatory_value() {
+fn current_decoding_rejects_a_parameter_definition_that_omits_its_mandatory_value() {
     let (_, base, _, _) = compile_program(SOURCE);
-    let wire = v8_wire(&base);
-    decode_v8(&wire).expect("the unmutated v8 model decodes");
+    let wire = current_wire(&base);
+    decode_current(&wire).expect("the unmutated current model decodes");
 
     let mut omitted = wire.clone();
-    assert!(remove_parameter_definition_value(&mut omitted));
-    assert!(decode_v8(&omitted).is_err());
+    assert!(remove_parameter_definition_literal(&mut omitted));
+    assert!(decode_current(&omitted).is_err());
 }
 
 fn compile_program(
@@ -535,7 +535,7 @@ fn axis_bounds(lower: f64, upper: f64) -> AxisBounds {
     .unwrap()
 }
 
-fn v8_wire(program: &KernelProgram) -> serde_json::Value {
+fn current_wire(program: &KernelProgram) -> serde_json::Value {
     let bytes = ModelEnvelope::from_program(program)
         .unwrap()
         .canonical_json()
@@ -543,7 +543,7 @@ fn v8_wire(program: &KernelProgram) -> serde_json::Value {
     serde_json::from_slice(&bytes).unwrap()
 }
 
-fn decode_v8(wire: &serde_json::Value) -> Result<ModelEnvelope, Diagnostic> {
+fn decode_current(wire: &serde_json::Value) -> Result<ModelEnvelope, Diagnostic> {
     ModelEnvelope::from_json(
         &serde_json::to_vec(wire).unwrap(),
         ModelDecoderLimits::default(),
@@ -578,10 +578,10 @@ fn dependency_edge_index(
                 && edge["from"] == wire_id("domain", body.ulid())
                 && edge["to"] == wire_id("parameter", parameter.ulid())
         })
-        .expect("v8 persists one Domain DependsOn Parameter edge")
+        .expect("current persists one Domain DependsOn Parameter edge")
 }
 
-fn remove_parameter_definition_value(wire: &mut serde_json::Value) -> bool {
+fn remove_parameter_definition_literal(wire: &mut serde_json::Value) -> bool {
     wire["nodes"]
         .as_array_mut()
         .unwrap()
@@ -590,7 +590,7 @@ fn remove_parameter_definition_value(wire: &mut serde_json::Value) -> bool {
         .expect("the proving Model defines one Parameter node")["definition"]
         .as_object_mut()
         .unwrap()
-        .remove("value")
+        .remove("literal")
         .is_some()
 }
 

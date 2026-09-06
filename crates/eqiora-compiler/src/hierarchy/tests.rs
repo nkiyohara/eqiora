@@ -77,8 +77,8 @@ model Derived {
     )
     .expect("known dimensions infer");
     assert_eq!(
-        annotated_values["wave_number"].dimension,
-        inferred_values["wave_number"].dimension
+        annotated_values["wave_number"].value_type.dimension(),
+        inferred_values["wave_number"].value_type.dimension()
     );
     assert_eq!(
         annotated_values["wave_number"].value,
@@ -211,7 +211,7 @@ fn external_geometry_supports_enter_the_ordinary_component_lowerer() {
             KernelNode::Parameter(definition) => {
                 parameters += 1;
                 assert_eq!(definition.id().erase(), parameter);
-                assert_eq!(definition.value().value(), 2.0);
+                assert_eq!(definition.literal(), 2.0);
             }
             KernelNode::Relation(relation) => {
                 parameter_references.extend(relation.residuals().nodes().iter().filter_map(
@@ -516,8 +516,8 @@ component Resistor {
 }
 
 model parallel {
-  instance r2: Resistor(resistance = 2);
-  instance r4: Resistor(resistance = 4);
+  instance r2: Resistor(resistance = 2[Ohm]);
+  instance r4: Resistor(resistance = 4[Ohm]);
   connect conserving r2.positive, r4.positive;
   connect conserving r2.negative, r4.negative;
 }
@@ -586,9 +586,9 @@ component Resistor {
 }
 model parallel {
   connect conserving r2.negative, r4.negative;
-  instance r4: Resistor(resistance = 4);
+  instance r4: Resistor(resistance = 4[Ohm]);
   connect conserving r4.positive, r2.positive;
-  instance r2: Resistor(resistance = 2);
+  instance r2: Resistor(resistance = 2[Ohm]);
 }
 "#;
     let mut first = crate::compile("first/location.eqi", RESISTOR_SOURCE).unwrap();
@@ -779,7 +779,8 @@ model Coupled {
         .filter_map(|operation| match operation {
             Op::DefineKernelNode {
                 node: KernelNode::Relation(relation),
-            } => Some(
+            } => Some((
+                relation.id().erase(),
                 relation
                     .residuals()
                     .nodes()
@@ -791,11 +792,15 @@ model Coupled {
                         _ => None,
                     })
                     .collect::<Vec<_>>(),
-            ),
+            )),
             _ => None,
         })
-        .collect::<Vec<_>>();
-    assert_eq!(relation_parameters, [vec![first], vec![second]]);
+        .collect::<std::collections::BTreeMap<_, _>>();
+    assert_eq!(relation_parameters.len(), 2);
+    for (name, parameter) in [("first.balance", first), ("second.balance", second)] {
+        let relation = compiled.symbols().get(name).unwrap();
+        assert_eq!(relation_parameters[&relation], [parameter]);
+    }
 }
 
 #[test]

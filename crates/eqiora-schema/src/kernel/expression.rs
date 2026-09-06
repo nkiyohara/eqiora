@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, DynQuantity, GraphPath, Id};
+use eqiora_core::{Diagnostic, GraphPath, Id, ValueLiteral};
 
 use super::pure_operator::{OperatorDefinitionDigest, PureOperatorDefinition};
 
@@ -92,8 +92,8 @@ impl PureOperatorApplication {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ExprNode {
-    /// Dimensioned scalar constant.
-    Constant(DynQuantity),
+    /// Constant retaining its complete mathematical type.
+    Constant(ValueLiteral),
     /// Kernel symbol reference.
     Symbol(SymbolRef),
     /// Unary negation.
@@ -249,8 +249,15 @@ impl ExprDagBuilder {
         }
     }
 
-    /// Add a dimensioned constant.
-    pub fn constant(&mut self, value: DynQuantity) -> Result<ExprId, Diagnostic> {
+    /// Add a checked constant; a numerical quantity supplies an explicit real scalar type.
+    pub fn constant<V>(&mut self, value: V) -> Result<ExprId, Diagnostic>
+    where
+        V: TryInto<ValueLiteral>,
+        V::Error: std::fmt::Display,
+    {
+        let value = value.try_into().map_err(|error| {
+            Diagnostic::error(codes::INVALID_KERNEL_DEFINITION, error.to_string())
+        })?;
         self.push(ExprNode::Constant(value))
     }
 
@@ -447,12 +454,19 @@ fn invalid_index(id: ExprId) -> Diagnostic {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use eqiora_core::DimExponents;
+    use eqiora_core::{DimExponents, DynQuantity};
 
     use crate::kernel::pure_operator::PureOperatorDefinition;
 
     fn scalar(value: f64) -> DynQuantity {
         DynQuantity::new(value, DimExponents::DIMENSIONLESS)
+    }
+
+    #[test]
+    fn quantity_constants_reject_nonfinite_values_at_construction() {
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert!(ExprDagBuilder::new().constant(scalar(value)).is_err());
+        }
     }
 
     #[test]

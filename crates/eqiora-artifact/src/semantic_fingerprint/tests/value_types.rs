@@ -44,6 +44,189 @@ fn typed_field_initial_zero_survives_source_and_model_replay() {
     }
 }
 
+fn parameter_program(value_type: ValueType) -> KernelProgram {
+    let parameter = Id::new();
+    typed_symbol_program(
+        eqiora_schema::kernel::ParameterDef::new(parameter, value_type, 0.0)
+            .unwrap()
+            .into(),
+        SymbolRef::Parameter(parameter),
+    )
+}
+
+fn typed_symbol_program(node: KernelNode, symbol: SymbolRef) -> KernelProgram {
+    let symbol_id = node.id();
+    let relation = Id::new();
+    let activation = Id::new();
+    let model = OntologyId::new();
+    let mut expression = ExprDagBuilder::new();
+    let value = expression.symbol(symbol).unwrap();
+    let root = expression.sub(value, value).unwrap();
+    let nodes = [
+        node,
+        KernelNode::from(RelationDef::new(
+            relation,
+            expression.finish([root]).unwrap(),
+        )),
+        KernelNode::from(ActivationDef::continuous(activation)),
+    ];
+    let view = ModelView::new(model, nodes.iter().map(KernelNode::id), []).unwrap();
+    let mut transaction = Transaction::new("typed parameter");
+    for node in nodes {
+        transaction.push(Op::DefineKernelNode { node });
+    }
+    transaction.push(Op::Connect {
+        from: relation.erase(),
+        to: symbol_id,
+        edge: EdgeKind::DependsOn,
+    });
+    transaction.push(Op::Connect {
+        from: activation.erase(),
+        to: relation.erase(),
+        edge: EdgeKind::Activates,
+    });
+    transaction.push(Op::DefineOntologyView { view: view.into() });
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    KernelProgram::from_snapshot(&store.snapshot(), model).unwrap()
+}
+
+#[test]
+fn signal_types_survive_model_replay_and_real_execution_rejects_richer_types() {
+    let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+    let complex = ValueType::scalar(ScalarDomain::Complex, real.dimension());
+    let mut fingerprints = std::collections::BTreeSet::new();
+    for value_type in [
+        real.clone(),
+        real.array(3).unwrap(),
+        complex.clone(),
+        complex.array(3).unwrap(),
+    ] {
+        let port = Id::new();
+        let program = typed_symbol_program(
+            PortDef::signal(port, SignalDirection::Output, value_type.clone()).into(),
+            SymbolRef::Port(port),
+        );
+        let bytes = ModelEnvelope::from_program(&program)
+            .unwrap()
+            .canonical_json()
+            .unwrap();
+        let replay = ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default()).unwrap();
+        assert_eq!(replay.canonical_json().unwrap(), bytes);
+        assert!(
+            fingerprints.insert(
+                StructuralSemanticFingerprint::from_program(&program)
+                    .unwrap()
+                    .digest()
+                    .to_owned()
+            )
+        );
+        if value_type.scalar_domain() == ScalarDomain::Complex || !value_type.shape().is_scalar() {
+            let errors = eqiora_sem::Interpreter::new()
+                .run(
+                    &program,
+                    eqiora_sem::ReferenceConfig::new(0.0, 0.01).unwrap(),
+                )
+                .unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.message().contains("real scalar signal Ports"))
+            );
+        }
+    }
+}
+
+#[test]
+fn constant_types_survive_model_replay_and_change_structural_identity() {
+    let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+    let complex = ValueType::scalar(ScalarDomain::Complex, scalar.dimension());
+    let mut fingerprints = std::collections::BTreeSet::new();
+    for value_type in [scalar, complex.clone(), complex.array(3).unwrap()] {
+        let relation = Id::new();
+        let activation = Id::new();
+        let model = OntologyId::new();
+        let mut builder = ExprDagBuilder::new();
+        let root = builder
+            .constant(eqiora_core::ValueLiteral::new(value_type, 0.0).unwrap())
+            .unwrap();
+        let nodes = [
+            KernelNode::from(RelationDef::new(relation, builder.finish([root]).unwrap())),
+            KernelNode::from(ActivationDef::continuous(activation)),
+        ];
+        let view = ModelView::new(model, nodes.iter().map(KernelNode::id), []).unwrap();
+        let mut transaction = Transaction::new("typed constant");
+        for node in nodes {
+            transaction.push(Op::DefineKernelNode { node });
+        }
+        transaction.push(Op::Connect {
+            from: activation.erase(),
+            to: relation.erase(),
+            edge: EdgeKind::Activates,
+        });
+        transaction.push(Op::DefineOntologyView { view: view.into() });
+        let mut store = InMemoryGraphStore::new();
+        store.commit(transaction).unwrap();
+        let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+        let fingerprint = StructuralSemanticFingerprint::from_program(&program).unwrap();
+        assert!(fingerprints.insert(fingerprint.to_string()));
+        let bytes = ModelEnvelope::from_program(&program)
+            .unwrap()
+            .canonical_json()
+            .unwrap();
+        let decoded = ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default()).unwrap();
+        assert_eq!(decoded.canonical_json().unwrap(), bytes);
+        assert_eq!(
+            StructuralSemanticFingerprint::from_program(&decoded.to_program().unwrap()).unwrap(),
+            fingerprint,
+        );
+    }
+}
+
+#[test]
+fn admitted_parameter_types_survive_replay_and_remain_distinct() {
+    let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+    let complex = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS);
+    let mut fingerprints = std::collections::BTreeSet::new();
+    for value_type in [
+        real,
+        complex.clone(),
+        complex.clone().array(1).unwrap(),
+        complex.array(3).unwrap(),
+    ] {
+        let program = parameter_program(value_type.clone());
+        let relation = program
+            .nodes()
+            .find_map(|node| match node {
+                KernelNode::Relation(relation) => Some(relation.id()),
+                _ => None,
+            })
+            .unwrap();
+        let typed = program.typed_relation_residual(relation).unwrap();
+        assert!(
+            typed
+                .node_types()
+                .iter()
+                .all(|value| value.value_type == value_type)
+        );
+        let fingerprint = StructuralSemanticFingerprint::from_program(&program).unwrap();
+        assert!(fingerprints.insert(fingerprint.to_string()));
+        let envelope = ModelEnvelope::from_program(&program).unwrap();
+        let bytes = envelope.canonical_json().unwrap();
+        let decoded = ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default()).unwrap();
+        assert_eq!(decoded.canonical_json().unwrap(), bytes);
+        let replay = decoded.to_program().unwrap();
+        assert!(structurally_equivalent(&program, &replay).unwrap());
+        let parameter = replay
+            .nodes()
+            .find_map(|node| match node {
+                KernelNode::Parameter(parameter) => Some(parameter),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(parameter.value_type(), &value_type);
+    }
+}
 fn spatial_program(value_type: ValueType) -> Result<KernelProgram, Vec<Diagnostic>> {
     let domain = Id::new();
     let representation = Id::new();

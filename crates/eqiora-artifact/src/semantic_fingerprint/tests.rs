@@ -74,7 +74,7 @@ fn model_boundary_membership_is_not_alpha_normalized_away() {
 #[test]
 fn value_operator_and_rewiring_changes_are_not_alpha_normalized_away() {
     let baseline = program(DECAY);
-    let changed_value = program(&DECAY.replace("= 1;\n  relation", "= 2;\n  relation"));
+    let changed_value = program(&DECAY.replace("rate: 1 / s = 1;", "rate: 1 / s = 2;"));
     let changed_operator = program(&DECAY.replace("rate * x", "rate / x"));
     assert!(!structurally_equivalent(&baseline, &changed_value).unwrap());
     assert!(!structurally_equivalent(&baseline, &changed_operator).unwrap());
@@ -215,7 +215,15 @@ fn manually_allocated_expression(reverse: bool, expose_port: bool) -> KernelProg
             node: ActivationDef::continuous(activation).into(),
         })
         .push(Op::DefineKernelNode {
-            node: PortDef::signal(port, SignalDirection::Input, DimExponents::DIMENSIONLESS).into(),
+            node: PortDef::signal(
+                port,
+                SignalDirection::Input,
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+            )
+            .into(),
         })
         .push(Op::Connect {
             from: relation.erase(),

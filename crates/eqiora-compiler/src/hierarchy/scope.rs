@@ -372,13 +372,10 @@ pub(super) fn rewrite_model_port(
     match syntax {
         PortSyntax::Signal {
             direction,
-            dimension,
+            value_type,
         } => Ok(PortSyntax::Signal {
             direction: *direction,
-            dimension: dimension.clone(),
-        }),
-        PortSyntax::ConservingMarker { dimension } => Ok(PortSyntax::ConservingMarker {
-            dimension: dimension.clone(),
+            value_type: value_type.clone(),
         }),
         PortSyntax::ScalarPhysical { domain } => {
             let domain = resolve_local_kind(

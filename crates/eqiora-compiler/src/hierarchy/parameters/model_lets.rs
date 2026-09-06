@@ -5,7 +5,7 @@ use eqiora_core::diagnostic::codes;
 use eqiora_lang::{Item, ModelDecl};
 
 use crate::diagnostics::source_error;
-use crate::dimensions::lower_dimension;
+use crate::value_types::lower_value_type;
 
 use super::expression_eval::{
     ExpressionContext, coerce_parameter_with_label, evaluate_parameter_expression,
@@ -32,8 +32,8 @@ pub(in crate::hierarchy) fn resolve_model_lets(
             continue;
         };
         let target = match declaration
-            .dimension()
-            .map(|dimension| lower_dimension(file, dimension))
+            .value_type()
+            .map(|value_type| lower_value_type::<()>(file, value_type, None))
             .transpose()
         {
             Ok(target) => target,
@@ -64,9 +64,14 @@ pub(in crate::hierarchy) fn resolve_model_lets(
             },
         );
         match evaluated.and_then(|value| match target {
-            Some(target) => {
-                coerce_parameter_with_label(file, declaration.range(), value, target, "let alias")
-            }
+            Some(target) => coerce_parameter_with_label(
+                file,
+                declaration.range(),
+                value,
+                target,
+                "let alias",
+                true,
+            ),
             None => infer_parameter_with_label(file, declaration.range(), value, "let alias"),
         }) {
             Ok(mut value) => {

@@ -80,6 +80,10 @@ impl WireValueType {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::WireNode;
+    use eqiora_core::{DimExponents, Id};
+    use eqiora_schema::kernel::{FieldDef, KernelNode};
+
     #[test]
     fn field_initial_wire_rejects_noncanonical_and_invalid_literals() {
         let value_type = ValueType::scalar(
@@ -104,9 +108,230 @@ mod tests {
             assert!(wire.decode().is_err());
         }
     }
-    use crate::model::WireNode;
-    use eqiora_core::{DimExponents, Id};
-    use eqiora_schema::kernel::{FieldDef, KernelNode};
+    #[test]
+    fn scalar_physical_wire_retains_domains_and_rejects_channel_substitution() {
+        use crate::model::{WireNodeDefinition, node::WireDomainKind};
+        use eqiora_schema::kernel::DomainDef;
+        let across = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS);
+        let through = ValueType::scalar(
+            ScalarDomain::Real,
+            DimExponents::from_integers([0, 0, 0, 1, 0, 0, 0]).unwrap(),
+        );
+        let node = KernelNode::from(
+            DomainDef::scalar_physical(Id::new(), across.clone(), through.clone()).unwrap(),
+        );
+        let wire = WireNode::encode(&node).unwrap();
+        assert_eq!(wire.decode().unwrap(), node);
+        for change_across in [true, false] {
+            let mut malformed = wire.clone();
+            let WireNodeDefinition::Domain {
+                domain:
+                    WireDomainKind::ScalarPhysical {
+                        across_type,
+                        through_type,
+                    },
+            } = &mut malformed.definition
+            else {
+                panic!("scalar physical domain");
+            };
+            let target = if change_across {
+                across_type
+            } else {
+                through_type
+            };
+            *target = WireValueType::encode(&across.clone().array(1).unwrap()).unwrap();
+            assert!(malformed.decode().is_err());
+        }
+        assert!(
+            DomainDef::scalar_physical(
+                Id::new(),
+                across.clone().array(1).unwrap(),
+                through.clone()
+            )
+            .is_err()
+        );
+        assert!(DomainDef::scalar_physical(Id::new(), across, through.array(1).unwrap()).is_err());
+    }
+
+    #[test]
+    fn boundary_connector_wire_preserves_component_roles_and_checks_both_types() {
+        use crate::model::WireNodeDefinition;
+        use crate::model::node::WireDomainKind;
+        use eqiora_schema::kernel::{BoundaryPairing, BoundaryPhysicalConnector, DomainDef};
+        let vector = ValueType::shaped(
+            ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+            ValueShape::new([2]).unwrap(),
+            ValueFrame::SpatialCartesian,
+        )
+        .unwrap();
+        let nested = vector.array(2).unwrap();
+        let connector = BoundaryPhysicalConnector::new(
+            nested.clone(),
+            nested.clone(),
+            BoundaryPairing::EuclideanBoundaryDuality,
+        )
+        .unwrap();
+        let node = KernelNode::from(DomainDef::boundary_physical(Id::new(), connector));
+        let wire = WireNode::encode(&node).unwrap();
+        assert_eq!(wire.decode().unwrap(), node);
+        for trace in [true, false] {
+            let mut malformed = wire.clone();
+            let WireNodeDefinition::Domain {
+                domain:
+                    WireDomainKind::BoundaryPhysical {
+                        trace_type,
+                        flux_type,
+                        ..
+                    },
+            } = &mut malformed.definition
+            else {
+                panic!("boundary connector");
+            };
+            let changed = if trace { trace_type } else { flux_type };
+            changed.array_rank = 0;
+            assert!(
+                malformed.decode().is_err(),
+                "equal extents cannot erase array roles on one quantity"
+            );
+
+            let mut oversized = wire.clone();
+            let WireNodeDefinition::Domain {
+                domain:
+                    WireDomainKind::BoundaryPhysical {
+                        trace_type,
+                        flux_type,
+                        ..
+                    },
+            } = &mut oversized.definition
+            else {
+                panic!("boundary connector");
+            };
+            let changed = if trace { trace_type } else { flux_type };
+            *changed = WireValueType::encode(&nested.clone().array(4097).unwrap()).unwrap();
+            assert!(
+                oversized
+                    .ensure_value_shape_limits(ModelDecoderLimits::default())
+                    .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn constant_wire_preserves_types_and_rejects_invalid_literals() {
+        use crate::model::expression::{WireExpression, WireExpressionNode};
+        use eqiora_core::ValueLiteral;
+        use eqiora_schema::kernel::ExprDagBuilder;
+        let value_type = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+            .array(3)
+            .unwrap();
+        let mut builder = ExprDagBuilder::new();
+        let root = builder
+            .constant(ValueLiteral::new(value_type, 0.0).unwrap())
+            .unwrap();
+        let expression = builder.finish([root]).unwrap();
+        let wire = WireExpression::encode(&expression).unwrap();
+        assert_eq!(wire.decode().unwrap(), expression);
+        for invalid in [-0.0, 1.0, f64::INFINITY, f64::NAN] {
+            let mut malformed = wire.clone();
+            let WireExpressionNode::Constant { literal, .. } = &mut malformed.nodes[0] else {
+                panic!("constant");
+            };
+            *literal = invalid;
+            assert!(malformed.decode().is_err());
+        }
+    }
+
+    #[test]
+    fn relation_and_guard_constant_wire_obey_shape_limits() {
+        use eqiora_core::ValueLiteral;
+        use eqiora_schema::kernel::{ActivationDef, ActivationKind, ExprDagBuilder, RelationDef};
+        let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+        for value_type in [
+            scalar.clone().array(4097).unwrap(),
+            (0..9).fold(scalar, |value, _| value.array(1).unwrap()),
+        ] {
+            let mut builder = ExprDagBuilder::new();
+            let root = builder
+                .constant(ValueLiteral::new(value_type, 0.0).unwrap())
+                .unwrap();
+            let expression = builder.finish([root]).unwrap();
+            for node in [
+                KernelNode::from(RelationDef::new(Id::new(), expression.clone())),
+                KernelNode::from(
+                    ActivationDef::new(Id::new(), ActivationKind::Guard { guard: expression })
+                        .unwrap(),
+                ),
+            ] {
+                assert!(
+                    WireNode::encode(&node)
+                        .unwrap()
+                        .ensure_value_shape_limits(ModelDecoderLimits::default())
+                        .is_err()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn field_and_parameter_wire_reject_noncanonical_or_invalid_literals() {
+        let value_type = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+            .array(2)
+            .unwrap();
+        for node in [
+            KernelNode::from(
+                eqiora_schema::kernel::ParameterDef::new(Id::new(), value_type.clone(), 0.0)
+                    .unwrap(),
+            ),
+            KernelNode::from(
+                FieldDef::new(Id::new(), value_type.clone())
+                    .with_initial(eqiora_core::ValueLiteral::new(value_type, 0.0).unwrap())
+                    .unwrap(),
+            ),
+        ] {
+            assert_eq!(WireNode::encode(&node).unwrap().decode().unwrap(), node);
+            for invalid in [-0.0, 1.0, f64::INFINITY, f64::NAN] {
+                let mut wire = WireNode::encode(&node).unwrap();
+                match &mut wire.definition {
+                    crate::model::WireNodeDefinition::Parameter { literal, .. } => {
+                        *literal = invalid
+                    }
+                    crate::model::WireNodeDefinition::Field { initial, .. } => {
+                        *initial = Some(invalid)
+                    }
+                    _ => unreachable!("Field or Parameter"),
+                }
+                assert!(wire.decode().is_err());
+            }
+        }
+    }
+
+    #[test]
+    fn parameter_and_signal_wire_obey_the_model_shape_limits() {
+        let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+        for value_type in [
+            scalar.clone().array(4097).unwrap(),
+            (0..9).fold(scalar, |value, _| value.array(1).unwrap()),
+        ] {
+            for node in [
+                KernelNode::from(
+                    eqiora_schema::kernel::ParameterDef::new(Id::new(), value_type.clone(), 0.0)
+                        .unwrap(),
+                ),
+                KernelNode::from(eqiora_schema::kernel::PortDef::signal(
+                    Id::new(),
+                    eqiora_schema::kernel::SignalDirection::Input,
+                    value_type,
+                )),
+            ] {
+                let wire = WireNode::encode(&node).unwrap();
+                assert!(
+                    wire.ensure_value_shape_limits(ModelDecoderLimits::default())
+                        .is_err()
+                );
+            }
+        }
+    }
 
     #[test]
     fn field_wire_retains_complete_mathematical_type() {

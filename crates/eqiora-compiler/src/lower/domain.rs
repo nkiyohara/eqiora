@@ -111,11 +111,11 @@ pub(super) fn lower_domain(
         (
             LoweringDomainContract::Source(DomainSyntax::ScalarPhysical { .. }),
             DomainContract::ScalarPhysical {
-                across_dimension,
-                through_dimension,
+                across_type,
+                through_type,
             },
         ) => Ok((
-            DomainDef::scalar_physical(id, across_dimension, through_dimension),
+            DomainDef::scalar_physical(id, across_type, through_type)?,
             None,
             Vec::new(),
         )),
@@ -163,7 +163,7 @@ fn lower_coordinate_source(
                     "Cartesian coordinate Parameter",
                 ));
             };
-            let Binding::Parameter(parameter, dimension) = binding else {
+            let Binding::Parameter(parameter, value_type) = binding else {
                 return Err(source_error(
                     codes::LANGUAGE_TYPE_ERROR,
                     file,
@@ -171,12 +171,15 @@ fn lower_coordinate_source(
                     format!("Cartesian coordinate `{name}` is not a root Model Parameter"),
                 ));
             };
-            if *dimension != length_dimension() {
+            if value_type.dimension() != length_dimension()
+                || !value_type.shape().is_scalar()
+                || value_type.scalar_domain() != eqiora_core::ScalarDomain::Real
+            {
                 return Err(source_error(
                     codes::LANGUAGE_TYPE_ERROR,
                     file,
                     *range,
-                    format!("Cartesian coordinate Parameter `{name}` is not a length"),
+                    format!("Cartesian coordinate Parameter `{name}` is not a real scalar length"),
                 ));
             }
             dependencies.insert(parameter.erase());

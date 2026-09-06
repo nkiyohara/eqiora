@@ -27,6 +27,7 @@ fn interface_program(
     right_start: f64,
     semantics: ConnectionSemantics,
     share_parent: bool,
+    channels: Option<u32>,
 ) -> Result<InterfaceFixture, Vec<eqiora_core::Diagnostic>> {
     let connector = Id::<kinds::Domain>::new();
     let left_volume = Id::<kinds::Domain>::new();
@@ -44,11 +45,20 @@ fn interface_program(
 
     let velocity = DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
     let traction = DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
-    let connector_contract = BoundaryPhysicalConnector::new(
+    let trace_type = eqiora_core::ValueType::shaped(
+        eqiora_core::ScalarDomain::Real,
         velocity,
-        traction,
         ValueShape::new([2]).unwrap(),
         ValueFrame::SpatialCartesian,
+    )
+    .unwrap();
+    let trace_type = match channels {
+        Some(extent) => trace_type.array(extent).unwrap(),
+        None => trace_type,
+    };
+    let connector_contract = BoundaryPhysicalConnector::new(
+        trace_type.clone(),
+        trace_type.with_dimension(traction),
         BoundaryPairing::EuclideanBoundaryDuality,
     )
     .unwrap();
@@ -194,7 +204,7 @@ fn interface_program(
 
 #[test]
 fn coincident_2d_vector_interface_is_admitted_componentwise() {
-    let fixture = interface_program(1.0, ConnectionSemantics::Conserving, false)
+    let fixture = interface_program(1.0, ConnectionSemantics::Conserving, false, None)
         .expect("coincident interface must validate");
     assert_eq!(fixture.program.nodes().count(), 12);
 
@@ -213,7 +223,7 @@ fn coincident_2d_vector_interface_is_admitted_componentwise() {
 
 #[test]
 fn noncoincident_cartesian_interface_fails_closed() {
-    let diagnostics = interface_program(1.25, ConnectionSemantics::Conserving, false)
+    let diagnostics = interface_program(1.25, ConnectionSemantics::Conserving, false, None)
         .expect_err("separated boundaries must fail");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -223,8 +233,31 @@ fn noncoincident_cartesian_interface_fails_closed() {
 }
 
 #[test]
+fn boundary_junction_preserves_arrays_of_spatial_vectors() {
+    let fixture = interface_program(1.0, ConnectionSemantics::Conserving, false, Some(3)).unwrap();
+    let junction = fixture
+        .program
+        .compose_boundary_physical_junction(fixture.connection)
+        .unwrap();
+    for root in junction.typed().expression().roots() {
+        let root_type = junction.typed().node_type(*root).unwrap();
+        assert_eq!(root_type.value_type.array_rank(), 1);
+        assert_eq!(
+            root_type
+                .shape()
+                .extents()
+                .iter()
+                .map(|n| n.get())
+                .collect::<Vec<_>>(),
+            vec![3, 2]
+        );
+        assert_eq!(root_type.frame(), ValueFrame::SpatialCartesian);
+    }
+}
+
+#[test]
 fn opposite_sides_of_one_parent_form_a_spatial_periodic_junction() {
-    let fixture = interface_program(0.0, ConnectionSemantics::SpatialPeriodic, true)
+    let fixture = interface_program(0.0, ConnectionSemantics::SpatialPeriodic, true, None)
         .expect("opposite sides of one parent must validate");
     assert_eq!(fixture.program.nodes().count(), 11);
 
@@ -244,7 +277,7 @@ fn opposite_sides_of_one_parent_form_a_spatial_periodic_junction() {
 
 #[test]
 fn spatial_periodic_connection_rejects_distinct_parents() {
-    let diagnostics = interface_program(1.0, ConnectionSemantics::SpatialPeriodic, false)
+    let diagnostics = interface_program(1.0, ConnectionSemantics::SpatialPeriodic, false, None)
         .expect_err("periodic pair across distinct parents must fail");
     assert!(
         diagnostics

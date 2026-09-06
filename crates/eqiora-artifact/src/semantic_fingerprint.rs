@@ -26,9 +26,9 @@ use crate::{ArtifactDigest, invalid_artifact};
 use canonical::{Canonicalizer, Encoder};
 use projection::{ConstructionBudget, ProjectionGraph, Reference};
 
-const FINGERPRINT_DOMAIN_V5: &[u8] = b"eqiora.structural-semantic-fingerprint/v5\0";
+const FINGERPRINT_DOMAIN_V6: &[u8] = b"eqiora.structural-semantic-fingerprint/v6\0";
 const PROJECTION_MAGIC: &[u8; 8] = b"EQIORASF";
-const GENERATION_V5: u16 = 5;
+const GENERATION_V6: u16 = 6;
 
 /// Current generation of the structural semantic projection.
 ///
@@ -38,7 +38,7 @@ const GENERATION_V5: u16 = 5;
 #[non_exhaustive]
 pub enum SemanticFingerprintGeneration {
     /// Closed projection retaining mathematical scalar domains and component-axis roles.
-    V5,
+    V6,
 }
 
 impl SemanticFingerprintGeneration {
@@ -46,19 +46,19 @@ impl SemanticFingerprintGeneration {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::V5 => "eqiora.structural-semantic-fingerprint/v5",
+            Self::V6 => "eqiora.structural-semantic-fingerprint/v6",
         }
     }
 
     const fn code(self) -> u16 {
         match self {
-            Self::V5 => GENERATION_V5,
+            Self::V6 => GENERATION_V6,
         }
     }
 
     const fn hash_domain(self) -> &'static [u8] {
         match self {
-            Self::V5 => FINGERPRINT_DOMAIN_V5,
+            Self::V6 => FINGERPRINT_DOMAIN_V6,
         }
     }
 }
@@ -201,7 +201,7 @@ impl ProjectionIdentity {
         limits: SemanticFingerprintLimits,
     ) -> Result<Self, Diagnostic> {
         validate_limits(limits)?;
-        let generation = SemanticFingerprintGeneration::V5;
+        let generation = SemanticFingerprintGeneration::V6;
         let graph = ProjectionGraph::from_program(program, limits)?;
         let canonical = Canonicalizer::new(&graph, limits).canonicalize()?;
         let mut hasher = Sha256::new();
@@ -259,22 +259,40 @@ fn encode_node(
         }
         KernelNode::Parameter(parameter) => {
             encoder.u8(4)?;
-            encode_quantity(&mut encoder, parameter.value())?;
+            let value_type = parameter.value_type();
+            encoder.u8(match value_type.scalar_domain() {
+                eqiora_core::ScalarDomain::Real => 0,
+                eqiora_core::ScalarDomain::Complex => 1,
+            })?;
+            encoder.u32(
+                u32::try_from(value_type.array_rank())
+                    .map_err(|_| invalid_artifact("array rank exceeds u32"))?,
+            )?;
+            encode_dimension(&mut encoder, value_type.dimension())?;
+            encode_shape(&mut encoder, value_type.shape())?;
+            encode_frame(&mut encoder, value_type.frame())?;
+            encoder.u64(parameter.literal().to_bits())?;
         }
         KernelNode::Port(port) => {
             encoder.u8(5)?;
             match port.payload() {
                 PortPayload::Signal {
                     direction,
-                    dimension,
+                    value_type,
                 } => {
                     encoder.u8(1)?;
                     encode_signal_direction(&mut encoder, direction)?;
-                    encode_dimension(&mut encoder, dimension)?;
-                }
-                PortPayload::ConservingMarker { dimension } => {
-                    encoder.u8(2)?;
-                    encode_dimension(&mut encoder, dimension)?;
+                    encoder.u8(match value_type.scalar_domain() {
+                        eqiora_core::ScalarDomain::Real => 0,
+                        eqiora_core::ScalarDomain::Complex => 1,
+                    })?;
+                    encoder.u32(
+                        u32::try_from(value_type.array_rank())
+                            .map_err(|_| invalid_artifact("array rank exceeds u32"))?,
+                    )?;
+                    encode_dimension(&mut encoder, value_type.dimension())?;
+                    encode_shape(&mut encoder, value_type.shape())?;
+                    encode_frame(&mut encoder, value_type.frame())?;
                 }
                 PortPayload::ScalarPhysical { domain } => {
                     encoder.u8(3)?;
@@ -409,19 +427,18 @@ fn encode_domain_kind(
             encode_boundary_side(encoder, *side)
         }
         DomainKind::ScalarPhysical {
-            across_dimension,
-            through_dimension,
+            across_type,
+            through_type,
         } => {
             encoder.u8(4)?;
-            encode_dimension(encoder, *across_dimension)?;
-            encode_dimension(encoder, *through_dimension)
+            encode_value_type(encoder, across_type)?;
+            encode_value_type(encoder, through_type)
         }
         DomainKind::BoundaryPhysical { connector } => {
             encoder.u8(5)?;
-            encode_dimension(encoder, connector.trace_dimension())?;
-            encode_dimension(encoder, connector.flux_dimension())?;
-            encode_shape(encoder, connector.shape())?;
-            encode_frame(encoder, connector.frame())?;
+            for value_type in [connector.trace_type(), connector.flux_type()] {
+                encode_value_type(encoder, value_type)?;
+            }
             match connector.pairing() {
                 BoundaryPairing::EuclideanBoundaryDuality => encoder.u8(1),
             }
@@ -461,7 +478,19 @@ fn encode_expression(
         match node {
             ExprNode::Constant(value) => {
                 encoder.u8(1)?;
-                encode_quantity(encoder, *value)?;
+                let value_type = value.value_type();
+                encoder.u8(match value_type.scalar_domain() {
+                    eqiora_core::ScalarDomain::Real => 0,
+                    eqiora_core::ScalarDomain::Complex => 1,
+                })?;
+                encoder.u32(
+                    u32::try_from(value_type.array_rank())
+                        .map_err(|_| fingerprint_error("array rank exceeds u32"))?,
+                )?;
+                encode_dimension(encoder, value_type.dimension())?;
+                encode_shape(encoder, value_type.shape())?;
+                encode_frame(encoder, value_type.frame())?;
+                encoder.u64(value.literal().to_bits())?;
             }
             ExprNode::Symbol(symbol) => {
                 encoder.u8(2)?;
@@ -758,6 +787,23 @@ fn encode_shape(encoder: &mut Encoder, shape: &ValueShape) -> Result<(), Diagnos
     Ok(())
 }
 
+fn encode_value_type(
+    encoder: &mut Encoder,
+    value_type: &eqiora_core::ValueType,
+) -> Result<(), Diagnostic> {
+    encoder.u8(match value_type.scalar_domain() {
+        eqiora_core::ScalarDomain::Real => 0,
+        eqiora_core::ScalarDomain::Complex => 1,
+    })?;
+    encoder.u32(
+        u32::try_from(value_type.array_rank())
+            .map_err(|_| invalid_artifact("array rank exceeds u32"))?,
+    )?;
+    encode_dimension(encoder, value_type.dimension())?;
+    encode_shape(encoder, value_type.shape())?;
+    encode_frame(encoder, value_type.frame())
+}
+
 fn encode_frame(encoder: &mut Encoder, frame: ValueFrame) -> Result<(), Diagnostic> {
     match frame {
         ValueFrame::Invariant => encoder.u8(1),
@@ -812,7 +858,7 @@ fn validate_limits(limits: SemanticFingerprintLimits) -> Result<(), Diagnostic> 
 
 fn newer_vocabulary(subject: &str) -> Diagnostic {
     fingerprint_error(format!(
-        "{subject} is newer than structural semantic fingerprint generation v5"
+        "{subject} is newer than structural semantic fingerprint generation v6"
     ))
 }
 

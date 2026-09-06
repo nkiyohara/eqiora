@@ -8,7 +8,6 @@ use eqiora_schema::kernel::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::dimension::WireDimension;
 use crate::{ArtifactDigest, invalid_artifact};
 
 use super::value_type::WireValueType;
@@ -29,7 +28,8 @@ impl WireNode {
                 initial: value.initial().map(eqiora_core::ValueLiteral::literal),
             },
             KernelNode::Parameter(value) => WireNodeDefinition::Parameter {
-                value: WireQuantity::encode(value.value()),
+                value_type: WireValueType::encode(value.value_type())?,
+                literal: value.literal(),
             },
             KernelNode::Port(value) => match value.payload() {
                 PortPayload::ScalarPhysical { domain } => WireNodeDefinition::ScalarPhysicalPort {
@@ -42,16 +42,14 @@ impl WireNode {
                     connector: WireId::from_raw(connector.erase()),
                     boundary: WireId::from_raw(boundary.erase()),
                 },
-                payload => WireNodeDefinition::Port {
-                    port: WirePortKind::encode(payload)?,
-                    dimension: WireDimension::encode(
-                        value
-                            .signal_contract()
-                            .map(|(_, dimension)| dimension)
-                            .or_else(|| value.marker_dimension())
-                            .ok_or_else(|| invalid_artifact("Port payload has no dimension"))?,
-                    ),
+                PortPayload::Signal {
+                    direction,
+                    value_type,
+                } => WireNodeDefinition::SignalPort {
+                    direction: WireSignalDirection::encode(direction),
+                    value_type: WireValueType::encode(&value_type)?,
                 },
+                _ => return Err(invalid_artifact("unsupported Port payload")),
             },
             KernelNode::Relation(value) => WireNodeDefinition::Relation {
                 residuals: WireExpression::encode(value.residuals())?,
@@ -100,24 +98,44 @@ impl WireNode {
                 if let Some(initial) = initial {
                     if *initial == 0.0 && initial.is_sign_negative() {
                         return Err(invalid_artifact(
-                            "Field initial literal must use canonical positive zero",
+                            "Field initial literal has noncanonical negative zero",
                         ));
                     }
-                    let initial =
+                    let literal =
                         eqiora_core::ValueLiteral::new(definition.value_type().clone(), *initial)
                             .map_err(|error| invalid_artifact(error.to_string()))?;
                     definition = definition
-                        .with_initial(initial)
+                        .with_initial(literal)
                         .map_err(|error| invalid_artifact(error.message()))?;
                 }
                 Ok(definition.into())
             }
-            WireNodeDefinition::Parameter { value } => {
-                Ok(ParameterDef::new(self.id.typed::<kinds::Parameter>()?, value.decode()?).into())
+            WireNodeDefinition::Parameter {
+                value_type,
+                literal,
+            } => {
+                if *literal == 0.0 && literal.is_sign_negative() {
+                    return Err(invalid_artifact(
+                        "Parameter literal has noncanonical negative zero",
+                    ));
+                }
+                Ok(ParameterDef::new(
+                    self.id.typed::<kinds::Parameter>()?,
+                    value_type.decode()?,
+                    *literal,
+                )
+                .map_err(|error| invalid_artifact(error.message()))?
+                .into())
             }
-            WireNodeDefinition::Port { port, dimension } => Ok(port
-                .decode(self.id.typed::<kinds::Port>()?, dimension.decode())
-                .into()),
+            WireNodeDefinition::SignalPort {
+                direction,
+                value_type,
+            } => Ok(PortDef::signal(
+                self.id.typed::<kinds::Port>()?,
+                direction.decode(),
+                value_type.decode()?,
+            )
+            .into()),
             WireNodeDefinition::ScalarPhysicalPort { domain } => Ok(PortDef::scalar_physical(
                 self.id.typed::<kinds::Port>()?,
                 domain.typed::<kinds::Domain>()?,
@@ -207,10 +225,36 @@ impl WireNode {
         limits: ModelDecoderLimits,
     ) -> Result<(), Diagnostic> {
         match &self.definition {
-            WireNodeDefinition::Field { value_type, .. } => value_type.ensure_limits(limits),
+            WireNodeDefinition::Field { value_type, .. }
+            | WireNodeDefinition::SignalPort { value_type, .. }
+            | WireNodeDefinition::Parameter { value_type, .. } => value_type.ensure_limits(limits),
+            WireNodeDefinition::Relation { residuals } => {
+                residuals.ensure_value_shape_limits(limits)
+            }
+            WireNodeDefinition::Activation { activation } => {
+                activation.ensure_value_shape_limits(limits)
+            }
             WireNodeDefinition::Domain {
-                domain: WireDomainKind::BoundaryPhysical { shape, .. },
-            } => shape.ensure_limits(limits),
+                domain:
+                    WireDomainKind::ScalarPhysical {
+                        across_type,
+                        through_type,
+                    },
+            } => {
+                across_type.ensure_limits(limits)?;
+                through_type.ensure_limits(limits)
+            }
+            WireNodeDefinition::Domain {
+                domain:
+                    WireDomainKind::BoundaryPhysical {
+                        trace_type,
+                        flux_type,
+                        ..
+                    },
+            } => {
+                trace_type.ensure_limits(limits)?;
+                flux_type.ensure_limits(limits)
+            }
             _ => Ok(()),
         }
     }
@@ -249,11 +293,12 @@ pub(crate) enum WireNodeDefinition {
         initial: Option<f64>,
     },
     Parameter {
-        value: WireQuantity,
+        value_type: WireValueType,
+        literal: f64,
     },
-    Port {
-        port: WirePortKind,
-        dimension: WireDimension,
+    SignalPort {
+        direction: WireSignalDirection,
+        value_type: WireValueType,
     },
     ScalarPhysicalPort {
         domain: WireId,
@@ -295,14 +340,12 @@ pub(crate) enum WireDomainKind {
         entity_set: String,
     },
     ScalarPhysical {
-        across_dimension: WireDimension,
-        through_dimension: WireDimension,
+        across_type: WireValueType,
+        through_type: WireValueType,
     },
     BoundaryPhysical {
-        trace_dimension: WireDimension,
-        flux_dimension: WireDimension,
-        shape: WireValueShape,
-        frame: WireValueFrame,
+        trace_type: WireValueType,
+        flux_type: WireValueType,
         pairing: WireBoundaryPairing,
     },
 }
@@ -333,17 +376,15 @@ impl WireDomainKind {
                 entity_set: entity_set.clone(),
             },
             DomainKind::ScalarPhysical {
-                across_dimension,
-                through_dimension,
+                across_type,
+                through_type,
             } => Self::ScalarPhysical {
-                across_dimension: WireDimension::encode(*across_dimension),
-                through_dimension: WireDimension::encode(*through_dimension),
+                across_type: WireValueType::encode(across_type)?,
+                through_type: WireValueType::encode(through_type)?,
             },
             DomainKind::BoundaryPhysical { connector } => Self::BoundaryPhysical {
-                trace_dimension: WireDimension::encode(connector.trace_dimension()),
-                flux_dimension: WireDimension::encode(connector.flux_dimension()),
-                shape: WireValueShape::encode(connector.shape()),
-                frame: WireValueFrame::encode(connector.frame()),
+                trace_type: WireValueType::encode(connector.trace_type())?,
+                flux_type: WireValueType::encode(connector.flux_type())?,
                 pairing: WireBoundaryPairing::encode(connector.pairing()),
             },
             _ => {
@@ -376,26 +417,19 @@ impl WireDomainKind {
             Self::GeometryBoundary { entity_set } => DomainDef::geometry_boundary(id, entity_set)
                 .map_err(|error| invalid_artifact(error.message())),
             Self::ScalarPhysical {
-                across_dimension,
-                through_dimension,
-            } => Ok(DomainDef::scalar_physical(
-                id,
-                across_dimension.decode(),
-                through_dimension.decode(),
-            )),
+                across_type,
+                through_type,
+            } => DomainDef::scalar_physical(id, across_type.decode()?, through_type.decode()?)
+                .map_err(|error| invalid_artifact(error.message())),
             Self::BoundaryPhysical {
-                trace_dimension,
-                flux_dimension,
-                shape,
-                frame,
+                trace_type,
+                flux_type,
                 pairing,
             } => Ok(DomainDef::boundary_physical(
                 id,
                 BoundaryPhysicalConnector::new(
-                    trace_dimension.decode(),
-                    flux_dimension.decode(),
-                    shape.decode()?,
-                    frame.decode(),
+                    trace_type.decode()?,
+                    flux_type.decode()?,
                     pairing.decode(),
                 )
                 .map_err(|_| invalid_artifact("invalid boundary physical connector contract"))?,

@@ -104,13 +104,11 @@ model poisson {
 }
 
 #[test]
-fn scalar_physical_source_roundtrips_without_weakening_legacy_markers() {
+fn scalar_physical_source_roundtrips_with_nominal_domain() {
     let source = r#"
 model circuit {
   domain electrical = scalar_physical(across = kg * m ^ 2 / (s ^ 3 * A), through = A);
   port positive: conserving on electrical;
-  port legacy: conserving A;
-  port dimensionless: conserving 1;
   relation source continuous { across(positive) = 0; }
 }
 "#;
@@ -127,8 +125,6 @@ model circuit {
         "domain electrical = scalar_physical(across = kg * m ^ 2 / (s ^ 3 * A), through = A);"
     ));
     assert!(formatted.contains("port positive: conserving on electrical;"));
-    assert!(formatted.contains("port legacy: conserving A;"));
-    assert!(formatted.contains("port dimensionless: conserving 1;"));
 }
 
 #[test]

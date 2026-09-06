@@ -54,15 +54,15 @@ pub(super) fn encode_domain(
             })
         }
         DomainSyntax::ScalarPhysical {
-            across_dimension,
-            through_dimension,
+            across_type,
+            through_type,
         } => {
             encoder.u16(3)?;
             encoder.field(1, |encoder| {
-                encode_expression(encoder, across_dimension, budget, 1)
+                super::value_type::encode_value_type(encoder, across_type, budget, 1)
             })?;
             encoder.field(2, |encoder| {
-                encode_expression(encoder, through_dimension, budget, 1)
+                super::value_type::encode_value_type(encoder, through_type, budget, 1)
             })
         }
         _ => Err(source_identity_error(

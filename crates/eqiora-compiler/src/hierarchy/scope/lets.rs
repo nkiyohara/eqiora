@@ -1,7 +1,6 @@
 use super::Scope;
 use crate::hierarchy::parameters::{
-    ConstantValue, ParameterLineage, ResolvedParameter, SymbolicParameterMap,
-    SymbolicParameterValue,
+    ParameterLineage, ResolvedParameter, SymbolicParameterMap, SymbolicParameterValue,
 };
 
 impl Scope {
@@ -24,8 +23,8 @@ impl Scope {
                 (
                     name.clone(),
                     SymbolicParameterValue {
-                        value: Some(value.value.value),
-                        dimension: value.value.dimension,
+                        value: Some(value.value.literal()),
+                        value_type: value.value.value_type().clone(),
                         expression: Some(value.expression.clone()),
                         lineage: Some(value.lineage.clone()),
                     },
@@ -43,10 +42,8 @@ impl Scope {
             return Err("model let alias did not resolve to a closed expression");
         };
         let resolved = ResolvedParameter {
-            value: ConstantValue {
-                value: scalar,
-                dimension: value.dimension,
-            },
+            value: eqiora_core::ValueLiteral::new(value.value_type, scalar)
+                .map_err(|_| "model let alias has an invalid typed literal")?,
             expression,
             lineage: ParameterLineage::Derived,
         };

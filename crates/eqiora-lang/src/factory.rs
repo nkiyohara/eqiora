@@ -204,18 +204,18 @@ impl SourceAstFactory {
     pub fn component_parameter(
         visibility: VisibilitySyntax,
         name: impl Into<String>,
-        dimension: Expr,
+        value_type: crate::ValueTypeSyntax,
         default: Option<Expr>,
         range: TextRange,
     ) -> Result<ComponentParameterDecl, AstConstructionError> {
-        validate_expression(&dimension)?;
+        let value_type = Self::value_type(value_type.kind, value_type.range)?;
         if let Some(default) = &default {
             validate_expression(default)?;
         }
         Ok(ComponentParameterDecl {
             visibility,
             name: checked_identifier(name, "component Parameter")?,
-            dimension,
+            value_type,
             default,
             range: checked_range(range)?,
         })
@@ -1020,11 +1020,11 @@ fn validate_pure_operator_expression(
 fn validate_connector_syntax(syntax: &ConnectorSyntax) -> Result<(), AstConstructionError> {
     match syntax {
         ConnectorSyntax::ScalarPhysical {
-            across_dimension,
-            through_dimension,
+            across_type,
+            through_type,
         } => {
-            validate_expression(across_dimension)?;
-            validate_expression(through_dimension)
+            validate_expression(across_type.dimension())?;
+            validate_expression(through_type.dimension())
         }
         ConnectorSyntax::FieldPhysical {
             trace, flux, shape, ..
@@ -1081,8 +1081,8 @@ fn validate_support_slot_syntax(syntax: &SupportSlotSyntax) -> Result<(), AstCon
 
 fn validate_port_syntax(syntax: &PortSyntax) -> Result<(), AstConstructionError> {
     match syntax {
-        PortSyntax::Signal { dimension, .. } | PortSyntax::ConservingMarker { dimension } => {
-            validate_expression(dimension)
+        PortSyntax::Signal { value_type, .. } => {
+            SourceAstFactory::value_type(value_type.kind.clone(), value_type.range).map(|_| ())
         }
         PortSyntax::ScalarPhysical { domain } => {
             validate_identifier(domain, "scalar physical Domain")

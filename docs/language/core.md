@@ -132,7 +132,7 @@ aliases are static. A runtime-dependent alias cannot define an array extent, clo
 package identity, or other static requirement.
 
 ```eqiora
-parameter viscosity @{\mu}: Pa * s = 1.002e-3 [Pa * s];
+parameter viscosity @{\mu}: Pa * s = 1.002e-3;
 variable pressure @{p}: Pa on fluid;
 state temperature @{T}: K on solid;
 state memory: V at control;
@@ -247,10 +247,12 @@ can be compared for equality but not ordered.
 A bare literal zero can take the scalar domain, dimension, and shape uniquely required by its
 context. For example, `voltage = 0;` uses a voltage zero. An unconstrained zero is dimensionless
 real scalar zero. Contextual zero does not create a frame, support, clock, or basis conversion.
-A Field's bare numeric declaration initializer uses its declared dimension's coherent
-unit: `field pressure: Pa = 2;` needs no repeated `[Pa]`. A shaped Field initializer
-admits contextual zero, not nonzero scalar broadcasting. This declaration boundary does
-not give units to nonzero literals in arbitrary expressions.
+A numeric initializer of an explicitly dimension-typed declaration uses that dimension's
+coherent unit: `parameter density: kg / m ^ 3 = 1;` needs no repeated unit. This also
+applies to a numeric parameter default, Field initializer, or type-annotated `let`.
+Explicit input units still undergo conversion and dimension checking. This declaration-only
+rule does not assign units to arbitrary expressions or instance arguments; nonzero literals
+elsewhere remain dimensionless.
 
 ## Numbers, units, and brackets
 

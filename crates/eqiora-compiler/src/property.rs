@@ -420,8 +420,8 @@ fn validate_instance(
     contracts: &BTreeMap<Key, Contract>,
     releases: &BTreeMap<Key, Release>,
     compositions: &BTreeMap<Key, Composition>,
-    values: &mut BTreeMap<String, f64>,
-    material_values: &mut BTreeMap<String, Vec<(String, f64)>>,
+    values: &mut BTreeMap<String, Expr>,
+    material_values: &mut BTreeMap<String, Vec<(String, Expr)>>,
     projections: &mut Vec<ResolvedPropertyBinding>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -524,13 +524,21 @@ fn validate_instance(
             ));
             continue;
         }
+        let quantity = SourceAstFactory::expression(
+            ExprKind::Quantity {
+                value: release.value,
+                unit: Box::new(contracts[&required_contract].dimension.clone()),
+            },
+            *binding_range,
+        )
+        .expect("validated property value and source range");
         if composition_key.is_some() {
-            bound_material_values.push((requirement.to_owned(), release.value));
+            bound_material_values.push((requirement.to_owned(), quantity));
         } else if let Some((_, release_path, _)) = binding_syntax
             .iter()
             .find(|(property, _, _)| *property == requirement)
         {
-            values.insert(release_path.to_string(), release.value);
+            values.insert(release_path.to_string(), quantity);
         }
         projections.push(ResolvedPropertyBinding {
             composition: composition_key.as_ref().map(qualified),
@@ -760,7 +768,7 @@ public component Diffusion {
   public parameter diffusivity: m ^ 2 / s;
   relation law continuous { diffusivity = 0; }
 }
-model Main { instance domain: Diffusion(diffusivity = 0.025); }
+model Main { instance domain: Diffusion(diffusivity = 0.025[m ^ 2 / s]); }
 "#;
         let direct_model = analyze_resolved_hierarchy(ResolvedHierarchyInput::new(
             root.clone(),

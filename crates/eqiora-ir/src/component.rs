@@ -247,7 +247,14 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
 
         let node = self.expression.nodes()[index].clone();
         let mapped = match node {
-            ExprNode::Constant(constant) => self.builder.constant(constant)?,
+            ExprNode::Constant(constant) => {
+                // The checked real component projection turns a shaped zero
+                // into one scalar zero; it does not erase a complex domain.
+                self.builder.constant(eqiora_core::DynQuantity::new(
+                    constant.literal(),
+                    constant.value_type().dimension(),
+                ))?
+            }
             ExprNode::Symbol(symbol) => self.input(symbol, node_type.shape(), component)?,
             ExprNode::Neg(operand) => {
                 let operand = self.lower_shaped(operand, component)?;
@@ -523,6 +530,33 @@ mod tests {
     use eqiora_schema::kernel::{ExprDagBuilder, SymbolRef};
 
     use super::ComponentScalarization;
+
+    #[test]
+    fn typed_constant_arrays_scalarize_only_in_the_real_domain() {
+        use eqiora_core::{ScalarDomain, ValueLiteral, ValueType};
+        for domain in [ScalarDomain::Real, ScalarDomain::Complex] {
+            let value_type = ValueType::scalar(domain, DimExponents::DIMENSIONLESS)
+                .array(3)
+                .unwrap();
+            let mut builder = ExprDagBuilder::new();
+            let root = builder
+                .constant(ValueLiteral::new(value_type.clone(), 0.0).unwrap())
+                .unwrap();
+            let typed = TypedResidual::infer(
+                builder.finish([root]).unwrap(),
+                None::<SpatialSupport<()>>,
+                RootContract::ComponentwiseResidual,
+                |_| -> Result<ExpressionType<()>, ()> { unreachable!("constant has no symbols") },
+            )
+            .unwrap();
+            assert_eq!(typed.node_type(root).unwrap().value_type, value_type);
+            let result = ComponentScalarization::lower(&typed);
+            match domain {
+                ScalarDomain::Real => assert_eq!(result.unwrap().rows().len(), 3),
+                ScalarDomain::Complex => assert!(result.unwrap_err().message().contains("complex")),
+            }
+        }
+    }
 
     #[test]
     fn real_scalarization_rejects_complex_types_before_emitting_rows() {

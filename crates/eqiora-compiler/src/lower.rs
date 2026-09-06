@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 mod binding;
 mod connection;
+mod declaration;
 mod domain;
 mod domain_contract;
 mod expression;
@@ -14,6 +15,7 @@ use binding::{
     bind_port, insert_binding, resolve_field_contract, resolve_port_contract,
 };
 use connection::{lower_connection, prepare_flat_physical_connections};
+use declaration::{lower_clock, lower_port};
 pub(crate) use domain_contract::{LoweringDomainContract, LoweringPortContract};
 use expression::{TypedExpression, lower_relation};
 
@@ -216,7 +218,7 @@ impl PartialEq for LoweringExpression {
 
 #[derive(Debug, PartialEq)]
 enum LoweringExpressionNode {
-    Quantity(DynQuantity),
+    Literal(eqiora_core::ValueLiteral),
     Name(String),
     Neg(LoweringExpression),
     Binary {
@@ -233,7 +235,7 @@ enum LoweringExpressionNode {
         arguments: Vec<LoweringExpression>,
     },
     UnknownMath(String),
-    InvalidUnit(&'static str),
+    InvalidValue(&'static str),
     Unsupported,
 }
 
@@ -243,11 +245,20 @@ impl LoweringExpression {
     }
 
     pub(crate) fn quantity(value: DynQuantity, range: TextRange) -> Self {
+        match eqiora_core::ValueLiteral::try_from(value) {
+            Ok(value) => Self::literal(value, range),
+            Err(_) => Self {
+                node: Arc::new(LoweringExpressionNode::InvalidValue(
+                    "mathematical literal must be finite",
+                )),
+                range,
+            },
+        }
+    }
+
+    pub(crate) fn literal(value: eqiora_core::ValueLiteral, range: TextRange) -> Self {
         Self {
-            node: Arc::new(LoweringExpressionNode::Quantity(DynQuantity::new(
-                normalize_zero(value.value()),
-                value.dim(),
-            ))),
+            node: Arc::new(LoweringExpressionNode::Literal(value)),
             range,
         }
     }
@@ -260,10 +271,10 @@ impl LoweringExpression {
     }
 
     pub(crate) fn neg(value: Self, range: TextRange) -> Self {
-        if let LoweringExpressionNode::Quantity(quantity) = value.node.as_ref()
-            && quantity.value() == 0.0
+        if let LoweringExpressionNode::Literal(quantity) = value.node.as_ref()
+            && quantity.literal() == 0.0
         {
-            return Self::quantity(DynQuantity::new(0.0, quantity.dim()), range);
+            return Self::literal(quantity.clone(), range);
         }
         Self {
             node: Arc::new(LoweringExpressionNode::Neg(value)),
@@ -303,13 +314,17 @@ impl LoweringExpression {
         }
     }
 
-    pub(crate) fn with_quantity_dimension(&self, dimension: DimExponents) -> Self {
-        match self.node.as_ref() {
-            LoweringExpressionNode::Quantity(value) => {
-                Self::quantity(DynQuantity::new(value.value(), dimension), self.range)
-            }
-            _ => self.clone(),
-        }
+    pub(crate) fn embed_complex(self) -> Self {
+        let unit = eqiora_core::ValueLiteral::new(
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Complex,
+                DimExponents::DIMENSIONLESS,
+            ),
+            1.0,
+        )
+        .expect("one is a finite complex scalar literal");
+        let range = self.range;
+        Self::binary(BinaryOp::Mul, Self::literal(unit, range), self, range)
     }
 
     pub(crate) const fn range(&self) -> TextRange {
@@ -347,7 +362,7 @@ pub(crate) enum LoweringItem {
     },
     Parameter {
         name: String,
-        dimension: Expr,
+        value_type: eqiora_lang::ValueTypeSyntax,
         value: f64,
         range: TextRange,
     },
@@ -534,15 +549,15 @@ pub(crate) fn lower_typed_model(
             },
             LoweringItem::Parameter {
                 name,
-                dimension,
+                value_type,
                 range,
                 ..
-            } => match lower_dimension(file, dimension) {
-                Ok(dimension) => insert_binding(
+            } => match crate::value_types::lower_value_type::<RawId>(file, value_type, None) {
+                Ok(value_type) => insert_binding(
                     file,
                     &mut bindings,
                     name,
-                    Binding::Parameter(identities.parameter(name), dimension),
+                    Binding::Parameter(identities.parameter(name), value_type),
                     *range,
                     &mut diagnostics,
                 ),
@@ -740,14 +755,11 @@ pub(crate) fn lower_typed_model(
                     })
             }
             LoweringItem::Parameter { name, value, .. } => {
-                let Binding::Parameter(id, dimension) = bindings[name].clone() else {
+                let Binding::Parameter(id, value_type) = bindings[name].clone() else {
                     unreachable!("first pass assigns Parameter bindings");
                 };
-                nodes.push(
-                    ParameterDef::new(id, DynQuantity::new(normalize_zero(*value), dimension))
-                        .into(),
-                );
-                Ok(())
+                ParameterDef::new(id, value_type, normalize_zero(*value))
+                    .map(|parameter| nodes.push(parameter.into()))
             }
             LoweringItem::Port { name, range, .. } => {
                 let Binding::Port(id, contract) = bindings[name].clone() else {
@@ -933,56 +945,18 @@ pub(crate) fn lower_typed_model(
     })
 }
 
-fn lower_port(
-    file: &str,
-    range: TextRange,
-    id: Id<kinds::Port>,
-    contract: &PortContract,
-    bindings: &BTreeMap<String, Binding>,
-) -> Result<PortDef, Diagnostic> {
-    match resolve_port_contract(file, range, contract, bindings)? {
-        ResolvedPortContract::Signal {
-            direction: SignalDirectionSyntax::Input,
-            dimension,
-        } => Ok(PortDef::signal(id, SignalDirection::Input, dimension)),
-        ResolvedPortContract::Signal {
-            direction: SignalDirectionSyntax::Output,
-            dimension,
-        } => Ok(PortDef::signal(id, SignalDirection::Output, dimension)),
-        ResolvedPortContract::ConservingMarker { dimension } => {
-            Ok(PortDef::conserving_marker(id, dimension))
-        }
-        ResolvedPortContract::ScalarPhysical { domain, .. } => {
-            Ok(PortDef::scalar_physical(id, domain))
-        }
-        ResolvedPortContract::BoundaryPhysical {
-            connector,
-            boundary,
-            ..
-        } => Ok(PortDef::boundary_physical(id, connector, boundary)),
-    }
-}
-
-fn lower_clock(
-    period: eqiora_lang::RationalSyntax,
-    phase: eqiora_lang::RationalSyntax,
-) -> Result<(RationalTime, RationalTime), Diagnostic> {
-    Ok((
-        RationalTime::new(period.numerator(), period.denominator())?,
-        RationalTime::new(phase.numerator(), phase.denominator())?,
-    ))
-}
-
 fn lowering_integer_literal(expression: &LoweringExpression) -> Option<i32> {
     let value = match expression.node.as_ref() {
-        LoweringExpressionNode::Quantity(value) if value.dim() == DimExponents::DIMENSIONLESS => {
-            value.value()
+        LoweringExpressionNode::Literal(value)
+            if value.value_type().dimension() == DimExponents::DIMENSIONLESS =>
+        {
+            value.real_scalar_value()?.value()
         }
         LoweringExpressionNode::Neg(value) => match value.node.as_ref() {
-            LoweringExpressionNode::Quantity(value)
-                if value.dim() == DimExponents::DIMENSIONLESS =>
+            LoweringExpressionNode::Literal(value)
+                if value.value_type().dimension() == DimExponents::DIMENSIONLESS =>
             {
-                -value.value()
+                -value.real_scalar_value()?.value()
             }
             _ => return None,
         },

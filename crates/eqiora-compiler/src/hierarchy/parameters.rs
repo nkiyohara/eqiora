@@ -1,14 +1,13 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, DimExponents, DynQuantity};
+use eqiora_core::{Diagnostic, DimExponents, DynQuantity, ScalarDomain, ValueLiteral, ValueType};
 use eqiora_lang::{
     BinaryOp, ComponentDecl, ComponentItem, ComponentParameterDecl, Expr, ExprKind, InstanceDecl,
     TextRange, UnaryOp, VisibilitySyntax,
 };
 
 use crate::diagnostics::{source_error, stable_sort};
-use crate::dimensions::lower_dimension;
 use crate::identity::FullElaborationIdentity;
 use crate::lower::LoweringExpression;
 
@@ -16,49 +15,67 @@ use super::hierarchy_error;
 
 mod expression_eval;
 mod model_lets;
-use expression_eval::{ExpressionContext, coerce_parameter, evaluate_parameter_expression};
+use expression_eval::{
+    ExpressionContext, coerce_parameter, coerce_parameter_with_label, evaluate_parameter_expression,
+};
 pub(super) use model_lets::resolve_model_lets;
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(super) struct ConstantValue {
-    pub(super) value: f64,
-    pub(super) dimension: DimExponents,
-}
 
 #[derive(Debug, Clone)]
 pub(super) struct ResolvedParameter {
-    pub(super) value: ConstantValue,
+    pub(super) value: ValueLiteral,
     pub(super) expression: LoweringExpression,
     pub(super) lineage: ParameterLineage,
 }
 
 /// One component Parameter after definition-time symbolic resolution.
 ///
-/// The dimension is always the declaration's concrete SI dimension. `value`
+/// The checked type is retained through symbolic resolution. `value`
 /// is absent exactly when the expression depends on at least one required
 /// public Parameter whose value belongs to a future component occurrence.
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct SymbolicParameterValue {
     pub(super) value: Option<f64>,
-    pub(super) dimension: DimExponents,
+    pub(super) value_type: ValueType,
     pub(super) expression: Option<LoweringExpression>,
     pub(super) lineage: Option<ParameterLineage>,
 }
 
 pub(super) type SymbolicParameterMap = BTreeMap<String, SymbolicParameterValue>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum EvaluatedDimension {
-    Known(DimExponents),
-    /// A power with a symbolic exponent can defer its result dimension until
-    /// an enclosing declaration or operator supplies the expected dimension.
-    Deferred,
+fn component_parameter_type(
+    file: &str,
+    declaration: &ComponentParameterDecl,
+) -> Result<ValueType, Diagnostic> {
+    crate::value_types::lower_value_type::<()>(file, declaration.value_type(), None)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum EvaluatedType {
+    Known(ValueType),
+    /// Only dimension is unresolved. The dimensionless projection retains
+    /// scalar domain, component roles and frame for shared type checking.
+    Deferred(ValueType),
+}
+
+impl EvaluatedType {
+    fn dimension(&self) -> Option<DimExponents> {
+        match self {
+            Self::Known(value) => Some(value.dimension()),
+            Self::Deferred(_) => None,
+        }
+    }
+
+    fn value_type(&self) -> &ValueType {
+        match self {
+            Self::Known(value) | Self::Deferred(value) => value,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 struct EvaluatedParameter {
     value: Option<f64>,
-    dimension: EvaluatedDimension,
+    value_type: EvaluatedType,
     bare_literal: bool,
     expression: Option<LoweringExpression>,
     lineage: Option<ParameterLineage>,
@@ -73,7 +90,7 @@ pub(super) enum ParameterLineage {
 
 impl ResolvedParameter {
     pub(super) fn model_parameter(
-        value: ConstantValue,
+        value: ValueLiteral,
         identity: FullElaborationIdentity,
         internal_name: String,
         range: TextRange,
@@ -89,8 +106,8 @@ impl ResolvedParameter {
 impl From<ResolvedParameter> for SymbolicParameterValue {
     fn from(parameter: ResolvedParameter) -> Self {
         Self {
-            value: Some(parameter.value.value),
-            dimension: parameter.value.dimension,
+            value: Some(parameter.value.literal()),
+            value_type: parameter.value.value_type().clone(),
             expression: Some(parameter.expression),
             lineage: Some(parameter.lineage),
         }
@@ -101,7 +118,7 @@ impl From<SymbolicParameterValue> for EvaluatedParameter {
     fn from(value: SymbolicParameterValue) -> Self {
         Self {
             value: value.value,
-            dimension: EvaluatedDimension::Known(value.dimension),
+            value_type: EvaluatedType::Known(value.value_type),
             bare_literal: false,
             expression: value.expression,
             lineage: value.lineage,
@@ -169,7 +186,7 @@ impl<'a> SymbolicParameterResolver<'a> {
                 continue;
             }
 
-            let target = match lower_dimension(self.declaration_file, declaration.dimension()) {
+            let target = match component_parameter_type(self.declaration_file, declaration) {
                 Ok(target) => Some(target),
                 Err(error) => {
                     diagnostics.push(error);
@@ -186,7 +203,7 @@ impl<'a> SymbolicParameterResolver<'a> {
                             name.to_owned(),
                             SymbolicParameterValue {
                                 value: None,
-                                dimension: target,
+                                value_type: target,
                                 expression: None,
                                 lineage: None,
                             },
@@ -268,13 +285,16 @@ impl<'a> SymbolicParameterResolver<'a> {
                 },
             )
             .and_then(|evaluated| {
-                coerce_parameter(
+                coerce_parameter_with_label(
                     self.declaration_file,
                     parameter.expression.range(),
                     evaluated,
                     parameter
                         .target
+                        .clone()
                         .expect("valid default has a target dimension"),
+                    "Parameter initializer",
+                    true,
                 )
             });
             match evaluated {
@@ -296,7 +316,7 @@ impl<'a> SymbolicParameterResolver<'a> {
 
 struct DefaultParameter<'a> {
     expression: &'a Expr,
-    target: Option<DimExponents>,
+    target: Option<ValueType>,
     dependencies: BTreeMap<String, TextRange>,
     valid: bool,
 }
@@ -625,7 +645,7 @@ fn resolve_instance_overrides(
             ));
             continue;
         }
-        let target = match lower_dimension(declaration_file, declaration.dimension()) {
+        let target = match component_parameter_type(declaration_file, declaration) {
             Ok(value) => value,
             Err(error) => {
                 diagnostics.push(error);
@@ -776,10 +796,8 @@ impl<'a> ParameterResolver<'a> {
                     Ok((
                         name,
                         ResolvedParameter {
-                            value: ConstantValue {
-                                value,
-                                dimension: parameter.dimension,
-                            },
+                            value: ValueLiteral::new(parameter.value_type, value)
+                                .map_err(|error| vec![hierarchy_error(error.to_string())])?,
                             expression,
                             lineage,
                         },
@@ -799,7 +817,7 @@ fn combine_parameters(
 ) -> Result<EvaluatedParameter, Diagnostic> {
     let lineage = combine_lineages(left.lineage.clone(), right.lineage.clone());
     let exponent = if operator == BinaryOp::Pow {
-        require_dimensionless_exponent(file, range, right.dimension)?;
+        require_dimensionless_exponent(file, range, &right.value_type)?;
         if matches!(
             right.lineage,
             Some(ParameterLineage::Parameter(_) | ParameterLineage::Derived)
@@ -827,12 +845,12 @@ fn combine_parameters(
     } else {
         None
     };
-    let dimension = combine_dimensions(
+    let value_type = combine_types(
         file,
         range,
         operator,
-        left.dimension,
-        right.dimension,
+        left.value_type,
+        right.value_type,
         exponent,
     )?;
     let expression = match (left.expression, right.expression) {
@@ -854,7 +872,7 @@ fn combine_parameters(
     };
     Ok(EvaluatedParameter {
         value,
-        dimension,
+        value_type,
         bare_literal: false,
         expression,
         lineage,
@@ -887,86 +905,105 @@ fn combine_lineages(
     }
 }
 
-fn combine_dimensions(
+fn combine_types(
     file: &str,
     range: TextRange,
     operator: BinaryOp,
-    left: EvaluatedDimension,
-    right: EvaluatedDimension,
+    left: EvaluatedType,
+    right: EvaluatedType,
     exponent: Option<i32>,
-) -> Result<EvaluatedDimension, Diagnostic> {
-    match operator {
-        BinaryOp::Add | BinaryOp::Sub => match (left, right) {
-            (EvaluatedDimension::Known(left), EvaluatedDimension::Known(right))
-                if left == right =>
-            {
-                Ok(EvaluatedDimension::Known(left))
-            }
-            (EvaluatedDimension::Known(left), EvaluatedDimension::Known(right)) => {
-                Err(source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    file,
-                    range,
-                    format!(
-                        "compile-time addition/subtraction combines dimensions [{}] and [{}]",
-                        left, right
-                    ),
-                ))
-            }
-            (EvaluatedDimension::Known(dimension), EvaluatedDimension::Deferred)
-            | (EvaluatedDimension::Deferred, EvaluatedDimension::Known(dimension)) => {
-                Ok(EvaluatedDimension::Known(dimension))
-            }
-            (EvaluatedDimension::Deferred, EvaluatedDimension::Deferred) => {
-                Ok(EvaluatedDimension::Deferred)
-            }
-        },
-        BinaryOp::Mul | BinaryOp::Div => match (left, right) {
-            (EvaluatedDimension::Known(left), EvaluatedDimension::Known(right)) => {
-                let operation = if operator == BinaryOp::Mul {
-                    DimExponents::mul
+) -> Result<EvaluatedType, Diagnostic> {
+    use eqiora_schema::kernel::typing::{self, ExpressionType};
+    let left_dimension = left.dimension();
+    let right_dimension = right.dimension();
+    let dimension_known = match operator {
+        BinaryOp::Add | BinaryOp::Sub => left_dimension.or(right_dimension).is_some(),
+        BinaryOp::Mul | BinaryOp::Div => left_dimension.is_some() && right_dimension.is_some(),
+        BinaryOp::Pow => {
+            exponent == Some(0)
+                || (exponent.is_some() && left_dimension.is_some())
+                || left_dimension == Some(DimExponents::DIMENSIONLESS)
+        }
+    };
+    let projected = |value: &EvaluatedType, dimension| {
+        ExpressionType::<()>::new(value.value_type().clone().with_dimension(dimension), None)
+    };
+    let fallback = DimExponents::DIMENSIONLESS;
+    let result = match operator {
+        BinaryOp::Add | BinaryOp::Sub => typing::additive(
+            &projected(
+                &left,
+                left_dimension.or(right_dimension).unwrap_or(fallback),
+            ),
+            &projected(
+                &right,
+                right_dimension.or(left_dimension).unwrap_or(fallback),
+            ),
+        ),
+        BinaryOp::Mul | BinaryOp::Div => {
+            let left = projected(
+                &left,
+                if dimension_known {
+                    left_dimension.unwrap()
                 } else {
-                    DimExponents::div
-                };
-                operation(left, right)
-                    .map(EvaluatedDimension::Known)
-                    .ok_or_else(|| constant_dimension_overflow(file, range))
+                    fallback
+                },
+            );
+            let right = projected(
+                &right,
+                if dimension_known {
+                    right_dimension.unwrap()
+                } else {
+                    fallback
+                },
+            );
+            if operator == BinaryOp::Mul {
+                typing::multiply(&left, &right)
+            } else {
+                typing::divide(&left, &right)
             }
-            _ => Ok(EvaluatedDimension::Deferred),
-        },
-        BinaryOp::Pow => match (left, exponent) {
-            (EvaluatedDimension::Known(dimension), Some(exponent)) => dimension
-                .pow(exponent, 1)
-                .map(EvaluatedDimension::Known)
-                .ok_or_else(|| constant_dimension_overflow(file, range)),
-            (EvaluatedDimension::Deferred, Some(0)) => {
-                Ok(EvaluatedDimension::Known(DimExponents::DIMENSIONLESS))
+        }
+        BinaryOp::Pow => typing::power(
+            &projected(&left, left_dimension.unwrap_or(fallback)),
+            exponent.unwrap_or(1),
+        ),
+    };
+    result
+        .map(|value| {
+            if dimension_known {
+                EvaluatedType::Known(value.value_type)
+            } else {
+                EvaluatedType::Deferred(value.value_type.with_dimension(fallback))
             }
-            (EvaluatedDimension::Known(dimension), None)
-                if dimension == DimExponents::DIMENSIONLESS =>
-            {
-                Ok(EvaluatedDimension::Known(DimExponents::DIMENSIONLESS))
+        })
+        .map_err(|error| {
+            if matches!(error, typing::TypeViolation::DimensionOverflow { .. }) {
+                constant_dimension_overflow(file, range)
+            } else {
+                source_error(codes::LANGUAGE_TYPE_ERROR, file, range, error.to_string())
             }
-            _ => Ok(EvaluatedDimension::Deferred),
-        },
-    }
+        })
 }
 
 fn require_dimensionless_exponent(
     file: &str,
     range: TextRange,
-    dimension: EvaluatedDimension,
+    dimension: &EvaluatedType,
 ) -> Result<(), Diagnostic> {
     match dimension {
-        EvaluatedDimension::Known(dimension) if dimension != DimExponents::DIMENSIONLESS => {
+        EvaluatedType::Known(value_type) | EvaluatedType::Deferred(value_type)
+            if value_type.dimension() != DimExponents::DIMENSIONLESS
+                || value_type.scalar_domain() != ScalarDomain::Real
+                || !value_type.shape().is_scalar() =>
+        {
             Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 file,
                 range,
-                "compile-time power exponent must be dimensionless",
+                "compile-time power exponent must be a real dimensionless scalar",
             ))
         }
-        EvaluatedDimension::Known(_) | EvaluatedDimension::Deferred => Ok(()),
+        EvaluatedType::Known(_) | EvaluatedType::Deferred(_) => Ok(()),
     }
 }
 
@@ -1003,289 +1040,4 @@ fn constant_dimension_overflow(file: &str, range: TextRange) -> Diagnostic {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::fmt::Write as _;
-
-    use eqiora_lang::{ComponentItem, Document, parse};
-
-    use super::*;
-
-    fn document(source: &str) -> Document {
-        let source = format!("{source}\nmodel Root {{}}\n");
-        parse("parameters.eqi", &source)
-            .into_compilation_document()
-            .expect("test source parses")
-    }
-
-    fn component<'a>(document: &'a Document, name: &str) -> &'a ComponentDecl {
-        document
-            .components()
-            .iter()
-            .find(|component| component.name() == name)
-            .expect("component exists")
-    }
-
-    fn length(exponent: i32) -> DimExponents {
-        DimExponents::from_integers([0, exponent, 0, 0, 0, 0, 0]).expect("bounded dimension")
-    }
-
-    #[test]
-    fn required_public_parameters_are_typed_free_variables() {
-        let document = document(
-            r#"
-component Symbolic {
-  public parameter base: m;
-  public parameter exponent: 1;
-  public parameter area: m ^ 2 = base ^ exponent;
-  parameter offset: m = 2;
-}
-"#,
-        );
-        let parameters = resolve_component_parameters_symbolically(
-            "parameters.eqi",
-            component(&document, "Symbolic"),
-        )
-        .expect("open typed interface resolves");
-
-        assert_eq!(parameters["base"].value, None);
-        assert_eq!(parameters["base"].dimension, length(1));
-        assert_eq!(parameters["exponent"].value, None);
-        assert_eq!(
-            parameters["exponent"].dimension,
-            DimExponents::DIMENSIONLESS
-        );
-        assert_eq!(parameters["area"].value, None);
-        assert_eq!(parameters["area"].dimension, length(2));
-        assert_eq!(parameters["offset"].value, Some(2.0));
-        assert_eq!(parameters["offset"].dimension, length(1));
-    }
-
-    #[test]
-    fn required_private_parameter_has_no_symbolic_witness() {
-        let document = document("component Invalid { parameter hidden: m; }");
-        let diagnostics = resolve_component_parameters_symbolically(
-            "parameters.eqi",
-            component(&document, "Invalid"),
-        )
-        .expect_err("private required Parameter is uninhabitable");
-
-        assert!(diagnostics.iter().any(|diagnostic| {
-            diagnostic
-                .message()
-                .contains("required private Parameter `hidden` has no default")
-        }));
-    }
-
-    #[test]
-    fn nested_instance_validates_symbolic_parent_bindings_with_cached_child() {
-        let document = document(
-            r#"
-component Child {
-  public parameter base: m;
-  public parameter exponent: 1;
-  public parameter area: m ^ 2 = base ^ exponent;
-}
-component Parent {
-  public parameter length: m;
-  instance child: Child(base = length, exponent = 2);
-}
-"#,
-        );
-        let parent = component(&document, "Parent");
-        let child = component(&document, "Child");
-        let instance = parent
-            .items()
-            .iter()
-            .find_map(|item| match item {
-                ComponentItem::Instance(instance) => Some(instance),
-                _ => None,
-            })
-            .expect("nested instance exists");
-        let parent_parameters = resolve_component_parameters_symbolically("parameters.eqi", parent)
-            .expect("parent interface resolves");
-        let child_interface = resolve_component_parameters_symbolically("parameters.eqi", child)
-            .expect("child interface resolves once");
-        validate_instance_parameters_symbolically(
-            "parameters.eqi",
-            "parameters.eqi",
-            child,
-            instance,
-            &parent_parameters,
-            &child_interface,
-        )
-        .expect("cached interface validates the definition edge");
-    }
-
-    #[test]
-    fn symbolic_instances_preserve_binding_diagnostics() {
-        let document = document(
-            r#"
-component Child {
-  public parameter required: m;
-  parameter hidden: m = 1;
-}
-component Parent {
-  public parameter length: m;
-  instance missing: Child;
-  instance unknown: Child(other = length);
-  instance private: Child(hidden = length);
-  instance duplicate: Child(required = length, required = length);
-}
-"#,
-        );
-        let parent = component(&document, "Parent");
-        let child = component(&document, "Child");
-        let parent_parameters = resolve_component_parameters_symbolically("parameters.eqi", parent)
-            .expect("parent interface resolves");
-        let child_interface = resolve_component_parameters_symbolically("parameters.eqi", child)
-            .expect("child interface resolves once");
-        let instances = parent
-            .items()
-            .iter()
-            .filter_map(|item| match item {
-                ComponentItem::Instance(instance) => Some((instance.name(), instance)),
-                _ => None,
-            })
-            .collect::<BTreeMap<_, _>>();
-
-        let expected = [
-            (
-                "missing",
-                "required Parameter `required` has no instance binding",
-            ),
-            (
-                "unknown",
-                "unknown public Parameter `other` on component `Child`",
-            ),
-            (
-                "private",
-                "private Parameter `hidden` cannot be bound on instance `private`",
-            ),
-            (
-                "duplicate",
-                "duplicate binding for Parameter `required` in instance `duplicate`",
-            ),
-        ];
-        for (instance, message) in expected {
-            let diagnostics = validate_instance_parameters_symbolically(
-                "parameters.eqi",
-                "parameters.eqi",
-                child,
-                instances[instance],
-                &parent_parameters,
-                &child_interface,
-            )
-            .expect_err("invalid binding fails closed");
-            assert!(
-                diagnostics
-                    .iter()
-                    .any(|diagnostic| diagnostic.message().contains(message)),
-                "expected `{message}`, got {diagnostics:#?}"
-            );
-        }
-    }
-
-    #[test]
-    fn ten_thousand_parameter_chains_and_cycles_are_iterative() {
-        const COUNT: usize = 10_000;
-
-        let mut chain = String::from("component Chain {\n");
-        writeln!(chain, "  parameter p00000: 1 = 1;").expect("write to String");
-        for index in 1..COUNT {
-            writeln!(chain, "  parameter p{index:05}: 1 = p{:05};", index - 1)
-                .expect("write to String");
-        }
-        chain.push_str("}\n");
-        let chain_document = document(&chain);
-        let parameters = resolve_component_parameters_symbolically(
-            "parameters.eqi",
-            component(&chain_document, "Chain"),
-        )
-        .expect("deep acyclic graph resolves without recursive calls");
-        assert_eq!(parameters.len(), COUNT);
-        assert_eq!(parameters["p09999"].value, Some(1.0));
-
-        let mut cycle = String::from("component Cycle {\n");
-        for index in 0..COUNT {
-            writeln!(
-                cycle,
-                "  parameter p{index:05}: 1 = p{:05};",
-                (index + 1) % COUNT
-            )
-            .expect("write to String");
-        }
-        cycle.push_str("}\n");
-        let cycle_document = document(&cycle);
-        let diagnostics = resolve_component_parameters_symbolically(
-            "parameters.eqi",
-            component(&cycle_document, "Cycle"),
-        )
-        .expect_err("one large SCC fails without recursive calls");
-        assert_eq!(diagnostics.len(), 1);
-        assert_eq!(diagnostics[0].code(), codes::LANGUAGE_TYPE_ERROR);
-        assert!(diagnostics[0].source_span().is_some());
-        assert!(
-            diagnostics[0]
-                .message()
-                .starts_with("component Parameter dependency cycle: p00000 -> p00001")
-        );
-        assert!(diagnostics[0].message().ends_with("p09999 -> p00000"));
-    }
-
-    #[test]
-    fn parameter_self_loop_has_one_source_spanned_type_diagnostic() {
-        let document = document("component Loop { parameter value: 1 = value; }");
-        let diagnostics = resolve_component_parameters_symbolically(
-            "parameters.eqi",
-            component(&document, "Loop"),
-        )
-        .expect_err("self dependency is a cycle");
-
-        assert_eq!(diagnostics.len(), 1);
-        assert_eq!(diagnostics[0].code(), codes::LANGUAGE_TYPE_ERROR);
-        let span = diagnostics[0]
-            .source_span()
-            .expect("cycle points to the dependency name");
-        assert_eq!(span.file, "parameters.eqi");
-        assert!(span.start < span.end);
-        assert_eq!(
-            diagnostics[0].message(),
-            "component Parameter dependency cycle: value -> value"
-        );
-    }
-
-    #[test]
-    fn symbolic_default_outcome_is_declaration_order_independent() {
-        let forward = document(
-            r#"
-component Ordered {
-  parameter base: 1 = 2;
-  parameter shifted: 1 = base + 3;
-  parameter scaled: 1 = shifted * 4;
-}
-"#,
-        );
-        let reverse = document(
-            r#"
-component Ordered {
-  parameter scaled: 1 = shifted * 4;
-  parameter shifted: 1 = base + 3;
-  parameter base: 1 = 2;
-}
-"#,
-        );
-
-        let forward = resolve_component_parameters_symbolically(
-            "parameters.eqi",
-            component(&forward, "Ordered"),
-        )
-        .expect("forward declarations resolve");
-        let reverse = resolve_component_parameters_symbolically(
-            "parameters.eqi",
-            component(&reverse, "Ordered"),
-        )
-        .expect("reverse declarations resolve");
-        assert_eq!(forward, reverse);
-        assert_eq!(forward["scaled"].value, Some(20.0));
-    }
-}
+mod tests;

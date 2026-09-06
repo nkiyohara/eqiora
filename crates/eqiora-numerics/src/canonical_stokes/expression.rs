@@ -174,7 +174,8 @@ pub(super) fn lower_exact_twice_viscosity(
             matches!(
                 expression.node(**factor),
                 Some(ExprNode::Constant(value))
-                    if value.value() == 2.0 && value.dim() == DimExponents::DIMENSIONLESS
+                    if value.real_scalar_value().is_some_and(|value|
+                        value.value() == 2.0 && value.dim() == DimExponents::DIMENSIONLESS)
             )
         })
         .map(|(index, _)| index)

@@ -124,3 +124,28 @@ def test_type_emission_obeys_the_native_source_resource_limit() -> None:
     oversized = eqiora.ValueType.array(eqiora.ValueType.real(), 65_537)
     with pytest.raises(ValueError, match="65536"):
         oversized.to_eqi()
+
+def test_source_parameter_uses_the_shared_type_and_native_formatter() -> None:
+    value_type = eqiora.ValueType.array(
+        eqiora.ValueType.complex(eqiora.Dimension(length=Fraction(-1, 2))), 3
+    )
+    source = eqiora.lang.Source()
+    component = source.component("TypedParameter")
+    component.parameter("amplitude", value_type=value_type)
+    assert f"public parameter amplitude: {value_type.to_eqi()};" in source.to_eqi()
+    with pytest.raises(TypeError):
+        component.parameter("old", unit=eqiora.lang.units.m)
+    with pytest.raises(TypeError, match="eqiora.ValueType"):
+        component.parameter("invalid", value_type=eqiora.lang.units.m)
+
+
+def test_parameter_declaration_retains_its_complete_type() -> None:
+    dimension = eqiora.Dimension(time=Fraction(-1, 2))
+    value_type = eqiora.ValueType.array(eqiora.ValueType.complex(dimension), 3)
+    parameter = eqiora.Parameter("coefficient", value_type=value_type, value=0.0)
+    assert parameter.value_type == value_type
+    assert parameter.dimension == dimension
+    assert parameter.value == 0.0
+    assert eqiora.Parameter("scalar", value=2.0).value_type == eqiora.ValueType.real()
+    with pytest.raises(TypeError):
+        eqiora.Parameter("old", dimension=dimension, value=1.0)

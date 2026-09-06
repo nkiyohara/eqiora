@@ -578,11 +578,10 @@ fn dimensionless_parameters(program: &KernelProgram) -> Vec<(RawId, f64)> {
     program
         .nodes()
         .filter_map(|node| match node {
-            KernelNode::Parameter(parameter)
-                if parameter.value().dim() == DimExponents::DIMENSIONLESS =>
-            {
-                Some((parameter.id().erase(), parameter.value().value()))
-            }
+            KernelNode::Parameter(parameter) => parameter
+                .real_scalar_value()
+                .filter(|value| value.dim() == DimExponents::DIMENSIONLESS)
+                .map(|value| (parameter.id().erase(), value.value())),
             _ => None,
         })
         .collect()
@@ -847,7 +846,8 @@ fn matches_gamma_minus_one(expression: &ExprDag, value: ExprId, gamma: RawId) ->
 
 fn is_dimensionless_constant(expression: &ExprDag, value: ExprId, expected: f64) -> bool {
     matches!(expression.node(value), Some(ExprNode::Constant(value))
-        if value.dim() == DimExponents::DIMENSIONLESS && value.value() == expected)
+        if value.real_scalar_value().is_some_and(|value|
+            value.dim() == DimExponents::DIMENSIONLESS && value.value() == expected))
 }
 
 fn is_field(expression: &ExprDag, value: ExprId, expected: RawId) -> bool {

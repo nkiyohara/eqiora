@@ -7,7 +7,9 @@ use super::{LoweringExpression, LoweringExpressionNode};
 impl LoweringExpression {
     pub(crate) fn detached_clone(&self) -> Self {
         let node = match self.node.as_ref() {
-            LoweringExpressionNode::Quantity(value) => LoweringExpressionNode::Quantity(*value),
+            LoweringExpressionNode::Literal(value) => {
+                LoweringExpressionNode::Literal(value.clone())
+            }
             LoweringExpressionNode::Name(name) => LoweringExpressionNode::Name(name.clone()),
             LoweringExpressionNode::Neg(value) => {
                 LoweringExpressionNode::Neg(value.detached_clone())
@@ -38,8 +40,8 @@ impl LoweringExpression {
             LoweringExpressionNode::UnknownMath(path) => {
                 LoweringExpressionNode::UnknownMath(path.clone())
             }
-            LoweringExpressionNode::InvalidUnit(message) => {
-                LoweringExpressionNode::InvalidUnit(message)
+            LoweringExpressionNode::InvalidValue(message) => {
+                LoweringExpressionNode::InvalidValue(message)
             }
             LoweringExpressionNode::Unsupported => LoweringExpressionNode::Unsupported,
         };

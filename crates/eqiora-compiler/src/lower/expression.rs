@@ -23,9 +23,9 @@ impl LoweringExpression {
             LoweringExpressionNode::PureOperator { arguments, .. } => arguments
                 .iter()
                 .all(|argument| argument.collect_physical_port_names(names)),
-            LoweringExpressionNode::Quantity(_) | LoweringExpressionNode::Name(_) => true,
+            LoweringExpressionNode::Literal(_) | LoweringExpressionNode::Name(_) => true,
             LoweringExpressionNode::UnknownMath(_)
-            | LoweringExpressionNode::InvalidUnit(_)
+            | LoweringExpressionNode::InvalidValue(_)
             | LoweringExpressionNode::Unsupported => false,
         }
     }
@@ -34,18 +34,22 @@ impl LoweringExpression {
 pub(super) fn from_source(expression: &Expr) -> LoweringExpression {
     let kind = match expression.kind() {
         ExprKind::Quantity { value, unit } => match crate::units::quantity(*value, unit) {
-            Ok(value) => LoweringExpressionNode::Quantity(value),
-            Err(message) => LoweringExpressionNode::InvalidUnit(message),
+            Ok(value) => return LoweringExpression::quantity(value, expression.range()),
+            Err(message) => LoweringExpressionNode::InvalidValue(message),
         },
-        ExprKind::Number(value) => LoweringExpressionNode::Quantity(DynQuantity::new(
-            normalize_zero(*value),
-            DimExponents::DIMENSIONLESS,
-        )),
+        ExprKind::Number(value) => {
+            return LoweringExpression::quantity(
+                DynQuantity::new(*value, DimExponents::DIMENSIONLESS),
+                expression.range(),
+            );
+        }
         ExprKind::Path(path) => match crate::math::constant(path) {
-            Some(value) => LoweringExpressionNode::Quantity(DynQuantity::new(
-                value,
-                DimExponents::DIMENSIONLESS,
-            )),
+            Some(value) => {
+                return LoweringExpression::quantity(
+                    DynQuantity::new(value, DimExponents::DIMENSIONLESS),
+                    expression.range(),
+                );
+            }
             None if crate::math::is_namespaced(path) => {
                 LoweringExpressionNode::UnknownMath(path.as_str().to_owned())
             }
@@ -160,7 +164,9 @@ fn validate_spatial_operator_types(
     bindings: &BTreeMap<String, Binding>,
 ) -> Result<Option<ExpressionType<RawId>>, Diagnostic> {
     let typed = match expression.node.as_ref() {
-        LoweringExpressionNode::Quantity(value) => Some(ExpressionType::scalar(value.dim(), None)),
+        LoweringExpressionNode::Literal(value) => {
+            Some(ExpressionType::new(value.value_type().clone(), None))
+        }
         LoweringExpressionNode::Name(name) if name == "time" => {
             Some(ExpressionType::scalar(time_dimension(), None))
         }
@@ -171,8 +177,8 @@ fn validate_spatial_operator_types(
                 contract,
                 bindings,
             )?),
-            Some(Binding::Parameter(_, dimension)) => {
-                Some(ExpressionType::scalar(*dimension, None))
+            Some(Binding::Parameter(_, value_type)) => {
+                Some(ExpressionType::new(value_type.clone(), None))
             }
             _ => None,
         },
@@ -250,7 +256,7 @@ fn validate_spatial_operator_types(
             None
         }
         LoweringExpressionNode::UnknownMath(_)
-        | LoweringExpressionNode::InvalidUnit(_)
+        | LoweringExpressionNode::InvalidValue(_)
         | LoweringExpressionNode::Unsupported => None,
     };
     Ok(typed)
@@ -317,18 +323,18 @@ impl ExpressionLowerer<'_> {
             return Ok(*lowered);
         }
         let lowered = match expression.node.as_ref() {
-            LoweringExpressionNode::InvalidUnit(message) => Err(source_error(
+            LoweringExpressionNode::InvalidValue(message) => Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 self.file,
                 expression.range(),
                 *message,
             )),
-            LoweringExpressionNode::Quantity(value) => self
+            LoweringExpressionNode::Literal(value) => self
                 .builder
-                .constant(*value)
+                .constant(value.clone())
                 .map(|id| TypedExpression {
                     id,
-                    dimension: value.dim(),
+                    dimension: value.value_type().dimension(),
                 })
                 .map_err(|diagnostic| self.builder_error(expression, diagnostic)),
             LoweringExpressionNode::Name(name) if name == "time" => self
@@ -394,17 +400,18 @@ impl ExpressionLowerer<'_> {
         };
         let (symbol, id, dimension) = match binding {
             Binding::Field(id, contract) => (SymbolRef::Field(id), id.erase(), contract.dimension),
-            Binding::Parameter(id, dimension) => (SymbolRef::Parameter(id), id.erase(), dimension),
+            Binding::Parameter(id, value_type) => {
+                (SymbolRef::Parameter(id), id.erase(), value_type.dimension())
+            }
             Binding::Port(id, contract) => match resolve_port_contract(
                 self.file,
                 expression.range(),
                 &contract,
                 self.bindings,
             )? {
-                ResolvedPortContract::Signal { dimension, .. }
-                | ResolvedPortContract::ConservingMarker { dimension } => {
+                ResolvedPortContract::Signal { value_type, .. } => {
                     self.ports.insert(id.erase());
-                    (SymbolRef::Port(id), id.erase(), dimension)
+                    (SymbolRef::Port(id), id.erase(), value_type.dimension())
                 }
                 ResolvedPortContract::ScalarPhysical { .. } => {
                     return Err(source_error(
@@ -676,26 +683,17 @@ impl ExpressionLowerer<'_> {
         self.dependencies.insert(port.erase());
         self.ports.insert(port.erase());
         let (symbol, dimension) = match (callee, contract) {
-            (
-                "across",
-                ResolvedPortContract::ScalarPhysical {
-                    across_dimension, ..
-                },
-            ) => (SymbolRef::Across(*port), across_dimension),
-            (
-                "through",
-                ResolvedPortContract::ScalarPhysical {
-                    through_dimension, ..
-                },
-            ) => (SymbolRef::Through(*port), through_dimension),
-            (
-                "trace",
-                ResolvedPortContract::BoundaryPhysical {
-                    trace_dimension, ..
-                },
-            ) => (SymbolRef::PortTrace(*port), trace_dimension),
-            ("flux", ResolvedPortContract::BoundaryPhysical { flux_dimension, .. }) => {
-                (SymbolRef::PortFlux(*port), flux_dimension)
+            ("across", ResolvedPortContract::ScalarPhysical { across_type, .. }) => {
+                (SymbolRef::Across(*port), across_type.dimension())
+            }
+            ("through", ResolvedPortContract::ScalarPhysical { through_type, .. }) => {
+                (SymbolRef::Through(*port), through_type.dimension())
+            }
+            ("trace", ResolvedPortContract::BoundaryPhysical { trace_type, .. }) => {
+                (SymbolRef::PortTrace(*port), trace_type.dimension())
+            }
+            ("flux", ResolvedPortContract::BoundaryPhysical { flux_type, .. }) => {
+                (SymbolRef::PortFlux(*port), flux_type.dimension())
             }
             _ => {
                 return Err(source_error(

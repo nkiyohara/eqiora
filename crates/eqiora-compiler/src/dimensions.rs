@@ -184,7 +184,7 @@ fn rewrite_alias_uses(expression: &Expr, aliases: &BTreeMap<String, DimExponents
     SourceAstFactory::expression(kind, range).expect("parsed dimension expression remains valid")
 }
 
-fn dimension_expression(dimension: DimExponents, range: TextRange) -> Expr {
+pub(crate) fn dimension_expression(dimension: DimExponents, range: TextRange) -> Expr {
     let factors = ["kg", "m", "s", "A", "K", "mol", "cd"]
         .into_iter()
         .zip(dimension.exponents());
@@ -404,7 +404,7 @@ component Law {
   relation balance continuous { input - target = 0; }
 }
 model Example {
-  parameter target: Speed = 2;
+  parameter target: Speed = 2[m / s];
   let doubled: Speed = target * 2;
   field velocity: Speed = 0;
   port input: signal input Speed;
@@ -433,7 +433,7 @@ model Example {
                     } => Some(field.dimension()),
                     Op::DefineKernelNode {
                         node: KernelNode::Parameter(parameter),
-                    } => Some(parameter.value().dim()),
+                    } => Some(parameter.value_type().dimension()),
                     _ => None,
                 })
                 .collect::<Vec<_>>()

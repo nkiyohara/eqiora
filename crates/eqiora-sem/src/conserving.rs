@@ -117,7 +117,9 @@ impl JunctionResidual {
 pub struct ComposedResidualSystem {
     subsystem: ScalarPhysicalSubsystemId,
     unknowns: Vec<PhysicalUnknown>,
+    unknown_types: Vec<eqiora_core::ValueType>,
     parameters: Vec<Id<kinds::Parameter>>,
+    parameter_types: Vec<eqiora_core::ValueType>,
     uses_time: bool,
     relations: Vec<RelationResidual>,
     junctions: Vec<JunctionResidual>,
@@ -134,6 +136,18 @@ impl ComposedResidualSystem {
     #[must_use]
     pub fn unknowns(&self) -> &[PhysicalUnknown] {
         &self.unknowns
+    }
+
+    /// Complete types in the same canonical order as [`Self::unknowns`].
+    #[must_use]
+    pub fn unknown_types(&self) -> &[eqiora_core::ValueType] {
+        &self.unknown_types
+    }
+
+    /// Complete types in the same canonical order as [`Self::parameters`].
+    #[must_use]
+    pub fn parameter_types(&self) -> &[eqiora_core::ValueType] {
+        &self.parameter_types
     }
 
     /// Sorted unique known Parameters read by participating Relations.
@@ -170,6 +184,7 @@ impl ComposedResidualSystem {
     /// regenerate any residual DAG.
     ///
     /// # Errors
+    /// Rejects non-real or shaped inputs before reference evaluation.
     /// Returns `EQ0502` for an input-shape or time-presence mismatch and
     /// `EQ0505` for a non-finite input or intermediate value.
     pub fn evaluate_reference(
@@ -178,6 +193,20 @@ impl ComposedResidualSystem {
         parameter_values: &[f64],
         time: Option<f64>,
     ) -> Result<Vec<f64>, Diagnostic> {
+        if self
+            .unknown_types
+            .iter()
+            .chain(&self.parameter_types)
+            .any(|value_type| {
+                value_type.scalar_domain() != eqiora_core::ScalarDomain::Real
+                    || !value_type.shape().is_scalar()
+            })
+        {
+            return Err(Diagnostic::error(
+                codes::NOT_IMPLEMENTED,
+                "physical reference evaluation requires real scalar inputs",
+            ));
+        }
         if unknown_values.len() != self.unknowns.len()
             || parameter_values.len() != self.parameters.len()
         {
@@ -399,12 +428,39 @@ impl KernelProgram {
             kernel_error(seed, "physical unknown count overflows the platform size")
         })?;
         let mut unknowns = Vec::with_capacity(unknown_capacity);
+        let mut unknown_types = Vec::with_capacity(unknown_capacity);
         for port in &ports {
             let port = port.downcast::<kinds::Port>().ok_or_else(|| {
                 kernel_error(*port, "physical subsystem contains a non-Port member")
             })?;
             unknowns.push(PhysicalUnknown::Across(port));
             unknowns.push(PhysicalUnknown::Through(port));
+            let Some(KernelNode::Port(definition)) = self.node(port.erase()) else {
+                return Err(kernel_error(
+                    port.erase(),
+                    "physical Port definition is missing",
+                ));
+            };
+            let Some(KernelNode::Domain(domain)) = definition
+                .physical_domain()
+                .and_then(|id| self.node(id.erase()))
+            else {
+                return Err(kernel_error(
+                    port.erase(),
+                    "physical Domain definition is missing",
+                ));
+            };
+            let DomainKind::ScalarPhysical {
+                across_type,
+                through_type,
+            } = domain.kind()
+            else {
+                return Err(kernel_error(
+                    port.erase(),
+                    "physical Port has a non-scalar Domain",
+                ));
+            };
+            unknown_types.extend([across_type.clone(), through_type.clone()]);
         }
 
         let mut parameters = BTreeSet::new();
@@ -456,10 +512,23 @@ impl KernelProgram {
             .map(|connection| compose_junction(self, connection))
             .collect::<Result<Vec<_>, _>>()?;
 
+        let parameter_types = parameters
+            .iter()
+            .map(|parameter| match self.node(parameter.erase()) {
+                Some(KernelNode::Parameter(definition)) => Ok(definition.value_type().clone()),
+                _ => Err(kernel_error(
+                    parameter.erase(),
+                    "physical Parameter definition is missing",
+                )),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
         Ok(ComposedResidualSystem {
             subsystem,
             unknowns,
+            unknown_types,
             parameters,
+            parameter_types,
             uses_time,
             relations: relation_residuals,
             junctions,

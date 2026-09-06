@@ -169,8 +169,8 @@ fn parser_retains_scalar_physical_contracts_and_source_ranges() {
         panic!("first item is the physical Domain");
     };
     let DomainSyntax::ScalarPhysical {
-        across_dimension,
-        through_dimension,
+        across_type,
+        through_type,
     } = domain.syntax()
     else {
         panic!("Domain retains the scalar physical contract");
@@ -180,12 +180,11 @@ fn parser_retains_scalar_physical_contracts_and_source_ranges() {
         "domain electrical = scalar_physical(across = kg * m ^ 2 / (s ^ 3 * A), through = A);"
     );
     assert_eq!(
-        &source[across_dimension.range().start() as usize..across_dimension.range().end() as usize],
+        &source[across_type.range().start() as usize..across_type.range().end() as usize],
         "kg * m ^ 2 / (s ^ 3 * A)"
     );
     assert_eq!(
-        &source
-            [through_dimension.range().start() as usize..through_dimension.range().end() as usize],
+        &source[through_type.range().start() as usize..through_type.range().end() as usize],
         "A"
     );
 

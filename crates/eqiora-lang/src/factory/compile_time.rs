@@ -64,17 +64,14 @@ impl SourceAstFactory {
     /// Returns an error for malformed source expressions, names, or ranges.
     pub fn let_alias(
         name: impl Into<String>,
-        dimension: Option<Expr>,
+        value_type: Option<crate::ValueTypeSyntax>,
         value: Expr,
         range: TextRange,
     ) -> Result<Item, AstConstructionError> {
-        if let Some(dimension) = &dimension {
-            validate_expression(dimension)?;
-        }
         validate_expression(&value)?;
         Ok(Item::Let(LetDecl {
             name: checked_identifier(name, "let alias")?,
-            dimension,
+            value_type,
             value,
             range: checked_range(range)?,
         }))
@@ -123,14 +120,17 @@ mod tests {
         else {
             panic!("factory returns a let alias");
         };
-        let Item::Let(annotated) =
-            SourceAstFactory::let_alias("annotated", Some(dimension), value, range)
-                .expect("annotated alias")
-        else {
+        let Item::Let(annotated) = SourceAstFactory::let_alias(
+            "annotated",
+            Some(crate::ValueTypeSyntax::real(dimension)),
+            value,
+            range,
+        )
+        .expect("annotated alias") else {
             panic!("factory returns a let alias");
         };
 
-        assert!(inferred.dimension().is_none());
-        assert!(annotated.dimension().is_some());
+        assert!(inferred.value_type().is_none());
+        assert!(annotated.value_type().is_some());
     }
 }

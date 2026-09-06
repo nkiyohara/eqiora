@@ -222,7 +222,7 @@ fn bouncing_fixture(direction: EventDirection, reverse_nodes: bool) -> BouncingF
             .with_initial(
                 DynQuantity::new(1.0, length)
                     .try_into()
-                    .expect("finite real Field initial"),
+                    .expect("finite real initial value"),
             )
             .unwrap(),
         ),
@@ -234,18 +234,32 @@ fn bouncing_fixture(direction: EventDirection, reverse_nodes: bool) -> BouncingF
             .with_initial(
                 DynQuantity::new(0.0, velocity_dimension)
                     .try_into()
-                    .expect("finite real Field initial"),
+                    .expect("finite real initial value"),
             )
             .unwrap(),
         ),
-        KernelNode::from(ParameterDef::new(
-            gravity,
-            DynQuantity::new(9.81, acceleration_dimension),
-        )),
-        KernelNode::from(ParameterDef::new(
-            restitution,
-            DynQuantity::new(0.8, DimExponents::DIMENSIONLESS),
-        )),
+        KernelNode::from(
+            ParameterDef::new(
+                gravity,
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    acceleration_dimension,
+                ),
+                9.81,
+            )
+            .unwrap(),
+        ),
+        KernelNode::from(
+            ParameterDef::new(
+                restitution,
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+                0.8,
+            )
+            .unwrap(),
+        ),
         KernelNode::from(RelationDef::new(
             flight,
             flight_expression
@@ -379,15 +393,29 @@ fn chattering_program() -> KernelProgram {
             .with_initial(
                 DynQuantity::new(1.0e-6, DimExponents::DIMENSIONLESS)
                     .try_into()
-                    .expect("finite real Field initial"),
+                    .expect("finite real initial value"),
             )
             .unwrap(),
         ),
-        KernelNode::from(ParameterDef::new(rate, DynQuantity::new(1.0, inverse_time))),
-        KernelNode::from(ParameterDef::new(
-            reset_value,
-            DynQuantity::new(1.0e-6, DimExponents::DIMENSIONLESS),
-        )),
+        KernelNode::from(
+            ParameterDef::new(
+                rate,
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time),
+                1.0,
+            )
+            .unwrap(),
+        ),
+        KernelNode::from(
+            ParameterDef::new(
+                reset_value,
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+                1.0e-6,
+            )
+            .unwrap(),
+        ),
         KernelNode::from(RelationDef::new(
             flow,
             flow_expression.finish([flow_residual]).unwrap(),

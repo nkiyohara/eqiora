@@ -31,13 +31,14 @@ fn rational_dimension_meaning_survives_canonical_model_replay() {
     let replay = ModelDocument::replay(&bytes).unwrap();
     assert_eq!(replay.canonical_json().unwrap(), bytes);
     assert!(model.structurally_equivalent(&replay).unwrap());
-    let old_schema = String::from_utf8(bytes)
-        .unwrap()
-        .replace("eqiora.model-envelope/v10", "eqiora.model-envelope/v8");
+    let current_schema = String::from_utf8(bytes).unwrap();
+    let old_schema =
+        current_schema.replace("eqiora.model-envelope/v11", "eqiora.model-envelope/v10");
+    assert_ne!(old_schema, current_schema);
     assert!(ModelDocument::replay(old_schema.as_bytes()).is_err());
     assert_eq!(
         model.structural_fingerprint().unwrap().generation(),
-        SemanticFingerprintGeneration::V5
+        SemanticFingerprintGeneration::V6
     );
 }
 
@@ -98,7 +99,7 @@ fn current_generation_is_independent_of_coordinate_vocabulary() {
     for model in [&fixed, &referenced] {
         assert_eq!(
             model.structural_fingerprint().unwrap().generation(),
-            SemanticFingerprintGeneration::V5
+            SemanticFingerprintGeneration::V6
         );
     }
     // Equal endpoint values do not erase the nominal Parameter dependency.
@@ -128,7 +129,7 @@ fn source_native_codec_and_allocation_routes_share_only_structural_identity() {
         );
     }
     let fingerprint = source.structural_fingerprint().unwrap();
-    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V5);
+    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V6);
     assert_eq!(fingerprint.digest().len(), 64);
 
     let replay = eqiora::api::ModelDocument::replay(&source.canonical_json().unwrap()).unwrap();
@@ -157,8 +158,12 @@ fn nominal_identity_graph_wiring_values_and_operators_remain_meaning() {
     assert!(source.structurally_equivalent(&reordered_native).unwrap());
     assert_ne!(source.digest().unwrap(), native.digest().unwrap());
 
-    let changed_value =
-        ModelDocument::compile("value.eqi", &PHYSICAL.replace("= 2;", "= 3;")).unwrap();
+    let changed_source = PHYSICAL.replace("= 2;", "= 3;");
+    assert_ne!(
+        changed_source, PHYSICAL,
+        "the value probe must change its input"
+    );
+    let changed_value = ModelDocument::compile("value.eqi", &changed_source).unwrap();
     let changed_operator = ModelDocument::compile(
         "operator.eqi",
         &PHYSICAL.replace(
@@ -298,7 +303,10 @@ fn native_decay(reversed: bool) -> ModelDraft {
     );
     let rate = DraftParameter::new(
         "coefficient",
-        DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),
+        ),
         1.0,
     );
     let relation = DraftRelation::continuous(
@@ -316,15 +324,24 @@ fn native_decay(reversed: bool) -> ModelDraft {
 fn native_resistor(reversed: bool) -> ModelDraft {
     let electrical = DraftPhysicalDomain::new(
         "pin",
-        DimExponents::from_integers([1, 2, -3, -1, 0, 0, 0]).expect("bounded dimension"),
-        DimExponents::from_integers([0, 0, 0, 1, 0, 0, 0]).expect("bounded dimension"),
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::from_integers([1, 2, -3, -1, 0, 0, 0]).expect("bounded dimension"),
+        ),
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::from_integers([0, 0, 0, 1, 0, 0, 0]).expect("bounded dimension"),
+        ),
     );
     let positive = DraftConservingPort::new("p", &electrical);
     let negative = DraftConservingPort::new("n", &electrical);
     let tap = DraftConservingPort::new("t", &electrical);
     let resistance = DraftParameter::new(
         "r",
-        DimExponents::from_integers([1, 2, -3, -2, 0, 0, 0]).expect("bounded dimension"),
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::from_integers([1, 2, -3, -2, 0, 0, 0]).expect("bounded dimension"),
+        ),
         2.0,
     );
     let law = DraftRelation::continuous(
@@ -453,7 +470,15 @@ fn manually_allocated_program(reverse_expression: bool, expose_port: bool) -> Ke
             node: ActivationDef::continuous(activation).into(),
         })
         .push(Op::DefineKernelNode {
-            node: PortDef::signal(port, SignalDirection::Input, DimExponents::DIMENSIONLESS).into(),
+            node: PortDef::signal(
+                port,
+                SignalDirection::Input,
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+            )
+            .into(),
         })
         .push(Op::Connect {
             from: relation.erase(),

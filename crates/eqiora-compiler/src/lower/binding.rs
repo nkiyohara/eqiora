@@ -5,7 +5,7 @@ pub(super) enum Binding {
     Domain(Id<kinds::Domain>, DomainContract),
     Representation(Id<kinds::Representation>),
     Field(Id<kinds::Field>, FieldContract),
-    Parameter(Id<kinds::Parameter>, DimExponents),
+    Parameter(Id<kinds::Parameter>, eqiora_core::ValueType),
     Port(Id<kinds::Port>, PortContract),
     Clock(Id<kinds::ClockDomain>),
     Relation {
@@ -34,8 +34,8 @@ pub(super) enum DomainContract {
         dimensions: Option<usize>,
     },
     ScalarPhysical {
-        across_dimension: DimExponents,
-        through_dimension: DimExponents,
+        across_type: eqiora_core::ValueType,
+        through_type: eqiora_core::ValueType,
     },
     BoundaryPhysical(BoundaryPhysicalConnector),
 }
@@ -51,10 +51,7 @@ pub(super) struct FieldContract {
 pub(super) enum PortContract {
     Signal {
         direction: SignalDirectionSyntax,
-        dimension: DimExponents,
-    },
-    ConservingMarker {
-        dimension: DimExponents,
+        value_type: eqiora_core::ValueType,
     },
     ScalarPhysical {
         domain: String,
@@ -65,25 +62,22 @@ pub(super) enum PortContract {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum ResolvedPortContract {
     Signal {
         direction: SignalDirectionSyntax,
-        dimension: DimExponents,
-    },
-    ConservingMarker {
-        dimension: DimExponents,
+        value_type: eqiora_core::ValueType,
     },
     ScalarPhysical {
         domain: Id<kinds::Domain>,
-        across_dimension: DimExponents,
-        through_dimension: DimExponents,
+        across_type: eqiora_core::ValueType,
+        through_type: eqiora_core::ValueType,
     },
     BoundaryPhysical {
         connector: Id<kinds::Domain>,
         boundary: Id<kinds::Domain>,
-        trace_dimension: DimExponents,
-        flux_dimension: DimExponents,
+        trace_type: eqiora_core::ValueType,
+        flux_type: eqiora_core::ValueType,
     },
 }
 
@@ -94,11 +88,11 @@ pub(super) fn bind_domain(
 ) -> Result<DomainContract, Diagnostic> {
     match syntax {
         DomainSyntax::ScalarPhysical {
-            across_dimension,
-            through_dimension,
+            across_type,
+            through_type,
         } => Ok(DomainContract::ScalarPhysical {
-            across_dimension: lower_dimension(file, across_dimension)?,
-            through_dimension: lower_dimension(file, through_dimension)?,
+            across_type: crate::value_types::lower_scalar_type(file, across_type)?,
+            through_type: crate::value_types::lower_scalar_type(file, through_type)?,
         }),
         DomainSyntax::CartesianBox(bounds) => Ok(DomainContract::Spatial {
             dimensions: Some(bounds.len()),
@@ -145,13 +139,10 @@ pub(super) fn bind_port(
     match syntax {
         PortSyntax::Signal {
             direction,
-            dimension,
+            value_type,
         } => Ok(PortContract::Signal {
             direction: *direction,
-            dimension: lower_dimension(file, dimension)?,
-        }),
-        PortSyntax::ConservingMarker { dimension } => Ok(PortContract::ConservingMarker {
-            dimension: lower_dimension(file, dimension)?,
+            value_type: crate::value_types::lower_value_type::<()>(file, value_type, None)?,
         }),
         PortSyntax::ScalarPhysical { domain } => Ok(PortContract::ScalarPhysical {
             domain: domain.clone(),
@@ -174,22 +165,17 @@ pub(super) fn resolve_port_contract(
     match contract {
         PortContract::Signal {
             direction,
-            dimension,
+            value_type,
         } => Ok(ResolvedPortContract::Signal {
             direction: *direction,
-            dimension: *dimension,
+            value_type: value_type.clone(),
         }),
-        PortContract::ConservingMarker { dimension } => {
-            Ok(ResolvedPortContract::ConservingMarker {
-                dimension: *dimension,
-            })
-        }
         PortContract::ScalarPhysical { domain } => {
             let Some(Binding::Domain(
                 domain_id,
                 DomainContract::ScalarPhysical {
-                    across_dimension,
-                    through_dimension,
+                    across_type,
+                    through_type,
                 },
             )) = bindings.get(domain)
             else {
@@ -205,8 +191,8 @@ pub(super) fn resolve_port_contract(
             };
             Ok(ResolvedPortContract::ScalarPhysical {
                 domain: *domain_id,
-                across_dimension: *across_dimension,
-                through_dimension: *through_dimension,
+                across_type: across_type.clone(),
+                through_type: through_type.clone(),
             })
         }
         PortContract::BoundaryPhysical {
@@ -236,8 +222,8 @@ pub(super) fn resolve_port_contract(
             Ok(ResolvedPortContract::BoundaryPhysical {
                 connector: *connector_id,
                 boundary: *boundary_id,
-                trace_dimension: contract.trace_dimension(),
-                flux_dimension: contract.flux_dimension(),
+                trace_type: contract.trace_type().clone(),
+                flux_type: contract.flux_type().clone(),
             })
         }
     }

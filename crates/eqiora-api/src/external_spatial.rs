@@ -525,7 +525,7 @@ public component SteadyFlowPastCylinder {
             let Some(KernelNode::Parameter(definition)) = document.program().node(parameter) else {
                 panic!("`{name}` does not resolve to a Parameter")
             };
-            assert_eq!(definition.value(), expected);
+            assert_eq!(definition.real_scalar_value(), Some(expected));
             parameter_ids.insert(parameter);
         }
         assert_eq!(parameter_ids.len(), 4);

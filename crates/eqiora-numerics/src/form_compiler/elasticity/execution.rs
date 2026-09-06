@@ -554,9 +554,15 @@ impl<'a> ProgramCompiler<'a> {
             .clone();
         let provenance = self.source_provenance(Some(node), active_operator);
         match value {
-            ExprNode::Constant(quantity) if axes.is_empty() => {
-                self.constant(quantity.value(), provenance)
-            }
+            ExprNode::Constant(quantity) if axes.is_empty() => self.constant(
+                quantity
+                    .real_scalar_value()
+                    .ok_or_else(|| {
+                        tape_error("elasticity execution requires real scalar constants")
+                    })?
+                    .value(),
+                provenance,
+            ),
             ExprNode::Symbol(SymbolRef::Parameter(parameter)) if axes.is_empty() => {
                 let material = self
                     .materials

@@ -631,10 +631,12 @@ fn project_node(
                     format!("Cartesian boundary · axis {axis} · {side:?}")
                 }
                 DomainKind::ScalarPhysical {
-                    across_dimension,
-                    through_dimension,
+                    across_type,
+                    through_type,
                 } => format!(
-                    "Scalar physical domain · across {across_dimension} · through {through_dimension}"
+                    "Scalar physical domain · across {} · through {}",
+                    project_type(across_type)?,
+                    project_type(through_type)?,
                 ),
                 _ => return Err(unsupported_node_contract()),
             },
@@ -662,10 +664,14 @@ fn project_node(
         ),
         KernelNode::Parameter(definition) => (
             "parameter",
-            "Canonical model parameter".to_owned(),
-            Some(definition.value().dim().to_string()),
+            format!("Parameter · {}", project_type(definition.value_type())?),
+            Some(definition.value_type().dimension().to_string()),
             document.program().value(id).map_or_else(
-                || Some(definition.value().value()),
+                || {
+                    definition
+                        .real_scalar_value()
+                        .map(|quantity| quantity.value())
+                },
                 |quantity| Some(quantity.value()),
             ),
         ),
@@ -673,21 +679,17 @@ fn project_node(
             let (summary, dimension) = match definition.payload() {
                 PortPayload::Signal {
                     direction: SignalDirection::Input,
-                    dimension,
+                    value_type,
                 } => (
-                    "Causal signal input".to_owned(),
-                    Some(dimension.to_string()),
+                    format!("Causal signal input · {}", project_type(value_type)?),
+                    Some(value_type.dimension().to_string()),
                 ),
                 PortPayload::Signal {
                     direction: SignalDirection::Output,
-                    dimension,
+                    value_type,
                 } => (
-                    "Causal signal output".to_owned(),
-                    Some(dimension.to_string()),
-                ),
-                PortPayload::ConservingMarker { dimension } => (
-                    "Structural conserving marker".to_owned(),
-                    Some(dimension.to_string()),
+                    format!("Causal signal output · {}", project_type(value_type)?),
+                    Some(value_type.dimension().to_string()),
                 ),
                 PortPayload::ScalarPhysical { domain } => {
                     let domain = domain.erase();
@@ -847,11 +849,11 @@ pub fn run() {
 mod tests {
     use super::{
         DocumentCache, MAX_DOCUMENTS, ModelDocument, ValueEditPlanDto, project_document,
-        project_node,
+        project_node, project_type,
     };
     use eqiora::entity::kinds;
     use eqiora::kernel::{DomainDef, KernelNode, PortDef};
-    use eqiora::{DimExponents, Id};
+    use eqiora::{DimExponents, Id, ScalarDomain, ValueType};
     use std::collections::BTreeMap;
 
     const SOURCE: &str = r#"
@@ -900,11 +902,14 @@ model decay {
         let port = Id::<kinds::Port>::new();
         let across_dimension = DimExponents::from_integers([1, 2, -3, -1, 0, 0, 0]).unwrap();
         let through_dimension = DimExponents::from_integers([0, 0, 0, 1, 0, 0, 0]).unwrap();
-        let domain_node = KernelNode::from(DomainDef::scalar_physical(
-            domain,
-            across_dimension,
-            through_dimension,
-        ));
+        let domain_node = KernelNode::from(
+            DomainDef::scalar_physical(
+                domain,
+                ValueType::scalar(ScalarDomain::Real, across_dimension),
+                ValueType::scalar(ScalarDomain::Real, through_dimension),
+            )
+            .unwrap(),
+        );
         let port_node = KernelNode::from(PortDef::scalar_physical(port, domain));
         let names = BTreeMap::from([
             (domain.erase(), "electrical".to_owned()),
@@ -912,8 +917,10 @@ model decay {
         ]);
 
         let domain_dto = project_node(&document, &domain_node, &names).unwrap();
-        assert!(domain_dto.summary.contains(&across_dimension.to_string()));
-        assert!(domain_dto.summary.contains(&through_dimension.to_string()));
+        assert!(domain_dto.summary.contains(
+            &project_type(&ValueType::scalar(ScalarDomain::Real, across_dimension)).unwrap()
+        ));
+        assert!(domain_dto.summary.contains("through A"));
         let port_dto = project_node(&document, &port_node, &names).unwrap();
         assert_eq!(port_dto.name, "positive");
         assert_eq!(
@@ -921,6 +928,30 @@ model decay {
             "Scalar physical conserving port · electrical"
         );
         assert_eq!(port_dto.dimension, None);
+    }
+
+    #[test]
+    fn projection_retains_rich_types_without_presenting_them_as_real_values() {
+        let document = ModelDocument::compile(
+            "typed.eqi",
+            "model Typed { parameter amplitude: complex<V> = 2; field channels: array<m, 2> = 0; }",
+        )
+        .unwrap();
+        let projection = project_document(&document, document.digest().unwrap()).unwrap();
+        let parameter = projection
+            .nodes
+            .iter()
+            .find(|node| node.kind == "parameter")
+            .unwrap();
+        assert!(parameter.summary.contains("complex<"));
+        assert_eq!(parameter.value, None);
+        let field = projection
+            .nodes
+            .iter()
+            .find(|node| node.kind == "field")
+            .unwrap();
+        assert_eq!(field.summary, "Field · array<m, 2>");
+        assert_eq!(field.value, None);
     }
 
     #[test]

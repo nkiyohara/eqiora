@@ -254,9 +254,12 @@ fn discover_root_registration(
                 SymbolRef::Field(field) if state_fields.contains(&field) => {}
                 SymbolRef::Parameter(parameter) => {
                     let value = match program.node(parameter.erase()) {
-                        Some(KernelNode::Parameter(definition)) => program
-                            .value(parameter.erase())
-                            .unwrap_or_else(|| definition.value()),
+                        Some(KernelNode::Parameter(definition)) => {
+                            let initial = definition.real_scalar_value().ok_or_else(|| {
+                                invalid_artifact("Event guard requires real scalar Parameters")
+                            })?;
+                            program.value(parameter.erase()).unwrap_or(initial)
+                        }
                         _ => {
                             return Err(invalid_artifact(
                                 "Event guard references a Parameter absent from the model",

@@ -41,7 +41,10 @@ pub(super) fn require_profile_parameters(
         let Some(KernelNode::Parameter(definition)) = program.node(parameter) else {
             return Err(invalid("profile identity names a non-Parameter Model node"));
         };
-        let value = program.value(parameter).unwrap_or(definition.value());
+        let initial = definition
+            .real_scalar_value()
+            .ok_or_else(|| invalid("profile requires real scalar Parameters"))?;
+        let value = program.value(parameter).unwrap_or(initial);
         if value.dim() != dimension || value.value() != expected {
             return Err(invalid(
                 "profile identity and exact Model Parameter value/dimension differ",
@@ -140,7 +143,10 @@ pub(super) fn require_complete_boundary_model(
     let Some(KernelNode::Parameter(speed_definition)) = program.node(speed) else {
         return Err(invalid("complete trace speed identity is not a Parameter"));
     };
-    let speed_value = program.value(speed).unwrap_or(speed_definition.value());
+    let initial_speed = speed_definition
+        .real_scalar_value()
+        .ok_or_else(|| invalid("trace speed requires a real scalar Parameter"))?;
+    let speed_value = program.value(speed).unwrap_or(initial_speed);
     if speed_value.dim() != VELOCITY || speed_value.value() <= 0.0 {
         return Err(invalid(
             "complete trace speed must be finite positive velocity",
@@ -155,9 +161,10 @@ pub(super) fn require_complete_boundary_model(
     let Some(KernelNode::Parameter(viscosity_definition)) = program.node(viscosity) else {
         return Err(invalid("viscosity identity is not a Parameter"));
     };
-    let viscosity_value = program
-        .value(viscosity)
-        .unwrap_or(viscosity_definition.value());
+    let initial_viscosity = viscosity_definition
+        .real_scalar_value()
+        .ok_or_else(|| invalid("viscosity requires a real scalar Parameter"))?;
+    let viscosity_value = program.value(viscosity).unwrap_or(initial_viscosity);
     let mut identities = profile.parameters().into_iter().collect::<BTreeSet<_>>();
     identities.insert(speed);
     identities.insert(viscosity);
