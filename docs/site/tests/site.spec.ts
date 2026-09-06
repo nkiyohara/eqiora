@@ -11,6 +11,21 @@ import {
   ROUTES,
 } from './support';
 
+test('homepage headline stays readable on desktop and mobile', async ({ page }) => {
+  for (const viewport of [{ width: 1440, height: 900 }, { width: 375, height: 812 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+    const headline = page.getByRole('heading', { level: 1, name: 'Any physics. One language.', exact: true });
+    await expect(headline).toBeVisible();
+    await expect(headline).toHaveText('Any physics. One language.');
+    const bounds = await headline.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width);
+    expect(await headline.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+  }
+});
+
 test('required routes, semantic stages, controls, and 404 are real static surfaces', async ({ page }) => {
   const external = await rejectExternalRequests(page);
   for (const route of ROUTES) {
