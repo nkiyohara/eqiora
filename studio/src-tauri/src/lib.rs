@@ -934,7 +934,7 @@ model decay {
     fn projection_retains_rich_types_without_presenting_them_as_real_values() {
         let document = ModelDocument::compile(
             "typed.eqi",
-            "model Typed { parameter amplitude: complex<V> = 2; field channels: array<m, 2> = 0; }",
+            "model Typed { parameter amplitude: complex<V> = 2; field channels: array<m, 2> = 0; relation resting continuous { channels = 0; } }",
         )
         .unwrap();
         let projection = project_document(&document, document.digest().unwrap()).unwrap();
