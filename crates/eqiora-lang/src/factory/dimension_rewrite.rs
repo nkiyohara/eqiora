@@ -62,10 +62,12 @@ fn rewrite_component_item(item: &mut ComponentItem, rewrite: &mut impl FnMut(&Ex
             rewrite_port(&mut declaration.port.syntax, rewrite);
         }
         ComponentItem::FieldSlot(declaration) => {
-            declaration.dimension = rewrite(&declaration.dimension);
+            let dimension = declaration.value_type.dimension_mut();
+            *dimension = rewrite(dimension);
         }
         ComponentItem::Field(declaration) => {
-            declaration.dimension = rewrite(&declaration.dimension);
+            let dimension = declaration.value_type.dimension_mut();
+            *dimension = rewrite(dimension);
         }
         ComponentItem::Instance(_)
         | ComponentItem::Support(_)
@@ -90,8 +92,14 @@ fn rewrite_item(item: &mut Item, rewrite: &mut impl FnMut(&Expr) -> Expr) {
                 *through_dimension = rewrite(through_dimension);
             }
         }
-        Item::Field(declaration) => declaration.dimension = rewrite(&declaration.dimension),
-        Item::Parameter(declaration) => declaration.dimension = rewrite(&declaration.dimension),
+        Item::Field(declaration) => {
+            let dimension = declaration.value_type.dimension_mut();
+            *dimension = rewrite(dimension);
+        }
+        Item::Parameter(declaration) => {
+            let dimension = declaration.value_type.dimension_mut();
+            *dimension = rewrite(dimension);
+        }
         Item::Let(declaration) => {
             if let Some(dimension) = &mut declaration.dimension {
                 *dimension = rewrite(dimension);

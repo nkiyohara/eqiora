@@ -40,14 +40,14 @@ fn owned_flat_model_formats_and_parses_identically() {
         "temperature",
         Some("body".to_owned()),
         Some("space".to_owned()),
-        dimension(),
-        0.0,
+        crate::ValueTypeSyntax::real(dimension()),
+        Some(SourceAstFactory::expression(ExprKind::Number(0.0), range(0, 0)).unwrap()),
         range(0, 0),
     )
     .expect("Field");
     let parameter = SourceAstFactory::parameter(
         "gain",
-        dimension(),
+        crate::ValueTypeSyntax::real(dimension()),
         SourceAstFactory::expression(ExprKind::Number(2.0), range(0, 0)).unwrap(),
         range(0, 0),
     )
@@ -311,8 +311,14 @@ fn owned_field_slots_and_bindings_format_and_parse_identically() {
     let state = SourceAstFactory::field_slot(
         "state",
         "body",
-        dimension(),
-        Some(ValueShapeSyntax::SpatialVector),
+        SourceAstFactory::value_type(
+            crate::ValueTypeSyntaxKind::Vector {
+                scalar: Box::new(crate::ValueTypeSyntax::real(dimension())),
+                extent: 2,
+            },
+            range(0, 0),
+        )
+        .unwrap(),
         range(0, 0),
     )
     .expect("Field slot");
@@ -357,17 +363,6 @@ fn owned_field_slots_and_bindings_format_and_parse_identically() {
         panic!("model member is an instance");
     };
     assert_eq!(instance.field_bindings()[0].target(), "temperature");
-
-    assert!(
-        SourceAstFactory::field_slot(
-            "state",
-            "body",
-            dimension(),
-            Some(ValueShapeSyntax::Exact(Vec::new())),
-            range(0, 0),
-        )
-        .is_err()
-    );
 }
 
 #[test]
@@ -449,12 +444,18 @@ fn factory_constructs_closed_field_physical_source_shapes() {
         range(0, 0),
     )
     .expect("field-physical Connector");
-    let field = SourceAstFactory::field_with_shape(
+    let field = SourceAstFactory::field(
         "velocity",
         None,
         None,
-        Some(ValueShapeSyntax::Exact(vec![2])),
-        dimension(),
+        SourceAstFactory::value_type(
+            crate::ValueTypeSyntaxKind::Array {
+                element: Box::new(crate::ValueTypeSyntax::real(dimension())),
+                extent: 2,
+            },
+            range(0, 0),
+        )
+        .unwrap(),
         None,
         range(0, 0),
     )
@@ -489,14 +490,12 @@ fn factory_constructs_closed_field_physical_source_shapes() {
     );
     assert!(SourceAstFactory::connector_quantity("not-valid", dimension()).is_err());
     assert!(
-        SourceAstFactory::field_with_shape(
-            "bad",
-            None,
-            None,
-            Some(ValueShapeSyntax::Exact(vec![0])),
-            dimension(),
-            None,
-            range(0, 0),
+        SourceAstFactory::value_type(
+            crate::ValueTypeSyntaxKind::Array {
+                element: Box::new(crate::ValueTypeSyntax::real(dimension())),
+                extent: 0,
+            },
+            range(0, 0)
         )
         .is_err()
     );

@@ -49,6 +49,10 @@ pub enum TokenKind {
     Slash,
     /// `^`.
     Caret,
+    /// `<` opening a mathematical type constructor.
+    LeftAngle,
+    /// `>` closing a mathematical type constructor.
+    RightAngle,
     /// `->`.
     Arrow,
     /// Source fragment that is not part of language v0.
@@ -177,6 +181,8 @@ pub fn lex(file: impl Into<String>, source: &str) -> LexResult {
             b'*' => single(&mut offset, TokenKind::Star),
             b'/' => single(&mut offset, TokenKind::Slash),
             b'^' => single(&mut offset, TokenKind::Caret),
+            b'<' => single(&mut offset, TokenKind::LeftAngle),
+            b'>' => single(&mut offset, TokenKind::RightAngle),
             _ => {
                 let width = source[offset..].chars().next().map_or(1, char::len_utf8);
                 offset += width;
@@ -295,8 +301,8 @@ mod tests {
     }
 
     #[test]
-    fn lexer_retains_exact_value_shape_delimiters() {
-        let source = "field velocity: m / s shape [2, 3];";
+    fn lexer_retains_component_index_delimiters() {
+        let source = "let component = velocity[2, 3];";
         let result = lex("shape.eqi", source);
 
         assert!(result.diagnostics().is_empty());

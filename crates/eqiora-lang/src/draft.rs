@@ -17,7 +17,7 @@ use crate::ast::{
 };
 use crate::draft_spatial::{DraftRepresentation, DraftSpatialDomain, DraftSpatialDomainKind};
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, DimExponents, GraphPath};
+use eqiora_core::{Diagnostic, DimExponents, GraphPath, ValueType};
 
 /// One immutable native model definition request.
 #[derive(Debug, Clone)]
@@ -140,12 +140,26 @@ impl ModelDraft {
                 }
             }
             match declaration {
-                DraftDeclaration::Field(field) if !field.initial.is_finite() => {
-                    diagnostics.push(native_diagnostic(
-                        &self.name,
-                        field.name(),
-                        "Field initial value must be finite",
-                    ));
+                DraftDeclaration::Field(field) => {
+                    if field.initial.is_some_and(|initial| !initial.is_finite()) {
+                        diagnostics.push(native_diagnostic(
+                            &self.name,
+                            field.name(),
+                            "Field initial value must be finite",
+                        ));
+                    }
+                    if let Err(message) = value_type::validate(&field.value_type) {
+                        diagnostics.push(native_diagnostic(&self.name, field.name(), message));
+                    }
+                    if !field.value_type.shape().is_scalar()
+                        && field.initial.is_some_and(|value| value != 0.0)
+                    {
+                        diagnostics.push(native_diagnostic(
+                            &self.name,
+                            field.name(),
+                            "non-scalar Field cannot have a scalar initial value",
+                        ));
+                    }
                 }
                 DraftDeclaration::Parameter(parameter) if !parameter.value.is_finite() => {
                     diagnostics.push(native_diagnostic(
@@ -414,24 +428,26 @@ impl ModelDraft {
                         .spatial_scope
                         .as_ref()
                         .map(|scope| scope.representation.name.clone()),
-                    shape: None,
-                    dimension: dimension_expression(
-                        field.dimension,
+                    value_type: value_type::project(
+                        &field.value_type,
                         &path,
                         &mut ranges,
                         &mut paths,
                     ),
-                    initial: Some(field.initial),
+                    initial: field.initial.map(|value| Expr {
+                        kind: ExprKind::Number(value),
+                        range,
+                    }),
                     range,
                 }),
                 DraftDeclaration::Parameter(parameter) => Item::Parameter(ParameterDecl {
                     name: parameter.name.clone(),
-                    dimension: dimension_expression(
+                    value_type: crate::ValueTypeSyntax::real(dimension_expression(
                         parameter.dimension,
                         &path,
                         &mut ranges,
                         &mut paths,
-                    ),
+                    )),
                     value: Expr {
                         kind: ExprKind::Number(parameter.value),
                         range,
@@ -695,13 +711,13 @@ impl DraftConservingConnection {
     }
 }
 
-/// Immutable scalar Field declaration, either local or spatially supported.
+/// Immutable typed Field declaration, either local or spatially supported.
 #[derive(Debug, Clone)]
 pub struct DraftField {
     symbol: DraftSymbol,
     name: String,
-    dimension: DimExponents,
-    initial: f64,
+    value_type: ValueType,
+    initial: Option<f64>,
     spatial_scope: Option<DraftSpatialScope>,
 }
 
@@ -712,32 +728,32 @@ struct DraftSpatialScope {
 }
 
 impl DraftField {
-    /// Declare one scalar Field in coherent SI units.
+    /// Declare one Field with an exact mathematical type and optional scalar initial value.
     #[must_use]
-    pub fn new(name: impl Into<String>, dimension: DimExponents, initial: f64) -> Self {
+    pub fn new(name: impl Into<String>, value_type: ValueType, initial: Option<f64>) -> Self {
         Self {
             symbol: DraftSymbol::new(),
             name: name.into(),
-            dimension,
+            value_type,
             initial,
             spatial_scope: None,
         }
     }
 
-    /// Declare one scalar Field over an exact draft-local Domain and
+    /// Declare one typed Field over an exact draft-local Domain and
     /// continuum Representation.
     #[must_use]
-    pub fn spatial_scalar(
+    pub fn spatial(
         name: impl Into<String>,
         domain: &DraftSpatialDomain,
         representation: &DraftRepresentation,
-        dimension: DimExponents,
-        initial: f64,
+        value_type: ValueType,
+        initial: Option<f64>,
     ) -> Self {
         Self {
             symbol: DraftSymbol::new(),
             name: name.into(),
-            dimension,
+            value_type,
             initial,
             spatial_scope: Some(DraftSpatialScope {
                 domain: domain.clone(),
@@ -755,12 +771,18 @@ impl DraftField {
     /// Static SI dimension.
     #[must_use]
     pub const fn dimension(&self) -> DimExponents {
-        self.dimension
+        self.value_type.dimension()
+    }
+
+    /// Complete mathematical type, independent of storage and execution.
+    #[must_use]
+    pub const fn value_type(&self) -> &ValueType {
+        &self.value_type
     }
 
     /// Initial value in coherent SI units.
     #[must_use]
-    pub const fn initial(&self) -> f64 {
+    pub const fn initial(&self) -> Option<f64> {
         self.initial
     }
 
@@ -1205,22 +1227,6 @@ impl Hash for DraftSymbol {
     }
 }
 
-fn physical_accessor_ast(
-    callee: &str,
-    reference: &DraftPortReference,
-    path: &GraphPath,
-    ranges: &mut RangeAllocator,
-    paths: &mut HashMap<TextRange, GraphPath>,
-) -> ExprKind {
-    ExprKind::Call {
-        callee: NamePath::single(callee.to_owned(), ranges.allocate(path, paths)),
-        arguments: vec![Expr {
-            kind: ExprKind::Name(reference.name.clone()),
-            range: ranges.allocate(path, paths),
-        }],
-    }
-}
-
 /// Synthetic AST plus paths that recover native declaration context.
 #[doc(hidden)]
 #[derive(Debug)]
@@ -1243,26 +1249,10 @@ impl NativeModelAst {
     }
 }
 
-#[derive(Debug, Default)]
-struct RangeAllocator {
-    next: u32,
-}
-
-impl RangeAllocator {
-    fn allocate(
-        &mut self,
-        path: &GraphPath,
-        paths: &mut HashMap<TextRange, GraphPath>,
-    ) -> TextRange {
-        let start = self.next;
-        self.next = self.next.saturating_add(1);
-        let range = TextRange::new(start, self.next);
-        paths.insert(range, path.clone());
-        range
-    }
-}
-
+mod ast_bridge;
 mod dimension;
+mod value_type;
+use ast_bridge::{RangeAllocator, physical_accessor_ast};
 use dimension::dimension_expression;
 
 fn native_diagnostic(model: &str, declaration: &str, message: impl Into<String>) -> Diagnostic {

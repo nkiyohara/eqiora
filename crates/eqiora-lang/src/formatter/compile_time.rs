@@ -13,7 +13,7 @@ pub(super) fn format_dimension(declaration: &DimensionDecl, output: &mut String)
 pub(super) fn format_parameter(declaration: &ParameterDecl, indent: usize, output: &mut String) {
     write_indent(output, indent);
     write!(output, "parameter {}: ", declaration.name).expect("String write");
-    format_expression(&declaration.dimension, 0, output);
+    super::value_type::format_value_type(&declaration.value_type, output);
     output.push_str(" = ");
     format_expression(&declaration.value, 0, output);
     output.push_str(";\n");

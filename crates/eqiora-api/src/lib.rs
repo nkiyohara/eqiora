@@ -634,7 +634,14 @@ public component Resistor {
 
     #[test]
     fn native_definition_closes_an_equivalent_independent_artifact() {
-        let state = DraftField::new("x", DimExponents::DIMENSIONLESS, 1.0);
+        let state = DraftField::new(
+            "x",
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
+            Some(1.0),
+        );
         let rate = DraftParameter::new(
             "rate",
             DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),
@@ -667,7 +674,7 @@ public component Resistor {
 model elastic_relation {
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
-  field displacement on body as space: m shape spatial_vector;
+  field displacement on body as space: vector<m, 2>;
   parameter mu: kg / (m * s ^ 2) = 2;
   parameter lambda: kg / (m * s ^ 2) = 3;
   relation balance continuous on body {
@@ -695,8 +702,8 @@ public pure operator dyadic(left: spatial[1], right: spatial[1]) -> spatial[2]
 model pure_relation {
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
-  field left on body as space: 1 shape spatial_vector;
-  field right on body as space: 1 shape spatial_vector;
+  field left on body as space: vector<1, 2>;
+  field right on body as space: vector<1, 2>;
   relation balance continuous on body {
     div(div(dyadic(left, right))) = 0;
   }
@@ -707,7 +714,7 @@ model pure_relation {
         let bytes = current.canonical_json().unwrap();
         let json = String::from_utf8_lossy(&bytes);
         assert!(json.contains("pure-operator-application"));
-        assert!(json.contains("eqiora.model-envelope/v9"));
+        assert!(json.contains("eqiora.model-envelope/v10"));
         let replay = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(replay.canonical_json().unwrap(), bytes);
         assert_eq!(replay.digest().unwrap(), current.digest().unwrap());
@@ -739,7 +746,7 @@ model pure_relation {
         assert!(
             String::from_utf8(plan.transaction_json().unwrap())
                 .unwrap()
-                .contains("eqiora.model-transaction-envelope/v9")
+                .contains("eqiora.model-transaction-envelope/v10")
         );
 
         let result = document.commit_value_edit(plan.clone()).unwrap();

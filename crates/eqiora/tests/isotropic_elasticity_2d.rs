@@ -278,8 +278,8 @@ fn elasticity_finalization_requires_an_admitted_spd_operator() {
 fn canonical_lowering_fails_closed_at_physical_identity_and_model_boundaries() {
     let wrong_dimensions = MANUFACTURED
         .replace(
-            "field displacement on body as space: m shape spatial_vector;",
-            "field displacement on body as space: 1 shape spatial_vector;",
+            "field displacement on body as space: vector<m, 2>;",
+            "field displacement on body as space: vector<1, 2>;",
         )
         .replace(
             "field load_potential on body as space: kg / (m * s ^ 2) = 0;",

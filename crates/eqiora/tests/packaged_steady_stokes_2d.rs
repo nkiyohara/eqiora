@@ -634,7 +634,7 @@ fn literal_component_coefficient_lowers_without_fabricating_a_parameter() {
         .replace("  parameter dynamic_viscosity: kg / (m * s) = 2;\n", "")
         .replace(
             "dynamic_viscosity = dynamic_viscosity",
-            "dynamic_viscosity = 2",
+            "dynamic_viscosity = 2[kg / (m * s)]",
         );
     let root = root_release(&component, "fluid", &literal_source, false);
     let (packaged, _) = compile_locked(&component, &root);
@@ -657,7 +657,7 @@ fn literal_component_coefficient_lowers_without_fabricating_a_parameter() {
             .is_empty()
     );
 
-    let changed_source = literal_source.replace("dynamic_viscosity = 2", "dynamic_viscosity = 3");
+    let changed_source = literal_source.replace("dynamic_viscosity = 2[", "dynamic_viscosity = 3[");
     let changed_root = root_release(&component, "fluid", &changed_source, false);
     let (changed, _) = compile_locked(&component, &changed_root);
     let changed_coefficient =
@@ -852,8 +852,8 @@ fn canonical_stokes_recognizer_rejects_semantic_near_misses() {
 
     let wrong_dimensions = DIRECT
         .replace(
-            "field velocity on body as space: m / s shape spatial_vector;",
-            "field velocity on body as space: 1 shape spatial_vector;",
+            "field velocity on body as space: vector<m / s, 2>;",
+            "field velocity on body as space: vector<1, 2>;",
         )
         .replace(
             "field pressure on body as space: kg / (m * s ^ 2) = 0;",

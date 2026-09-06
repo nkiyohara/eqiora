@@ -320,7 +320,14 @@ fn compile_external_component_from_definition<'a>(
         };
         let declaration = SourceAstFactory::parameter(
             declaration.name(),
-            declaration.dimension().clone(),
+            SourceAstFactory::value_type(
+                eqiora_lang::ValueTypeSyntaxKind::Scalar {
+                    domain: eqiora_core::ScalarDomain::Real,
+                    dimension: declaration.dimension().clone(),
+                },
+                declaration.dimension().range(),
+            )
+            .map_err(|error| vec![hierarchy_error(error.message())])?,
             SourceAstFactory::expression(ExprKind::Number(parameter.value().value()), range)
                 .map_err(|error| vec![hierarchy_error(error.message())])?,
             range,

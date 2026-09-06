@@ -7,9 +7,10 @@ use eqiora::kernel::typing::{
     ExpressionType, RootContract, SpatialSupport, TypeViolation, TypedResidual, isotropic_lift,
     symmetric_part,
 };
-use eqiora::kernel::{ExprDagBuilder, ExprNode, KernelNode, SymbolRef, ValueFrame};
+use eqiora::kernel::{ExprDagBuilder, ExprNode, KernelNode, SymbolRef};
 use eqiora::sem::KernelProgram;
 use eqiora::{DimExponents, Entity, Id, RawId, ValueShape};
+use eqiora_core::ValueFrame;
 
 const ELASTIC_RELATION: &str =
     include_str!("../../../verify/language/canonical-tensor-operators/models/elastic-relation.eqi");
@@ -87,7 +88,7 @@ fn source_meaning_crosses_the_closed_current_wire() {
     let model = ModelEnvelope::from_program(&program).expect("current Model");
     let model_bytes = model.canonical_json().unwrap();
     let model_text = String::from_utf8_lossy(&model_bytes);
-    assert!(model_text.contains("eqiora.model-envelope/v9"));
+    assert!(model_text.contains("eqiora.model-envelope/v10"));
     assert!(model_text.contains("symmetric-part"));
     assert!(model_text.contains("isotropic-lift"));
     let replayed_model = ModelEnvelope::from_json(&model_bytes, Default::default())
@@ -99,7 +100,7 @@ fn source_meaning_crosses_the_closed_current_wire() {
     let document = eqiora::api::ModelDocument::compile("elastic-relation.eqi", ELASTIC_RELATION)
         .expect("public facade must preserve the current wire");
     let document_bytes = document.canonical_json().unwrap();
-    assert!(String::from_utf8_lossy(&document_bytes).contains("eqiora.model-envelope/v9"));
+    assert!(String::from_utf8_lossy(&document_bytes).contains("eqiora.model-envelope/v10"));
     assert_eq!(
         eqiora::api::ModelDocument::replay(&document_bytes)
             .unwrap()
@@ -137,7 +138,8 @@ fn component_scalarization_is_the_exact_pointwise_tensor_map() {
                     ValueShape::new([2, 2]).unwrap(),
                     ValueFrame::SpatialCartesian,
                     Some(support.clone()),
-                ),
+                )
+                .unwrap(),
                 SymbolRef::Field(field) if field == pressure => {
                     ExpressionType::scalar(dimension, Some(support.clone()))
                 }
@@ -196,7 +198,8 @@ fn tensor_typing_fails_closed_without_exact_shape_frame_and_volume_support() {
         ValueShape::new([2, 2]).unwrap(),
         ValueFrame::SpatialCartesian,
         Some(volume.clone()),
-    );
+    )
+    .unwrap();
     assert_eq!(symmetric_part(&tensor).unwrap(), tensor);
 
     for invalid in [
@@ -205,13 +208,15 @@ fn tensor_typing_fails_closed_without_exact_shape_frame_and_volume_support() {
             ValueShape::new([2, 3]).unwrap(),
             ValueFrame::SpatialCartesian,
             Some(volume.clone()),
-        ),
+        )
+        .unwrap(),
         ExpressionType::shaped(
             dimension,
             ValueShape::new([2, 2]).unwrap(),
             ValueFrame::Invariant,
             Some(volume.clone()),
-        ),
+        )
+        .unwrap(),
     ] {
         assert!(matches!(
             symmetric_part(&invalid),
@@ -223,7 +228,8 @@ fn tensor_typing_fails_closed_without_exact_shape_frame_and_volume_support() {
         ValueShape::new([2, 2]).unwrap(),
         ValueFrame::SpatialCartesian,
         Some(boundary.clone()),
-    );
+    )
+    .unwrap();
     assert!(matches!(
         symmetric_part(&boundary_tensor),
         Err(TypeViolation::SymmetricPartRequiresVolume)
@@ -231,9 +237,9 @@ fn tensor_typing_fails_closed_without_exact_shape_frame_and_volume_support() {
 
     let scalar = ExpressionType::scalar(dimension, Some(volume));
     let lifted = isotropic_lift(&scalar).unwrap();
-    assert_eq!(lifted.dimension, dimension);
-    assert_eq!(lifted.shape, ValueShape::new([2, 2]).unwrap());
-    assert_eq!(lifted.frame, ValueFrame::SpatialCartesian);
+    assert_eq!(lifted.dimension(), dimension);
+    assert_eq!(lifted.shape(), &ValueShape::new([2, 2]).unwrap());
+    assert_eq!(lifted.frame(), ValueFrame::SpatialCartesian);
     assert_eq!(lifted.support, scalar.support);
     assert!(matches!(
         isotropic_lift(&ExpressionType::<&str>::scalar(dimension, None)),

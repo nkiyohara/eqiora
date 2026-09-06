@@ -12,7 +12,7 @@ invocation; callers cannot select a Model wire or feature list. Request IDs,
 protocol identity, response limits, and overflow substitution remain control
 policy and do not enter the operation.
 
-The shared fixtures prove three distinct boundaries:
+The focused product tests check these boundaries:
 
 - accepted source produces only a typed current-Model identity descriptor,
   linked to the document from that same execution;
@@ -26,7 +26,7 @@ The shared fixtures prove three distinct boundaries:
 
 Compiling the accepted source twice through control and once through
 `ModelDocument::compile` intentionally produces distinct occurrence identity
-and artifact digests. The independently registered structural fingerprint is
+and artifact digests. The structural fingerprint is
 equal across all three compilations, while each accepted response is checked
 only against the document returned by its own execution.
 
@@ -35,15 +35,13 @@ own filename/source admission it invokes `ModelDocument::compile` directly on
 a detached native path, without constructing a control request or importing a
 control DTO. Independently accepted Python, control-v2, and direct
 compilations have pairwise-distinct Model IDs and artifact digests but the
-same generation-v4 structural fingerprint. Ordinary rejected compilation is
+same current-generation structural fingerprint. Ordinary rejected compilation is
 normalized across all three paths; control-envelope overflow behavior is not
 a cross-adapter claim.
 
-`historicalCopies.copiedFrom` records pre-reset provenance, not a live
-dependency; its byte-for-byte relation is a frozen pre-reset record. The
-transition oracle independently proves that each promoted target carries its
-staged source's frozen bytes. This case re-hashes the retained v1 request and
-schema and never dispatches or packages the historical schema.
+The product tests compare returned Model schema identities with the current
+public control schema. They do not pin whole request files, source hashes, or
+copies of retired schemas.
 
 Client adapters may choose native function calls, Tauri invocation, or Python
 objects, but they consume this meaning rather than recreating it. Responses

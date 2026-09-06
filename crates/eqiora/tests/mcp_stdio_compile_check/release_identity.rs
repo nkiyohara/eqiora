@@ -1,6 +1,6 @@
 use serde_json::{Value, json};
 
-use super::{CONTRACT_SOURCE, TOOL_DEFINITION_SOURCE};
+use super::CONTRACT_SOURCE;
 
 const FROZEN_VERSION: &str = "0.1.0-alpha.3";
 
@@ -29,8 +29,4 @@ pub(super) fn expected() -> Value {
         *version = json!(env!("CARGO_PKG_VERSION"));
     }
     expected
-}
-
-pub(super) fn tool_definition() -> Value {
-    serde_json::from_str(TOOL_DEFINITION_SOURCE).expect("frozen tool-definition JSON")
 }

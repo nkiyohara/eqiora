@@ -28,7 +28,8 @@ pub use ast::{
     PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal,
     PureValueClassSyntax, RationalSyntax, RelationDecl, RelationFamilyDecl, RepresentationDecl,
     RepresentationSyntax, SignalDirectionSyntax, SupportBindingDecl, SupportSlotDecl,
-    SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, VisibilitySyntax,
+    SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, ValueTypeSyntax, ValueTypeSyntaxKind,
+    VisibilitySyntax,
 };
 pub use cartesian::CartesianCoordinateSyntax;
 pub use draft::{

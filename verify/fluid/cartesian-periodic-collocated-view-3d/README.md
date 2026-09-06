@@ -7,6 +7,9 @@ round-trips its Transaction and Model artifacts, replays whole-Model validation,
 builds the mesh from the contract's IEEE-754 hex literals, round-trips the mesh
 artifact, and calls the real private collocated projection.
 
+Model identity checks bind the returned view to its compiled input, not to a
+fixed ID from a previous source-identity encoding.
+
 The independent oracle then checks the Model, mesh, parent, Connector, ordered
 Connection triple, private inventory receipt, event order, and every field of
 all 576 returned packets. Expected neighbours and quotient faces come from the
@@ -14,8 +17,7 @@ accepted last-axis-fastest and modulo laws, not from a production derivation or
 admission helper. The ordinary positive completes before the six input
 falsifiers, the admission-order control, and the thirteen observation mutants.
 
-Run the registered case after the integration owner adds its test-only module
-registration:
+Run:
 
 ```bash
 mise run affected -- --case fluid.cartesian-periodic-collocated-view-3d

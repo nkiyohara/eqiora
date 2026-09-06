@@ -653,11 +653,7 @@ fn project_node(
         ),
         KernelNode::Field(definition) => (
             "field",
-            if definition.initial().is_some() {
-                "Scalar field with an initial value".to_owned()
-            } else {
-                "Scalar field requiring execution input".to_owned()
-            },
+            format!("Field · {}", project_type(definition.value_type())?),
             Some(definition.dimension().to_string()),
             document
                 .program()
@@ -779,6 +775,12 @@ fn project_node(
     })
 }
 
+fn project_type(value_type: &eqiora::ValueType) -> Result<String, ProjectionError> {
+    eqiora::language::ValueTypeSyntax::from_checked(value_type)
+        .map(|syntax| syntax.to_source())
+        .map_err(|_| unsupported_node_contract())
+}
+
 fn unsupported_node_contract() -> ProjectionError {
     Box::new(studio_error(
         "ST0003",
@@ -872,6 +874,23 @@ model decay {
         assert_eq!(projection.edges.len(), 3);
         assert!(projection.nodes.iter().any(|node| node.name == "x"));
         assert_eq!(document.digest().unwrap(), projection.digest);
+    }
+
+    #[test]
+    fn projection_retains_checked_field_types_without_scalar_narrowing() {
+        let document = ModelDocument::compile(
+            "channels.eqi",
+            "model channels { field channels: array<m, 2> = 0; relation hold continuous { channels = 0; } }",
+        )
+        .unwrap();
+        let projection = project_document(&document, document.digest().unwrap()).unwrap();
+        let field = projection
+            .nodes
+            .iter()
+            .find(|node| node.name == "channels")
+            .unwrap();
+        assert_eq!(field.summary, "Field · array<m, 2>");
+        assert_eq!(field.value, None);
     }
 
     #[test]

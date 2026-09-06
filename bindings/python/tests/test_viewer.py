@@ -42,7 +42,7 @@ public component ViewerElasticity {
   public support bottom: boundary(parent = square);
   public support top: boundary(parent = square);
   representation space = continuum;
-  field displacement on square as space: m shape spatial_vector;
+  field displacement on square as space: vector<m, 2>;
   field load_potential on square as space: kg / (m * s ^ 2) = 0;
   public parameter stiffness: kg / (m * s ^ 2);
   public parameter lambda: kg / (m * s ^ 2);

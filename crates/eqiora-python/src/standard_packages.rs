@@ -97,31 +97,28 @@ fn vendor_native(
 }
 
 fn standard_closure(package: &str) -> Result<Vec<(PackageSourcesV1, PackageReleaseV1)>, String> {
-    match package {
-        "Eqiora.Fluid.Incompressible@0.2.0" => {
-            let mechanics_sources = mechanics_sources()?;
-            let mechanics = prepare_package_release_v1(mechanics_sources.clone(), &[])
-                .map_err(|error| format!("bundled mechanics package is invalid: {error}"))?;
-            let fluid_sources = fluid_sources()?;
-            let fluid =
-                prepare_package_release_v1(fluid_sources.clone(), std::slice::from_ref(&mechanics))
-                    .map_err(|error| format!("bundled fluid package is invalid: {error}"))?;
-            Ok(vec![(mechanics_sources, mechanics), (fluid_sources, fluid)])
-        }
-        "Eqiora.Solid.LinearElasticity@0.4.0" => {
-            let mechanics_sources = mechanics_sources()?;
-            let mechanics = prepare_package_release_v1(mechanics_sources.clone(), &[])
-                .map_err(|error| format!("bundled mechanics package is invalid: {error}"))?;
-            let solid_sources = solid_sources()?;
-            let solid =
-                prepare_package_release_v1(solid_sources.clone(), std::slice::from_ref(&mechanics))
-                    .map_err(|error| format!("bundled solid package is invalid: {error}"))?;
-            Ok(vec![(mechanics_sources, mechanics), (solid_sources, solid)])
-        }
-        _ => Err(format!(
-            "unsupported exact package {package:?}; expected Eqiora.Fluid.Incompressible@0.2.0 or Eqiora.Solid.LinearElasticity@0.4.0"
-        )),
+    let sources = match package.split_once('@') {
+        Some(("Eqiora.Fluid.Incompressible", _)) => fluid_sources()?,
+        Some(("Eqiora.Solid.LinearElasticity", _)) => solid_sources()?,
+        _ => return Err(format!("unsupported exact package {package:?}")),
+    };
+    let manifest = sources.manifest();
+    let exact = format!(
+        "{}@{}",
+        manifest.name().as_str(),
+        manifest.version().as_str()
+    );
+    if package != exact {
+        return Err(format!(
+            "unsupported exact package {package:?}; this distribution ships {exact}"
+        ));
     }
+    let mechanics_sources = mechanics_sources()?;
+    let mechanics = prepare_package_release_v1(mechanics_sources.clone(), &[])
+        .map_err(|error| format!("bundled mechanics package is invalid: {error}"))?;
+    let release = prepare_package_release_v1(sources.clone(), std::slice::from_ref(&mechanics))
+        .map_err(|error| format!("bundled package is invalid: {error}"))?;
+    Ok(vec![(mechanics_sources, mechanics), (sources, release)])
 }
 
 fn embedded_sources(

@@ -460,14 +460,31 @@ fn canonical_decay_with_integral() -> (
 
     let nodes = [
         KernelNode::from(
-            FieldDef::new(x, inverse_time)
-                .with_initial(DynQuantity::new(1.0, inverse_time))
-                .unwrap(),
+            FieldDef::new(
+                x,
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time),
+            )
+            .with_initial(
+                DynQuantity::new(1.0, inverse_time)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
+            .unwrap(),
         ),
         KernelNode::from(
-            FieldDef::new(integral, DimExponents::DIMENSIONLESS)
-                .with_initial(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
-                .unwrap(),
+            FieldDef::new(
+                integral,
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+            )
+            .with_initial(
+                DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
+            .unwrap(),
         ),
         KernelNode::from(ParameterDef::new(rate, DynQuantity::new(2.0, inverse_time))),
         KernelNode::from(RelationDef::new(relation, residuals)),
@@ -522,9 +539,19 @@ fn state_dependent_mass_relation() -> (eqiora::sem::KernelProgram, Id<kinds::Rel
 
     let nodes = [
         KernelNode::from(
-            FieldDef::new(state, DimExponents::DIMENSIONLESS)
-                .with_initial(DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))
-                .unwrap(),
+            FieldDef::new(
+                state,
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+            )
+            .with_initial(
+                DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
+            .unwrap(),
         ),
         KernelNode::from(ParameterDef::new(rate, DynQuantity::new(2.0, inverse_time))),
         KernelNode::from(RelationDef::new(
@@ -598,14 +625,34 @@ fn canonical_index_one_dae() -> (
 
     let nodes = [
         KernelNode::from(
-            FieldDef::new(differential, DimExponents::DIMENSIONLESS)
-                .with_initial(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
-                .unwrap(),
+            FieldDef::new(
+                differential,
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+            )
+            .with_initial(
+                DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
+            .unwrap(),
         ),
         KernelNode::from(
-            FieldDef::new(algebraic, DimExponents::DIMENSIONLESS)
-                .with_initial(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
-                .unwrap(),
+            FieldDef::new(
+                algebraic,
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+            )
+            .with_initial(
+                DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
+            .unwrap(),
         ),
         KernelNode::from(ParameterDef::new(rate, DynQuantity::new(1.0, inverse_time))),
         KernelNode::from(RelationDef::new(
@@ -695,14 +742,34 @@ fn canonical_dense_mass_matrix(
 
     let nodes = [
         KernelNode::from(
-            FieldDef::new(x, DimExponents::DIMENSIONLESS)
-                .with_initial(DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))
-                .unwrap(),
+            FieldDef::new(
+                x,
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+            )
+            .with_initial(
+                DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
+            .unwrap(),
         ),
         KernelNode::from(
-            FieldDef::new(y, DimExponents::DIMENSIONLESS)
-                .with_initial(DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))
-                .unwrap(),
+            FieldDef::new(
+                y,
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+            )
+            .with_initial(
+                DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
+            .unwrap(),
         ),
         KernelNode::from(ParameterDef::new(rate, DynQuantity::new(1.0, inverse_time))),
         KernelNode::from(RelationDef::new(
@@ -806,14 +873,28 @@ fn canonical_bouncing_ball() -> CanonicalBouncingBall {
     };
     let nodes = vec![
         KernelNode::from(
-            FieldDef::new(height, length)
-                .with_initial(DynQuantity::new(1.0, length))
-                .unwrap(),
+            FieldDef::new(
+                height,
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, length),
+            )
+            .with_initial(
+                DynQuantity::new(1.0, length)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
+            .unwrap(),
         ),
         KernelNode::from(
-            FieldDef::new(velocity, velocity_dimension)
-                .with_initial(DynQuantity::new(0.0, velocity_dimension))
-                .unwrap(),
+            FieldDef::new(
+                velocity,
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, velocity_dimension),
+            )
+            .with_initial(
+                DynQuantity::new(0.0, velocity_dimension)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
+            .unwrap(),
         ),
         KernelNode::from(ParameterDef::new(
             gravity,

@@ -234,7 +234,7 @@ component Wall {
 public support wall:boundary(parent=body);
 public support body:volume(ambient_dimension=2);
 public port interface:conserving MechanicalBoundary over wall;
-field velocity: m/s shape spatial_vector;
+field velocity: vector<m/s, 2>;
 relation load continuous { flux(interface)=0; }
 }"#;
     let first = parse("boundary.eqi", source)
@@ -250,7 +250,7 @@ relation load continuous { flux(interface)=0; }
         "field_physical(\n  trace = velocity: m / s,\n  flux = traction: kg / (m * s ^ 2),\n  shape = [2],\n  frame = spatial,\n  pairing = euclidean_boundary_duality\n);"
     ));
     assert!(formatted.contains("public port interface: conserving MechanicalBoundary over wall;"));
-    assert!(formatted.contains("field velocity: m / s shape spatial_vector;"));
+    assert!(formatted.contains("field velocity: vector<m / s, 2>;"));
     assert!(formatted.contains("flux(interface) = 0;"));
 }
 

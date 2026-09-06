@@ -31,17 +31,16 @@ impl SourceAstFactory {
         })
     }
 
-    /// Construct a model-level scalar Parameter declaration.
+    /// Construct a model-level typed Parameter declaration.
     ///
     /// # Errors
     /// Returns an error for a non-finite value or malformed source shape.
     pub fn parameter(
         name: impl Into<String>,
-        dimension: Expr,
+        value_type: crate::ValueTypeSyntax,
         value: Expr,
         range: TextRange,
     ) -> Result<ParameterDecl, AstConstructionError> {
-        validate_expression(&dimension)?;
         validate_expression(&value)?;
         if !matches!(
             value.kind(),
@@ -53,7 +52,7 @@ impl SourceAstFactory {
         }
         Ok(ParameterDecl {
             name: checked_identifier(name, "Parameter")?,
-            dimension,
+            value_type,
             value,
             range: checked_range(range)?,
         })

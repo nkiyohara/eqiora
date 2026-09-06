@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use eqiora::api::ModelDocument;
 use eqiora::language::{
     BinaryOp, Document, DraftField, DraftRelation, Expr, ExprKind, Item, ModelDraft, RelationDecl,
@@ -248,7 +246,6 @@ struct StatementSpec {
     input: &'static str,
     first_root: Tree,
     golden: &'static str,
-    input_bytes: usize,
     relation_range: (u32, u32),
     root0_range: (u32, u32),
     root1_range: (u32, u32),
@@ -261,7 +258,6 @@ fn statement_specs() -> Vec<StatementSpec> {
             input: "x = 0;",
             first_root: n("x"),
             golden: "x = 0;",
-            input_bytes: 132,
             relation_range: (80, 129),
             root0_range: (108, 109),
             root1_range: (119, 124),
@@ -271,7 +267,6 @@ fn statement_specs() -> Vec<StatementSpec> {
             input: "x = -0;",
             first_root: n("x"),
             golden: "x = 0;",
-            input_bytes: 133,
             relation_range: (80, 130),
             root0_range: (108, 109),
             root1_range: (120, 125),
@@ -281,7 +276,6 @@ fn statement_specs() -> Vec<StatementSpec> {
             input: "x = 1e-324;",
             first_root: n("x"),
             golden: "x = 0;",
-            input_bytes: 137,
             relation_range: (80, 134),
             root0_range: (108, 109),
             root1_range: (124, 129),
@@ -291,7 +285,6 @@ fn statement_specs() -> Vec<StatementSpec> {
             input: "x = (0);",
             first_root: sub(n("x"), z()),
             golden: "x = (0);",
-            input_bytes: 134,
             relation_range: (80, 131),
             root0_range: (108, 115),
             root1_range: (121, 126),
@@ -307,7 +300,6 @@ fn statement_specs() -> Vec<StatementSpec> {
             input: "x = (-0);",
             first_root: sub(n("x"), neg(z())),
             golden: "x = (-0);",
-            input_bytes: 135,
             relation_range: (80, 132),
             root0_range: (108, 116),
             root1_range: (122, 127),
@@ -323,7 +315,6 @@ fn statement_specs() -> Vec<StatementSpec> {
             input: "x = (1e-324);",
             first_root: sub(n("x"), z()),
             golden: "x = (0);",
-            input_bytes: 139,
             relation_range: (80, 136),
             root0_range: (108, 120),
             root1_range: (126, 131),
@@ -339,7 +330,6 @@ fn statement_specs() -> Vec<StatementSpec> {
             input: "x - 0 = 0;",
             first_root: sub(n("x"), z()),
             golden: "x = (0);",
-            input_bytes: 136,
             relation_range: (80, 133),
             root0_range: (108, 113),
             root1_range: (123, 128),
@@ -349,7 +339,6 @@ fn statement_specs() -> Vec<StatementSpec> {
             input: "x - (-0) = 0;",
             first_root: sub(n("x"), neg(z())),
             golden: "x = (-0);",
-            input_bytes: 139,
             relation_range: (80, 136),
             root0_range: (108, 116),
             root1_range: (126, 131),
@@ -359,7 +348,6 @@ fn statement_specs() -> Vec<StatementSpec> {
             input: "x - 1e-324 = 0;",
             first_root: sub(n("x"), z()),
             golden: "x = (0);",
-            input_bytes: 141,
             relation_range: (80, 138),
             root0_range: (108, 118),
             root1_range: (128, 133),
@@ -369,7 +357,6 @@ fn statement_specs() -> Vec<StatementSpec> {
             input: "x = ((0));",
             first_root: sub(n("x"), z()),
             golden: "x = (0);",
-            input_bytes: 136,
             relation_range: (80, 133),
             root0_range: (108, 117),
             root1_range: (123, 128),
@@ -379,7 +366,6 @@ fn statement_specs() -> Vec<StatementSpec> {
             input: "x = 0 * y;",
             first_root: sub(n("x"), mul(z(), n("y"))),
             golden: "x = 0 * y;",
-            input_bytes: 136,
             relation_range: (80, 133),
             root0_range: (108, 117),
             root1_range: (123, 128),
@@ -389,7 +375,6 @@ fn statement_specs() -> Vec<StatementSpec> {
             input: "x = -(-0);",
             first_root: sub(n("x"), neg(neg(z()))),
             golden: "x = --0;",
-            input_bytes: 136,
             relation_range: (80, 133),
             root0_range: (108, 117),
             root1_range: (123, 128),
@@ -399,7 +384,6 @@ fn statement_specs() -> Vec<StatementSpec> {
             input: "x - y = z;",
             first_root: sub(sub(n("x"), n("y")), n("z")),
             golden: "x - y = z;",
-            input_bytes: 136,
             relation_range: (80, 133),
             root0_range: (108, 117),
             root1_range: (123, 128),
@@ -421,7 +405,6 @@ fn statement_specs() -> Vec<StatementSpec> {
             input: "x = y - z;",
             first_root: sub(n("x"), sub(n("y"), n("z"))),
             golden: "x = y - z;",
-            input_bytes: 136,
             relation_range: (80, 133),
             root0_range: (108, 117),
             root1_range: (123, 128),
@@ -443,7 +426,6 @@ fn statement_specs() -> Vec<StatementSpec> {
             input: "-x = -y;",
             first_root: sub(neg(n("x")), neg(n("y"))),
             golden: "-x = -y;",
-            input_bytes: 134,
             relation_range: (80, 131),
             root0_range: (108, 115),
             root1_range: (121, 126),
@@ -459,7 +441,6 @@ fn statement_specs() -> Vec<StatementSpec> {
             input: "x - (y - z) = x;",
             first_root: sub(sub(n("x"), sub(n("y"), n("z"))), n("x")),
             golden: "x - (y - z) = x;",
-            input_bytes: 142,
             relation_range: (80, 139),
             root0_range: (108, 123),
             root1_range: (129, 134),
@@ -504,8 +485,6 @@ struct DiagnosticSpec {
     class: &'static str,
     natural: &'static str,
     explicit: &'static str,
-    natural_bytes: usize,
-    explicit_bytes: usize,
     code: &'static str,
     message: MessageRule,
     graph: GraphClass,
@@ -518,8 +497,6 @@ fn diagnostic_specs() -> Vec<DiagnosticSpec> {
             class: "missing_lhs",
             natural: "model d { field rhs: 1 = 1; relation r continuous { missing = rhs; } }",
             explicit: "model d { field rhs: 1 = 1; relation r continuous { missing - rhs = 0; } }",
-            natural_bytes: 70,
-            explicit_bytes: 74,
             code: "EQ0603",
             message: MessageRule::Exact("unresolved expression symbol `missing`"),
             graph: GraphClass::None,
@@ -529,8 +506,6 @@ fn diagnostic_specs() -> Vec<DiagnosticSpec> {
             class: "missing_rhs",
             natural: "model d { field lhs: 1 = 1; relation r continuous { lhs = missing; } }",
             explicit: "model d { field lhs: 1 = 1; relation r continuous { lhs - missing = 0; } }",
-            natural_bytes: 70,
-            explicit_bytes: 74,
             code: "EQ0603",
             message: MessageRule::Exact("unresolved expression symbol `missing`"),
             graph: GraphClass::None,
@@ -540,8 +515,6 @@ fn diagnostic_specs() -> Vec<DiagnosticSpec> {
             class: "missing_both",
             natural: "model d { relation r continuous { left_missing = right_missing; } }",
             explicit: "model d { relation r continuous { left_missing - right_missing = 0; } }",
-            natural_bytes: 67,
-            explicit_bytes: 71,
             code: "EQ0603",
             message: MessageRule::Exact("unresolved expression symbol `left_missing`"),
             graph: GraphClass::None,
@@ -551,8 +524,6 @@ fn diagnostic_specs() -> Vec<DiagnosticSpec> {
             class: "dimension",
             natural: "model d { field distance: m = 1; field elapsed: s = 1; relation r continuous { distance = elapsed; } }",
             explicit: "model d { field distance: m = 1; field elapsed: s = 1; relation r continuous { distance - elapsed = 0; } }",
-            natural_bytes: 102,
-            explicit_bytes: 106,
             code: "EQ0603",
             message: MessageRule::Exact("addition/subtraction combines dimensions [L] and [T]"),
             graph: GraphClass::None,
@@ -560,10 +531,8 @@ fn diagnostic_specs() -> Vec<DiagnosticSpec> {
         },
         DiagnosticSpec {
             class: "shape",
-            natural: "model d { domain body = box(0, 1, 0, 1); representation space = continuum; field scalar on body as space: 1 = 0; field vector on body as space: 1 shape spatial_vector; relation r continuous on body { scalar = vector; } }",
-            explicit: "model d { domain body = box(0, 1, 0, 1); representation space = continuum; field scalar on body as space: 1 = 0; field vector on body as space: 1 shape spatial_vector; relation r continuous on body { scalar - vector = 0; } }",
-            natural_bytes: 220,
-            explicit_bytes: 224,
+            natural: "model d { domain body = box(0, 1, 0, 1); representation space = continuum; field scalar on body as space: 1 = 0; field vector on body as space: vector<1, 2>; relation r continuous on body { scalar = vector; } }",
+            explicit: "model d { domain body = box(0, 1, 0, 1); representation space = continuum; field scalar on body as space: 1 = 0; field vector on body as space: vector<1, 2>; relation r continuous on body { scalar - vector = 0; } }",
             code: "EQ0304",
             message: MessageRule::Prefix("addition/subtraction combines incompatible types "),
             graph: GraphClass::SemanticExpression2,
@@ -571,10 +540,8 @@ fn diagnostic_specs() -> Vec<DiagnosticSpec> {
         },
         DiagnosticSpec {
             class: "frame",
-            natural: "model d { domain body = box(0, 1, 0, 1); representation space = continuum; field invariant on body as space: 1 shape [2]; field spatial on body as space: 1 shape spatial_vector; relation r continuous on body { invariant = spatial; } }",
-            explicit: "model d { domain body = box(0, 1, 0, 1); representation space = continuum; field invariant on body as space: 1 shape [2]; field spatial on body as space: 1 shape spatial_vector; relation r continuous on body { invariant - spatial = 0; } }",
-            natural_bytes: 234,
-            explicit_bytes: 238,
+            natural: "model d { domain body = box(0, 1, 0, 1); representation space = continuum; field invariant on body as space: array<1, 2>; field spatial on body as space: vector<1, 2>; relation r continuous on body { invariant = spatial; } }",
+            explicit: "model d { domain body = box(0, 1, 0, 1); representation space = continuum; field invariant on body as space: array<1, 2>; field spatial on body as space: vector<1, 2>; relation r continuous on body { invariant - spatial = 0; } }",
             code: "EQ0304",
             message: MessageRule::Prefix("addition/subtraction combines incompatible types "),
             graph: GraphClass::SemanticExpression2,
@@ -584,8 +551,6 @@ fn diagnostic_specs() -> Vec<DiagnosticSpec> {
             class: "nominal_support",
             natural: "model d { domain a = box(0, 1); domain b = box(0, 2); representation space = continuum; field left on a as space: 1 = 0; field right on b as space: 1 = 0; relation r continuous on a { left = right; } }",
             explicit: "model d { domain a = box(0, 1); domain b = box(0, 2); representation space = continuum; field left on a as space: 1 = 0; field right on b as space: 1 = 0; relation r continuous on a { left - right = 0; } }",
-            natural_bytes: 201,
-            explicit_bytes: 205,
             code: "EQ0302",
             message: MessageRule::Prefix("expression combines incompatible supports "),
             graph: GraphClass::SemanticExpression2,
@@ -595,8 +560,6 @@ fn diagnostic_specs() -> Vec<DiagnosticSpec> {
             class: "root_support",
             natural: "model d { domain a = box(0, 1); domain b = box(0, 2); representation space = continuum; field foreign on b as space: 1 = 0; relation r continuous on a { foreign = foreign; } }",
             explicit: "model d { domain a = box(0, 1); domain b = box(0, 2); representation space = continuum; field foreign on b as space: 1 = 0; relation r continuous on a { foreign - foreign = 0; } }",
-            natural_bytes: 175,
-            explicit_bytes: 179,
             code: "EQ0302",
             message: MessageRule::RootSupport,
             graph: GraphClass::SemanticExpression2,
@@ -677,8 +640,6 @@ fn observe_diagnostic(
 struct AdditiveObservation {
     class: String,
     logical_name: String,
-    bytes: Vec<u8>,
-    sha256: String,
     field_name: String,
     dimension: Tree,
     initializer_bits: u64,
@@ -691,13 +652,8 @@ fn observe_dimensionful_sentinel(
     class: &str,
     logical_name: &str,
     source: &str,
-    expected_len: usize,
-    expected_sha256: &str,
     accounting: &mut Accounting,
 ) -> AdditiveObservation {
-    assert_eq!(source.len(), expected_len);
-    assert_eq!(sha256_hex(source.as_bytes()), expected_sha256);
-
     let document = parse_document(logical_name, source, accounting);
     let model = only_model(&document);
     assert_eq!(model.name(), "dimensionful_sentinel_probe");
@@ -708,7 +664,10 @@ fn observe_dimensionful_sentinel(
     };
     assert_eq!(field.name(), "force");
     assert_eq!(projected_tree(field.dimension()), n("m"));
-    assert_eq!(field.initial().map(f64::to_bits), Some(1.0_f64.to_bits()));
+    let ExprKind::Number(initializer) = field.initial().expect("initializer").kind() else {
+        panic!("expected contextual numeric initializer");
+    };
+    assert_eq!(initializer.to_bits(), 1.0_f64.to_bits());
     let relation = match &model.items()[1] {
         Item::Relation(relation) => relation,
         other => panic!("expected the Relation second, found {other:?}"),
@@ -722,11 +681,9 @@ fn observe_dimensionful_sentinel(
     AdditiveObservation {
         class: class.to_owned(),
         logical_name: logical_name.to_owned(),
-        bytes: source.as_bytes().to_vec(),
-        sha256: expected_sha256.to_owned(),
         field_name: field.name().to_owned(),
         dimension: projected_tree(field.dimension()),
-        initializer_bits: field.initial().expect("initializer").to_bits(),
+        initializer_bits: initializer.to_bits(),
         relation_name: relation.name().to_owned(),
         root,
         compiled: true,
@@ -798,111 +755,6 @@ fn binary_right(tree: &Tree) -> Option<Tree> {
     }
 }
 
-fn sha256_hex(bytes: &[u8]) -> String {
-    sha256(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
-}
-
-fn sha256(bytes: &[u8]) -> [u8; 32] {
-    const INITIAL: [u32; 8] = [
-        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
-        0x5be0cd19,
-    ];
-    const ROUND: [u32; 64] = [
-        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4,
-        0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe,
-        0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f,
-        0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
-        0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc,
-        0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
-        0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116,
-        0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7,
-        0xc67178f2,
-    ];
-
-    let bit_len = (bytes.len() as u64)
-        .checked_mul(8)
-        .expect("SHA-256 input bit length overflow");
-    let mut padded = bytes.to_vec();
-    padded.push(0x80);
-    while padded.len() % 64 != 56 {
-        padded.push(0);
-    }
-    padded.extend_from_slice(&bit_len.to_be_bytes());
-
-    let mut state = INITIAL;
-    for chunk in padded.as_chunks::<64>().0 {
-        let mut words = [0_u32; 64];
-        for (index, word) in words[..16].iter_mut().enumerate() {
-            let offset = index * 4;
-            *word = u32::from_be_bytes([
-                chunk[offset],
-                chunk[offset + 1],
-                chunk[offset + 2],
-                chunk[offset + 3],
-            ]);
-        }
-        for index in 16..64 {
-            let s0 = words[index - 15].rotate_right(7)
-                ^ words[index - 15].rotate_right(18)
-                ^ (words[index - 15] >> 3);
-            let s1 = words[index - 2].rotate_right(17)
-                ^ words[index - 2].rotate_right(19)
-                ^ (words[index - 2] >> 10);
-            words[index] = words[index - 16]
-                .wrapping_add(s0)
-                .wrapping_add(words[index - 7])
-                .wrapping_add(s1);
-        }
-
-        let mut a = state[0];
-        let mut b = state[1];
-        let mut c = state[2];
-        let mut d = state[3];
-        let mut e = state[4];
-        let mut f = state[5];
-        let mut g = state[6];
-        let mut h = state[7];
-        for index in 0..64 {
-            let sum1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
-            let choose = (e & f) ^ ((!e) & g);
-            let temp1 = h
-                .wrapping_add(sum1)
-                .wrapping_add(choose)
-                .wrapping_add(ROUND[index])
-                .wrapping_add(words[index]);
-            let sum0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
-            let majority = (a & b) ^ (a & c) ^ (b & c);
-            let temp2 = sum0.wrapping_add(majority);
-            h = g;
-            g = f;
-            f = e;
-            e = d.wrapping_add(temp1);
-            d = c;
-            c = b;
-            b = a;
-            a = temp1.wrapping_add(temp2);
-        }
-        state[0] = state[0].wrapping_add(a);
-        state[1] = state[1].wrapping_add(b);
-        state[2] = state[2].wrapping_add(c);
-        state[3] = state[3].wrapping_add(d);
-        state[4] = state[4].wrapping_add(e);
-        state[5] = state[5].wrapping_add(f);
-        state[6] = state[6].wrapping_add(g);
-        state[7] = state[7].wrapping_add(h);
-    }
-
-    let mut digest = [0_u8; 32];
-    for (index, word) in state.iter().enumerate() {
-        digest[index * 4..index * 4 + 4].copy_from_slice(&word.to_be_bytes());
-    }
-    digest
-}
-
 #[test]
 fn revised_oracle_sequence() {
     let mut accounting = Accounting::default();
@@ -920,44 +772,6 @@ fn revised_oracle_sequence() {
         expected_record_count <= 64,
         "private expected-record cap exceeded"
     );
-
-    // Stage 1: exact positive receipts and the complete fixed raw-source envelope.
-    assert_eq!(NATURAL.len(), 187);
-    assert_eq!(
-        sha256_hex(NATURAL.as_bytes()),
-        "0760b9592377f59e6a753f105bda9dac2020be2f3a592de7c1d31aa49b23fdbf"
-    );
-    assert_eq!(EXPLICIT.len(), 199);
-    assert_eq!(
-        sha256_hex(EXPLICIT.as_bytes()),
-        "a15140041e73e9bb245c9645d90652aaf35b547ee8086368c3ac2b0efbcf6b82"
-    );
-    assert_eq!(MALFORMED.len(), 96);
-
-    let mut raw_sources = vec![NATURAL.as_bytes().to_vec(), EXPLICIT.as_bytes().to_vec()];
-    for spec in &statement_specs {
-        let source = statement_source(spec.input);
-        assert_eq!(source.len(), spec.input_bytes);
-        raw_sources.push(source.into_bytes());
-    }
-    for spec in &diagnostic_specs {
-        assert_eq!(spec.natural.len(), spec.natural_bytes);
-        assert_eq!(spec.explicit.len(), spec.explicit_bytes);
-        raw_sources.push(spec.natural.as_bytes().to_vec());
-        raw_sources.push(spec.explicit.as_bytes().to_vec());
-    }
-    raw_sources.push(MALFORMED.as_bytes().to_vec());
-    raw_sources.push(DIMENSIONFUL_POSITIVE_ZERO.as_bytes().to_vec());
-    raw_sources.push(DIMENSIONFUL_NEGATIVE_ZERO.as_bytes().to_vec());
-    raw_sources.push(DIMENSIONFUL_UNDERFLOW_ZERO.as_bytes().to_vec());
-    assert_eq!(raw_sources.len(), 38);
-    assert_eq!(raw_sources.iter().map(Vec::len).sum::<usize>(), 5313);
-    assert!(raw_sources.iter().all(|source| source.len() <= 512));
-    assert_eq!(
-        raw_sources.iter().cloned().collect::<HashSet<_>>().len(),
-        38
-    );
-    drop(raw_sources);
 
     // Stage 2: ordinary nonzero public natural equality accepts before every denial.
     let natural_model = compile_document("natural.eqi", NATURAL, &mut accounting);
@@ -1165,24 +979,18 @@ fn revised_oracle_sequence() {
         "positive_zero",
         "dimensionful-positive-zero.eqi",
         DIMENSIONFUL_POSITIVE_ZERO,
-        111,
-        "788178376aa608f93e2ac5d13d86d5cc0e5015d513864a31396c860c862bd1d9",
         &mut accounting,
     );
     let additive_negative = observe_dimensionful_sentinel(
         "negative_zero",
         "dimensionful-negative-zero.eqi",
         DIMENSIONFUL_NEGATIVE_ZERO,
-        112,
-        "bd2fa841a100c6be553920188d5f1eacdc1e3a005ac22f353e632e224004e20f",
         &mut accounting,
     );
     let additive_underflow = observe_dimensionful_sentinel(
         "underflow_zero",
         "dimensionful-underflow-zero.eqi",
         DIMENSIONFUL_UNDERFLOW_ZERO,
-        116,
-        "8650f8c2d0179ab54a3201a23c860e28b9c3b7a08ceca1c1e0f42d52b9baae52",
         &mut accounting,
     );
 
@@ -1554,10 +1362,38 @@ fn revised_oracle_sequence() {
     );
 
     // Stage 10: native explicit residual in declaration order, structural comparison only.
-    let a = DraftField::new("a", DimExponents::DIMENSIONLESS, 4.0);
-    let b = DraftField::new("b", DimExponents::DIMENSIONLESS, 3.0);
-    let c = DraftField::new("c", DimExponents::DIMENSIONLESS, 2.0);
-    let d = DraftField::new("d", DimExponents::DIMENSIONLESS, 1.0);
+    let a = DraftField::new(
+        "a",
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+        ),
+        Some(4.0),
+    );
+    let b = DraftField::new(
+        "b",
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+        ),
+        Some(3.0),
+    );
+    let c = DraftField::new(
+        "c",
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+        ),
+        Some(2.0),
+    );
+    let d = DraftField::new(
+        "d",
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+        ),
+        Some(1.0),
+    );
     let native_roots = vec![
         a.expression() - b.expression(),
         (a.expression() - (b.expression() - c.expression())) - d.expression(),

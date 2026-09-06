@@ -111,11 +111,20 @@ impl ComponentScalarization {
     /// count, inconsistent repeated-symbol shape, a non-pointwise expression,
     /// or an invalid exact component coordinate.
     pub fn lower<I: Clone + Eq>(residual: &TypedResidual<I>) -> Result<Self, Diagnostic> {
+        if residual
+            .node_types()
+            .iter()
+            .any(|value| value.value_type.scalar_domain() != eqiora_core::ScalarDomain::Real)
+        {
+            return Err(invalid_component_ir(
+                "real component scalarization does not admit complex mathematical values",
+            ));
+        }
         let expression = residual.expression();
         let mut rows = Vec::new();
         for (root_index, root) in expression.roots().iter().copied().enumerate() {
             let root_node_index = node_index(root, expression.nodes().len())?;
-            let root_shape = &residual.node_types()[root_node_index].shape;
+            let root_shape = residual.node_types()[root_node_index].shape();
             let component_count = root_shape.component_count().ok_or_else(|| {
                 invalid_component_ir("component scalarization row count exceeds local usize")
             })?;
@@ -230,7 +239,7 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
             .node_types
             .get(index)
             .ok_or_else(|| invalid_component_ir("component node has no inferred type"))?;
-        validate_component(&node_type.shape, component)?;
+        validate_component(node_type.shape(), component)?;
         let key = (index, component.into());
         if let Some(mapped) = self.remapped.get(&key) {
             return Ok(*mapped);
@@ -239,7 +248,7 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
         let node = self.expression.nodes()[index].clone();
         let mapped = match node {
             ExprNode::Constant(constant) => self.builder.constant(constant)?,
-            ExprNode::Symbol(symbol) => self.input(symbol, &node_type.shape, component)?,
+            ExprNode::Symbol(symbol) => self.input(symbol, node_type.shape(), component)?,
             ExprNode::Neg(operand) => {
                 let operand = self.lower_shaped(operand, component)?;
                 self.builder.neg(operand)?
@@ -409,11 +418,11 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
         result_component: &[u32],
     ) -> Result<ScalarInputValueId, Diagnostic> {
         let operand_index = node_index(operand, self.expression.nodes().len())?;
-        let operand_shape = &self
+        let operand_shape = self
             .node_types
             .get(operand_index)
             .ok_or_else(|| invalid_component_ir("component operand has no inferred type"))?
-            .shape;
+            .shape();
         if operand_shape.is_scalar() {
             self.lower(operand, &[])
         } else {
@@ -504,15 +513,51 @@ fn invalid_component_ir(message: impl Into<String>) -> Diagnostic {
 
 #[cfg(test)]
 mod tests {
+    use eqiora_core::ValueFrame;
     use eqiora_core::entity::kinds;
     use eqiora_core::{DimExponents, Id, ValueShape};
     use eqiora_schema::kernel::pure_operator::PureOperatorDefinition;
     use eqiora_schema::kernel::typing::{
         ExpressionType, RootContract, SpatialSupport, TypedResidual,
     };
-    use eqiora_schema::kernel::{ExprDagBuilder, SymbolRef, ValueFrame};
+    use eqiora_schema::kernel::{ExprDagBuilder, SymbolRef};
 
     use super::ComponentScalarization;
+
+    #[test]
+    fn real_scalarization_rejects_complex_types_before_emitting_rows() {
+        use eqiora_core::ScalarDomain;
+        use eqiora_core::ValueType;
+        let mut builder = ExprDagBuilder::new();
+        let root = builder.symbol(SymbolRef::Field(Id::new())).unwrap();
+        let expression = builder.finish([root]).unwrap();
+        for domain in [ScalarDomain::Real, ScalarDomain::Complex] {
+            let typed = TypedResidual::infer(
+                expression.clone(),
+                None::<SpatialSupport<()>>,
+                RootContract::ComponentwiseResidual,
+                |_| {
+                    Ok::<_, ()>(ExpressionType::new(
+                        ValueType::scalar(domain, DimExponents::DIMENSIONLESS),
+                        None,
+                    ))
+                },
+            )
+            .unwrap();
+            let result = ComponentScalarization::lower(&typed);
+            match domain {
+                ScalarDomain::Real => assert_eq!(result.unwrap().rows().len(), 1),
+                ScalarDomain::Complex => {
+                    let error = result.unwrap_err();
+                    assert_eq!(
+                        error.code(),
+                        eqiora_core::diagnostic::codes::INVALID_OPERATOR_IR
+                    );
+                    assert!(error.message().contains("complex mathematical values"));
+                }
+            }
+        }
+    }
 
     #[test]
     fn vector_root_scalarizes_in_root_then_row_major_component_order() {
@@ -530,9 +575,10 @@ mod tests {
                     SymbolRef::PortTrace(_) => ExpressionType::shaped(
                         DimExponents::DIMENSIONLESS,
                         vector.clone(),
-                        eqiora_schema::kernel::ValueFrame::SpatialCartesian,
+                        eqiora_core::ValueFrame::SpatialCartesian,
                         None::<eqiora_schema::kernel::typing::SpatialSupport<()>>,
-                    ),
+                    )
+                    .unwrap(),
                     SymbolRef::Parameter(_) => {
                         ExpressionType::scalar(DimExponents::DIMENSIONLESS, None)
                     }
@@ -577,9 +623,10 @@ mod tests {
                     SymbolRef::PortFlux(_) => ExpressionType::shaped(
                         DimExponents::DIMENSIONLESS,
                         tensor.clone(),
-                        eqiora_schema::kernel::ValueFrame::SpatialCartesian,
+                        eqiora_core::ValueFrame::SpatialCartesian,
                         None::<eqiora_schema::kernel::typing::SpatialSupport<()>>,
-                    ),
+                    )
+                    .unwrap(),
                     _ => unreachable!(),
                 })
             })
@@ -620,12 +667,15 @@ mod tests {
             Some(support.clone()),
             RootContract::ComponentwiseResidual,
             |_| {
-                Ok::<_, ()>(ExpressionType::shaped(
-                    DimExponents::DIMENSIONLESS,
-                    tensor_shape.clone(),
-                    ValueFrame::SpatialCartesian,
-                    Some(support.clone()),
-                ))
+                Ok::<_, ()>(
+                    ExpressionType::shaped(
+                        DimExponents::DIMENSIONLESS,
+                        tensor_shape.clone(),
+                        ValueFrame::SpatialCartesian,
+                        Some(support.clone()),
+                    )
+                    .unwrap(),
+                )
             },
         )
         .unwrap();
@@ -713,7 +763,8 @@ mod tests {
             ValueShape::new([2]).unwrap(),
             ValueFrame::SpatialCartesian,
             Some(support.clone()),
-        );
+        )
+        .unwrap();
         let typed = TypedResidual::infer(
             dag,
             Some(support),

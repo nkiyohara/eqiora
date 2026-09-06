@@ -10,10 +10,75 @@ fn volume(name: &'static str) -> SpatialSupport<&'static str> {
 }
 
 #[test]
+fn complex_domain_survives_arithmetic_and_spatial_type_inference() {
+    use eqiora_core::ScalarDomain;
+    use eqiora_core::ValueType;
+    let real = ExpressionType::scalar(DimExponents::DIMENSIONLESS, Some(volume("body")));
+    let complex = ExpressionType::new(
+        ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS),
+        real.support.clone(),
+    );
+    for result in [
+        additive(&real, &complex),
+        additive(&complex, &real),
+        multiply(&real, &complex),
+        divide(&real, &complex),
+        power(&complex, 2),
+        time_derivative(&complex),
+        gradient(&complex),
+        isotropic_lift(&complex),
+        unary_math(UnaryMathFunction::Sqrt, &complex),
+    ] {
+        assert_eq!(
+            result.unwrap().value_type.scalar_domain(),
+            ScalarDomain::Complex
+        );
+    }
+    let gradient = gradient(&complex).unwrap();
+    assert_eq!(
+        divergence(&gradient).unwrap().value_type.scalar_domain(),
+        ScalarDomain::Complex
+    );
+    let tensor = isotropic_lift(&complex).unwrap();
+    assert_eq!(symmetric_part(&tensor).unwrap(), tensor);
+    assert!(residual(&complex, complex.support.as_ref()).is_ok());
+    assert!(matches!(
+        scalar_root(&complex, complex.support.as_ref()),
+        Err(TypeViolation::RootRequiresRealScalar)
+    ));
+    assert!(scalar_root(&real, real.support.as_ref()).is_ok());
+}
+
+#[test]
+fn pure_definition_preserves_the_complex_argument_domain() {
+    use eqiora_core::ScalarDomain;
+    use eqiora_core::ValueType;
+    let tensor = ExpressionType::new(
+        ValueType::shaped(
+            ScalarDomain::Complex,
+            DimExponents::DIMENSIONLESS,
+            ValueShape::new([2, 2]).unwrap(),
+            ValueFrame::SpatialCartesian,
+        )
+        .unwrap(),
+        Some(volume("body")),
+    );
+    let definition =
+        crate::kernel::pure_operator::PureOperatorDefinition::symmetric_part().unwrap();
+    assert_eq!(
+        definition
+            .instantiate(std::slice::from_ref(&tensor))
+            .unwrap()
+            .result_type(),
+        &tensor,
+    );
+}
+
+#[test]
 fn spatial_rules_are_identity_parametric_and_shape_aware() {
     let scalar = ExpressionType::scalar(DimExponents::DIMENSIONLESS, Some(volume("left")));
     let gradient = gradient(&scalar).expect("gradient");
-    assert_eq!(gradient.shape.extents()[0].get(), 2);
+    assert_eq!(gradient.shape().extents()[0].get(), 2);
     assert!(divergence(&scalar).is_err());
 
     let other = ExpressionType::scalar(DimExponents::DIMENSIONLESS, Some(volume("right")));
@@ -32,7 +97,8 @@ fn tensor_structure_comes_only_from_exact_spatial_types() {
         ValueShape::new([2, 2]).unwrap(),
         ValueFrame::SpatialCartesian,
         Some(volume("body")),
-    );
+    )
+    .unwrap();
     assert_eq!(symmetric_part(&tensor).unwrap(), tensor);
 
     for shape in [
@@ -44,7 +110,8 @@ fn tensor_structure_comes_only_from_exact_spatial_types() {
             shape,
             ValueFrame::SpatialCartesian,
             Some(volume("body")),
-        );
+        )
+        .unwrap();
         assert!(matches!(
             symmetric_part(&invalid),
             Err(TypeViolation::SymmetricPartRequiresSquareSpatialTensor)
@@ -55,14 +122,15 @@ fn tensor_structure_comes_only_from_exact_spatial_types() {
         ValueShape::new([2, 2]).unwrap(),
         ValueFrame::Invariant,
         Some(volume("body")),
-    );
+    )
+    .unwrap();
     assert!(symmetric_part(&wrong_frame).is_err());
 
     let scalar = ExpressionType::scalar(dimension, Some(volume("body")));
     let isotropic = isotropic_lift(&scalar).unwrap();
-    assert_eq!(isotropic.dimension, dimension);
-    assert_eq!(isotropic.shape, ValueShape::new([2, 2]).unwrap());
-    assert_eq!(isotropic.frame, ValueFrame::SpatialCartesian);
+    assert_eq!(isotropic.dimension(), dimension);
+    assert_eq!(isotropic.shape(), &ValueShape::new([2, 2]).unwrap());
+    assert_eq!(isotropic.frame(), ValueFrame::SpatialCartesian);
     assert_eq!(isotropic.support, scalar.support);
 
     let global = ExpressionType::<&str>::scalar(dimension, None);
@@ -88,7 +156,8 @@ fn tensor_structure_rejects_boundary_support() {
         ValueShape::new([2, 2]).unwrap(),
         ValueFrame::SpatialCartesian,
         Some(boundary.clone()),
-    );
+    )
+    .unwrap();
     let scalar = ExpressionType::scalar(DimExponents::DIMENSIONLESS, Some(boundary));
     assert!(matches!(
         symmetric_part(&tensor),
@@ -111,7 +180,8 @@ fn typed_residual_separates_componentwise_relations_from_scalar_activations() {
         ValueShape::new([2]).unwrap(),
         ValueFrame::SpatialCartesian,
         None::<SpatialSupport<RawTestId>>,
-    );
+    )
+    .unwrap();
 
     let typed = TypedResidual::infer(
         expression.clone(),
@@ -120,7 +190,7 @@ fn typed_residual_separates_componentwise_relations_from_scalar_activations() {
         |_| Ok::<_, ()>(vector.clone()),
     )
     .unwrap();
-    assert_eq!(typed.node_type(root).unwrap().shape.extents()[0].get(), 2);
+    assert_eq!(typed.node_type(root).unwrap().shape().extents()[0].get(), 2);
 
     let errors = TypedResidual::infer(expression, None, RootContract::ScalarActivation, |_| {
         Ok::<_, ()>(vector.clone())
@@ -129,7 +199,7 @@ fn typed_residual_separates_componentwise_relations_from_scalar_activations() {
     assert!(matches!(
         errors.as_slice(),
         [TypedResidualError::Type {
-            error: TypeViolation::RootRequiresScalar,
+            error: TypeViolation::RootRequiresRealScalar,
             ..
         }]
     ));
@@ -177,7 +247,8 @@ fn coordinate_and_boundary_rules_use_relation_support() {
         ValueShape::new([2]).unwrap(),
         ValueFrame::SpatialCartesian,
         Some(volume("body")),
-    );
+    )
+    .unwrap();
     let restricted_flux = multiply(&boundary_coordinate, &body_vector).unwrap();
     assert_eq!(
         restricted_flux.support.as_ref().map(SpatialSupport::domain),
@@ -213,21 +284,24 @@ fn generic_pure_application_derives_shape_support_and_dimension_from_its_table()
                 SymbolRef::Field(field) if field == right => inverse_time,
                 _ => unreachable!(),
             };
-            Ok::<_, ()>(ExpressionType::shaped(
-                dimension,
-                ValueShape::new([2]).unwrap(),
-                ValueFrame::SpatialCartesian,
-                Some(volume("body")),
-            ))
+            Ok::<_, ()>(
+                ExpressionType::shaped(
+                    dimension,
+                    ValueShape::new([2]).unwrap(),
+                    ValueFrame::SpatialCartesian,
+                    Some(volume("body")),
+                )
+                .unwrap(),
+            )
         },
     )
     .unwrap();
 
     let result = typed.node_type(product).unwrap();
-    assert_eq!(result.shape, ValueShape::new([2, 2]).unwrap());
+    assert_eq!(result.shape(), &ValueShape::new([2, 2]).unwrap());
     assert_eq!(result.support, Some(volume("body")));
     assert_eq!(
-        result.dimension,
+        result.dimension(),
         DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension")
     );
 }
@@ -252,6 +326,7 @@ fn generic_pure_application_rejects_argument_type_and_support_mismatches() {
             ValueFrame::SpatialCartesian,
             Some(volume(domain)),
         )
+        .unwrap()
     };
 
     let support_errors = TypedResidual::infer(
@@ -298,3 +373,4 @@ fn generic_pure_application_rejects_argument_type_and_support_mismatches() {
         }]
     ));
 }
+mod arrays;

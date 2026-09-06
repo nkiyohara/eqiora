@@ -1,3 +1,4 @@
+use eqiora_core::ValueFrame;
 use eqiora_core::entity::kinds;
 use eqiora_core::{DimExponents, Id, ValueShape};
 use eqiora_ir::{
@@ -7,7 +8,7 @@ use eqiora_ir::{
     SupportMapPairing,
 };
 use eqiora_schema::kernel::typing::{ExpressionType, RootContract, SpatialSupport, TypedResidual};
-use eqiora_schema::kernel::{ExprDagBuilder, SymbolRef, ValueFrame};
+use eqiora_schema::kernel::{ExprDagBuilder, SymbolRef};
 
 fn volume_tensor(domain: &'static str) -> ExpressionType<&'static str> {
     volume_tensor_with_dimension(domain, DimExponents::DIMENSIONLESS)
@@ -26,6 +27,7 @@ fn volume_tensor_with_dimension(
             dimensions: 2,
         }),
     )
+    .unwrap()
 }
 
 fn volume_scalar(domain: &'static str) -> ExpressionType<&'static str> {

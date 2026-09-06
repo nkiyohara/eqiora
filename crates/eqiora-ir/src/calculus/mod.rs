@@ -23,9 +23,7 @@ pub use eqiora_schema::kernel::pure_operator::{
     FormalTypeRule, OperatorDefinitionDigest, PureOperatorDefinition, PureOperatorError,
     PureOperatorInstantiation, PureValueClass, ResultAxis, ResultTypeRule,
 };
-pub use expansion::{
-    OperatorExpansion, OperatorExpansionExt, ScalarCalculus, ScalarCalculusAtom, ScalarCalculusNode,
-};
+pub use expansion::{OperatorExpansionExt, ScalarCalculus, ScalarCalculusAtom, ScalarCalculusNode};
 pub use normalization::{NormalizationProof, NormalizationRuleId};
 pub use support_map::{
     SupportMap, SupportMapIntent, SupportMapOrientation, SupportMapPairing, SupportMapViolation,

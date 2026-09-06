@@ -43,15 +43,8 @@ pub(super) enum DomainContract {
 #[derive(Debug, Clone)]
 pub(super) struct FieldContract {
     pub(super) dimension: DimExponents,
-    pub(super) shape: Option<ValueShapeSyntax>,
+    pub(super) value_type: eqiora_lang::ValueTypeSyntax,
     pub(super) domain: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-pub(super) struct ResolvedFieldContract {
-    pub(super) dimension: DimExponents,
-    pub(super) shape: ValueShape,
-    pub(super) frame: ValueFrame,
 }
 
 #[derive(Debug, Clone)]
@@ -122,72 +115,26 @@ pub(super) fn bind_domain(
 
 pub(super) fn resolve_field_contract(
     file: &str,
-    range: TextRange,
+    _range: TextRange,
     contract: &FieldContract,
     bindings: &BTreeMap<String, Binding>,
-) -> Result<ResolvedFieldContract, Diagnostic> {
-    let (shape, frame) = match contract.shape.as_ref() {
-        None | Some(ValueShapeSyntax::Scalar) => (ValueShape::scalar(), ValueFrame::Invariant),
-        Some(ValueShapeSyntax::Exact(extents)) => (
-            ValueShape::new(extents.iter().copied()).map_err(|error| {
-                source_error(codes::LANGUAGE_TYPE_ERROR, file, range, error.to_string())
-            })?,
-            ValueFrame::Invariant,
-        ),
-        Some(ValueShapeSyntax::SpatialVector) => {
-            let Some(domain) = contract.domain.as_deref() else {
-                return Err(source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    file,
-                    range,
-                    "`spatial_vector` Field shape requires an exact spatial Domain",
-                ));
-            };
-            let Some(Binding::Domain(
-                _,
-                DomainContract::Spatial {
-                    dimensions: Some(dimensions),
-                },
-            )) = bindings.get(domain)
-            else {
-                return Err(source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    file,
-                    range,
-                    format!(
-                        "`spatial_vector` Field support `{domain}` has no exact ambient dimension"
-                    ),
-                ));
-            };
-            let extent = u32::try_from(*dimensions).map_err(|_| {
-                source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    file,
-                    range,
-                    "spatial ambient dimension exceeds the portable u32 shape range",
-                )
-            })?;
-            (
-                ValueShape::new([extent]).map_err(|error| {
-                    source_error(codes::LANGUAGE_TYPE_ERROR, file, range, error.to_string())
-                })?,
-                ValueFrame::SpatialCartesian,
-            )
-        }
-        Some(_) => {
-            return Err(source_error(
-                codes::LANGUAGE_LOWERING_ERROR,
-                file,
-                range,
-                "Field value shape is newer than this compiler",
-            ));
-        }
-    };
-    Ok(ResolvedFieldContract {
-        dimension: contract.dimension,
-        shape,
-        frame,
-    })
+) -> Result<eqiora_core::ValueType, Diagnostic> {
+    let support = contract.domain.as_ref().and_then(|name| {
+        let Binding::Domain(
+            id,
+            DomainContract::Spatial {
+                dimensions: Some(dimensions),
+            },
+        ) = bindings.get(name)?
+        else {
+            return None;
+        };
+        Some(eqiora_schema::kernel::typing::SpatialSupport::Volume {
+            domain: id.erase(),
+            dimensions: *dimensions,
+        })
+    });
+    crate::value_types::lower_value_type(file, &contract.value_type, support.as_ref())
 }
 
 pub(super) fn bind_port(

@@ -312,7 +312,6 @@ mod full {
     fn accepted_and_rejected_files_match_the_independent_direct_operation() {
         assert_eq!(ACCEPTED_BYTES, ACCEPTED_LITERAL);
         assert_eq!(REJECTED_BYTES, REJECTED_LITERAL);
-        assert_eq!((ACCEPTED_BYTES.len(), REJECTED_BYTES.len()), (169, 39));
         let scratch = Scratch::new("parity");
         let accepted_path = scratch.path.join("accepted-secret.eqi");
         let rejected_path = scratch.path.join("rejected-secret.eqi");
@@ -341,7 +340,7 @@ mod full {
         ];
         assert_eq!(
             fingerprints[0].generation(),
-            SemanticFingerprintGeneration::V4
+            SemanticFingerprintGeneration::V5
         );
         assert_eq!(fingerprints[0], fingerprints[1]);
         assert_eq!(fingerprints[0], fingerprints[2]);

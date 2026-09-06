@@ -892,14 +892,14 @@ fn field_binding_requires_complete_exact_contract() {
     let base = r#"
 component Law {
   public support body: volume(ambient_dimension = 2);
-  public field slot state on body as continuum: K shape spatial_vector;
+  public field slot state on body as continuum: vector<K, 2>;
   relation balance continuous on body { state = 0; }
 }
 model Coupled {
   domain left = box(0, 1, 0, 1);
   domain right = box(1, 2, 0, 1);
   representation space = continuum;
-  field state on right as space: K shape spatial_vector;
+  field state on right as space: vector<K, 2>;
   instance law: Law(support body = left, field state = state);
 }
 "#;
@@ -913,8 +913,8 @@ model Coupled {
 
     let wrong_shape = base
         .replace(
-            "field state on right as space: K shape spatial_vector;",
-            "field state on right as space: K shape [2];",
+            "field state on right as space: vector<K, 2>;",
+            "field state on right as space: array<K, 2>;",
         )
         .replace("support body = left", "support body = right");
     let diagnostics = crate::compile("field-shape-mismatch.eqi", &wrong_shape)
@@ -922,7 +922,7 @@ model Coupled {
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message()
-            .contains("disagree in coordinate frame")
+            .contains("disagree in array and spatial axis roles")
     }));
 
     let missing = base.replace(", field state = state", "");

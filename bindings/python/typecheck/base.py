@@ -17,7 +17,7 @@ def check_language_source() -> None:
     source = eqiora.lang.Source()
     component = source.component("Poisson")
     volume = component.volume("volume", dimensions=2)
-    value = component.field("value", on=volume, unit=eqiora.lang.units.m)
+    value = component.field("value", on=volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
     natural = component.relation(
         "balance",
         on=volume,
@@ -40,9 +40,12 @@ def check_native_modeling() -> None:
         "temperature",
         domain=domain,
         representation=continuum,
-        dimension=length,
+        value_type=eqiora.ValueType.real(length),
     )
     conductivity = eqiora.Parameter("conductivity", value=1.0)
+    assert_type(temperature.value_type, eqiora.ValueType)
+    assert_type(temperature.initial, float | None)
+    assert_type(eqiora.ValueType.tensor(eqiora.ValueType.complex(length), 2, 2), eqiora.ValueType)
     balance = eqiora.Relation(
         "balance",
         domain=domain,

@@ -323,7 +323,7 @@ fn compiler_lowers_canonical_tensor_structure_without_a_physics_node() {
 model elastic_relation {
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
-  field displacement on body as space: m shape spatial_vector;
+  field displacement on body as space: vector<m, 2>;
   parameter mu: kg / (m * s ^ 2) = 2;
   parameter lambda: kg / (m * s ^ 2) = 3;
   relation balance continuous on body {
@@ -374,12 +374,8 @@ model scalar_poisson {
 "#;
     compile("scalar-poisson.eqi", scalar).expect("a scalar gradient remains admissible");
 
-    let wrong_displacement = scalar
-        .replace(
-            "field potential on body as space: 1;",
-            "field potential on body as space: 1 shape scalar;",
-        )
-        .replace("-div(grad(potential))", "symmetric_part(grad(potential))");
+    let wrong_displacement =
+        scalar.replace("-div(grad(potential))", "symmetric_part(grad(potential))");
     let diagnostics = compile("wrong-strain.eqi", &wrong_displacement)
         .expect_err("symmetric strain requires a spatial-vector Field");
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -391,6 +387,20 @@ model scalar_poisson {
 }
 
 #[test]
+fn source_pure_operators_admit_complex_fields_without_real_narrowing() {
+    let source = "public pure operator dyadic(left: spatial[1], right: spatial[1]) -> spatial[2]
+        = component(left, 0) * component(right, 1);
+    model M {
+        domain body = box(0, 1, 0, 1);
+        representation space = continuum;
+        field left on body as space: vector<complex<1>, 2>;
+        field right on body as space: vector<1, 2>;
+        relation r continuous on body { div(div(dyadic(left, right))) = 0; }
+    }";
+    compile("complex-operator.eqi", source).unwrap();
+}
+
+#[test]
 fn compiler_lowers_source_declared_pure_operator_as_one_generic_application() {
     let source = r#"
 public pure operator dyadic(left: spatial[1], right: spatial[1]) -> spatial[2]
@@ -399,8 +409,8 @@ public pure operator dyadic(left: spatial[1], right: spatial[1]) -> spatial[2]
 model generic_operator {
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
-  field left on body as space: 1 shape spatial_vector;
-  field right on body as space: 1 shape spatial_vector;
+  field left on body as space: vector<1, 2>;
+  field right on body as space: vector<1, 2>;
   relation balance continuous on body {
     div(div(dyadic(left, right))) = 0;
   }
@@ -456,7 +466,7 @@ model invalid {
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
   field scalar on body as space: 1 = 0;
-  field vector on body as space: 1 shape spatial_vector;
+  field vector on body as space: vector<1, 2>;
   relation balance continuous on body {
 "#;
     for (residual, expected) in [
@@ -498,8 +508,11 @@ model invalid {
 fn native_lowering_replaces_synthetic_ranges_with_declaration_paths() {
     let temperature = eqiora_lang::DraftField::new(
         "temperature",
-        DimExponents::from_integers([0, 0, 0, 0, 1, 0, 0]).expect("bounded dimension"),
-        293.0,
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::from_integers([0, 0, 0, 0, 1, 0, 0]).expect("bounded dimension"),
+        ),
+        Some(293.0),
     );
     let duration = eqiora_lang::DraftParameter::new(
         "duration",
@@ -523,6 +536,49 @@ fn native_lowering_replaces_synthetic_ranges_with_declaration_paths() {
         "thermal.invalid"
     );
     assert!(diagnostics[0].source_span().is_none());
+}
+
+#[test]
+fn native_field_types_survive_direct_lowering() {
+    use eqiora_core::{ScalarDomain, ValueFrame, ValueShape, ValueType};
+    use eqiora_lang::{DraftField, DraftRelation, DraftRepresentation, DraftSpatialDomain};
+    let domain = DraftSpatialDomain::cartesian_box("body", [(0.0, 1.0), (0.0, 1.0)]);
+    let space = DraftRepresentation::continuum("space");
+    let value_type = ValueType::shaped(
+        ScalarDomain::Complex,
+        DimExponents::DIMENSIONLESS,
+        ValueShape::new([2]).unwrap(),
+        ValueFrame::SpatialCartesian,
+    )
+    .unwrap()
+    .array(3)
+    .unwrap();
+    let field = DraftField::spatial("channels", &domain, &space, value_type.clone(), Some(0.0));
+    let relation = DraftRelation::continuous_on(
+        "balance",
+        &domain,
+        [field.expression() - field.expression()],
+    );
+    let draft = ModelDraft::new(
+        "M",
+        [domain.into(), space.into(), field.into(), relation.into()],
+    )
+    .unwrap();
+    let compiled = lower_draft(&draft).unwrap();
+    let (transaction, _, _) = compiled.into_parts();
+    let field = transaction
+        .ops()
+        .iter()
+        .find_map(|op| match op {
+            Op::DefineKernelNode {
+                node: KernelNode::Field(field),
+            } => Some(field),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(field.value_type(), &value_type);
+    assert_eq!(field.initial().unwrap().value_type(), &value_type);
+    assert_eq!(field.initial().unwrap().literal(), 0.0);
 }
 
 #[test]
@@ -1024,4 +1080,39 @@ fn normalized_physical_semantics(model: &CompiledModel) -> Vec<String> {
     }
 
     signatures
+}
+
+#[test]
+fn field_initial_units_normalize_and_report_the_exact_literal() {
+    let source =
+        "model M { field p: complex<m> = -2500[mm]; relation r continuous { p - p = 0; } }";
+    let compiled = compile("field-initial.eqi", source).unwrap();
+    let field = compiled[0]
+        .transaction()
+        .ops()
+        .iter()
+        .find_map(|op| match op {
+            Op::DefineKernelNode {
+                node: KernelNode::Field(field),
+            } => Some(field),
+            _ => None,
+        })
+        .unwrap();
+    let initial = field.initial().unwrap();
+    assert_eq!(initial.value_type(), field.value_type());
+    assert_eq!(initial.literal(), -2.5);
+    for literal in ["2[s]", "0[s]"] {
+        let source =
+            format!("model M {{ field p: m = {literal}; relation r continuous {{ p - p = 0; }} }}");
+        let errors = compile("field-initial.eqi", &source).unwrap_err();
+        assert!(
+            errors.iter().any(|error| {
+                error.code() == codes::LANGUAGE_TYPE_ERROR
+                    && error.source_span().is_some_and(|span| {
+                        &source[span.start as usize..span.end as usize] == literal
+                    })
+            }),
+            "{errors:?}"
+        );
+    }
 }

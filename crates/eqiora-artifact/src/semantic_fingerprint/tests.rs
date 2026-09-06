@@ -1,4 +1,5 @@
 use super::*;
+mod value_types;
 use eqiora_compiler::compile;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Id, OntologyId};
@@ -176,16 +177,36 @@ fn manually_allocated_expression(reverse: bool, expose_port: bool) -> KernelProg
     let mut transaction = Transaction::new("manual expression allocation");
     transaction
         .push(Op::DefineKernelNode {
-            node: FieldDef::new(left, DimExponents::DIMENSIONLESS)
-                .with_initial(DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))
-                .unwrap()
-                .into(),
+            node: FieldDef::new(
+                left,
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+            )
+            .with_initial(
+                DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)
+                    .try_into()
+                    .expect("finite real initial value"),
+            )
+            .unwrap()
+            .into(),
         })
         .push(Op::DefineKernelNode {
-            node: FieldDef::new(right, DimExponents::DIMENSIONLESS)
-                .with_initial(DynQuantity::new(2.0, DimExponents::DIMENSIONLESS))
-                .unwrap()
-                .into(),
+            node: FieldDef::new(
+                right,
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+            )
+            .with_initial(
+                DynQuantity::new(2.0, DimExponents::DIMENSIONLESS)
+                    .try_into()
+                    .expect("finite real initial value"),
+            )
+            .unwrap()
+            .into(),
         })
         .push(Op::DefineKernelNode {
             node: RelationDef::new(relation, expression).into(),

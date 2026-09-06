@@ -501,7 +501,7 @@ impl ExpressionChecker<'_, '_, '_> {
             )),
             SymbolContract::Port(PortContract::BoundaryPhysical {
                 connector, support, ..
-            }) if matches!(callee, "trace" | "flux") => Ok(ExpressionType::shaped(
+            }) if matches!(callee, "trace" | "flux") => ExpressionType::shaped(
                 if callee == "trace" {
                     connector.trace_dimension()
                 } else {
@@ -510,7 +510,15 @@ impl ExpressionChecker<'_, '_, '_> {
                 connector.shape().clone(),
                 connector.frame(),
                 Some(support),
-            )),
+            )
+            .map_err(|error| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.scope.file,
+                    argument.range(),
+                    error.to_string(),
+                )
+            }),
             SymbolContract::Port(PortContract::BoundaryPhysical { .. }) => Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 self.scope.file,
@@ -562,10 +570,11 @@ impl ExpressionChecker<'_, '_, '_> {
 
 fn type_error(file: &str, expression: &Expr, error: TypeViolation<String>) -> Diagnostic {
     let message = match &error {
-        TypeViolation::AdditiveTypeMismatch { left, right } if left.shape == right.shape => {
+        TypeViolation::AdditiveTypeMismatch { left, right } if left.shape() == right.shape() => {
             format!(
                 "addition/subtraction combines dimensions [{}] and [{}]",
-                left.dimension, right.dimension
+                left.dimension(),
+                right.dimension()
             )
         }
         TypeViolation::SinRequiresDimensionlessScalar => {

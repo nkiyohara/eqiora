@@ -8,7 +8,6 @@ pub mod pure_operator;
 pub mod scalar_connection;
 mod time;
 pub mod typing;
-mod value;
 
 pub use boundary_physical::{
     BoundaryPairing, BoundaryPhysicalConnectionViolation, BoundaryPhysicalConnector,
@@ -28,4 +27,3 @@ pub use expression::{
     UnaryMathFunction,
 };
 pub use time::RationalTime;
-pub use value::ValueFrame;

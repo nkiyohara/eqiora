@@ -9,6 +9,7 @@ mod dimension_rewrite;
 mod document;
 mod domain_validation;
 mod property;
+mod value_type;
 
 use crate::ast::{
     ActivationSyntax, BoundaryConnectionDecl, BoundaryDecl, BoundaryFamilyBinderSyntax,
@@ -35,7 +36,7 @@ pub struct AstConstructionError {
 }
 
 impl AstConstructionError {
-    fn new(message: impl Into<String>) -> Self {
+    pub(crate) fn new(message: impl Into<String>) -> Self {
         Self {
             message: message.into(),
         }
@@ -311,19 +312,13 @@ impl SourceAstFactory {
     pub fn field_slot(
         name: impl Into<String>,
         support: impl Into<String>,
-        dimension: Expr,
-        shape: Option<ValueShapeSyntax>,
+        value_type: crate::ValueTypeSyntax,
         range: TextRange,
     ) -> Result<FieldSlotDecl, AstConstructionError> {
-        validate_expression(&dimension)?;
-        if let Some(shape) = &shape {
-            validate_value_shape(shape)?;
-        }
         Ok(FieldSlotDecl {
             name: checked_identifier(name, "Field slot")?,
             support: checked_identifier(support, "Field-slot support")?,
-            dimension,
-            shape,
+            value_type,
             range: checked_range(range)?,
         })
     }
@@ -374,37 +369,8 @@ impl SourceAstFactory {
         name: impl Into<String>,
         domain: Option<String>,
         representation: Option<String>,
-        dimension: Expr,
-        initial: f64,
-        range: TextRange,
-    ) -> Result<FieldDecl, AstConstructionError> {
-        Self::field_with_shape(
-            name,
-            domain,
-            representation,
-            None,
-            dimension,
-            Some(initial),
-            range,
-        )
-    }
-
-    /// Construct a scalar or shaped Field declaration.
-    ///
-    /// `shape = None` preserves the legacy scalar spelling. An explicit shape
-    /// is retained in source form for context-dependent lowering.
-    ///
-    /// # Errors
-    /// Returns the same structural errors as [`Self::field`], plus malformed
-    /// exact shape extents. Scalar Fields may omit `initial`; this preserves
-    /// absence for execution admission rather than supplying an implicit zero.
-    pub fn field_with_shape(
-        name: impl Into<String>,
-        domain: Option<String>,
-        representation: Option<String>,
-        shape: Option<ValueShapeSyntax>,
-        dimension: Expr,
-        initial: Option<f64>,
+        value_type: crate::ValueTypeSyntax,
+        initial: Option<Expr>,
         range: TextRange,
     ) -> Result<FieldDecl, AstConstructionError> {
         if domain.is_some() != representation.is_some() {
@@ -418,30 +384,28 @@ impl SourceAstFactory {
         if let Some(name) = &representation {
             validate_identifier(name, "Field Representation")?;
         }
-        if let Some(shape) = &shape {
-            validate_value_shape(shape)?;
-        }
-        validate_expression(&dimension)?;
-        let scalar = shape.as_ref().is_none_or(|shape| {
-            matches!(shape, ValueShapeSyntax::Scalar)
-                || matches!(shape, ValueShapeSyntax::Exact(extents) if extents.is_empty())
-        });
-        match (scalar, initial) {
-            (true, Some(initial)) => validate_finite(initial, "Field initial value")?,
-            (true, None) => {}
-            (false, Some(_)) => {
+        let scalar = value_type.is_scalar();
+        if let Some(initial) = &initial {
+            validate_expression(initial)?;
+            let value = match initial.kind() {
+                ExprKind::Number(value) | ExprKind::Quantity { value, .. } => *value,
+                _ => {
+                    return Err(AstConstructionError::new(
+                        "Field initial value must be a numeric or quantity literal",
+                    ));
+                }
+            };
+            if !scalar && value != 0.0 {
                 return Err(AstConstructionError::new(
                     "non-scalar Field cannot have a scalar initial value",
                 ));
             }
-            (false, None) => {}
         }
         Ok(FieldDecl {
             name: checked_identifier(name, "Field")?,
             domain,
             representation,
-            shape,
-            dimension,
+            value_type,
             initial,
             range: checked_range(range)?,
         })

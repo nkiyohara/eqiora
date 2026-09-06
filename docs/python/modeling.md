@@ -22,6 +22,41 @@ flow = eqiora.Relation(
 model = eqiora.Model.define("decay", x, rate, flow)
 ```
 
+`Field.value_type` holds its mathematical scalar domain, physical dimension and
+component roles. Omitted types are dimensionless real scalars; omitted initial
+values remain absent. Supply an initial value explicitly when one is required.
+
+```python
+voltage = eqiora.ValueType.complex(eqiora.Dimension(mass=1, length=2, time=-3, current=-1))
+body = eqiora.Domain.box("body", (0.0, 1.0), (0.0, 1.0))
+space = eqiora.Representation.continuum("space")
+channels = eqiora.Field(
+    "channels",
+    domain=body,
+    representation=space,
+    value_type=eqiora.ValueType.array(eqiora.ValueType.vector(voltage, 2), 3),
+    initial=0.0,
+)
+```
+
+`ValueType.real(dimension)` and `ValueType.complex(dimension)` construct scalars.
+`vector(scalar, extent)` and `tensor(scalar, *extents)` introduce spatial axes;
+`array(element, extent)` adds a channel axis without changing the element's frame.
+Equal component counts do not make these types interchangeable. Spatial extents
+must match the Field's exact Domain. Complex execution is still under development.
+
+Dimensions accept exact rational exponents, for example
+`eqiora.Dimension(length=Fraction(-1, 2))` with `Fraction` imported from `fractions`.
+A scalar Field's numeric `initial=` value uses its declared dimension's coherent
+unit. A vector, tensor, or array Field can be initialized with `0.0`, which takes
+the complete declared type; a nonzero scalar is not broadcast across components.
+
+The same `value_type=` objects apply to `eqiora.lang.Component.field`.
+`ValueType.to_eqi()` emits the canonical type through the Rust formatter.
+In source, `field pressure: Pa = 2;` therefore needs no repeated `[Pa]`.
+Explicit compatible input units still convert normally. Numeric declaration
+initializers provide this context, not arbitrary expressions.
+
 A relation receives an explicit zero-valued residual. Symbolic equality and
 Python truth testing are not modeling syntax. Declarations and expressions
 are frozen; validation and artifact creation happen atomically in Rust.
@@ -39,7 +74,7 @@ from eqiora.lang import units as u
 source = q.Source()
 component = source.component("Diffusion")
 body = component.volume("body", dimensions=2)
-value = component.field("value", on=body, unit=u.m)
+value = component.field("value", on=body, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
 length = component.parameter("length", unit=u.m)
 wave_number = q.math.pi / length
 component.relation(
@@ -93,7 +128,7 @@ release = source.scalar_property_release(
 law = source.component("DiffusionLaw")
 law_body = law.volume("body", dimensions=2)
 diffusivity = law.property("diffusivity", contract=contract)
-value = law.field("value", on=law_body, unit=u.one, initial=0)
+value = law.field("value", on=law_body, value_type=eqiora.ValueType.real(), initial=0)
 law.relation(
     "balance",
     on=law_body,
@@ -131,7 +166,7 @@ Model exposes the existing immutable `property_bindings` inspection.
 The complete current vocabulary and steady-cylinder Component are shown in
 [`examples/python/steady_cylinder_source.py`](../../examples/python/steady_cylinder_source.py).
 The baseline slice has one public Component, public volume/parent-boundary
-supports and parameters, scalar or spatial-vector continuum fields, continuous
+supports and parameters, scalar, spatial-vector/tensor and channel-array Fields, continuous
 residual Relations, structural SI units, constants, coordinates, arithmetic,
 powers, gradient, divergence, trace, normal contraction, symmetric part, and
 isotropic lift. The package-oriented extension admits multiple scalar contracts
@@ -806,7 +841,7 @@ assert same.revision == child.revision
 ```
 
 The canonical bytes still expose the persisted
-`eqiora.model-envelope/v9` schema, but callers do not select that suffix.
+`eqiora.model-envelope/v10` schema, but callers do not select that suffix.
 `.eqi` remains source text; `.eqmodel` is the canonical compiled Model artifact.
 Model v1--v7 bytes reject; decoding never sniffs, retries, or silently migrates
 an older artifact.

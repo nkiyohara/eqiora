@@ -358,16 +358,16 @@ model coupled {
 fn parser_retains_occurrence_bound_field_slots_and_bindings() {
     let source = r#"component IsotropicBalance2d {
   public support body: volume(ambient_dimension = 2);
-  public field slot displacement on body as continuum: m shape spatial_vector;
-  public field slot load on body as continuum: kg / (m * s ^ 2) shape spatial_vector;
+  public field slot displacement on body as continuum: vector<m, 2>;
+  public field slot load on body as continuum: vector<kg / (m * s ^ 2), 2>;
   public parameter mu: kg / (m * s ^ 2);
 }
 
 model Main {
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
-  field u on body as space: m shape spatial_vector;
-  field f on body as space: kg / (m * s ^ 2) shape spatial_vector;
+  field u on body as space: vector<m, 2>;
+  field f on body as space: vector<kg / (m * s ^ 2), 2>;
   instance law: IsotropicBalance2d(mu = 3, support body = body, field displacement = u, field load = f);
 }"#;
     let document = parse("field-slots.eqi", source)
@@ -380,10 +380,13 @@ model Main {
     };
     assert_eq!(displacement.name(), "displacement");
     assert_eq!(displacement.support(), "body");
-    assert_eq!(displacement.shape(), Some(&ValueShapeSyntax::SpatialVector));
+    assert!(matches!(
+        displacement.value_type().kind(),
+        crate::ValueTypeSyntaxKind::Vector { extent: 2, .. }
+    ));
     assert_eq!(
         &source[displacement.range().start() as usize..displacement.range().end() as usize],
-        "public field slot displacement on body as continuum: m shape spatial_vector;"
+        "public field slot displacement on body as continuum: vector<m, 2>;"
     );
 
     let Item::Instance(instance) = &document.models()[0].items()[4] else {
@@ -547,7 +550,7 @@ model coupled {
   domain fluid = box(0, 1, 0, 1);
   domain wall = boundary(fluid, axis = 0, side = upper);
   representation state_space = continuum;
-  field velocity on fluid as state_space: m / s shape [2];
+  field velocity on fluid as state_space: array<m / s, 2>;
   port interface: conserving MechanicalBoundary over wall;
   relation balance continuous on wall { flux(interface) = 0; }
 }
@@ -575,7 +578,10 @@ model coupled {
     let Item::Field(field) = &document.models()[0].items()[3] else {
         panic!("fourth item is the shaped Field");
     };
-    assert_eq!(field.shape(), Some(&ValueShapeSyntax::Exact(vec![2])));
+    assert!(matches!(
+        field.value_type().kind(),
+        crate::ValueTypeSyntaxKind::Array { extent: 2, .. }
+    ));
     let Item::Port(port) = &document.models()[0].items()[4] else {
         panic!("fifth item is the boundary Port");
     };
@@ -597,7 +603,7 @@ model coupled {
 fn shaped_fields_never_desugar_a_scalar_initial_value() {
     let valid = parse(
         "shaped-field.eqi",
-        "model M { field velocity: m / s shape [2]; }",
+        "model M { field velocity: array<m / s, 2>; }",
     );
     let document = valid.into_document().expect("shaped Field without initial");
     let Item::Field(field) = &document.models()[0].items()[0] else {
@@ -607,7 +613,7 @@ fn shaped_fields_never_desugar_a_scalar_initial_value() {
 
     let invalid = parse(
         "broadcast.eqi",
-        "model M { field velocity: m / s shape [2] = 0; }",
+        "model M { field velocity: array<m / s, 2> = 1; }",
     );
     assert!(invalid.diagnostics().iter().any(|diagnostic| {
         diagnostic

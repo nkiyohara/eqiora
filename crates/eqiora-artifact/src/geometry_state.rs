@@ -1,8 +1,8 @@
 //! Connectivity-free geometry states over one immutable reference mesh.
 
+use eqiora_core::ValueFrame;
 use eqiora_core::{Diagnostic, DimExponents};
 use eqiora_meshing::{FixedTopologyGeometryAction2d, FixedTopologyGeometryState2d};
-use eqiora_schema::kernel::ValueFrame;
 use serde::{Deserialize, Serialize};
 
 use crate::{

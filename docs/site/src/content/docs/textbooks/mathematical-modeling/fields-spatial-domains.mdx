@@ -47,7 +47,7 @@ public support walls: boundary(parent = fluid);
 public support cylinder: boundary(parent = fluid);
 
 representation space = continuum;
-field velocity on fluid as space: m / s shape spatial_vector;
+field velocity on fluid as space: vector<m / s, 2>;
 field pressure on fluid as space: kg / (m * s ^ 2) = 0;
 ```
 

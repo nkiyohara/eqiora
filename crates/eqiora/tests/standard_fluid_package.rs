@@ -19,7 +19,7 @@ use eqiora_numerics::{
 #[path = "support/embedded_package.rs"]
 mod embedded_package;
 
-const VERSION: &str = "0.3.0";
+const VERSION: &str = "0.4.0";
 static NEXT_SCRATCH: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Copy)]
@@ -156,11 +156,10 @@ fn standard_vector_boundary_data_compiles_through_the_ordinary_package_path() {
 #[test]
 fn standard_package_reopens_from_the_project_lock_and_offline_store() {
     let scratch = Scratch::create();
-    let mechanics_sources =
-        embedded_package::release_sources("Eqiora.Mechanics.Interfaces", "0.2.0");
+    let mechanics_sources = embedded_package::public_sources("Eqiora.Mechanics.Interfaces");
     let mechanics =
         prepare_package_release_v1(mechanics_sources.clone(), &[]).expect("mechanics release");
-    let fluid_sources = standard_fluid_sources(&mechanics);
+    let fluid_sources = embedded_package::public_sources("Eqiora.Fluid");
     let fluid = prepare_package_release_v1(fluid_sources.clone(), std::slice::from_ref(&mechanics))
         .expect("standard fluid release");
     let root_sources = root_sources(&fluid, &root_source(true, Inlet::NoSlip, Outlet::NoSlip));
@@ -178,7 +177,7 @@ source = "root/src"
 entry = "main"
 
 [dependencies."Eqiora.Fluid"]
-version = "0.3.0"
+version = "0.4.0"
 path = "fluid"
 "#,
     )
@@ -187,11 +186,11 @@ path = "fluid"
         scratch.0.join("fluid/eqiora.toml"),
         r#"[package]
 name = "Eqiora.Fluid"
-version = "0.3.0"
+version = "0.4.0"
 entry = "fluid"
 
 [dependencies."Eqiora.Mechanics.Interfaces"]
-version = "0.2.0"
+version = "0.3.0"
 path = "../mechanics"
 "#,
     )
@@ -200,7 +199,7 @@ path = "../mechanics"
         scratch.0.join("mechanics/eqiora.toml"),
         r#"[package]
 name = "Eqiora.Mechanics.Interfaces"
-version = "0.2.0"
+version = "0.3.0"
 entry = "interfaces"
 "#,
     )
@@ -224,47 +223,16 @@ entry = "interfaces"
 
 fn standard_releases() -> (PackageReleaseV1, PackageReleaseV1) {
     let mechanics = prepare_package_release_v1(
-        embedded_package::release_sources("Eqiora.Mechanics.Interfaces", "0.2.0"),
+        embedded_package::public_sources("Eqiora.Mechanics.Interfaces"),
         &[],
     )
     .expect("mechanics release");
     let fluid = prepare_package_release_v1(
-        standard_fluid_sources(&mechanics),
+        embedded_package::public_sources("Eqiora.Fluid"),
         std::slice::from_ref(&mechanics),
     )
     .expect("standard fluid release");
     (mechanics, fluid)
-}
-
-fn standard_fluid_sources(mechanics: &PackageReleaseV1) -> PackageSourcesV1 {
-    let sources = embedded_package::release_sources("Eqiora.Fluid", VERSION);
-    let (manifest, files) = sources.into_parts();
-    let dependency =
-        PackageDependencyV1::new(mechanics.package_identity().expect("mechanics identity"));
-    let manifest = PackageManifestV1::new(
-        manifest.entry().as_str(),
-        manifest.name().clone(),
-        manifest.version().clone(),
-        vec![dependency],
-        manifest.bundle().to_vec(),
-    )
-    .expect("current fluid manifest");
-    let files = files
-        .into_iter()
-        .map(|file| {
-            if file.role() != BundleRoleV1::ModelSource {
-                return file;
-            }
-            let source = std::str::from_utf8(file.bytes()).expect("fluid source is UTF-8");
-            SourceFileV1::new(
-                file.path().clone(),
-                file.role(),
-                format!("import Eqiora.Mechanics.Interfaces.interfaces as mechanics;\n{source}")
-                    .into_bytes(),
-            )
-        })
-        .collect();
-    PackageSourcesV1::new(manifest, files).expect("current fluid sources")
 }
 
 fn compile_root(
@@ -408,7 +376,7 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
         ),
         Inlet::PrescribedVelocity => (
             r#"  field inlet_potential on body as space: m ^ 2 / s = 0;
-  field inlet_velocity on body as space: m / s shape spatial_vector;
+  field inlet_velocity on body as space: vector<m / s, 2>;
   parameter inlet_speed: m / s = 1;
   relation inlet_potential_definition continuous on body {
     inlet_potential - inlet_speed * coordinate(0) = 0;
@@ -449,7 +417,7 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
         Outlet::PrescribedTraction => (
             r#"  field traction_potential on body as space: kg / s ^ 2 = 0;
   field outlet_traction on body as space:
-    kg / (m * s ^ 2) shape spatial_vector;
+    vector<kg / (m * s ^ 2), 2>;
   parameter outlet_stress: kg / (m * s ^ 2) = 2;
   relation traction_potential_definition continuous on body {
     traction_potential - outlet_stress * coordinate(0) = 0;
@@ -473,7 +441,7 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
   representation space = continuum;
-  field velocity on body as space: m / s shape spatial_vector;
+  field velocity on body as space: vector<m / s, 2>;
   field pressure on body as space: kg / (m * s ^ 2) = 0;
   field force_potential on body as space: kg / (m * s ^ 2) = 0;
   parameter dynamic_viscosity: kg / (m * s) = 2;

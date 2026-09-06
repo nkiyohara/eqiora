@@ -11,12 +11,13 @@ mod projection;
 use core::fmt;
 use std::collections::BTreeMap;
 
+use eqiora_core::ValueFrame;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity, RawId, ValueShape};
 use eqiora_graph::EdgeKind;
 use eqiora_schema::kernel::{
     ActivationKind, BoundaryPairing, BoundarySide, CartesianCoordinateSource, ClockKind,
     ConnectionSemantics, DomainKind, EventDirection, ExprDag, ExprNode, KernelNode, PortPayload,
-    RepresentationKind, SignalDirection, SymbolRef, UnaryMathFunction, ValueFrame,
+    RepresentationKind, SignalDirection, SymbolRef, UnaryMathFunction,
 };
 use eqiora_sem::KernelProgram;
 use sha2::{Digest, Sha256};
@@ -25,9 +26,9 @@ use crate::{ArtifactDigest, invalid_artifact};
 use canonical::{Canonicalizer, Encoder};
 use projection::{ConstructionBudget, ProjectionGraph, Reference};
 
-const FINGERPRINT_DOMAIN_V4: &[u8] = b"eqiora.structural-semantic-fingerprint/v4\0";
+const FINGERPRINT_DOMAIN_V5: &[u8] = b"eqiora.structural-semantic-fingerprint/v5\0";
 const PROJECTION_MAGIC: &[u8; 8] = b"EQIORASF";
-const GENERATION_V4: u16 = 4;
+const GENERATION_V5: u16 = 5;
 
 /// Current generation of the structural semantic projection.
 ///
@@ -36,8 +37,8 @@ const GENERATION_V4: u16 = 4;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
 pub enum SemanticFingerprintGeneration {
-    /// Closed projection with exact rational dimensions and real square roots.
-    V4,
+    /// Closed projection retaining mathematical scalar domains and component-axis roles.
+    V5,
 }
 
 impl SemanticFingerprintGeneration {
@@ -45,19 +46,19 @@ impl SemanticFingerprintGeneration {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::V4 => "eqiora.structural-semantic-fingerprint/v4",
+            Self::V5 => "eqiora.structural-semantic-fingerprint/v5",
         }
     }
 
     const fn code(self) -> u16 {
         match self {
-            Self::V4 => GENERATION_V4,
+            Self::V5 => GENERATION_V5,
         }
     }
 
     const fn hash_domain(self) -> &'static [u8] {
         match self {
-            Self::V4 => FINGERPRINT_DOMAIN_V4,
+            Self::V5 => FINGERPRINT_DOMAIN_V5,
         }
     }
 }
@@ -200,7 +201,7 @@ impl ProjectionIdentity {
         limits: SemanticFingerprintLimits,
     ) -> Result<Self, Diagnostic> {
         validate_limits(limits)?;
-        let generation = SemanticFingerprintGeneration::V4;
+        let generation = SemanticFingerprintGeneration::V5;
         let graph = ProjectionGraph::from_program(program, limits)?;
         let canonical = Canonicalizer::new(&graph, limits).canonicalize()?;
         let mut hasher = Sha256::new();
@@ -238,10 +239,23 @@ fn encode_node(
         }
         KernelNode::Field(field) => {
             encoder.u8(3)?;
+            encoder.u8(match field.value_type().scalar_domain() {
+                eqiora_core::ScalarDomain::Real => 0,
+                eqiora_core::ScalarDomain::Complex => 1,
+            })?;
+            encoder.u32(
+                u32::try_from(field.value_type().array_rank())
+                    .map_err(|_| invalid_artifact("array rank exceeds u32"))?,
+            )?;
             encode_dimension(&mut encoder, field.dimension())?;
             encode_shape(&mut encoder, field.shape())?;
             encode_frame(&mut encoder, field.frame())?;
-            encode_optional_quantity(&mut encoder, field.initial())?;
+            encode_optional_quantity(
+                &mut encoder,
+                field
+                    .initial()
+                    .map(|value| DynQuantity::new(value.literal(), value.value_type().dimension())),
+            )?;
         }
         KernelNode::Parameter(parameter) => {
             encoder.u8(4)?;
@@ -798,7 +812,7 @@ fn validate_limits(limits: SemanticFingerprintLimits) -> Result<(), Diagnostic> 
 
 fn newer_vocabulary(subject: &str) -> Diagnostic {
     fingerprint_error(format!(
-        "{subject} is newer than structural semantic fingerprint generation v4"
+        "{subject} is newer than structural semantic fingerprint generation v5"
     ))
 }
 

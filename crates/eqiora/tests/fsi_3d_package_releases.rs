@@ -20,55 +20,16 @@ fn prepare_release(
     version: &str,
     dependencies: &[PackageReleaseV1],
 ) -> PackageReleaseV1 {
-    let sources = embedded_package::release_sources(package, version);
-    let import = match package {
-        "Eqiora.Fluid.Incompressible" | "Eqiora.Solid.LinearElasticity" => {
-            Some("import Eqiora.Mechanics.Interfaces.interfaces as mechanics;\n")
-        }
-        _ => None,
-    };
-    let sources = if let Some(import) = import {
-        let (manifest, files) = sources.into_parts();
-        let target = dependencies
-            .iter()
-            .find_map(|release| release.package_identity().ok())
-            .filter(|identity| identity.name.as_str() == "Eqiora.Mechanics.Interfaces")
-            .expect("mechanics dependency");
-        let manifest = PackageManifestV1::new(
-            manifest.entry().as_str(),
-            manifest.name().clone(),
-            manifest.version().clone(),
-            vec![PackageDependencyV1::new(target)],
-            manifest.bundle().to_vec(),
-        )
-        .expect("migrated package manifest");
-        let files = files
-            .into_iter()
-            .map(|file| {
-                if file.role() != BundleRoleV1::ModelSource {
-                    return file;
-                }
-                let source = std::str::from_utf8(file.bytes()).expect("model source is UTF-8");
-                SourceFileV1::new(
-                    file.path().clone(),
-                    file.role(),
-                    format!("{import}{source}").into_bytes(),
-                )
-            })
-            .collect();
-        PackageSourcesV1::new(manifest, files).expect("migrated package sources")
-    } else {
-        sources
-    };
+    let sources = embedded_package::public_sources(package);
     prepare_package_release_v1(sources, dependencies)
         .unwrap_or_else(|error| panic!("prepare package release {package} {version}: {error:?}"))
 }
 #[test]
 fn prepares_method_neutral_three_dimensional_fluid_and_solid_releases() {
-    let mechanics = prepare_release("Eqiora.Mechanics.Interfaces", "0.2.0", &[]);
+    let mechanics = prepare_release("Eqiora.Mechanics.Interfaces", "0.3.0", &[]);
     for (package, version) in [
-        ("Eqiora.Fluid.Incompressible", "0.3.0"),
-        ("Eqiora.Solid.LinearElasticity", "0.5.0"),
+        ("Eqiora.Fluid.Incompressible", "0.4.0"),
+        ("Eqiora.Solid.LinearElasticity", "0.6.0"),
     ] {
         let release = prepare_release(package, version, std::slice::from_ref(&mechanics));
         let identity = release.package_identity().expect("package identity");
@@ -79,15 +40,15 @@ fn prepares_method_neutral_three_dimensional_fluid_and_solid_releases() {
 
 #[test]
 fn exact_package_graph_lowers_to_three_dimensional_ale_fsi_roles() {
-    let mechanics = prepare_release("Eqiora.Mechanics.Interfaces", "0.2.0", &[]);
+    let mechanics = prepare_release("Eqiora.Mechanics.Interfaces", "0.3.0", &[]);
     let fluid = prepare_release(
         "Eqiora.Fluid.Incompressible",
-        "0.3.0",
+        "0.4.0",
         std::slice::from_ref(&mechanics),
     );
     let solid = prepare_release(
         "Eqiora.Solid.LinearElasticity",
-        "0.5.0",
+        "0.6.0",
         std::slice::from_ref(&mechanics),
     );
     let root = prepare_root(&mechanics, &fluid, &solid);

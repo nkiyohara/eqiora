@@ -20,7 +20,7 @@ public component ZeroVelocity2d {
 public component NewtonianMechanicalInterface2d {
   public support body: volume(ambient_dimension = 2);
   public support exterior: complete_exterior(parent = body);
-  public field slot velocity on body as continuum: m / s shape spatial_vector;
+  public field slot velocity on body as continuum: vector<m / s, 2>;
   public field slot pressure on body as continuum: kg / (m * s ^ 2);
   public parameter dynamic_viscosity: kg / (m * s);
 
@@ -40,8 +40,8 @@ public component NewtonianMechanicalInterface2d {
 public component ElastodynamicMechanicalInterface2d {
   public support body: volume(ambient_dimension = 2);
   public support exterior: complete_exterior(parent = body);
-  public field slot displacement on body as continuum: m shape spatial_vector;
-  public field slot velocity on body as continuum: m / s shape spatial_vector;
+  public field slot displacement on body as continuum: vector<m, 2>;
+  public field slot velocity on body as continuum: vector<m / s, 2>;
   public parameter mu: kg / (m * s ^ 2);
   public parameter lambda: kg / (m * s ^ 2);
 
@@ -72,7 +72,7 @@ model Main {
   domain solid_y_upper = boundary(solid, axis = 1, side = upper);
   representation space = continuum;
 
-  field fluid_velocity on fluid as space: m / s shape spatial_vector;
+  field fluid_velocity on fluid as space: vector<m / s, 2>;
   field fluid_pressure on fluid as space: kg / (m * s ^ 2) = 0;
   field fluid_load_potential on fluid as space: kg / (m * s ^ 2) = 0;
   parameter fluid_density: kg / m ^ 3 = 2;
@@ -93,8 +93,8 @@ model Main {
     div(fluid_velocity) = 0;
   }
 
-  field solid_displacement on solid as space: m shape spatial_vector;
-  field solid_velocity on solid as space: m / s shape spatial_vector;
+  field solid_displacement on solid as space: vector<m, 2>;
+  field solid_velocity on solid as space: vector<m / s, 2>;
   field solid_load_potential on solid as space: kg / (m * s ^ 2) = 0;
   parameter solid_density: kg / m ^ 3 = 3;
   parameter solid_mu: kg / (m * s ^ 2) = 4;

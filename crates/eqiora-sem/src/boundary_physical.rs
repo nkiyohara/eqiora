@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use eqiora_core::ValueFrame;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, GraphPath, Id, RawId};
@@ -8,8 +9,8 @@ use eqiora_schema::kernel::typing::TypedResidual;
 use eqiora_schema::kernel::{
     ActivationKind, AxisBounds, BoundaryPhysicalPortContract, CartesianBoundaryEmbedding,
     CartesianPeriodicBoundaryIdentification, ConnectionSemantics, DomainKind, ExprDag,
-    ExprDagBuilder, ExprNode, KernelNode, SymbolRef, ValueFrame,
-    validate_boundary_physical_connection, validate_spatial_periodic_boundary_connection,
+    ExprDagBuilder, ExprNode, KernelNode, SymbolRef, validate_boundary_physical_connection,
+    validate_spatial_periodic_boundary_connection,
 };
 
 use crate::KernelProgram;

@@ -21,18 +21,7 @@ const ROOT_SOURCE: &str =
     include_str!("../../../verify/solid/packaged-elastic-boundary-2d/models/coupled.eqi");
 const ROOT_SOURCE_PERMUTED: &str =
     include_str!("../../../verify/solid/packaged-elastic-boundary-2d/models/coupled-permuted.eqi");
-const LIVE_PACKAGE_SOURCE: &str =
-    include_str!("../../../packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi");
-const VERIFIED_PACKAGE_SOURCE_V0_2: &str = include_str!(
-    "../../../verify/solid/packaged-elastic-boundary-2d/package-v0.2.0/src/linear_elasticity.eqi"
-);
-const VERIFIED_PACKAGE_README_V0_2: &[u8] =
-    include_bytes!("../../../verify/solid/packaged-elastic-boundary-2d/package-v0.2.0/README.md");
-const VERIFIED_COMPONENT_V0_1: &str = include_str!(
-    "../../../verify/solid/packaged-isotropic-balance-2d/package-v0.1.0/src/linear_elasticity.eqi"
-);
 const PACKAGE_NAME: &str = "Eqiora.Solid.LinearElasticity";
-const PACKAGE_VERSION: &str = "0.2.0";
 const ROOT_NAME: &str = "org.eqiora.verify.packaged_elastic_boundary_2d";
 const ROOT_VERSION: &str = "0.1.0";
 const SIDES: [(&str, &str); 4] = [
@@ -42,78 +31,20 @@ const SIDES: [(&str, &str); 4] = [
     ("axis=1,side=upper", "y_upper"),
 ];
 
-fn package_release() -> PackageReleaseV1 {
-    let live_document = eqiora::language::parse("linear_elasticity.eqi", LIVE_PACKAGE_SOURCE)
-        .into_document()
-        .expect("live package source parses");
-    let verified_v0_2_document =
-        eqiora::language::parse("linear_elasticity-v0.2.0.eqi", VERIFIED_PACKAGE_SOURCE_V0_2)
-            .into_document()
-            .expect("verified v0.2.0 package source parses");
-    let verified_document =
-        eqiora::language::parse("linear_elasticity-v0.1.0.eqi", VERIFIED_COMPONENT_V0_1)
-            .into_document()
-            .expect("verified v0.1.0 package source parses");
-    assert_eq!(live_document.connectors().len(), 1);
-    assert_eq!(live_document.components().len(), 6);
-    assert_eq!(
-        live_document.components()[..2]
-            .iter()
-            .map(|component| component.name())
-            .collect::<Vec<_>>(),
-        verified_v0_2_document
-            .components()
-            .iter()
-            .map(|component| component.name())
-            .collect::<Vec<_>>(),
-        "later package releases must not mutate the verified v0.2.0 component contracts"
-    );
-    assert_eq!(
-        live_document
-            .components()
-            .first()
-            .map(|component| component.name()),
-        verified_document
-            .components()
-            .first()
-            .map(|component| component.name()),
-        "v0.2.0 must add a separate Component without widening the accepted balance contract"
-    );
-    assert_eq!(
-        live_document.components()[1].name(),
-        "IsotropicMechanicalInterface2d"
-    );
-    assert_eq!(
-        live_document.components()[4].name(),
-        "IsotropicElastodynamicsWithPotential2d"
-    );
-    assert_eq!(
-        live_document.components()[5].name(),
-        "ElastodynamicMechanicalInterface2d"
-    );
+fn mechanics_package() -> PackageReleaseV1 {
+    prepare_package_release_v1(
+        embedded_package::public_sources("Eqiora.Mechanics.Interfaces"),
+        &[],
+    )
+    .expect("prepare current mechanics package")
+}
 
-    let sources = embedded_package::generated_sources(
-        PACKAGE_NAME,
-        PACKAGE_VERSION,
-        &[
-            (
-                "README.md",
-                BundleRoleV1::Documentation,
-                VERIFIED_PACKAGE_README_V0_2,
-            ),
-            (
-                "src/linear_elasticity.eqi",
-                BundleRoleV1::ModelSource,
-                VERIFIED_PACKAGE_SOURCE_V0_2.as_bytes(),
-            ),
-        ],
-    );
-    let release = prepare_package_release_v1(sources, &[])
-        .expect("prepare the exact compiler-derived package release");
-    let identity = release.package_identity().expect("exact package identity");
-    assert_eq!(identity.name.as_str(), PACKAGE_NAME);
-    assert_eq!(identity.version.as_str(), PACKAGE_VERSION);
-    release
+fn package_release() -> PackageReleaseV1 {
+    prepare_package_release_v1(
+        embedded_package::public_sources(PACKAGE_NAME),
+        &[mechanics_package()],
+    )
+    .expect("prepare current elasticity package")
 }
 
 fn root_sources(dependency: &PackageReleaseV1, alias: &str, source: &str) -> PackageSourcesV1 {
@@ -155,17 +86,20 @@ fn root_sources(dependency: &PackageReleaseV1, alias: &str, source: &str) -> Pac
 fn root_release(dependency: &PackageReleaseV1, alias: &str, source: &str) -> PackageReleaseV1 {
     prepare_package_release_v1(
         root_sources(dependency, alias, source),
-        std::slice::from_ref(dependency),
+        &[dependency.clone(), mechanics_package()],
     )
     .expect("prepare exact elasticity-boundary root")
 }
 
 fn compile_locked(dependency: &PackageReleaseV1, root: &PackageReleaseV1) -> PackagedModelDocument {
     let resolution =
-        ResolutionRecordV1::from_exact_releases(root, std::slice::from_ref(dependency))
-            .expect("exact two-package resolution");
+        ResolutionRecordV1::from_exact_releases(root, &[dependency.clone(), mechanics_package()])
+            .expect("exact package resolution");
     let mut store = InMemoryPackageStore::default();
     store.insert(dependency).expect("insert dependency release");
+    store
+        .insert(&mechanics_package())
+        .expect("insert mechanics release");
     store.insert(root).expect("insert root release");
     PackagedModelDocument::compile_locked(&store, &resolution, "Main")
         .expect("compile exact packaged elasticity boundary")

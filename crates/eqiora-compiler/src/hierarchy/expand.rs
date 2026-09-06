@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use eqiora_core::ValueFrame;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, EntityKind, GraphPath, ValueShape};
 use eqiora_lang::{
@@ -10,7 +11,7 @@ use eqiora_lang::{
 use eqiora_schema::kernel::typing::SpatialSupport;
 use eqiora_schema::kernel::{
     BoundaryPairing, BoundaryPhysicalConnector, BoundaryPhysicalPortContract, BoundarySide,
-    CartesianBoundaryEmbedding, ValueFrame, validate_boundary_physical_connection,
+    CartesianBoundaryEmbedding, validate_boundary_physical_connection,
 };
 
 use crate::connection_sets::ConnectionFragment;
@@ -1808,9 +1809,8 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         name: internal_name(identity.full),
                         domain,
                         representation,
-                        shape: declaration.shape().cloned(),
-                        dimension: declaration.dimension().clone(),
-                        initial: declaration.initial(),
+                        value_type: declaration.value_type().clone(),
+                        initial: declaration.initial().cloned(),
                         range: declaration.range(),
                         identity,
                     });
@@ -2193,9 +2193,8 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         name: internal_name(identity.full),
                         domain,
                         representation,
-                        shape: declaration.shape().cloned(),
-                        dimension: declaration.dimension().clone(),
-                        initial: declaration.initial(),
+                        value_type: declaration.value_type().clone(),
+                        initial: declaration.initial().cloned(),
                         range: declaration.range(),
                         identity,
                     });

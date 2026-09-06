@@ -6,7 +6,8 @@ use eqiora_core::{
     Diagnostic, DimExponents, DynQuantity, EntityKind, GraphPath, Id, RawId, ValueShape,
 };
 
-use super::{BoundaryPhysicalConnector, ExprDag, RationalTime, ValueFrame};
+use super::{BoundaryPhysicalConnector, ExprDag, RationalTime};
+use eqiora_core::{ValueFrame, ValueLiteral, ValueType};
 
 mod spatial;
 
@@ -69,79 +70,53 @@ impl RepresentationDef {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FieldDef {
     id: Id<kinds::Field>,
-    dimension: DimExponents,
-    shape: ValueShape,
-    frame: ValueFrame,
-    initial: Option<DynQuantity>,
+    value_type: ValueType,
+    initial: Option<ValueLiteral>,
 }
 
 impl FieldDef {
-    /// Define a scalar Field with no initial value.
+    /// Define a Field with one complete checked mathematical type.
     #[must_use]
-    pub fn new(id: Id<kinds::Field>, dimension: DimExponents) -> Self {
+    pub fn new(id: Id<kinds::Field>, value_type: ValueType) -> Self {
         Self {
             id,
-            dimension,
-            shape: ValueShape::scalar(),
-            frame: ValueFrame::Invariant,
+            value_type,
             initial: None,
         }
     }
 
-    /// Define a shaped Field. Spatial support compatibility is validated by
-    /// the whole-model validator once its exact Domain is known.
+    /// Attach a fully typed initial value, allowing real-to-complex embedding.
     ///
     /// # Errors
-    /// Returns `EQ0302` for an unrepresentable component product or a scalar
-    /// carrying a non-invariant component frame.
-    pub fn shaped(
-        id: Id<kinds::Field>,
-        dimension: DimExponents,
-        shape: ValueShape,
-        frame: ValueFrame,
-    ) -> Result<Self, Diagnostic> {
-        if shape.component_count().is_none()
-            || (shape.is_scalar() && frame != ValueFrame::Invariant)
-        {
-            return Err(Diagnostic::error(
-                codes::INVALID_KERNEL_DEFINITION,
-                "Field shape/frame contract is not representable",
-            )
-            .with_graph_path(kernel_path(id.erase())));
-        }
-        Ok(Self {
-            id,
-            dimension,
-            shape,
-            frame,
-            initial: None,
-        })
-    }
-
-    /// Attach a dimension-checked initial value.
-    ///
-    /// # Errors
-    /// Returns `EQ0401` when the value dimension differs from the Field.
-    pub fn with_initial(mut self, initial: DynQuantity) -> Result<Self, Diagnostic> {
-        if !self.shape.is_scalar() || self.frame != ValueFrame::Invariant {
-            return Err(Diagnostic::error(
-                codes::INVALID_KERNEL_DEFINITION,
-                "non-scalar Field initialization requires a future shaped-value contract",
-            )
-            .with_graph_path(kernel_path(self.id.erase())));
-        }
-        if initial.dim() != self.dimension {
+    /// Rejects mismatched dimensions, shapes, frames, or scalar-domain narrowing.
+    pub fn with_initial(mut self, initial: ValueLiteral) -> Result<Self, Diagnostic> {
+        if initial.value_type().dimension() != self.dimension() {
             return Err(Diagnostic::error(
                 codes::DIMENSION_MISMATCH,
                 format!(
                     "Field initial dimension [{}] differs from declared [{}]",
-                    initial.dim(),
-                    self.dimension
+                    initial.value_type().dimension(),
+                    self.dimension()
                 ),
             )
             .with_graph_path(kernel_path(self.id.erase())));
         }
-        self.initial = Some(initial);
+        if initial
+            .value_type()
+            .clone()
+            .with_common_scalar_domain(&self.value_type)
+            != self.value_type
+        {
+            return Err(Diagnostic::error(
+                codes::INVALID_KERNEL_DEFINITION,
+                "Field initial value type differs from the declared type",
+            )
+            .with_graph_path(kernel_path(self.id.erase())));
+        }
+        self.initial = Some(
+            ValueLiteral::new(self.value_type.clone(), initial.literal())
+                .expect("embedding a validated literal preserves its shape and finiteness"),
+        );
         Ok(self)
     }
 
@@ -154,25 +129,31 @@ impl FieldDef {
     /// Declared physical dimension.
     #[must_use]
     pub const fn dimension(&self) -> DimExponents {
-        self.dimension
+        self.value_type.dimension()
     }
 
     /// Exact mathematical value shape.
     #[must_use]
     pub const fn shape(&self) -> &ValueShape {
-        &self.shape
+        self.value_type.shape()
     }
 
     /// Coordinate-frame meaning of Field components.
     #[must_use]
     pub const fn frame(&self) -> ValueFrame {
-        self.frame
+        self.value_type.frame()
+    }
+
+    /// Complete mathematical type, independent of support and execution choices.
+    #[must_use]
+    pub const fn value_type(&self) -> &ValueType {
+        &self.value_type
     }
 
     /// Initial value when supplied by the model.
     #[must_use]
-    pub const fn initial(&self) -> Option<DynQuantity> {
-        self.initial
+    pub const fn initial(&self) -> Option<&ValueLiteral> {
+        self.initial.as_ref()
     }
 }
 
@@ -676,7 +657,10 @@ impl KernelNode {
     #[must_use]
     pub const fn initial_value(&self) -> Option<DynQuantity> {
         match self {
-            Self::Field(value) => value.initial(),
+            Self::Field(value) => match value.initial() {
+                Some(initial) => initial.real_scalar_value(),
+                None => None,
+            },
             Self::Parameter(value) => Some(value.value()),
             _ => None,
         }
@@ -736,11 +720,69 @@ mod tests {
     #[test]
     fn field_initial_value_is_dimension_checked() {
         let field = Id::<kinds::Field>::new();
-        let diagnostic = FieldDef::new(field, dim::TemperatureDim::EXPONENTS)
-            .with_initial(DynQuantity::new(2.0, dim::TimeDim::EXPONENTS))
-            .expect_err("time is not temperature");
+        let diagnostic = FieldDef::new(
+            field,
+            ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                dim::TemperatureDim::EXPONENTS,
+            ),
+        )
+        .with_initial(
+            DynQuantity::new(2.0, dim::TimeDim::EXPONENTS)
+                .try_into()
+                .unwrap(),
+        )
+        .expect_err("time is not temperature");
 
         assert_eq!(diagnostic.code(), codes::DIMENSION_MISMATCH);
+    }
+
+    #[test]
+    fn field_initial_value_rejects_nonfinite_numbers() {
+        let value_type = ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            dim::TemperatureDim::EXPONENTS,
+        );
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert!(ValueLiteral::new(value_type.clone(), value).is_err());
+        }
+        assert!(
+            FieldDef::new(Id::new(), value_type.clone())
+                .with_initial(ValueLiteral::new(value_type.clone(), f64::MAX).unwrap())
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn field_initial_value_preserves_complete_types() {
+        use eqiora_core::ScalarDomain::{Complex, Real};
+        let real = ValueType::scalar(Real, DimExponents::DIMENSIONLESS);
+        let complex = ValueType::scalar(Complex, real.dimension());
+        let initial = ValueLiteral::new(real.clone(), 2.0).unwrap();
+        let field = FieldDef::new(Id::new(), complex.clone())
+            .with_initial(initial)
+            .unwrap();
+        assert_eq!(field.initial().unwrap().value_type(), &complex);
+        assert_eq!(field.initial().unwrap().real_scalar_value(), None);
+        assert!(
+            FieldDef::new(Id::new(), real.clone())
+                .with_initial(ValueLiteral::new(complex.clone(), 2.0).unwrap())
+                .is_err()
+        );
+        let array = complex.array(3).unwrap();
+        let field = FieldDef::new(Id::new(), array.clone())
+            .with_initial(ValueLiteral::new(array.clone(), -0.0).unwrap())
+            .unwrap();
+        assert_eq!(field.initial().unwrap().value_type(), &array);
+        assert_eq!(
+            field.initial().unwrap().literal().to_bits(),
+            0.0_f64.to_bits()
+        );
+        assert!(
+            FieldDef::new(Id::new(), array)
+                .with_initial(ValueLiteral::new(real, 0.0).unwrap())
+                .is_err()
+        );
     }
 
     #[test]

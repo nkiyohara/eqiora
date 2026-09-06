@@ -41,14 +41,34 @@ fn coincident_periodic_activations_commit_next_fields_simultaneously() {
     let period = RationalTime::new(1, 10).expect("100 ms");
     let nodes = [
         KernelNode::from(
-            FieldDef::new(left, DimExponents::DIMENSIONLESS)
-                .with_initial(DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))
-                .expect("left initial"),
+            FieldDef::new(
+                left,
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+            )
+            .with_initial(
+                DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)
+                    .try_into()
+                    .expect("finite real initial value"),
+            )
+            .expect("left initial"),
         ),
         KernelNode::from(
-            FieldDef::new(right, DimExponents::DIMENSIONLESS)
-                .with_initial(DynQuantity::new(2.0, DimExponents::DIMENSIONLESS))
-                .expect("right initial"),
+            FieldDef::new(
+                right,
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+            )
+            .with_initial(
+                DynQuantity::new(2.0, DimExponents::DIMENSIONLESS)
+                    .try_into()
+                    .expect("finite real initial value"),
+            )
+            .expect("right initial"),
         ),
         KernelNode::from(RelationDef::new(
             left_relation,

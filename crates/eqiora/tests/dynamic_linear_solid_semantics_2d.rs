@@ -360,7 +360,7 @@ fn kinematic_inertia_stress_density_and_closure_near_misses_fail_closed() {
     assert_lowering_rejects(&distinct_representation, "same continuum Representation");
 
     let scalar_velocity = DIRECT.replace(
-        "field velocity on body as space: m / s shape spatial_vector;",
+        "field velocity on body as space: vector<m / s, 2>;",
         "field velocity on body as space: m / s = 0;",
     );
     assert_typed_source_rejects(&scalar_velocity, "shape");
@@ -384,8 +384,8 @@ fn nominal_connector_and_boundary_coefficients_cannot_be_substituted() {
     let solid = public_solid_release(&mechanics);
 
     let wrong_coefficients = PACKAGED.replace(
-        "field velocity = velocity,\n    mu = 3,\n    lambda = 4\n  );\n\n  instance x_lower_zero",
-        "field velocity = velocity,\n    mu = 9,\n    lambda = 4\n  );\n\n  instance x_lower_zero",
+        "field velocity = velocity,\n    mu = 3[kg / (m * s ^ 2)],\n    lambda = 4[kg / (m * s ^ 2)]\n  );\n\n  instance x_lower_zero",
+        "field velocity = velocity,\n    mu = 9[kg / (m * s ^ 2)],\n    lambda = 4[kg / (m * s ^ 2)]\n  );\n\n  instance x_lower_zero",
     );
     let mismatched = compile_root(
         &solid,
@@ -563,19 +563,21 @@ fn assert_typed_source_rejects(source: &str, message_fragment: &str) {
 }
 
 fn public_solid_release(mechanics: &PackageReleaseV1) -> PackageReleaseV1 {
-    let current = eqiora::language::parse("linear-elasticity-v0.4.0.eqi", SOLID_SOURCE)
+    let current = eqiora::language::parse("linear-elasticity.eqi", SOLID_SOURCE)
         .into_document()
         .expect("current solid package source parses");
     assert_eq!(current.connectors().len(), 1);
-    assert_eq!(current.components().len(), 6);
-    assert_eq!(
-        current.components()[4].name(),
-        "IsotropicElastodynamicsWithPotential2d"
-    );
-    assert_eq!(
-        current.components()[5].name(),
-        "ElastodynamicMechanicalInterface2d"
-    );
+    for name in [
+        "IsotropicElastodynamicsWithPotential2d",
+        "ElastodynamicMechanicalInterface2d",
+    ] {
+        assert!(
+            current
+                .components()
+                .iter()
+                .any(|component| component.name() == name)
+        );
+    }
     public_release(
         "Eqiora.Solid.LinearElasticity",
         std::slice::from_ref(mechanics),

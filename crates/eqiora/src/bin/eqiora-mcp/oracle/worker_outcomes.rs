@@ -6,7 +6,19 @@ use std::process::Command;
 pub(super) type CapturedCompilerInputs = Arc<Mutex<Vec<(String, String)>>>;
 
 pub(super) fn tool_definition() -> Value {
-    serde_json::from_str(TOOL_DEFINITION_SOURCE).expect("frozen tool-definition JSON")
+    serde_json::from_str(super::super::tool::DEFINITION).expect("current tool-definition JSON")
+}
+
+pub(super) fn assert_current_model_schema(model: &Value) {
+    let public_schema: Value =
+        serde_json::from_str(eqiora::control::COMPILE_V2_SCHEMA_JSON).unwrap();
+    let model_schema = &public_schema["$defs"]["model"]["properties"];
+    let advertised =
+        &tool_definition()["outputSchema"]["oneOf"][0]["properties"]["model"]["properties"];
+    for field in ["schema", "transactionSchema"] {
+        assert_eq!(advertised[field]["const"], model_schema[field]["const"]);
+        assert_eq!(model[field], model_schema[field]["const"]);
+    }
 }
 
 pub(super) fn current_server_discover() -> Value {

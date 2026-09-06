@@ -73,6 +73,36 @@ pub(crate) fn generated_sources(
 /// Return one exact public package from compile-time embedded repository bytes.
 pub(crate) fn public_sources(package: &str) -> PackageSourcesV1 {
     match package {
+        "Eqiora.Fluid" => sources(
+            include_bytes!("../../../../packages/Eqiora.Fluid/package.json"),
+            &[
+                (
+                    "README.md",
+                    BundleRoleV1::Documentation,
+                    include_bytes!("../../../../packages/Eqiora.Fluid/README.md"),
+                ),
+                (
+                    "src/fluid.eqi",
+                    BundleRoleV1::ModelSource,
+                    include_bytes!("../../../../packages/Eqiora.Fluid/src/fluid.eqi"),
+                ),
+            ],
+        ),
+        "Eqiora.Solid" => sources(
+            include_bytes!("../../../../packages/Eqiora.Solid/package.json"),
+            &[
+                (
+                    "README.md",
+                    BundleRoleV1::Documentation,
+                    include_bytes!("../../../../packages/Eqiora.Solid/README.md"),
+                ),
+                (
+                    "src/solid.eqi",
+                    BundleRoleV1::ModelSource,
+                    include_bytes!("../../../../packages/Eqiora.Solid/src/solid.eqi"),
+                ),
+            ],
+        ),
         "Eqiora.Mechanics.Interfaces" => sources(
             include_bytes!("../../../../packages/Eqiora.Mechanics.Interfaces/package.json"),
             &[
@@ -159,162 +189,5 @@ pub(crate) fn public_sources(package: &str) -> PackageSourcesV1 {
             ],
         ),
         other => panic!("unsupported embedded public package `{other}`"),
-    }
-}
-
-/// Return one exact immutable package release from compile-time embedded bytes.
-pub(crate) fn release_sources(package: &str, version: &str) -> PackageSourcesV1 {
-    match (package, version) {
-        ("Eqiora.Fluid", "0.1.0") => generated_sources(
-            package,
-            version,
-            &[
-                (
-                    "README.md",
-                    BundleRoleV1::Documentation,
-                    include_bytes!("../../../../packages/releases/Eqiora.Fluid/0.1.0/README.md"),
-                ),
-                (
-                    "src/fluid.eqi",
-                    BundleRoleV1::ModelSource,
-                    include_bytes!(
-                        "../../../../packages/releases/Eqiora.Fluid/0.1.0/src/fluid.eqi"
-                    ),
-                ),
-            ],
-        ),
-        ("Eqiora.Fluid", "0.2.0") => generated_sources(
-            package,
-            version,
-            &[
-                (
-                    "README.md",
-                    BundleRoleV1::Documentation,
-                    include_bytes!("../../../../packages/releases/Eqiora.Fluid/0.2.0/README.md"),
-                ),
-                (
-                    "src/fluid.eqi",
-                    BundleRoleV1::ModelSource,
-                    include_bytes!(
-                        "../../../../packages/releases/Eqiora.Fluid/0.2.0/src/fluid.eqi"
-                    ),
-                ),
-            ],
-        ),
-        ("Eqiora.Fluid", "0.3.0") => generated_sources(
-            package,
-            version,
-            &[
-                (
-                    "README.md",
-                    BundleRoleV1::Documentation,
-                    include_bytes!("../../../../packages/releases/Eqiora.Fluid/0.3.0/README.md"),
-                ),
-                (
-                    "src/fluid.eqi",
-                    BundleRoleV1::ModelSource,
-                    include_bytes!(
-                        "../../../../packages/releases/Eqiora.Fluid/0.3.0/src/fluid.eqi"
-                    ),
-                ),
-            ],
-        ),
-        ("Eqiora.Solid", "0.2.0") => generated_sources(
-            package,
-            version,
-            &[
-                (
-                    "README.md",
-                    BundleRoleV1::Documentation,
-                    include_bytes!("../../../../packages/releases/Eqiora.Solid/0.2.0/README.md"),
-                ),
-                (
-                    "src/solid.eqi",
-                    BundleRoleV1::ModelSource,
-                    include_bytes!(
-                        "../../../../packages/releases/Eqiora.Solid/0.2.0/src/solid.eqi"
-                    ),
-                ),
-            ],
-        ),
-        ("Eqiora.Solid", "0.3.0") => generated_sources(
-            package,
-            version,
-            &[
-                (
-                    "README.md",
-                    BundleRoleV1::Documentation,
-                    include_bytes!("../../../../packages/releases/Eqiora.Solid/0.3.0/README.md"),
-                ),
-                (
-                    "src/solid.eqi",
-                    BundleRoleV1::ModelSource,
-                    include_bytes!(
-                        "../../../../packages/releases/Eqiora.Solid/0.3.0/src/solid.eqi"
-                    ),
-                ),
-            ],
-        ),
-        ("Eqiora.Mechanics.Interfaces", "0.2.0") => generated_sources(
-            package,
-            version,
-            &[
-                (
-                    "README.md",
-                    BundleRoleV1::Documentation,
-                    include_bytes!(
-                        "../../../../packages/releases/Eqiora.Mechanics.Interfaces/0.2.0/README.md"
-                    ),
-                ),
-                (
-                    "src/interfaces.eqi",
-                    BundleRoleV1::ModelSource,
-                    include_bytes!(
-                        "../../../../packages/releases/Eqiora.Mechanics.Interfaces/0.2.0/src/interfaces.eqi"
-                    ),
-                ),
-            ],
-        ),
-        ("Eqiora.Fluid.Incompressible", "0.3.0") => generated_sources(
-            package,
-            version,
-            &[
-                (
-                    "README.md",
-                    BundleRoleV1::Documentation,
-                    include_bytes!(
-                        "../../../../packages/releases/Eqiora.Fluid.Incompressible/0.3.0/README.md"
-                    ),
-                ),
-                (
-                    "src/incompressible.eqi",
-                    BundleRoleV1::ModelSource,
-                    include_bytes!(
-                        "../../../../packages/releases/Eqiora.Fluid.Incompressible/0.3.0/src/incompressible.eqi"
-                    ),
-                ),
-            ],
-        ),
-        ("Eqiora.Solid.LinearElasticity", "0.5.0") => generated_sources(
-            package,
-            version,
-            &[
-                (
-                    "README.md",
-                    BundleRoleV1::Documentation,
-                    include_bytes!(
-                        "../../../../packages/releases/Eqiora.Solid.LinearElasticity/0.5.0/README.md"
-                    ),
-                ),
-                (
-                    "src/linear_elasticity.eqi",
-                    BundleRoleV1::ModelSource,
-                    include_bytes!(
-                        "../../../../packages/releases/Eqiora.Solid.LinearElasticity/0.5.0/src/linear_elasticity.eqi"
-                    ),
-                ),
-            ],
-        ),
-        _ => panic!("unsupported embedded package release `{package}` `{version}`"),
     }
 }

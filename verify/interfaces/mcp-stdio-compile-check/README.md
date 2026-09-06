@@ -3,8 +3,8 @@
 This case proves one thin local subprocess projection of the accepted
 transport-neutral `ModelDocument::compile` operation. A final MCP
 `2026-07-28` client can discover the server, list exactly one in-memory
-compile/check tool, and call it over newline-delimited stdio. The evidence
-freezes framing, protocol and metadata admission, the exact tool definition,
+compile/check tool, and call it over newline-delimited stdio. The tests check
+framing, protocol and metadata admission, the advertised current tool schema,
 error staging, bounded input and output, best-effort response cancellation,
 and the one-active-call resource policy.
 
@@ -18,11 +18,15 @@ A notification `_meta.progressToken` member is instead open, unrecognized, and
 ignored like other valid notification metadata.
 
 The accepted decay witness is compiled independently through the direct and
-MCP paths. Their outcomes and generation-v4 structural fingerprints agree,
+MCP paths. Their outcomes and current-generation structural fingerprints agree,
 while their occurrence IDs and artifact digests differ. The MCP descriptor is
 linked exactly to the document returned by that same MCP invocation without a
 second compilation. Empty source is rejected by both paths with matching
 normalized ordinary compiler diagnostics and no accepted Model.
+
+Product tests compare the discovered Model schema identities with the public
+control schema, then validate call responses against the advertised tool.
+They do not consume the retired tool-definition snapshot.
 
 The TextContent payload is compact JSON equal to `structuredContent`; the
 result returns only a descriptor and comparison fingerprint. It returns no

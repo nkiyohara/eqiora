@@ -368,9 +368,19 @@ fn canonical_nonlinear_derivative_relation() -> (
     let residual = expression.sub(squared, one).unwrap();
     let nodes = [
         KernelNode::from(
-            FieldDef::new(state, DimExponents::DIMENSIONLESS)
-                .with_initial(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
-                .unwrap(),
+            FieldDef::new(
+                state,
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+            )
+            .with_initial(
+                DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)
+                    .try_into()
+                    .expect("finite real initial value"),
+            )
+            .unwrap(),
         ),
         KernelNode::from(RelationDef::new(
             relation,

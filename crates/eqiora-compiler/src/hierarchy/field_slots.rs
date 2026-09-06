@@ -13,7 +13,7 @@ use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};
 
 use crate::diagnostics::source_error;
 
-use super::body_check::{field_expression_type, field_value_type};
+use super::body_check::field_expression_type;
 use super::supports::SupportInterface;
 
 /// Closed semantic representation family admitted by Field-slot v1.
@@ -132,13 +132,14 @@ fn field_slot_contract(
             ),
         ));
     };
-    let value = field_value_type(
-        file,
-        declaration.range(),
-        declaration.dimension(),
-        declaration.shape(),
+    let value = ExpressionType::new(
+        crate::value_types::lower_value_type(
+            file,
+            declaration.value_type(),
+            Some(support.support()),
+        )?,
         Some(support.support().clone()),
-    )?;
+    );
     Ok(FieldSlotContract {
         support_slot: declaration.support().to_owned(),
         field: FieldContract::continuum(value),
@@ -267,12 +268,7 @@ pub(super) fn resolve_instance_fields<I: Clone + Eq>(
             continue;
         };
         let expected = FieldContract {
-            value: ExpressionType::shaped(
-                slot.field.value.dimension,
-                slot.field.value.shape.clone(),
-                slot.field.value.frame,
-                Some(support),
-            ),
+            value: ExpressionType::new(slot.field.value.value_type.clone(), Some(support)),
             representation: slot.field.representation,
         };
         if let Some(message) = field_contract_mismatch(binding.slot(), &expected, &target) {
@@ -314,19 +310,24 @@ fn field_contract_mismatch<I: Eq>(
     expected: &FieldContract<I>,
     actual: &FieldContract<I>,
 ) -> Option<String> {
-    let mismatch = if expected.value.dimension != actual.value.dimension {
-        "physical dimension"
-    } else if expected.value.shape != actual.value.shape {
-        "exact value shape"
-    } else if expected.value.frame != actual.value.frame {
-        "coordinate frame"
-    } else if expected.value.support != actual.value.support {
-        "exact spatial support"
-    } else if expected.representation != actual.representation {
-        "representation family"
-    } else {
-        return None;
-    };
+    let mismatch =
+        if expected.value.value_type.scalar_domain() != actual.value.value_type.scalar_domain() {
+            "mathematical scalar domain"
+        } else if expected.value.dimension() != actual.value.dimension() {
+            "physical dimension"
+        } else if expected.value.shape() != actual.value.shape() {
+            "exact value shape"
+        } else if expected.value.value_type.array_rank() != actual.value.value_type.array_rank() {
+            "array and spatial axis roles"
+        } else if expected.value.frame() != actual.value.frame() {
+            "coordinate frame"
+        } else if expected.value.support != actual.value.support {
+            "exact spatial support"
+        } else if expected.representation != actual.representation {
+            "representation family"
+        } else {
+            return None;
+        };
     Some(format!(
         "Field slot `{slot}` and its target disagree in {mismatch}"
     ))
@@ -336,6 +337,76 @@ fn field_contract_mismatch<I: Eq>(
 mod tests {
     use super::*;
     use eqiora_lang::{Document, Item, ModelDecl};
+
+    #[test]
+    fn source_slots_preserve_complete_types_across_component_binding() {
+        let source = |slot_type, field_type| {
+            format!(
+                r#"
+component Law {{
+  public support body: volume(ambient_dimension = 2);
+  public field slot value on body as continuum: {slot_type};
+  relation balance continuous on body {{ value - value = 0; }}
+}}
+model Main {{
+  domain body = box(0, 1, 0, 1);
+  representation space = continuum;
+  field value on body as space: {field_type};
+  instance law: Law(support body = body, field value = value);
+}}
+"#
+            )
+        };
+        for value_type in [
+            "complex<V>",
+            "vector<complex<V>, 2>",
+            "array<vector<complex<V>, 2>, 3>",
+            "tensor<complex<Pa>, 2, 2>",
+        ] {
+            crate::compile("types.eqi", &source(value_type, value_type)).unwrap();
+        }
+        for (slot, field, mismatch) in [
+            ("complex<V>", "V", "mathematical scalar domain"),
+            (
+                "array<vector<complex<V>, 2>, 2>",
+                "tensor<complex<V>, 2, 2>",
+                "array and spatial axis roles",
+            ),
+        ] {
+            let diagnostics = crate::compile("mismatch.eqi", &source(slot, field)).unwrap_err();
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|error| error.message().contains(mismatch))
+            );
+        }
+    }
+
+    #[test]
+    fn field_binding_retains_array_and_spatial_axis_roles() {
+        use eqiora_core::{DimExponents, ScalarDomain, ValueShape};
+        use eqiora_core::{ValueFrame, ValueType};
+
+        let spatial = |extents| {
+            ValueType::shaped(
+                ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+                ValueShape::new(extents).unwrap(),
+                ValueFrame::SpatialCartesian,
+            )
+            .unwrap()
+        };
+        let array = FieldContract::continuum(ExpressionType::<()>::new(
+            spatial(vec![2]).array(2).unwrap(),
+            None,
+        ));
+        let tensor = FieldContract::continuum(ExpressionType::<()>::new(spatial(vec![2, 2]), None));
+        assert!(field_contract_mismatch("input", &array, &array).is_none());
+        assert_eq!(
+            field_contract_mismatch("input", &tensor, &array).as_deref(),
+            Some("Field slot `input` and its target disagree in array and spatial axis roles")
+        );
+    }
 
     fn parse(source: &str) -> Document {
         eqiora_lang::parse("field_slots.eqi", source)
@@ -365,12 +436,12 @@ mod tests {
             r#"
 component Law {
   public support body: volume(ambient_dimension = 2);
-  public field slot displacement on body as continuum: m shape spatial_vector;
+  public field slot displacement on body as continuum: vector<m, 2>;
 }
 model Use {
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
-  field displacement on body as space: m shape spatial_vector;
+  field displacement on body as space: vector<m, 2>;
   instance law: Law(support body = body, field displacement = displacement);
 }
 "#,
@@ -385,13 +456,16 @@ model Use {
             domain: "body-id",
             dimensions: 2,
         };
-        let target = FieldContract::continuum(ExpressionType::shaped(
-            eqiora_core::DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0])
-                .expect("bounded dimension"),
-            eqiora_core::ValueShape::new([2]).expect("shape"),
-            eqiora_schema::kernel::ValueFrame::SpatialCartesian,
-            Some(exact_support.clone()),
-        ));
+        let target = FieldContract::continuum(
+            ExpressionType::shaped(
+                eqiora_core::DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0])
+                    .expect("bounded dimension"),
+                eqiora_core::ValueShape::new([2]).expect("shape"),
+                eqiora_core::ValueFrame::SpatialCartesian,
+                Some(exact_support.clone()),
+            )
+            .unwrap(),
+        );
         let resolved = resolve_instance_fields(
             "field_slots.eqi",
             component,

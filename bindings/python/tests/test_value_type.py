@@ -1,0 +1,126 @@
+from fractions import Fraction
+
+import pytest
+
+import eqiora
+
+
+def test_value_type_preserves_scalar_domain_dimension_and_axis_roles() -> None:
+    dimension = eqiora.Dimension(length=Fraction(-3, 2))
+    scalar = eqiora.ValueType.complex(dimension)
+    vector = eqiora.ValueType.vector(scalar, 2)
+    channels = eqiora.ValueType.array(vector, 3)
+    tensor = eqiora.ValueType.tensor(scalar, 3, 2)
+    array = eqiora.ValueType.array(eqiora.ValueType.array(scalar, 2), 3)
+
+    assert channels.scalar_domain == "complex"
+    assert channels.dimension == dimension
+    assert channels.shape == tensor.shape == array.shape == [3, 2]
+    assert channels.array_rank == 1
+    assert tensor.array_rank == 0
+    assert array.array_rank == 2
+    assert channels.frame == tensor.frame == "spatial_cartesian"
+    assert array.frame == "invariant"
+    assert len({channels, tensor, array}) == 3
+    assert scalar == eqiora.ValueType.complex(dimension)
+    assert scalar != eqiora.ValueType.real(dimension)
+    assert hash(scalar) == hash(eqiora.ValueType.complex(dimension))
+    with pytest.raises(AttributeError):
+        channels.array_rank = 0
+
+
+@pytest.mark.parametrize("constructor", [
+    lambda: eqiora.ValueType.vector(eqiora.ValueType.real(), 0),
+    lambda: eqiora.ValueType.tensor(eqiora.ValueType.real(), 2),
+    lambda: eqiora.ValueType.array(eqiora.ValueType.real(), 0),
+    lambda: eqiora.ValueType.vector(eqiora.ValueType.array(eqiora.ValueType.real(), 2), 2),
+    lambda: eqiora.ValueType.tensor(eqiora.ValueType.vector(eqiora.ValueType.real(), 2), 2, 2),
+])
+def test_invalid_value_type_constructors(constructor) -> None:
+    with pytest.raises(ValueError):
+        constructor()
+
+
+@pytest.mark.parametrize("invalid", [True, False, 2.0, Fraction(2), "2"])
+def test_extents_require_integers(invalid) -> None:
+    scalar = eqiora.ValueType.real()
+    for constructor in (
+        lambda: eqiora.ValueType.vector(scalar, invalid),
+        lambda: eqiora.ValueType.tensor(scalar, 2, invalid),
+        lambda: eqiora.ValueType.array(scalar, invalid),
+    ):
+        with pytest.raises(TypeError):
+            constructor()
+
+
+@pytest.mark.parametrize(("value_type", "syntax"), [
+    (eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2)), "kg / (m * s ^ 2)"),
+    (eqiora.ValueType.complex(eqiora.Dimension(length=Fraction(-3, 2))), "complex<m ^ (-3 / 2)>"),
+    (eqiora.ValueType.vector(eqiora.ValueType.complex(), 2), "vector<complex<1>, 2>"),
+    (eqiora.ValueType.tensor(eqiora.ValueType.real(), 2, 2), "tensor<1, 2, 2>"),
+    (eqiora.ValueType.array(eqiora.ValueType.vector(eqiora.ValueType.complex(), 2), 3), "array<vector<complex<1>, 2>, 3>"),
+])
+@pytest.mark.parametrize("initial", [None, 0.0, -0.0])
+def test_native_field_type_matches_source_and_replays(value_type, syntax, initial) -> None:
+    domain = eqiora.Domain.box("body", (0.0, 1.0), (0.0, 1.0))
+    space = eqiora.Representation.continuum("space")
+    field = eqiora.Field("u", domain=domain, representation=space,
+                         value_type=value_type, initial=initial)
+    balance = eqiora.Relation("balance", domain=domain, residual=field - field)
+    native = eqiora.Model.define("typed", domain, space, field, balance)
+    initializer = "" if initial is None else " = 0"
+    source = eqiora.compile(source=f"""
+model typed {{
+  domain body = box(0, 1, 0, 1);
+  representation space = continuum;
+  field u on body as space: {syntax}{initializer};
+  relation balance continuous on body {{ u - u = 0; }}
+}}
+""")
+    assert field.value_type == value_type
+    assert field.dimension == value_type.dimension
+    assert field.initial == initial
+    assert native.structural_fingerprint == source.structural_fingerprint
+    replay = eqiora.Model.from_bytes(native.to_bytes())
+    assert replay.to_bytes() == native.to_bytes()
+    assert replay.structural_fingerprint == native.structural_fingerprint
+
+
+def test_spatial_type_requires_matching_support() -> None:
+    domain = eqiora.Domain.box("body", (0.0, 1.0), (0.0, 1.0))
+    space = eqiora.Representation.continuum("space")
+    field = eqiora.Field("u", domain=domain, representation=space,
+                         value_type=eqiora.ValueType.vector(eqiora.ValueType.real(), 3))
+    balance = eqiora.Relation("balance", domain=domain, residual=field - field)
+    with pytest.raises(eqiora.EqioraError) as caught:
+        eqiora.Model.define("typed", domain, space, field, balance)
+    assert caught.value.diagnostics[0].graph_path == ["typed", "u"]
+
+
+def test_field_has_one_type_input_and_explicit_optional_initial() -> None:
+    field = eqiora.Field("u")
+    assert field.value_type == eqiora.ValueType.real()
+    assert field.initial is None
+    assert eqiora.Field("u", initial=0.0).initial == 0.0
+    with pytest.raises(TypeError):
+        eqiora.Field("u", dimension=eqiora.Dimension())
+
+
+def test_source_field_uses_the_shared_type_and_native_formatter() -> None:
+    value_type = eqiora.ValueType.array(eqiora.ValueType.vector(
+        eqiora.ValueType.complex(eqiora.Dimension(length=Fraction(-3, 2))), 2), 3)
+    syntax = value_type.to_eqi()
+    assert syntax == "array<vector<complex<m ^ (-3 / 2)>, 2>, 3>"
+    source = eqiora.lang.Source()
+    component = source.component("Typed")
+    body = component.volume("body", dimensions=2)
+    component.field("channels", on=body, value_type=value_type)
+    assert f"field channels on body as space: {syntax};" in source.to_eqi()
+    with pytest.raises(TypeError):
+        component.field("old", on=body, unit=eqiora.lang.units.m)
+
+
+def test_type_emission_obeys_the_native_source_resource_limit() -> None:
+    oversized = eqiora.ValueType.array(eqiora.ValueType.real(), 65_537)
+    with pytest.raises(ValueError, match="65536"):
+        oversized.to_eqi()

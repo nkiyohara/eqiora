@@ -30,7 +30,6 @@ const PERMUTED_SOURCE: &str = include_str!(
 const COUNTS: [usize; 3] = [4, 6, 8];
 const CELLS: usize = 192;
 const PACKETS: usize = 576;
-const MODEL_ID: &str = "06BWXYZM2HZNYK7HQ87V3YSFY6";
 const SEMANTIC_REVISION: u64 = 1;
 const PREDECESSOR_MESH_SHA256: &str =
     "d2da7e53e2e2e329276582c8b2a786c4fa4df9ce653be8ddedb098c667de2301";
@@ -79,6 +78,7 @@ const AREA_BITS: [u64; 3] = [
 #[derive(Debug)]
 struct Fixture {
     model: AcceptedModelArtifact,
+    model_id: String,
     model_sha256: String,
     mesh: CartesianMeshEnvelopeV1,
     mesh_json: Vec<u8>,
@@ -209,7 +209,7 @@ fn fixture(source: &str) -> Fixture {
     assert_eq!(replayed_model.program(), &compiled_program);
     let model_reference = replayed_model.artifact_reference();
     let model_sha256 = model_reference.artifact().as_str().to_owned();
-    assert_eq!(model_reference.model().to_string(), MODEL_ID);
+    assert_eq!(model_reference.model().to_string(), model_id.to_string());
     assert_eq!(model_reference.semantic_revision().get(), SEMANTIC_REVISION);
 
     let (connections, parent, connector) = independently_resolve_group(&compiled_program);
@@ -226,6 +226,7 @@ fn fixture(source: &str) -> Fixture {
 
     Fixture {
         model,
+        model_id: model_id.to_string(),
         model_sha256,
         mesh,
         mesh_json,
@@ -445,7 +446,7 @@ fn observe_view(view: &super::CollocatedPeriodic3dView) -> ViewObservation {
 
 fn validate_view(fixture: &Fixture, observation: &ViewObservation) -> Result<(), ValidationFault> {
     if observation.model_artifact_sha256 != fixture.model_sha256
-        || observation.model_id != MODEL_ID
+        || observation.model_id != fixture.model_id
         || observation.semantic_revision != SEMANTIC_REVISION
     {
         return Err(ValidationFault::ModelIdentity);

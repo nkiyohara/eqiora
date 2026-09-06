@@ -162,14 +162,28 @@ fn bouncing_ball(direction: EventDirection) -> BouncingBall {
     };
     let nodes = vec![
         KernelNode::from(
-            FieldDef::new(height, length)
-                .with_initial(DynQuantity::new(1.0, length))
-                .unwrap(),
+            FieldDef::new(
+                height,
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, length),
+            )
+            .with_initial(
+                DynQuantity::new(1.0, length)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
+            .unwrap(),
         ),
         KernelNode::from(
-            FieldDef::new(velocity, velocity_dimension)
-                .with_initial(DynQuantity::new(0.0, velocity_dimension))
-                .unwrap(),
+            FieldDef::new(
+                velocity,
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, velocity_dimension),
+            )
+            .with_initial(
+                DynQuantity::new(0.0, velocity_dimension)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
+            .unwrap(),
         ),
         KernelNode::from(ParameterDef::new(
             gravity,

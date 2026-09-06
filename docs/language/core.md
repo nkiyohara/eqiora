@@ -247,7 +247,10 @@ can be compared for equality but not ordered.
 A bare literal zero can take the scalar domain, dimension, and shape uniquely required by its
 context. For example, `voltage = 0;` uses a voltage zero. An unconstrained zero is dimensionless
 real scalar zero. Contextual zero does not create a frame, support, clock, or basis conversion.
-A nonzero dimensionless number never acquires units from context.
+A Field's bare numeric declaration initializer uses its declared dimension's coherent
+unit: `field pressure: Pa = 2;` needs no repeated `[Pa]`. A shaped Field initializer
+admits contextual zero, not nonzero scalar broadcasting. This declaration boundary does
+not give units to nonzero literals in arbitrary expressions.
 
 ## Numbers, units, and brackets
 

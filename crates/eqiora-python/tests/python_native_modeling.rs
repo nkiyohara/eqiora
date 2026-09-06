@@ -33,7 +33,7 @@ for invalid in [0.5, 1.0, True, (1, 2), None, 2147483648, -2147483648,
         pass
     else:
         raise AssertionError(f"accepted invalid exponent: {invalid!r}")
-field = eqiora.Field("psi", dimension=wave, initial=1.0)
+field = eqiora.Field("psi", value_type=eqiora.ValueType.real(wave), initial=1.0)
 assert field.dimension == wave
 balance = eqiora.Relation("balance", residual=field)
 model = eqiora.Model.define("wave", field, balance)
@@ -113,6 +113,7 @@ potential = eqiora.Field(
     "potential",
     domain=interval,
     representation=scalar_space,
+    initial=0.0,
 )
 source_scale = eqiora.Parameter(
     "source_scale",
@@ -273,7 +274,7 @@ rejected_model = eqiora.Model.define("foreign_symbol", included, relation)
                 r#"
 temperature = eqiora.Field(
     "temperature",
-    dimension=eqiora.Dimension(temperature=1),
+    value_type=eqiora.ValueType.real(eqiora.Dimension(temperature=1)),
     initial=293.0,
 )
 duration = eqiora.Parameter(

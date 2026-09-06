@@ -1,10 +1,11 @@
+use eqiora_core::ValueFrame;
 use eqiora_core::entity::kinds;
 use eqiora_core::{DimExponents, DynQuantity, Id, OntologyId, ValueShape};
 use eqiora_graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora_schema::kernel::{
     ActivationDef, AxisBounds, BoundaryPairing, BoundaryPhysicalConnector, BoundarySide,
     ConnectionDef, ConnectionSemantics, DomainDef, ExprDagBuilder, KernelNode, PortDef,
-    RelationDef, SymbolRef, ValueFrame,
+    RelationDef, SymbolRef,
 };
 use eqiora_schema::{Model, ModelView};
 use eqiora_sem::{BoundaryJunctionGeometry, KernelProgram};
@@ -205,8 +206,8 @@ fn coincident_2d_vector_interface_is_admitted_componentwise() {
     assert_eq!(typed.expression().roots().len(), 2);
     for root in typed.expression().roots() {
         let root_type = typed.node_type(*root).expect("every root is typed");
-        assert_eq!(root_type.shape.extents()[0].get(), 2);
-        assert_eq!(root_type.frame, ValueFrame::SpatialCartesian);
+        assert_eq!(root_type.shape().extents()[0].get(), 2);
+        assert_eq!(root_type.frame(), ValueFrame::SpatialCartesian);
     }
 }
 

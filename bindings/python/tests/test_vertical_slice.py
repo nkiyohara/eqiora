@@ -14,29 +14,26 @@ CONTROL_FIXTURES = (
     / "interfaces"
     / "control-plane-compile-check"
 )
-CURRENT_PROFILE_FIXTURE = (
-    Path(__file__).resolve().parents[3]
-    / "verify"
-    / "interfaces"
-    / "current-authoring-profile"
-    / "expected"
-    / "profile.json"
-)
+CURRENT_MODEL_SCHEMA = json.loads(
+    (
+        Path(__file__).resolve().parents[3]
+        / "crates/eqiora-api/schemas/compile-v2.schema.json"
+    ).read_text(encoding="utf-8")
+)["$defs"]["model"]["properties"]["schema"]["const"]
 
 
 def load_control_fixture(relative_path: str) -> dict[str, object]:
     return json.loads((CONTROL_FIXTURES / relative_path).read_text(encoding="utf-8"))
 
 
-def test_python_authoring_and_replay_use_the_registered_current_profile() -> None:
-    profile = json.loads(CURRENT_PROFILE_FIXTURE.read_text(encoding="utf-8"))
+def test_python_authoring_and_replay_use_the_current_public_schema() -> None:
     model = eqiora.compile(source=SOURCE, filename="current.eqi")
-    assert json.loads(model.to_bytes())["schema"] == profile["modelSchema"]
+    assert json.loads(model.to_bytes())["schema"] == CURRENT_MODEL_SCHEMA
 
     state = eqiora.Field("x", initial=1.0)
     hold = eqiora.Relation("hold", residual=eqiora.derivative(state))
     native = eqiora.Model.define("hold", state, hold)
-    assert json.loads(native.to_bytes())["schema"] == profile["modelSchema"]
+    assert json.loads(native.to_bytes())["schema"] == CURRENT_MODEL_SCHEMA
     replayed = eqiora.Model.from_bytes(model.to_bytes())
     assert replayed.to_bytes() == model.to_bytes()
     assert replayed.digest == model.digest
@@ -187,7 +184,7 @@ def test_shared_compile_check_fixtures_cross_the_python_adapter() -> None:
         filename=accepted["filename"],
     )
     artifact = json.loads(model.to_bytes())
-    assert artifact["schema"] == accepted_expectation["modelSchema"]
+    assert artifact["schema"] == CURRENT_MODEL_SCHEMA
 
     rejected_expectation = next(
         rejection
@@ -224,7 +221,7 @@ def test_native_declarations_share_the_canonical_compile_and_run_path() -> None:
     )
 
     model = eqiora.Model.define("decay", state, rate, flow)
-    assert json.loads(model.to_bytes())["schema"] == "eqiora.model-envelope/v9"
+    assert json.loads(model.to_bytes())["schema"] == "eqiora.model-envelope/v10"
     field = model.field(model.field_ids[0])
     plan = eqiora.resolve(
         model,
@@ -271,7 +268,7 @@ def test_source_and_native_models_share_only_structural_identity() -> None:
     assert source != native
     assert source.structural_fingerprint == native.structural_fingerprint
     assert source.structural_fingerprint.generation == (
-        "eqiora.structural-semantic-fingerprint/v4"
+        "eqiora.structural-semantic-fingerprint/v5"
     )
     assert len(source.structural_fingerprint.digest) == 64
     assert source.structurally_equivalent(native)
@@ -306,6 +303,7 @@ def test_native_spatial_model_reuses_shared_support_and_operator_semantics() -> 
         "potential",
         domain=interval,
         representation=space,
+        initial=0.0,
     )
     source_scale = eqiora.Parameter(
         "source_scale",
@@ -381,7 +379,7 @@ def test_native_declarations_fail_closed_without_python_semantics() -> None:
 def test_native_declarations_are_frozen_and_keep_typed_compiler_diagnostics() -> None:
     temperature = eqiora.Field(
         "temperature",
-        dimension=eqiora.Dimension(temperature=1),
+        value_type=eqiora.ValueType.real(eqiora.Dimension(temperature=1)),
         initial=293.0,
     )
     duration = eqiora.Parameter(

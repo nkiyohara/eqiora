@@ -3,6 +3,9 @@
 mod compile_time;
 pub(crate) mod document;
 pub(crate) mod formulation;
+mod value_type;
+
+pub use value_type::{ValueTypeSyntax, ValueTypeSyntaxKind};
 
 pub(crate) use compile_time::DimensionDecl;
 pub use compile_time::{LetDecl, ParameterDecl};
@@ -662,8 +665,7 @@ impl BoundaryFamilyBinderSyntax {
 pub struct FieldSlotDecl {
     pub(crate) name: String,
     pub(crate) support: String,
-    pub(crate) dimension: Expr,
-    pub(crate) shape: Option<ValueShapeSyntax>,
+    pub(crate) value_type: ValueTypeSyntax,
     pub(crate) range: TextRange,
 }
 
@@ -680,16 +682,10 @@ impl FieldSlotDecl {
         &self.support
     }
 
-    /// Required physical dimension.
+    /// Complete required mathematical type.
     #[must_use]
-    pub const fn dimension(&self) -> &Expr {
-        &self.dimension
-    }
-
-    /// Required value shape, with omission denoting the scalar source form.
-    #[must_use]
-    pub const fn shape(&self) -> Option<&ValueShapeSyntax> {
-        self.shape.as_ref()
+    pub const fn value_type(&self) -> &ValueTypeSyntax {
+        &self.value_type
     }
 
     /// Full declaration range, including the required `public` modifier.
@@ -1051,9 +1047,8 @@ pub struct FieldDecl {
     pub(crate) name: String,
     pub(crate) domain: Option<String>,
     pub(crate) representation: Option<String>,
-    pub(crate) shape: Option<ValueShapeSyntax>,
-    pub(crate) dimension: Expr,
-    pub(crate) initial: Option<f64>,
+    pub(crate) value_type: ValueTypeSyntax,
+    pub(crate) initial: Option<Expr>,
     pub(crate) range: TextRange,
 }
 
@@ -1076,25 +1071,23 @@ impl FieldDecl {
         self.representation.as_deref()
     }
 
-    /// Optional source value shape. Absence preserves legacy scalar syntax.
+    /// Complete declared mathematical type.
     #[must_use]
-    pub const fn shape(&self) -> Option<&ValueShapeSyntax> {
-        self.shape.as_ref()
+    pub const fn value_type(&self) -> &ValueTypeSyntax {
+        &self.value_type
     }
 
     /// Static SI dimension expression.
     #[must_use]
-    pub const fn dimension(&self) -> &Expr {
-        &self.dimension
+    pub fn dimension(&self) -> &Expr {
+        self.value_type.dimension()
     }
 
-    /// Scalar initial literal in coherent SI units.
-    ///
-    /// Non-scalar Fields have no initial until a shaped-value source and wire
-    /// contract exists; absence never means an implicit zero broadcast.
+    /// Numeric or explicitly unit-bearing initial literal.
+    /// Bare literals inherit declared units; shaped values admit contextual zero.
     #[must_use]
-    pub const fn initial(&self) -> Option<f64> {
-        self.initial
+    pub const fn initial(&self) -> Option<&Expr> {
+        self.initial.as_ref()
     }
 
     /// Full declaration range.

@@ -11,7 +11,7 @@ use crate::{
     validate_text,
 };
 
-const TRANSACTION_SCHEMA: &str = "eqiora.model-transaction-envelope/v9";
+const TRANSACTION_SCHEMA: &str = "eqiora.model-transaction-envelope/v10";
 const TRANSACTION_LABEL: &str = "current Model transaction";
 const ENVELOPE_LABEL: &str = "current Model transaction envelope";
 
@@ -188,7 +188,6 @@ impl ModelTransactionEnvelope {
         }
         for op in &self.wire.ops {
             op.ensure_value_shape_limits(limits)?;
-            op.ensure_current()?;
             op.decode()?;
         }
         Ok(())

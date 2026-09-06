@@ -1,0 +1,1 @@
+{"schema":"eqiora.package-manifest.v1","entry":"fluid","name":"Eqiora.Fluid","version":"0.4.0","dependencies":[{"target":{"name":"Eqiora.Mechanics.Interfaces","version":"0.3.0","semantic_digest":"eaf30c54afd8ad42cb1e70213e4abbfd02869adacf10b9680451af220866777e"}}],"bundle":[{"path":"README.md","role":"documentation"},{"path":"src/fluid.eqi","role":"model_source"}]}

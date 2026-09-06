@@ -19,12 +19,12 @@ use expression::{TypedExpression, lower_relation};
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id, OntologyId, RawId, ValueShape};
+use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id, OntologyId, RawId};
 use eqiora_graph::{EdgeKind, Op, Transaction};
 use eqiora_lang::{
     ActivationSyntax, BinaryOp, BoundarySideSyntax, ConnectionSyntax, DomainSyntax, Expr, ExprKind,
     Item, ModelDecl, ModelDraft, PortSyntax, RepresentationSyntax, SignalDirectionSyntax,
-    TextRange, UnaryOp, ValueShapeSyntax,
+    TextRange, UnaryOp,
 };
 use eqiora_schema::kernel::pure_operator::PureOperatorDefinition;
 use eqiora_schema::kernel::scalar_connection::{
@@ -34,7 +34,7 @@ use eqiora_schema::kernel::{
     ActivationDef, BoundaryPhysicalConnector, BoundarySide, ClockDomainDef, ConnectionDef,
     ConnectionSemantics, DomainDef, ExprDag, ExprDagBuilder, ExprId, FieldDef, KernelNode,
     ParameterDef, PortDef, RationalTime, RelationDef, RepresentationDef, SignalDirection,
-    SymbolRef, UnaryMathFunction, ValueFrame,
+    SymbolRef, UnaryMathFunction,
 };
 use eqiora_schema::{Model, ModelView};
 
@@ -341,9 +341,8 @@ pub(crate) enum LoweringItem {
         name: String,
         domain: Option<String>,
         representation: Option<String>,
-        shape: Option<ValueShapeSyntax>,
-        dimension: Expr,
-        initial: Option<f64>,
+        value_type: eqiora_lang::ValueTypeSyntax,
+        initial: Option<eqiora_lang::Expr>,
         range: TextRange,
     },
     Parameter {
@@ -512,11 +511,10 @@ pub(crate) fn lower_typed_model(
             LoweringItem::Field {
                 name,
                 domain,
-                shape,
-                dimension,
+                value_type,
                 range,
                 ..
-            } => match lower_dimension(file, dimension) {
+            } => match lower_dimension(file, value_type.dimension()) {
                 Ok(dimension) => insert_binding(
                     file,
                     &mut bindings,
@@ -525,7 +523,7 @@ pub(crate) fn lower_typed_model(
                         identities.field(name),
                         FieldContract {
                             dimension,
-                            shape: shape.clone(),
+                            value_type: value_type.clone(),
                             domain: domain.clone(),
                         },
                     ),
@@ -674,26 +672,13 @@ pub(crate) fn lower_typed_model(
                     unreachable!("first pass assigns Field bindings");
                 };
                 resolve_field_contract(file, *range, &contract, &bindings)
-                    .and_then(|resolved| {
-                        let definition = match (resolved.shape.is_scalar(), *initial) {
-                            (true, Some(initial)) => FieldDef::new(id, resolved.dimension)
-                                .with_initial(DynQuantity::new(
-                                    normalize_zero(initial),
-                                    resolved.dimension,
-                                )),
-                            (true, None) => Ok(FieldDef::new(id, resolved.dimension)),
-                            (false, None) => FieldDef::shaped(
-                                id,
-                                resolved.dimension,
-                                resolved.shape,
-                                resolved.frame,
-                            ),
-                            (false, Some(_)) => Err(source_error(
-                                codes::LANGUAGE_TYPE_ERROR,
-                                file,
-                                *range,
-                                "non-scalar Field cannot receive a scalar initial value",
-                            )),
+                    .and_then(|value_type| {
+                        let definition = match initial {
+                            Some(initial) => {
+                                let literal = crate::units::typed_literal(file, initial, value_type.clone())?;
+                                FieldDef::new(id, value_type).with_initial(literal)
+                            }
+                            None => Ok(FieldDef::new(id, value_type)),
                         }?;
                         Ok(definition)
                     })

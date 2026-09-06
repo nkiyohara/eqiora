@@ -11,11 +11,12 @@ use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora::kernel::typing::SpatialSupport;
 use eqiora::kernel::{
     ActivationDef, BoundaryPairing, BoundaryPhysicalConnector, DomainDef, ExprDagBuilder, FieldDef,
-    GeometryDigest, KernelNode, PortDef, RelationDef, RepresentationDef, SymbolRef, ValueFrame,
+    GeometryDigest, KernelNode, PortDef, RelationDef, RepresentationDef, SymbolRef,
 };
 use eqiora::ontology::{Model, ModelView, OntologyId};
 use eqiora::sem::KernelProgram;
 use eqiora::{Diagnostic, DimExponents, DynQuantity, Id, RawId, ValueShape, kinds};
+use eqiora_core::ValueFrame;
 
 const FROZEN_DIGEST: &str = "e6f8e17ac215ef37ca3c9de07b9979e34f13412a5de11dc9240ea1def8130030";
 
@@ -193,15 +194,16 @@ fn positive_model(
                 .expect("named geometry boundary"),
         ),
         KernelNode::from(RepresentationDef::continuum(ids.representation)),
-        KernelNode::from(
-            FieldDef::shaped(
-                ids.field,
+        KernelNode::from(FieldDef::new(
+            ids.field,
+            eqiora_core::ValueType::shaped(
+                eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
                 ValueShape::new([field_extent]).expect("vector extent"),
                 ValueFrame::SpatialCartesian,
             )
             .expect("spatial-vector Field"),
-        ),
+        )),
         KernelNode::from(RelationDef::new(
             ids.relation,
             expression
@@ -270,15 +272,16 @@ fn boundary_relation_model(
             DomainDef::geometry_boundary(ids.boundary, boundary_set).expect("geometry boundary"),
         ),
         KernelNode::from(RepresentationDef::continuum(ids.representation)),
-        KernelNode::from(
-            FieldDef::shaped(
-                ids.field,
+        KernelNode::from(FieldDef::new(
+            ids.field,
+            eqiora_core::ValueType::shaped(
+                eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
                 ValueShape::new([2]).expect("two-component vector"),
                 ValueFrame::SpatialCartesian,
             )
             .expect("spatial Field"),
-        ),
+        )),
         KernelNode::from(RelationDef::new(
             ids.relation,
             expression.finish([trace]).expect("trace residual"),
@@ -1477,15 +1480,16 @@ fn admitted_geometry_boundary_field_keeps_its_embedding_diagnostic() {
                 DomainDef::geometry_boundary(boundary, "cylinder").expect("geometry boundary"),
             ),
             KernelNode::from(RepresentationDef::continuum(representation)),
-            KernelNode::from(
-                FieldDef::shaped(
-                    field,
+            KernelNode::from(FieldDef::new(
+                field,
+                eqiora_core::ValueType::shaped(
+                    eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
                     ValueShape::new([2]).expect("two-component vector"),
                     ValueFrame::SpatialCartesian,
                 )
                 .expect("spatial Field"),
-            ),
+            )),
         ],
         [
             (boundary.erase(), region.erase(), EdgeKind::BoundaryOf),

@@ -15,7 +15,7 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/__init__.pyi" kind="blob">bindings/python/python/eqiora/__init__.pyi</ExactSourceLink>
 
-This module publishes **90** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **91** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
 <a id="api-eqiora-__version__"></a>
 
@@ -424,6 +424,42 @@ class Dimension:
     def __ne__(self, other: object, /) -> bool: ...
 ```
 
+<a id="api-eqiora-ValueType"></a>
+
+## `ValueType`
+
+Exact scalar domain, dimension, channel axes and spatial frame.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/value_type.rs" kind="blob">crates/eqiora-python/src/modeling/value_type.rs::PyValueType</ExactSourceLink>
+
+```python
+@final
+class ValueType:
+    def to_eqi(self) -> str: ...
+    @staticmethod
+    def real(dimension: Dimension | None=None) -> ValueType: ...
+    @staticmethod
+    def complex(dimension: Dimension | None=None) -> ValueType: ...
+    @staticmethod
+    def vector(scalar: ValueType, extent: int) -> ValueType: ...
+    @staticmethod
+    def tensor(scalar: ValueType, *extents: int) -> ValueType: ...
+    @staticmethod
+    def array(element: ValueType, extent: int) -> ValueType: ...
+    @property
+    def scalar_domain(self) -> Literal['real', 'complex']: ...
+    @property
+    def dimension(self) -> Dimension: ...
+    @property
+    def shape(self) -> list[int]: ...
+    @property
+    def array_rank(self) -> int: ...
+    @property
+    def frame(self) -> Literal['invariant', 'spatial_cartesian']: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
 <a id="api-eqiora-DomainRef"></a>
 
 ## `DomainRef`
@@ -525,20 +561,22 @@ class Expression:
 
 ## `Field`
 
-Immutable scalar field declaration.
+Immutable typed field declaration.
 
 Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling.rs" kind="blob">crates/eqiora-python/src/modeling.rs::PyField</ExactSourceLink>
 
 ```python
 @final
 class Field:
-    def __new__(cls, name: str, *, domain: Domain | None=None, representation: Representation | None=None, dimension: Dimension | None=None, initial: float=0.0) -> Self: ...
+    def __new__(cls, name: str, *, domain: Domain | None=None, representation: Representation | None=None, value_type: ValueType | None=None, initial: float | None=None) -> Self: ...
     @property
     def name(self) -> str: ...
     @property
     def dimension(self) -> Dimension: ...
     @property
-    def initial(self) -> float: ...
+    def initial(self) -> float | None: ...
+    @property
+    def value_type(self) -> ValueType: ...
     @property
     def domain(self) -> Domain | None: ...
     @property

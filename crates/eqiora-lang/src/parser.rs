@@ -10,6 +10,7 @@ mod formulation;
 mod instance;
 mod property;
 mod relation;
+mod value_type;
 
 use crate::ast::{
     BinaryOp, BoundaryConnectionDecl, BoundaryDecl, BoundaryFamilyBinderSyntax,
@@ -733,28 +734,21 @@ impl Parser<'_> {
         } else {
             (None, None)
         };
-        self.expect(TokenKind::Colon, "`:` before dimension")?;
-        let dimension = self.parse_dimension_expression()?;
-        let shape = if self.at_keyword("shape") {
+        self.expect(TokenKind::Colon, "`:` before mathematical type")?;
+        let value_type = self.parse_value_type()?;
+        let scalar = value_type.is_scalar();
+        let initial = if self.at(TokenKind::Equal) {
             self.bump();
-            Some(self.parse_value_shape()?)
-        } else {
-            None
-        };
-        let scalar = shape.as_ref().is_none_or(|shape| {
-            matches!(shape, ValueShapeSyntax::Scalar)
-                || matches!(shape, ValueShapeSyntax::Exact(extents) if extents.is_empty())
-        });
-        let initial = if scalar && self.at(TokenKind::Equal) {
-            self.bump();
-            Some(self.parse_signed_number()?)
-        } else if self.at(TokenKind::Equal) {
-            self.error_here(
-                "non-scalar Field cannot have a scalar initial value; omit `=` until shaped values are supported",
-            );
-            self.bump();
-            let _ = self.parse_signed_number()?;
-            None
+            let initial = self.parse_signed_quantity_literal()?;
+            if !scalar
+                && !matches!(
+                    initial.kind(),
+                    ExprKind::Number(0.0) | ExprKind::Quantity { value: 0.0, .. }
+                )
+            {
+                self.error_here("non-scalar Field cannot have a scalar initial value; only contextual zero is supported");
+            }
+            Some(initial)
         } else {
             None
         };
@@ -766,8 +760,7 @@ impl Parser<'_> {
             name,
             domain,
             representation,
-            shape,
-            dimension,
+            value_type,
             initial,
             range: TextRange::new(start, end),
         })
@@ -884,14 +877,8 @@ impl Parser<'_> {
             .to_owned();
         self.expect_keyword("as")?;
         self.expect_keyword("continuum")?;
-        self.expect(TokenKind::Colon, "`:` before Field-slot dimension")?;
-        let dimension = self.parse_dimension_expression()?;
-        let shape = if self.at_keyword("shape") {
-            self.bump();
-            Some(self.parse_value_shape()?)
-        } else {
-            None
-        };
+        self.expect(TokenKind::Colon, "`:` before Field-slot type")?;
+        let value_type = self.parse_value_type()?;
         let end = self
             .expect(TokenKind::Semicolon, "`;` after Field slot")?
             .range()
@@ -899,8 +886,7 @@ impl Parser<'_> {
         Some(FieldSlotDecl {
             name,
             support,
-            dimension,
-            shape,
+            value_type,
             range: TextRange::new(start, end),
         })
     }

@@ -338,8 +338,8 @@ fn equation_aware_adapter_rejects_generic_plan_artifact_and_mesh_drift() {
     assert!(valid_run.validate_against(&other_realization).is_err());
 
     let wrong_shape = DIRECT.replace(
-        "field velocity on body as space: m / s shape spatial_vector;",
-        "field velocity on body as space: 1 shape spatial_vector;",
+        "field velocity on body as space: vector<m / s, 2>;",
+        "field velocity on body as space: vector<1, 2>;",
     );
     match eqiora::api::ModelDocument::compile("wrong-shape.eqi", &wrong_shape) {
         Err(diagnostics) => assert!(!diagnostics.is_empty()),

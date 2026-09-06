@@ -388,7 +388,11 @@ fn physical_relation_admits_state_but_still_requires_continuous_activation_and_c
             expression.finish([through]).unwrap()
         })
         .into(),
-        FieldDef::new(field, across_dimension).into(),
+        FieldDef::new(
+            field,
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, across_dimension),
+        )
+        .into(),
         periodic.into(),
         ClockDomainDef::periodic(clock, RationalTime::new(1, 10).unwrap(), RationalTime::ZERO)
             .unwrap()

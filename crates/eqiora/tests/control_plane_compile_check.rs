@@ -61,11 +61,14 @@ fn accepted_fixture_links_one_execution_and_preserves_structural_meaning() {
         panic!("accepted fixture must produce a Model descriptor")
     };
     let reference = document.artifact_reference().unwrap();
+    let public_schema: Value =
+        serde_json::from_str(eqiora::control::COMPILE_V2_SCHEMA_JSON).unwrap();
+    let model_properties = &public_schema["$defs"]["model"]["properties"];
     assert_eq!(first.response().request_id(), accepted["requestId"]);
-    assert_eq!(model.schema(), accepted["modelSchema"]);
+    assert_eq!(model.schema(), model_properties["schema"]["const"]);
     assert_eq!(
         model.transaction_schema(),
-        accepted["modelTransactionSchema"]
+        model_properties["transactionSchema"]["const"]
     );
     assert_eq!(model.digest(), reference.artifact().as_str());
     assert_eq!(model.model_id(), reference.model().to_string());
@@ -78,6 +81,12 @@ fn accepted_fixture_links_one_execution_and_preserves_structural_meaning() {
     let second_document = second.document().unwrap();
     let ordinary = ModelDocument::compile(request.filename(), request.source()).unwrap();
     let documents = [document, second_document, &ordinary];
+    for document in documents {
+        assert_eq!(
+            document.structural_fingerprint().unwrap().generation(),
+            eqiora::api::SemanticFingerprintGeneration::V5
+        );
+    }
     assert_pairwise_distinct(documents.map(|value| value.digest().unwrap()));
     assert_pairwise_distinct(documents.map(|value| value.program().model()));
     assert_eq!(

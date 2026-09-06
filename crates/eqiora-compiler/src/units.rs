@@ -9,7 +9,19 @@ pub(crate) fn parameter_value(
     file: &str,
     declaration: &eqiora_lang::ParameterDecl,
 ) -> Result<f64, eqiora_core::Diagnostic> {
-    let dimension = crate::dimensions::lower_dimension(file, declaration.dimension())?;
+    let value_type =
+        crate::value_types::lower_value_type::<()>(file, declaration.value_type(), None)?;
+    if !value_type.shape().is_scalar()
+        || value_type.scalar_domain() != eqiora_core::ScalarDomain::Real
+    {
+        return Err(crate::diagnostics::source_error(
+            eqiora_core::diagnostic::codes::LANGUAGE_TYPE_ERROR,
+            file,
+            declaration.value_type().range(),
+            "parameter literal lowering requires a real scalar type",
+        ));
+    }
+    let dimension = value_type.dimension();
     let result = match declaration.value().kind() {
         ExprKind::Number(value) => normalize_value(*value, 1.0),
         ExprKind::Quantity { value, unit } => quantity(*value, unit).and_then(|quantity| {
@@ -29,6 +41,36 @@ pub(crate) fn parameter_value(
             message,
         )
     })
+}
+
+pub(crate) fn typed_literal(
+    file: &str,
+    expression: &Expr,
+    value_type: eqiora_core::ValueType,
+) -> Result<eqiora_core::ValueLiteral, eqiora_core::Diagnostic> {
+    let dimension = value_type.dimension();
+    let result = match expression.kind() {
+        ExprKind::Number(value) => normalize_value(*value, 1.0),
+        ExprKind::Quantity { value, unit } => quantity(*value, unit).and_then(|quantity| {
+            if quantity.dim() == dimension {
+                Ok(quantity.value())
+            } else {
+                Err("input unit does not match its declared dimension")
+            }
+        }),
+        _ => Err("initial value must be a numeric or quantity literal"),
+    };
+    let diagnostic = |message: String| {
+        crate::diagnostics::source_error(
+            eqiora_core::diagnostic::codes::LANGUAGE_TYPE_ERROR,
+            file,
+            expression.range(),
+            message,
+        )
+    };
+    let literal = result.map_err(|message| diagnostic(message.to_owned()))?;
+    eqiora_core::ValueLiteral::new(value_type, literal)
+        .map_err(|error| diagnostic(error.to_string()))
 }
 
 pub(crate) fn coherent_dimension(name: &str) -> Option<DimExponents> {
@@ -84,6 +126,7 @@ fn named_unit(name: &str) -> Option<Unit> {
         ("n", -9),
         ("u", -6),
         ("m", -3),
+        ("c", -2),
         ("k", 3),
         ("M", 6),
         ("G", 9),

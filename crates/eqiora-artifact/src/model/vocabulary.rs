@@ -3,6 +3,7 @@
 //! Each is a small closed enum whose only job is to cross the wire without
 //! widening what the Kernel means.
 
+use eqiora_core::ValueFrame;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id, ValueShape};
 use eqiora_schema::kernel::pure_operator::{
@@ -10,9 +11,9 @@ use eqiora_schema::kernel::pure_operator::{
     PureValueClass, ResultAxis,
 };
 use eqiora_schema::kernel::{
-    ActivationKind, AxisBounds, BoundaryPairing, BoundarySide, CartesianAxisDefinition,
+    ActivationKind, BoundaryPairing, BoundarySide, CartesianAxisDefinition,
     CartesianCoordinateSource, ClockDomainDef, ClockKind, ConnectionSemantics, EventDirection,
-    PortDef, PortPayload, RationalTime, RepresentationKind, SignalDirection, ValueFrame,
+    PortDef, PortPayload, RationalTime, RepresentationKind, SignalDirection,
 };
 use serde::{Deserialize, Serialize};
 
@@ -97,20 +98,6 @@ impl WireBoundaryPairing {
         match self {
             Self::EuclideanBoundaryDuality => BoundaryPairing::EuclideanBoundaryDuality,
         }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct WireAxisBounds {
-    pub(crate) lower: WireQuantity,
-    pub(crate) upper: WireQuantity,
-}
-
-impl WireAxisBounds {
-    pub(crate) fn decode(&self) -> Result<AxisBounds, Diagnostic> {
-        AxisBounds::new(self.lower.decode()?, self.upper.decode()?)
-            .map_err(|error| invalid_artifact(error.message()))
     }
 }
 

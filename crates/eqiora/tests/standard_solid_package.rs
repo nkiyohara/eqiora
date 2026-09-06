@@ -17,7 +17,7 @@ use eqiora_numerics::{
 #[path = "support/embedded_package.rs"]
 mod embedded_package;
 
-const VERSION: &str = "0.3.0";
+const VERSION: &str = "0.4.0";
 static NEXT_SCRATCH: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Copy)]
@@ -120,7 +120,7 @@ fn singular_poisson_ratios_fail_during_compilation() {
 #[test]
 fn standard_package_reopens_from_the_project_lock_and_offline_store() {
     let scratch = Scratch::create();
-    let solid_sources = embedded_package::release_sources("Eqiora.Solid", VERSION);
+    let solid_sources = embedded_package::public_sources("Eqiora.Solid");
     let solid = prepare_package_release_v1(solid_sources.clone(), &[]).expect("solid release");
     let root_sources = root_sources(&solid, &root_source(true, Assumption::PlaneStrain, 0.25));
 
@@ -136,7 +136,7 @@ source = "root/src"
 entry = "main"
 
 [dependencies."Eqiora.Solid"]
-version = "0.3.0"
+version = "0.4.0"
 path = "solid"
 "#,
     )
@@ -145,7 +145,7 @@ path = "solid"
         scratch.0.join("solid/eqiora.toml"),
         r#"[package]
 name = "Eqiora.Solid"
-version = "0.3.0"
+version = "0.4.0"
 entry = "solid"
 "#,
     )
@@ -169,11 +169,8 @@ entry = "solid"
 }
 
 fn standard_release() -> PackageReleaseV1 {
-    prepare_package_release_v1(
-        embedded_package::release_sources("Eqiora.Solid", VERSION),
-        &[],
-    )
-    .expect("standard solid release")
+    prepare_package_release_v1(embedded_package::public_sources("Eqiora.Solid"), &[])
+        .expect("standard solid release")
 }
 
 fn compile_root(solid: &PackageReleaseV1, source: &str) -> PackagedModelDocument {
@@ -331,10 +328,10 @@ public material composition ReferenceMaterial {{
     let (boundary_fields, x_lower_condition, x_upper_condition) = if prescribed_boundaries {
         (
             r#"  field displacement_potential on body as space: m ^ 2 = 0;
-  field boundary_displacement on body as space: m shape spatial_vector;
+  field boundary_displacement on body as space: vector<m, 2>;
   field traction_potential on body as space: kg / s ^ 2 = 0;
   field boundary_traction on body as space:
-    kg / (m * s ^ 2) shape spatial_vector;
+    vector<kg / (m * s ^ 2), 2>;
   parameter displacement_scale: m = 1;
   parameter traction_scale: kg / (m * s ^ 2) = 2;
   relation displacement_potential_definition continuous on body {
@@ -380,7 +377,7 @@ public material composition ReferenceMaterial {{
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
   representation space = continuum;
-  field displacement on body as space: m shape spatial_vector;
+  field displacement on body as space: vector<m, 2>;
   field load_potential on body as space: kg / (m * s ^ 2) = 0;
   parameter zero_load: kg / (m * s ^ 2) = 0;
 {material_parameters}

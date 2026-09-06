@@ -182,13 +182,6 @@ impl WireModelOp {
         }
     }
 
-    pub(crate) fn ensure_current(&self) -> Result<(), Diagnostic> {
-        match self {
-            Self::DefineKernelNode { node } => node.ensure_current(),
-            _ => Ok(()),
-        }
-    }
-
     pub(crate) fn ensure_value_shape_limits(
         &self,
         limits: ModelDecoderLimits,

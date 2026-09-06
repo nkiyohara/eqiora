@@ -16,6 +16,7 @@ mod instance;
 mod limits;
 mod model;
 mod property;
+mod value_type;
 mod visibility;
 
 use eqiora_core::Diagnostic;
@@ -50,7 +51,7 @@ use property::{encode_material_composition, encode_property_contract, encode_pro
 use visibility::encode_visibility;
 
 const MAGIC: &[u8; 8] = b"EQIORASU";
-const CANONICAL_VERSION: u16 = 1;
+const CANONICAL_VERSION: u16 = 2;
 const COMPONENT_CONNECTION_ITEM_TAG: u16 = 6;
 const MODEL_CONNECTION_ITEM_TAG: u16 = 8;
 const COMPONENT_PORT_FAMILY_ITEM_TAG: u16 = 11;
@@ -112,7 +113,7 @@ impl LocalSourceIdentity {
             digest.push(char::from(HEX[usize::from(byte >> 4)]));
             digest.push(char::from(HEX[usize::from(byte & 0x0f)]));
         }
-        IdentityNamespace::new(["local-source-v1".to_owned(), digest])
+        IdentityNamespace::new(["local-source-v2".to_owned(), digest])
     }
 }
 
@@ -718,14 +719,7 @@ fn encode_field_slot(
         encode_name(encoder, declaration.support(), budget)
     })?;
     encoder.field(3, |encoder| {
-        encode_expression(encoder, declaration.dimension(), budget, 1)
-    })?;
-    encoder.field(4, |encoder| match declaration.shape() {
-        Some(shape) => {
-            encoder.u8(1)?;
-            encode_value_shape(encoder, shape)
-        }
-        None => encoder.u8(0),
+        value_type::encode_value_type(encoder, declaration.value_type(), budget, 1)
     })
 }
 
@@ -760,18 +754,10 @@ fn encode_field(
         encode_optional_name(encoder, declaration.representation(), budget)
     })?;
     encoder.field(4, |encoder| {
-        encode_expression(encoder, declaration.dimension(), budget, 1)
+        value_type::encode_value_type(encoder, declaration.value_type(), budget, 1)
     })?;
     if let Some(initial) = declaration.initial() {
-        encoder.field(5, |encoder| encoder.f64(initial))?;
-    }
-    if let Some(shape) = declaration.shape().filter(|shape| {
-        !matches!(shape, ValueShapeSyntax::Scalar)
-            && !matches!(shape, ValueShapeSyntax::Exact(extents) if extents.is_empty())
-    }) {
-        // Disjoint optional tag: legacy scalar declarations retain their
-        // exact v1 bytes and therefore their existing source identity.
-        encoder.field(6, |encoder| encode_value_shape(encoder, shape))?;
+        encoder.field(5, |encoder| encode_expression(encoder, initial, budget, 1))?;
     }
     Ok(())
 }
@@ -1444,22 +1430,33 @@ mod tests {
             canonical_source_bytes(&document, LocalSourceIdentityLimits::default()).unwrap();
         let digest = LocalSourceIdentity::from_document(&document).unwrap();
 
+        // Hand-derived v2 record: the scalar/domain tags add two bytes to
+        // the dimension payload and each enclosing record length.
+        let expected = [
+            b"EQIORASU".as_slice(),
+            &[0, 2],                                    // source encoding version
+            &[1, 0, 0, 0, 4, 0, 0, 0, 0],               // no aliases
+            &[2, 0, 0, 0, 4, 0, 0, 0, 0],               // no components
+            &[3, 0, 0, 0, 82, 0, 0, 0, 1, 0, 0, 0, 74], // one model
+            &[1, 0, 0, 0, 11, 0, 0, 0, 7],
+            b"minimal",
+            &[2, 0, 0, 0, 53, 0, 0, 0, 1, 0, 0, 0, 45], // one item
+            &[0, 4],                                    // Parameter item
+            &[1, 0, 0, 0, 8, 0, 0, 0, 4],
+            b"gain",
+            &[2, 0, 0, 0, 12, 0, 0, 0, 1], // scalar, real, number
+            &1.0_f64.to_be_bytes(),        // dimensionless
+            &[3, 0, 0, 0, 8],
+            &2.0_f64.to_be_bytes(), // literal value
+        ]
+        .concat();
+        assert_eq!(canonical, expected);
         assert_eq!(
-            canonical,
-            vec![
-                69, 81, 73, 79, 82, 65, 83, 85, 0, 1, 1, 0, 0, 0, 4, 0, 0, 0, 0, 2, 0, 0, 0, 4, 0,
-                0, 0, 0, 3, 0, 0, 0, 80, 0, 0, 0, 1, 0, 0, 0, 72, 1, 0, 0, 0, 11, 0, 0, 0, 7, 109,
-                105, 110, 105, 109, 97, 108, 2, 0, 0, 0, 51, 0, 0, 0, 1, 0, 0, 0, 43, 0, 4, 1, 0,
-                0, 0, 8, 0, 0, 0, 4, 103, 97, 105, 110, 2, 0, 0, 0, 10, 0, 1, 63, 240, 0, 0, 0, 0,
-                0, 0, 3, 0, 0, 0, 8, 64, 0, 0, 0, 0, 0, 0, 0
-            ]
-        );
-        assert_eq!(
-            digest.to_string(),
-            "dba42a75e6e12596d935fc7161127605c1c769e89a9686e8e93ac4ab150e63a5"
+            digest.digest().as_slice(),
+            Sha256::digest(&expected).as_slice()
         );
         let namespace = digest.namespace().unwrap();
-        assert_eq!(namespace.segments()[0], "local-source-v1");
+        assert_eq!(namespace.segments()[0], "local-source-v2");
         assert_eq!(namespace.segments()[1], digest.to_string());
     }
 
@@ -1591,13 +1588,13 @@ model M {
         let slot_first = r#"
 component Law {
   public support body: volume(ambient_dimension = 2);
-  public field slot displacement on body as continuum: m shape spatial_vector;
+  public field slot displacement on body as continuum: vector<m, 2>;
   public field slot potential on body as continuum: K;
 }
 model M {
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
-  field displacement on body as space: m shape spatial_vector;
+  field displacement on body as space: vector<m, 2>;
   field potential on body as space: K = 0;
   field other on body as space: K = 0;
   instance law: Law(
@@ -1610,7 +1607,7 @@ model M {
         let permuted = r#"
 component Law {
   public field slot potential on body as continuum: K;
-  public field slot displacement on body as continuum: m shape spatial_vector;
+  public field slot displacement on body as continuum: vector<m, 2>;
   public support body: volume(ambient_dimension = 2);
 }
 model M {
@@ -1621,7 +1618,7 @@ model M {
   );
   field other on body as space: K = 0;
   field potential on body as space: K = 0;
-  field displacement on body as space: m shape spatial_vector;
+  field displacement on body as space: vector<m, 2>;
   representation space = continuum;
   domain body = box(0, 1, 0, 1);
 }
@@ -1746,23 +1743,13 @@ model M {
     }
 
     #[test]
-    fn explicit_and_implicit_scalar_field_shapes_share_identity() {
-        let implicit = eqiora_lang::parse(
-            "implicit.eqi",
-            "model M { field x: 1 = 0; relation r continuous { x = 0; } }",
-        )
-        .into_document()
-        .unwrap();
-        let explicit = eqiora_lang::parse(
-            "explicit.eqi",
+    fn retired_scalar_shape_spelling_is_not_an_identity_alias() {
+        let retired = eqiora_lang::parse(
+            "retired.eqi",
             "model M { field x: 1 shape [] = 0; relation r continuous { x = 0; } }",
         )
-        .into_document()
-        .unwrap();
-        assert_eq!(
-            LocalSourceIdentity::from_document(&implicit).unwrap(),
-            LocalSourceIdentity::from_document(&explicit).unwrap()
-        );
+        .into_document();
+        assert!(retired.is_err());
     }
 
     #[test]

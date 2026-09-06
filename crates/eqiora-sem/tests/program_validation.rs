@@ -1,3 +1,4 @@
+use eqiora_core::ValueFrame;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{DimExponents, DynQuantity, Id, OntologyId, RawId, ValueShape};
@@ -5,7 +6,7 @@ use eqiora_graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora_schema::kernel::{
     ActivationDef, ActivationKind, AxisBounds, BoundarySide, ClockDomainDef, ConnectionDef,
     ConnectionSemantics, DomainDef, ExprDagBuilder, ExprId, FieldDef, KernelNode, ParameterDef,
-    PortDef, RationalTime, RelationDef, RepresentationDef, SignalDirection, SymbolRef, ValueFrame,
+    PortDef, RationalTime, RelationDef, RepresentationDef, SignalDirection, SymbolRef,
 };
 use eqiora_schema::{Model, ModelView};
 use eqiora_sem::KernelProgram;
@@ -27,9 +28,19 @@ fn valid_program_owns_one_snapshot_revision() {
     let mut transaction = Transaction::new("valid continuous model");
     for node in [
         KernelNode::from(
-            FieldDef::new(field, DimExponents::DIMENSIONLESS)
-                .with_initial(DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))
-                .expect("initial value"),
+            FieldDef::new(
+                field,
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+            )
+            .with_initial(
+                DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)
+                    .try_into()
+                    .expect("finite real initial value"),
+            )
+            .expect("initial value"),
         ),
         KernelNode::from(RelationDef::new(
             relation,
@@ -108,7 +119,13 @@ fn symbol_outside_model_is_rejected() {
         .expect("field");
     let mut transaction = Transaction::new("model with external symbol");
     for node in [
-        KernelNode::from(FieldDef::new(external_field, DimExponents::DIMENSIONLESS)),
+        KernelNode::from(FieldDef::new(
+            external_field,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
+        )),
         KernelNode::from(RelationDef::new(
             relation,
             expression.finish([residual]).expect("DAG"),
@@ -163,7 +180,10 @@ fn incompatible_expression_dimensions_are_rejected() {
     let residual = expression.sub(time, dimensionless).expect("structural DAG");
     let mut transaction = Transaction::new("dimensionally invalid model");
     for node in [
-        KernelNode::from(FieldDef::new(field, time_dimension)),
+        KernelNode::from(FieldDef::new(
+            field,
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, time_dimension),
+        )),
         KernelNode::from(RelationDef::new(
             relation,
             expression.finish([residual]).expect("DAG"),
@@ -227,15 +247,16 @@ fn shaped_relation_roots_are_componentwise_but_activation_roots_remain_scalar() 
     .unwrap();
 
     let nodes = [
-        KernelNode::from(
-            FieldDef::shaped(
-                field,
+        KernelNode::from(FieldDef::new(
+            field,
+            eqiora_core::ValueType::shaped(
+                eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
                 shape,
                 ValueFrame::Invariant,
             )
             .unwrap(),
-        ),
+        )),
         KernelNode::from(RelationDef::new(
             relation,
             residual.finish([residual_root]).unwrap(),
@@ -267,7 +288,7 @@ fn shaped_relation_roots_are_componentwise_but_activation_roots_remain_scalar() 
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message()
-            .contains("expression root must be an invariant scalar")
+            .contains("expression root must be a real invariant scalar")
     }));
 }
 
@@ -283,7 +304,13 @@ fn boundary_operator_without_boundary_scope_is_rejected() {
     let residual = expression.trace(value).expect("trace node");
     let mut transaction = Transaction::new("unscoped boundary operator");
     for node in [
-        KernelNode::from(FieldDef::new(field, DimExponents::DIMENSIONLESS)),
+        KernelNode::from(FieldDef::new(
+            field,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
+        )),
         KernelNode::from(RelationDef::new(
             relation,
             expression.finish([residual]).expect("DAG"),
@@ -339,7 +366,10 @@ fn derivative_dimension_overflow_is_not_misreported_as_missing_symbol() {
         .expect("derivative");
     let mut transaction = Transaction::new("derivative dimension overflow");
     for node in [
-        KernelNode::from(FieldDef::new(field, extreme_dimension)),
+        KernelNode::from(FieldDef::new(
+            field,
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, extreme_dimension),
+        )),
         KernelNode::from(RelationDef::new(
             relation,
             expression.finish([residual]).expect("DAG"),
@@ -742,8 +772,20 @@ fn invalid_spatial_expression(
             BoundarySide::Lower,
         )),
         KernelNode::from(RepresentationDef::continuum(representation)),
-        KernelNode::from(FieldDef::new(ids.field, DimExponents::DIMENSIONLESS)),
-        KernelNode::from(FieldDef::new(ids.other_field, DimExponents::DIMENSIONLESS)),
+        KernelNode::from(FieldDef::new(
+            ids.field,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
+        )),
+        KernelNode::from(FieldDef::new(
+            ids.other_field,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
+        )),
         KernelNode::from(ParameterDef::new(
             ids.parameter,
             DynQuantity::new(1.0, DimExponents::DIMENSIONLESS),

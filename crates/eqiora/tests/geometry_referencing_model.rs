@@ -4,11 +4,12 @@ use eqiora::diagnostic::codes;
 use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora::kernel::{
     ActivationDef, AxisBounds, BoundaryPairing, BoundaryPhysicalConnector, BoundarySide, DomainDef,
-    ExprDagBuilder, FieldDef, GeometryDigest, KernelNode, PortDef, RelationDef, ValueFrame,
+    ExprDagBuilder, FieldDef, GeometryDigest, KernelNode, PortDef, RelationDef,
 };
 use eqiora::ontology::{Model, ModelView, OntologyId};
 use eqiora::sem::KernelProgram;
 use eqiora::{DimExponents, DynQuantity, Id, ValueShape, kinds};
+use eqiora_core::ValueFrame;
 use serde_json::Value;
 
 #[derive(Clone, Copy)]
@@ -141,12 +142,12 @@ fn geometry_identity_names_and_topology_are_fingerprint_meaning() {
         StructuralSemanticFingerprint::from_program(&baseline.program).unwrap();
     assert_eq!(
         baseline_fingerprint.generation(),
-        SemanticFingerprintGeneration::V4
+        SemanticFingerprintGeneration::V5
     );
     assert!(
         baseline_fingerprint
             .to_string()
-            .starts_with("eqiora.structural-semantic-fingerprint/v4:")
+            .starts_with("eqiora.structural-semantic-fingerprint/v5:")
     );
 
     let mut changed_digest = GeometryMeaning::default();
@@ -331,7 +332,10 @@ fn build_transaction(
         ExtraMeaning::None => {}
         ExtraMeaning::FieldSupport => nodes.push(KernelNode::from(FieldDef::new(
             ids.field,
-            DimExponents::DIMENSIONLESS,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
         ))),
         ExtraMeaning::RelationSupport => {}
         ExtraMeaning::BoundaryPortSupport => {

@@ -250,6 +250,38 @@ class Dimension:
     def __ne__(self, other: object, /) -> bool: ...
 
 @final
+class ValueType:
+    """Exact scalar domain, dimension, channel axes and spatial frame.
+
+    Authority: ``crates/eqiora-python/src/modeling/value_type.rs::PyValueType``.
+    """
+
+    def to_eqi(self) -> str: ...
+
+    @staticmethod
+    def real(dimension: Dimension | None = None) -> ValueType: ...
+    @staticmethod
+    def complex(dimension: Dimension | None = None) -> ValueType: ...
+    @staticmethod
+    def vector(scalar: ValueType, extent: int) -> ValueType: ...
+    @staticmethod
+    def tensor(scalar: ValueType, *extents: int) -> ValueType: ...
+    @staticmethod
+    def array(element: ValueType, extent: int) -> ValueType: ...
+    @property
+    def scalar_domain(self) -> Literal["real", "complex"]: ...
+    @property
+    def dimension(self) -> Dimension: ...
+    @property
+    def shape(self) -> list[int]: ...
+    @property
+    def array_rank(self) -> int: ...
+    @property
+    def frame(self) -> Literal["invariant", "spatial_cartesian"]: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
 class BoundarySide:
     """Closed orientation of one Cartesian boundary domain.
 
@@ -324,7 +356,7 @@ class Expression:
 
 @final
 class Field:
-    """Immutable scalar field declaration.
+    """Immutable typed field declaration.
 
     Authority: ``crates/eqiora-python/src/modeling.rs::PyField``.
     """
@@ -335,15 +367,17 @@ class Field:
         *,
         domain: Domain | None = None,
         representation: Representation | None = None,
-        dimension: Dimension | None = None,
-        initial: float = 0.0,
+        value_type: ValueType | None = None,
+        initial: float | None = None,
     ) -> Self: ...
     @property
     def name(self) -> str: ...
     @property
     def dimension(self) -> Dimension: ...
     @property
-    def initial(self) -> float: ...
+    def initial(self) -> float | None: ...
+    @property
+    def value_type(self) -> ValueType: ...
     @property
     def domain(self) -> Domain | None: ...
     @property
@@ -1499,6 +1533,7 @@ __all__ = [
     "DifferentiationEvidence",
     "DifferentiationMode",
     "Dimension",
+    "ValueType",
     "DomainRef",
     "Domain",
     "EqioraError",

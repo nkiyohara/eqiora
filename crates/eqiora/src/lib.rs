@@ -23,7 +23,10 @@ pub use eqiora_core::id::{Id, RawId};
 pub use eqiora_core::quantity::{
     self, DimExponents, Dimension, DynQuantity, Quantity, Scalar, aliases, dim,
 };
-pub use eqiora_core::{InvalidValueShape, ValueShape};
+pub use eqiora_core::{
+    InvalidValueLiteral, InvalidValueShape, InvalidValueType, ScalarDomain, ValueFrame,
+    ValueLiteral, ValueShape, ValueType,
+};
 /// Exact Cargo SemVer release identity of the public Eqiora facade.
 pub use release_identity::VERSION;
 

@@ -8,6 +8,8 @@ use eqiora::language::{
     DraftRepresentation, DraftSpatialDomain, ModelDraft,
 };
 pub(crate) mod dimension;
+mod value_type;
+use value_type::PyValueType;
 
 use pyo3::exceptions::{PyAttributeError, PyTypeError};
 use pyo3::prelude::*;
@@ -175,7 +177,7 @@ impl PyRepresentation {
     }
 }
 
-/// Immutable scalar Field declaration.
+/// Immutable typed Field declaration.
 #[pyclass(name = "Field", module = "eqiora._eqiora", frozen, skip_from_py_object)]
 #[derive(Debug, Clone)]
 pub(crate) struct PyField {
@@ -185,22 +187,25 @@ pub(crate) struct PyField {
 #[pymethods]
 impl PyField {
     #[new]
-    #[pyo3(signature = (name, *, domain=None, representation=None, dimension=None, initial=0.0))]
+    #[pyo3(signature = (name, *, domain=None, representation=None, value_type=None, initial=None))]
     fn new(
         name: String,
         domain: Option<&PyDomain>,
         representation: Option<&PyRepresentation>,
-        dimension: Option<&PyDimension>,
-        initial: f64,
+        value_type: Option<&PyValueType>,
+        initial: Option<f64>,
     ) -> PyResult<Self> {
-        let dimension = dimension.map_or(DimExponents::DIMENSIONLESS, |value| value.value);
+        let value_type = value_type.map_or_else(
+            || eqiora::ValueType::scalar(eqiora::ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+            |value| value.value.clone(),
+        );
         let value = match (domain, representation) {
-            (None, None) => DraftField::new(name, dimension, initial),
-            (Some(domain), Some(representation)) => DraftField::spatial_scalar(
+            (None, None) => DraftField::new(name, value_type, initial),
+            (Some(domain), Some(representation)) => DraftField::spatial(
                 name,
                 &domain.value,
                 &representation.value,
-                dimension,
+                value_type,
                 initial,
             ),
             _ => {
@@ -225,8 +230,15 @@ impl PyField {
     }
 
     #[getter]
-    const fn initial(&self) -> f64 {
+    const fn initial(&self) -> Option<f64> {
         self.value.initial()
+    }
+
+    #[getter]
+    fn value_type(&self) -> PyValueType {
+        PyValueType {
+            value: self.value.value_type().clone(),
+        }
     }
 
     #[getter]
@@ -286,20 +298,23 @@ impl PyField {
     }
 
     fn __repr__(&self) -> String {
+        let initial = self
+            .initial()
+            .map_or_else(|| "None".to_owned(), |value| format!("{value:?}"));
         match (self.value.domain(), self.value.representation()) {
             (Some(domain), Some(representation)) => format!(
-                "Field({:?}, domain={:?}, representation={:?}, dimension={:?}, initial={:?})",
+                "Field({:?}, domain={:?}, representation={:?}, value_type={:?}, initial={})",
                 self.name(),
                 domain.name(),
                 representation.name(),
-                self.dimension().value.exponents(),
-                self.initial()
+                self.value.value_type(),
+                initial
             ),
             _ => format!(
-                "Field({:?}, dimension={:?}, initial={:?})",
+                "Field({:?}, value_type={:?}, initial={})",
                 self.name(),
-                self.dimension().value.exponents(),
-                self.initial()
+                self.value.value_type(),
+                initial
             ),
         }
     }
@@ -757,6 +772,7 @@ fn model_draft(
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyDimension>()?;
+    module.add_class::<PyValueType>()?;
     module.add_class::<PyBoundarySide>()?;
     module.add_class::<PyDomain>()?;
     module.add_class::<PyRepresentation>()?;

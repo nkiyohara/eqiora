@@ -11,16 +11,16 @@ use std::num::NonZeroU64;
 
 use sha2::{Digest, Sha256};
 
-use super::ValueFrame;
 use super::typing::{ExpressionType, SpatialSupport};
+use eqiora_core::ValueFrame;
 
-const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v1\0";
+const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v2\0";
 
-/// Maximum number of formal arguments in a version-1 definition.
+/// Maximum number of formal arguments in a definition.
 pub const MAX_FORMALS: usize = 64;
-/// Maximum number of calculus nodes in a version-1 definition.
+/// Maximum number of calculus nodes in a definition.
 pub const MAX_NODES: usize = 4096;
-/// Maximum dependency depth in a version-1 definition.
+/// Maximum dependency depth in a definition.
 pub const MAX_DEPTH: usize = 256;
 /// Maximum tensor rank admitted by the portable value-class contract.
 pub const MAX_TENSOR_RANK: u16 = 64;
@@ -671,6 +671,9 @@ impl PureOperatorDefinition {
 
     /// Derive and validate one typed application.
     ///
+    /// Rational polynomial definitions embed real inputs into the common
+    /// real/complex scalar domain without changing dimension or component roles.
+    ///
     /// # Errors
     /// Rejects arity, shape, frame, support, and result-rule mismatches before
     /// any lowered component expansion.
@@ -682,8 +685,10 @@ impl PureOperatorDefinition {
             return Err(PureOperatorError::ArityMismatch);
         }
         let mut common_volume = None;
+        let mut scalar_domain = eqiora_core::ScalarDomain::Real;
         for (rule, argument) in self.formals.iter().zip(arguments) {
             validate_argument_class(*rule, argument)?;
+            scalar_domain = scalar_domain.common(argument.value_type.scalar_domain());
             let Some(support @ SpatialSupport::Volume { .. }) = argument.support.as_ref() else {
                 return Err(PureOperatorError::FormalTypeMismatch);
             };
@@ -697,7 +702,8 @@ impl PureOperatorDefinition {
         }
         let common_volume = common_volume.ok_or(PureOperatorError::FormalTypeMismatch)?;
         let result_dimension = instantiate_dimension(&self.dimension, arguments)?;
-        let result_type = expression_type_for_class(self.result, result_dimension, common_volume)?;
+        let result_type =
+            expression_type_for_class(self.result, scalar_domain, result_dimension, common_volume)?;
         Ok(PureOperatorInstantiation {
             definition: self,
             arguments: arguments.to_vec(),
@@ -767,14 +773,15 @@ fn validate_argument_class<I>(
         return Err(PureOperatorError::FormalTypeMismatch);
     };
     match class.spatial_rank() {
-        None if argument.shape.is_scalar() && argument.frame == ValueFrame::Invariant => Ok(()),
+        None if argument.shape().is_scalar() && argument.frame() == ValueFrame::Invariant => Ok(()),
         Some(rank)
-            if argument.frame == ValueFrame::SpatialCartesian
-                && argument.shape.rank() == usize::from(rank)
+            if argument.frame() == ValueFrame::SpatialCartesian
+                && argument.value_type.array_rank() == 0
+                && argument.shape().rank() == usize::from(rank)
                 && u32::try_from(*dimensions).is_ok_and(|dimension| {
                     dimension != 0
                         && argument
-                            .shape
+                            .shape()
                             .extents()
                             .iter()
                             .all(|extent| extent.get() == dimension)
@@ -788,12 +795,16 @@ fn validate_argument_class<I>(
 
 fn expression_type_for_class<I>(
     class: PureValueClass,
+    scalar_domain: eqiora_core::ScalarDomain,
     dimension: eqiora_core::DimExponents,
     support: SpatialSupport<I>,
 ) -> Result<ExpressionType<I>, PureOperatorError> {
     let spatial_dimensions = support.dimensions();
     match class.spatial_rank() {
-        None => Ok(ExpressionType::scalar(dimension, Some(support))),
+        None => Ok(ExpressionType::new(
+            eqiora_core::ValueType::scalar(scalar_domain, dimension),
+            Some(support),
+        )),
         Some(rank) => {
             let extent = u32::try_from(spatial_dimensions)
                 .ok()
@@ -802,12 +813,14 @@ fn expression_type_for_class<I>(
             let shape =
                 eqiora_core::ValueShape::new(std::iter::repeat_n(extent, usize::from(rank)))
                     .map_err(|_| PureOperatorError::FormalTypeMismatch)?;
-            Ok(ExpressionType::shaped(
+            eqiora_core::ValueType::shaped(
+                scalar_domain,
                 dimension,
                 shape,
                 ValueFrame::SpatialCartesian,
-                Some(support),
-            ))
+            )
+            .map(|value_type| ExpressionType::new(value_type, Some(support)))
+            .map_err(|_| PureOperatorError::FormalTypeMismatch)
         }
     }
 }
@@ -819,7 +832,7 @@ fn instantiate_dimension<I>(
     let mut result = eqiora_core::DimExponents::DIMENSIONLESS;
     for (argument, exponent) in arguments.iter().zip(monomial.exponents()) {
         let term = argument
-            .dimension
+            .dimension()
             .pow(i32::from(*exponent), 1)
             .ok_or(PureOperatorError::ResultDimensionOverflow)?;
         result = result
@@ -949,168 +962,4 @@ fn push_u32(bytes: &mut Vec<u8>, value: usize) {
 }
 
 #[cfg(test)]
-mod tests {
-    use eqiora_core::{DimExponents, ValueShape};
-
-    use super::*;
-
-    fn volume_tensor(domain: &str) -> ExpressionType<&str> {
-        ExpressionType::shaped(
-            DimExponents::DIMENSIONLESS,
-            ValueShape::new([2, 2]).unwrap(),
-            ValueFrame::SpatialCartesian,
-            Some(SpatialSupport::Volume {
-                domain,
-                dimensions: 2,
-            }),
-        )
-    }
-
-    fn volume_scalar(domain: &str) -> ExpressionType<&str> {
-        ExpressionType::scalar(
-            DimExponents::DIMENSIONLESS,
-            Some(SpatialSupport::Volume {
-                domain,
-                dimensions: 2,
-            }),
-        )
-    }
-
-    fn volume_vector(domain: &str, dimension: DimExponents) -> ExpressionType<&str> {
-        ExpressionType::shaped(
-            dimension,
-            ValueShape::new([2]).unwrap(),
-            ValueFrame::SpatialCartesian,
-            Some(SpatialSupport::Volume {
-                domain,
-                dimensions: 2,
-            }),
-        )
-    }
-
-    #[test]
-    fn canonical_rational_parts_cover_the_complete_unsigned_denominator_wire() {
-        let denominator = (i64::MAX as u64) + 2;
-        let value = ExactRational::from_canonical_parts(1, denominator).unwrap();
-        assert_eq!(value.numerator(), 1);
-        assert_eq!(value.denominator(), denominator);
-        assert_eq!(
-            ExactRational::from_canonical_parts(2, 4),
-            Err(PureOperatorError::InvalidRational)
-        );
-    }
-
-    #[test]
-    fn standard_definitions_derive_their_exact_result_types() {
-        let tensor = volume_tensor("body");
-        let symmetric = PureOperatorDefinition::symmetric_part().unwrap();
-        let symmetric_application = symmetric
-            .instantiate(std::slice::from_ref(&tensor))
-            .unwrap();
-        assert_eq!(symmetric_application.result_type(), &tensor);
-
-        let isotropic = PureOperatorDefinition::isotropic_lift().unwrap();
-        let isotropic_application = isotropic.instantiate(&[volume_scalar("body")]).unwrap();
-        assert_eq!(isotropic_application.result_type().shape.extents().len(), 2);
-        assert_eq!(
-            isotropic_application.result_type().shape.extents()[0].get(),
-            2
-        );
-        assert_eq!(
-            isotropic_application.result_type().shape.extents()[1].get(),
-            2
-        );
-    }
-
-    #[test]
-    fn definition_identity_excludes_names_but_includes_exact_body() {
-        let first = PureOperatorDefinition::symmetric_part().unwrap();
-        let second = PureOperatorDefinition::symmetric_part().unwrap();
-        let isotropic = PureOperatorDefinition::isotropic_lift().unwrap();
-        assert_eq!(first.canonical_bytes(), second.canonical_bytes());
-        assert_eq!(first.digest(), second.digest());
-        assert_ne!(first.digest(), isotropic.digest());
-        assert_eq!(
-            first.digest().to_string(),
-            "2b1d8bbaf99a2c1b1fd2d14dc384e6ce2624ce54cad65e337fbe7cdc01b0e99a"
-        );
-        assert_eq!(
-            isotropic.digest().to_string(),
-            "fe648a6a0f5b9bf2460389e3232822747d5ec85cceb38fcf8fdea977921c63f6"
-        );
-    }
-
-    #[test]
-    fn dyadic_product_derives_shape_support_and_product_dimension() {
-        let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
-        let force = DimExponents::from_integers([1, 1, -2, 0, 0, 0, 0]).expect("bounded dimension");
-        let definition = PureOperatorDefinition::dyadic_product().unwrap();
-        assert_eq!(definition.formals().len(), 2);
-        assert_eq!(definition.dimension_monomial().exponents(), &[1, 1]);
-        let application = definition
-            .instantiate(&[volume_vector("body", length), volume_vector("body", force)])
-            .unwrap();
-        let result = application.result_type();
-        assert_eq!(result.shape, ValueShape::new([2, 2]).unwrap());
-        assert_eq!(result.frame, ValueFrame::SpatialCartesian);
-        assert_eq!(
-            result.support,
-            Some(SpatialSupport::Volume {
-                domain: "body",
-                dimensions: 2,
-            })
-        );
-        assert_eq!(
-            result.dimension,
-            DimExponents::from_integers([1, 2, -2, 0, 0, 0, 0]).expect("bounded dimension")
-        );
-        assert_ne!(
-            definition.digest(),
-            PureOperatorDefinition::symmetric_part().unwrap().digest()
-        );
-        assert_eq!(
-            definition.digest().to_string(),
-            "293e3645a9a7a74a15caaad0214fc5f1e59111bb71bf89a28e6471ae80f6775a"
-        );
-    }
-
-    #[test]
-    fn dyadic_product_requires_one_exact_volume_and_checked_si_dimension() {
-        let definition = PureOperatorDefinition::dyadic_product().unwrap();
-        let dimensionless = DimExponents::DIMENSIONLESS;
-        assert!(matches!(
-            definition.instantiate(&[
-                volume_vector("left", dimensionless),
-                volume_vector("right", dimensionless),
-            ]),
-            Err(PureOperatorError::CommonVolumeMismatch)
-        ));
-
-        let large =
-            DimExponents::from_integers([0, i32::MAX, 0, 0, 0, 0, 0]).expect("bounded dimension");
-        assert!(matches!(
-            definition.instantiate(&[volume_vector("body", large), volume_vector("body", large),]),
-            Err(PureOperatorError::ResultDimensionOverflow)
-        ));
-    }
-
-    #[test]
-    fn symbolic_dimension_monomials_are_bounded() {
-        let scalar = PureValueClass::invariant_scalar();
-        let mut builder = CalculusBuilder::new([scalar], scalar).unwrap();
-        let mut body = builder
-            .push(CalculusNode::FormalComponent {
-                formal: 0,
-                axes: Box::default(),
-            })
-            .unwrap();
-        for _ in 0..7 {
-            body = builder.push(CalculusNode::Mul(body, body)).unwrap();
-        }
-        let overflow = builder.push(CalculusNode::Mul(body, body)).unwrap();
-        assert_eq!(
-            builder.finish(overflow),
-            Err(PureOperatorError::FormalExponentLimit)
-        );
-    }
-}
+mod tests;

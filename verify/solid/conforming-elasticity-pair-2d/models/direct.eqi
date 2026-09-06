@@ -9,7 +9,7 @@ public connector QuasistaticMechanicalBoundary = field_physical(
 public component IsotropicMechanicalInterface2d {
   public support body: volume(ambient_dimension = 2);
   public support exterior: complete_exterior(parent = body);
-  public field slot displacement on body as continuum: m shape spatial_vector;
+  public field slot displacement on body as continuum: vector<m, 2>;
   public parameter mu: kg / (m * s ^ 2);
   public parameter lambda: kg / (m * s ^ 2);
 
@@ -61,9 +61,9 @@ model Main {
   domain right_y_upper = boundary(right, axis = 1, side = upper);
   representation space = continuum;
 
-  field left_displacement on left as space: m shape spatial_vector;
+  field left_displacement on left as space: vector<m, 2>;
   field left_load_potential on left as space: kg / (m * s ^ 2) = 0;
-  field right_displacement on right as space: m shape spatial_vector;
+  field right_displacement on right as space: vector<m, 2>;
   field right_load_potential on right as space: kg / (m * s ^ 2) = 0;
   parameter mu_left: kg / (m * s ^ 2) = 3;
   parameter mu_right: kg / (m * s ^ 2) = 6;

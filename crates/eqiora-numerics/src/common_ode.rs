@@ -633,14 +633,34 @@ model decay {
 
         let nodes = [
             KernelNode::from(
-                FieldDef::new(decay, DimExponents::DIMENSIONLESS)
-                    .with_initial(DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))
-                    .unwrap(),
+                FieldDef::new(
+                    decay,
+                    eqiora_core::ValueType::scalar(
+                        eqiora_core::ScalarDomain::Real,
+                        DimExponents::DIMENSIONLESS,
+                    ),
+                )
+                .with_initial(
+                    DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)
+                        .try_into()
+                        .expect("finite real Field initial"),
+                )
+                .unwrap(),
             ),
             KernelNode::from(
-                FieldDef::new(integral, DimExponents::DIMENSIONLESS)
-                    .with_initial(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
-                    .unwrap(),
+                FieldDef::new(
+                    integral,
+                    eqiora_core::ValueType::scalar(
+                        eqiora_core::ScalarDomain::Real,
+                        DimExponents::DIMENSIONLESS,
+                    ),
+                )
+                .with_initial(
+                    DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)
+                        .try_into()
+                        .expect("finite real Field initial"),
+                )
+                .unwrap(),
             ),
             KernelNode::from(ParameterDef::new(rate, DynQuantity::new(1.0, inverse_time))),
             KernelNode::from(RelationDef::new(relation, residuals)),

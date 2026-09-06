@@ -1,7 +1,7 @@
 component FieldLaw {
   public support body: volume(ambient_dimension = 2);
   public field slot scalar_state on body as continuum: 1;
-  public field slot displacement on body as continuum: m shape spatial_vector;
+  public field slot displacement on body as continuum: vector<m, 2>;
 
   relation scalar_identity continuous on body {
     scalar_state - scalar_state = 0;
@@ -14,7 +14,7 @@ component FieldLaw {
 component FieldLawWrapper {
   public support body: volume(ambient_dimension = 2);
   public field slot scalar_state on body as continuum: 1;
-  public field slot displacement on body as continuum: m shape spatial_vector;
+  public field slot displacement on body as continuum: vector<m, 2>;
 
   instance inner: FieldLaw(
     support body = body,
@@ -27,7 +27,7 @@ model Main {
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
   field scalar_state on body as space: 1 = 0;
-  field displacement on body as space: m shape spatial_vector;
+  field displacement on body as space: vector<m, 2>;
 
   instance law: FieldLawWrapper(
     support body = body,

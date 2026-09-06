@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 18 module summaries and all 168 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 619 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 18 module summaries and all 168 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 631 signature-only entries under documented owning types**.
 
-Inventory: 18 modules, 198 literal public spellings, 168 canonical grouped declarations, 816 visible method signatures (619 non-dunder and 197 dunder), and 79 visible class assignments.
+Inventory: 18 modules, 198 literal public spellings, 168 canonical grouped declarations, 830 visible method signatures (631 non-dunder and 199 dunder), and 79 visible class assignments.
 
 Regenerate with:
 
@@ -432,6 +432,42 @@ class Dimension:
     def __ne__(self, other: object, /) -> bool: ...
 ```
 
+<a id="api-eqiora-ValueType"></a>
+
+### `eqiora.ValueType`
+
+Exact scalar domain, dimension, channel axes and spatial frame.
+
+Authority: [`crates/eqiora-python/src/modeling/value_type.rs::PyValueType`](../../crates/eqiora-python/src/modeling/value_type.rs)
+
+```python
+@final
+class ValueType:
+    def to_eqi(self) -> str: ...
+    @staticmethod
+    def real(dimension: Dimension | None=None) -> ValueType: ...
+    @staticmethod
+    def complex(dimension: Dimension | None=None) -> ValueType: ...
+    @staticmethod
+    def vector(scalar: ValueType, extent: int) -> ValueType: ...
+    @staticmethod
+    def tensor(scalar: ValueType, *extents: int) -> ValueType: ...
+    @staticmethod
+    def array(element: ValueType, extent: int) -> ValueType: ...
+    @property
+    def scalar_domain(self) -> Literal['real', 'complex']: ...
+    @property
+    def dimension(self) -> Dimension: ...
+    @property
+    def shape(self) -> list[int]: ...
+    @property
+    def array_rank(self) -> int: ...
+    @property
+    def frame(self) -> Literal['invariant', 'spatial_cartesian']: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
 <a id="api-eqiora-DomainRef"></a>
 
 ### `eqiora.DomainRef`
@@ -533,20 +569,22 @@ class Expression:
 
 ### `eqiora.Field`
 
-Immutable scalar field declaration.
+Immutable typed field declaration.
 
 Authority: [`crates/eqiora-python/src/modeling.rs::PyField`](../../crates/eqiora-python/src/modeling.rs)
 
 ```python
 @final
 class Field:
-    def __new__(cls, name: str, *, domain: Domain | None=None, representation: Representation | None=None, dimension: Dimension | None=None, initial: float=0.0) -> Self: ...
+    def __new__(cls, name: str, *, domain: Domain | None=None, representation: Representation | None=None, value_type: ValueType | None=None, initial: float | None=None) -> Self: ...
     @property
     def name(self) -> str: ...
     @property
     def dimension(self) -> Dimension: ...
     @property
-    def initial(self) -> float: ...
+    def initial(self) -> float | None: ...
+    @property
+    def value_type(self) -> ValueType: ...
     @property
     def domain(self) -> Domain | None: ...
     @property
@@ -2081,7 +2119,7 @@ class Component:
     def boundary(self, name: str, *, parent: Support, doc: str | None=None) -> Support: ...
     def parameter(self, name: str, *, unit: _Unit, doc: str | None=None) -> Expression: ...
     def property(self, name: str, *, contract: PropertyContract, doc: str | None=None) -> Expression: ...
-    def field(self, name: str, *, on: Support, unit: _Unit, shape: _Shape | None=None, initial: int | float | None=None, doc: str | None=None) -> Expression: ...
+    def field(self, name: str, *, on: Support, value_type: ValueType, initial: int | float | None=None, doc: str | None=None) -> Expression: ...
     @overload
     def relation(self, name: str, *, on: Support, residual: Expression | int | float, left: None=None, right: None=None, doc: str | None=None) -> Relation: ...
     @overload
@@ -2323,18 +2361,6 @@ Authority: [`bindings/python/python/eqiora/lang/__init__.py::quantity`](../../bi
 
 ```python
 def quantity(value: int | float, unit: _Unit) -> Expression: ...
-```
-
-<a id="api-eqiora-lang-spatial_vector"></a>
-
-### `eqiora.lang.spatial_vector`
-
-The current ambient-dimension-sized continuum vector shape.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::spatial_vector`](../../bindings/python/python/eqiora/lang/__init__.py)
-
-```python
-spatial_vector: _Shape
 ```
 
 <a id="api-eqiora-lang-symmetric_part"></a>

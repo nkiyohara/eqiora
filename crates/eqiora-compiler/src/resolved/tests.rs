@@ -220,8 +220,8 @@ import org.example.project.library.primitives as lib;
 model Main {
   domain d = box(0, 1, 0, 1);
   representation s = continuum;
-  field a on d as s: 1 shape spatial_vector;
-  field b on d as s: 1 shape spatial_vector;
+  field a on d as s: vector<1, 2>;
+  field b on d as s: vector<1, 2>;
   instance load: lib.Resistor(resistance = 2);
   relation doubled continuous on d { div(div(lib.outer(a, b))) = 0; }
 }
@@ -700,7 +700,7 @@ public pure operator outer(left: spatial[1], right: spatial[1]) -> spatial[2]
                     &root,
                     "root.eqi",
                     &format!(
-                        "import operators.main as {alias_name}; model Main {{ domain d = box(0,1,0,1); representation s = continuum; field a on d as s: 1 shape spatial_vector; field b on d as s: 1 shape spatial_vector; relation r continuous on d {{ div(div({alias_name}.outer(a,b))) = 0; }} }}"
+                        "import operators.main as {alias_name}; model Main {{ domain d = box(0,1,0,1); representation s = continuum; field a on d as s: vector<1, 2>; field b on d as s: vector<1, 2>; relation r continuous on d {{ div(div({alias_name}.outer(a,b))) = 0; }} }}"
                     ),
                 ),
                 unit(&operators, operator_file, dependency),
@@ -738,7 +738,7 @@ fn private_pure_operator_cannot_cross_an_exact_package_boundary() {
             unit(
                 &root,
                 "root.eqi",
-                "import operators.main as ops; model Main { domain d = box(0,1); representation s = continuum; field a on d as s: 1 shape spatial_vector; field b on d as s: 1 shape spatial_vector; relation r continuous on d { div(ops.outer(a,b)) = 0; } }",
+                "import operators.main as ops; model Main { domain d = box(0,1); representation s = continuum; field a on d as s: vector<1, 1>; field b on d as s: vector<1, 1>; relation r continuous on d { div(ops.outer(a,b)) = 0; } }",
             ),
             unit(
                 &dependency,

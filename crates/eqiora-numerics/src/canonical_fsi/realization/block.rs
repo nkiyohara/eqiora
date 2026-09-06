@@ -1,12 +1,12 @@
 //! Exact discrete block projection of the accepted fixed-reference FSI slice.
 
+use eqiora_core::ValueFrame;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id, RawId, ValueShape};
 use eqiora_meshing::{MeshTopology, SimplicialMesh};
 use eqiora_realization::{
     AlgebraicBlock, MeshArtifactReference, ResolvedCoupledFieldwiseRealization,
 };
-use eqiora_schema::kernel::ValueFrame;
 use eqiora_solver::LinearOperatorProperties;
 
 use super::super::FixedReferenceFsiCartesianModel2d;

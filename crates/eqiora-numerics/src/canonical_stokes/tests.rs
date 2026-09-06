@@ -24,7 +24,7 @@ model steady_stokes {
   domain y_upper = boundary(fluid, axis = 1, side = upper);
   representation space = continuum;
 
-  field velocity on fluid as space: m / s shape spatial_vector;
+  field velocity on fluid as space: vector<m / s, 2>;
   field pressure on fluid as space: kg / (m * s ^ 2) = 0;
   field force_potential on fluid as space: kg / (m * s ^ 2) = 0;
   parameter mu: kg / (m * s) = 2.5;
@@ -61,7 +61,7 @@ public connector VelocityTractionBoundary = field_physical(
 public component NewtonianBoundary2d {
   public support body: volume(ambient_dimension = 2);
   public support face: boundary(parent = body);
-  public field slot velocity on body as continuum: m / s shape spatial_vector;
+  public field slot velocity on body as continuum: vector<m / s, 2>;
   public field slot pressure on body as continuum: kg / (m * s ^ 2);
   public parameter dynamic_viscosity: kg / (m * s);
   public port mechanical:
@@ -101,7 +101,7 @@ model transient_navier_stokes {
   domain y_upper = boundary(fluid, axis = 1, side = upper);
   representation space = continuum;
 
-  field velocity on fluid as space: m / s shape spatial_vector;
+  field velocity on fluid as space: vector<m / s, 2>;
   field pressure on fluid as space: kg / (m * s ^ 2) = 0;
   field force_potential on fluid as space: kg / (m * s ^ 2) = 0;
   parameter rho: kg / m ^ 3 = 1.25;
@@ -203,6 +203,7 @@ fn assert_transient_navier_stokes_rejected(source: &str) {
 
 fn transient_navier_stokes_source_3d() -> String {
     TRANSIENT_NAVIER_STOKES_SOURCE
+        .replace("vector<m / s, 2>", "vector<m / s, 3>")
         .replace(
             "domain fluid = box(0, 2, -1, 1);",
             "domain fluid = box(0, 2, -1, 1, -2, 2);",
@@ -761,7 +762,7 @@ fn transient_navier_stokes_rejects_hidden_ale_velocity() {
         &TRANSIENT_NAVIER_STOKES_SOURCE
             .replace(
                 "field pressure on fluid as space: kg / (m * s ^ 2) = 0;",
-                "field mesh_velocity on fluid as space: m / s shape spatial_vector;\n  field pressure on fluid as space: kg / (m * s ^ 2) = 0;",
+                "field mesh_velocity on fluid as space: vector<m / s, 2>;\n  field pressure on fluid as space: kg / (m * s ^ 2) = 0;",
             )
             .replace(
                 "outer_product(velocity, velocity)",

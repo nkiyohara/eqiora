@@ -10,7 +10,7 @@ public component MixedBoundaryElasticity2d {
 
   // The displacement is the unknown; load_potential defines a manufactured body load.
   representation space = continuum;
-  field displacement on body as space: m shape spatial_vector;
+  field displacement on body as space: vector<m, 2>;
   field load_potential on body as space: kg / (m * s ^ 2) = 0;
 
   // Lamé parameters and the length scale are supplied during compilation.

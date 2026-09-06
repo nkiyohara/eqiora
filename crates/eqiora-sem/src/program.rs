@@ -832,20 +832,16 @@ fn symbol_type(
     match symbol {
         SymbolRef::Field(id) | SymbolRef::Pre(id) | SymbolRef::Next(id) => {
             match nodes.get(&id.erase()) {
-                Some(KernelNode::Field(field)) => Ok(ExpressionType::shaped(
-                    field.dimension(),
-                    field.shape().clone(),
-                    field.frame(),
+                Some(KernelNode::Field(field)) => Ok(ExpressionType::new(
+                    field.value_type().clone(),
                     field_support(id.erase(), edges, spatial_supports),
                 )),
                 _ => Err(SymbolTypeError::Missing),
             }
         }
         SymbolRef::Derivative(id) => match nodes.get(&id.erase()) {
-            Some(KernelNode::Field(field)) => typing::time_derivative(&ExpressionType::shaped(
-                field.dimension(),
-                field.shape().clone(),
-                field.frame(),
+            Some(KernelNode::Field(field)) => typing::time_derivative(&ExpressionType::new(
+                field.value_type().clone(),
                 field_support(id.erase(), edges, spatial_supports),
             ))
             .map_err(SymbolTypeError::Typing),
@@ -911,12 +907,13 @@ fn symbol_type(
             } else {
                 connector.flux_dimension()
             };
-            Ok(ExpressionType::shaped(
+            ExpressionType::shaped(
                 dimension,
                 connector.shape().clone(),
                 connector.frame(),
                 Some(support),
-            ))
+            )
+            .map_err(|_| SymbolTypeError::WrongPortContract)
         }
         SymbolRef::Time => Ok(ExpressionType::scalar(
             DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension"),

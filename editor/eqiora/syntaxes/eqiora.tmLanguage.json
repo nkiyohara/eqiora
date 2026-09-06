@@ -6,6 +6,7 @@
   "patterns": [
     { "include": "#comments" },
     { "include": "#declarations" },
+    { "include": "#types" },
     { "include": "#keywords" },
     { "include": "#functions" },
     { "include": "#constants" },
@@ -37,6 +38,9 @@
           "captures": { "1": { "name": "storage.type.eqiora" }, "2": { "name": "variable.other.definition.eqiora" } }
         }
       ]
+    },
+    "types": {
+      "patterns": [{ "name": "support.type.eqiora", "match": "\\b(?:array|complex|tensor|vector)\\b(?=\\s*<)" }]
     },
     "keywords": {
       "patterns": [{
