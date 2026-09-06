@@ -236,7 +236,7 @@ bottom = law.boundary("bottom", parent=region)
 top = law.boundary("top", parent=region)
 source_scale = law.parameter("source_scale", unit=u.one / u.m**2)
 diffusivity = law.property("diffusivity", contract=contract)
-potential = law.field("potential", on=region, unit=u.one, initial=0)
+potential = law.field("potential", on=region, value_type=eqiora.ValueType.real(), initial=0)
 law.relation(
     "balance",
     on=region,
