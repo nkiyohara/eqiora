@@ -264,15 +264,15 @@ fn exercise_source(reaction: &[Vec<f64>], source: &str, names: &[String]) {
             .fields
             .iter()
             .zip(form.fields())
-            .zip(lifted.chunks_exact(AXIS.len()))
+            .zip(lifted.as_chunks::<{ AXIS.len() }>().0)
     {
         assert_eq!(actual_id, expected_id);
         assert_eq!(actual_type, expected_type);
         close(field.vertex_values(), expected_values, 2e-12);
     }
-    for global in 0..count {
+    for (global, value) in lifted.iter().enumerate() {
         if !free.contains(&global) {
-            assert_eq!(lifted[global], 0.0);
+            assert_eq!(*value, 0.0);
         }
     }
     let expected_residual = action(&matrix, &lifted)
@@ -401,10 +401,6 @@ fn heterogeneous_length_and_time_fields_preserve_dimensional_general_assembly() 
     assert_ne!(
         form.fields()[0].1.dimension(),
         form.fields()[1].1.dimension()
-    );
-    assert_ne!(
-        form.residual_types()[0].dimension(),
-        form.residual_types()[1].dimension()
     );
     exercise_source(&reaction, &source, &names);
 }

@@ -166,11 +166,11 @@ fn check(reaction: &[Vec<f64>], reverse: bool) {
     let form = derive(&source(reaction, reverse)).unwrap();
     assert!(form.fields().windows(2).all(|pair| pair[0].0 < pair[1].0));
     assert_eq!(form.dimension(), 1);
-    assert_eq!(form.relations().len(), reaction.len());
-    assert_eq!(form.residual_types().len(), reaction.len());
+    assert_eq!(form.relations.len(), reaction.len());
+    assert_eq!(form.residual_types.len(), reaction.len());
     assert_eq!(form.boundary_laws().len(), reaction.len());
     assert!(
-        form.dependencies()
+        form.dependencies
             .values()
             .all(|dependencies| !dependencies.is_empty())
     );
@@ -263,7 +263,7 @@ fn coefficient_chains_bind_the_exact_parameter_point_and_spatial_flux() {
         .replace("2 * grad(f0)", "q * grad(f0)");
     let form = derive(&authored).unwrap();
     assert_eq!(form.fields().len(), 1);
-    assert_eq!(form.dependencies().len(), 5);
+    assert_eq!(form.dependencies.len(), 5);
     let quadrature = QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap();
     let local = form.evaluate(&geometry(), &quadrature).unwrap();
     close(local.matrix()[0], 1.0 + 2.0 / 3.0);
@@ -297,8 +297,8 @@ fn rows_preserve_distinct_checked_physical_dimensions() {
         form.fields()[1].1.dimension()
     );
     assert_ne!(
-        form.residual_types()[0].dimension(),
-        form.residual_types()[1].dimension()
+        form.residual_types[0].dimension(),
+        form.residual_types[1].dimension()
     );
     let local = form
         .evaluate(

@@ -59,7 +59,7 @@ fn mixed_laws_preserve_data_and_complete_dependencies() {
         laws.iter()
             .any(|law| matches!(law, ScalarExteriorLaw::ZeroOutwardFlux { .. }))
     );
-    assert_eq!(form.dependencies().len(), 6);
+    assert_eq!(form.dependencies.len(), 6);
 }
 
 #[test]

@@ -168,15 +168,6 @@ impl CompiledLinearBlockForm {
     pub(crate) fn fields(&self) -> &[(RawId, ValueType)] {
         &self.fields
     }
-    pub(crate) fn relations(&self) -> &[RawId] {
-        &self.relations
-    }
-    pub(crate) fn residual_types(&self) -> &[ValueType] {
-        &self.residual_types
-    }
-    pub(crate) fn dependencies(&self) -> &BTreeMap<RawId, BTreeSet<RawId>> {
-        &self.dependencies
-    }
     pub(crate) fn boundary_laws(
         &self,
     ) -> &BTreeMap<RawId, BTreeMap<RawId, crate::scalar_conservation::ScalarExteriorLaw>> {

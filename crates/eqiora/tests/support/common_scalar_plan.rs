@@ -96,7 +96,7 @@ pub(crate) fn plan_for_document(
         AuthenticatedCommonMesh::structured_cartesian(geometry, mesh, correspondence, production)
             .unwrap();
     let solver =
-        CommonSolvePolicy::linear(1.0e-10, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap();
+        CommonSolvePolicy::linear(1.0e-12, 1.0e-14, NonZeroUsize::new(10_000).unwrap()).unwrap();
     let model = ModelEnvelope::from_program(document.program()).unwrap();
     resolve_common_plan(
         &model,
@@ -197,7 +197,7 @@ fn document_and_plans_with_source(
         AuthenticatedCommonMesh::structured_cartesian(geometry, mesh, correspondence, production)
             .unwrap();
     let solver =
-        CommonSolvePolicy::linear(1.0e-10, 1.0e-12, NonZeroUsize::new(10_000).unwrap()).unwrap();
+        CommonSolvePolicy::linear(1.0e-12, 1.0e-14, NonZeroUsize::new(10_000).unwrap()).unwrap();
     let model = ModelEnvelope::from_program(document.program()).unwrap();
     let resolve = |owner, spatial| {
         resolve_common_plan(
