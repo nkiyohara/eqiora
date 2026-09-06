@@ -80,6 +80,30 @@ impl WireValueType {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn field_initial_wire_rejects_noncanonical_and_invalid_literals() {
+        let value_type = ValueType::scalar(
+            ScalarDomain::Complex,
+            eqiora_core::DimExponents::DIMENSIONLESS,
+        )
+        .array(2)
+        .unwrap();
+        let node = eqiora_schema::kernel::KernelNode::from(
+            eqiora_schema::kernel::FieldDef::new(eqiora_core::Id::new(), value_type.clone())
+                .with_initial(eqiora_core::ValueLiteral::new(value_type, 0.0).unwrap())
+                .unwrap(),
+        );
+        assert_eq!(WireNode::encode(&node).unwrap().decode().unwrap(), node);
+        for invalid in [-0.0, 1.0, f64::INFINITY, f64::NAN] {
+            let mut wire = WireNode::encode(&node).unwrap();
+            let crate::model::WireNodeDefinition::Field { initial, .. } = &mut wire.definition
+            else {
+                panic!("Field");
+            };
+            *initial = Some(invalid);
+            assert!(wire.decode().is_err());
+        }
+    }
     use crate::model::WireNode;
     use eqiora_core::{DimExponents, Id};
     use eqiora_schema::kernel::{FieldDef, KernelNode};

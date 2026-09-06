@@ -399,5 +399,24 @@ mod tests {
             Err(CalculusError::ProofTypeMismatch)
         );
         assert!(!dimensionless_proof.same_normal_form(&dimensioned_proof));
+
+        let mut complex_type = volume_tensor("body", DimExponents::DIMENSIONLESS);
+        complex_type.value_type =
+            complex_type
+                .value_type
+                .with_common_scalar_domain(&eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Complex,
+                    DimExponents::DIMENSIONLESS,
+                ));
+        let complex = definition
+            .instantiate(&[complex_type])
+            .unwrap()
+            .component(&[0, 1])
+            .unwrap();
+        assert_eq!(
+            dimensionless_proof.verify(&complex),
+            Err(CalculusError::ProofTypeMismatch)
+        );
+        assert!(!dimensionless_proof.same_normal_form(&complex.normalize().unwrap()));
     }
 }

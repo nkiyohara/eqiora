@@ -60,23 +60,26 @@ def test_extents_require_integers(invalid) -> None:
     (eqiora.ValueType.tensor(eqiora.ValueType.real(), 2, 2), "tensor<1, 2, 2>"),
     (eqiora.ValueType.array(eqiora.ValueType.vector(eqiora.ValueType.complex(), 2), 3), "array<vector<complex<1>, 2>, 3>"),
 ])
-def test_native_field_type_matches_source_and_replays(value_type, syntax) -> None:
+@pytest.mark.parametrize("initial", [None, 0.0, -0.0])
+def test_native_field_type_matches_source_and_replays(value_type, syntax, initial) -> None:
     domain = eqiora.Domain.box("body", (0.0, 1.0), (0.0, 1.0))
     space = eqiora.Representation.continuum("space")
-    field = eqiora.Field("u", domain=domain, representation=space, value_type=value_type)
+    field = eqiora.Field("u", domain=domain, representation=space,
+                         value_type=value_type, initial=initial)
     balance = eqiora.Relation("balance", domain=domain, residual=field - field)
     native = eqiora.Model.define("typed", domain, space, field, balance)
+    initializer = "" if initial is None else " = 0"
     source = eqiora.compile(source=f"""
 model typed {{
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
-  field u on body as space: {syntax};
+  field u on body as space: {syntax}{initializer};
   relation balance continuous on body {{ u - u = 0; }}
 }}
 """)
     assert field.value_type == value_type
     assert field.dimension == value_type.dimension
-    assert field.initial is None
+    assert field.initial == initial
     assert native.structural_fingerprint == source.structural_fingerprint
     replay = eqiora.Model.from_bytes(native.to_bytes())
     assert replay.to_bytes() == native.to_bytes()

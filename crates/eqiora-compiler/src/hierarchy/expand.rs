@@ -1810,7 +1810,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         domain,
                         representation,
                         value_type: declaration.value_type().clone(),
-                        initial: declaration.initial(),
+                        initial: declaration.initial().cloned(),
                         range: declaration.range(),
                         identity,
                     });
@@ -2194,7 +2194,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         domain,
                         representation,
                         value_type: declaration.value_type().clone(),
-                        initial: declaration.initial(),
+                        initial: declaration.initial().cloned(),
                         range: declaration.range(),
                         identity,
                     });

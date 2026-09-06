@@ -4,6 +4,46 @@ use eqiora_core::ScalarDomain;
 use eqiora_core::ValueType;
 use eqiora_schema::kernel::{AxisBounds, DomainDef, RepresentationDef};
 
+#[test]
+fn typed_field_initial_zero_survives_source_and_model_replay() {
+    for ty in [
+        "1",
+        "complex<1>",
+        "array<complex<1>, 3>",
+        "vector<complex<m>, 2>",
+    ] {
+        let source = format!(
+            "model M {{ domain body = box(0, 1, 0, 1); representation space = continuum; field x on body as space: {ty} = 0; relation r continuous on body {{ x - x = 0; }} }}"
+        );
+        let original = program(&source);
+        let envelope = ModelEnvelope::from_program(&original).unwrap();
+        let bytes = envelope.canonical_json().unwrap();
+        let replay = ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default()).unwrap();
+        assert_eq!(replay.canonical_json().unwrap(), bytes);
+        let field = original
+            .nodes()
+            .find_map(|node| match node {
+                KernelNode::Field(field) => Some(field),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(field.initial().unwrap().value_type(), field.value_type());
+        if field.value_type().scalar_domain() != ScalarDomain::Real || !field.shape().is_scalar() {
+            let errors = eqiora_sem::Interpreter::new()
+                .run(
+                    &original,
+                    eqiora_sem::ReferenceConfig::new(0.0, 0.01).unwrap(),
+                )
+                .unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.message().contains("real scalar Fields"))
+            );
+        }
+    }
+}
+
 fn spatial_program(value_type: ValueType) -> Result<KernelProgram, Vec<Diagnostic>> {
     let domain = Id::new();
     let representation = Id::new();

@@ -659,6 +659,17 @@ struct ExecutionPlan {
 
 impl ExecutionPlan {
     fn new(program: &KernelProgram) -> Result<Self, Diagnostic> {
+        for node in program.nodes() {
+            if let KernelNode::Field(field) = node
+                && (field.value_type().scalar_domain() != eqiora_core::ScalarDomain::Real
+                    || !field.shape().is_scalar())
+            {
+                return Err(Diagnostic::error(
+                    codes::NOT_IMPLEMENTED,
+                    "reference execution requires real scalar Fields",
+                ));
+            }
+        }
         let signal_sources = signal_sources(program)?;
         let physical_systems = physical_systems(program)?;
         let physical_unknowns = physical_systems

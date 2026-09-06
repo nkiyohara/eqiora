@@ -35,7 +35,11 @@ fn valid_program_owns_one_snapshot_revision() {
                     DimExponents::DIMENSIONLESS,
                 ),
             )
-            .with_initial(DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))
+            .with_initial(
+                DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)
+                    .try_into()
+                    .expect("finite real initial value"),
+            )
             .expect("initial value"),
         ),
         KernelNode::from(RelationDef::new(

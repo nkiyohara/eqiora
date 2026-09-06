@@ -14,13 +14,13 @@ use sha2::{Digest, Sha256};
 use super::typing::{ExpressionType, SpatialSupport};
 use eqiora_core::ValueFrame;
 
-const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v1\0";
+const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v2\0";
 
-/// Maximum number of formal arguments in a version-1 definition.
+/// Maximum number of formal arguments in a definition.
 pub const MAX_FORMALS: usize = 64;
-/// Maximum number of calculus nodes in a version-1 definition.
+/// Maximum number of calculus nodes in a definition.
 pub const MAX_NODES: usize = 4096;
-/// Maximum dependency depth in a version-1 definition.
+/// Maximum dependency depth in a definition.
 pub const MAX_DEPTH: usize = 256;
 /// Maximum tensor rank admitted by the portable value-class contract.
 pub const MAX_TENSOR_RANK: u16 = 64;
@@ -671,6 +671,9 @@ impl PureOperatorDefinition {
 
     /// Derive and validate one typed application.
     ///
+    /// Rational polynomial definitions embed real inputs into the common
+    /// real/complex scalar domain without changing dimension or component roles.
+    ///
     /// # Errors
     /// Rejects arity, shape, frame, support, and result-rule mismatches before
     /// any lowered component expansion.
@@ -682,8 +685,10 @@ impl PureOperatorDefinition {
             return Err(PureOperatorError::ArityMismatch);
         }
         let mut common_volume = None;
+        let mut scalar_domain = eqiora_core::ScalarDomain::Real;
         for (rule, argument) in self.formals.iter().zip(arguments) {
             validate_argument_class(*rule, argument)?;
+            scalar_domain = scalar_domain.common(argument.value_type.scalar_domain());
             let Some(support @ SpatialSupport::Volume { .. }) = argument.support.as_ref() else {
                 return Err(PureOperatorError::FormalTypeMismatch);
             };
@@ -697,7 +702,8 @@ impl PureOperatorDefinition {
         }
         let common_volume = common_volume.ok_or(PureOperatorError::FormalTypeMismatch)?;
         let result_dimension = instantiate_dimension(&self.dimension, arguments)?;
-        let result_type = expression_type_for_class(self.result, result_dimension, common_volume)?;
+        let result_type =
+            expression_type_for_class(self.result, scalar_domain, result_dimension, common_volume)?;
         Ok(PureOperatorInstantiation {
             definition: self,
             arguments: arguments.to_vec(),
@@ -763,9 +769,6 @@ fn validate_argument_class<I>(
     class: PureValueClass,
     argument: &ExpressionType<I>,
 ) -> Result<(), PureOperatorError> {
-    if argument.value_type.scalar_domain() != eqiora_core::ScalarDomain::Real {
-        return Err(PureOperatorError::FormalTypeMismatch);
-    }
     let Some(SpatialSupport::Volume { dimensions, .. }) = argument.support.as_ref() else {
         return Err(PureOperatorError::FormalTypeMismatch);
     };
@@ -792,12 +795,16 @@ fn validate_argument_class<I>(
 
 fn expression_type_for_class<I>(
     class: PureValueClass,
+    scalar_domain: eqiora_core::ScalarDomain,
     dimension: eqiora_core::DimExponents,
     support: SpatialSupport<I>,
 ) -> Result<ExpressionType<I>, PureOperatorError> {
     let spatial_dimensions = support.dimensions();
     match class.spatial_rank() {
-        None => Ok(ExpressionType::scalar(dimension, Some(support))),
+        None => Ok(ExpressionType::new(
+            eqiora_core::ValueType::scalar(scalar_domain, dimension),
+            Some(support),
+        )),
         Some(rank) => {
             let extent = u32::try_from(spatial_dimensions)
                 .ok()
@@ -806,12 +813,13 @@ fn expression_type_for_class<I>(
             let shape =
                 eqiora_core::ValueShape::new(std::iter::repeat_n(extent, usize::from(rank)))
                     .map_err(|_| PureOperatorError::FormalTypeMismatch)?;
-            ExpressionType::shaped(
+            eqiora_core::ValueType::shaped(
+                scalar_domain,
                 dimension,
                 shape,
                 ValueFrame::SpatialCartesian,
-                Some(support),
             )
+            .map(|value_type| ExpressionType::new(value_type, Some(support)))
             .map_err(|_| PureOperatorError::FormalTypeMismatch)
         }
     }
@@ -1008,6 +1016,33 @@ mod tests {
     }
 
     #[test]
+    fn polynomial_operators_preserve_common_scalar_domain_and_exact_component_roles() {
+        use eqiora_core::{ScalarDomain, ValueType};
+        let complex = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS);
+        let mut tensor = volume_tensor("body");
+        tensor.value_type = tensor.value_type.with_common_scalar_domain(&complex);
+        let symmetric = PureOperatorDefinition::symmetric_part().unwrap();
+        assert_eq!(
+            symmetric
+                .instantiate(std::slice::from_ref(&tensor))
+                .unwrap()
+                .result_type(),
+            &tensor
+        );
+        let mut left = volume_vector("body", DimExponents::DIMENSIONLESS);
+        let right = left.clone();
+        left.value_type = left.value_type.with_common_scalar_domain(&complex);
+        let dyadic = PureOperatorDefinition::dyadic_product().unwrap();
+        let application = dyadic.instantiate(&[left.clone(), right]).unwrap();
+        assert_eq!(application.result_type(), &tensor);
+        left.value_type = complex.array(2).unwrap();
+        assert_eq!(
+            dyadic.instantiate(&[left.clone(), left]).unwrap_err(),
+            PureOperatorError::FormalTypeMismatch
+        );
+    }
+
+    #[test]
     fn standard_definitions_derive_their_exact_result_types() {
         let tensor = volume_tensor("body");
         let symmetric = PureOperatorDefinition::symmetric_part().unwrap();
@@ -1040,11 +1075,16 @@ mod tests {
         assert_eq!(first.canonical_bytes(), second.canonical_bytes());
         assert_eq!(first.digest(), second.digest());
         assert_ne!(first.digest(), isotropic.digest());
-        assert_eq!(
+        assert!(
+            first
+                .canonical_bytes()
+                .starts_with(b"eqiora.pure-operator-definition/v2\0")
+        );
+        assert_ne!(
             first.digest().to_string(),
             "2b1d8bbaf99a2c1b1fd2d14dc384e6ce2624ce54cad65e337fbe7cdc01b0e99a"
         );
-        assert_eq!(
+        assert_ne!(
             isotropic.digest().to_string(),
             "fe648a6a0f5b9bf2460389e3232822747d5ec85cceb38fcf8fdea977921c63f6"
         );
@@ -1078,7 +1118,7 @@ mod tests {
             definition.digest(),
             PureOperatorDefinition::symmetric_part().unwrap().digest()
         );
-        assert_eq!(
+        assert_ne!(
             definition.digest().to_string(),
             "293e3645a9a7a74a15caaad0214fc5f1e59111bb71bf89a28e6471ae80f6775a"
         );

@@ -370,7 +370,7 @@ impl SourceAstFactory {
         domain: Option<String>,
         representation: Option<String>,
         value_type: crate::ValueTypeSyntax,
-        initial: Option<f64>,
+        initial: Option<Expr>,
         range: TextRange,
     ) -> Result<FieldDecl, AstConstructionError> {
         if domain.is_some() != representation.is_some() {
@@ -385,15 +385,21 @@ impl SourceAstFactory {
             validate_identifier(name, "Field Representation")?;
         }
         let scalar = value_type.is_scalar();
-        match (scalar, initial) {
-            (true, Some(initial)) => validate_finite(initial, "Field initial value")?,
-            (true, None) => {}
-            (false, Some(_)) => {
+        if let Some(initial) = &initial {
+            validate_expression(initial)?;
+            let value = match initial.kind() {
+                ExprKind::Number(value) | ExprKind::Quantity { value, .. } => *value,
+                _ => {
+                    return Err(AstConstructionError::new(
+                        "Field initial value must be a numeric or quantity literal",
+                    ));
+                }
+            };
+            if !scalar && value != 0.0 {
                 return Err(AstConstructionError::new(
                     "non-scalar Field cannot have a scalar initial value",
                 ));
             }
-            (false, None) => {}
         }
         Ok(FieldDecl {
             name: checked_identifier(name, "Field")?,

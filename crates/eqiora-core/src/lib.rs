@@ -23,6 +23,7 @@ pub mod id;
 pub mod ontology;
 pub mod quantity;
 pub mod scalar;
+pub mod value_literal;
 pub mod value_shape;
 pub mod value_type;
 
@@ -32,5 +33,6 @@ pub use id::{Id, RawId};
 pub use ontology::{NamedSubgraph, OntologyId, OntologySchema, OntologyView, RawOntologyId};
 pub use quantity::{DimExponents, Dimension, DynQuantity, Quantity, Scalar};
 pub use scalar::{ScalarDomain, ScalarType};
+pub use value_literal::{InvalidValueLiteral, ValueLiteral};
 pub use value_shape::{InvalidValueShape, ValueShape};
 pub use value_type::{InvalidValueType, ValueFrame, ValueType};

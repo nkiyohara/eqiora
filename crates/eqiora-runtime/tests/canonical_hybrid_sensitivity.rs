@@ -166,7 +166,11 @@ fn bouncing_ball(direction: EventDirection) -> BouncingBall {
                 height,
                 eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, length),
             )
-            .with_initial(DynQuantity::new(1.0, length))
+            .with_initial(
+                DynQuantity::new(1.0, length)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
             .unwrap(),
         ),
         KernelNode::from(
@@ -174,7 +178,11 @@ fn bouncing_ball(direction: EventDirection) -> BouncingBall {
                 velocity,
                 eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, velocity_dimension),
             )
-            .with_initial(DynQuantity::new(0.0, velocity_dimension))
+            .with_initial(
+                DynQuantity::new(0.0, velocity_dimension)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
             .unwrap(),
         ),
         KernelNode::from(ParameterDef::new(

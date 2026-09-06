@@ -464,7 +464,11 @@ fn canonical_decay_with_integral() -> (
                 x,
                 eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time),
             )
-            .with_initial(DynQuantity::new(1.0, inverse_time))
+            .with_initial(
+                DynQuantity::new(1.0, inverse_time)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
             .unwrap(),
         ),
         KernelNode::from(
@@ -475,7 +479,11 @@ fn canonical_decay_with_integral() -> (
                     DimExponents::DIMENSIONLESS,
                 ),
             )
-            .with_initial(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
+            .with_initial(
+                DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
             .unwrap(),
         ),
         KernelNode::from(ParameterDef::new(rate, DynQuantity::new(2.0, inverse_time))),
@@ -538,7 +546,11 @@ fn state_dependent_mass_relation() -> (eqiora::sem::KernelProgram, Id<kinds::Rel
                     DimExponents::DIMENSIONLESS,
                 ),
             )
-            .with_initial(DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))
+            .with_initial(
+                DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
             .unwrap(),
         ),
         KernelNode::from(ParameterDef::new(rate, DynQuantity::new(2.0, inverse_time))),
@@ -620,7 +632,11 @@ fn canonical_index_one_dae() -> (
                     DimExponents::DIMENSIONLESS,
                 ),
             )
-            .with_initial(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
+            .with_initial(
+                DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
             .unwrap(),
         ),
         KernelNode::from(
@@ -631,7 +647,11 @@ fn canonical_index_one_dae() -> (
                     DimExponents::DIMENSIONLESS,
                 ),
             )
-            .with_initial(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
+            .with_initial(
+                DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
             .unwrap(),
         ),
         KernelNode::from(ParameterDef::new(rate, DynQuantity::new(1.0, inverse_time))),
@@ -729,7 +749,11 @@ fn canonical_dense_mass_matrix(
                     DimExponents::DIMENSIONLESS,
                 ),
             )
-            .with_initial(DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))
+            .with_initial(
+                DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
             .unwrap(),
         ),
         KernelNode::from(
@@ -740,7 +764,11 @@ fn canonical_dense_mass_matrix(
                     DimExponents::DIMENSIONLESS,
                 ),
             )
-            .with_initial(DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))
+            .with_initial(
+                DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
             .unwrap(),
         ),
         KernelNode::from(ParameterDef::new(rate, DynQuantity::new(1.0, inverse_time))),
@@ -849,7 +877,11 @@ fn canonical_bouncing_ball() -> CanonicalBouncingBall {
                 height,
                 eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, length),
             )
-            .with_initial(DynQuantity::new(1.0, length))
+            .with_initial(
+                DynQuantity::new(1.0, length)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
             .unwrap(),
         ),
         KernelNode::from(
@@ -857,7 +889,11 @@ fn canonical_bouncing_ball() -> CanonicalBouncingBall {
                 velocity,
                 eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, velocity_dimension),
             )
-            .with_initial(DynQuantity::new(0.0, velocity_dimension))
+            .with_initial(
+                DynQuantity::new(0.0, velocity_dimension)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
             .unwrap(),
         ),
         KernelNode::from(ParameterDef::new(

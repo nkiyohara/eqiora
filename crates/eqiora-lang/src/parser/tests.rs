@@ -613,7 +613,7 @@ fn shaped_fields_never_desugar_a_scalar_initial_value() {
 
     let invalid = parse(
         "broadcast.eqi",
-        "model M { field velocity: array<m / s, 2> = 0; }",
+        "model M { field velocity: array<m / s, 2> = 1; }",
     );
     assert!(invalid.diagnostics().iter().any(|diagnostic| {
         diagnostic

@@ -1048,7 +1048,7 @@ pub struct FieldDecl {
     pub(crate) domain: Option<String>,
     pub(crate) representation: Option<String>,
     pub(crate) value_type: ValueTypeSyntax,
-    pub(crate) initial: Option<f64>,
+    pub(crate) initial: Option<Expr>,
     pub(crate) range: TextRange,
 }
 
@@ -1083,13 +1083,11 @@ impl FieldDecl {
         self.value_type.dimension()
     }
 
-    /// Scalar initial literal in coherent SI units.
-    ///
-    /// Non-scalar Fields have no initial until a shaped-value source and wire
-    /// contract exists; absence never means an implicit zero broadcast.
+    /// Numeric or explicitly unit-bearing initial literal.
+    /// Bare literals inherit declared units; shaped values admit contextual zero.
     #[must_use]
-    pub const fn initial(&self) -> Option<f64> {
-        self.initial
+    pub const fn initial(&self) -> Option<&Expr> {
+        self.initial.as_ref()
     }
 
     /// Full declaration range.

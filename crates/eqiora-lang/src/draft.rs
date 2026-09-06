@@ -151,7 +151,9 @@ impl ModelDraft {
                     if let Err(message) = value_type::validate(&field.value_type) {
                         diagnostics.push(native_diagnostic(&self.name, field.name(), message));
                     }
-                    if !field.value_type.shape().is_scalar() && field.initial.is_some() {
+                    if !field.value_type.shape().is_scalar()
+                        && field.initial.is_some_and(|value| value != 0.0)
+                    {
                         diagnostics.push(native_diagnostic(
                             &self.name,
                             field.name(),
@@ -432,7 +434,10 @@ impl ModelDraft {
                         &mut ranges,
                         &mut paths,
                     ),
-                    initial: field.initial,
+                    initial: field.initial.map(|value| Expr {
+                        kind: ExprKind::Number(value),
+                        range,
+                    }),
                     range,
                 }),
                 DraftDeclaration::Parameter(parameter) => Item::Parameter(ParameterDecl {

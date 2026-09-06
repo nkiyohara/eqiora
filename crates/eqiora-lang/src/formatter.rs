@@ -366,8 +366,10 @@ fn format_field(declaration: &FieldDecl, indent: usize, output: &mut String) {
     }
     output.push_str(": ");
     value_type::format_value_type(&declaration.value_type, output);
-    if let Some(initial) = declaration.initial {
-        writeln!(output, " = {};", format_number(initial)).expect("String write");
+    if let Some(initial) = &declaration.initial {
+        output.push_str(" = ");
+        format_expression(initial, 0, output);
+        output.push_str(";\n");
     } else {
         output.push_str(";\n");
     }

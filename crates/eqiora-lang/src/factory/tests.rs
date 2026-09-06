@@ -41,7 +41,7 @@ fn owned_flat_model_formats_and_parses_identically() {
         Some("body".to_owned()),
         Some("space".to_owned()),
         crate::ValueTypeSyntax::real(dimension()),
-        Some(0.0),
+        Some(SourceAstFactory::expression(ExprKind::Number(0.0), range(0, 0)).unwrap()),
         range(0, 0),
     )
     .expect("Field");

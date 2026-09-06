@@ -375,7 +375,11 @@ fn canonical_nonlinear_derivative_relation() -> (
                     DimExponents::DIMENSIONLESS,
                 ),
             )
-            .with_initial(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
+            .with_initial(
+                DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)
+                    .try_into()
+                    .expect("finite real initial value"),
+            )
             .unwrap(),
         ),
         KernelNode::from(RelationDef::new(

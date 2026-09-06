@@ -26,7 +26,7 @@ impl WireNode {
             },
             KernelNode::Field(value) => WireNodeDefinition::Field {
                 value_type: WireValueType::encode(value.value_type())?,
-                initial: value.initial().map(WireQuantity::encode),
+                initial: value.initial().map(eqiora_core::ValueLiteral::literal),
             },
             KernelNode::Parameter(value) => WireNodeDefinition::Parameter {
                 value: WireQuantity::encode(value.value()),
@@ -98,8 +98,16 @@ impl WireNode {
                 let id = self.id.typed::<kinds::Field>()?;
                 let mut definition = FieldDef::new(id, value_type.decode()?);
                 if let Some(initial) = initial {
+                    if *initial == 0.0 && initial.is_sign_negative() {
+                        return Err(invalid_artifact(
+                            "Field initial literal must use canonical positive zero",
+                        ));
+                    }
+                    let initial =
+                        eqiora_core::ValueLiteral::new(definition.value_type().clone(), *initial)
+                            .map_err(|error| invalid_artifact(error.to_string()))?;
                     definition = definition
-                        .with_initial(initial.decode()?)
+                        .with_initial(initial)
                         .map_err(|error| invalid_artifact(error.message()))?;
                 }
                 Ok(definition.into())
@@ -238,7 +246,7 @@ pub(crate) enum WireNodeDefinition {
     },
     Field {
         value_type: WireValueType,
-        initial: Option<WireQuantity>,
+        initial: Option<f64>,
     },
     Parameter {
         value: WireQuantity,

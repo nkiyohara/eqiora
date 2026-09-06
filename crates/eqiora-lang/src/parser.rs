@@ -737,16 +737,18 @@ impl Parser<'_> {
         self.expect(TokenKind::Colon, "`:` before mathematical type")?;
         let value_type = self.parse_value_type()?;
         let scalar = value_type.is_scalar();
-        let initial = if scalar && self.at(TokenKind::Equal) {
+        let initial = if self.at(TokenKind::Equal) {
             self.bump();
-            Some(self.parse_signed_number()?)
-        } else if self.at(TokenKind::Equal) {
-            self.error_here(
-                "non-scalar Field cannot have a scalar initial value; omit `=` until shaped values are supported",
-            );
-            self.bump();
-            let _ = self.parse_signed_number()?;
-            None
+            let initial = self.parse_signed_quantity_literal()?;
+            if !scalar
+                && !matches!(
+                    initial.kind(),
+                    ExprKind::Number(0.0) | ExprKind::Quantity { value: 0.0, .. }
+                )
+            {
+                self.error_here("non-scalar Field cannot have a scalar initial value; only contextual zero is supported");
+            }
+            Some(initial)
         } else {
             None
         };

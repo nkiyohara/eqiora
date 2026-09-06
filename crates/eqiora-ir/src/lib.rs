@@ -13,7 +13,7 @@ mod scalar;
 pub use calculus::{
     CalculusBuilder, CalculusError, CalculusNode, CalculusNodeId, ExactRational,
     FormalDimensionMonomial, FormalTypeRule, NormalizationProof, NormalizationRuleId,
-    OperatorApplicationProof, OperatorDefinitionDigest, OperatorExpansion, OperatorExpansionExt,
+    OperatorApplicationProof, OperatorDefinitionDigest, OperatorExpansionExt,
     PureOperatorApplicationProof, PureOperatorDefinition, PureOperatorError,
     PureOperatorInstantiation, PureValueClass, ResultAxis, ResultTypeRule, ScalarCalculus,
     ScalarCalculusAtom, ScalarCalculusNode, StandardPureOperator, SupportMap, SupportMapIntent,

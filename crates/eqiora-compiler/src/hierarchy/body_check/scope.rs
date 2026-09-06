@@ -485,22 +485,12 @@ pub(in crate::hierarchy) fn field_expression_type<I>(
     declaration: &FieldDecl,
     support: Option<SpatialSupport<I>>,
 ) -> Result<ExpressionType<I>, Diagnostic> {
-    let inferred = ExpressionType::new(
-        crate::value_types::lower_value_type(file, declaration.value_type(), support.as_ref())?,
-        support,
-    );
-    match (inferred.shape().is_scalar(), declaration.initial()) {
-        (true, Some(_)) | (true, None) | (false, None) => {}
-        (false, Some(_)) => {
-            return Err(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                file,
-                declaration.range(),
-                "non-scalar Field cannot receive a scalar initial value",
-            ));
-        }
+    let value_type =
+        crate::value_types::lower_value_type(file, declaration.value_type(), support.as_ref())?;
+    if let Some(initial) = declaration.initial() {
+        crate::units::typed_literal(file, initial, value_type.clone())?;
     }
-    Ok(inferred)
+    Ok(ExpressionType::new(value_type, support))
 }
 
 pub(super) fn component_port_contract(

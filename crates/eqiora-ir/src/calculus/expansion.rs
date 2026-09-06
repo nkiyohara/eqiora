@@ -8,9 +8,6 @@ use eqiora_schema::kernel::typing::ExpressionType;
 
 use super::CalculusError;
 
-/// Backward-compatible name for the schema-owned typed instantiation.
-pub type OperatorExpansion<'a, I> = PureOperatorInstantiation<'a, I>;
-
 /// Lowered component expansion for a schema-owned typed instantiation.
 ///
 /// Keeping this operation in L2 prevents the canonical definition vocabulary

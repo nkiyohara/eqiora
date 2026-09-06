@@ -22,7 +22,7 @@ impl LoweringModel {
                         domain: declaration.domain().map(str::to_owned),
                         representation: declaration.representation().map(str::to_owned),
                         value_type: declaration.value_type().clone(),
-                        initial: declaration.initial(),
+                        initial: declaration.initial().cloned(),
                         range: declaration.range(),
                     },
                     Item::Parameter(declaration) => LoweringItem::Parameter {

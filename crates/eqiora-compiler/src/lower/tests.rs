@@ -387,6 +387,20 @@ model scalar_poisson {
 }
 
 #[test]
+fn source_pure_operators_admit_complex_fields_without_real_narrowing() {
+    let source = "public pure operator dyadic(left: spatial[1], right: spatial[1]) -> spatial[2]
+        = component(left, 0) * component(right, 1);
+    model M {
+        domain body = box(0, 1, 0, 1);
+        representation space = continuum;
+        field left on body as space: vector<complex<1>, 2>;
+        field right on body as space: vector<1, 2>;
+        relation r continuous on body { div(div(dyadic(left, right))) = 0; }
+    }";
+    compile("complex-operator.eqi", source).unwrap();
+}
+
+#[test]
 fn compiler_lowers_source_declared_pure_operator_as_one_generic_application() {
     let source = r#"
 public pure operator dyadic(left: spatial[1], right: spatial[1]) -> spatial[2]
@@ -539,7 +553,7 @@ fn native_field_types_survive_direct_lowering() {
     .unwrap()
     .array(3)
     .unwrap();
-    let field = DraftField::spatial("channels", &domain, &space, value_type.clone(), None);
+    let field = DraftField::spatial("channels", &domain, &space, value_type.clone(), Some(0.0));
     let relation = DraftRelation::continuous_on(
         "balance",
         &domain,
@@ -563,7 +577,8 @@ fn native_field_types_survive_direct_lowering() {
         })
         .unwrap();
     assert_eq!(field.value_type(), &value_type);
-    assert_eq!(field.initial(), None);
+    assert_eq!(field.initial().unwrap().value_type(), &value_type);
+    assert_eq!(field.initial().unwrap().literal(), 0.0);
 }
 
 #[test]
@@ -1065,4 +1080,39 @@ fn normalized_physical_semantics(model: &CompiledModel) -> Vec<String> {
     }
 
     signatures
+}
+
+#[test]
+fn field_initial_units_normalize_and_report_the_exact_literal() {
+    let source =
+        "model M { field p: complex<m> = -2500[mm]; relation r continuous { p - p = 0; } }";
+    let compiled = compile("field-initial.eqi", source).unwrap();
+    let field = compiled[0]
+        .transaction()
+        .ops()
+        .iter()
+        .find_map(|op| match op {
+            Op::DefineKernelNode {
+                node: KernelNode::Field(field),
+            } => Some(field),
+            _ => None,
+        })
+        .unwrap();
+    let initial = field.initial().unwrap();
+    assert_eq!(initial.value_type(), field.value_type());
+    assert_eq!(initial.literal(), -2.5);
+    for literal in ["2[s]", "0[s]"] {
+        let source =
+            format!("model M {{ field p: m = {literal}; relation r continuous {{ p - p = 0; }} }}");
+        let errors = compile("field-initial.eqi", &source).unwrap_err();
+        assert!(
+            errors.iter().any(|error| {
+                error.code() == codes::LANGUAGE_TYPE_ERROR
+                    && error.source_span().is_some_and(|span| {
+                        &source[span.start as usize..span.end as usize] == literal
+                    })
+            }),
+            "{errors:?}"
+        );
+    }
 }

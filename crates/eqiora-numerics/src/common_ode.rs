@@ -640,7 +640,11 @@ model decay {
                         DimExponents::DIMENSIONLESS,
                     ),
                 )
-                .with_initial(DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))
+                .with_initial(
+                    DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)
+                        .try_into()
+                        .expect("finite real Field initial"),
+                )
                 .unwrap(),
             ),
             KernelNode::from(
@@ -651,7 +655,11 @@ model decay {
                         DimExponents::DIMENSIONLESS,
                     ),
                 )
-                .with_initial(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
+                .with_initial(
+                    DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)
+                        .try_into()
+                        .expect("finite real Field initial"),
+                )
                 .unwrap(),
             ),
             KernelNode::from(ParameterDef::new(rate, DynQuantity::new(1.0, inverse_time))),

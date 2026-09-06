@@ -48,7 +48,11 @@ fn coincident_periodic_activations_commit_next_fields_simultaneously() {
                     DimExponents::DIMENSIONLESS,
                 ),
             )
-            .with_initial(DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))
+            .with_initial(
+                DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)
+                    .try_into()
+                    .expect("finite real initial value"),
+            )
             .expect("left initial"),
         ),
         KernelNode::from(
@@ -59,7 +63,11 @@ fn coincident_periodic_activations_commit_next_fields_simultaneously() {
                     DimExponents::DIMENSIONLESS,
                 ),
             )
-            .with_initial(DynQuantity::new(2.0, DimExponents::DIMENSIONLESS))
+            .with_initial(
+                DynQuantity::new(2.0, DimExponents::DIMENSIONLESS)
+                    .try_into()
+                    .expect("finite real initial value"),
+            )
             .expect("right initial"),
         ),
         KernelNode::from(RelationDef::new(

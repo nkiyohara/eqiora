@@ -182,7 +182,11 @@ fn thermal_fixture() -> ThermalFixture {
                     temperature_dimension,
                 ),
             )
-            .with_initial(DynQuantity::new(293.0, temperature_dimension))
+            .with_initial(
+                DynQuantity::new(293.0, temperature_dimension)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
             .expect("temperature initial"),
         ),
         KernelNode::from(
@@ -193,7 +197,11 @@ fn thermal_fixture() -> ThermalFixture {
                     DimExponents::DIMENSIONLESS,
                 ),
             )
-            .with_initial(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
+            .with_initial(
+                DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
             .expect("command initial"),
         ),
         KernelNode::from(ParameterDef::new(

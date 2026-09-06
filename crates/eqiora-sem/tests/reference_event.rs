@@ -219,7 +219,11 @@ fn bouncing_fixture(direction: EventDirection, reverse_nodes: bool) -> BouncingF
                 height,
                 eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, length),
             )
-            .with_initial(DynQuantity::new(1.0, length))
+            .with_initial(
+                DynQuantity::new(1.0, length)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
             .unwrap(),
         ),
         KernelNode::from(
@@ -227,7 +231,11 @@ fn bouncing_fixture(direction: EventDirection, reverse_nodes: bool) -> BouncingF
                 velocity,
                 eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, velocity_dimension),
             )
-            .with_initial(DynQuantity::new(0.0, velocity_dimension))
+            .with_initial(
+                DynQuantity::new(0.0, velocity_dimension)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
             .unwrap(),
         ),
         KernelNode::from(ParameterDef::new(
@@ -368,7 +376,11 @@ fn chattering_program() -> KernelProgram {
                     DimExponents::DIMENSIONLESS,
                 ),
             )
-            .with_initial(DynQuantity::new(1.0e-6, DimExponents::DIMENSIONLESS))
+            .with_initial(
+                DynQuantity::new(1.0e-6, DimExponents::DIMENSIONLESS)
+                    .try_into()
+                    .expect("finite real Field initial"),
+            )
             .unwrap(),
         ),
         KernelNode::from(ParameterDef::new(rate, DynQuantity::new(1.0, inverse_time))),

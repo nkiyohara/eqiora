@@ -250,7 +250,12 @@ fn encode_node(
             encode_dimension(&mut encoder, field.dimension())?;
             encode_shape(&mut encoder, field.shape())?;
             encode_frame(&mut encoder, field.frame())?;
-            encode_optional_quantity(&mut encoder, field.initial())?;
+            encode_optional_quantity(
+                &mut encoder,
+                field
+                    .initial()
+                    .map(|value| DynQuantity::new(value.literal(), value.value_type().dimension())),
+            )?;
         }
         KernelNode::Parameter(parameter) => {
             encoder.u8(4)?;

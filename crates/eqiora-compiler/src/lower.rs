@@ -342,7 +342,7 @@ pub(crate) enum LoweringItem {
         domain: Option<String>,
         representation: Option<String>,
         value_type: eqiora_lang::ValueTypeSyntax,
-        initial: Option<f64>,
+        initial: Option<eqiora_lang::Expr>,
         range: TextRange,
     },
     Parameter {
@@ -673,20 +673,12 @@ pub(crate) fn lower_typed_model(
                 };
                 resolve_field_contract(file, *range, &contract, &bindings)
                     .and_then(|value_type| {
-                        let dimension = value_type.dimension();
-                        let definition = match (value_type.shape().is_scalar(), *initial) {
-                            (true, Some(initial)) => FieldDef::new(id, value_type)
-                                .with_initial(DynQuantity::new(
-                                    normalize_zero(initial),
-                                    dimension,
-                                )),
-                            (_, None) => Ok(FieldDef::new(id, value_type)),
-                            (false, Some(_)) => Err(source_error(
-                                codes::LANGUAGE_TYPE_ERROR,
-                                file,
-                                *range,
-                                "non-scalar Field cannot receive a scalar initial value",
-                            )),
+                        let definition = match initial {
+                            Some(initial) => {
+                                let literal = crate::units::typed_literal(file, initial, value_type.clone())?;
+                                FieldDef::new(id, value_type).with_initial(literal)
+                            }
+                            None => Ok(FieldDef::new(id, value_type)),
                         }?;
                         Ok(definition)
                     })

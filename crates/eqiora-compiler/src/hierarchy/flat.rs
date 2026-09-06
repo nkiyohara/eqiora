@@ -87,7 +87,7 @@ pub(super) enum FlatItemBlueprint {
         domain: Option<String>,
         representation: Option<String>,
         value_type: eqiora_lang::ValueTypeSyntax,
-        initial: Option<f64>,
+        initial: Option<eqiora_lang::Expr>,
         range: TextRange,
         identity: EntityIdentity,
     },
@@ -355,7 +355,7 @@ impl ExpandedBlueprint {
                     domain: domain.clone(),
                     representation: representation.clone(),
                     value_type: value_type.clone(),
-                    initial: *initial,
+                    initial: initial.clone(),
                     range: *range,
                 },
                 FlatItemBlueprint::Parameter {

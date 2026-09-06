@@ -422,7 +422,11 @@ fn manually_allocated_program(reverse_expression: bool, expose_port: bool) -> Ke
                     DimExponents::DIMENSIONLESS,
                 ),
             )
-            .with_initial(DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))
+            .with_initial(
+                DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)
+                    .try_into()
+                    .expect("finite real initial value"),
+            )
             .unwrap()
             .into(),
         })
@@ -434,7 +438,11 @@ fn manually_allocated_program(reverse_expression: bool, expose_port: bool) -> Ke
                     DimExponents::DIMENSIONLESS,
                 ),
             )
-            .with_initial(DynQuantity::new(2.0, DimExponents::DIMENSIONLESS))
+            .with_initial(
+                DynQuantity::new(2.0, DimExponents::DIMENSIONLESS)
+                    .try_into()
+                    .expect("finite real initial value"),
+            )
             .unwrap()
             .into(),
         })

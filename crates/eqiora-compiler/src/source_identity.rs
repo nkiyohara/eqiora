@@ -757,7 +757,7 @@ fn encode_field(
         value_type::encode_value_type(encoder, declaration.value_type(), budget, 1)
     })?;
     if let Some(initial) = declaration.initial() {
-        encoder.field(5, |encoder| encoder.f64(initial))?;
+        encoder.field(5, |encoder| encode_expression(encoder, initial, budget, 1))?;
     }
     Ok(())
 }

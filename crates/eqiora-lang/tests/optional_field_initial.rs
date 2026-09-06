@@ -1,6 +1,27 @@
 use eqiora_lang::{ExprKind, Item, SourceAstFactory, TextRange, format, parse};
 
 #[test]
+fn field_initial_units_and_sign_roundtrip_without_erasure() {
+    let source = "model M { field distance: complex<m> = -2500[mm]; }";
+    let document = parse("field-unit.eqi", source).into_document().unwrap();
+    let Item::Field(field) = &document.models()[0].items()[0] else {
+        panic!("expected Field");
+    };
+    let initial = field.initial().unwrap();
+    assert_eq!(
+        &source[initial.range().start() as usize..initial.range().end() as usize],
+        "-2500[mm]"
+    );
+    assert!(
+        matches!(initial.kind(), ExprKind::Quantity { value: -2500.0, unit } if matches!(unit.kind(), ExprKind::Name(name) if name == "mm"))
+    );
+    let formatted = format(&document);
+    assert!(formatted.contains("= -2500 [mm];"));
+    let reparsed = parse("formatted.eqi", &formatted).into_document().unwrap();
+    assert_eq!(format(&reparsed), formatted);
+}
+
+#[test]
 fn scalar_field_absence_roundtrips_through_source() {
     let document = parse("uninitialized-field.eqi", "model M { field pressure: Pa; }")
         .into_document()
