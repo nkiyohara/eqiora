@@ -33,6 +33,67 @@ const FUNCTIONAL: DimExponents =
     DimExponents::from_integers([1, 1, -3, 0, 0, 0, 0]).expect("bounded dimension");
 
 #[test]
+fn dimensional_linear_fields_have_complete_canonical_bindings() {
+    let lineage = RealizationLineage::explicit(
+        OntologyId::from_ulid("01ARZ3NDEKTSV4RRFFQ69G5FAV".parse::<ulid::Ulid>().unwrap()),
+        SemanticRevision::new(1),
+        RealizationRevision::new(1),
+    );
+    let domain = Id::new();
+    let space = Space::continuous_lagrange(NonZeroU16::MIN);
+    let bindings = [
+        FieldSpaceBinding::new(Id::new(), space),
+        FieldSpaceBinding::new(Id::new(), space),
+    ];
+    let build = |bindings: Vec<FieldSpaceBinding>| {
+        PortableRealizationGraph::linear_fields(
+            lineage,
+            domain,
+            bindings,
+            crate::Discretization::new(
+                DiscretizationMethod::ContinuousGalerkin,
+                MeshPolicy::GeneratedUniform {
+                    cells_per_axis: NonZeroUsize::new(2).unwrap(),
+                },
+                QuadraturePolicy::GaussLegendre {
+                    points_per_axis: NonZeroUsize::new(2).unwrap(),
+                },
+            ),
+            LinearOperatorProperties::General,
+            ScalarType::F64,
+            VectorLayoutKind::Replicated,
+            SolverPlan::new(
+                LinearSolver::BiConjugateGradientStabilized,
+                1.0e-8,
+                1.0e-12,
+                NonZeroUsize::new(100).unwrap(),
+            )
+            .unwrap(),
+            Target::HostCpu {
+                threads: NonZeroUsize::MIN,
+            },
+            ExecutionSchedule::Offline,
+        )
+    };
+    let graph = build(bindings.to_vec()).unwrap();
+    let reversed = build(bindings.into_iter().rev().collect()).unwrap();
+    assert_eq!(graph, reversed);
+    assert_eq!(graph.digest().unwrap(), reversed.digest().unwrap());
+    assert_eq!(graph.fields().len(), 2);
+    assert_eq!(graph.systems()[0].blocks.len(), 2);
+    assert_eq!(graph.systems()[0].scaling, SystemScaling::Dimensional);
+    assert_eq!(
+        PortableRealizationGraph::from_bytes(&graph.to_bytes().unwrap()).unwrap(),
+        graph
+    );
+    assert!(build(Vec::new()).is_err());
+    assert!(build(vec![bindings[0], bindings[0]]).is_err());
+    let mut missing = graph;
+    missing.systems[0].blocks.pop();
+    assert!(missing.validate().is_err());
+}
+
+#[test]
 fn transient_projection_is_one_connected_typed_solve_dag() {
     let fixture = Fixture::new();
     let resolved = fixture.resolve();

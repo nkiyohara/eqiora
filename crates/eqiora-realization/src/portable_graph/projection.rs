@@ -36,11 +36,10 @@ impl ResolvedRealization {
         self.require_admitted_operator_properties(operator_properties)?;
         let plan = self.plan();
         let requirements = self.requirements();
-        PortableRealizationGraph::linear_single_field(
+        PortableRealizationGraph::linear_fields(
             RealizationLineage::new(self.model(), self.semantic_revision(), self.source()),
             domain,
-            field,
-            plan.space(),
+            [crate::FieldSpaceBinding::new(field, plan.space())],
             plan.discretization(),
             operator_properties,
             requirements.scalar_type(),

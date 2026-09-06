@@ -179,15 +179,17 @@ pub(super) fn resolve_common_scalar_portable(
         ScalarType::F64,
         LinearOperatorProperties::SymmetricPositiveDefinite,
     )?;
-    PortableRealizationGraph::linear_single_field(
+    PortableRealizationGraph::linear_fields(
         RealizationLineage::explicit(
             admission.program().model(),
             SemanticRevision::new(admission.program().revision().0),
             RealizationRevision::new(COMMON_SCALAR_REALIZATION_REVISION),
         ),
         lowered.domain_id(),
-        lowered.field_id(),
-        space,
+        [eqiora_realization::FieldSpaceBinding::new(
+            lowered.field_id(),
+            space,
+        )],
         Discretization::new(method, mesh, quadrature),
         LinearOperatorProperties::SymmetricPositiveDefinite,
         ScalarType::F64,
