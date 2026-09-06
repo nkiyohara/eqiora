@@ -1562,7 +1562,7 @@ class PreviousRunAuthenticationTests(unittest.TestCase):
                 self.assertFalse(result["lanes"][lane])
                 job["steps"][0]["conclusion"] = "success"
 
-    def test_rejects_cross_pr_or_ambiguous_success(self) -> None:
+    def test_rejects_missing_same_pr_success(self) -> None:
         previous = "b" * 40
         wrong_pr = {
             "id": 92,
@@ -1582,11 +1582,10 @@ class PreviousRunAuthenticationTests(unittest.TestCase):
             [{**same_pr, "event": "push"}],
             [{**same_pr, "conclusion": "failure"}],
             [{**same_pr, "status": "in_progress"}],
-            [same_pr, {**same_pr, "id": 93}],
         ]
         for runs in invalid_runs:
             with self.subTest(runs=runs), self.assertRaisesRegex(
-                ValueError, "exactly one successful prior workflow run"
+                ValueError, "did not find a successful prior workflow run"
             ):
                 authenticate(
                     repository="nkiyohara/eqiora",
@@ -1594,6 +1593,57 @@ class PreviousRunAuthenticationTests(unittest.TestCase):
                     previous_sha=previous,
                     workflow="ci.yml",
                     fetch=lambda url: {"total_count": len(runs), "workflow_runs": runs},
+                )
+
+    def test_pages_selects_newest_heavy_run_not_a_later_lightweight_success(self) -> None:
+        previous = "a" * 40
+        runs = [{
+            "id": run_id, "head_sha": previous, "event": "pull_request",
+            "status": "completed", "conclusion": "success",
+            "pull_requests": [{"number": 716}],
+            "html_url": f"https://github.com/nkiyohara/eqiora/actions/runs/{run_id}",
+        } for run_id in (91, 93, 92)]
+        for heavy, selected in (({91, 92, 93}, 93), ({91, 92}, 92), ({91}, 91), (set(), 93)):
+            with self.subTest(heavy=heavy):
+                requested = []
+
+                def fetch(url: str) -> object:
+                    if "/jobs?" not in url:
+                        return {"total_count": len(runs), "workflow_runs": runs}
+                    run_id = int(url.split("/runs/", 1)[1].split("/", 1)[0])
+                    requested.append(run_id)
+                    return {"total_count": 1, "jobs": [{
+                        "name": "Build and verify static documentation",
+                        "conclusion": "success", "steps": [{
+                            "name": "Build and verify with only loopback networking",
+                            "status": "completed",
+                            "conclusion": "success" if run_id in heavy else "skipped",
+                        }],
+                    }]}
+
+                result = authenticate(
+                    repository="nkiyohara/eqiora", pull_request=716,
+                    previous_sha=previous, workflow="pages.yml", fetch=fetch,
+                )
+                self.assertEqual(result["run_id"], selected)
+                self.assertEqual(result["lanes"]["site"], bool(heavy))
+                self.assertEqual(requested, [93, 92, 91][:len(requested)])
+
+        with self.assertRaisesRegex(ValueError, "duplicate prior workflow run identity"):
+            authenticate(
+                repository="nkiyohara/eqiora", pull_request=716,
+                previous_sha=previous, workflow="pages.yml",
+                fetch=lambda url: {"total_count": 2, "workflow_runs": [runs[0], runs[0]]},
+            )
+
+        for jobs_payload in ({"total_count": 1, "jobs": []}, {"total_count": 0}):
+            with self.subTest(jobs=jobs_payload), self.assertRaises(ValueError):
+                authenticate(
+                    repository="nkiyohara/eqiora", pull_request=716,
+                    previous_sha=previous, workflow="pages.yml",
+                    fetch=lambda url: jobs_payload if "/jobs?" in url else {
+                        "total_count": len(runs), "workflow_runs": runs,
+                    },
                 )
 
 
