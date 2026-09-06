@@ -114,11 +114,18 @@ The same workflow retains an explicit manual mode for a release candidate or
 CI-contract audit:
 
 ```bash
-gh workflow run ci.yml --ref main -f commit=<full-lowercase-commit-sha>
+gh workflow run ci.yml --ref main -f commit=<full-main-head-sha>
+# Verify an unmerged candidate in its own ref's cache scope:
+gh workflow run ci.yml --ref <candidate-branch> -f commit=<full-candidate-head-sha>
 ```
 
-Manual mode checks out exactly that object, rejects abbreviated or mismatched
-SHAs, and selects the full compatibility matrix. A hosted run is evidence only
+Manual CI and release workflows require the selected full lowercase commit SHA
+to equal the dispatch ref's frozen revision before executing selected source.
+Use a ref pointing at the candidate (or historical commit), not `--ref main` with
+an unrelated commit. This keeps candidate code outside the shared main cache
+scope. Production additionally checks the annotated tag before importing release
+code; promotion still requires the successful exact-main candidate run.
+Manual CI selects the full compatibility matrix. A hosted run is evidence only
 for the exact commit it reports. No schedule, activity ledger, or missed-run
 monitor exists; add one only if a recurring measured failure requires it.
 
@@ -182,8 +189,15 @@ does not establish optional native-backend or scientific claims.
 - No private developer, GPU, or HPC runner is attached to public Actions.
 - Checkout credentials are not persisted.
 - Fork pull requests receive no release environment or package credential.
-- Dependency caches are added only after measured benefit and key-isolation
-  review.
+- Stable uses a pinned dependency-only Rust cache. Only successful exact-main
+  manual CI saves; PRs and candidate-ref runs restore without saving. The cache
+  excludes workspace outputs, binaries, incremental data and reports. Compiler,
+  runner/native environment and build-profile inputs isolate fallback keys;
+  Cargo manifests, lockfiles and configuration determine dependency keys.
+  The action's incremental override is reset for non-test builds; tests retain
+  their existing non-incremental profile. Seed once through exact-main manual
+  CI, then inspect an actual hosted restore and Cargo timings before claiming
+  a speedup. No recurring main build exists solely to populate the cache.
 - The quality job retains Cargo's HTML build-timing reports for seven days,
   including per-crate compilation and scheduling. Use reports from the same
   hosted profile to investigate build cost before changing optimization or caches.

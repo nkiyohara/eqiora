@@ -23,6 +23,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
+      - name: Bind manual source to the dispatch revision
+        env:
+          SELECTED_COMMIT: ${{ inputs.commit }}
+        run: |
+          [[ "$SELECTED_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          test "$SELECTED_COMMIT" = "$GITHUB_SHA"
       - name: Check out the exact candidate source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
