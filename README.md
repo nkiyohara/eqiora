@@ -5,9 +5,9 @@
 <h1 align="center">Eqiora</h1>
 
 <p align="center">
-  <strong>Computational physics, from equations to results.</strong><br>
-  An open-source platform for mathematical models, numerical simulation, and scientific computing.<br>
-  Python for exploration. Rust at the core. The physics stays in view.
+  <strong>Any physics. One language.</strong><br>
+  Model and couple physical systems with readable mathematics—and the freedom to choose or build your own numerical methods.<br>
+  An open-source computational physics platform. Python for exploration. Rust at the core.
 </p>
 
 <p align="center">
@@ -52,20 +52,36 @@ boundary forces, and fluxes through the shared Python workflow.
 
 ## ✨ Why Eqiora?
 
-- **🧮 Keep equations close to the model.** Describe physical quantities,
-  relations, and connections in `.eqi` source; use Python to build and explore
-  the surrounding workflow.
-- **🧭 Separate physics from numerical choices.** Geometry, mesh, discretization,
-  and solver policies remain explicit, so you can see what a simulation assumes.
-- **🐍 Work naturally in Python.** Compile models, resolve a plan, run it, and
-  inspect fields, diagnostics, and Matplotlib plots from one API.
-- **🦀 Build on a shared Rust core.** Python and the Rust facade use the same
-  model semantics, rather than separate implementations of the physics.
-- **🔎 Trace a result back to its inputs.** Typed field handles and immutable
-  plans keep outputs associated with the model, geometry, mesh, and choices
-  that produced them.
-- **🧪 Explore with the evidence in reach.** Follow worked examples into their
-  source, checks, and [capability status](docs/capability-matrix.md).
+Eqiora is being built around a simple kind of freedom: describe the physics you
+care about, combine the models you need, and use the numerical methods that fit
+the problem.
+
+- **🌐 One language across physics.** Bring fields, equations, physical
+  connections, continuous dynamics, and discrete events into a common
+  mathematical model.
+- **🔗 Coupling belongs in the model.** Make interactions explicit, from
+  connected components to strongly coupled systems whose unknowns must be
+  solved together.
+- **🛠️ Space for your own numerical methods.** Separate what the equations
+  mean from how they are solved—the foundation for changing discretizations,
+  integrating a custom solver, or developing a new method.
+- **🧮 Mathematics you can read.** Express quantities, units, equations, and
+  boundary conditions in Eqiora's domain-specific language (`.eqi`). Keep the
+  assumptions visible to the people who read, review, and extend a model.
+- **🧩 Models that grow with your work.** Reuse components and constitutive
+  laws, compose them into larger systems, and replace individual parts as your
+  research or application evolves.
+- **🐍 A natural home for computational experiments.** Use Python to build
+  geometry, mesh, run simulations, inspect NumPy field data, and make plots.
+  Connect the same workflow to your experiment scripts and analysis tools.
+- **🦀 Native execution, one shared core.** Python and Rust applications share
+  the same mathematical model and execution foundations. Numerical backends
+  live alongside that model, keeping physical definitions separate from
+  implementation choices.
+- **🔎 Calculations you can inspect.** Type and dimension checks catch model
+  inconsistencies; explicit plans and typed outputs connect each result to its
+  equations, geometry, mesh, and solver settings. Follow examples into their
+  source and checks.
 
 ## 🚀 Get started with uv
 
@@ -171,7 +187,9 @@ Equations + Geometry   →   Model   →   Plan   →   Result
                               Mesh · Method · Solver
 ```
 
-This separation lets you read the physics, numerical setup, and result together.
+This separation keeps the physical model readable while you experiment with
+discretizations and solver policies. Fields and diagnostics remain connected to
+the choices that produced them.
 Explore the [architecture](docs/architecture.md) for how the pieces fit.
 
 ## 🦀 Use from Rust
