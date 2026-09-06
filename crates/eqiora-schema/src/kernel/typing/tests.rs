@@ -50,7 +50,7 @@ fn complex_domain_survives_arithmetic_and_spatial_type_inference() {
 }
 
 #[test]
-fn real_only_pure_definition_rejects_complex_arguments_without_erasing_the_domain() {
+fn pure_definition_preserves_the_complex_argument_domain() {
     use eqiora_core::ScalarDomain;
     use eqiora_core::ValueType;
     let tensor = ExpressionType::new(
@@ -65,10 +65,13 @@ fn real_only_pure_definition_rejects_complex_arguments_without_erasing_the_domai
     );
     let definition =
         crate::kernel::pure_operator::PureOperatorDefinition::symmetric_part().unwrap();
-    assert!(matches!(
-        definition.instantiate(&[tensor]),
-        Err(PureOperatorError::FormalTypeMismatch)
-    ));
+    assert_eq!(
+        definition
+            .instantiate(std::slice::from_ref(&tensor))
+            .unwrap()
+            .result_type(),
+        &tensor,
+    );
 }
 
 #[test]
