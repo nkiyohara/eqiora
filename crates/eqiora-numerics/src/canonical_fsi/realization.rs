@@ -26,6 +26,7 @@ use crate::simplicial_fsi::{
 };
 
 mod block;
+mod regions;
 mod result;
 mod validate;
 
@@ -57,6 +58,10 @@ pub(crate) struct PreparedResolvedFixedReferenceFsiRun2d<'a> {
     quadrature: QuadratureRule,
     realization_graph: eqiora_realization::PortableRealizationGraph,
     block_system: DiscreteBlockSystem,
+    regions: std::collections::BTreeMap<
+        eqiora_core::RawId,
+        crate::form_compiler::region::BoundRegionForm,
+    >,
 }
 
 impl PreparedResolvedFixedReferenceFsiRun2d<'_> {
@@ -517,6 +522,7 @@ fn prepare_resolved_fixed_reference_fsi_run_2d_with_assembly<'a>(
         triangle_duffy_gauss_legendre(DUFFY_POINTS_PER_AXIS).map_err(realization_error)?;
     let block_system =
         block::fixed_reference_fsi_block_system(model, resolved, mesh_artifact, mesh, partition)?;
+    let regions = regions::bind(model, resolved.plan())?;
     Ok(PreparedResolvedFixedReferenceFsiRun2d {
         model,
         resolved,
@@ -529,6 +535,7 @@ fn prepare_resolved_fixed_reference_fsi_run_2d_with_assembly<'a>(
         quadrature,
         realization_graph,
         block_system,
+        regions,
     })
 }
 
