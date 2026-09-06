@@ -17,6 +17,9 @@ pub(crate) struct CartesianLinearAssembly {
     pub(crate) report: AssemblyReport,
 }
 
+#[cfg(test)]
+mod tests;
+
 impl CartesianLinearAssembly {
     pub(crate) fn assemble(
         form: &CompiledLinearBlockForm,
