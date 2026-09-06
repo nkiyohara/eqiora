@@ -1,12 +1,13 @@
 # Eqiora.Fluid.Incompressible
 
-This package owns one reusable steady incompressible Newtonian volume law and
-one separate complete-exterior mechanical interface. The volume Component
-binds root-owned velocity, pressure, and conservative force-potential Fields.
-The boundary Component binds velocity trace and parent-outward Cauchy traction
-to exact `Eqiora.Mechanics.Interfaces::VelocityTractionBoundary` Ports.
+`SteadyStokesWithPotential2d` and `ConservativeNavierStokesWithPotential3d`
+provide steady 2D and conservative transient 3D incompressible Newtonian laws.
+They bind root-owned velocity, pressure, and conservative force-potential Fields.
 
-The Components expand into ordinary typed Relations. An enclosing Model supplies
-the Domains, Fields, boundary data, and terminal connections, then selects its
-mesh and numerical policies independently. The velocity/traction Connector
-remains distinct from the quasistatic displacement/traction Connector.
+`NewtonianMechanicalInterface2d` and `NewtonianMechanicalInterface3d` bind
+velocity trace and parent-outward Cauchy traction on the complete exterior to
+`Eqiora.Mechanics.Interfaces::VelocityTractionBoundary` Ports.
+
+These Components expand into ordinary typed Relations. The enclosing Model
+supplies Domains, Fields, and boundary data; the Realization selects mesh,
+discretization, solver, and execution policies.

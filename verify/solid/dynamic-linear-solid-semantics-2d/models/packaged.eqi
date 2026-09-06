@@ -20,17 +20,17 @@ model Main {
     field displacement = displacement,
     field velocity = velocity,
     field load_potential = load_potential,
-    density = 5,
-    mu = 3,
-    lambda = 4
+    density = 5[kg / m ^ 3],
+    mu = 3[kg / (m * s ^ 2)],
+    lambda = 4[kg / (m * s ^ 2)]
   );
   instance boundary: solid.ElastodynamicMechanicalInterface2d(
     support body = body,
     support exterior = boundaries(x_lower, x_upper, y_lower, y_upper),
     field displacement = displacement,
     field velocity = velocity,
-    mu = 3,
-    lambda = 4
+    mu = 3[kg / (m * s ^ 2)],
+    lambda = 4[kg / (m * s ^ 2)]
   );
 
   instance x_lower_zero: mechanics.ZeroVelocity2d(

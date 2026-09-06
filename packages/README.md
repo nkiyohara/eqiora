@@ -122,35 +122,26 @@ selection uses exact package identity rather than directory location.
   complete-exterior displacement/traction boundary Component over exact
   occurrence-bound Fields. Exact zero-displacement and zero-traction terminal
   Components add semantic boundary meaning without a numerical method. Its
-  current exact release also adds first-order displacement/velocity dynamics
-  and a velocity/traction interface over `Mechanics.Interfaces`; it owns no
-  mass matrix, time method, or FSI policy. Immutable
-  [`0.5.0`](releases/Eqiora.Solid.LinearElasticity/0.5.0/) adds only the
-  corresponding three-dimensional dynamic law and interface.
-- [`Eqiora.Solid 0.3.0`](releases/Eqiora.Solid/0.3.0/) is the standard starting
+  first-order displacement/velocity laws and velocity/traction interfaces
+  support 2D and 3D bodies through `Mechanics.Interfaces`.
+- [`Eqiora.Solid`](Eqiora.Solid/) is the standard starting
   point for 2D isotropic linear elasticity. It provides plane-strain and
   plane-stress models parameterized by Young's modulus and Poisson's ratio,
   typed material composition, composable Lamé-form parts, and fixed, free, or
   field-driven displacement and traction boundary conditions.
 - [`Eqiora.Mechanics.Interfaces`](Eqiora.Mechanics.Interfaces/) provides one
   nominal power-conjugate velocity/traction boundary plus exact zero-velocity
-  and zero-traction terminals. It is intentionally distinct from the solid
-  package's displacement/traction virtual-work Connector. Immutable
-  [`0.2.0`](releases/Eqiora.Mechanics.Interfaces/0.2.0/) adds exact 3D
-  terminals without changing the connector or selecting a method.
+  and zero-traction terminals in 2D and 3D. It is distinct from the solid
+  package's displacement/traction virtual-work Connector.
 - [`Eqiora.Mechanics.BoundaryLoads`](Eqiora.Mechanics.BoundaryLoads/) depends
   exactly on `Mechanics.Interfaces` and provides one normal-pressure terminal
   over a root-owned pressure Field. The package owns load meaning but no
   numerical boundary treatment.
 - [`Eqiora.Fluid.Incompressible`](Eqiora.Fluid.Incompressible/) depends exactly
-  on `Mechanics.Interfaces` and provides a steady incompressible Newtonian
-  volume law plus a separate complete-exterior velocity/Cauchy-traction
-  boundary Component. Packages select no mixed element, pressure constraint,
-  scaling, solver, transfer, or coupling policy. Immutable
-  [`0.3.0`](releases/Eqiora.Fluid.Incompressible/0.3.0/) adds a conservative
-  transient 3D law and matching complete-exterior interface while retaining
-  that separation.
-- [`Eqiora.Fluid 0.3.0`](releases/Eqiora.Fluid/0.3.0/) is the standard starting
+  on `Mechanics.Interfaces` and provides steady 2D and conservative transient
+  3D incompressible Newtonian volume laws. Separate complete-exterior
+  velocity/Cauchy-traction Components supply their boundary interfaces.
+- [`Eqiora.Fluid`](Eqiora.Fluid/) is the standard starting
   point for 2D steady Stokes models. One import provides a curated model,
   separate balance and interface components, and no-slip, traction-free,
   normal-pressure, prescribed inward-normal-velocity, and field-driven vector

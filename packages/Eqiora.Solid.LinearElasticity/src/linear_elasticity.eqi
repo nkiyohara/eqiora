@@ -107,3 +107,46 @@ public component ElastodynamicMechanicalInterface2d {
     ) - flux(mechanical[boundary = boundary]) = 0;
   }
 }
+
+public component IsotropicElastodynamicsWithPotential3d {
+  public support body: volume(ambient_dimension = 3);
+  public field slot displacement on body as continuum: vector<m, 3>;
+  public field slot velocity on body as continuum: vector<m / s, 3>;
+  public field slot load_potential on body as continuum: kg / (m * s ^ 2);
+  public parameter density: kg / m ^ 3;
+  public parameter mu: kg / (m * s ^ 2);
+  public parameter lambda: kg / (m * s ^ 2);
+
+  relation kinematics continuous on body {
+    derivative(displacement) - velocity = 0;
+  }
+  relation momentum continuous on body {
+    density * derivative(velocity)
+      - div(
+        2 * mu * symmetric_part(grad(displacement))
+        + lambda * isotropic_lift(div(displacement))
+      )
+      - grad(load_potential) = 0;
+  }
+}
+
+public component ElastodynamicMechanicalInterface3d {
+  public support body: volume(ambient_dimension = 3);
+  public support exterior: complete_exterior(parent = body);
+  public field slot displacement on body as continuum: vector<m, 3>;
+  public field slot velocity on body as continuum: vector<m / s, 3>;
+  public parameter mu: kg / (m * s ^ 2);
+  public parameter lambda: kg / (m * s ^ 2);
+
+  public port mechanical[boundary in exterior]:
+    conserving mechanics.VelocityTractionBoundary over boundary;
+
+  relation boundary_interface[boundary in exterior] continuous on boundary {
+    trace(velocity)
+      - trace(mechanical[boundary = boundary]) = 0;
+    normal(
+      2 * mu * symmetric_part(grad(displacement))
+      + lambda * isotropic_lift(div(displacement))
+    ) - flux(mechanical[boundary = boundary]) = 0;
+  }
+}

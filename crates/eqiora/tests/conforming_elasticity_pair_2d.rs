@@ -38,26 +38,21 @@ const DIRECT_SOURCE: &str =
     include_str!("../../../verify/solid/conforming-elasticity-pair-2d/models/direct.eqi");
 const PACKAGED_SOURCE: &str =
     include_str!("../../../verify/solid/conforming-elasticity-pair-2d/models/packaged.eqi");
-const ELASTICITY_README: &[u8] =
-    include_bytes!("../../../verify/solid/mixed-boundary-elasticity-2d/package-v0.3.0/README.md");
-const ELASTICITY_SOURCE: &[u8] = include_bytes!(
-    "../../../verify/solid/mixed-boundary-elasticity-2d/package-v0.3.0/src/linear_elasticity.eqi"
-);
+
+fn mechanics_package() -> PackageReleaseV1 {
+    prepare_package_release_v1(
+        embedded_package::public_sources("Eqiora.Mechanics.Interfaces"),
+        &[],
+    )
+    .expect("prepare current mechanics dependency")
+}
 
 fn elasticity_package() -> PackageReleaseV1 {
-    let sources = embedded_package::generated_sources(
-        "Eqiora.Solid.LinearElasticity",
-        "0.3.0",
-        &[
-            ("README.md", BundleRoleV1::Documentation, ELASTICITY_README),
-            (
-                "src/linear_elasticity.eqi",
-                BundleRoleV1::ModelSource,
-                ELASTICITY_SOURCE,
-            ),
-        ],
-    );
-    prepare_package_release_v1(sources, &[]).expect("prepare exact elasticity dependency")
+    prepare_package_release_v1(
+        embedded_package::public_sources("Eqiora.Solid.LinearElasticity"),
+        &[mechanics_package()],
+    )
+    .expect("prepare current elasticity dependency")
 }
 
 fn compile_packaged(dependency: &PackageReleaseV1) -> PackagedModelDocument {
@@ -101,13 +96,15 @@ fn compile_packaged_as(
         )],
     )
     .expect("closed root sources");
-    let root = prepare_package_release_v1(sources, std::slice::from_ref(dependency))
-        .expect("prepare exact coupled root");
-    let resolution =
-        ResolutionRecordV1::from_exact_releases(&root, std::slice::from_ref(dependency))
-            .expect("exact two-package resolution");
+    let dependencies = [dependency.clone(), mechanics_package()];
+    let root =
+        prepare_package_release_v1(sources, &dependencies).expect("prepare exact coupled root");
+    let resolution = ResolutionRecordV1::from_exact_releases(&root, &dependencies)
+        .expect("exact package resolution");
     let mut store = InMemoryPackageStore::default();
-    store.insert(dependency).expect("insert dependency");
+    for release in &dependencies {
+        store.insert(release).expect("insert dependency");
+    }
     store.insert(&root).expect("insert root");
     PackagedModelDocument::compile_locked(&store, &resolution, "Main")
         .expect("compile exact packaged pair")

@@ -45,7 +45,7 @@ def write_fluid_application(root: Path) -> None:
 
 def test_vendored_standard_fluid_resolves_and_compiles_offline(tmp_path: Path) -> None:
     packages = eqiora.vendor_standard_package(
-        tmp_path, "Eqiora.Fluid.Incompressible@0.2.0"
+        tmp_path, "Eqiora.Fluid.Incompressible@0.4.0"
     )
     assert [package.name for package in packages] == [
         "Eqiora.Mechanics.Interfaces",
@@ -54,10 +54,10 @@ def test_vendored_standard_fluid_resolves_and_compiles_offline(tmp_path: Path) -
     mechanics, fluid = packages
     assert len(fluid.semantic_digest) == 64
     assert len(fluid.source_digest) == 64
-    assert fluid.path == "packages/Eqiora.Fluid.Incompressible/0.2.0"
+    assert fluid.path == "packages/Eqiora.Fluid.Incompressible/0.4.0"
     assert (
         eqiora.vendor_standard_package(
-            tmp_path, "Eqiora.Fluid.Incompressible@0.2.0"
+            tmp_path, "Eqiora.Fluid.Incompressible@0.4.0"
         )
         == packages
     )
@@ -109,14 +109,14 @@ def test_standard_vendoring_rejects_changed_or_escaping_destinations(
     tmp_path: Path,
 ) -> None:
     (mechanics, fluid) = eqiora.vendor_standard_package(
-        tmp_path, "Eqiora.Fluid.Incompressible@0.2.0"
+        tmp_path, "Eqiora.Fluid.Incompressible@0.4.0"
     )
     fluid_source = tmp_path / fluid.path / "src/incompressible.eqi"
     fluid_source.write_text("changed", encoding="utf-8")
 
     with pytest.raises(eqiora.CompatibilityError, match="different bytes"):
         eqiora.vendor_standard_package(
-            tmp_path, "Eqiora.Fluid.Incompressible@0.2.0"
+            tmp_path, "Eqiora.Fluid.Incompressible@0.4.0"
         )
     assert fluid_source.read_text(encoding="utf-8") == "changed"
     assert (tmp_path / mechanics.path / "src/interfaces.eqi").is_file()
@@ -124,7 +124,7 @@ def test_standard_vendoring_rejects_changed_or_escaping_destinations(
     with pytest.raises(eqiora.CompatibilityError, match="destination is invalid"):
         eqiora.vendor_standard_package(
             tmp_path,
-            "Eqiora.Solid.LinearElasticity@0.4.0",
+            "Eqiora.Solid.LinearElasticity@0.6.0",
             destination="../outside",
         )
     assert not (tmp_path.parent / "outside").exists()
@@ -132,9 +132,27 @@ def test_standard_vendoring_rejects_changed_or_escaping_destinations(
 
 def test_standard_solid_is_available_from_the_same_distribution(tmp_path: Path) -> None:
     mechanics, solid = eqiora.vendor_standard_package(
-        tmp_path, "Eqiora.Solid.LinearElasticity@0.4.0"
+        tmp_path, "Eqiora.Solid.LinearElasticity@0.6.0"
     )
     assert mechanics.name == "Eqiora.Mechanics.Interfaces"
     assert solid.name == "Eqiora.Solid.LinearElasticity"
-    assert solid.version == "0.4.0"
+    assert solid.version == "0.6.0"
     assert (tmp_path / solid.path / "src/linear_elasticity.eqi").is_file()
+
+
+@pytest.mark.parametrize(
+    "selector",
+    [
+        "Eqiora.Fluid.Incompressible@0.2.0",
+        "Eqiora.Solid.LinearElasticity@0.4.0",
+        "Eqiora.Fluid.Incompressible@99.0.0",
+        "Eqiora.Fluid.Incompressible",
+        "Eqiora.Fluid.Incompressible@0.4.0@extra",
+    ],
+)
+def test_standard_vendoring_rejects_noncurrent_exact_selectors_without_writes(
+    tmp_path: Path, selector: str
+) -> None:
+    with pytest.raises(eqiora.CompatibilityError, match="unsupported exact package"):
+        eqiora.vendor_standard_package(tmp_path, selector)
+    assert list(tmp_path.iterdir()) == []

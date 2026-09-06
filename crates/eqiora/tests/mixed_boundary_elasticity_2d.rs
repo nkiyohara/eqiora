@@ -47,89 +47,27 @@ const PACKAGED_SOURCE: &str =
     include_str!("../../../verify/solid/mixed-boundary-elasticity-2d/models/packaged.eqi");
 const LIVE_PACKAGE_SOURCE: &str =
     include_str!("../../../packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi");
-const FROZEN_PACKAGE_SOURCE: &str = include_str!(
-    "../../../verify/solid/mixed-boundary-elasticity-2d/package-v0.3.0/src/linear_elasticity.eqi"
-);
-const FROZEN_PACKAGE_README: &[u8] =
-    include_bytes!("../../../verify/solid/mixed-boundary-elasticity-2d/package-v0.3.0/README.md");
-const FROZEN_PACKAGE_SOURCE_V0_2: &str = include_str!(
-    "../../../verify/solid/packaged-elastic-boundary-2d/package-v0.2.0/src/linear_elasticity.eqi"
-);
-const PACKAGE_NAME: &str = "Eqiora.Solid.LinearElasticity";
-const PACKAGE_VERSION: &str = "0.3.0";
 const ROOT_NAME: &str = "org.eqiora.verify.mixed_boundary_elasticity_2d";
 const ROOT_VERSION: &str = "0.1.0";
 
-fn frozen_package_sources() -> PackageSourcesV1 {
-    embedded_package::generated_sources(
-        PACKAGE_NAME,
-        PACKAGE_VERSION,
-        &[
-            (
-                "README.md",
-                BundleRoleV1::Documentation,
-                FROZEN_PACKAGE_README,
-            ),
-            (
-                "src/linear_elasticity.eqi",
-                BundleRoleV1::ModelSource,
-                FROZEN_PACKAGE_SOURCE.as_bytes(),
-            ),
-        ],
+fn mechanics_package() -> PackageReleaseV1 {
+    prepare_package_release_v1(
+        embedded_package::public_sources("Eqiora.Mechanics.Interfaces"),
+        &[],
     )
+    .expect("prepare current mechanics package")
 }
 
 fn elasticity_package() -> PackageReleaseV1 {
-    let live = eqiora::language::parse("linear_elasticity-v0.4.0.eqi", LIVE_PACKAGE_SOURCE)
-        .into_document()
-        .expect("live v0.4.0 package source parses");
-    let current = eqiora::language::parse("linear_elasticity-v0.3.0.eqi", FROZEN_PACKAGE_SOURCE)
-        .into_document()
-        .expect("frozen v0.3.0 package source parses");
-    let previous =
-        eqiora::language::parse("linear_elasticity-v0.2.0.eqi", FROZEN_PACKAGE_SOURCE_V0_2)
-            .into_document()
-            .expect("frozen v0.2.0 package source parses");
-    assert_eq!(current.connectors(), previous.connectors());
-    assert_eq!(&current.components()[..2], previous.components());
-    assert_eq!(current.components().len(), 4);
-    assert_eq!(current.components()[2].name(), "FixedDisplacement2d");
-    assert_eq!(current.components()[3].name(), "ZeroTraction2d");
-    assert_eq!(
-        live.connectors()
-            .iter()
-            .map(|connector| connector.name())
-            .collect::<Vec<_>>(),
-        current
-            .connectors()
-            .iter()
-            .map(|connector| connector.name())
-            .collect::<Vec<_>>()
-    );
-    assert_eq!(
-        live.components()[..4]
-            .iter()
-            .map(|component| component.name())
-            .collect::<Vec<_>>(),
-        current
-            .components()
-            .iter()
-            .map(|component| component.name())
-            .collect::<Vec<_>>()
-    );
-    assert_eq!(live.components().len(), 6);
-
-    let sources = frozen_package_sources();
-    let release = prepare_package_release_v1(sources, &[])
-        .expect("prepare the exact compiler-derived package release");
-    let identity = release.package_identity().expect("exact package identity");
-    assert_eq!(identity.name.as_str(), PACKAGE_NAME);
-    assert_eq!(identity.version.as_str(), PACKAGE_VERSION);
-    release
+    prepare_package_release_v1(
+        embedded_package::public_sources("Eqiora.Solid.LinearElasticity"),
+        &[mechanics_package()],
+    )
+    .expect("prepare current elasticity package")
 }
 
 fn elasticity_package_with_source(source: &str) -> PackageReleaseV1 {
-    let sources = frozen_package_sources();
+    let sources = embedded_package::public_sources("Eqiora.Solid.LinearElasticity");
     let (manifest, files) = sources.into_parts();
     let files = files
         .into_iter()
@@ -142,7 +80,8 @@ fn elasticity_package_with_source(source: &str) -> PackageReleaseV1 {
         })
         .collect();
     let sources = PackageSourcesV1::new(manifest, files).expect("modified exact package sources");
-    prepare_package_release_v1(sources, &[]).expect("modified package remains valid meaning")
+    prepare_package_release_v1(sources, &[mechanics_package()])
+        .expect("modified package remains valid meaning")
 }
 
 fn root_release(dependency: &PackageReleaseV1, source: &str) -> PackageReleaseV1 {
@@ -177,17 +116,20 @@ fn root_release(dependency: &PackageReleaseV1, source: &str) -> PackageReleaseV1
         )],
     )
     .expect("closed root sources");
-    prepare_package_release_v1(sources, std::slice::from_ref(dependency))
+    prepare_package_release_v1(sources, &[dependency.clone(), mechanics_package()])
         .expect("prepare exact mixed-boundary root")
 }
 
 fn compile_packaged(dependency: &PackageReleaseV1, source: &str) -> PackagedModelDocument {
     let root = root_release(dependency, source);
     let resolution =
-        ResolutionRecordV1::from_exact_releases(&root, std::slice::from_ref(dependency))
-            .expect("exact two-package resolution");
+        ResolutionRecordV1::from_exact_releases(&root, &[dependency.clone(), mechanics_package()])
+            .expect("exact package resolution");
     let mut store = InMemoryPackageStore::default();
     store.insert(dependency).expect("insert dependency release");
+    store
+        .insert(&mechanics_package())
+        .expect("insert mechanics release");
     store.insert(&root).expect("insert root release");
     PackagedModelDocument::compile_locked(&store, &resolution, "Main")
         .expect("compile exact packaged mixed-boundary model")
@@ -627,7 +569,7 @@ fn boundary_normalization_rejects_near_miss_semantics() {
 
     let mismatched_stress = PACKAGED_SOURCE.replace(
         "instance boundary_law: solid.IsotropicMechanicalInterface2d(\n    support body = body,\n    support exterior = boundaries(x_lower, x_upper, y_lower, y_upper),\n    field displacement = displacement,\n    mu = mu,",
-        "instance boundary_law: solid.IsotropicMechanicalInterface2d(\n    support body = body,\n    support exterior = boundaries(x_lower, x_upper, y_lower, y_upper),\n    field displacement = displacement,\n    mu = 4,",
+        "instance boundary_law: solid.IsotropicMechanicalInterface2d(\n    support body = body,\n    support exterior = boundaries(x_lower, x_upper, y_lower, y_upper),\n    field displacement = displacement,\n    mu = 4[kg / (m * s ^ 2)],",
     );
     assert_ne!(mismatched_stress, PACKAGED_SOURCE);
     let packaged = compile_packaged(&dependency, &mismatched_stress);
@@ -665,11 +607,11 @@ fn boundary_normalization_rejects_near_miss_semantics() {
         .expect_err("the Cartesian side inventory must be a bijection");
     assert!(diagnostic.message().contains("boundary side is duplicated"));
 
-    let simultaneous_terminal = FROZEN_PACKAGE_SOURCE.replace(
+    let simultaneous_terminal = LIVE_PACKAGE_SOURCE.replace(
         "  relation prescribed_traction continuous on face {\n    flux(mechanical) = 0;\n  }",
         "  relation prescribed_traction continuous on face {\n    trace(mechanical) = 0;\n    flux(mechanical) = 0;\n  }",
     );
-    assert_ne!(simultaneous_terminal, FROZEN_PACKAGE_SOURCE);
+    assert_ne!(simultaneous_terminal, LIVE_PACKAGE_SOURCE);
     let dependency = elasticity_package_with_source(&simultaneous_terminal);
     let packaged = compile_packaged(&dependency, PACKAGED_SOURCE);
     let diagnostic = lower_isotropic_elasticity_cartesian_2d(packaged.model().program())

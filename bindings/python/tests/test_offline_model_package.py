@@ -19,10 +19,6 @@ import eqiora
 
 
 ROOT = Path(__file__).resolve().parents[3]
-SECONDARY = (
-    ROOT
-    / "verify/interfaces/python-offline-model-package/models/typed-execution-lineage"
-)
 HOME_SCRATCH = Path.home() / ".cache/eqiora/oracle-tests"
 
 CURRENT_COMPILER_VERSION = "0.1.0-alpha.7"
@@ -80,6 +76,7 @@ EXPECTED_EQIORA_ALL = [
     "DifferentiationEvidence",
     "DifferentiationMode",
     "Dimension",
+    "ValueType",
     "DomainRef",
     "Domain",
     "EqioraError",
@@ -172,7 +169,6 @@ def source_bundle_digest(source: object) -> str:
     return digest.hexdigest()
 
 
-SECONDARY_RESOLUTION = canonical_fixture(SECONDARY / "resolution.json")
 FALSE_CLAIM_RESOLUTION = canonical_fixture(FALSE_CLAIM_RESOLUTION_FILE)
 
 
@@ -250,16 +246,6 @@ def expected_conformance_report(
     )
 
 
-def assert_expected_conformance_report(
-    report: eqiora.PackageConformanceReport, label: str
-) -> None:
-    assert len(report.package_compilation_digest) == 64
-    assert set(report.package_compilation_digest) <= set("0123456789abcdef")
-    assert report == expected_conformance_report(
-        label, report.package_compilation_digest
-    )
-
-
 def tree_snapshot(root: Path) -> tuple[tuple[object, ...], ...]:
     snapshot: list[tuple[object, ...]] = []
     for path in sorted(
@@ -299,32 +285,23 @@ def with_scratch(callback: Callable[[Path], None]) -> None:
 
 def current_package_fixture(
     parent: Path,
-    fixture_store: Path = FALSE_CLAIM_STORE,
-    fixture_resolution: bytes = FALSE_CLAIM_RESOLUTION,
+    name: str = "org.example.structural_false_claim",
 ) -> tuple[Path, bytes]:
-    decoded_resolution = json.loads(fixture_resolution)
-    source_digest = decoded_resolution["root"]["semantic_digest"]
-    root_node = next(
-        node
-        for node in decoded_resolution["nodes"]
-        if node["identity"]["semantic_digest"] == source_digest
-    )
-    release = json.loads(
-        (fixture_store / f'{root_node["source_digest"]}.json').read_bytes()
-    )
-    source = release["source"]
     project = parent / "project"
-    package = project / "package"
+    package = project / "package/src"
     package.mkdir(parents=True)
-    for file in source["files"]:
-        path = (project if file["role"] == "documentation" else package) / file["path"]
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(base64.b64decode(file["bytes"]))
-    manifest = source["manifest"]
+    shutil.copyfile(
+        Path(__file__).parent / "fixtures/package_conformance.eqi",
+        package / "main.eqi",
+    )
+    (project / "README.md").write_text(
+        "This package proves that every physical prediction is exact.\n",
+        encoding="utf-8",
+    )
     (project / "eqiora.toml").write_text(
         f'''[package]
-name = "{manifest["name"]}"
-version = "{manifest["version"]}"
+name = "{name}"
+version = "0.1.0"
 source = "package/src"
 entry = "main"
 ''',
@@ -531,8 +508,7 @@ def test_structural_reports_match_current_packages_without_scientific_inference(
 
         poisson_store, poisson_resolution = current_package_fixture(
             parent / "poisson",
-            SECONDARY / "store",
-            SECONDARY_RESOLUTION,
+            "org.example.poisson",
         )
         poisson_before = tree_snapshot(poisson_store)
         poisson_report = check_conformance(poisson_store, poisson_resolution)
@@ -685,8 +661,7 @@ def test_resolution_wire_is_exact_before_store_and_rejects_stale_or_foreign_inpu
 
         _, foreign_resolution = current_package_fixture(
             parent / "poisson",
-            SECONDARY / "store",
-            SECONDARY_RESOLUTION,
+            "org.example.poisson",
         )
         assert_compatibility(assert_conformance_rejection(store, resolution=foreign_resolution))
 
@@ -757,7 +732,11 @@ def test_release_normalization_accepts_representation_but_rejects_semantic_chang
         foreign = parent / "foreign-release"
         shutil.copytree(current_store, foreign)
         foreign_path = foreign / release_path.name
-        typed_release = next((SECONDARY / "store").glob("*.json"))
+        foreign_store, foreign_resolution = current_package_fixture(
+            parent / "foreign-package", "org.example.poisson"
+        )
+        foreign_report = check_conformance(foreign_store, foreign_resolution)
+        typed_release = foreign_store / f"{foreign_report.root_package.source_digest}.json"
         foreign_path.write_bytes(typed_release.read_bytes())
         assert_compatibility(
             assert_conformance_rejection(foreign, resolution=current_resolution)

@@ -32,11 +32,10 @@ use eqiora_numerics::{
 #[path = "support/embedded_package.rs"]
 mod embedded_package;
 
-const VERIFIED_COMPONENT_V0_1: &str = include_str!(
-    "../../../verify/solid/packaged-isotropic-balance-2d/package-v0.1.0/src/linear_elasticity.eqi"
-);
-const VERIFIED_README_V0_1: &[u8] =
-    include_bytes!("../../../verify/solid/packaged-isotropic-balance-2d/package-v0.1.0/README.md");
+const COMPONENT_SOURCE: &str =
+    include_str!("../../../packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi");
+const COMPONENT_README: &[u8] =
+    include_bytes!("../../../packages/Eqiora.Solid.LinearElasticity/README.md");
 const SYNTHETIC_COMPONENT: &str =
     include_str!("../../../verify/solid/packaged-isotropic-balance-2d/models/components.eqi");
 const SYNTHETIC_COMPONENT_PERMUTED: &str = include_str!(
@@ -79,28 +78,28 @@ const PACKAGED_TO_EXPLICIT: [(&str, &str); 18] = [
     ("y_upper_value", "y_upper_value"),
 ];
 
-fn verified_component_v0_1_sources() -> PackageSourcesV1 {
-    embedded_package::generated_sources(
-        PUBLIC_PACKAGE,
-        VERSION,
-        &[
-            (
-                "README.md",
-                BundleRoleV1::Documentation,
-                VERIFIED_README_V0_1,
-            ),
-            (
-                "src/linear_elasticity.eqi",
-                BundleRoleV1::ModelSource,
-                VERIFIED_COMPONENT_V0_1.as_bytes(),
-            ),
-        ],
+fn mechanics_package() -> PackageReleaseV1 {
+    prepare_package_release_v1(
+        embedded_package::public_sources("Eqiora.Mechanics.Interfaces"),
+        &[],
     )
+    .expect("prepare current mechanics package")
 }
 
-fn verified_component_v0_1_release() -> PackageReleaseV1 {
-    prepare_package_release_v1(verified_component_v0_1_sources(), &[])
-        .expect("prepare the checked-in reusable solid package")
+fn component_release() -> PackageReleaseV1 {
+    prepare_package_release_v1(
+        embedded_package::public_sources(PUBLIC_PACKAGE),
+        &[mechanics_package()],
+    )
+    .expect("prepare current solid package")
+}
+
+fn dependency_closure(component: &PackageReleaseV1) -> Vec<PackageReleaseV1> {
+    let mut releases = vec![component.clone()];
+    if !component.manifest().dependencies().is_empty() {
+        releases.push(mechanics_package());
+    }
+    releases
 }
 
 fn synthetic_component_sources(name: &str, source: &str, reverse_files: bool) -> PackageSourcesV1 {
@@ -122,7 +121,7 @@ fn synthetic_component_sources(name: &str, source: &str, reverse_files: bool) ->
         SourceFileV1::new(
             readme_path,
             BundleRoleV1::Documentation,
-            VERIFIED_README_V0_1.to_vec(),
+            COMPONENT_README.to_vec(),
         ),
         SourceFileV1::new(
             model_path,
@@ -198,7 +197,7 @@ fn root_release(
 ) -> PackageReleaseV1 {
     prepare_package_release_v1(
         root_sources(component, alias, source, reverse_files),
-        std::slice::from_ref(component),
+        &dependency_closure(component),
     )
     .expect("prepare exact packaged elasticity root")
 }
@@ -207,10 +206,12 @@ fn compile_locked(
     component: &PackageReleaseV1,
     root: &PackageReleaseV1,
 ) -> (PackagedModelDocument, ResolutionRecordV1) {
-    let resolution = ResolutionRecordV1::from_exact_releases(root, std::slice::from_ref(component))
-        .expect("exact two-package resolution");
+    let resolution = ResolutionRecordV1::from_exact_releases(root, &dependency_closure(component))
+        .expect("exact package resolution");
     let mut store = InMemoryPackageStore::default();
-    store.insert(component).expect("insert component release");
+    for release in dependency_closure(component) {
+        store.insert(&release).expect("insert dependency release");
+    }
     store.insert(root).expect("insert root release");
     let packaged = PackagedModelDocument::compile_locked(&store, &resolution, "Main")
         .expect("compile exact packaged elasticity Model");
@@ -222,20 +223,21 @@ fn compile_locked(
 }
 
 fn baseline_package() -> (PackageReleaseV1, PackageReleaseV1) {
-    let component = verified_component_v0_1_release();
+    let component = component_release();
     let root = root_release(&component, "solid", PACKAGED_MANUFACTURED, false);
     (component, root)
 }
 
-fn assert_verified_component_v0_1_boundary() {
-    let document = eqiora::language::parse("linear_elasticity.eqi", VERIFIED_COMPONENT_V0_1)
+fn assert_component_boundary() {
+    let document = eqiora::language::parse("linear_elasticity.eqi", COMPONENT_SOURCE)
         .into_document()
         .expect("checked-in component source parses");
-    assert!(document.connectors().is_empty());
     assert!(document.models().is_empty());
-    assert_eq!(document.components().len(), 1);
-    let component = &document.components()[0];
-    assert_eq!(component.name(), "IsotropicBalanceWithPotential2d");
+    let component = document
+        .components()
+        .iter()
+        .find(|component| component.name() == "IsotropicBalanceWithPotential2d")
+        .expect("current package contains the balance component");
     assert_eq!(component.items().len(), 6);
     assert_eq!(
         component
@@ -273,8 +275,15 @@ fn assert_verified_component_v0_1_boundary() {
     let synthetic = eqiora::language::parse("synthetic.eqi", SYNTHETIC_COMPONENT)
         .into_document()
         .expect("synthetic provider source parses");
+    let range = component.range();
+    let component_document = eqiora::language::parse(
+        "balance.eqi",
+        &COMPONENT_SOURCE[range.start() as usize..range.end() as usize],
+    )
+    .into_document()
+    .expect("selected balance component parses independently");
     assert_eq!(
-        eqiora::language::format(&document),
+        eqiora::language::format(&component_document),
         eqiora::language::format(&synthetic),
         "the renamed provider falsifier repeats the public Component exactly"
     );
@@ -624,12 +633,36 @@ fn execution_provenance() -> ExecutionProvenanceV1 {
 
 #[test]
 fn exact_package_structure_order_and_flat_kernel_meaning_are_closed() {
-    assert_verified_component_v0_1_boundary();
+    assert_component_boundary();
     assert_root_boundary();
 
-    let component = verified_component_v0_1_release();
-    let permuted_component =
-        synthetic_component_release(PUBLIC_PACKAGE, SYNTHETIC_COMPONENT_PERMUTED, true);
+    let component = component_release();
+    let (manifest, mut files) = embedded_package::public_sources(PUBLIC_PACKAGE).into_parts();
+    for file in &mut files {
+        if file.role() == BundleRoleV1::ModelSource {
+            let document = eqiora::language::parse("solid.eqi", COMPONENT_SOURCE)
+                .into_document()
+                .expect("current source parses");
+            let range = document
+                .components()
+                .iter()
+                .find(|component| component.name() == "IsotropicBalanceWithPotential2d")
+                .expect("balance component")
+                .range();
+            let mut source = COMPONENT_SOURCE.to_owned();
+            source.replace_range(
+                range.start() as usize..range.end() as usize,
+                SYNTHETIC_COMPONENT_PERMUTED,
+            );
+            *file = SourceFileV1::new(file.path().clone(), file.role(), source.into_bytes());
+        }
+    }
+    files.reverse();
+    let permuted_component = prepare_package_release_v1(
+        PackageSourcesV1::new(manifest, files).expect("permuted current package sources"),
+        &[mechanics_package()],
+    )
+    .expect("prepare permuted current package");
     assert_eq!(
         component
             .package_identity()
@@ -820,7 +853,7 @@ fn package_blind_lowering_solution_and_convergence_match_the_explicit_model() {
 
 #[test]
 fn nonzero_linear_potential_preserves_force_and_reaction_across_the_package_boundary() {
-    let component = verified_component_v0_1_release();
+    let component = component_release();
     let root = root_release(&component, "solid", PACKAGED_LINEAR_LOAD, false);
     let (packaged, _) = compile_locked(&component, &root);
     let explicit = explicit_linear_load_document();
