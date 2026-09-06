@@ -238,12 +238,7 @@ impl<const D: usize> FsiLayout<D> {
                 "cell count differs from the resolved bubble layout",
             ));
         }
-        let vectors = |values: &[f64]| {
-            values
-                .chunks_exact(D)
-                .map(|components| std::array::from_fn(|component| components[component]))
-                .collect()
-        };
+        let vectors = |values: &[f64]| values.as_chunks::<D>().0.to_vec();
         Ok((
             vectors(&values[..self.full_bubble_offset]),
             vectors(&values[self.full_bubble_offset..self.full_pressure_offset]),
