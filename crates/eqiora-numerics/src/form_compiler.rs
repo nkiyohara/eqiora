@@ -1,6 +1,7 @@
 //! Private proof-carrying FEM derivations.
 
 mod elasticity;
+pub(crate) mod equation_roles;
 mod scalar;
 #[cfg(test)]
 mod tests;

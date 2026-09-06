@@ -132,6 +132,7 @@ pub struct FixedReferenceFsiCartesianModel2d {
     fluid: InertialIncompressibleNewtonianCartesianModel2d,
     solid: IsotropicElastodynamicsCartesianModel<2>,
     interface: FsiInterface,
+    equation_roles: crate::form_compiler::equation_roles::EquationRoles,
 }
 
 impl FixedReferenceFsiCartesianModel2d {
@@ -392,6 +393,18 @@ fn finish_fixed_reference_fsi(
     require_closed_fsi_model(program, &fluid, &solid)?;
 
     Ok(FixedReferenceFsiCartesianModel2d {
+        equation_roles: crate::form_compiler::equation_roles::EquationRoles::derive(
+            program,
+            program.nodes().filter_map(|node| match node {
+                eqiora_schema::kernel::KernelNode::Domain(domain)
+                    if !crate::canonical::continuum_fields_on(program, domain.id().erase())
+                        .is_empty() =>
+                {
+                    Some(domain.id().erase())
+                }
+                _ => None,
+            }),
+        )?,
         model: program.model(),
         semantic_revision: program.revision().0,
         fluid: fluid.model,
