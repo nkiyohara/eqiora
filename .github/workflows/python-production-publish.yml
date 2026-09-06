@@ -38,6 +38,12 @@ jobs:
       actions: read
       contents: read
     steps:
+      - name: Bind manual source to the dispatch revision
+        env:
+          SELECTED_COMMIT: ${{ inputs.commit }}
+        run: |
+          [[ "$SELECTED_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          test "$SELECTED_COMMIT" = "$GITHUB_SHA"
       - name: Check out exact release tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -55,8 +61,6 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag }}
           RELEASE_COMMIT: ${{ inputs.commit }}
         run: |
-          CANDIDATE_VERSION="$(PYTHONPATH=tools/release python3 -c 'from python_candidate import load_config; print(load_config().python_version)')"
-          test "$RELEASE_TAG" = "v$CANDIDATE_VERSION"
           [[ "$RELEASE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
           test "$GITHUB_SHA" = "$RELEASE_COMMIT"
           test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
@@ -65,6 +69,8 @@ jobs:
           peeled_commit="$(git rev-parse "refs/tags/$RELEASE_TAG^{}")"
           test "$(git cat-file -t "$peeled_commit")" = "commit"
           test "$peeled_commit" = "$RELEASE_COMMIT"
+          CANDIDATE_VERSION="$(PYTHONPATH=tools/release python3 -c 'from python_candidate import load_config; print(load_config().python_version)')"
+          test "$RELEASE_TAG" = "v$CANDIDATE_VERSION"
       - name: Authenticate the completed candidate workflow run
         env:
           GITHUB_TOKEN: ${{ github.token }}

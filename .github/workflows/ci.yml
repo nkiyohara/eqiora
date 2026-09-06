@@ -47,6 +47,13 @@ jobs:
       cubecl_experiment_reason: ${{ steps.classify.outputs.cubecl_experiment_reason }}
       python_versions: ${{ steps.classify.outputs.python_versions }}
     steps:
+      - name: Bind manual source to the dispatch revision
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SELECTED_COMMIT: ${{ inputs.commit }}
+        run: |
+          [[ "$SELECTED_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          test "$SELECTED_COMMIT" = "$GITHUB_SHA"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -191,6 +198,28 @@ jobs:
       - name: Install stable Rust
         if: needs.changes.outputs.rust == 'true'
         run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
+      - name: Identify the native build environment
+        if: needs.changes.outputs.rust == 'true'
+        id: native
+        run: |
+          digest="$(dpkg-query -W | LC_ALL=C sort | sha256sum | cut -d ' ' -f 1)"
+          printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
+      - name: Restore Stable dependencies
+        if: needs.changes.outputs.rust == 'true'
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          prefix-key: stable-deps-${{ steps.native.outputs.digest }}-${{ hashFiles('.github/workflows/ci.yml', 'Cargo.toml', 'tools/ci/rust_quality.py', 'pyproject.toml') }}
+          env-vars: ImageOS ImageVersion pythonLocation Python_ROOT_DIR PKG_CONFIG LD_LIBRARY_PATH
+          cmd-format: rustup run stable {0}
+          workspaces: . -> target
+          cache-bin: false
+          cache-workspace-crates: false
+          cache-all-crates: false
+          cache-on-failure: false
+          save-if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && needs.changes.outputs.target_sha == github.sha }}
+      - name: Preserve non-test incremental compilation
+        if: needs.changes.outputs.rust == 'true'
+        run: echo 'CARGO_INCREMENTAL=1' >> "$GITHUB_ENV"
       - name: Formatting
         if: needs.changes.outputs.rust == 'true'
         run: cargo +stable fmt --all -- --check
@@ -200,6 +229,7 @@ jobs:
       - name: Tests
         if: needs.changes.outputs.rust == 'true'
         env:
+          CARGO_INCREMENTAL: "0"
           CARGO_PROFILE_TEST_DEBUG: "0"
           CARGO_PROFILE_TEST_DEBUG_ASSERTIONS: "true"
           CARGO_PROFILE_TEST_INCREMENTAL: "false"
@@ -210,6 +240,7 @@ jobs:
       - name: Full feature tests
         if: needs.changes.outputs.rust == 'true' && needs.changes.outputs.full == 'true'
         env:
+          CARGO_INCREMENTAL: "0"
           CARGO_PROFILE_TEST_DEBUG: "0"
           CARGO_PROFILE_TEST_DEBUG_ASSERTIONS: "true"
           CARGO_PROFILE_TEST_INCREMENTAL: "false"
