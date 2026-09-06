@@ -90,31 +90,6 @@ impl<const D: usize> FinalizedFixedReferenceFsiStep<D> {
     }
 }
 
-/// Finalize one fixed-reference monolithic step with reference assembly.
-///
-/// # Errors
-/// Returns structured admission, local-operator, assembly, pressure-closure,
-/// or captured-CSR diagnostics.
-#[allow(clippy::too_many_arguments)]
-pub fn finalize_fixed_reference_fsi_step_2d(
-    mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition<2>,
-    boundary: &FixedReferenceFsiBoundary<2>,
-    previous: &FixedReferenceFsiState<2>,
-    config: FixedReferenceFsiStepConfig<2>,
-    quadrature: &QuadratureRule,
-) -> Result<FinalizedFixedReferenceFsiStep<2>, Diagnostic> {
-    finalize_fixed_reference_fsi_step_with_assembly(
-        mesh,
-        partition,
-        boundary,
-        previous,
-        config,
-        quadrature,
-        &REFERENCE_ASSEMBLY_BACKEND,
-    )
-}
-
 /// Finalize one three-dimensional fixed-reference monolithic step.
 ///
 /// # Errors
@@ -136,32 +111,6 @@ pub fn finalize_fixed_reference_fsi_step_3d(
         config,
         quadrature,
         &REFERENCE_ASSEMBLY_BACKEND,
-    )
-}
-
-/// Finalize through an explicit ordered assembly backend.
-///
-/// # Errors
-/// Preserves reference finalization and selected assembly diagnostics.
-#[allow(clippy::too_many_arguments)]
-pub fn finalize_fixed_reference_fsi_step_2d_with_assembly(
-    mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition<2>,
-    boundary: &FixedReferenceFsiBoundary<2>,
-    previous: &FixedReferenceFsiState<2>,
-    config: FixedReferenceFsiStepConfig<2>,
-    quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
-) -> Result<FinalizedFixedReferenceFsiStep<2>, Diagnostic> {
-    finalize_fixed_reference_fsi_step_with_packet_set(
-        mesh,
-        partition,
-        boundary,
-        previous,
-        config,
-        quadrature,
-        AssemblyPacketSetIdentityV1::Unbound,
-        assembly,
     )
 }
 
@@ -240,9 +189,6 @@ pub(crate) struct FixedReferenceFsiAssemblyTargetRoles {
     reduced: AssemblyTargetId,
     full: AssemblyTargetId,
 }
-
-/// Compatibility name for the established two-dimensional realization bridge.
-pub(crate) type FixedReferenceFsiAssemblyTargetRoles2d = FixedReferenceFsiAssemblyTargetRoles;
 
 impl FixedReferenceFsiAssemblyTargetRoles {
     fn from_plan(plan: &AssemblyPlan) -> Result<Self, Diagnostic> {
@@ -501,24 +447,6 @@ fn require_system_shape(
         )));
     }
     Ok(())
-}
-
-/// Finalize, execute, and accept one fixed-reference step.
-///
-/// # Errors
-/// Preserves all admission, assembly, solver, and acceptance diagnostics.
-#[allow(clippy::too_many_arguments)]
-pub fn solve_fixed_reference_fsi_step_2d(
-    mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition<2>,
-    boundary: &FixedReferenceFsiBoundary<2>,
-    previous: &FixedReferenceFsiState<2>,
-    config: FixedReferenceFsiStepConfig<2>,
-    quadrature: &QuadratureRule,
-    solver: LinearSolveRequest<'_>,
-) -> Result<FixedReferenceFsiSolution<2>, Diagnostic> {
-    finalize_fixed_reference_fsi_step_2d(mesh, partition, boundary, previous, config, quadrature)?
-        .solve(solver)
 }
 
 /// Finalize, execute, and accept one three-dimensional fixed-reference step.

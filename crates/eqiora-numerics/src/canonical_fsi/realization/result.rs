@@ -21,7 +21,7 @@ use eqiora_spatial_distribution::{
 
 use crate::discrete_block::DiscreteBlockSystem;
 use crate::finalized_spatial::FinalizedLinearCore;
-use crate::simplicial_fsi::FixedReferenceFsiAssemblyTargetRoles2d;
+use crate::simplicial_fsi::FixedReferenceFsiAssemblyTargetRoles;
 use crate::simplicial_fsi::{
     FinalizedFixedReferenceFsiStep, FixedReferenceFsiPartition, FixedReferenceFsiSolution,
 };
@@ -304,7 +304,7 @@ impl FinalizedResolvedFixedReferenceFsiStep2d {
     ///
     /// This stays crate-visible until the distributed evidence bridge can
     /// bind both targets without exposing them as a public physics IR.
-    pub(crate) const fn assembly_target_roles(&self) -> FixedReferenceFsiAssemblyTargetRoles2d {
+    pub(crate) const fn assembly_target_roles(&self) -> FixedReferenceFsiAssemblyTargetRoles {
         self.inner.assembly_target_roles()
     }
 
