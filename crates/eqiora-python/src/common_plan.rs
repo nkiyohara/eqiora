@@ -5,7 +5,6 @@ use std::hash::{Hash, Hasher};
 
 use eqiora::artifact::CanonicalModelArtifact;
 use eqiora::backends::faer::FaerLinearSolver;
-use eqiora::realization::{Space, SpaceFamily};
 use eqiora_numerics::{
     CommonFsiPlan, CommonMethodRequest, CommonOdePlan, CommonScalarPlan, CommonScopedSpatialPolicy,
     CommonSolvePolicy, CommonSpatialPolicy, CommonTransientFlowPlan, ResolvedCommonPlan,
@@ -32,7 +31,7 @@ mod capability_view;
 use capability_view::{
     PyElasticityPlanView, PyFixedReferenceFsiPlanView, PyFormulationKind,
     PyFormulationSelectionMode, PyFormulationView, PyIncompressibleFlowPlanView, PyOdePlanView,
-    PyScalarPlanView,
+    PyScalarPlanView, space_name,
 };
 mod policy;
 use policy::{
@@ -59,17 +58,6 @@ enum SpatialPolicy {
 enum SpatialHandle {
     Uniform(SpatialPolicy),
     Scoped(Vec<Py<PyScopedSpatialBinding>>),
-}
-
-fn space_name(space: Space) -> &'static str {
-    match space.family() {
-        SpaceFamily::SimplexP1Bubble => "simplex-p1-bubble",
-        SpaceFamily::ContinuousLagrange { order } if order.get() == 1 => "continuous-lagrange-p1",
-        SpaceFamily::CellConstant => "cell-constant",
-        SpaceFamily::ContinuousLagrange { .. } => {
-            unreachable!("common Plan only publishes the admitted P1 continuous space")
-        }
-    }
 }
 
 #[derive(Debug)]
