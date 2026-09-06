@@ -32,6 +32,118 @@ fn write(path: impl AsRef<Path>, contents: &str) {
 }
 
 #[test]
+fn cli_bundled_vendor_fetch_update_and_offline_check_share_project_owner() {
+    let fixture = TestDirectory::create();
+    let project = fixture.0.join("project");
+    let store = fixture.0.join("store");
+    let vendor = fixture.0.join("vendor");
+    fs::create_dir(&store).unwrap();
+    fs::create_dir(&vendor).unwrap();
+    write(
+        project.join("eqiora.toml"),
+        "[package]\nname = \"org.example.Portable\"\nversion = \"1.0.0\"\nentry = \"main\"\n",
+    );
+    write(
+        project.join("src/main.eqi"),
+        "model Main { parameter gain: 1 = 2; relation law continuous { gain - 2 = 0; } }",
+    );
+    let run = |operation: &str, store: &Path, extra: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_eqiora"))
+            .args(["package", operation])
+            .arg(&project)
+            .args(extra)
+            .arg("--store")
+            .arg(store)
+            .output()
+            .unwrap()
+    };
+    let external = fixture.0.join("external");
+    write(
+        external.join("eqiora.toml"),
+        "[package]\nname = \"org.example.External\"\nversion = \"1.0.0\"\nentry = \"main\"\n",
+    );
+    write(external.join("src/main.eqi"), "public model Shared {}");
+    assert!(
+        run(
+            "add",
+            &store,
+            &[
+                "org.example.External",
+                "--version",
+                "1.0.0",
+                "--path",
+                "../external"
+            ]
+        )
+        .status
+        .success()
+    );
+    let added = run(
+        "add",
+        &store,
+        &[
+            "Eqiora.Fluid.Incompressible",
+            "--version",
+            "0.4.0",
+            "--bundled",
+        ],
+    );
+    assert!(
+        added.status.success(),
+        "{}",
+        String::from_utf8_lossy(&added.stderr)
+    );
+    let lock = fs::read(project.join("eqiora.lock")).unwrap();
+    let vendored = run(
+        "vendor",
+        &store,
+        &["--destination", vendor.to_str().unwrap()],
+    );
+    assert!(
+        vendored.status.success(),
+        "{}",
+        String::from_utf8_lossy(&vendored.stderr)
+    );
+    assert!(run("fetch", &vendor, &[]).status.success());
+    fs::remove_dir_all(&store).unwrap();
+    fs::remove_dir_all(&external).unwrap();
+    assert!(
+        run("check", &vendor, &["--entry-model", "Main"])
+            .status
+            .success()
+    );
+    assert_eq!(fs::read(project.join("eqiora.lock")).unwrap(), lock);
+    fs::create_dir(&external).unwrap();
+    write(
+        external.join("eqiora.toml"),
+        "[package]\nname = \"org.example.External\"\nversion = \"1.0.0\"\nentry = \"main\"\n",
+    );
+    write(external.join("src/main.eqi"), "public model Shared {}");
+    write(
+        project.join("src/main.eqi"),
+        "model Main { parameter gain: 1 = 3; relation law continuous { gain - 3 = 0; } }",
+    );
+    assert!(
+        !run("check", &vendor, &["--entry-model", "Main"])
+            .status
+            .success()
+    );
+    assert!(!run("fetch", &vendor, &[]).status.success());
+    assert_eq!(fs::read(project.join("eqiora.lock")).unwrap(), lock);
+    assert!(run("update", &vendor, &[]).status.success());
+    assert!(
+        run("check", &vendor, &["--entry-model", "Main"])
+            .status
+            .success()
+    );
+    assert!(
+        run("remove", &vendor, &["Eqiora.Fluid.Incompressible"])
+            .status
+            .success()
+    );
+}
+
+#[test]
 fn cli_locks_and_checks_the_same_local_package_project_offline() {
     let fixture = TestDirectory::create();
     let project = fixture.0.join("project");
@@ -123,7 +235,6 @@ fn cli_locks_and_checks_the_same_local_package_project_offline() {
     );
 
     fs::remove_dir_all(&dependency).expect("remove dependency source after locking");
-    fs::remove_file(project.join("src/main.eqi")).expect("remove root source after locking");
     let check = Command::new(env!("CARGO_BIN_EXE_eqiora"))
         .args(["package", "check"])
         .arg(&project)
@@ -138,6 +249,19 @@ fn cli_locks_and_checks_the_same_local_package_project_offline() {
         String::from_utf8_lossy(&check.stderr)
     );
     assert!(check.stdout.starts_with(b"accepted "));
+    fs::remove_file(project.join("src/main.eqi")).expect("remove root source after locking");
+    let missing_root = Command::new(env!("CARGO_BIN_EXE_eqiora"))
+        .args(["package", "check"])
+        .arg(&project)
+        .arg("--store")
+        .arg(&store)
+        .args(["--entry-model", "library.Shared"])
+        .output()
+        .unwrap();
+    assert!(
+        !missing_root.status.success(),
+        "project reopening validates authored root sources"
+    );
     assert_eq!(
         fs::read(project.join("eqiora.lock")).expect("reread accepted lock"),
         accepted_lock

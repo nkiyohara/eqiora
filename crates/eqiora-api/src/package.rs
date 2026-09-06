@@ -9,6 +9,8 @@
 #[cfg(feature = "project-filesystem")]
 mod local_directory;
 mod model_document;
+#[cfg(feature = "project-filesystem")]
+mod standard;
 #[cfg(test)]
 mod tests;
 

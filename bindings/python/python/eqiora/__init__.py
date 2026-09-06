@@ -21,7 +21,11 @@ from . import (
 from ._eqiora import (
     __version__,
     _check_package_conformance,
-    _vendor_standard_package,
+    add_bundled_dependency,
+    fetch_project,
+    open_project,
+    update_project,
+    vendor_project,
     Array,
     AuthoredFormulation,
     BoundarySide,
@@ -124,14 +128,6 @@ class PackageConformanceReport(NamedTuple):
     deterministic_replay_agreement: bool
 
 
-class VendoredStandardPackage(NamedTuple):
-    name: str
-    version: str
-    semantic_digest: str
-    source_digest: str
-    path: str
-
-
 __all__ = [
     "__version__",
     "Array",
@@ -192,7 +188,6 @@ __all__ = [
     "StructuralSemanticFingerprint",
     "ValidationError",
     "ValueEdit",
-    "VendoredStandardPackage",
     "View",
     "across",
     "check_package_conformance",
@@ -223,26 +218,13 @@ __all__ = [
     "solve",
     "time",
     "trajectory",
-    "vendor_standard_package",
+    "add_bundled_dependency",
+    "fetch_project",
+    "open_project",
+    "update_project",
+    "vendor_project",
 ]
 
-
-def vendor_standard_package(
-    project_root,
-    package,
-    *,
-    destination="packages",
-):
-    """Vendor one exact bundled standard package and its dependency closure."""
-
-    return tuple(
-        VendoredStandardPackage(*facts)
-        for facts in _vendor_standard_package(
-            project_root,
-            package,
-            destination=destination,
-        )
-    )
 
 
 def compile(

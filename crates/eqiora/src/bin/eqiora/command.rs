@@ -199,13 +199,23 @@ fn cli_command() -> clap::Command {
                                     .long("version")
                                     .required(true),
                             )
-                            .arg(Arg::new("dependency-path").long("path").required(true))
+                            .arg(
+                                Arg::new("dependency-path")
+                                    .long("path")
+                                    .required_unless_present("bundled")
+                                    .conflicts_with("bundled"),
+                            )
+                            .arg(
+                                Arg::new("bundled")
+                                    .long("bundled")
+                                    .action(ArgAction::SetTrue),
+                            )
                     } else {
                         command
                     }
                 }))
-                .subcommand(
-                    Command::new("lock")
+                .subcommands(["lock", "update", "fetch", "vendor"].map(|name| {
+                    let command = Command::new(name)
                         .disable_help_flag(true)
                         .disable_version_flag(true)
                         .arg(
@@ -218,8 +228,18 @@ fn cli_command() -> clap::Command {
                                 .long("store")
                                 .value_parser(clap::builder::OsStringValueParser::new())
                                 .num_args(1),
-                        ),
-                )
+                        );
+                    if name == "vendor" {
+                        command.arg(
+                            Arg::new("destination")
+                                .long("destination")
+                                .required(true)
+                                .value_parser(clap::builder::OsStringValueParser::new()),
+                        )
+                    } else {
+                        command
+                    }
+                }))
                 .subcommand(
                     Command::new("check")
                         .disable_help_flag(true)
@@ -321,13 +341,19 @@ fn run_package_command(package: &clap::ArgMatches) -> CommandResult {
                 return invalid_command_line();
             };
             let result = if operation == "add" {
-                let (Some(version), Some(path)) = (
-                    args.get_one::<String>("dependency-version"),
-                    args.get_one::<String>("dependency-path"),
-                ) else {
+                let Some(version) = args.get_one::<String>("dependency-version") else {
                     return invalid_command_line();
                 };
-                LockedPackage::add_local_package_dependency_v1(project, store, name, version, path)
+                if args.get_flag("bundled") {
+                    LockedPackage::add_bundled_package_dependency_v1(project, store, name, version)
+                } else {
+                    let Some(path) = args.get_one::<String>("dependency-path") else {
+                        return invalid_command_line();
+                    };
+                    LockedPackage::add_local_package_dependency_v1(
+                        project, store, name, version, path,
+                    )
+                }
             } else {
                 LockedPackage::remove_local_package_dependency_v1(project, store, name)
             };
@@ -337,15 +363,25 @@ fn run_package_command(package: &clap::ArgMatches) -> CommandResult {
                 .map_err(|error| CommandError::Package(error.to_string()))?;
             Ok(OracleOutcome::stdout(0, format!("locked {digest}\n")))
         }
-        Some(("lock", lock)) => {
+        Some((operation @ ("lock" | "update" | "fetch" | "vendor"), lock)) => {
             let (Some(project), Some(store)) = (
                 package_path(lock.get_one::<OsString>("project-path")),
                 package_path(lock.get_one::<OsString>("store-path")),
             ) else {
                 return invalid_command_line();
             };
-            let resolution = LockedPackage::resolve_local_package_project_v1(project, store)
-                .map_err(|error| CommandError::Package(error.to_string()))?;
+            let resolution = match operation {
+                "fetch" => LockedPackage::fetch_local_package_project_v1(project, store),
+                "vendor" => {
+                    let Some(destination) = package_path(lock.get_one::<OsString>("destination"))
+                    else {
+                        return invalid_command_line();
+                    };
+                    LockedPackage::vendor_local_package_project_v1(project, store, destination)
+                }
+                _ => LockedPackage::resolve_local_package_project_v1(project, store),
+            }
+            .map_err(|error| CommandError::Package(error.to_string()))?;
             let digest = resolution
                 .digest()
                 .map_err(|error| CommandError::Package(error.to_string()))?;
@@ -359,7 +395,7 @@ fn run_package_command(package: &clap::ArgMatches) -> CommandResult {
             ) else {
                 return invalid_command_line();
             };
-            let resolution = LockedPackage::load_local_package_project_lock_v1(project)
+            let resolution = LockedPackage::open_local_package_project_v1(project, &store)
                 .map_err(|error| CommandError::Package(error.to_string()))?;
             let store = DirectoryPackageStore::open_ambient(store)
                 .map_err(|error| CommandError::Package(error.to_string()))?;

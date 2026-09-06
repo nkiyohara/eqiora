@@ -97,12 +97,84 @@ fn remove_local_dependency(
 
 enum LocalDependencyEdit {
     Lock,
+    Fetch,
+    Open,
+    Vendor(PathBuf),
+    Bundled {
+        name: String,
+        version: String,
+    },
     Add {
         name: String,
         version: String,
         path: String,
     },
     Remove(String),
+}
+
+/// Add an explicitly requested exact bundled package through the native project transaction.
+#[pyfunction]
+#[pyo3(signature = (project_root, store_root, name, *, version))]
+fn add_bundled_dependency(
+    py: Python<'_>,
+    project_root: &Bound<'_, PyAny>,
+    store_root: &Bound<'_, PyAny>,
+    name: String,
+    version: String,
+) -> PyResult<Py<PyBytes>> {
+    update_local_project(
+        py,
+        project_root,
+        store_root,
+        LocalDependencyEdit::Bundled { name, version },
+    )
+}
+
+/// Materialize the accepted exact lock from declared sources without changing its selection.
+#[pyfunction]
+fn fetch_project(
+    py: Python<'_>,
+    project_root: &Bound<'_, PyAny>,
+    store_root: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyBytes>> {
+    update_local_project(py, project_root, store_root, LocalDependencyEdit::Fetch)
+}
+
+/// Validate current author sources and reopen the complete accepted closure from an explicit offline store.
+#[pyfunction]
+fn open_project(
+    py: Python<'_>,
+    project_root: &Bound<'_, PyAny>,
+    store_root: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyBytes>> {
+    update_local_project(py, project_root, store_root, LocalDependencyEdit::Open)
+}
+
+/// Vendor the exact accepted closure into another explicit content-addressed store.
+#[pyfunction]
+fn vendor_project(
+    py: Python<'_>,
+    project_root: &Bound<'_, PyAny>,
+    store_root: &Bound<'_, PyAny>,
+    destination: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyBytes>> {
+    let destination = unicode_path(py, destination)?;
+    update_local_project(
+        py,
+        project_root,
+        store_root,
+        LocalDependencyEdit::Vendor(destination),
+    )
+}
+
+/// Explicitly update the exact lock from the unchanged authored dependency requests.
+#[pyfunction]
+fn update_project(
+    py: Python<'_>,
+    project_root: &Bound<'_, PyAny>,
+    store_root: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyBytes>> {
+    update_local_project(py, project_root, store_root, LocalDependencyEdit::Lock)
 }
 
 fn update_local_project(
@@ -120,6 +192,27 @@ fn update_local_project(
                     PackagedModelDocument::resolve_local_package_project_v1(
                         project_root,
                         store_root,
+                    )
+                }
+                LocalDependencyEdit::Fetch => {
+                    PackagedModelDocument::fetch_local_package_project_v1(project_root, store_root)
+                }
+                LocalDependencyEdit::Open => {
+                    PackagedModelDocument::open_local_package_project_v1(project_root, store_root)
+                }
+                LocalDependencyEdit::Vendor(destination) => {
+                    PackagedModelDocument::vendor_local_package_project_v1(
+                        project_root,
+                        store_root,
+                        destination,
+                    )
+                }
+                LocalDependencyEdit::Bundled { name, version } => {
+                    PackagedModelDocument::add_bundled_package_dependency_v1(
+                        project_root,
+                        store_root,
+                        &name,
+                        &version,
                     )
                 }
                 LocalDependencyEdit::Add {
@@ -517,6 +610,11 @@ fn compatibility_failure(message: impl Into<String>) -> CompilePackageFailure {
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_function(wrap_pyfunction!(add_bundled_dependency, module)?)?;
+    module.add_function(wrap_pyfunction!(fetch_project, module)?)?;
+    module.add_function(wrap_pyfunction!(open_project, module)?)?;
+    module.add_function(wrap_pyfunction!(vendor_project, module)?)?;
+    module.add_function(wrap_pyfunction!(update_project, module)?)?;
     module.add_function(wrap_pyfunction!(resolve_local_project, module)?)?;
     module.add_function(wrap_pyfunction!(add_local_dependency, module)?)?;
     module.add_function(wrap_pyfunction!(remove_local_dependency, module)?)?;

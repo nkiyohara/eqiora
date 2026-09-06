@@ -92,12 +92,12 @@ operation.
 
 The initial library is intentionally small:
 
-The Python distribution exposes `eqiora.vendor_standard_package(...)` for
-copying `Eqiora.Fluid.Incompressible@0.2.0` or
-`Eqiora.Solid.LinearElasticity@0.4.0` and its exact dependency closure into an
-ordinary local package project. It returns each vendored
-release's semantic identity, source identity, and project-relative path for
-the dependency entry in `eqiora.toml`.
+`eqiora.add_bundled_dependency(...)` and `eqiora package add --bundled` record
+`Eqiora.Fluid.Incompressible@0.4.0` or
+`Eqiora.Solid.LinearElasticity@0.6.0` as ordinary exact project dependencies.
+The shared native owner publishes the manifest, lock and exact store entries.
+`eqiora.vendor_project(...)` copies the complete accepted closure to an offline
+store; `eqiora.open_project(...)` validates it without consulting source transport.
 
 Top-level directories contain the current package sources. Versioned release
 artifacts live under [`releases/<package>/<version>`](releases/). Dependency

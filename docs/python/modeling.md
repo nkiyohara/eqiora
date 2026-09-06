@@ -180,27 +180,25 @@ Component, and complete direct or composed bindings.
 
 ## Resolve and lock a local package project
 
-An installed Eqiora distribution can vendor the standard fluid or solid
-package, including its exact dependency closure, into a project:
+An installed Eqiora distribution can add an exact standard fluid or solid
+dependency to an existing project through the same manifest/lock transaction:
 
 ```python
 import eqiora
 
-packages = eqiora.vendor_standard_package(".", "Eqiora.Fluid.Incompressible@0.4.0")
-fluid = next(package for package in packages if package.name == "Eqiora.Fluid.Incompressible")
-print(fluid.path, fluid.semantic_digest)
+resolution = eqiora.add_bundled_dependency(
+    ".", "package-store", "Eqiora.Fluid.Incompressible", version="0.4.0"
+)
 ```
 
-Each returned `VendoredStandardPackage` provides the exact identity and path
-needed to name a local dependency.
-The selector must match the exact version shipped in the distribution; older
-versions are rejected, not substituted. The solid selector is
-`Eqiora.Solid.LinearElasticity@0.6.0`.
-Calling the function again is idempotent when every file is unchanged and
-rejects a changed destination without overwriting it.
+Create the store directory first. The request must match the exact release
+shipped in the distribution. The solid package is
+`Eqiora.Solid.LinearElasticity`, version `0.6.0`.
+The manifest records `version = "0.4.0"` and `bundled = true` for the fluid
+dependency; local dependencies instead record an explicit `path`.
 
 `eqiora.toml` is the author-maintained project and package manifest. It owns the
-canonical name, exact version, source root, entry module, and direct local
+canonical name, exact version, source root, entry module, and direct
 dependencies:
 
 ```toml
@@ -249,6 +247,19 @@ model = eqiora.compile_package(
     entry_model="materials.Calibration",
 )
 ```
+
+To move the project offline, create a destination directory and copy the accepted
+closure with `eqiora.vendor_project(".", store_root, "vendor")`. After moving the
+project, `eqiora.open_project(".", "vendor")` returns the validated resolution for
+`compile_package`. Reopening checks current root sources and every locked package
+without reading external dependency paths or selecting bundled releases.
+
+`fetch_project` fills a store from the explicit source requests only if they still
+match the accepted lock. `update_project` explicitly re-derives that lock from the
+current sources. Compilation and reopening never update requests or fetch packages.
+The CLI uses the same operations: `package add --bundled`, `package fetch`,
+`package update`, `package vendor --destination`, and `package check`, each with
+the project path and `--store`.
 
 The shared Rust owner opens manifest-relative paths without following symbolic
 links, discovers bounded `.eqi` inventories, generates each closed package

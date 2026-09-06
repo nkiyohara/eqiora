@@ -1,5 +1,6 @@
 //! Exact local-directory package resolution and store preparation.
 
+mod offline;
 mod transaction;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -62,6 +63,8 @@ struct PreparedLocalProject {
 struct LocalProjectOverrides {
     manifest: Option<LocalProjectManifest>,
     sources: BTreeMap<PathBuf, String>,
+    offline: bool,
+    prepared: BTreeMap<PackageKey, PreparedLocalPackage>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -86,7 +89,10 @@ struct LocalPackageManifest {
 #[serde(deny_unknown_fields)]
 struct LocalProjectDependency {
     version: String,
-    path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    path: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    bundled: bool,
 }
 
 fn default_source_root() -> String {
@@ -113,7 +119,8 @@ impl PackagedModelDocument {
                 name.to_owned(),
                 LocalProjectDependency {
                     version: version.to_owned(),
-                    path: path.to_owned(),
+                    path: Some(path.to_owned()),
+                    bundled: false,
                 },
             );
             Ok(true)
@@ -161,19 +168,6 @@ impl PackagedModelDocument {
     {
         resolve_local_package_project_v1(project_root, store_root)
     }
-
-    /// Read and validate the exact lock of one local package project without resolving it.
-    ///
-    /// # Errors
-    ///
-    /// Returns a bounded no-follow filesystem or canonical lock-contract failure.
-    pub fn load_local_package_project_lock_v1(
-        project_root: impl Into<PathBuf>,
-    ) -> Result<ResolutionRecordV1, PackagePreparationError> {
-        let project_path = project_root.into();
-        let project = open_project_root(&project_path)?;
-        read_project_lock(&project)
-    }
 }
 
 fn resolve_local_package_project_v1<R, P>(
@@ -213,6 +207,7 @@ fn update_local_package_project(
         LocalProjectOverrides {
             manifest: Some(candidate),
             sources: BTreeMap::new(),
+            ..Default::default()
         },
     )?;
     let dependencies = prepared
@@ -269,6 +264,7 @@ pub(crate) fn analyze_local_package_editor_project_v1(
         LocalProjectOverrides {
             manifest: None,
             sources: overrides.clone(),
+            ..Default::default()
         },
     )?;
     let dependencies = prepared
@@ -350,7 +346,7 @@ fn prepare_local_package_project(
         &mut indexed_paths,
     )?;
     let mut visiting = BTreeSet::new();
-    let mut prepared = BTreeMap::new();
+    let mut prepared = std::mem::take(&mut overrides.prepared);
     let root_package = prepare_local_package(&root_key, &packages, &mut visiting, &mut prepared)?;
     if let Some(path) = overrides.sources.keys().next() {
         return Err(PackagePreparationError::LocalDirectoryGraph(format!(
@@ -426,6 +422,11 @@ fn load_local_package(
     let name = QualifiedName::parse(&manifest.package.name)?;
     let version = ExactVersion::parse(&manifest.package.version)?;
     let key = (name.clone(), version.clone());
+    if overrides.prepared.contains_key(&key) {
+        return Err(PackagePreparationError::LocalDirectoryGraph(format!(
+            "package `{name}@{version}` has conflicting local and bundled sources"
+        )));
+    }
     if let Some(previous) = packages.get(&key) {
         return Err(PackagePreparationError::LocalDirectoryGraph(format!(
             "local package `{name}@{version}` is supplied by both {} and {}",
@@ -501,7 +502,44 @@ fn load_local_package(
     for (declared_name, dependency) in manifest.dependencies {
         let dependency_name = QualifiedName::parse(&declared_name)?;
         let dependency_version = ExactVersion::parse(&dependency.version)?;
-        let dependency_path = resolve_dependency_path(&relative_path, &dependency.path)?;
+        if dependency.path.is_some() == dependency.bundled {
+            return Err(PackagePreparationError::LocalDirectoryGraph(format!(
+                "dependency `{declared_name}` requires exactly one explicit path or bundled source"
+            )));
+        }
+        let expected = (dependency_name.clone(), dependency_version);
+        if overrides.offline {
+            if let Some(path) = &dependency.path {
+                resolve_dependency_path(&relative_path, path)?;
+            }
+            if !overrides.prepared.contains_key(&expected) {
+                return Err(PackagePreparationError::LocalDirectoryGraph(format!(
+                    "accepted lock omits dependency `{declared_name}@{}`",
+                    expected.1
+                )));
+            }
+            dependencies.insert(dependency_name, expected);
+            continue;
+        }
+        if dependency.bundled {
+            let releases = super::standard::closure(&declared_name, &dependency.version)?;
+            for release in &releases {
+                let identity = release.package_identity()?;
+                if packages.contains_key(&(identity.name.clone(), identity.version.clone())) {
+                    return Err(PackagePreparationError::LocalDirectoryGraph(format!(
+                        "package `{}@{}` has conflicting local and bundled sources",
+                        identity.name, identity.version
+                    )));
+                }
+            }
+            offline::retain_releases(&mut overrides.prepared, &releases)?;
+            dependencies.insert(dependency_name, expected);
+            continue;
+        }
+        let dependency_path = resolve_dependency_path(
+            &relative_path,
+            dependency.path.as_deref().expect("validated path source"),
+        )?;
         let actual = load_local_package(
             project,
             project_path,
@@ -511,7 +549,6 @@ fn load_local_package(
             packages,
             indexed_paths,
         )?;
-        let expected = (dependency_name.clone(), dependency_version);
         if actual != expected {
             return Err(PackagePreparationError::LocalDirectoryGraph(format!(
                 "dependency `{declared_name}` at `{}` declares `{}@{}` instead of `{}@{}`",
@@ -715,7 +752,7 @@ fn prepare_local_package(
     let mut dependencies = BTreeMap::new();
     let mut requirements = Vec::with_capacity(package.dependencies.len());
     for target_key in package.dependencies.values() {
-        if !packages.contains_key(target_key) {
+        if !packages.contains_key(target_key) && !prepared.contains_key(target_key) {
             return Err(PackagePreparationError::LocalDirectoryGraph(format!(
                 "local package `{}` is missing dependency `{}@{}`",
                 key.0, target_key.0, target_key.1
