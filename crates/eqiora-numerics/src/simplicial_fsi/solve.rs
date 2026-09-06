@@ -569,7 +569,7 @@ impl<const D: usize> FinalizedState<D> {
         let (algebraic_values, solve_report) = solved.into_parts();
         let (dimensionless_vertex_velocity, dimensionless_fluid_bubbles, dimensionless_pressure) =
             self.layout
-                .reconstruct(&algebraic_values, self.partition.fluid_cells().len())?;
+                .reconstruct_primal(&algebraic_values, self.partition.fluid_cells().len())?;
         let full_values = self.layout.fill_full(
             &dimensionless_vertex_velocity,
             &dimensionless_fluid_bubbles,
