@@ -1,8 +1,7 @@
 //! Exact discrete block projection of the accepted fixed-reference FSI slice.
 
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, DimExponents, Id, RawId, ValueShape};
-use eqiora_core::{ScalarDomain, ValueFrame, ValueType};
+use eqiora_core::{Diagnostic, Id, RawId};
 use eqiora_meshing::{MeshTopology, SimplicialMesh};
 use eqiora_realization::{
     AlgebraicBlock, MeshArtifactReference, ResolvedCoupledFieldwiseRealization,
@@ -10,7 +9,6 @@ use eqiora_realization::{
 use eqiora_solver::LinearOperatorProperties;
 
 use super::super::FixedReferenceFsiCartesianModel2d;
-use super::FixedReferenceFsiScaleProfile2d;
 use super::validate::{
     fluid_domain, fluid_pressure, fluid_velocity, solid_displacement, solid_domain, solid_velocity,
     trace_quotient,
@@ -19,18 +17,12 @@ use crate::canonical_boundary::BoundaryRelationBinding;
 use crate::canonical_boundary::{CartesianBoundaryInventory, PhysicalBoundaryDisposition};
 use crate::discrete_block::{
     AlgebraicClosure, BlockRealizationIdentity, BlockSupport, BlockTransformation,
-    ContributionBatch, ContributionTerm, DiscreteBlockContext, DiscreteBlockSystem, FieldBlock,
-    FieldBlockRole, RelationBlock, RelationDisposition, ResidualBlock, ResidualOrigin,
-    boundary_treatment, conforming_interface_relations,
+    ContributionBatch, ContributionTerm, DiscreteBlockContext, DiscreteBlockSystem, RelationBlock,
+    RelationDisposition, ResidualOrigin, boundary_treatment, conforming_interface_relations,
 };
 use crate::simplicial_fsi::FixedReferenceFsiPartition;
 
-const LENGTH: DimExponents =
-    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
-const VELOCITY: DimExponents =
-    DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
-const PRESSURE: DimExponents =
-    DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
+mod roles;
 
 pub(super) fn fixed_reference_fsi_block_system(
     model: &FixedReferenceFsiCartesianModel2d,
@@ -38,7 +30,6 @@ pub(super) fn fixed_reference_fsi_block_system(
     mesh_artifact: MeshArtifactReference,
     mesh: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<2>,
-    scales: FixedReferenceFsiScaleProfile2d,
 ) -> Result<DiscreteBlockSystem, Diagnostic> {
     let fluid_domain = fluid_domain(model);
     let solid_domain = solid_domain(model);
@@ -46,130 +37,18 @@ pub(super) fn fixed_reference_fsi_block_system(
     let fluid_pressure = fluid_pressure(model);
     let solid_velocity = solid_velocity(model);
     let solid_displacement = solid_displacement(model);
-    let fluid_force = field(model.fluid().force_potential())?;
-    let solid_load = field(model.solid().continuum().load_potential())?;
-    let vector = ValueShape::new([2]).expect("two-component spatial vectors are representable");
+    let roles::VolumeBlocks {
+        fields,
+        mut relations,
+        residuals,
+    } = roles::volume_blocks(model, resolved.plan())?;
+    let fluid_definition = roles::coefficient_relation(model, fluid_domain)?;
+    let solid_definition = roles::coefficient_relation(model, solid_domain)?;
+    let fluid_momentum = roles::residual_relation(model, fluid_velocity)?;
+    let incompressibility = roles::residual_relation(model, fluid_pressure)?;
+    let solid_momentum = roles::residual_relation(model, solid_velocity)?;
+    let solid_kinematic = roles::kinematic_relation(model, solid_displacement, solid_velocity)?;
     let plan = resolved.plan();
-    let space_for = |field| {
-        plan.spatial()
-            .domains()
-            .iter()
-            .flat_map(|domain| domain.field_spaces())
-            .find(|binding| binding.field() == field)
-            .map(|binding| binding.space())
-            .expect("exact accepted FSI plan contains every algebraic Field")
-    };
-    let state = plan.time_step().eliminated_state();
-    let fields = vec![
-        FieldBlock::discrete(
-            fluid_domain,
-            fluid_velocity,
-            space_for(fluid_velocity),
-            ValueType::shaped(
-                ScalarDomain::Real,
-                VELOCITY,
-                vector.clone(),
-                ValueFrame::SpatialCartesian,
-            )
-            .expect("admitted spatial type"),
-            scales.velocity(),
-            FieldBlockRole::Algebraic,
-        )?,
-        FieldBlock::discrete(
-            fluid_domain,
-            fluid_pressure,
-            space_for(fluid_pressure),
-            ValueType::scalar(ScalarDomain::Real, PRESSURE),
-            scales.pressure(),
-            FieldBlockRole::Algebraic,
-        )?,
-        FieldBlock::coefficient(
-            fluid_domain,
-            fluid_force,
-            ValueType::scalar(ScalarDomain::Real, PRESSURE),
-        ),
-        FieldBlock::discrete(
-            solid_domain,
-            solid_velocity,
-            space_for(solid_velocity),
-            ValueType::shaped(
-                ScalarDomain::Real,
-                VELOCITY,
-                vector.clone(),
-                ValueFrame::SpatialCartesian,
-            )
-            .expect("admitted spatial type"),
-            scales.velocity(),
-            FieldBlockRole::Algebraic,
-        )?,
-        FieldBlock::discrete(
-            solid_domain,
-            solid_displacement,
-            state.state_space(),
-            ValueType::shaped(
-                ScalarDomain::Real,
-                LENGTH,
-                vector,
-                ValueFrame::SpatialCartesian,
-            )
-            .expect("admitted spatial type"),
-            state.state_scale().quantity(),
-            FieldBlockRole::EliminatedState,
-        )?,
-        FieldBlock::coefficient(
-            solid_domain,
-            solid_load,
-            ValueType::scalar(ScalarDomain::Real, PRESSURE),
-        ),
-    ];
-
-    let fluid_definition = relation(model.fluid().force_potential_definition())?;
-    let fluid_momentum = relation(model.fluid().momentum_relation())?;
-    let incompressibility = relation(model.fluid().incompressibility_relation())?;
-    let solid_definition = relation(model.solid().continuum().load_definition_relation())?;
-    let solid_kinematic = relation(model.solid().kinematic_relation())?;
-    let solid_momentum = relation(model.solid().continuum().equilibrium_relation())?;
-    let mut relations = vec![
-        RelationBlock::new(
-            fluid_definition,
-            BlockSupport::Volume(fluid_domain),
-            RelationDisposition::CoefficientDefinition { field: fluid_force },
-        ),
-        RelationBlock::new(
-            fluid_momentum,
-            BlockSupport::Volume(fluid_domain),
-            RelationDisposition::Residual {
-                tested: AlgebraicBlock::Field(fluid_velocity),
-            },
-        ),
-        RelationBlock::new(
-            incompressibility,
-            BlockSupport::Volume(fluid_domain),
-            RelationDisposition::Residual {
-                tested: AlgebraicBlock::Field(fluid_pressure),
-            },
-        ),
-        RelationBlock::new(
-            solid_definition,
-            BlockSupport::Volume(solid_domain),
-            RelationDisposition::CoefficientDefinition { field: solid_load },
-        ),
-        RelationBlock::new(
-            solid_kinematic,
-            BlockSupport::Volume(solid_domain),
-            RelationDisposition::StateElimination {
-                state: solid_displacement,
-                rate: solid_velocity,
-            },
-        ),
-        RelationBlock::new(
-            solid_momentum,
-            BlockSupport::Volume(solid_domain),
-            RelationDisposition::Residual {
-                tested: AlgebraicBlock::Field(solid_velocity),
-            },
-        ),
-    ];
     relations.extend(boundary_relation_blocks(
         model.fluid().boundary_inventory(),
         model.fluid().boundary_relations(),
@@ -180,24 +59,6 @@ pub(super) fn fixed_reference_fsi_block_system(
         model.solid().continuum().boundary_relations(),
         solid_velocity,
     )?);
-
-    let residuals = vec![
-        ResidualBlock::new(
-            AlgebraicBlock::Field(fluid_velocity),
-            BlockSupport::Volume(fluid_domain),
-            [ResidualOrigin::Relation(fluid_momentum)],
-        )?,
-        ResidualBlock::new(
-            AlgebraicBlock::Field(fluid_pressure),
-            BlockSupport::Volume(fluid_domain),
-            [ResidualOrigin::Relation(incompressibility)],
-        )?,
-        ResidualBlock::new(
-            AlgebraicBlock::Field(solid_velocity),
-            BlockSupport::Volume(solid_domain),
-            [ResidualOrigin::Relation(solid_momentum)],
-        )?,
-    ];
 
     let quotient = trace_quotient(model);
     let interface_relations = conforming_interface_relations(

@@ -16,7 +16,7 @@ use eqiora_schema::kernel::{
 use eqiora_sem::KernelProgram;
 
 use crate::affine_fem::physical_gradient;
-use crate::canonical::{boundary_parent, continuum_fields_on, lowering_error, relations_on};
+use crate::canonical::{boundary_parent, lowering_error, relations_on};
 use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
 use crate::form_compiler::vocabulary::{
     BoundarySource, FormulationKind, PrimalGalerkinCorrespondence, PrimalGalerkinSource,
@@ -311,13 +311,22 @@ pub(crate) fn derive_candidate_with_dimension(
     {
         return Ok(None);
     }
-    let fields = continuum_fields_on(program, domain);
-    if fields.len() != 1 {
+    let roles = super::equation_roles::EquationRoles::derive(program, [domain])
+        .map_err(|error| role_error(domain, error.message()))?;
+    let principal = roles
+        .relations
+        .iter()
+        .filter_map(|(id, entry)| match entry.kind {
+            super::equation_roles::Role::Residual { tested } => Some((*id, tested)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if principal.len() != 1 {
         return Err(role_error(
             domain,
             format!(
-                "compiled Q1 requires exactly one scalar continuum unknown, found {}",
-                fields.len()
+                "compiled Q1 requires exactly one principal scalar equation, found {}",
+                principal.len()
             ),
         ));
     }
@@ -331,8 +340,7 @@ pub(crate) fn derive_candidate_with_dimension(
             ),
         ));
     }
-    let field = fields[0];
-    let volume_relation = volume_relations[0];
+    let (volume_relation, field) = principal[0];
     let boundaries = boundary_inventory(program, domain, field, dimension)?;
     let Some(boundary_roles) = boundaries else {
         return Ok(None);

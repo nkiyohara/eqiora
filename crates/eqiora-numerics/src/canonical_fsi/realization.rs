@@ -515,14 +515,8 @@ fn prepare_resolved_fixed_reference_fsi_run_2d_with_assembly<'a>(
         FixedReferenceFsiBoundary::<2>::homogeneous_exterior(mesh).map_err(realization_error)?;
     let quadrature =
         triangle_duffy_gauss_legendre(DUFFY_POINTS_PER_AXIS).map_err(realization_error)?;
-    let block_system = block::fixed_reference_fsi_block_system(
-        model,
-        resolved,
-        mesh_artifact,
-        mesh,
-        partition,
-        scales,
-    )?;
+    let block_system =
+        block::fixed_reference_fsi_block_system(model, resolved, mesh_artifact, mesh, partition)?;
     Ok(PreparedResolvedFixedReferenceFsiRun2d {
         model,
         resolved,

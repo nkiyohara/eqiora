@@ -367,6 +367,49 @@ fn finalization_accepts_the_complete_exact_plan() {
 }
 
 #[test]
+fn block_projection_rejects_a_plan_pair_without_its_model_kinematics() {
+    let mut fixture = Fixture::new(SOURCE);
+    let plan = fixed_reference_fsi_plan_2d(
+        &fixture.model,
+        mesh_reference(),
+        DynQuantity::new(0.1, TIME),
+        scales(),
+        reference_solver(),
+    )
+    .unwrap();
+    let resolved = fixture.resolve(plan);
+    let kinematic = fixture
+        .model
+        .equation_roles
+        .relations
+        .values_mut()
+        .find(|entry| {
+            matches!(
+                entry.kind,
+                crate::form_compiler::equation_roles::Role::Kinematic { .. }
+            )
+        })
+        .unwrap();
+    let crate::form_compiler::equation_roles::Role::Kinematic { state, rate } = kinematic.kind
+    else {
+        unreachable!()
+    };
+    kinematic.kind = crate::form_compiler::equation_roles::Role::Kinematic {
+        state: rate,
+        rate: state,
+    };
+    let error = super::block::fixed_reference_fsi_block_system(
+        &fixture.model,
+        &resolved,
+        mesh_reference(),
+        &fixture.mesh,
+        &fixture.partition,
+    )
+    .unwrap_err();
+    assert_eq!(error.message(), "Plan role has no matching Model equation");
+}
+
+#[test]
 fn finalized_cuda_admission_owns_the_exact_system_subject() {
     let _admit: for<'a> fn(
         &'a FinalizedResolvedFixedReferenceFsiStep2d,
