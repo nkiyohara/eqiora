@@ -19,6 +19,9 @@ use eqiora_solver::REFERENCE_LINEAR_SOLVER;
 use super::{CompleteParameterStudy, ParameterStudyPlan};
 use crate::{DifferentiableEvaluation, DifferentiableProgram, ModelDocument};
 
+#[path = "axes_reference.rs"]
+mod axes_reference;
+
 const SOURCE: &str = r#"public component DifferentiatedPoisson {
   public support square: volume(ambient_dimension = 2);
   public support x_lower: boundary(parent = square);
