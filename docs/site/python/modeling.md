@@ -3,8 +3,8 @@
 Python authoring produces immutable declarations that close into the same
 Rust-owned semantic model as Eqiora Language and Studio.
 
-The current source-tree Python surface includes native builders for bounded scalar `Field`,
-`Parameter`, and continuous `Relation` declarations, physical domains and
+The current source-tree Python surface includes native builders for typed `Field`,
+scalar `Parameter`, and continuous `Relation` declarations, physical domains and
 ports, exact model identity, and one Rust-owned exact
 axis-aligned-rectangle-with-circular-hole geometry. That exact family can enter
 one explicit, error-controlled Gmsh meshing operation while the
@@ -36,14 +36,21 @@ prelude; scalar mathematics lives under reserved `math.*`. The initial
 vocabulary is exactly the one needed by the complete steady-cylinder Stokes
 Component and scalar Poisson examples.
 
+Native `Field` and Source `Component.field` share `ValueType`: real or complex
+scalar domains, exact rational physical dimensions, spatial vectors/tensors, and
+channel arrays. Spatial axes must match the exact Domain; equal extents do not
+make a channel array a spatial vector. A numeric Field initializer uses its
+declared coherent unit, and zero initializes the complete shaped type without
+scalar broadcasting. Complex execution remains under development.
+
 Start with the complete [five-minute example](../get-started.md), then read
 the maintained
 [modeling contract](https://github.com/nkiyohara/eqiora/blob/main/docs/python/modeling.md)
 for spatial support, revision identity, transaction behavior, supported
 expressions, and fail-closed examples.
 
-General vector/tensor authoring beyond that Source vocabulary, state charts, generic
-CAD/Boolean builders, production or imported meshing, durable generated-mesh
+State charts, generic CAD/Boolean builders, production or imported meshing,
+durable generated-mesh
 replay, solve composition for authored geometry, arbitrary realization graphs,
 general FSI/ALE, Python time loops, and animation remain outside this alpha's
 Python surface.

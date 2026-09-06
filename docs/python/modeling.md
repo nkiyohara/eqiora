@@ -35,17 +35,27 @@ channels = eqiora.Field(
     domain=body,
     representation=space,
     value_type=eqiora.ValueType.array(eqiora.ValueType.vector(voltage, 2), 3),
+    initial=0.0,
 )
 ```
 
 `ValueType.real(dimension)` and `ValueType.complex(dimension)` construct scalars.
 `vector(scalar, extent)` and `tensor(scalar, *extents)` introduce spatial axes;
 `array(element, extent)` adds a channel axis without changing the element's frame.
-Spatial extents must match the Field's exact Domain. Complex execution is still
-under development.
+Equal component counts do not make these types interchangeable. Spatial extents
+must match the Field's exact Domain. Complex execution is still under development.
+
+Dimensions accept exact rational exponents, for example
+`eqiora.Dimension(length=Fraction(-1, 2))` with `Fraction` imported from `fractions`.
+A scalar Field's numeric `initial=` value uses its declared dimension's coherent
+unit. A vector, tensor, or array Field can be initialized with `0.0`, which takes
+the complete declared type; a nonzero scalar is not broadcast across components.
 
 The same `value_type=` objects apply to `eqiora.lang.Component.field`.
 `ValueType.to_eqi()` emits the canonical type through the Rust formatter.
+In source, `field pressure: Pa = 2;` therefore needs no repeated `[Pa]`.
+Explicit compatible input units still convert normally. Numeric declaration
+initializers provide this context, not arbitrary expressions.
 
 A relation receives an explicit zero-valued residual. Symbolic equality and
 Python truth testing are not modeling syntax. Declarations and expressions
@@ -156,7 +166,7 @@ Model exposes the existing immutable `property_bindings` inspection.
 The complete current vocabulary and steady-cylinder Component are shown in
 [`examples/python/steady_cylinder_source.py`](../../examples/python/steady_cylinder_source.py).
 The baseline slice has one public Component, public volume/parent-boundary
-supports and parameters, scalar or spatial-vector continuum fields, continuous
+supports and parameters, scalar, spatial-vector/tensor and channel-array Fields, continuous
 residual Relations, structural SI units, constants, coordinates, arithmetic,
 powers, gradient, divergence, trace, normal contraction, symmetric part, and
 isotropic lift. The package-oriented extension admits multiple scalar contracts
