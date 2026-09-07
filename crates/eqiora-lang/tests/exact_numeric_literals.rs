@@ -28,3 +28,26 @@ fn large_source_and_native_literals_retain_the_same_exact_decimal() {
         formatted
     );
 }
+
+#[test]
+fn integer_type_and_native_component_data_share_the_source_boundary() {
+    let source = "model M(parameter n: integer = 9007199254740993) { let channels: array<integer, 2> = [n, 1]; }";
+    let document = parse("integer.eqi", source).into_document().unwrap();
+    assert_eq!(
+        format(
+            &parse("again.eqi", &format(&document))
+                .into_document()
+                .unwrap()
+        ),
+        format(&document)
+    );
+    let ty = eqiora_core::ValueType::scalar(
+        eqiora_core::ScalarDomain::Integer,
+        eqiora_core::DimExponents::DIMENSIONLESS,
+    );
+    let literal = eqiora_core::ValueLiteral::from_integer(ty, 9007199254740993).unwrap();
+    let expression = SourceAstFactory::value_literal(&literal, TextRange::new(0, 0)).unwrap();
+    assert!(
+        matches!(expression.kind(), ExprKind::Number(value) if value.to_i64().ok() == Some(9007199254740993))
+    );
+}

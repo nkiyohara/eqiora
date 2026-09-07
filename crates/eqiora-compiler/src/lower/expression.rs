@@ -24,6 +24,7 @@ impl LoweringExpression {
                 | LoweringExpressionNode::Index { value, .. }
                 | LoweringExpressionNode::Sample { value, .. } => pending.push(value),
                 LoweringExpressionNode::Array(elements) => pending.extend(elements),
+                LoweringExpressionNode::IntegerCall { arguments, .. } => pending.extend(arguments),
                 LoweringExpressionNode::Complex { real, imag } => pending.extend([real, imag]),
                 LoweringExpressionNode::Binary { left, right, .. } => {
                     pending.push(left);
@@ -336,6 +337,31 @@ impl ExpressionLowerer<'_> {
             return Ok(*lowered);
         }
         let lowered = match expression.node.as_ref() {
+            LoweringExpressionNode::IntegerCall {
+                operator,
+                arguments,
+            } => {
+                let operands = arguments
+                    .iter()
+                    .map(|argument| self.lower(argument))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let result = match operator {
+                    super::IntegerBuiltin::Quotient => {
+                        self.builder.quotient(operands[0].id, operands[1].id)
+                    }
+                    super::IntegerBuiltin::Remainder => {
+                        self.builder.remainder(operands[0].id, operands[1].id)
+                    }
+                    super::IntegerBuiltin::ToReal => self.builder.to_real(operands[0].id),
+                    super::IntegerBuiltin::ToInteger => self.builder.to_integer(operands[0].id),
+                };
+                result
+                    .map(|id| TypedExpression {
+                        id,
+                        dimension: DimExponents::DIMENSIONLESS,
+                    })
+                    .map_err(|error| self.builder_error(expression, error))
+            }
             LoweringExpressionNode::Sample { value, clock } => {
                 let Some(Binding::Clock(id, _)) = self.bindings.get(clock) else {
                     return Err(unresolved(

@@ -16,6 +16,7 @@ pub(super) fn encode_value_type(
             encoder.u8(match domain {
                 ScalarDomain::Real => 0,
                 ScalarDomain::Complex => 1,
+                ScalarDomain::Integer => 2,
             })?;
             encode_expression(encoder, dimension, budget, next_depth(depth)?)
         }

@@ -11,6 +11,8 @@ mod domain;
 mod domain_contract;
 mod expression;
 mod external;
+mod integer;
+pub(crate) use integer::IntegerBuiltin;
 #[cfg(test)]
 mod model_tests;
 #[cfg(test)]
@@ -226,6 +228,10 @@ impl PartialEq for LoweringExpression {
 #[derive(Debug, PartialEq)]
 enum LoweringExpressionNode {
     Literal(eqiora_core::ValueLiteral),
+    IntegerCall {
+        operator: IntegerBuiltin,
+        arguments: Vec<LoweringExpression>,
+    },
     Name(String),
     Neg(LoweringExpression),
     Array(Vec<LoweringExpression>),

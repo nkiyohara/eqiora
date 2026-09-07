@@ -36,6 +36,15 @@ impl SourceAstFactory {
                     range,
                 };
             }
+            if let Some(integer) = value.integer_component(*offset) {
+                *offset += 1;
+                return Expr {
+                    kind: ExprKind::Number(
+                        crate::DecimalLiteral::parse(&integer.to_string()).expect("bounded i64"),
+                    ),
+                    range,
+                };
+            }
             let (real, imaginary) = value.component(*offset).expect("bounded value component");
             *offset += 1;
             let scalar = |number| Expr {

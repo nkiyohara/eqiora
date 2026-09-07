@@ -16,6 +16,21 @@ impl Parser<'_> {
             return None;
         }
         let start = self.current().range().start();
+        if self.at_keyword("integer") {
+            let token = self.bump();
+            return Some(ValueTypeSyntax {
+                kind: ValueTypeSyntaxKind::Scalar {
+                    domain: ScalarDomain::Integer,
+                    dimension: crate::Expr {
+                        kind: crate::ExprKind::Number(
+                            crate::DecimalLiteral::parse("1").expect("one"),
+                        ),
+                        range: token.range(),
+                    },
+                },
+                range: token.range(),
+            });
+        }
         if self.at_keyword("complex") {
             self.bump();
             self.expect(TokenKind::LeftAngle, "`<` after complex")?;

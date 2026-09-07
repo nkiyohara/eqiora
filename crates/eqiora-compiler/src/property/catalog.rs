@@ -134,19 +134,32 @@ pub(super) fn build(
                     continue;
                 }
             };
-            let value = match source_value
-                .components()
-                .map(|(real, imag)| {
-                    Ok((
-                        crate::units::normalize_value(real, scale)?,
-                        crate::units::normalize_value(imag, scale)?,
-                    ))
-                })
-                .collect::<Result<Vec<_>, &'static str>>()
-                .and_then(|values| {
-                    eqiora_core::ValueLiteral::new(contract_type.clone(), values)
-                        .map_err(|_| "invalid normalized property value")
-                }) {
+            let normalized = if source_value.value_type().scalar_domain()
+                == eqiora_core::ScalarDomain::Integer
+            {
+                if scale != 1.0 {
+                    Err("integer property values require unit scale one")
+                } else {
+                    crate::typed_values::retype(&source_value, contract_type.clone())
+                        .map_err(|_| "invalid integer property type")
+                }
+            } else {
+                source_value
+                    .components()
+                    .expect("real or complex property")
+                    .map(|(real, imag)| {
+                        Ok((
+                            crate::units::normalize_value(real, scale)?,
+                            crate::units::normalize_value(imag, scale)?,
+                        ))
+                    })
+                    .collect::<Result<Vec<_>, &'static str>>()
+                    .and_then(|values| {
+                        eqiora_core::ValueLiteral::new(contract_type.clone(), values)
+                            .map_err(|_| "invalid normalized property value")
+                    })
+            };
+            let value = match normalized {
                 Ok(value) => value,
                 Err(message) => {
                     diagnostics.push(error(&unit.file, range, message));

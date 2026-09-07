@@ -866,7 +866,7 @@ pub(in crate::hierarchy) fn static_index(
     expression: &Expr,
     values: &SymbolicParameterMap,
 ) -> Result<u32, Diagnostic> {
-    let evaluated = evaluate_parameter_expression(
+    let evaluated = expression_eval::evaluate_with_domain(
         file,
         expression,
         ExpressionContext::Let,
@@ -881,6 +881,7 @@ pub(in crate::hierarchy) fn static_index(
             })
         },
         &mut |_| None,
+        Some(ScalarDomain::Integer),
     )?;
     value_expressions::checked_index(file, expression.range(), &evaluated)
 }

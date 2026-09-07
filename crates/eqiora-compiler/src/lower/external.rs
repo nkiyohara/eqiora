@@ -18,6 +18,16 @@ impl LoweringExpression {
             LoweringExpressionNode::Literal(value) => {
                 LoweringExpressionNode::Literal(value.clone())
             }
+            LoweringExpressionNode::IntegerCall {
+                operator,
+                arguments,
+            } => LoweringExpressionNode::IntegerCall {
+                operator: *operator,
+                arguments: arguments
+                    .iter()
+                    .map(|value| value.clone_shared(cache))
+                    .collect(),
+            },
             LoweringExpressionNode::Array(elements) => LoweringExpressionNode::Array(
                 elements
                     .iter()

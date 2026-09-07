@@ -74,6 +74,20 @@ impl LoweringExpression {
         }
     }
 
+    pub(crate) fn integer_call(
+        operator: super::IntegerBuiltin,
+        arguments: Vec<Self>,
+        range: TextRange,
+    ) -> Self {
+        Self {
+            node: Arc::new(LoweringExpressionNode::IntegerCall {
+                operator,
+                arguments,
+            }),
+            range,
+        }
+    }
+
     pub(crate) fn call(callee: String, argument: Self, range: TextRange) -> Self {
         Self {
             node: Arc::new(LoweringExpressionNode::Call { callee, argument }),

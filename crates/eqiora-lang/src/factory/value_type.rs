@@ -18,8 +18,13 @@ impl SourceAstFactory {
         let mut count = 1_u64;
         for _ in 0..256 {
             let (element, extents) = match current.kind() {
-                ValueTypeSyntaxKind::Scalar { dimension, .. } => {
+                ValueTypeSyntaxKind::Scalar { dimension, domain } => {
                     validate_expression(dimension)?;
+                    if *domain == eqiora_core::ScalarDomain::Integer
+                        && !matches!(dimension.kind(), crate::ExprKind::Number(value) if value.to_i64().ok() == Some(1))
+                    {
+                        return Err(AstConstructionError::new("integer type is dimensionless"));
+                    }
                     return Ok(result);
                 }
                 ValueTypeSyntaxKind::Vector { scalar, extent } => {

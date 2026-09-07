@@ -78,10 +78,21 @@ pub(super) fn evaluate_with_target(
                 .map(|value| value.value.as_ref())
                 .collect::<Option<Vec<_>>>()
                 .map(|values| {
-                    ValueLiteral::new(
-                        value_type.clone(),
-                        values.iter().flat_map(|value| value.components()),
-                    )
+                    if value_type.scalar_domain() == ScalarDomain::Integer {
+                        ValueLiteral::integer(
+                            value_type.clone(),
+                            values.iter().flat_map(|value| {
+                                value.integer_components().expect("checked integer array")
+                            }),
+                        )
+                    } else {
+                        ValueLiteral::new(
+                            value_type.clone(),
+                            values.iter().flat_map(|value| {
+                                value.components().expect("checked real/complex array")
+                            }),
+                        )
+                    }
                     .map_err(|violation| error(violation.to_string()))
                 })
                 .transpose()?;
@@ -90,8 +101,14 @@ pub(super) fn evaluate_with_target(
         ExprKind::Index { value, index } => {
             let operand =
                 evaluate_parameter_expression(file, value, context, resolve, resolve_clock)?;
-            let index_value =
-                evaluate_parameter_expression(file, index, context, resolve, resolve_clock)?;
+            let index_value = super::expression_eval::evaluate_with_domain(
+                file,
+                index,
+                context,
+                resolve,
+                resolve_clock,
+                Some(ScalarDomain::Integer),
+            )?;
             let index = checked_index(file, index.range(), &index_value)?;
             let value_type = ExpressionType::index(
                 ExpressionType::<()>::new(operand.value_type.value_type().clone(), None),
@@ -111,10 +128,25 @@ pub(super) fn evaluate_with_target(
                         .shape()
                         .component_count()
                         .expect("checked element type");
-                    ValueLiteral::new(
-                        value_type.clone(),
-                        value.components().skip(index as usize * count).take(count),
-                    )
+                    if value_type.scalar_domain() == ScalarDomain::Integer {
+                        ValueLiteral::integer(
+                            value_type.clone(),
+                            value
+                                .integer_components()
+                                .expect("checked integer array")
+                                .skip(index as usize * count)
+                                .take(count),
+                        )
+                    } else {
+                        ValueLiteral::new(
+                            value_type.clone(),
+                            value
+                                .components()
+                                .expect("checked real/complex array")
+                                .skip(index as usize * count)
+                                .take(count),
+                        )
+                    }
                     .map_err(|violation| error(violation.to_string()))
                 })
                 .transpose()?;
@@ -223,17 +255,10 @@ pub(super) fn checked_index(
     if !matches!(value.lineage, Some(ParameterLineage::Constant)) {
         return Err(invalid());
     }
-    let quantity = value
+    let index = value
         .value
         .as_ref()
-        .and_then(ValueLiteral::real_scalar_value)
+        .and_then(ValueLiteral::integer_scalar_value)
         .ok_or_else(invalid)?;
-    if quantity.dim() != DimExponents::DIMENSIONLESS
-        || quantity.value() < 0.0
-        || quantity.value() > f64::from(u32::MAX)
-        || quantity.value().fract() != 0.0
-    {
-        return Err(invalid());
-    }
-    Ok(quantity.value() as u32)
+    u32::try_from(index).map_err(|_| invalid())
 }

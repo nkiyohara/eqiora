@@ -22,6 +22,10 @@ pub(super) fn format_value_type(
 ) {
     match value.kind() {
         ValueTypeSyntaxKind::Scalar { domain, dimension } => {
+            if *domain == ScalarDomain::Integer {
+                output.push_str("integer");
+                return;
+            }
             if *domain == ScalarDomain::Complex {
                 output.push_str("complex<");
             }

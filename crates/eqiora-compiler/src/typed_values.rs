@@ -1,19 +1,40 @@
 //! Component data operations after common mathematical type checking.
 
-use eqiora_core::{ValueLiteral, ValueType};
+use eqiora_core::{ScalarDomain, ValueLiteral, ValueType};
 use eqiora_lang::BinaryOp;
 
 pub(crate) fn retype(value: &ValueLiteral, target: ValueType) -> Result<ValueLiteral, String> {
+    if target.scalar_domain() == ScalarDomain::Integer {
+        let components = value
+            .integer_components()
+            .ok_or("integer values require exact integer operands")?;
+        return ValueLiteral::integer(target, components).map_err(|error| error.to_string());
+    }
+    if value.value_type().scalar_domain() == ScalarDomain::Integer {
+        return Err("integer/real conversion must be explicit".into());
+    }
     if value.is_zero() {
         return ValueLiteral::from_real(target, 0.0).map_err(|error| error.to_string());
     }
-    ValueLiteral::new(target, value.components()).map_err(|error| error.to_string())
+    ValueLiteral::new(
+        target,
+        value
+            .components()
+            .ok_or("real or complex components required")?,
+    )
+    .map_err(|error| error.to_string())
 }
 
 pub(crate) fn negate(value: &ValueLiteral) -> Result<ValueLiteral, String> {
+    if value.value_type().scalar_domain() == ScalarDomain::Integer {
+        return value.checked_neg().map_err(|error| error.to_string());
+    }
     ValueLiteral::new(
         value.value_type().clone(),
-        value.components().map(|(r, i)| (-r, -i)),
+        value
+            .components()
+            .ok_or("real or complex components required")?
+            .map(|(r, i)| (-r, -i)),
     )
     .map_err(|error| error.to_string())
 }
@@ -25,6 +46,14 @@ pub(crate) fn binary(
     target: ValueType,
     exponent: Option<i32>,
 ) -> Result<ValueLiteral, String> {
+    if target.scalar_domain() == ScalarDomain::Integer {
+        return match operator {
+            BinaryOp::Add => left.checked_add(right),
+            BinaryOp::Sub => left.checked_sub(right),
+            BinaryOp::Mul => left.checked_mul(right),
+            _ => return Err("integer arithmetic requires checked +, -, *, quotient or remainder; convert explicitly for real arithmetic".into()),
+        }.map_err(|error| error.to_string());
+    }
     let count = target.shape().component_count().expect("checked type");
     let mut output = Vec::with_capacity(count);
     for index in 0..count {
