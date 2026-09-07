@@ -237,13 +237,15 @@ selects a member explicitly, such as `diffusivity = ReferenceMaterial.diffusivit
 Compilation checks that every required property is supplied exactly once and
 that each release implements the required nominal contract.
 
-Property contracts and releases are package-nominal. Passing this Source to
-ordinary `eqiora.compile(source=...)` therefore fails with a focused
-`SourceError`: that path has no exact package namespace. Emit the `.eqi` into an
-exact Model Package and use `compile_package` after the package has been locked.
-Python does not synthesize package lineage, normalize the release, or evaluate
-the property. The locked Rust compiler remains the owner, and its resulting
-Model exposes the existing immutable `property_bindings` inspection.
+Contracts and releases authored in the same Source can compile locally through
+`eqiora.compile(source=source, entry=..., bindings=...)`. The shared Rust compiler
+checks each exact release or composition member against its nominal contract;
+a same-spelled handle from another Source is rejected before emission.
+
+To retain exact package provenance, emit the `.eqi` into a Model Package, lock
+it, and use `compile_package`. That route exposes the existing immutable
+`property_bindings` inspection. Local compilation does not synthesize package
+lineage, and Python does not normalize or evaluate the property itself.
 
 The complete current vocabulary and steady-cylinder Component are shown in
 [`examples/python/steady_cylinder_source.py`](../../examples/python/steady_cylinder_source.py).
