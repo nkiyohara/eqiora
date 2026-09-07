@@ -3,6 +3,8 @@
 Authority: ``bindings/python/python/eqiora/lang/__init__.py``.
 """
 
+import builtins as _builtins
+
 from collections.abc import Mapping, Sequence
 from fractions import Fraction
 from decimal import Decimal
@@ -238,11 +240,11 @@ class _Math:
     pi: Final[Expression]
     i: Final[Expression]
     @staticmethod
-    def complex(real: Expression | float | int | complex, imaginary: Expression | float | int | complex) -> Expression: ...
+    def complex(real: Expression | float | int | _builtins.complex, imaginary: Expression | float | int | _builtins.complex) -> Expression: ...
     @staticmethod
-    def sin(value: Expression | float | int | complex) -> Expression: ...
+    def sin(value: Expression | float | int | _builtins.complex) -> Expression: ...
     @staticmethod
-    def sqrt(value: Expression | float | int | complex) -> Expression: ...
+    def sqrt(value: Expression | float | int | _builtins.complex) -> Expression: ...
 
 #: Exact language constants used by Source expressions.
 #:
