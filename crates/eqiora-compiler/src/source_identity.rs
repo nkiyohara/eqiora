@@ -36,7 +36,7 @@ use eqiora_lang::{
     ConnectionSyntax, ConnectorDecl, ConnectorSyntax, Document, DomainDecl, DomainSyntax, Expr,
     ExprKind, FieldDecl, FrameSyntax, Item, NamePath, ParameterDecl, PortDecl, PortSyntax,
     PureOperatorDecl, RelationDecl, RelationFamilyDecl, SignalDirectionSyntax, SupportSlotDecl,
-    SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, VisibilitySyntax,
+    SupportSlotSyntax, UnaryOp, ValueShapeSyntax, VisibilitySyntax,
 };
 use sha2::{Digest, Sha256};
 

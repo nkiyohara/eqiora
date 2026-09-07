@@ -51,8 +51,8 @@ use super::preflight::{
 };
 use super::scope::{
     ActiveBoundaryMember, FlatSymbol, InstanceInterface, Scope, SymbolKind,
-    resolve_boundary_port_reference, resolve_local_kind, resolve_ports, resolve_visible_ports,
-    rewrite_equations, rewrite_field_scope, rewrite_model_port, rewrite_relation,
+    resolve_boundary_port_reference, resolve_local_kind, resolve_ports, rewrite_equations,
+    rewrite_field_scope, rewrite_model_port, rewrite_relation,
 };
 use super::supports::{
     CompleteExteriorMembershipBudget, ResolvedBoundaryTarget, ResolvedSupportBindings,
@@ -1058,7 +1058,15 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             scope.insert_field_type(slot, field_type);
         }
 
-        for item in component.owned_items() {
+        for item in component
+            .owned_items()
+            .filter(|item| matches!(item, ComponentItem::Clock(_)))
+            .chain(
+                component
+                    .owned_items()
+                    .filter(|item| !matches!(item, ComponentItem::Clock(_))),
+            )
+        {
             match item {
                 ComponentItem::Parameter(declaration) => {
                     let resolved = parameters[declaration.name()].clone();
@@ -1846,7 +1854,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
     ) -> Result<(LoweringPortContract, Option<PhysicalPortMaterialization>), Diagnostic> {
         match declaration.syntax() {
             PortSyntax::Signal { .. } => Ok((
-                LoweringPortContract::Source(super::scope::rewrite_port_syntax(
+                LoweringPortContract::Source(rewrite_model_port(
                     component.file,
                     declaration.syntax(),
                     declaration.range(),
