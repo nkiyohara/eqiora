@@ -826,7 +826,9 @@ model pure_relation {
 
     #[test]
     fn value_edit_identity_includes_the_exact_base_artifact() {
-        let base = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
+        let source = SOURCE.replace("model decay {", "model decay { parameter probe: 1 = 0;");
+        let base = ModelDocument::compile("decay.eqi", &source).unwrap();
+        let probe = base.aliases()["probe"];
         let rate = base.aliases()["rate"];
 
         let left = base
@@ -837,8 +839,8 @@ model pure_relation {
             .commit_value_edit(base.preview_value_edit(rate, 3.0).unwrap())
             .unwrap()
             .into_document();
-        let left_plan = left.preview_value_edit(rate, 4.0).unwrap();
-        let right_plan = right.preview_value_edit(rate, 4.0).unwrap();
+        let left_plan = left.preview_value_edit(probe, 4.0).unwrap();
+        let right_plan = right.preview_value_edit(probe, 4.0).unwrap();
 
         assert_eq!(left_plan.base_revision(), right_plan.base_revision());
         assert_eq!(
