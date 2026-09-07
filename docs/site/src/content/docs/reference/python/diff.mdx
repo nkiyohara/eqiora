@@ -15,7 +15,7 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/diff.py" 
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/diff.pyi" kind="blob">bindings/python/python/eqiora/diff.pyi</ExactSourceLink>
 
-This module publishes **12** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **18** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
 <a id="api-eqiora-diff-DerivativeImplementation"></a>
 
@@ -76,6 +76,66 @@ Authority: <ExactSourceLink path="crates/eqiora-python/src/differentiation.rs" k
 Accepted primary field and its reverse input cotangent.
 
 Authority: <ExactSourceLink path="crates/eqiora-python/src/differentiation.rs" kind="blob">crates/eqiora-python/src/differentiation.rs::PyDifferentiableVjp</ExactSourceLink>
+
+<a id="api-eqiora-diff-CompleteEvaluationMap"></a>
+
+## `CompleteEvaluationMap`
+
+**Canonical re-export.** This spelling resolves to [`eqiora.CompleteEvaluationMap`](/reference/python/eqiora/#api-eqiora-CompleteEvaluationMap).
+
+Complete native batch retaining every accepted occurrence and linearization.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/differentiation/batch/results.rs" kind="blob">crates/eqiora-python/src/differentiation/batch/results.rs::PyCompleteEvaluationMap</ExactSourceLink>
+
+<a id="api-eqiora-diff-EvaluationMapPlan"></a>
+
+## `EvaluationMapPlan`
+
+**Canonical re-export.** This spelling resolves to [`eqiora.EvaluationMapPlan`](/reference/python/eqiora/#api-eqiora-EvaluationMapPlan).
+
+Frozen complete points; planning validates metadata without solving.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/differentiation/batch.rs" kind="blob">crates/eqiora-python/src/differentiation/batch.rs::PyEvaluationMapPlan</ExactSourceLink>
+
+<a id="api-eqiora-diff-EvaluationMapTerminalReport"></a>
+
+## `EvaluationMapTerminalReport`
+
+**Canonical re-export.** This spelling resolves to [`eqiora.EvaluationMapTerminalReport`](/reference/python/eqiora/#api-eqiora-EvaluationMapTerminalReport).
+
+Inspectable failed or cancelled prefix, never a complete primal or product.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/differentiation/batch/results.rs" kind="blob">crates/eqiora-python/src/differentiation/batch/results.rs::PyEvaluationMapTerminalReport</ExactSourceLink>
+
+<a id="api-eqiora-diff-EvaluationMapCancellation"></a>
+
+## `EvaluationMapCancellation`
+
+**Canonical re-export.** This spelling resolves to [`eqiora.EvaluationMapCancellation`](/reference/python/eqiora/#api-eqiora-EvaluationMapCancellation).
+
+Cooperative native cancellation between ordered occurrences.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/differentiation/batch.rs" kind="blob">crates/eqiora-python/src/differentiation/batch.rs::PyEvaluationMapCancellation</ExactSourceLink>
+
+<a id="api-eqiora-diff-EvaluationMapJvp"></a>
+
+## `EvaluationMapJvp`
+
+**Canonical re-export.** This spelling resolves to [`eqiora.EvaluationMapJvp`](/reference/python/eqiora/#api-eqiora-EvaluationMapJvp).
+
+Native mapped JVPs in explicit point/seed order, preserving member evidence.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/differentiation/batch/products.rs" kind="blob">crates/eqiora-python/src/differentiation/batch/products.rs::PyEvaluationMapJvp</ExactSourceLink>
+
+<a id="api-eqiora-diff-EvaluationMapVjp"></a>
+
+## `EvaluationMapVjp`
+
+**Canonical re-export.** This spelling resolves to [`eqiora.EvaluationMapVjp`](/reference/python/eqiora/#api-eqiora-EvaluationMapVjp).
+
+Native mapped VJPs; globally shared cotangents sum over point axes.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/differentiation/batch/products.rs" kind="blob">crates/eqiora-python/src/differentiation/batch/products.rs::PyEvaluationMapVjp</ExactSourceLink>
 
 <a id="api-eqiora-diff-DifferentiationEvidence"></a>
 

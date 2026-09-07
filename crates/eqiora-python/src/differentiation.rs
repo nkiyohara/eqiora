@@ -16,6 +16,8 @@ use crate::error::{diagnostic_error, panic_boundary, validation_error};
 use crate::model::{PyModelFieldRef, PyModelParameterRef};
 use crate::realization::PyLinearSolveSummary;
 
+mod batch;
+
 /// Primal, JVP, or VJP occurrence.
 #[pyclass(
     name = "DifferentiationMode",
@@ -498,6 +500,28 @@ impl PyDifferentiableProgram {
         })
     }
 
+    /// Freeze an ordered tensor of mapped inputs and explicit global sharing.
+    #[pyo3(signature = (mapped, *, shared_inputs=None, shared=None, retained_bytes_limit=67_108_864))]
+    fn map(
+        &self,
+        py: Python<'_>,
+        mapped: &Bound<'_, PyAny>,
+        shared_inputs: Option<&Bound<'_, PyAny>>,
+        shared: Option<&Bound<'_, PyAny>>,
+        retained_bytes_limit: usize,
+    ) -> PyResult<batch::PyEvaluationMapPlan> {
+        panic_boundary(py, || {
+            batch::plan(
+                py,
+                self,
+                mapped,
+                shared_inputs,
+                shared,
+                retained_bytes_limit,
+            )
+        })
+    }
+
     fn primal(&self, py: Python<'_>) -> PyResult<PyDifferentiablePrimal> {
         panic_boundary(py, || {
             let program = Arc::clone(&self.value);
@@ -644,6 +668,7 @@ fn hex(bytes: [u8; 32]) -> String {
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    batch::register(module)?;
     module.add_class::<PyDifferentiationMode>()?;
     module.add_class::<PyDerivativeImplementation>()?;
     module.add_class::<PyLinearizationState>()?;

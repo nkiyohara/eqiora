@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 18 module summaries and all 172 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 632 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 18 module summaries and all 178 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 674 signature-only entries under documented owning types**.
 
-Inventory: 18 modules, 202 literal public spellings, 172 canonical grouped declarations, 831 visible method signatures (632 non-dunder and 199 dunder), and 74 visible class assignments.
+Inventory: 18 modules, 214 literal public spellings, 178 canonical grouped declarations, 880 visible method signatures (674 non-dunder and 206 dunder), and 74 visible class assignments.
 
 Regenerate with:
 
@@ -335,6 +335,7 @@ class DifferentiableProgram:
     @property
     def derivative_contract(self) -> str: ...
     def evaluate(self, parameters: Array | _Float64Array | _DLPackProducer) -> DifferentiableEvaluation: ...
+    def map(self, mapped: Array | _Float64Array | _DLPackProducer, *, shared_inputs: Sequence[ParameterRef] | None=None, shared: Array | _Float64Array | _DLPackProducer | None=None, retained_bytes_limit: int=67108864) -> EvaluationMapPlan: ...
     def primal(self) -> DifferentiablePrimal: ...
     def jvp(self, tangent: Array | _Float64Array | _DLPackProducer) -> DifferentiableJvp: ...
     def vjp(self, cotangent: Array | _Float64Array | _DLPackProducer) -> DifferentiableVjp: ...
@@ -357,6 +358,163 @@ class DifferentiableVjp:
     def input_cotangent(self) -> Array: ...
     @property
     def evidence(self) -> DifferentiationEvidence: ...
+```
+
+<a id="api-eqiora-CompleteEvaluationMap"></a>
+
+### `eqiora.CompleteEvaluationMap`
+
+Complete native batch retaining every accepted occurrence and linearization.
+
+Authority: [`crates/eqiora-python/src/differentiation/batch/results.rs::PyCompleteEvaluationMap`](../../crates/eqiora-python/src/differentiation/batch/results.rs)
+
+```python
+@final
+class CompleteEvaluationMap:
+    def __len__(self) -> int: ...
+    def __getitem__(self, index: int) -> DifferentiableEvaluation: ...
+    @property
+    def plan(self) -> EvaluationMapPlan: ...
+    @property
+    def statuses(self) -> list[str]: ...
+    def member(self, index: int) -> DifferentiableEvaluation: ...
+    def primal(self) -> _Float64Array: ...
+    def jvp(self, mapped: Array | _Float64Array | _DLPackProducer, *, shared: Array | _Float64Array | _DLPackProducer | None=None, seed_shape: Sequence[int] | None=None, point_axes: Sequence[int] | None=None, numerical_bytes_limit: int=67108864) -> EvaluationMapJvp: ...
+    def vjp(self, cotangents: Array | _Float64Array | _DLPackProducer, *, seed_shape: Sequence[int] | None=None, point_axes: Sequence[int] | None=None, numerical_bytes_limit: int=67108864) -> EvaluationMapVjp: ...
+```
+
+<a id="api-eqiora-EvaluationMapPlan"></a>
+
+### `eqiora.EvaluationMapPlan`
+
+Frozen complete points; planning validates metadata without solving.
+
+Authority: [`crates/eqiora-python/src/differentiation/batch.rs::PyEvaluationMapPlan`](../../crates/eqiora-python/src/differentiation/batch.rs)
+
+```python
+@final
+class EvaluationMapPlan:
+    def __len__(self) -> int: ...
+    def __getitem__(self, index: int) -> _Float64Array: ...
+    @property
+    def program(self) -> DifferentiableProgram: ...
+    @property
+    def point_shape(self) -> tuple[int, ...]: ...
+    @property
+    def input_shape(self) -> tuple[int, ...]: ...
+    @property
+    def output_shape(self) -> tuple[int, ...]: ...
+    @property
+    def shared_input_ids(self) -> list[str]: ...
+    @property
+    def mapped_input_ids(self) -> list[str]: ...
+    @property
+    def estimated_retained_bytes(self) -> int: ...
+    @property
+    def points(self) -> _Float64Array: ...
+    def occurrence_coordinates(self, index: int) -> tuple[int, ...]: ...
+    def execute(self, *, cancellation: EvaluationMapCancellation | None=None) -> CompleteEvaluationMap | EvaluationMapTerminalReport: ...
+```
+
+<a id="api-eqiora-EvaluationMapTerminalReport"></a>
+
+### `eqiora.EvaluationMapTerminalReport`
+
+Inspectable failed or cancelled prefix, never a complete primal or product.
+
+Authority: [`crates/eqiora-python/src/differentiation/batch/results.rs::PyEvaluationMapTerminalReport`](../../crates/eqiora-python/src/differentiation/batch/results.rs)
+
+```python
+@final
+class EvaluationMapTerminalReport:
+    def __len__(self) -> int: ...
+    def __getitem__(self, index: int) -> DifferentiableEvaluation | None: ...
+    @property
+    def plan(self) -> EvaluationMapPlan: ...
+    @property
+    def stopped_index(self) -> int: ...
+    @property
+    def cancelled(self) -> bool: ...
+    @property
+    def diagnostics(self) -> list[Diagnostic]: ...
+    @property
+    def statuses(self) -> list[str]: ...
+    def member(self, index: int) -> DifferentiableEvaluation | None: ...
+```
+
+<a id="api-eqiora-EvaluationMapCancellation"></a>
+
+### `eqiora.EvaluationMapCancellation`
+
+Cooperative native cancellation between ordered occurrences.
+
+Authority: [`crates/eqiora-python/src/differentiation/batch.rs::PyEvaluationMapCancellation`](../../crates/eqiora-python/src/differentiation/batch.rs)
+
+```python
+@final
+class EvaluationMapCancellation:
+    def __init__(self) -> None: ...
+    def cancel(self) -> None: ...
+    @property
+    def requested(self) -> bool: ...
+```
+
+<a id="api-eqiora-EvaluationMapJvp"></a>
+
+### `eqiora.EvaluationMapJvp`
+
+Native mapped JVPs in explicit point/seed order, preserving member evidence.
+
+Authority: [`crates/eqiora-python/src/differentiation/batch/products.rs::PyEvaluationMapJvp`](../../crates/eqiora-python/src/differentiation/batch/products.rs)
+
+```python
+@final
+class EvaluationMapJvp:
+    @property
+    def plan(self) -> EvaluationMapPlan: ...
+    @property
+    def seed_shape(self) -> tuple[int, ...]: ...
+    @property
+    def point_axes(self) -> tuple[int, ...]: ...
+    @property
+    def shape(self) -> tuple[int, ...]: ...
+    @property
+    def output(self) -> _Float64Array: ...
+    @property
+    def tangent(self) -> _Float64Array: ...
+    def member(self, index: int) -> DifferentiableJvp: ...
+```
+
+<a id="api-eqiora-EvaluationMapVjp"></a>
+
+### `eqiora.EvaluationMapVjp`
+
+Native mapped VJPs; globally shared cotangents sum over point axes.
+
+Authority: [`crates/eqiora-python/src/differentiation/batch/products.rs::PyEvaluationMapVjp`](../../crates/eqiora-python/src/differentiation/batch/products.rs)
+
+```python
+@final
+class EvaluationMapVjp:
+    @property
+    def plan(self) -> EvaluationMapPlan: ...
+    @property
+    def seed_shape(self) -> tuple[int, ...]: ...
+    @property
+    def point_axes(self) -> tuple[int, ...]: ...
+    @property
+    def shared_shape(self) -> tuple[int, ...]: ...
+    @property
+    def mapped_shape(self) -> tuple[int, ...]: ...
+    @property
+    def shared_input_ids(self) -> list[str]: ...
+    @property
+    def mapped_input_ids(self) -> list[str]: ...
+    @property
+    def shared_cotangents(self) -> _Float64Array: ...
+    @property
+    def mapped_cotangents(self) -> _Float64Array: ...
+    def member(self, index: int) -> DifferentiableVjp: ...
 ```
 
 <a id="api-eqiora-DifferentiationEvidence"></a>
@@ -4016,6 +4174,66 @@ Authority: [`crates/eqiora-python/src/differentiation.rs::PyDifferentiableProgra
 Accepted primary field and its reverse input cotangent.
 
 Authority: [`crates/eqiora-python/src/differentiation.rs::PyDifferentiableVjp`](../../crates/eqiora-python/src/differentiation.rs)
+
+<a id="api-eqiora-diff-CompleteEvaluationMap"></a>
+
+### `eqiora.diff.CompleteEvaluationMap`
+
+**Canonical re-export.** This spelling resolves to [`eqiora.CompleteEvaluationMap`](#api-eqiora-CompleteEvaluationMap).
+
+Complete native batch retaining every accepted occurrence and linearization.
+
+Authority: [`crates/eqiora-python/src/differentiation/batch/results.rs::PyCompleteEvaluationMap`](../../crates/eqiora-python/src/differentiation/batch/results.rs)
+
+<a id="api-eqiora-diff-EvaluationMapPlan"></a>
+
+### `eqiora.diff.EvaluationMapPlan`
+
+**Canonical re-export.** This spelling resolves to [`eqiora.EvaluationMapPlan`](#api-eqiora-EvaluationMapPlan).
+
+Frozen complete points; planning validates metadata without solving.
+
+Authority: [`crates/eqiora-python/src/differentiation/batch.rs::PyEvaluationMapPlan`](../../crates/eqiora-python/src/differentiation/batch.rs)
+
+<a id="api-eqiora-diff-EvaluationMapTerminalReport"></a>
+
+### `eqiora.diff.EvaluationMapTerminalReport`
+
+**Canonical re-export.** This spelling resolves to [`eqiora.EvaluationMapTerminalReport`](#api-eqiora-EvaluationMapTerminalReport).
+
+Inspectable failed or cancelled prefix, never a complete primal or product.
+
+Authority: [`crates/eqiora-python/src/differentiation/batch/results.rs::PyEvaluationMapTerminalReport`](../../crates/eqiora-python/src/differentiation/batch/results.rs)
+
+<a id="api-eqiora-diff-EvaluationMapCancellation"></a>
+
+### `eqiora.diff.EvaluationMapCancellation`
+
+**Canonical re-export.** This spelling resolves to [`eqiora.EvaluationMapCancellation`](#api-eqiora-EvaluationMapCancellation).
+
+Cooperative native cancellation between ordered occurrences.
+
+Authority: [`crates/eqiora-python/src/differentiation/batch.rs::PyEvaluationMapCancellation`](../../crates/eqiora-python/src/differentiation/batch.rs)
+
+<a id="api-eqiora-diff-EvaluationMapJvp"></a>
+
+### `eqiora.diff.EvaluationMapJvp`
+
+**Canonical re-export.** This spelling resolves to [`eqiora.EvaluationMapJvp`](#api-eqiora-EvaluationMapJvp).
+
+Native mapped JVPs in explicit point/seed order, preserving member evidence.
+
+Authority: [`crates/eqiora-python/src/differentiation/batch/products.rs::PyEvaluationMapJvp`](../../crates/eqiora-python/src/differentiation/batch/products.rs)
+
+<a id="api-eqiora-diff-EvaluationMapVjp"></a>
+
+### `eqiora.diff.EvaluationMapVjp`
+
+**Canonical re-export.** This spelling resolves to [`eqiora.EvaluationMapVjp`](#api-eqiora-EvaluationMapVjp).
+
+Native mapped VJPs; globally shared cotangents sum over point axes.
+
+Authority: [`crates/eqiora-python/src/differentiation/batch/products.rs::PyEvaluationMapVjp`](../../crates/eqiora-python/src/differentiation/batch/products.rs)
 
 <a id="api-eqiora-diff-DifferentiationEvidence"></a>
 
