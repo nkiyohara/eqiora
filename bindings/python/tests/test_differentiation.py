@@ -7,14 +7,15 @@ import eqiora
 
 
 POISSON = """
-public component PythonDifferentiatedPoisson {
-  public support square: volume(ambient_dimension = 2);
-  public support x_lower: boundary(parent = square);
-  public support x_upper: boundary(parent = square);
-  public support y_lower: boundary(parent = square);
-  public support y_upper: boundary(parent = square);
-  representation scalar_space = continuum;
-  field potential on square as scalar_space: 1 = 0;
+public component PythonDifferentiatedPoisson(
+  support square: volume(ambient_dimension = 2),
+  support x_lower: boundary(parent = square),
+  support x_upper: boundary(parent = square),
+  support y_lower: boundary(parent = square),
+  support y_upper: boundary(parent = square)
+) {
+
+  variable potential: 1 on square;
   public parameter diffusion: 1;
   public parameter wave_number: 1 / m;
   public parameter source_scale: 1 / m ^ 2;
@@ -32,18 +33,20 @@ public component PythonDifferentiatedPoisson {
 """
 
 ELASTICITY = """
-public component MixedBoundaryElasticity {
-  public support region: volume(ambient_dimension = 2);
-  public support left: boundary(parent = region);
-  public support right: boundary(parent = region);
-  public support bottom: boundary(parent = region);
-  public support top: boundary(parent = region);
+public component MixedBoundaryElasticity(
+  support region: volume(ambient_dimension = 2),
+  support left: boundary(parent = region),
+  support right: boundary(parent = region),
+  support bottom: boundary(parent = region),
+  support top: boundary(parent = region)
+) {
+
   public parameter mu: kg / (m * s ^ 2);
   public parameter lambda: kg / (m * s ^ 2);
   public parameter length_scale: m;
-  representation space = continuum;
-  field displacement on region as space: vector<m, 2>;
-  field load_potential on region as space: kg / (m * s ^ 2) = 0;
+
+  variable displacement: vector<m, 2> on region;
+  variable load_potential: kg / (m * s ^ 2) on region;
   relation load on region {
     load_potential - 2 * mu * coordinate(0) / length_scale = 0;
   }

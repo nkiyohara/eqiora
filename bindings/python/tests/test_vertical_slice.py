@@ -30,9 +30,9 @@ def test_python_authoring_and_replay_use_the_current_public_schema() -> None:
     model = eqiora.compile(source=SOURCE, filename="current.eqi")
     assert json.loads(model.to_bytes())["schema"] == CURRENT_MODEL_SCHEMA
 
-    state = eqiora.Field("x", initial=1.0)
+    state = eqiora.Field("x", role=eqiora.FieldRole.State)
     hold = eqiora.Relation("hold", residual=eqiora.derivative(state))
-    native = eqiora.Model.define("hold", state, hold)
+    native = eqiora.Model.define("hold", state, hold, eqiora.Initial(state - 1.0))
     assert json.loads(native.to_bytes())["schema"] == CURRENT_MODEL_SCHEMA
     replayed = eqiora.Model.from_bytes(model.to_bytes())
     assert replayed.to_bytes() == model.to_bytes()
@@ -41,7 +41,8 @@ def test_python_authoring_and_replay_use_the_current_public_schema() -> None:
 
 SOURCE = """
 model decay {
-  field x: 1 = 1;
+  state x: 1;
+  initial { x = 1; }
   parameter rate: 1 / s = 1;
   relation flow {
     derivative(x) + rate * x = 0;
@@ -70,8 +71,8 @@ model native_poisson {
   domain interval = box(0, 1);
   domain lower_end = boundary(interval, axis = 0, side = lower);
   domain upper_end = boundary(interval, axis = 0, side = upper);
-  representation scalar_space = continuum;
-  field potential on interval as scalar_space: 1 = 0;
+
+  variable potential: 1 on interval;
   parameter source_scale: 1 / m ^ 2 = 1;
   relation balance on interval {
     -div(grad(potential)) - source_scale = 0;
@@ -209,7 +210,7 @@ def test_shared_compile_check_fixtures_cross_the_python_adapter() -> None:
 
 
 def test_native_declarations_share_the_canonical_compile_and_run_path() -> None:
-    state = eqiora.Field("x", initial=1.0)
+    state = eqiora.Field("x", role=eqiora.FieldRole.State)
     rate = eqiora.Parameter(
         "rate",
         value_type=eqiora.ValueType.real(eqiora.Dimension(time=-1)),
@@ -220,7 +221,7 @@ def test_native_declarations_share_the_canonical_compile_and_run_path() -> None:
         residual=eqiora.derivative(state) + rate * state,
     )
 
-    model = eqiora.Model.define("decay", state, rate, flow)
+    model = eqiora.Model.define("decay", state, rate, flow, eqiora.Initial(state - 1.0))
     assert json.loads(model.to_bytes())["schema"] == "eqiora.model-envelope/v11"
     field = model.field(model.field_ids[0])
     plan = eqiora.resolve(
@@ -251,7 +252,7 @@ def test_native_declarations_share_the_canonical_compile_and_run_path() -> None:
 
 def test_source_and_native_models_share_only_structural_identity() -> None:
     source = eqiora.compile(source=SOURCE, filename="source-decay.eqi")
-    state = eqiora.Field("state", initial=1.0)
+    state = eqiora.Field("state", role=eqiora.FieldRole.State)
     rate = eqiora.Parameter(
         "coefficient",
         value_type=eqiora.ValueType.real(eqiora.Dimension(time=-1)),
@@ -261,7 +262,7 @@ def test_source_and_native_models_share_only_structural_identity() -> None:
         "balance",
         residual=eqiora.derivative(state) + rate * state,
     )
-    native = eqiora.Model.define("native_decay", balance, rate, state)
+    native = eqiora.Model.define("native_decay", balance, rate, state, eqiora.Initial(state - 1.0))
 
     assert source.model_id != native.model_id
     assert source.digest != native.digest
@@ -298,12 +299,12 @@ def test_native_spatial_model_reuses_shared_support_and_operator_semantics() -> 
         axis=0,
         side=eqiora.BoundarySide.Upper,
     )
-    space = eqiora.Representation.continuum("scalar_space")
+
     potential = eqiora.Field(
         "potential",
+        role=eqiora.FieldRole.Variable,
         domain=interval,
-        representation=space,
-        initial=0.0,
+
     )
     source_scale = eqiora.Parameter(
         "source_scale",
@@ -316,7 +317,7 @@ def test_native_spatial_model_reuses_shared_support_and_operator_semantics() -> 
         upper,
         interval,
         potential,
-        space,
+
         lower,
         eqiora.Relation(
             "upper_value",
@@ -342,12 +343,10 @@ def test_native_spatial_model_reuses_shared_support_and_operator_semantics() -> 
     assert lower.parent == interval
     assert lower.side == eqiora.BoundarySide.Lower
     assert potential.domain == interval
-    assert potential.representation == space
     assert eqiora.Domain.box("interval", (0.0, 1.0)) != interval
-    assert eqiora.Representation.continuum("scalar_space") != space
 
-    with pytest.raises(TypeError, match="both domain= and representation="):
-        eqiora.Field("half_scoped", domain=interval)
+    with pytest.raises(TypeError, match="representation"):
+        eqiora.Field("old", role=eqiora.FieldRole.Variable, domain=interval, representation=None)
 
     invalid = eqiora.Relation(
         "invalid",
@@ -355,12 +354,11 @@ def test_native_spatial_model_reuses_shared_support_and_operator_semantics() -> 
         residual=eqiora.trace(potential),
     )
     with pytest.raises(eqiora.ValidationError):
-        eqiora.Model.define("support_mismatch", interval, space, potential, invalid)
-
+        eqiora.Model.define("support_mismatch", interval, potential, invalid)
 
 def test_native_declarations_fail_closed_without_python_semantics() -> None:
-    included = eqiora.Field("x", initial=1.0)
-    foreign = eqiora.Field("x", initial=1.0)
+    included = eqiora.Field("x", role=eqiora.FieldRole.Variable)
+    foreign = eqiora.Field("x", role=eqiora.FieldRole.Variable)
     relation = eqiora.Relation("flow", residual=foreign)
 
     with pytest.raises(eqiora.EqioraError) as caught:
@@ -379,8 +377,9 @@ def test_native_declarations_fail_closed_without_python_semantics() -> None:
 def test_native_declarations_are_frozen_and_keep_typed_compiler_diagnostics() -> None:
     temperature = eqiora.Field(
         "temperature",
+        role=eqiora.FieldRole.Variable,
         value_type=eqiora.ValueType.real(eqiora.Dimension(temperature=1)),
-        initial=293.0,
+
     )
     duration = eqiora.Parameter(
         "duration",
@@ -401,11 +400,10 @@ def test_native_declarations_are_frozen_and_keep_typed_compiler_diagnostics() ->
     assert diagnostic.graph_path == ["thermal", "invalid"]
     assert diagnostic.source_span is None
 
-    non_finite = eqiora.Field("x", initial=float("nan"))
+    non_finite = eqiora.Field("x", role=eqiora.FieldRole.State)
     flow = eqiora.Relation("flow", residual=eqiora.derivative(non_finite))
     with pytest.raises(eqiora.EqioraError, match="must be finite"):
-        eqiora.Model.define("invalid", non_finite, flow)
-
+        eqiora.Model.define("invalid", non_finite, flow, eqiora.Initial(non_finite - float("nan")))
 
 def physical_pair() -> tuple[
     eqiora.PhysicalDomain,
@@ -490,7 +488,7 @@ def test_native_physical_handles_are_frozen_and_nominal() -> None:
 
 def test_native_physical_category_errors_do_not_reach_semantics() -> None:
     electrical, left, _, _, _ = physical_pair()
-    field = eqiora.Field("x")
+    field = eqiora.Field("x", role=eqiora.FieldRole.Variable)
 
     with pytest.raises(TypeError):
         eqiora.ConservingPort("invalid", domain=field)

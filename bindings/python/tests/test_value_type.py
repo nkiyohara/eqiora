@@ -60,26 +60,23 @@ def test_extents_require_integers(invalid) -> None:
     (eqiora.ValueType.tensor(eqiora.ValueType.real(), 2, 2), "tensor<1, 2, 2>"),
     (eqiora.ValueType.array(eqiora.ValueType.vector(eqiora.ValueType.complex(), 2), 3), "array<vector<complex<1>, 2>, 3>"),
 ])
-@pytest.mark.parametrize("initial", [None, 0.0, -0.0])
-def test_native_field_type_matches_source_and_replays(value_type, syntax, initial) -> None:
+def test_native_field_type_matches_source_and_replays(value_type, syntax) -> None:
     domain = eqiora.Domain.box("body", (0.0, 1.0), (0.0, 1.0))
-    space = eqiora.Representation.continuum("space")
-    field = eqiora.Field("u", domain=domain, representation=space,
-                         value_type=value_type, initial=initial)
+
+    field = eqiora.Field("u", role=eqiora.FieldRole.Variable, domain=domain,
+                         value_type=value_type)
     balance = eqiora.Relation("balance", domain=domain, residual=field - field)
-    native = eqiora.Model.define("typed", domain, space, field, balance)
-    initializer = "" if initial is None else " = 0"
+    native = eqiora.Model.define("typed", domain, field, balance)
     source = eqiora.compile(source=f"""
 model typed {{
   domain body = box(0, 1, 0, 1);
-  representation space = continuum;
-  field u on body as space: {syntax}{initializer};
+
+  variable u: {syntax}{initializer} on body;
   relation balance on body {{ u - u = 0; }}
 }}
 """)
     assert field.value_type == value_type
     assert field.dimension == value_type.dimension
-    assert field.initial == initial
     assert native.structural_fingerprint == source.structural_fingerprint
     replay = eqiora.Model.from_bytes(native.to_bytes())
     assert replay.to_bytes() == native.to_bytes()
@@ -88,23 +85,24 @@ model typed {{
 
 def test_spatial_type_requires_matching_support() -> None:
     domain = eqiora.Domain.box("body", (0.0, 1.0), (0.0, 1.0))
-    space = eqiora.Representation.continuum("space")
-    field = eqiora.Field("u", domain=domain, representation=space,
+
+    field = eqiora.Field("u", role=eqiora.FieldRole.Variable, domain=domain,
                          value_type=eqiora.ValueType.vector(eqiora.ValueType.real(), 3))
     balance = eqiora.Relation("balance", domain=domain, residual=field - field)
     with pytest.raises(eqiora.EqioraError) as caught:
-        eqiora.Model.define("typed", domain, space, field, balance)
+        eqiora.Model.define("typed", domain, field, balance)
     assert caught.value.diagnostics[0].graph_path == ["typed", "u"]
 
-
-def test_field_has_one_type_input_and_explicit_optional_initial() -> None:
-    field = eqiora.Field("u")
+def test_field_has_one_type_input_and_requires_explicit_role() -> None:
+    field = eqiora.Field("u", role=eqiora.FieldRole.Variable)
     assert field.value_type == eqiora.ValueType.real()
-    assert field.initial is None
-    assert eqiora.Field("u", initial=0.0).initial == 0.0
+    assert field.role == eqiora.FieldRole.Variable
+    for kwargs in ({}, {"role": "state"}, {"role": eqiora.FieldRole.State, "initial": 0.0},
+                   {"role": eqiora.FieldRole.Variable, "representation": None}):
+        with pytest.raises(TypeError):
+            eqiora.Field("u", **kwargs)
     with pytest.raises(TypeError):
-        eqiora.Field("u", dimension=eqiora.Dimension())
-
+        eqiora.Field("u", role=eqiora.FieldRole.Variable, dimension=eqiora.Dimension())
 
 def test_source_field_uses_the_shared_type_and_native_formatter() -> None:
     value_type = eqiora.ValueType.array(eqiora.ValueType.vector(
@@ -114,11 +112,10 @@ def test_source_field_uses_the_shared_type_and_native_formatter() -> None:
     source = eqiora.lang.Source()
     component = source.component("Typed")
     body = component.volume("body", dimensions=2)
-    component.field("channels", on=body, value_type=value_type)
-    assert f"field channels on body as space: {syntax};" in source.to_eqi()
+    component.field("channels", role=eqiora.FieldRole.Variable, on=body, value_type=value_type)
+    assert f"variable channels: {syntax} on body;" in source.to_eqi()
     with pytest.raises(TypeError):
-        component.field("old", on=body, unit=eqiora.lang.units.m)
-
+        component.field("old", role=eqiora.FieldRole.Variable, on=body, unit=eqiora.lang.units.m)
 
 def test_type_emission_obeys_the_native_source_resource_limit() -> None:
     oversized = eqiora.ValueType.array(eqiora.ValueType.real(), 65_537)

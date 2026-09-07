@@ -12,7 +12,8 @@ import eqiora
 
 DECAY = """
 model decay {
-  field x: 1 = 1;
+  state x: 1;
+  initial { x = 1; }
   parameter rate: 1 / s = 1;
   relation flow {
     derivative(x) + rate * x = 0;

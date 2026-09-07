@@ -45,7 +45,7 @@ def test_current_reference_examples_and_displayed_python(tmp_path, monkeypatch):
 def test_reference_rejects_wrong_units_and_missing_required_binding():
     declaration = (REFERENCE / "language/_examples/declarations.eqi").read_text()
     composition = (REFERENCE / "language/_examples/composition.eqi").read_text()
-    wrong_unit = declaration.replace("field current: A;", "field current: m;")
+    wrong_unit = declaration.replace("variable current: A;", "variable current: m;")
     missing_input = composition.replace("input = 2", "offset = 2")
     assert wrong_unit != declaration and missing_input != composition
     with pytest.raises(eqiora.ValidationError) as units:

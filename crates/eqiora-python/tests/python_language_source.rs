@@ -24,7 +24,7 @@ u = q.units
 namespace_probe = q.Source()
 probe_component = namespace_probe.component("ScalarMath")
 probe_body = probe_component.volume("body", dimensions=1)
-probe_value = probe_component.field("value", on=probe_body, value_type=eqiora.ValueType.real(), initial=0)
+probe_value = probe_component.field("value", role=eqiora.FieldRole.Variable, on=probe_body, value_type=eqiora.ValueType.real())
 probe_component.relation(
     "law", on=probe_body, right=0, left=probe_value - q.math.sin(q.math.pi)
 )
@@ -47,19 +47,19 @@ def cylinder_source(*, doc="Equations-only steady incompressible flow component.
     channel_height = stokes.parameter("channel_height", value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
 
     velocity = stokes.field(
-        "velocity", on=fluid, value_type=(
+        "velocity", role=eqiora.FieldRole.Variable, on=fluid, value_type=(
             eqiora.ValueType.vector(eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1)), velocity_extent)
             if velocity_extent is not None else eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1))
         )
     )
     pressure = stokes.field(
-        "pressure", on=fluid, value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2)), initial=0
+        "pressure", role=eqiora.FieldRole.Variable, on=fluid, value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2))
     )
     force_potential = stokes.field(
-        "force_potential", on=fluid, value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2)), initial=0
+        "force_potential", role=eqiora.FieldRole.Variable, on=fluid, value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2))
     )
     inlet_profile = stokes.field(
-        "inlet_profile", on=fluid, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1)), initial=0
+        "inlet_profile", role=eqiora.FieldRole.Variable, on=fluid, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1))
     )
 
     stokes.relation(
@@ -164,17 +164,17 @@ else:
 left = q.Source()
 left_component = left.component("Left")
 left_volume = left_component.volume("left", dimensions=2)
-left_value = left_component.field("value", on=left_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
+left_value = left_component.field("value", role=eqiora.FieldRole.Variable, on=left_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
 right = q.Source()
 right_component = right.component("Right")
 right_volume = right_component.volume("right", dimensions=2)
-right_value = right_component.field("value", on=right_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
+right_value = right_component.field("value", role=eqiora.FieldRole.Variable, on=right_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
 for invalid in (
     lambda: left_value + right_value,
     lambda: left_component.boundary("foreign_parent", parent=right_volume),
-    lambda: left_component.field("wrong_support", on=right_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1))),
-    lambda: left_component.field("value", on=left_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1))),
-    lambda: left_component.field("nonfinite", on=left_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)), initial=float("nan")),
+    lambda: left_component.field("wrong_support", role=eqiora.FieldRole.Variable, on=right_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1))),
+    lambda: left_component.field("value", role=eqiora.FieldRole.Variable, on=left_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1))),
+    lambda: left_value + float("nan"),
 ):
     try:
         invalid()
