@@ -13,6 +13,7 @@ use event_localization::{crossing_events, locate_event_time};
 use samples::record_samples;
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::ops::ControlFlow;
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, DynQuantity, GraphPath, RawId};
@@ -86,23 +87,14 @@ fn accepted_progress(time: f64, steps: usize, config: ReferenceConfig) -> Execut
     ExecutionProgress::new(time, config.end_time, steps, config.max_steps)
 }
 
-/// Control-plane decision returned only at an accepted execution boundary.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ExecutionDirective {
-    /// Continue from the accepted state.
-    Continue,
-    /// Stop and return the accepted boundary without producing a trajectory.
-    Cancel,
-}
-
 /// Synchronous observer for accepted semantic-execution boundaries.
 ///
 /// Implementations must remain bounded. Presentation adapters should
 /// coalesce progress before crossing an IPC boundary; this callback is not a
 /// numerical inner-loop extension point.
 pub trait ExecutionObserver {
-    /// Inspect one accepted boundary and decide whether execution continues.
-    fn observe(&mut self, progress: ExecutionProgress) -> ExecutionDirective;
+    /// Inspect one accepted boundary; Break cancels without a trajectory.
+    fn observe(&mut self, progress: ExecutionProgress) -> ControlFlow<()>;
 }
 
 /// Terminal outcome of explicitly controlled reference execution.
@@ -118,8 +110,8 @@ pub enum ExecutionOutcome {
 struct Uninterrupted;
 
 impl ExecutionObserver for Uninterrupted {
-    fn observe(&mut self, _progress: ExecutionProgress) -> ExecutionDirective {
-        ExecutionDirective::Continue
+    fn observe(&mut self, _progress: ExecutionProgress) -> ControlFlow<()> {
+        ControlFlow::Continue(())
     }
 }
 
@@ -470,9 +462,7 @@ impl Interpreter {
         let mut zero_time_events = 0_usize;
 
         let progress = accepted_progress(time, steps, config);
-        if time < config.end_time
-            && matches!(observer.observe(progress), ExecutionDirective::Cancel)
-        {
+        if time < config.end_time && matches!(observer.observe(progress), ControlFlow::Break(())) {
             return Ok(ExecutionOutcome::Cancelled(progress));
         }
 
@@ -633,7 +623,7 @@ impl Interpreter {
                     steps += 1;
                     if time < config.end_time {
                         let progress = accepted_progress(time, steps, config);
-                        if matches!(observer.observe(progress), ExecutionDirective::Cancel) {
+                        if matches!(observer.observe(progress), ControlFlow::Break(())) {
                             return Ok(ExecutionOutcome::Cancelled(progress));
                         }
                     }
@@ -663,7 +653,7 @@ impl Interpreter {
             steps += 1;
             if time < config.end_time {
                 let progress = accepted_progress(time, steps, config);
-                if matches!(observer.observe(progress), ExecutionDirective::Cancel) {
+                if matches!(observer.observe(progress), ControlFlow::Break(())) {
                     return Ok(ExecutionOutcome::Cancelled(progress));
                 }
             }

@@ -395,3 +395,26 @@ fn connect_dependencies<const N: usize>(
         });
     }
 }
+
+#[test]
+fn controlled_reference_cancels_only_after_an_accepted_boundary() {
+    struct Stop;
+    impl eqiora_sem::ExecutionObserver for Stop {
+        fn observe(&mut self, _: eqiora_sem::ExecutionProgress) -> std::ops::ControlFlow<()> {
+            std::ops::ControlFlow::Break(())
+        }
+    }
+    let fixture = thermal_fixture();
+    let outcome = Interpreter::new()
+        .run_controlled(
+            &fixture.program,
+            ReferenceConfig::new(1., 0.1).unwrap(),
+            &mut Stop,
+        )
+        .unwrap();
+    let eqiora_sem::ExecutionOutcome::Cancelled(progress) = outcome else {
+        panic!("observer requested cancellation");
+    };
+    assert_eq!(progress.model_time(), 0.);
+    assert_eq!(progress.accepted_steps(), 1);
+}
