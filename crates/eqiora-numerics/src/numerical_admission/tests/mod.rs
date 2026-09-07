@@ -15,16 +15,16 @@ use eqiora_solver::{
 use eqiora_compiler::CompiledModel;
 
 const COMPONENT: &str = r#"
-public component PoissonRectangle {
-  public support region: volume(ambient_dimension = 2);
-  public support left: boundary(parent = region);
-  public support right: boundary(parent = region);
-  public support bottom: boundary(parent = region);
-  public support top: boundary(parent = region);
+public component PoissonRectangle(
+  support region: volume(ambient_dimension = 2),
+  support left: boundary(parent = region),
+  support right: boundary(parent = region),
+  support bottom: boundary(parent = region),
+  support top: boundary(parent = region)
+) {
   public parameter wave_number: 1 / m;
   public parameter source_scale: 1 / m ^ 2;
-  representation space = continuum;
-  field potential on region as space: 1 = 0;
+  variable potential: 1 on region;
   relation balance on region {
     -div(grad(potential))
       - source_scale * math.sin(wave_number * coordinate(0))
@@ -40,18 +40,18 @@ public component PoissonRectangle {
 const STOKES_COMPONENT: &str =
     include_str!("../../../../eqiora-api/src/steady_stokes/accepted_component.eqi");
 const ELASTICITY_COMPONENT: &str = r#"
-public component MixedBoundaryElasticity {
-  public support region: volume(ambient_dimension = 2);
-  public support left: boundary(parent = region);
-  public support right: boundary(parent = region);
-  public support bottom: boundary(parent = region);
-  public support top: boundary(parent = region);
+public component MixedBoundaryElasticity(
+  support region: volume(ambient_dimension = 2),
+  support left: boundary(parent = region),
+  support right: boundary(parent = region),
+  support bottom: boundary(parent = region),
+  support top: boundary(parent = region)
+) {
   public parameter mu: kg / (m * s ^ 2);
   public parameter lambda: kg / (m * s ^ 2);
   public parameter length_scale: m;
-  representation space = continuum;
-  field displacement on region as space: vector<m, 2>;
-  field load_potential on region as space: kg / (m * s ^ 2) = 0;
+  variable displacement: vector<m, 2> on region;
+  variable load_potential: kg / (m * s ^ 2) on region;
   relation load on region {
     load_potential - 2 * mu * coordinate(0) / length_scale = 0;
   }

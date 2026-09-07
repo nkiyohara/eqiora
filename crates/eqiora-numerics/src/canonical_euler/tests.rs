@@ -3,6 +3,8 @@ use eqiora_graph::{GraphStore, InMemoryGraphStore};
 
 use super::*;
 
+// Euler operations below supply Primitive/Conservative states explicitly.
+// This recognition fixture declares no fresh-initialization equations.
 const SOURCE: &str = r#"
 public pure operator scalar_flux(value: scalar) -> spatial[1]
   = component(value);
@@ -11,13 +13,12 @@ model Main {
   domain interval = box(0, 1);
   domain lower = boundary(interval, axis = 0, side = lower);
   domain upper = boundary(interval, axis = 0, side = upper);
-  representation space = continuum;
 
-  field density on interval as space: kg / m ^ 3 = 1[kg / m ^ 3];
-  field momentum on interval as space: kg / (m ^ 2 * s) = 0;
-  field total_energy on interval as space: kg / (m * s ^ 2) = 2.5[kg / (m * s ^ 2)];
-  field velocity on interval as space: m / s = 0;
-  field pressure on interval as space: kg / (m * s ^ 2) = 1[kg / (m * s ^ 2)];
+  state density: kg / m ^ 3 on interval;
+  state momentum: kg / (m ^ 2 * s) on interval;
+  state total_energy: kg / (m * s ^ 2) on interval;
+  variable velocity: m / s on interval;
+  variable pressure: kg / (m * s ^ 2) on interval;
   parameter gamma: 1 = 1.4;
 
   relation velocity_definition on interval {
@@ -67,8 +68,8 @@ fn recognizes_name_independent_exact_euler_meaning_and_lineage() {
     assert_eq!(renamed.gamma(), model.gamma());
 
     let reordered = SOURCE.replace(
-        "  field density on interval as space: kg / m ^ 3 = 1[kg / m ^ 3];\n  field momentum on interval as space: kg / (m ^ 2 * s) = 0;\n  field total_energy on interval as space: kg / (m * s ^ 2) = 2.5[kg / (m * s ^ 2)];\n  field velocity on interval as space: m / s = 0;\n  field pressure on interval as space: kg / (m * s ^ 2) = 1[kg / (m * s ^ 2)];",
-        "  field pressure on interval as space: kg / (m * s ^ 2) = 1[kg / (m * s ^ 2)];\n  field velocity on interval as space: m / s = 0;\n  field density on interval as space: kg / m ^ 3 = 1[kg / m ^ 3];\n  field total_energy on interval as space: kg / (m * s ^ 2) = 2.5[kg / (m * s ^ 2)];\n  field momentum on interval as space: kg / (m ^ 2 * s) = 0;",
+        "  state density: kg / m ^ 3 on interval;\n  state momentum: kg / (m ^ 2 * s) on interval;\n  state total_energy: kg / (m * s ^ 2) on interval;\n  variable velocity: m / s on interval;\n  variable pressure: kg / (m * s ^ 2) on interval;",
+        "  variable pressure: kg / (m * s ^ 2) on interval;\n  variable velocity: m / s on interval;\n  state density: kg / m ^ 3 on interval;\n  state total_energy: kg / (m * s ^ 2) on interval;\n  state momentum: kg / (m ^ 2 * s) on interval;",
     );
     assert_ne!(reordered, SOURCE);
     assert_eq!(recognize(&reordered).gamma(), model.gamma());
@@ -175,8 +176,8 @@ fn rejects_wrong_closure_source_boundary_and_extra_relation() {
     assert!(try_recognize(&missing).is_err());
 
     let duplicate = SOURCE.replace(
-        "  field momentum on interval as space: kg / (m ^ 2 * s) = 0;",
-        "  field momentum on interval as space: kg / (m ^ 2 * s) = 0;\n  field other_momentum on interval as space: kg / (m ^ 2 * s) = 0;",
+        "  state momentum: kg / (m ^ 2 * s) on interval;",
+        "  state momentum: kg / (m ^ 2 * s) on interval;\n  variable other_momentum: kg / (m ^ 2 * s) on interval;",
     );
     assert!(try_recognize(&duplicate).is_err());
 }
@@ -195,7 +196,7 @@ fn rejects_invalid_gamma_and_swapped_flux_lineage() {
     assert!(
         compile(
             "wrong-density-dimension.eqi",
-            &SOURCE.replace("kg / m ^ 3 = 1", "kg / m ^ 2 = 1"),
+            &SOURCE.replace("density: kg / m ^ 3 on", "density: kg / m ^ 2 on"),
         )
         .is_err()
     );

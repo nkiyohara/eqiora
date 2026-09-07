@@ -136,8 +136,8 @@ fn coordinate_axis_is_checked_against_the_relation_domain() {
     let source = r#"
 model invalid_axis {
   domain interval = box(0, 1);
-  representation space = continuum;
-  field length on interval as space: m = 0;
+
+  variable length: m on interval;
   relation identity on interval { length - coordinate(1) = 0; }
 }
 "#;
@@ -166,8 +166,8 @@ fn canonical_coordinate_axis_is_runtime_dimensional() {
     let source = r#"
 model coordinate_plane {
   domain plane = box(0, 1, 0, 2);
-  representation space = continuum;
-  field ordinate on plane as space: m = 0;
+
+  variable ordinate: m on plane;
   relation identity on plane { ordinate - coordinate(1) = 0; }
 }
 "#;

@@ -35,10 +35,10 @@ fn authored(reaction: &[Vec<f64>], reverse: bool) -> (String, Vec<String>) {
         order.reverse();
     }
     let mut source = String::from(
-        "model Coupled { domain body = box(0, 1); domain left = boundary(body, axis = 0, side = lower); domain right = boundary(body, axis = 0, side = upper); representation space = continuum; parameter inverse_area: 1 / m ^ 2 = 1;\n",
+        "model Coupled { domain body = box(0, 1); domain left = boundary(body, axis = 0, side = lower); domain right = boundary(body, axis = 0, side = upper); parameter inverse_area: 1 / m ^ 2 = 1;\n",
     );
     for &row in &order {
-        source += &format!("field {} on body as space: 1;\n", names[row]);
+        source += &format!("variable {}: 1 on body;\n", names[row]);
     }
     for &row in &order {
         source += &format!(
@@ -307,8 +307,8 @@ fn fieldwise_nonzero_trace_and_natural_load_recover_linear_fields() {
         .replace("- 1 * inverse_area", "- 0 * inverse_area")
         .replace("- 2 * inverse_area", "- 0 * inverse_area")
         .replace(
-            "representation space = continuum;",
-            "representation space = continuum; parameter q0: 1 / m = 2; parameter q1: 1 / m = 9;",
+            "parameter inverse_area:",
+            "parameter q0: 1 / m = 2; parameter q1: 1 / m = 9; parameter inverse_area:",
         )
         .replace(
             "relation left_0 on left { trace(field_0) = 0; }",
@@ -390,8 +390,8 @@ fn heterogeneous_length_and_time_fields_preserve_dimensional_general_assembly() 
     // Numerical values are coherent SI, with unit inheritance only at these
     // explicitly typed Parameter declaration initializers.
     let source = source
-        .replace("field field_0 on body as space: 1", "field field_0 on body as space: m")
-        .replace("field field_1 on body as space: 1", "field field_1 on body as space: s")
+        .replace("variable field_0: 1 on body", "variable field_0: m on body")
+        .replace("variable field_1: 1 on body", "variable field_1: s on body")
         .replace("parameter inverse_area:", "parameter cross_01: 1 / m / s = -1; parameter cross_10: s / m ^ 3 = 2; parameter force_0: 1 / m = 1; parameter force_1: s / m ^ 2 = 2; parameter inverse_area:")
         .replace("(-1) * inverse_area * field_1", "cross_01 * field_1")
         .replace("(2) * inverse_area * field_0", "cross_10 * field_0")

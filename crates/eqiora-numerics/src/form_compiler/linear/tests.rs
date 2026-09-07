@@ -35,7 +35,7 @@ fn derive(source: &str) -> Result<CompiledLinearBlockForm, Diagnostic> {
 fn source(reaction: &[Vec<f64>], reverse: bool) -> String {
     let count = reaction.len();
     let mut source = String::from(
-        "model Linear { domain body = box(0, 2); domain left = boundary(body, axis = 0, side = lower); domain right = boundary(body, axis = 0, side = upper); representation space = continuum; parameter unit: 1 / m ^ 2 = 1;\n",
+        "model Linear { domain body = box(0, 2); domain left = boundary(body, axis = 0, side = lower); domain right = boundary(body, axis = 0, side = upper); parameter unit: 1 / m ^ 2 = 1;\n",
     );
     let order = if reverse {
         (0..count).rev().collect::<Vec<_>>()
@@ -43,7 +43,7 @@ fn source(reaction: &[Vec<f64>], reverse: bool) -> String {
         (0..count).collect()
     };
     for &i in &order {
-        source += &format!("field f{i} on body as space: 1;\n");
+        source += &format!("variable f{i}: 1 on body;\n");
     }
     for &i in &order {
         source += &format!("relation row{i} on body {{ -div({} * grad(f{i}))", i + 2);
@@ -321,7 +321,7 @@ fn nonlinear_coefficients_and_incomplete_boundaries_reject() {
 #[test]
 fn coefficient_chains_bind_the_exact_parameter_point_and_spatial_flux() {
     let authored = source(&[vec![1.0]], false)
-        .replace("field f0", "field k on body as space: 1; field q on body as space: 1; parameter slope: 1 / m = 1; relation first on body { k - (1 + slope * coordinate(0)) = 0; } relation second on body { q - k = 0; } field f0")
+        .replace("variable f0", "variable k: 1 on body; variable q: 1 on body; parameter slope: 1 / m = 1; relation first on body { k - (1 + slope * coordinate(0)) = 0; } relation second on body { q - k = 0; } variable f0")
         .replace("2 * grad(f0)", "q * grad(f0)");
     let form = derive(&authored).unwrap();
     assert_eq!(form.fields().len(), 1);
@@ -357,7 +357,7 @@ fn coefficient_chains_bind_the_exact_parameter_point_and_spatial_flux() {
 #[test]
 fn rows_preserve_distinct_checked_physical_dimensions() {
     let authored = source(&[vec![0.0,3.0],vec![5.0,0.0]],false)
-        .replace("field f1 on body as space: 1", "field f1 on body as space: m")
+        .replace("variable f1: 1 on body", "variable f1: m on body")
         .replace("parameter unit:", "parameter uv: 1 / m ^ 3 = 3; parameter vu: 1 / m = 5; parameter fv: 1 / m = 2; parameter unit:")
         .replace("(3) * unit * f1", "uv * f1")
         .replace("(5) * unit * f0", "vu * f0")

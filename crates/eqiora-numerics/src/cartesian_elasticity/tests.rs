@@ -221,8 +221,8 @@ model potential_probe {
   domain x_upper = boundary(body, axis = 0, side = upper);
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
-  representation space = continuum;
-  field probe on body as space: m ^ 3 = 0;
+
+  variable probe: m ^ 3 on body;
   relation balance on body {
 -div(grad(probe)) - (coordinate(0) + 2 * coordinate(1)) = 0;
   }

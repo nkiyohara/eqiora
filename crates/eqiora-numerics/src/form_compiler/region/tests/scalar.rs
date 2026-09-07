@@ -9,10 +9,10 @@ fn scalar_q1_uses_the_same_value_and_gradient_contractions() {
         domain right = boundary(body, axis = 0, side = upper);
         domain bottom = boundary(body, axis = 1, side = lower);
         domain top = boundary(body, axis = 1, side = upper);
-        representation space = continuum;
+
         parameter reaction: 1 / m ^ 2 = 3;
         parameter load: 1 / m ^ 2 = 5;
-        field u on body as space: 1;
+        variable u: 1 on body;
         relation balance on body { -div(2 * grad(u)) + reaction * u - load = 0; }
         relation bc0 on left { trace(u) = 0; }
         relation bc1 on right { trace(u) = 0; }

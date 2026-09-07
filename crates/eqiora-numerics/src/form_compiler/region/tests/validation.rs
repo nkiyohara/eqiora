@@ -4,8 +4,8 @@ use super::*;
 fn discarded_zero_rejects_coordinate_dependent_multipliers() {
     let source = "model Scalar {
         domain body = box(0, 1, 0, 1);
-        representation space = continuum;
-        field u on body as space: 1;
+
+        variable u: 1 on body;
         relation balance on body {
             -div(grad(u)) + (1 / coordinate(0) ^ 2) * 0 = 0;
         }
@@ -22,7 +22,7 @@ fn discarded_zero_rejects_coordinate_dependent_multipliers() {
 fn uniform_load_gradients_validate_their_parameter_values_before_erasure() {
     for expression in ["load_scale / divisor", "0 * load_scale / divisor"] {
         let source = MIXED
-            .replace("field v on", "parameter load_scale: kg / (m * s ^ 2) = 1; parameter divisor: 1 = 0; field load on body as space: kg / (m * s ^ 2); field v on")
+            .replace("state v:", "parameter load_scale: kg / (m * s ^ 2) = 1; parameter divisor: 1 = 0; variable load: kg / (m * s ^ 2) on body; state v:")
             .replace("relation balance", &format!("relation load_definition on body {{ load - {expression} = 0; }} relation balance"))
             .replace("isotropic_lift(p)) = 0", "isotropic_lift(p)) - grad(load) = 0");
         assert!(
@@ -219,15 +219,15 @@ fn nonlinear_and_coordinate_dependent_outer_multipliers_are_rejected() {
 
 #[test]
 fn coefficient_chains_and_mixed_rows_ignore_names_and_declaration_order() {
-    let with_data = MIXED.replace("field v on", "field first on body as space: kg / (m * s ^ 2); field load on body as space: kg / (m * s ^ 2); parameter zero: kg / (m * s ^ 2) = 0; field v on")
+    let with_data = MIXED.replace("state v:", "variable first: kg / (m * s ^ 2) on body; variable load: kg / (m * s ^ 2) on body; parameter zero: kg / (m * s ^ 2) = 0; state v:")
         .replace("relation balance", "relation first_definition on body { first - zero = 0; } relation load_definition on body { load - first = 0; } relation balance")
         .replace("isotropic_lift(p)) = 0", "isotropic_lift(p)) - grad(load) = 0");
     let reordered = with_data.replace(
         "relation first_definition on body { first - zero = 0; } relation load_definition on body { load - first = 0; }",
         "relation load_definition on body { load - first = 0; } relation first_definition on body { first - zero = 0; }",
-    ).replace("field v on body as space: vector<m / s, 2>;\n field p on body as space: kg / (m * s ^ 2);",
-        "field p on body as space: kg / (m * s ^ 2); field v on body as space: vector<m / s, 2>;")
-        .replace(" v ", " motion ").replace("(v)", "(motion)").replace(" p ", " multiplier ").replace("(p)", "(multiplier)");
+    ).replace("state v: vector<m / s, 2> on body;\n variable p: kg / (m * s ^ 2) on body;",
+        "variable p: kg / (m * s ^ 2) on body; state v: vector<m / s, 2> on body;")
+        .replace(" v:", " motion:").replace("(v)", "(motion)").replace(" p:", " multiplier:").replace("(p)", "(multiplier)");
     assert_ne!(with_data, reordered);
     let normalized = |source: &str| {
         let form = derive(source).unwrap();

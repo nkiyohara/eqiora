@@ -17,11 +17,11 @@ mod validation;
 
 const MIXED: &str = "model Mixed {
  domain body = box(0, 1, 0, 1);
- representation space = continuum;
+
  parameter density: kg / m ^ 3 = 3;
  parameter viscosity: kg / (m * s) = 2;
- field v on body as space: vector<m / s, 2>;
- field p on body as space: kg / (m * s ^ 2);
+ state v: vector<m / s, 2> on body;
+ variable p: kg / (m * s ^ 2) on body;
  relation balance on body {
   density * derivative(v) - div(2 * viscosity * symmetric_part(grad(v)) - isotropic_lift(p)) = 0;
  }
@@ -30,12 +30,12 @@ const MIXED: &str = "model Mixed {
 
 const ELIMINATED: &str = "model Elastic {
  domain body = box(0, 1, 0, 1);
- representation space = continuum;
+
  parameter density: kg / m ^ 3 = 3;
  parameter mu: kg / (m * s ^ 2) = 2;
  parameter lambda: kg / (m * s ^ 2) = 5;
- field v on body as space: vector<m / s, 2>;
- field d on body as space: vector<m, 2>;
+ state v: vector<m / s, 2> on body;
+ state d: vector<m, 2> on body;
  relation kinematics on body { derivative(d) - v = 0; }
  relation balance on body {
   density * derivative(v) - div(2 * mu * symmetric_part(grad(d)) + lambda * isotropic_lift(div(d))) = 0;
@@ -363,10 +363,10 @@ fn mini_bubble_mass_and_mixed_blocks_use_exact_barycentric_integrals() {
 fn derivative_of_eliminated_state_uses_rate_without_unused_previous_coefficients() {
     let form = derive(
         "model Kinematic {
-        domain body = box(0, 1, 0, 1); representation space = continuum;
+        domain body = box(0, 1, 0, 1);
         parameter drag: kg / (m ^ 3 * s) = 3;
-        field d on body as space: vector<m, 2>;
-        field v on body as space: vector<m / s, 2>;
+        state d: vector<m, 2> on body;
+        variable v: vector<m / s, 2> on body;
         relation pair on body { derivative(d) - v = 0; }
         relation balance on body { drag * derivative(d) = 0; }
     }",
