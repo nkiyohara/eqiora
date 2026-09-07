@@ -9,7 +9,6 @@ use eqiora::artifact::ModelArtifactReference;
 use eqiora::diagnostic::codes;
 use eqiora::package::{DirectoryPackageStore, PackageCompilationRecordV2, ResolutionRecordV1};
 use pyo3::IntoPyObjectExt;
-use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyDict, PyModule, PyString, PyTuple};
 

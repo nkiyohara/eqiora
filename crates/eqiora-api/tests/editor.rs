@@ -474,3 +474,32 @@ fn invalid_workspace_retains_recovered_documents_and_diagnostics() {
             .is_none_or(|span| workspace.document(&span.file).is_some())
     }));
 }
+
+#[test]
+fn model_and_component_signature_entries_remain_editor_children() {
+    let signature = "parameter gain: 1, support body: volume(ambient_dimension = 2), variable shared: 1 on body, clock tick: periodic, input drive: 1 at tick, output observed: 1 at tick";
+    let source = format!("component Interface({signature}) {{}}\nmodel Root({signature}) {{}}\n");
+    let service = EditorService::new("signature.eqi", 1, source);
+    let snapshot = service.current();
+    assert!(
+        snapshot.formatted().is_some(),
+        "signature source must parse"
+    );
+    for definition in snapshot.symbols() {
+        assert_eq!(
+            definition
+                .children()
+                .iter()
+                .map(|child| (child.kind(), child.name()))
+                .collect::<Vec<_>>(),
+            vec![
+                (EditorSymbolKind::Parameter, "gain"),
+                (EditorSymbolKind::Support, "body"),
+                (EditorSymbolKind::Field, "shared"),
+                (EditorSymbolKind::Clock, "tick"),
+                (EditorSymbolKind::Port, "drive"),
+                (EditorSymbolKind::Port, "observed"),
+            ],
+        );
+    }
+}

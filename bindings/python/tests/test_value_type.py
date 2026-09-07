@@ -68,7 +68,7 @@ def test_native_field_type_matches_source_and_replays(value_type, syntax) -> Non
     balance = eqiora.Relation("balance", domain=domain, residual=field - field)
     native = eqiora.Model.define("typed", domain, field, balance)
     source = eqiora.compile(source=f"""
-model typed {{
+model typed() {{
   domain body = box(0, 1, 0, 1);
 
   variable u: {syntax} on body;
