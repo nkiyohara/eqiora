@@ -19,6 +19,7 @@ pub mod package;
 mod parameter_regeneration;
 mod remeshing_trajectory;
 mod run_request;
+mod sampling;
 mod value_edit;
 
 pub use cad::*;
@@ -43,6 +44,9 @@ pub use remeshing_trajectory::{
     verify_xdmf_hdf5_trajectory_storage_v1,
 };
 pub use run_request::RunRequest;
+pub use sampling::{
+    ParameterSampler, SampledParameterPoint, SamplingCoupling, SamplingGenerator, SamplingIdentity,
+};
 pub use value_edit::{ValueEditPlan, ValueEditResult};
 
 use std::collections::BTreeMap;
