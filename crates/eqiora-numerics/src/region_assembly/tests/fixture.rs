@@ -28,7 +28,7 @@ pub(super) struct Fixture {
 
 impl Fixture {
     pub fn new(regions: usize, reversed: bool) -> Self {
-        let program = program(regions, reversed);
+        let (program, field_indices) = program(regions, reversed);
         let n = 3 * regions * (regions + 1) / 2;
         let mut fixed = vec![None; n];
         fixed[0] = Some(1.25);
@@ -81,12 +81,10 @@ impl Fixture {
                 let mut globals = Vec::new();
                 let mut previous = BTreeMap::new();
                 for layout in bound.fields() {
-                    let Some(KernelNode::Field(field)) = program.node(layout.field) else {
-                        unreachable!()
-                    };
-                    // Authored initial constants identify exact Field IDs; they are also physical history.
-                    let initial = field.initial().unwrap().literal();
-                    let authored = initial as usize - 1;
+                    // Exact source identities select explicitly provided physical history.
+                    // History values do not become fresh Model initialization equations.
+                    let authored = field_indices[&layout.field];
+                    let initial = (authored + 1) as f64;
                     globals.extend([
                         offset + 3 * authored + half,
                         offset + 3 * authored + half + 1,
@@ -153,8 +151,8 @@ fn dim(exponents: [i32; 7]) -> DimExponents {
     DimExponents::from_integers(exponents).unwrap()
 }
 
-fn program(regions: usize, reversed: bool) -> KernelProgram {
-    let mut source = String::from("model Regions { representation space = continuum;\n");
+fn program(regions: usize, reversed: bool) -> (KernelProgram, BTreeMap<RawId, usize>) {
+    let mut source = String::from("model Regions {\n");
     let order = if reversed {
         (0..regions).rev().collect::<Vec<_>>()
     } else {
@@ -174,10 +172,7 @@ fn program(regions: usize, reversed: bool) -> KernelProgram {
             (0..=region).collect()
         };
         for field in fields {
-            source += &format!(
-                "field value{region}_{field} on body{region} as space: 1 = {};\n",
-                field + 1
-            );
+            source += &format!("state value{region}_{field}: 1 on body{region};\n");
         }
         for field in 0..=region {
             source += &format!(
@@ -200,13 +195,26 @@ fn program(regions: usize, reversed: bool) -> KernelProgram {
             .replace("value", "renamed")
             .replace("row", "equation");
     }
-    let (transaction, model, _) = compile("regions.eqi", &source)
+    let (transaction, model, symbols) = compile("regions.eqi", &source)
         .unwrap()
         .remove(0)
         .into_parts();
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
-    KernelProgram::from_snapshot(&store.snapshot(), model).unwrap()
+    let mut indices = BTreeMap::new();
+    let prefix = if reversed { "renamed" } else { "value" };
+    for region in 0..regions {
+        for field in 0..=region {
+            indices.insert(
+                symbols.get(&format!("{prefix}{region}_{field}")).unwrap(),
+                field,
+            );
+        }
+    }
+    (
+        KernelProgram::from_snapshot(&store.snapshot(), model).unwrap(),
+        indices,
+    )
 }
 
 fn expected(regions: usize, n: usize) -> (Vec<f64>, Vec<f64>) {

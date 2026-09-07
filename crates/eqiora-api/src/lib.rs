@@ -474,7 +474,7 @@ mod tests {
     use super::ModelDocument;
     use eqiora_artifact::ReplayableCanonicalModelArtifact;
     use eqiora_compiler::{CompilationNamespaceId, ResolvedHierarchyInput, ResolvedSourceUnit};
-    use eqiora_core::DimExponents;
+    use eqiora_core::{DimExponents, EntityKind};
     use eqiora_lang::{DraftExpression, DraftField, DraftParameter, DraftRelation, ModelDraft};
 
     const SOURCE: &str = r#"
