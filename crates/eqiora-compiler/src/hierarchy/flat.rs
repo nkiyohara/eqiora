@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, VecDeque};
 
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, EntityKind, Id, OntologyId, RawId, Span};
-use eqiora_lang::{ActivationSyntax, ConnectionSyntax, RepresentationSyntax, TextRange};
+use eqiora_lang::{ActivationSyntax, ConnectionSyntax, TextRange};
 use eqiora_schema::Model;
 
 use crate::identity::{
@@ -78,7 +78,6 @@ pub(super) enum FlatItemBlueprint {
     },
     Representation {
         name: String,
-        syntax: RepresentationSyntax,
         range: TextRange,
         identity: EntityIdentity,
     },
@@ -87,7 +86,8 @@ pub(super) enum FlatItemBlueprint {
         domain: Option<String>,
         representation: Option<String>,
         value_type: eqiora_lang::ValueTypeSyntax,
-        initial: Option<eqiora_lang::Expr>,
+        role: eqiora_lang::FieldRoleSyntax,
+        activation: ActivationSyntax,
         range: TextRange,
         identity: EntityIdentity,
     },
@@ -116,6 +116,7 @@ pub(super) enum FlatItemBlueprint {
         activation: ActivationSyntax,
         domain: Option<String>,
         equations: Vec<LoweringEquation>,
+        initial: bool,
         range: TextRange,
         identity: RelationIdentity,
     },
@@ -332,22 +333,19 @@ impl ExpandedBlueprint {
                     contract: contract.clone(),
                     range: *range,
                 },
-                FlatItemBlueprint::Representation {
-                    name,
-                    syntax,
-                    range,
-                    ..
-                } => LoweringItem::Representation {
-                    name: name.clone(),
-                    syntax: *syntax,
-                    range: *range,
-                },
+                FlatItemBlueprint::Representation { name, range, .. } => {
+                    LoweringItem::Representation {
+                        name: name.clone(),
+                        range: *range,
+                    }
+                }
                 FlatItemBlueprint::Field {
                     name,
                     domain,
                     representation,
                     value_type,
-                    initial,
+                    role,
+                    activation,
                     range,
                     ..
                 } => LoweringItem::Field {
@@ -355,7 +353,8 @@ impl ExpandedBlueprint {
                     domain: domain.clone(),
                     representation: representation.clone(),
                     value_type: value_type.clone(),
-                    initial: initial.clone(),
+                    role: *role,
+                    activation: activation.clone(),
                     range: *range,
                 },
                 FlatItemBlueprint::Parameter {
@@ -397,6 +396,7 @@ impl ExpandedBlueprint {
                     activation,
                     domain,
                     equations,
+                    initial,
                     range,
                     ..
                 } => LoweringItem::Relation {
@@ -404,6 +404,7 @@ impl ExpandedBlueprint {
                     activation: activation.clone(),
                     domain: domain.clone(),
                     equations: equations.clone(),
+                    initial: *initial,
                     range: *range,
                 },
                 FlatItemBlueprint::Connection {
@@ -444,8 +445,13 @@ impl ExpandedBlueprint {
         )?;
         for item in &self.items {
             match item {
-                FlatItemBlueprint::Relation { identity, .. } => {
+                FlatItemBlueprint::Relation {
+                    identity, initial, ..
+                } => {
                     insert_provenance(&mut builder, &identity.entity, staged)?;
+                    if *initial {
+                        continue;
+                    }
                     builder.insert_graph(
                         resolve_entity_raw(
                             staged,

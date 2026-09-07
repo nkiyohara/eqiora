@@ -501,8 +501,8 @@ impl<'a> Elaborator<'a> {
                 let named = match item {
                     ComponentItem::Parameter(value) => Some((value.name(), value.range())),
                     ComponentItem::Support(value) => Some((value.name(), value.range())),
-                    ComponentItem::FieldSlot(value) => Some((value.name(), value.range())),
-                    ComponentItem::Representation(value) => Some((value.name(), value.range())),
+                    ComponentItem::ClockRequirement(value) => Some((value.name(), value.range())),
+                    ComponentItem::FieldRequirement(value) => Some((value.name(), value.range())),
                     ComponentItem::Port(value) => Some((value.name(), value.range())),
                     ComponentItem::PortFamily(value) => Some((value.port().name(), value.range())),
                     ComponentItem::Field(value) => Some((value.name(), value.range())),
@@ -580,7 +580,6 @@ impl<'a> Elaborator<'a> {
             for item in model.items() {
                 let named = match item {
                     Item::Domain(value) => Some((value.name(), value.range())),
-                    Item::Representation(value) => Some((value.name(), value.range())),
                     Item::Field(value) => Some((value.name(), value.range())),
                     Item::Parameter(value) => Some((value.name(), value.range())),
                     Item::Let(value) => Some((value.name(), value.range())),

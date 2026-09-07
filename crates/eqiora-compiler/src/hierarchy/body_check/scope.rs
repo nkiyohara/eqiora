@@ -188,12 +188,17 @@ impl DomainContract {
 pub(super) enum SymbolContract {
     Domain(DomainContract),
     Support(SpatialSupport<String>),
-    Representation,
-    Field(ExpressionType<String>),
+    Field(
+        ExpressionType<String>,
+        eqiora_lang::FieldRoleSyntax,
+        eqiora_lang::ActivationSyntax,
+    ),
     Parameter(ExpressionType<String>),
     Port(PortContract),
     PortFamily(BoundaryPortFamilyContract),
-    CompleteExterior { parent: SpatialSupport<String> },
+    CompleteExterior {
+        parent: SpatialSupport<String>,
+    },
     Clock,
     Relation,
 }
@@ -482,9 +487,6 @@ pub(in crate::hierarchy) fn field_expression_type<I>(
 ) -> Result<ExpressionType<I>, Diagnostic> {
     let value_type =
         crate::value_types::lower_value_type(file, declaration.value_type(), support.as_ref())?;
-    if let Some(initial) = declaration.initial() {
-        crate::units::typed_literal(file, initial, value_type.clone())?;
-    }
     Ok(ExpressionType::new(value_type, support))
 }
 

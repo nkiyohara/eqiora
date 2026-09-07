@@ -27,10 +27,9 @@ use eqiora_lang::{
     BoundarySideSyntax, CartesianCoordinateSyntax, ClockDecl, ComponentDecl, ComponentItem,
     ComponentParameterDecl, ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl,
     ConnectionSyntax, ConnectorDecl, ConnectorSyntax, Document, DomainDecl, DomainSyntax, Expr,
-    ExprKind, FieldDecl, FieldSlotDecl, FrameSyntax, Item, NamePath, ParameterDecl, PortDecl,
-    PortSyntax, PureOperatorDecl, RelationDecl, RelationFamilyDecl, RepresentationDecl,
-    RepresentationSyntax, SignalDirectionSyntax, SupportSlotDecl, SupportSlotSyntax, TextRange,
-    UnaryOp, ValueShapeSyntax, VisibilitySyntax,
+    ExprKind, FieldDecl, FrameSyntax, Item, NamePath, ParameterDecl, PortDecl, PortSyntax,
+    PureOperatorDecl, RelationDecl, RelationFamilyDecl, SignalDirectionSyntax, SupportSlotDecl,
+    SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, VisibilitySyntax,
 };
 use sha2::{Digest, Sha256};
 
@@ -496,6 +495,14 @@ fn encode_component_item(item: &ComponentItem, budget: &mut Budget) -> Result<Ve
             encoder.u16(COMPONENT_PORT_FAMILY_ITEM_TAG)?;
             encode_component_port_family(&mut encoder, declaration, budget)?;
         }
+        ComponentItem::Initial(declaration) => {
+            encoder.u16(15)?;
+            encode_initial(&mut encoder, declaration, budget)?;
+        }
+        ComponentItem::ClockRequirement(declaration) => {
+            encoder.u16(16)?;
+            encode_name(&mut encoder, declaration.name(), budget)?;
+        }
         ComponentItem::Field(declaration) => {
             encoder.u16(3)?;
             encode_field(&mut encoder, declaration, budget)?;
@@ -532,15 +539,11 @@ fn encode_component_item(item: &ComponentItem, budget: &mut Budget) -> Result<Ve
             encoder.u16(7)?;
             encode_instance(&mut encoder, declaration, budget)?;
         }
-        ComponentItem::Representation(declaration) => {
-            encoder.u16(8)?;
-            encode_representation(&mut encoder, declaration, budget)?;
-        }
         ComponentItem::Support(declaration) => {
             encoder.u16(9)?;
             encode_support_slot(&mut encoder, declaration, budget)?;
         }
-        ComponentItem::FieldSlot(declaration) => {
+        ComponentItem::FieldRequirement(declaration) => {
             encoder.u16(10)?;
             encode_field_slot(&mut encoder, declaration, budget)?;
         }
@@ -560,9 +563,9 @@ fn encode_model_item(item: &Item, budget: &mut Budget) -> Result<Vec<u8>, Diagno
             encoder.u16(1)?;
             encode_domain(&mut encoder, declaration, budget)?;
         }
-        Item::Representation(declaration) => {
-            encoder.u16(2)?;
-            encode_representation(&mut encoder, declaration, budget)?;
+        Item::Initial(declaration) => {
+            encoder.u16(14)?;
+            encode_initial(&mut encoder, declaration, budget)?;
         }
         Item::Field(declaration) => {
             encoder.u16(3)?;
@@ -707,36 +710,54 @@ fn encode_support_slot(
     })
 }
 
-fn encode_field_slot(
+fn encode_initial(
     encoder: &mut Encoder,
-    declaration: &FieldSlotDecl,
+    declaration: &eqiora_lang::InitialDecl,
     budget: &mut Budget,
 ) -> Result<(), Diagnostic> {
-    encoder.field(1, |encoder| {
-        encode_name(encoder, declaration.name(), budget)
-    })?;
-    encoder.field(2, |encoder| {
-        encode_name(encoder, declaration.support(), budget)
-    })?;
-    encoder.field(3, |encoder| {
-        value_type::encode_value_type(encoder, declaration.value_type(), budget, 1)
-    })
+    if declaration.equations().len() > budget.limits.max_residuals_per_relation {
+        return Err(source_identity_error(
+            "initial equation count exceeds limit",
+        ));
+    }
+    encoder.u32(as_u32(
+        declaration.equations().len(),
+        "initial equation count",
+    )?)?;
+    for equation in declaration.equations() {
+        encoder.field(1, |encoder| {
+            encoder.field(1, |encoder| {
+                encode_expression(encoder, equation.left(), budget, 1)
+            })?;
+            encoder.field(2, |encoder| {
+                encode_expression(encoder, equation.right(), budget, 1)
+            })
+        })?;
+    }
+    Ok(())
 }
 
-fn encode_representation(
+fn encode_field_slot(
     encoder: &mut Encoder,
-    declaration: &RepresentationDecl,
+    declaration: &FieldDecl,
     budget: &mut Budget,
 ) -> Result<(), Diagnostic> {
-    encoder.field(1, |encoder| {
-        encode_name(encoder, declaration.name(), budget)
-    })?;
-    encoder.field(2, |encoder| match declaration.syntax() {
-        RepresentationSyntax::Continuum => encoder.u16(1),
-        _ => Err(source_identity_error(
-            "Representation syntax is newer than source identity v1",
-        )),
-    })
+    encode_field(encoder, declaration, budget)
+}
+
+fn encode_activation(
+    encoder: &mut Encoder,
+    activation: &ActivationSyntax,
+    budget: &mut Budget,
+) -> Result<(), Diagnostic> {
+    match activation {
+        ActivationSyntax::Continuous => encoder.u16(1),
+        ActivationSyntax::Periodic(clock) => {
+            encoder.u16(2)?;
+            encode_name(encoder, clock, budget)
+        }
+        _ => Err(source_identity_error("unsupported activation")),
+    }
 }
 
 fn encode_field(
@@ -751,14 +772,17 @@ fn encode_field(
         encode_optional_name(encoder, declaration.domain(), budget)
     })?;
     encoder.field(3, |encoder| {
-        encode_optional_name(encoder, declaration.representation(), budget)
+        encoder.u16(match declaration.role() {
+            eqiora_lang::FieldRoleSyntax::Variable => 1,
+            eqiora_lang::FieldRoleSyntax::State => 2,
+        })
     })?;
     encoder.field(4, |encoder| {
         value_type::encode_value_type(encoder, declaration.value_type(), budget, 1)
     })?;
-    if let Some(initial) = declaration.initial() {
-        encoder.field(5, |encoder| encode_expression(encoder, initial, budget, 1))?;
-    }
+    encoder.field(5, |encoder| {
+        encode_activation(encoder, declaration.activation(), budget)
+    })?;
     Ok(())
 }
 

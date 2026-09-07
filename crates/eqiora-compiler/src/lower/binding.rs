@@ -46,6 +46,8 @@ pub(super) struct FieldContract {
     pub(super) dimension: DimExponents,
     pub(super) value_type: eqiora_lang::ValueTypeSyntax,
     pub(super) domain: Option<String>,
+    pub(super) role: eqiora_lang::FieldRoleSyntax,
+    pub(super) activation: ActivationSyntax,
 }
 
 #[derive(Debug, Clone)]

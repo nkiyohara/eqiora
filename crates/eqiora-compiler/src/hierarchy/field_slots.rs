@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_lang::{ComponentDecl, ComponentItem, FieldSlotDecl, InstanceDecl, Item, ModelDecl};
+use eqiora_lang::{ComponentDecl, ComponentItem, FieldDecl, InstanceDecl, Item, ModelDecl};
 use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};
 
 use crate::diagnostics::source_error;
@@ -27,13 +27,21 @@ pub(super) enum FieldRepresentationContract {
 pub(super) struct FieldContract<I> {
     value: ExpressionType<I>,
     representation: FieldRepresentationContract,
+    pub(super) role: eqiora_lang::FieldRoleSyntax,
+    pub(super) activation: eqiora_lang::ActivationSyntax,
 }
 
 impl<I> FieldContract<I> {
-    pub(super) fn continuum(value: ExpressionType<I>) -> Self {
+    pub(super) fn continuum(
+        value: ExpressionType<I>,
+        role: eqiora_lang::FieldRoleSyntax,
+        activation: eqiora_lang::ActivationSyntax,
+    ) -> Self {
         Self {
             value,
             representation: FieldRepresentationContract::Continuum,
+            role,
+            activation,
         }
     }
 
@@ -44,7 +52,7 @@ impl<I> FieldContract<I> {
 
 #[derive(Clone, Debug)]
 struct FieldSlotContract {
-    support_slot: String,
+    support_slot: Option<String>,
     field: FieldContract<String>,
 }
 
@@ -77,7 +85,7 @@ pub(super) fn component_field_interface(
     let mut slots = BTreeMap::new();
     let mut diagnostics = Vec::new();
     for item in component.items() {
-        let ComponentItem::FieldSlot(declaration) = item else {
+        let ComponentItem::FieldRequirement(declaration) = item else {
             continue;
         };
         match field_slot_contract(file, declaration, supports) {
@@ -106,43 +114,36 @@ pub(super) fn component_field_interface(
 
 fn field_slot_contract(
     file: &str,
-    declaration: &FieldSlotDecl,
+    declaration: &FieldDecl,
     supports: &SupportInterface,
 ) -> Result<FieldSlotContract, Diagnostic> {
-    let Some(support) = supports.get(declaration.support()) else {
-        return Err(source_error(
-            codes::LANGUAGE_TYPE_ERROR,
-            file,
-            declaration.range(),
-            format!(
-                "Field slot `{}` refers to unknown support slot `{}`",
-                declaration.name(),
-                declaration.support()
-            ),
-        ));
-    };
-    let SpatialSupport::Volume { .. } = support.support() else {
-        return Err(source_error(
-            codes::LANGUAGE_TYPE_ERROR,
-            file,
-            declaration.range(),
-            format!(
-                "Field slot `{}` requires a volume support slot",
-                declaration.name()
-            ),
-        ));
-    };
+    let support = declaration
+        .domain()
+        .map(|name| {
+            supports
+                .get(name)
+                .map(|s| s.support().clone())
+                .ok_or_else(|| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        declaration.range(),
+                        format!("unknown support `{name}`"),
+                    )
+                })
+        })
+        .transpose()?;
     let value = ExpressionType::new(
-        crate::value_types::lower_value_type(
-            file,
-            declaration.value_type(),
-            Some(support.support()),
-        )?,
-        Some(support.support().clone()),
+        crate::value_types::lower_value_type(file, declaration.value_type(), support.as_ref())?,
+        support,
     );
     Ok(FieldSlotContract {
-        support_slot: declaration.support().to_owned(),
-        field: FieldContract::continuum(value),
+        support_slot: declaration.domain().map(str::to_owned),
+        field: FieldContract::continuum(
+            value,
+            declaration.role(),
+            declaration.activation().clone(),
+        ),
     })
 }
 
@@ -167,7 +168,11 @@ pub(super) fn component_field_contracts(
         if let Ok(value) = field_expression_type(file, declaration, support) {
             fields.insert(
                 declaration.name().to_owned(),
-                FieldContract::continuum(value),
+                FieldContract::continuum(
+                    value,
+                    declaration.role(),
+                    declaration.activation().clone(),
+                ),
             );
         }
     }
@@ -195,11 +200,64 @@ pub(super) fn model_field_contracts(
                 .map(|value| {
                     (
                         declaration.name().to_owned(),
-                        FieldContract::continuum(value),
+                        FieldContract::continuum(
+                            value,
+                            declaration.role(),
+                            declaration.activation().clone(),
+                        ),
                     )
                 })
         })
         .collect()
+}
+
+pub(super) fn resolve_instance_clocks(
+    file: &str,
+    component: &ComponentDecl,
+    instance: &InstanceDecl,
+    mut resolve: impl FnMut(&str) -> Option<String>,
+) -> Result<BTreeMap<String, String>, Vec<Diagnostic>> {
+    let required: BTreeSet<_> = component
+        .items()
+        .iter()
+        .filter_map(|item| match item {
+            ComponentItem::ClockRequirement(clock) => Some(clock.name()),
+            _ => None,
+        })
+        .collect();
+    let mut result = BTreeMap::new();
+    let mut errors = Vec::new();
+    for binding in instance.clock_bindings() {
+        let value = resolve(binding.target());
+        if !required.contains(binding.slot())
+            || result.contains_key(binding.slot())
+            || value.is_none()
+        {
+            errors.push(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                file,
+                binding.range(),
+                "clock binding must name one unbound requirement and an exact enclosing clock",
+            ));
+        } else {
+            result.insert(binding.slot().to_owned(), value.unwrap());
+        }
+    }
+    for name in required {
+        if !result.contains_key(name) {
+            errors.push(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                file,
+                instance.range(),
+                format!("missing required clock binding `{name}`"),
+            ));
+        }
+    }
+    if errors.is_empty() {
+        Ok(result)
+    } else {
+        Err(errors)
+    }
 }
 
 /// Validate one instance and return `child Field slot -> enclosing target`.
@@ -208,9 +266,12 @@ pub(super) fn resolve_instance_fields<I: Clone + Eq>(
     component: &ComponentDecl,
     interface: &FieldInterface,
     instance: &InstanceDecl,
+    mut resolve_parent_clock: impl FnMut(&str) -> Option<String>,
     mut resolve_child_support: impl FnMut(&str) -> Option<SpatialSupport<I>>,
     mut resolve_parent: impl FnMut(&str) -> Option<FieldContract<I>>,
 ) -> Result<BTreeMap<String, String>, Vec<Diagnostic>> {
+    let clock_bindings =
+        resolve_instance_clocks(binding_file, component, instance, &mut resolve_parent_clock)?;
     let mut diagnostics = Vec::new();
     let mut targets = BTreeMap::new();
     let mut actual = BTreeMap::new();
@@ -255,21 +316,51 @@ pub(super) fn resolve_instance_fields<I: Clone + Eq>(
             ));
             continue;
         };
-        let Some(support) = resolve_child_support(&slot.support_slot) else {
-            diagnostics.push(source_error(
-                codes::LANGUAGE_LOWERING_ERROR,
-                binding_file,
-                binding.range(),
-                format!(
-                    "Field slot `{}` has no resolved exact support binding",
-                    binding.slot()
-                ),
-            ));
-            continue;
+        let support = match &slot.support_slot {
+            Some(name) => match resolve_child_support(name) {
+                Some(support) => Some(support),
+                None => {
+                    diagnostics.push(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        binding_file,
+                        binding.range(),
+                        "required support is unresolved",
+                    ));
+                    continue;
+                }
+            },
+            None => None,
         };
         let expected = FieldContract {
-            value: ExpressionType::new(slot.field.value.value_type.clone(), Some(support)),
+            value: ExpressionType::new(slot.field.value.value_type.clone(), support),
             representation: slot.field.representation,
+            role: slot.field.role,
+            activation: match &slot.field.activation {
+                eqiora_lang::ActivationSyntax::Continuous => {
+                    eqiora_lang::ActivationSyntax::Continuous
+                }
+                eqiora_lang::ActivationSyntax::Periodic(clock) => match clock_bindings.get(clock) {
+                    Some(target) => eqiora_lang::ActivationSyntax::Periodic(target.clone()),
+                    None => {
+                        diagnostics.push(source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            binding_file,
+                            binding.range(),
+                            "required field clock is not a borrowed clock requirement",
+                        ));
+                        continue;
+                    }
+                },
+                _ => {
+                    diagnostics.push(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        binding_file,
+                        binding.range(),
+                        "unsupported field activation",
+                    ));
+                    continue;
+                }
+            },
         };
         if let Some(message) = field_contract_mismatch(binding.slot(), &expected, &target) {
             diagnostics.push(source_error(
@@ -310,24 +401,29 @@ fn field_contract_mismatch<I: Eq>(
     expected: &FieldContract<I>,
     actual: &FieldContract<I>,
 ) -> Option<String> {
-    let mismatch =
-        if expected.value.value_type.scalar_domain() != actual.value.value_type.scalar_domain() {
-            "mathematical scalar domain"
-        } else if expected.value.dimension() != actual.value.dimension() {
-            "physical dimension"
-        } else if expected.value.shape() != actual.value.shape() {
-            "exact value shape"
-        } else if expected.value.value_type.array_rank() != actual.value.value_type.array_rank() {
-            "array and spatial axis roles"
-        } else if expected.value.frame() != actual.value.frame() {
-            "coordinate frame"
-        } else if expected.value.support != actual.value.support {
-            "exact spatial support"
-        } else if expected.representation != actual.representation {
-            "representation family"
-        } else {
-            return None;
-        };
+    let mismatch = if expected.value.value_type.scalar_domain()
+        != actual.value.value_type.scalar_domain()
+    {
+        "mathematical scalar domain"
+    } else if expected.value.dimension() != actual.value.dimension() {
+        "physical dimension"
+    } else if expected.value.shape() != actual.value.shape() {
+        "exact value shape"
+    } else if expected.value.value_type.array_rank() != actual.value.value_type.array_rank() {
+        "array and spatial axis roles"
+    } else if expected.value.frame() != actual.value.frame() {
+        "coordinate frame"
+    } else if expected.value.support != actual.value.support {
+        "exact spatial support"
+    } else if expected.role == eqiora_lang::FieldRoleSyntax::State && actual.role != expected.role {
+        "declared state role"
+    } else if expected.activation != actual.activation {
+        "exact activation"
+    } else if expected.representation != actual.representation {
+        "representation family"
+    } else {
+        return None;
+    };
     Some(format!(
         "Field slot `{slot}` and its target disagree in {mismatch}"
     ))

@@ -14,6 +14,31 @@ use super::scope::{
     BoundaryFamilyScope, DefinitionScope, PortContract, SymbolContract, unresolved,
 };
 
+pub(super) fn validate_initial_expression(
+    scope: &DefinitionScope<'_, '_>,
+    declaration: &eqiora_lang::InitialDecl,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut checker = ExpressionChecker {
+        scope,
+        relation_support: None,
+        family_scope: None,
+        allow_discrete_symbols: true,
+        initial: true,
+        activation: &ActivationSyntax::Continuous,
+        physical_endpoints: PhysicalEndpointSelections::new(),
+    };
+    let errors: Vec<_> = declaration
+        .equations()
+        .iter()
+        .filter_map(|equation| checker.check_equation(equation).err())
+        .collect();
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
 pub(super) fn validate_relation_expression(
     scope: &DefinitionScope<'_, '_>,
     declaration: &RelationDecl,
@@ -59,6 +84,8 @@ pub(super) fn validate_relation_expression(
         relation_support,
         family_scope: None,
         allow_discrete_symbols: discrete,
+        initial: false,
+        activation: declaration.activation(),
         physical_endpoints: PhysicalEndpointSelections::new(),
     };
     for equation in declaration.equations() {
@@ -125,6 +152,8 @@ pub(super) fn validate_relation_family_expression(
         relation_support: Some(family_scope.support()),
         family_scope: Some(family_scope),
         allow_discrete_symbols: false,
+        initial: false,
+        activation: relation.activation(),
         physical_endpoints: PhysicalEndpointSelections::new(),
     };
     for equation in relation.equations() {
@@ -151,6 +180,8 @@ struct ExpressionChecker<'a, 'e, 'd> {
     relation_support: Option<SpatialSupport<String>>,
     family_scope: Option<&'a BoundaryFamilyScope>,
     allow_discrete_symbols: bool,
+    initial: bool,
+    activation: &'a ActivationSyntax,
     physical_endpoints: PhysicalEndpointSelections,
 }
 
@@ -262,7 +293,7 @@ impl ExpressionChecker<'_, '_, '_> {
         contract: SymbolContract,
     ) -> Result<ExpressionType<String>, Diagnostic> {
         match contract {
-            SymbolContract::Field(inferred) | SymbolContract::Parameter(inferred) => Ok(inferred),
+            SymbolContract::Field(inferred, ..) | SymbolContract::Parameter(inferred) => Ok(inferred),
             SymbolContract::Port(contract) => contract.expression_type().ok_or_else(|| {
                 source_error(
                     codes::LANGUAGE_TYPE_ERROR,
@@ -284,7 +315,6 @@ impl ExpressionChecker<'_, '_, '_> {
             SymbolContract::Domain(_)
             | SymbolContract::Support(_)
             | SymbolContract::CompleteExterior { .. }
-            | SymbolContract::Representation
             | SymbolContract::Clock
             | SymbolContract::Relation => Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
@@ -404,7 +434,33 @@ impl ExpressionChecker<'_, '_, '_> {
             ));
         };
         let inferred = match self.scope.symbols.get(name) {
-            Some(SymbolContract::Field(inferred)) => inferred.clone(),
+            Some(SymbolContract::Field(inferred, role, activation)) => {
+                if matches!(callee_name, "derivative" | "pre" | "next")
+                    && (*role != eqiora_lang::FieldRoleSyntax::State
+                        || (callee_name == "derivative"
+                            && !matches!(activation, ActivationSyntax::Continuous)))
+                {
+                    return Err(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.scope.file,
+                        expression.range(),
+                        "evolution operator requires an eligible declared state",
+                    ));
+                }
+                if matches!(callee_name, "pre" | "next")
+                    && (!matches!(activation, ActivationSyntax::Periodic(_))
+                        || (!self.initial && activation != self.activation)
+                        || (self.initial && callee_name == "next"))
+                {
+                    return Err(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.scope.file,
+                        expression.range(),
+                        "discrete state operator requires the exact clock and cannot assign next during initialization",
+                    ));
+                }
+                inferred.clone()
+            }
             _ => {
                 return Err(unresolved(
                     self.scope.file,
@@ -422,7 +478,7 @@ impl ExpressionChecker<'_, '_, '_> {
                 format!("continuous Relation cannot use `{callee_name}`"),
             ));
         }
-        if callee_name == "derivative" && self.allow_discrete_symbols {
+        if callee_name == "derivative" && self.allow_discrete_symbols && !self.initial {
             return Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 self.scope.file,

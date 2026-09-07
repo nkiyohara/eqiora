@@ -214,6 +214,32 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         })
     }
 
+    fn add_field_representation(
+        &mut self,
+        field: &EntityIdentity,
+        spatial: bool,
+    ) -> Result<Option<String>, Diagnostic> {
+        if !spatial {
+            return Ok(None);
+        }
+        let key = field.key.field_representation()?;
+        let full = key.full_identity()?;
+        let identity = EntityIdentity {
+            key,
+            full,
+            definition: field.definition.clone(),
+            instance: field.instance.clone(),
+            bindings: field.bindings.clone(),
+        };
+        let name = internal_name(full);
+        self.items.push(FlatItemBlueprint::Representation {
+            name: name.clone(),
+            range: field.definition.range,
+            identity,
+        });
+        Ok(Some(name))
+    }
+
     fn entity_identity(
         &self,
         instance_path: &InstancePath,
@@ -782,13 +808,6 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     None,
                     value.range(),
                 ),
-                Item::Representation(value) => (
-                    value.name(),
-                    EntityKind::Representation,
-                    SymbolKind::Representation,
-                    None,
-                    value.range(),
-                ),
                 Item::Field(value) => (
                     value.name(),
                     EntityKind::Field,
@@ -846,7 +865,8 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         .insert(value.name().to_owned(), identity);
                     continue;
                 }
-                Item::Connection(_)
+                Item::Initial(_)
+                | Item::Connection(_)
                 | Item::BoundaryConnection(_)
                 | Item::Boundary(_)
                 | Item::Let(_)
@@ -923,6 +943,18 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 .domain()
                 .and_then(|domain| scope.spatial_support(domain).cloned());
             let field_type = field_expression_type(self.model.file, declaration, support)?;
+            scope.field_evolution.insert(
+                declaration.name().to_owned(),
+                (
+                    declaration.role(),
+                    super::scope::rewrite_activation(
+                        self.model.file,
+                        declaration.activation(),
+                        declaration.range(),
+                        scope,
+                    )?,
+                ),
+            );
             if scope
                 .insert_field_type(declaration.name().to_owned(), field_type)
                 .is_some()
@@ -1100,6 +1132,26 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             }
         }
 
+        let clocks = super::field_slots::resolve_instance_clocks(
+            instance_file,
+            component.declaration,
+            instance,
+            |name| {
+                parent_scope
+                    .symbol(name)
+                    .filter(|symbol| matches!(symbol.kind, SymbolKind::Clock))
+                    .map(|symbol| symbol.internal_name.clone())
+            },
+        )
+        .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
+        for binding in instance.clock_bindings() {
+            let symbol = parent_scope
+                .symbol(binding.target())
+                .expect("validated clock binding")
+                .clone();
+            scope.insert_symbol(binding.slot().to_owned(), symbol);
+        }
+
         let field_interface =
             component_field_interface(component.file, component.declaration, &support_interface)
                 .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
@@ -1108,16 +1160,22 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             component.declaration,
             &field_interface,
             instance,
+            |name| {
+                parent_scope
+                    .symbol(name)
+                    .filter(|symbol| matches!(symbol.kind, SymbolKind::Clock))
+                    .map(|symbol| symbol.internal_name.clone())
+            },
             |slot| scope.spatial_support(slot).cloned(),
             |target| {
                 let symbol = parent_scope.symbol(target)?;
                 if !matches!(symbol.kind, SymbolKind::Field) {
                     return None;
                 }
-                parent_scope
-                    .field_type(target)
-                    .cloned()
-                    .map(FieldContract::continuum)
+                parent_scope.field_type(target).cloned().map(|value| {
+                    let (role, activation) = parent_scope.field_evolution[target].clone();
+                    FieldContract::continuum(value, role, activation)
+                })
             },
         )
         .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
@@ -1145,6 +1203,16 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 )]);
             }
             scope.insert_symbol(slot.clone(), symbol);
+            let requirement = field_interface.field(&slot).expect("resolved requirement");
+            let activation = match &requirement.activation {
+                eqiora_lang::ActivationSyntax::Periodic(clock) => {
+                    eqiora_lang::ActivationSyntax::Periodic(clocks[clock].clone())
+                }
+                other => other.clone(),
+            };
+            scope
+                .field_evolution
+                .insert(slot.clone(), (requirement.role, activation));
             scope.insert_field_type(slot, field_type);
         }
 
@@ -1285,38 +1353,14 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     }
                 }
                 ComponentItem::Support(_) => {}
-                ComponentItem::Representation(declaration) => {
-                    let identity = self
-                        .entity_identity(
-                            &instance_path,
-                            definition_path(
-                                &component.namespace,
-                                "component",
-                                component.name(),
-                                declaration.name(),
-                            ),
-                            EntityKind::Representation,
-                            SourceLocation::new(component.file, declaration.range()),
-                            SourceLocation::new(instance_file, instance.range()),
-                            bindings.clone(),
-                        )
-                        .map_err(one_diagnostic)?;
-                    self.register_symbol(
-                        display_child(&display_prefix, declaration.name()),
-                        declaration.name(),
-                        &identity,
-                        SymbolKind::Representation,
-                        &mut scope,
-                    )
-                    .map_err(one_diagnostic)?;
-                    identities
-                        .entities
-                        .insert(declaration.name().to_owned(), identity);
-                }
                 ComponentItem::Field(declaration) => {
                     let support = declaration
                         .domain()
                         .and_then(|domain| scope.spatial_support(domain).cloned());
+                    scope.field_evolution.insert(
+                        declaration.name().to_owned(),
+                        (declaration.role(), declaration.activation().clone()),
+                    );
                     let field_type = field_expression_type(component.file, declaration, support)
                         .map_err(one_diagnostic)?;
                     let identity = self
@@ -1470,7 +1514,9 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                             .insert((declaration.name().to_owned(), boundary), identity);
                     }
                 }
-                ComponentItem::FieldSlot(_)
+                ComponentItem::Initial(_)
+                | ComponentItem::ClockRequirement(_)
+                | ComponentItem::FieldRequirement(_)
                 | ComponentItem::Connection(_)
                 | ComponentItem::BoundaryConnection(_)
                 | ComponentItem::Instance(_) => {}
@@ -1482,6 +1528,21 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         "component item is newer than hierarchy elaboration",
                     )]);
                 }
+            }
+        }
+
+        for item in component.items() {
+            if let ComponentItem::Field(field) = item {
+                let activation = super::scope::rewrite_activation(
+                    component.file,
+                    field.activation(),
+                    field.range(),
+                    &scope,
+                )
+                .map_err(one_diagnostic)?;
+                scope
+                    .field_evolution
+                    .insert(field.name().to_owned(), (field.role(), activation));
             }
         }
 
@@ -1635,8 +1696,34 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
     ) -> Result<(), Diagnostic> {
         let component = occurrence.definition;
         let instance = occurrence.instance;
-        for item in component.items() {
+        for (item_index, item) in component.items().iter().enumerate() {
             match item {
+                ComponentItem::Initial(declaration) => {
+                    let identity = self.relation_identity(
+                        occurrence.instance_path,
+                        definition_path(
+                            &component.namespace,
+                            "component",
+                            component.name(),
+                            &format!("$initial{item_index}"),
+                        ),
+                        SourceLocation::new(component.file, declaration.range()),
+                        SourceLocation::new(occurrence.instance_file, instance.range()),
+                        Vec::new(),
+                    )?;
+                    let equations =
+                        rewrite_equations(component.file, declaration.equations(), scope, None)?;
+                    self.items.push(FlatItemBlueprint::Relation {
+                        name: internal_name(identity.entity.full),
+                        activation: eqiora_lang::ActivationSyntax::Continuous,
+                        domain: None,
+                        equations,
+                        initial: true,
+                        range: declaration.range(),
+                        identity,
+                    });
+                }
+
                 ComponentItem::Parameter(_) => {}
                 ComponentItem::Port(declaration) => {
                     let identity = identities.entities[declaration.name()].clone();
@@ -1706,26 +1793,22 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         });
                     }
                 }
-                ComponentItem::Support(_) | ComponentItem::FieldSlot(_) => {}
-                ComponentItem::Representation(declaration) => {
-                    let identity = identities.entities[declaration.name()].clone();
-                    self.items.push(FlatItemBlueprint::Representation {
-                        name: internal_name(identity.full),
-                        syntax: declaration.syntax(),
-                        range: declaration.range(),
-                        identity,
-                    });
-                }
+                ComponentItem::Support(_)
+                | ComponentItem::ClockRequirement(_)
+                | ComponentItem::FieldRequirement(_) => {}
                 ComponentItem::Field(declaration) => {
                     let identity = identities.entities[declaration.name()].clone();
-                    let (domain, representation) =
+                    let (domain, activation) =
                         rewrite_field_scope(component.file, declaration, scope)?;
+                    let representation =
+                        self.add_field_representation(&identity, domain.is_some())?;
                     self.items.push(FlatItemBlueprint::Field {
                         name: internal_name(identity.full),
                         domain,
                         representation,
                         value_type: declaration.value_type().clone(),
-                        initial: declaration.initial().cloned(),
+                        role: declaration.role(),
+                        activation,
                         range: declaration.range(),
                         identity,
                     });
@@ -1751,6 +1834,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         &equations,
                     )?;
                     self.items.push(FlatItemBlueprint::Relation {
+                        initial: false,
                         name: internal_name(identity.entity.full),
                         activation,
                         domain,
@@ -1804,6 +1888,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                             &equations,
                         )?;
                         self.items.push(FlatItemBlueprint::Relation {
+                            initial: false,
                             name: internal_name(identity.entity.full),
                             activation: eqiora_lang::ActivationSyntax::Continuous,
                             domain: Some(member.target().to_owned()),
@@ -2039,8 +2124,34 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         identities: &ScopeIdentities,
     ) -> Result<(), Diagnostic> {
         let model = self.model.clone();
-        for item in model.items() {
+        for (item_index, item) in model.items().iter().enumerate() {
             match item {
+                Item::Initial(declaration) => {
+                    let identity = self.relation_identity(
+                        &self.root_path,
+                        definition_path(
+                            &self.model.namespace,
+                            "model",
+                            self.model.name(),
+                            &format!("$initial{item_index}"),
+                        ),
+                        SourceLocation::new(self.model.file, declaration.range()),
+                        SourceLocation::new(self.model.file, self.model.range()),
+                        Vec::new(),
+                    )?;
+                    let equations =
+                        rewrite_equations(self.model.file, declaration.equations(), scope, None)?;
+                    self.items.push(FlatItemBlueprint::Relation {
+                        name: internal_name(identity.entity.full),
+                        activation: eqiora_lang::ActivationSyntax::Continuous,
+                        domain: None,
+                        equations,
+                        initial: true,
+                        range: declaration.range(),
+                        identity,
+                    });
+                }
+
                 Item::Domain(declaration) => {
                     let identity = identities.entities[declaration.name()].clone();
                     let syntax = match declaration.syntax() {
@@ -2085,25 +2196,19 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         identity,
                     });
                 }
-                Item::Representation(declaration) => {
-                    let identity = identities.entities[declaration.name()].clone();
-                    self.items.push(FlatItemBlueprint::Representation {
-                        name: internal_name(identity.full),
-                        syntax: declaration.syntax(),
-                        range: declaration.range(),
-                        identity,
-                    });
-                }
                 Item::Field(declaration) => {
                     let identity = identities.entities[declaration.name()].clone();
-                    let (domain, representation) =
+                    let (domain, activation) =
                         rewrite_field_scope(self.model.file, declaration, scope)?;
+                    let representation =
+                        self.add_field_representation(&identity, domain.is_some())?;
                     self.items.push(FlatItemBlueprint::Field {
                         name: internal_name(identity.full),
                         domain,
                         representation,
                         value_type: declaration.value_type().clone(),
-                        initial: declaration.initial().cloned(),
+                        role: declaration.role(),
+                        activation,
                         range: declaration.range(),
                         identity,
                     });
@@ -2155,6 +2260,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         &equations,
                     )?;
                     self.items.push(FlatItemBlueprint::Relation {
+                        initial: false,
                         name: internal_name(identity.entity.full),
                         activation,
                         domain,

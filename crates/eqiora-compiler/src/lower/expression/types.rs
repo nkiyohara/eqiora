@@ -244,17 +244,6 @@ pub(super) fn expression_type(
                         "time operator requires one Field name",
                     ));
                 }
-                if (callee == "derivative" && discrete) || (callee != "derivative" && !discrete) {
-                    return Err(source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        file,
-                        expression.range(),
-                        format!(
-                            "{} Relation cannot use `{callee}`",
-                            if discrete { "clocked" } else { "continuous" }
-                        ),
-                    ));
-                }
             }
             let operand = infer(argument)?;
             match callee.as_str() {

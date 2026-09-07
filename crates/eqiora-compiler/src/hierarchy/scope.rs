@@ -34,7 +34,6 @@ pub(super) struct FlatSymbol {
 #[derive(Debug, Clone)]
 pub(super) enum SymbolKind {
     Domain,
-    Representation,
     Field,
     Parameter,
     Port,
@@ -97,6 +96,7 @@ pub(super) struct Scope {
     boundary_sets: BTreeMap<String, ResolvedBoundarySet<FullElaborationIdentity>>,
     children: BTreeMap<String, InstanceInterface>,
     spatial_supports: BTreeMap<String, SpatialSupport<FullElaborationIdentity>>,
+    pub(super) field_evolution: BTreeMap<String, (eqiora_lang::FieldRoleSyntax, ActivationSyntax)>,
     field_types: BTreeMap<String, ExpressionType<FullElaborationIdentity>>,
     parameters: BTreeMap<String, ResolvedParameter>,
     pure_operators: BTreeMap<String, PureOperatorDefinition>,
@@ -329,36 +329,48 @@ pub(super) fn rewrite_field_scope(
     file: &str,
     declaration: &FieldDecl,
     scope: &Scope,
-) -> Result<(Option<String>, Option<String>), Diagnostic> {
-    match (declaration.domain(), declaration.representation()) {
-        (None, None) => Ok((None, None)),
-        (Some(domain), Some(representation)) => {
-            let domain = resolve_local_kind(
+) -> Result<(Option<String>, ActivationSyntax), Diagnostic> {
+    let domain = declaration
+        .domain()
+        .map(|name| {
+            resolve_local_kind(
                 file,
                 declaration.range(),
                 scope,
-                domain,
+                name,
                 |kind| matches!(kind, SymbolKind::Domain),
                 "Field Domain",
-            )?;
-            let representation = resolve_local_kind(
-                file,
-                declaration.range(),
-                scope,
-                representation,
-                |kind| matches!(kind, SymbolKind::Representation),
-                "Field Representation",
-            )?;
-            Ok((
-                Some(domain.internal_name.clone()),
-                Some(representation.internal_name.clone()),
-            ))
-        }
+            )
+            .map(|symbol| symbol.internal_name.clone())
+        })
+        .transpose()?;
+    let activation =
+        rewrite_activation(file, declaration.activation(), declaration.range(), scope)?;
+    Ok((domain, activation))
+}
+
+pub(super) fn rewrite_activation(
+    file: &str,
+    activation: &ActivationSyntax,
+    range: TextRange,
+    scope: &Scope,
+) -> Result<ActivationSyntax, Diagnostic> {
+    match activation {
+        ActivationSyntax::Continuous => Ok(ActivationSyntax::Continuous),
+        ActivationSyntax::Periodic(name) => resolve_local_kind(
+            file,
+            range,
+            scope,
+            name,
+            |kind| matches!(kind, SymbolKind::Clock),
+            "Field ClockDomain",
+        )
+        .map(|symbol| ActivationSyntax::Periodic(symbol.internal_name.clone())),
         _ => Err(source_error(
             codes::LANGUAGE_TYPE_ERROR,
             file,
-            declaration.range(),
-            "spatial Field requires both Domain and Representation",
+            range,
+            "unsupported activation",
         )),
     }
 }

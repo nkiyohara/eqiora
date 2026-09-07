@@ -559,14 +559,21 @@ fn component_local_footprint(
         match item {
             ComponentItem::Parameter(_)
             | ComponentItem::Port(_)
-            | ComponentItem::Field(_)
-            | ComponentItem::Representation(_)
+            | ComponentItem::Initial(_)
             | ComponentItem::Clock(_) => checked_local_add(
                 &mut declarations,
                 1,
                 definition.file,
                 definition.declaration.range(),
                 "declaration",
+                diagnostics,
+            ),
+            ComponentItem::Field(field) => checked_local_add(
+                &mut declarations,
+                if field.domain().is_some() { 2 } else { 1 },
+                definition.file,
+                field.range(),
+                "Field and continuum representation",
                 diagnostics,
             ),
             ComponentItem::Relation(_) => checked_local_add(
@@ -656,7 +663,7 @@ fn component_local_footprint(
                 }
             }
             ComponentItem::Support(_)
-            | ComponentItem::FieldSlot(_)
+            | ComponentItem::FieldRequirement(_)
             | ComponentItem::Instance(_) => {}
             _ => {}
         }
@@ -776,6 +783,14 @@ fn model_local_footprint(
     let mut footprint = LocalFootprint::default();
     for item in definition.declaration.items() {
         match item {
+            Item::Field(field) => checked_local_add(
+                &mut footprint.declarations,
+                if field.domain().is_some() { 2 } else { 1 },
+                definition.file,
+                field.range(),
+                "Field and continuum representation",
+                diagnostics,
+            ),
             Item::Relation(_) => checked_local_add(
                 &mut footprint.declarations,
                 2,

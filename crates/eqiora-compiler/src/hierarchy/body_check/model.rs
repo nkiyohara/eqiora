@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_lang::{BoundaryDecl, DomainSyntax, Item, RepresentationSyntax};
+use eqiora_lang::{BoundaryDecl, DomainSyntax, Item};
 use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};
 
 use crate::diagnostics::source_error;
@@ -101,9 +101,6 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                         "Domain syntax is newer than definition-body validation",
                     )),
                 },
-                Item::Representation(declaration) => {
-                    Ok(Some((declaration.name(), SymbolContract::Representation)))
-                }
                 Item::Parameter(declaration) => crate::value_types::lower_value_type::<String>(
                     self.scope.file,
                     declaration.value_type(),
@@ -239,28 +236,18 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
         for item in self.definition.declaration.items() {
             match item {
                 Item::Field(declaration) => {
-                    let support = match (declaration.domain(), declaration.representation()) {
-                        (None, None) => None,
-                        (Some(domain), Some(representation))
-                            if matches!(
-                                self.scope.symbols.get(representation),
-                                Some(SymbolContract::Representation)
-                            ) =>
-                        {
-                            match self.scope.symbols.get(domain) {
-                                Some(SymbolContract::Domain(DomainContract::Spatial(
-                                    SpatialSupport::Volume { .. },
-                                ))) => self.scope.spatial_support(domain),
-                                _ => None,
-                            }
-                        }
-                        _ => None,
-                    };
+                    let support = declaration
+                        .domain()
+                        .and_then(|domain| self.scope.spatial_support(domain));
                     match field_expression_type(self.scope.file, declaration, support) {
                         Ok(inferred) => {
                             self.scope.symbols.insert(
                                 declaration.name().to_owned(),
-                                SymbolContract::Field(inferred),
+                                SymbolContract::Field(
+                                    inferred,
+                                    declaration.role(),
+                                    declaration.activation().clone(),
+                                ),
                             );
                         }
                         Err(error) => self.diagnostics.push(error),
@@ -292,17 +279,14 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
     fn validate_declarations(&mut self) {
         for item in self.definition.declaration.items() {
             match item {
-                Item::Domain(declaration) => self.validate_domain(declaration),
-                Item::Representation(declaration) => {
-                    if !matches!(declaration.syntax(), RepresentationSyntax::Continuum) {
-                        self.diagnostics.push(source_error(
-                            codes::LANGUAGE_LOWERING_ERROR,
-                            self.scope.file,
-                            declaration.range(),
-                            "Representation syntax is newer than definition-body validation",
-                        ));
+                Item::Initial(declaration) => {
+                    if let Err(errors) =
+                        super::expression::validate_initial_expression(&self.scope, declaration)
+                    {
+                        self.diagnostics.extend(errors);
                     }
                 }
+                Item::Domain(declaration) => self.validate_domain(declaration),
                 Item::Field(declaration) => self.validate_field(declaration),
                 Item::Parameter(_) | Item::Let(_) | Item::Port(_) | Item::Instance(_) => {}
                 Item::Clock(declaration) => {
@@ -390,44 +374,25 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
     }
 
     fn validate_field(&mut self, declaration: &eqiora_lang::FieldDecl) {
-        match (declaration.domain(), declaration.representation()) {
-            (None, None) => {}
-            (Some(domain), Some(representation)) => {
-                match self.scope.symbols.get(domain) {
-                    Some(SymbolContract::Domain(DomainContract::Spatial(
-                        SpatialSupport::Volume { .. },
-                    ))) => {}
-                    Some(SymbolContract::Domain(_)) => self.diagnostics.push(source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        self.scope.file,
-                        declaration.range(),
-                        "spatial Field cannot be defined on a non-volume Domain",
-                    )),
-                    Some(_) | None => self.diagnostics.push(unresolved(
-                        self.scope.file,
-                        declaration.range(),
-                        domain,
-                        "Field Domain",
-                    )),
-                }
-                if !matches!(
-                    self.scope.symbols.get(representation),
-                    Some(SymbolContract::Representation)
-                ) {
-                    self.diagnostics.push(unresolved(
-                        self.scope.file,
-                        declaration.range(),
-                        representation,
-                        "Field Representation",
-                    ));
-                }
+        if let Some(domain) = declaration.domain() {
+            if self.scope.spatial_support(domain).is_none() {
+                self.diagnostics.push(unresolved(
+                    self.scope.file,
+                    declaration.range(),
+                    domain,
+                    "Field Domain",
+                ));
             }
-            _ => self.diagnostics.push(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                self.scope.file,
-                declaration.range(),
-                "spatial Field requires both `on Domain` and `as Representation`",
-            )),
+        }
+        if let eqiora_lang::ActivationSyntax::Periodic(clock) = declaration.activation() {
+            if !matches!(self.scope.symbols.get(clock), Some(SymbolContract::Clock)) {
+                self.diagnostics.push(unresolved(
+                    self.scope.file,
+                    declaration.range(),
+                    clock,
+                    "Field ClockDomain",
+                ));
+            }
         }
     }
 

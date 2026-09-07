@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_lang::{ComponentItem, RepresentationSyntax, SupportSlotSyntax};
+use eqiora_lang::{ComponentItem, SupportSlotSyntax};
 use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};
 
 use crate::diagnostics::source_error;
@@ -206,7 +206,12 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                         SymbolContract::Support(contract.support().clone()),
                     );
                 }
-                ComponentItem::FieldSlot(declaration) => {
+                ComponentItem::ClockRequirement(declaration) => {
+                    self.scope
+                        .symbols
+                        .insert(declaration.name().to_owned(), SymbolContract::Clock);
+                }
+                ComponentItem::FieldRequirement(declaration) => {
                     let Some(contract) = self.fields.field(declaration.name()) else {
                         self.diagnostics.push(source_error(
                             codes::LANGUAGE_LOWERING_ERROR,
@@ -221,35 +226,26 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                     };
                     self.scope.symbols.insert(
                         declaration.name().to_owned(),
-                        SymbolContract::Field(contract.value().clone()),
-                    );
-                }
-                ComponentItem::Representation(declaration) => {
-                    self.scope.symbols.insert(
-                        declaration.name().to_owned(),
-                        SymbolContract::Representation,
+                        SymbolContract::Field(
+                            contract.value().clone(),
+                            declaration.role(),
+                            declaration.activation().clone(),
+                        ),
                     );
                 }
                 ComponentItem::Field(declaration) => {
-                    let support = match (declaration.domain(), declaration.representation()) {
-                        (Some(domain), Some(representation))
-                            if matches!(
-                                self.scope.symbols.get(representation),
-                                Some(SymbolContract::Representation)
-                            ) && matches!(
-                                self.scope.spatial_support(domain),
-                                Some(SpatialSupport::Volume { .. })
-                            ) =>
-                        {
-                            self.scope.spatial_support(domain)
-                        }
-                        _ => None,
-                    };
+                    let support = declaration
+                        .domain()
+                        .and_then(|domain| self.scope.spatial_support(domain));
                     match field_expression_type(self.definition.file, declaration, support) {
                         Ok(inferred) => {
                             self.scope.symbols.insert(
                                 declaration.name().to_owned(),
-                                SymbolContract::Field(inferred),
+                                SymbolContract::Field(
+                                    inferred,
+                                    declaration.role(),
+                                    declaration.activation().clone(),
+                                ),
                             );
                         }
                         Err(error) => self.diagnostics.push(error),
@@ -296,7 +292,9 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                             .insert(instance.name().to_owned(), instance);
                     }
                 }
-                ComponentItem::Connection(_) | ComponentItem::BoundaryConnection(_) => {}
+                ComponentItem::Initial(_)
+                | ComponentItem::Connection(_)
+                | ComponentItem::BoundaryConnection(_) => {}
                 _ => self.diagnostics.push(source_error(
                     codes::LANGUAGE_LOWERING_ERROR,
                     self.definition.file,
@@ -310,66 +308,28 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
     fn validate_declarations(&mut self) {
         for item in self.definition.declaration.items() {
             match item {
+                ComponentItem::Initial(declaration) => {
+                    if let Err(errors) =
+                        super::expression::validate_initial_expression(&self.scope, declaration)
+                    {
+                        self.diagnostics.extend(errors);
+                    }
+                }
                 ComponentItem::Parameter(_)
                 | ComponentItem::Port(_)
                 | ComponentItem::PortFamily(_)
                 | ComponentItem::Support(_)
-                | ComponentItem::FieldSlot(_) => {}
-                ComponentItem::Representation(declaration) => {
-                    if !matches!(declaration.syntax(), RepresentationSyntax::Continuum) {
-                        self.diagnostics.push(source_error(
-                            codes::LANGUAGE_LOWERING_ERROR,
-                            self.definition.file,
-                            declaration.range(),
-                            "Representation syntax is newer than definition-body validation",
-                        ));
-                    }
-                }
+                | ComponentItem::ClockRequirement(_)
+                | ComponentItem::FieldRequirement(_) => {}
                 ComponentItem::Field(declaration) => {
-                    match (declaration.domain(), declaration.representation()) {
-                        (None, None) => {}
-                        (Some(domain), Some(representation)) => {
-                            match self.scope.spatial_support(domain) {
-                                Some(SpatialSupport::Volume { .. }) => {}
-                                Some(SpatialSupport::Boundary { .. }) => {
-                                    self.diagnostics.push(source_error(
-                                        codes::LANGUAGE_TYPE_ERROR,
-                                        self.definition.file,
-                                        declaration.range(),
-                                        "spatial Field cannot be defined on a boundary support",
-                                    ));
-                                }
-                                Some(SpatialSupport::Interface { .. }) => {
-                                    self.diagnostics.push(source_error(
-                                        codes::LANGUAGE_LOWERING_ERROR,
-                                        self.definition.file,
-                                        declaration.range(),
-                                        "derived interface support cannot define a source Field",
-                                    ));
-                                }
-                                None => self.diagnostics.push(self.scope.wrong_local_kind(
-                                    declaration.range(),
-                                    domain,
-                                    "Field support",
-                                )),
-                            }
-                            if !matches!(
-                                self.scope.symbols.get(representation),
-                                Some(SymbolContract::Representation)
-                            ) {
-                                self.diagnostics.push(self.scope.wrong_local_kind(
-                                    declaration.range(),
-                                    representation,
-                                    "Field Representation",
-                                ));
-                            }
+                    if let Some(domain) = declaration.domain() {
+                        if self.scope.spatial_support(domain).is_none() {
+                            self.diagnostics.push(self.scope.wrong_local_kind(
+                                declaration.range(),
+                                domain,
+                                "Field support",
+                            ));
                         }
-                        _ => self.diagnostics.push(source_error(
-                            codes::LANGUAGE_TYPE_ERROR,
-                            self.definition.file,
-                            declaration.range(),
-                            "spatial Field requires both Domain and Representation",
-                        )),
                     }
                 }
                 ComponentItem::Clock(declaration) => {
