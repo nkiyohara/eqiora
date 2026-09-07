@@ -14,7 +14,8 @@ impl SourceAstFactory {
         mut rewrite: impl FnMut(&Expr) -> Expr,
     ) {
         for declaration in &mut document.property_contracts {
-            declaration.dimension = rewrite(&declaration.dimension);
+            let dimension = declaration.value_type.dimension_mut();
+            *dimension = rewrite(dimension);
         }
         for declaration in &mut document.property_releases {
             declaration.source_dimension = rewrite(&declaration.source_dimension);
