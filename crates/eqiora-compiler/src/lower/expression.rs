@@ -4,30 +4,32 @@ use eqiora_schema::kernel::typing::{self, ExpressionType, SpatialSupport};
 
 impl LoweringExpression {
     pub(crate) fn collect_physical_port_names(&self, names: &mut BTreeSet<String>) -> bool {
-        match self.node.as_ref() {
-            LoweringExpressionNode::Call { callee, argument }
-                if matches!(callee.as_str(), "across" | "through" | "trace" | "flux") =>
-            {
-                if let LoweringExpressionNode::Name(name) = argument.node.as_ref() {
-                    names.insert(name.clone());
+        let mut pending = vec![self];
+        let mut seen = BTreeSet::new();
+        while let Some(expression) = pending.pop() {
+            if !seen.insert(Arc::as_ptr(&expression.node) as usize) {
+                continue;
+            }
+            match expression.node.as_ref() {
+                LoweringExpressionNode::Call { callee, argument } => {
+                    if matches!(callee.as_str(), "across" | "through" | "trace" | "flux")
+                        && let LoweringExpressionNode::Name(name) = argument.node.as_ref()
+                    {
+                        names.insert(name.clone());
+                    }
+                    pending.push(argument);
                 }
-                argument.collect_physical_port_names(names)
+                LoweringExpressionNode::Neg(value) => pending.push(value),
+                LoweringExpressionNode::Binary { left, right, .. } => {
+                    pending.push(left);
+                    pending.push(right);
+                }
+                LoweringExpressionNode::PureOperator { arguments, .. } => pending.extend(arguments),
+                LoweringExpressionNode::Literal(_) | LoweringExpressionNode::Name(_) => {}
+                _ => return false,
             }
-            LoweringExpressionNode::Neg(value) => value.collect_physical_port_names(names),
-            LoweringExpressionNode::Binary { left, right, .. } => {
-                left.collect_physical_port_names(names) && right.collect_physical_port_names(names)
-            }
-            LoweringExpressionNode::Call { argument, .. } => {
-                argument.collect_physical_port_names(names)
-            }
-            LoweringExpressionNode::PureOperator { arguments, .. } => arguments
-                .iter()
-                .all(|argument| argument.collect_physical_port_names(names)),
-            LoweringExpressionNode::Literal(_) | LoweringExpressionNode::Name(_) => true,
-            LoweringExpressionNode::UnknownMath(_)
-            | LoweringExpressionNode::InvalidValue(_)
-            | LoweringExpressionNode::Unsupported => false,
         }
+        true
     }
 }
 

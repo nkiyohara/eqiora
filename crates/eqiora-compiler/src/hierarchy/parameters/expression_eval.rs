@@ -36,7 +36,9 @@ impl ExpressionContext {
             Self::Default => {
                 format!("operator `{callee}(...)` is not allowed in a Parameter default")
             }
-            Self::Let => format!("operator `{callee}(...)` is not allowed in a let alias"),
+            Self::Let => format!(
+                "static let operator `{callee}(...)` is not supported by compile-time evaluation"
+            ),
         }
     }
 
@@ -113,6 +115,81 @@ pub(super) fn evaluate_parameter_expression(
                 ));
             }
         },
+        ExprKind::Call { callee, arguments }
+            if matches!(context, ExpressionContext::Let) && crate::math::is_function(callee) =>
+        {
+            let [argument] = arguments.as_slice() else {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    expression.range(),
+                    "static scalar mathematics requires exactly one argument",
+                ));
+            };
+            let operand = evaluate_parameter_expression(file, argument, context, resolve)?;
+            let EvaluatedType::Known(value_type) = &operand.value_type else {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    expression.range(),
+                    "static scalar mathematics requires a known operand dimension",
+                ));
+            };
+            let function = match callee.as_str() {
+                "math.sin" => eqiora_schema::kernel::UnaryMathFunction::Sin,
+                "math.sqrt" => eqiora_schema::kernel::UnaryMathFunction::Sqrt,
+                _ => unreachable!("compiler-owned scalar mathematics was checked"),
+            };
+            let inferred = eqiora_schema::kernel::typing::unary_math(
+                function,
+                &eqiora_schema::kernel::typing::ExpressionType::<()>::new(value_type.clone(), None),
+            )
+            .map_err(|error| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    expression.range(),
+                    error.to_string(),
+                )
+            })?;
+            let value = operand
+                .value
+                .map(|value| {
+                    if matches!(function, eqiora_schema::kernel::UnaryMathFunction::Sqrt)
+                        && value < 0.0
+                    {
+                        return Err(source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            file,
+                            expression.range(),
+                            "math.sqrt requires a nonnegative real operand",
+                        ));
+                    }
+                    finite_constant(
+                        file,
+                        expression.range(),
+                        match function {
+                            eqiora_schema::kernel::UnaryMathFunction::Sin => value.sin(),
+                            eqiora_schema::kernel::UnaryMathFunction::Sqrt => value.sqrt(),
+                            _ => unreachable!("admitted scalar mathematics"),
+                        },
+                    )
+                })
+                .transpose()?;
+            EvaluatedParameter {
+                value,
+                value_type: EvaluatedType::Known(inferred.value_type),
+                bare_literal: false,
+                expression: operand.expression.map(|argument| {
+                    LoweringExpression::call(
+                        callee.as_str().to_owned(),
+                        argument,
+                        expression.range(),
+                    )
+                }),
+                lineage: Some(ParameterLineage::Derived),
+            }
+        }
         ExprKind::Call { callee, .. } => {
             return Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,

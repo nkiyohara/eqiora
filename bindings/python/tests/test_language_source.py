@@ -867,3 +867,90 @@ def test_property_hierarchy_still_requires_exact_model_package():
     source.component("Additional")
     with pytest.raises(q.SourceError, match="requires an exact Model Package"):
         eqiora.compile(source=source, geometry=rectangle_geometry(), component="PoissonRectangle")
+
+
+def runtime_arithmetic_alias_source(*, aliases=True):
+    source = q.Source()
+    component = source.component("RuntimeArithmetic")
+    region = component.volume("region", dimensions=2)
+    supplied = component.parameter("supplied", value_type=eqiora.ValueType.real())
+    value = component.field("value", on=region, role=eqiora.FieldRole.Variable,
+                            value_type=eqiora.ValueType.real())
+    doubled = component.let_alias("doubled", value * 2) if aliases else value * 2
+    shifted = component.let_alias("shifted", doubled + supplied) if aliases else doubled + supplied
+    component.relation("balance", on=region, left=shifted, right=0)
+    return source
+
+
+def runtime_heatflux_alias_source(*, aliases=True):
+    source = q.Source()
+    component = source.component("RuntimeHeatFlux")
+    region = component.volume("region", dimensions=2)
+    left = component.boundary("left", parent=region)
+    coefficient = component.parameter("coefficient", value_type=eqiora.ValueType.real())
+    forcing = component.parameter("forcing", value_type=eqiora.ValueType.real(eqiora.Dimension(length=-2)))
+    potential = component.field("potential", on=region, role=eqiora.FieldRole.Variable,
+                                value_type=eqiora.ValueType.real())
+    flux = coefficient * q.grad(potential)
+    if aliases:
+        flux = component.let_alias("heatflux", flux,
+                                   value_type=eqiora.ValueType.vector(
+                                       eqiora.ValueType.real(eqiora.Dimension(length=-1)), 2))
+    component.relation("balance", on=region, left=-q.div(flux) - forcing, right=0)
+    component.relation("left_value", on=left, left=q.trace(potential), right=0)
+    return source
+
+
+def test_runtime_alias_authoring_preserves_field_and_gradient_expressions():
+    arithmetic = runtime_arithmetic_alias_source().to_eqi()
+    assert "let doubled = value * 2;" in arithmetic
+    assert "let shifted = doubled + supplied;" in arithmetic
+    assert "shifted = 0;" in arithmetic
+    heatflux = runtime_heatflux_alias_source().to_eqi()
+    assert "= coefficient * grad(potential);" in heatflux
+    assert "-div(heatflux) - forcing = 0;" in heatflux
+    assert "trace(potential) = 0;" in heatflux
+    assert "let trace" not in heatflux
+
+
+@pytest.mark.parametrize("factory, parameters, alias_names", [
+    (runtime_arithmetic_alias_source, {"supplied": 3.0}, ("doubled", "shifted")),
+    (runtime_heatflux_alias_source, {"coefficient": 2.0, "forcing": 3.0}, ("heatflux",)),
+])
+def test_runtime_aliases_compile_like_expanded_expressions_without_storage(
+    tmp_path, factory, parameters, alias_names,
+):
+    source = factory()
+    model = eqiora.compile(source=source, geometry=rectangle_geometry(), parameters=parameters)
+    path = tmp_path / "runtime-alias.eqi"
+    source.write_eqi(path)
+    from_file = eqiora.compile(path=path, geometry=rectangle_geometry(), parameters=parameters)
+    expanded = eqiora.compile(source=factory(aliases=False), geometry=rectangle_geometry(), parameters=parameters)
+    assert model.structural_fingerprint == from_file.structural_fingerprint
+    assert model.structural_fingerprint == expanded.structural_fingerprint
+    assert len(model.field_ids) == len(expanded.field_ids) == 1
+    assert len(model.parameter_ids) == len(expanded.parameter_ids) == len(parameters)
+    for name in alias_names:
+        with pytest.raises(eqiora.EqioraError, match="Parameter"):
+            model.preview_value_edit(name, 9.0)
+
+
+def test_transitive_runtime_alias_cannot_supply_child_parameter_binding():
+    source = q.Source()
+    child = source.component("Child")
+    child_region = child.volume("region", dimensions=2)
+    required = child.parameter("required", value_type=eqiora.ValueType.real())
+    output = child.field("output", on=child_region, role=eqiora.FieldRole.Variable,
+                         value_type=eqiora.ValueType.real())
+    child.relation("balance", on=child_region, left=output - required, right=0)
+    parent = source.component("Parent")
+    region = parent.volume("region", dimensions=2)
+    value = parent.field("value", on=region, role=eqiora.FieldRole.Variable,
+                         value_type=eqiora.ValueType.real())
+    first = parent.let_alias("first", value * 2)
+    transitive = parent.let_alias("transitive", first + 1)
+    parent.relation("balance", on=region, left=value - 1, right=0)
+    parent.instance("child", component=child, supports={child_region: region},
+                    parameters={required: transitive})
+    with pytest.raises(eqiora.ValidationError, match="static|runtime|[Pp]arameter"):
+        eqiora.compile(source=source, geometry=rectangle_geometry(), component="Parent")

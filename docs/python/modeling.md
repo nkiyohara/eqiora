@@ -113,13 +113,20 @@ entry with `eqiora.compile(source=source, component="Parent", ...)` when the sou
 contains multiple public Components. A Source containing property contracts still
 requires the exact Model Package compilation path described below.
 
-`component.let_alias(name, expression)` declares a private static expression alias.
-Its type is inferred, or asserted with `value_type=`. Aliases can use the component's
-Parameters and other static aliases, including as nested-instance argument expressions;
-they do not become required parameters, independent edit targets, unknowns, or equations.
-Each occurrence retains its original Parameter dependencies, so later Parameter edits and
-differentiation pass through the expression. Runtime state-dependent aliases and `on`/`at`
-assertions remain outside this authoring slice.
+`component.let_alias(name, expression)` declares a private immutable expression alias.
+Its type and spatial support are inferred; `value_type=` asserts the inferred type.
+Aliases can use the component's Parameters, fields, and other aliases. For example,
+`heat_flux = component.let_alias("heat_flux", coefficient * q.grad(potential))`
+can appear in a volume relation as `q.div(heat_flux)`. A Parameter-only alias can also
+supply a nested-instance Parameter argument; a field-dependent alias cannot.
+
+Aliases do not become required parameters, independent edit targets, unknowns, or equations.
+Each occurrence retains the original dependencies, so Parameter edits and differentiation
+pass through the expression. Expressions must have an intrinsically inferable spatial support:
+keep context-dependent `coordinate`, `trace`, and `normal` expressions in their relations.
+Explicit `on`/`at` assertions remain outside this slice. Native/source state operators retain
+their existing exact-clock and initialization rules through aliases; reading a current state
+through an alias adds no clock restriction.
 
 Source values do not type-check or lower equations in Python. Direct compile
 materializes `source.to_eqi()` and enters the same Rust parser, type checker,

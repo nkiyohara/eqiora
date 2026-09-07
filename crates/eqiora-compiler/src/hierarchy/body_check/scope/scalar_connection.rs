@@ -88,3 +88,19 @@ fn connection_violation_message(violation: ScalarConnectionViolation) -> &'stati
         }
     }
 }
+
+pub(super) fn connection_fragment_error(
+    file: &str,
+    range: TextRange,
+    error: ConnectionSetError,
+) -> Diagnostic {
+    let code = match error {
+        ConnectionSetError::TooFewMembers { .. } | ConnectionSetError::DuplicateMember => {
+            codes::LANGUAGE_TYPE_ERROR
+        }
+        ConnectionSetError::LimitExceeded { .. }
+        | ConnectionSetError::CountOverflow { .. }
+        | ConnectionSetError::Allocation { .. } => codes::LANGUAGE_LOWERING_ERROR,
+    };
+    source_error(code, file, range, error.to_string())
+}

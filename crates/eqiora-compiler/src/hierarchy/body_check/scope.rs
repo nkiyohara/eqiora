@@ -1,5 +1,5 @@
 mod scalar_connection;
-use scalar_connection::validate_connection_contract;
+use scalar_connection::{connection_fragment_error, validate_connection_contract};
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -197,6 +197,7 @@ pub(super) enum SymbolContract {
         eqiora_lang::ActivationSyntax,
     ),
     Parameter(ExpressionType<String>),
+    Alias(std::sync::Arc<super::expression::AliasContract>),
     Port(PortContract),
     PortFamily(BoundaryPortFamilyContract),
     CompleteExterior {
@@ -1078,22 +1079,6 @@ pub(super) fn validate_connection(
     validate_connection_contract(declaration, &contracts, scope.file)?;
     connected_ports.extend(keys);
     Ok(None)
-}
-
-fn connection_fragment_error(
-    file: &str,
-    range: TextRange,
-    error: ConnectionSetError,
-) -> Diagnostic {
-    let code = match error {
-        ConnectionSetError::TooFewMembers { .. } | ConnectionSetError::DuplicateMember => {
-            codes::LANGUAGE_TYPE_ERROR
-        }
-        ConnectionSetError::LimitExceeded { .. }
-        | ConnectionSetError::CountOverflow { .. }
-        | ConnectionSetError::Allocation { .. } => codes::LANGUAGE_LOWERING_ERROR,
-    };
-    source_error(code, file, range, error.to_string())
 }
 
 #[allow(clippy::too_many_arguments)]

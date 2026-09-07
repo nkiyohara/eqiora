@@ -1,3 +1,6 @@
+mod aliases;
+pub(super) use aliases::{AliasContract, validate_aliases};
+
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, DimExponents};
 use eqiora_lang::{
@@ -26,6 +29,9 @@ pub(super) fn validate_initial_expression(
         initial: true,
         activation: &ActivationSyntax::Continuous,
         physical_endpoints: PhysicalEndpointSelections::new(),
+        intrinsic: false,
+        alias_dependencies: Vec::new(),
+        evolution: Vec::new(),
     };
     let errors: Vec<_> = declaration
         .equations()
@@ -87,6 +93,9 @@ pub(super) fn validate_relation_expression(
         initial: false,
         activation: declaration.activation(),
         physical_endpoints: PhysicalEndpointSelections::new(),
+        intrinsic: false,
+        alias_dependencies: Vec::new(),
+        evolution: Vec::new(),
     };
     for equation in declaration.equations() {
         let inferred = match checker.check_equation(equation) {
@@ -155,6 +164,9 @@ pub(super) fn validate_relation_family_expression(
         initial: false,
         activation: relation.activation(),
         physical_endpoints: PhysicalEndpointSelections::new(),
+        intrinsic: false,
+        alias_dependencies: Vec::new(),
+        evolution: Vec::new(),
     };
     for equation in relation.equations() {
         let inferred = match checker.check_equation(equation) {
@@ -183,6 +195,9 @@ struct ExpressionChecker<'a, 'e, 'd> {
     initial: bool,
     activation: &'a ActivationSyntax,
     physical_endpoints: PhysicalEndpointSelections,
+    intrinsic: bool,
+    alias_dependencies: Vec<std::sync::Arc<AliasContract>>,
+    evolution: Vec<aliases::EvolutionRequirement>,
 }
 
 impl ExpressionChecker<'_, '_, '_> {
@@ -294,6 +309,7 @@ impl ExpressionChecker<'_, '_, '_> {
     ) -> Result<ExpressionType<String>, Diagnostic> {
         match contract {
             SymbolContract::Field(inferred, ..) | SymbolContract::Parameter(inferred) => Ok(inferred),
+            SymbolContract::Alias(alias) => self.use_alias(alias),
             SymbolContract::Port(contract) => contract.expression_type().ok_or_else(|| {
                 source_error(
                     codes::LANGUAGE_TYPE_ERROR,
@@ -385,6 +401,14 @@ impl ExpressionChecker<'_, '_, '_> {
         {
             return self.check_physical_accessor(callee_name, argument);
         }
+        if self.intrinsic && matches!(callee_name, "coordinate" | "trace" | "normal") {
+            return Err(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                self.scope.file,
+                expression.range(),
+                "let alias has no support context for this operator; write it directly in its Relation",
+            ));
+        }
         if callee_name == "coordinate" {
             let axis = integer_literal(argument)
                 .and_then(|axis| usize::try_from(axis).ok())
@@ -425,78 +449,7 @@ impl ExpressionChecker<'_, '_, '_> {
             return result.map_err(|error| type_error(self.scope.file, expression, error));
         }
 
-        let ExprKind::Name(name) = argument.kind() else {
-            return Err(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                self.scope.file,
-                argument.range(),
-                format!("{callee_name}(...) requires one Field name"),
-            ));
-        };
-        let inferred = match self.scope.symbols.get(name) {
-            Some(SymbolContract::Field(inferred, role, activation)) => {
-                if matches!(callee_name, "derivative" | "pre" | "next")
-                    && (*role != eqiora_lang::FieldRoleSyntax::State
-                        || (callee_name == "derivative"
-                            && !matches!(activation, ActivationSyntax::Continuous)))
-                {
-                    return Err(source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        self.scope.file,
-                        expression.range(),
-                        "evolution operator requires an eligible declared state",
-                    ));
-                }
-                if matches!(callee_name, "pre" | "next")
-                    && (!matches!(activation, ActivationSyntax::Periodic(_))
-                        || (!self.initial && activation != self.activation)
-                        || (self.initial && callee_name == "next"))
-                {
-                    return Err(source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        self.scope.file,
-                        expression.range(),
-                        "discrete state operator requires the exact clock and cannot assign next during initialization",
-                    ));
-                }
-                inferred.clone()
-            }
-            _ => {
-                return Err(unresolved(
-                    self.scope.file,
-                    argument.range(),
-                    name,
-                    "Field operator argument",
-                ));
-            }
-        };
-        if matches!(callee_name, "pre" | "next") && !self.allow_discrete_symbols {
-            return Err(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                self.scope.file,
-                expression.range(),
-                format!("continuous Relation cannot use `{callee_name}`"),
-            ));
-        }
-        if callee_name == "derivative" && self.allow_discrete_symbols && !self.initial {
-            return Err(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                self.scope.file,
-                expression.range(),
-                "clocked Relation cannot use `derivative`",
-            ));
-        }
-        match callee_name {
-            "derivative" => typing::time_derivative(&inferred)
-                .map_err(|error| type_error(self.scope.file, expression, error)),
-            "pre" | "next" => Ok(inferred),
-            _ => Err(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                self.scope.file,
-                expression.range(),
-                format!("unknown scalar operator `{callee_name}`"),
-            )),
-        }
+        self.check_evolution(callee_name, expression, argument)
     }
 
     fn is_boundary_port_selection(&self, expression: &Expr) -> bool {

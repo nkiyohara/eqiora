@@ -12,8 +12,8 @@ use super::expression_eval::{
     infer_parameter_with_label,
 };
 use super::{
-    ExpressionDefinition, ParameterLineage, SymbolicParameterMap, collect_expression_dependencies,
-    expression_cycles, expression_evaluation_order,
+    ExpressionDefinition, ParameterLineage, SymbolicParameterMap, expression_cycles,
+    expression_evaluation_order,
 };
 
 pub(in crate::hierarchy) fn resolve_model_lets(
@@ -54,59 +54,28 @@ fn resolve_lets<'a>(
     let declarations = declarations
         .map(|declaration| (declaration.name().to_owned(), declaration))
         .collect::<BTreeMap<_, _>>();
-    let mut definitions = BTreeMap::new();
+    let order = alias_order(file, declarations.values().copied())?;
     let mut diagnostics = Vec::new();
-    for (name, declaration) in &declarations {
-        let target = declaration
-            .value_type()
-            .map(|value_type| lower_value_type::<()>(file, value_type, None))
-            .transpose();
-        let (dependencies, mut errors) = collect_expression_dependencies(
-            file,
-            declaration.value(),
-            |dependency| declarations.contains_key(dependency) || values.contains_key(dependency),
-            ExpressionContext::Let,
-        );
-        let valid = target.is_ok() && errors.is_empty();
-        diagnostics.append(&mut errors);
-        let target = target.unwrap_or_else(|error| {
-            diagnostics.push(error);
-            None
-        });
-        definitions.insert(
-            name.clone(),
-            ExpressionDefinition {
-                expression: declaration.value(),
-                target,
-                dependencies,
-                valid,
-            },
-        );
-    }
-
-    let mut cyclic = BTreeSet::new();
-    for cycle in expression_cycles(&definitions) {
-        cyclic.extend(cycle.members);
-        diagnostics.push(source_error(
-            codes::LANGUAGE_TYPE_ERROR,
-            file,
-            cycle.range,
-            format!("let alias dependency cycle: {}", cycle.path.join(" -> ")),
-        ));
-    }
-    for name in expression_evaluation_order(&definitions, &cyclic) {
-        let definition = &definitions[&name];
-        if !definition.valid
-            || definition
-                .dependencies
-                .keys()
-                .any(|dependency| !values.contains_key(dependency))
-        {
+    for declaration in order {
+        let name = declaration.name().to_owned();
+        // Runtime expressions are validated after Field/support interfaces are bound.
+        if !is_static_expression(declaration.value(), values) {
             continue;
         }
+        let target = match declaration
+            .value_type()
+            .map(|ty| lower_value_type::<()>(file, ty, None))
+            .transpose()
+        {
+            Ok(target) => target,
+            Err(error) => {
+                diagnostics.push(error);
+                continue;
+            }
+        };
         let evaluated = evaluate_parameter_expression(
             file,
-            definition.expression,
+            declaration.value(),
             ExpressionContext::Let,
             &mut |dependency, range| {
                 values.get(dependency).cloned().ok_or_else(|| {
@@ -119,8 +88,8 @@ fn resolve_lets<'a>(
                 })
             },
         );
-        let range = declarations[&name].range();
-        match evaluated.and_then(|value| match &definition.target {
+        let range = declaration.range();
+        match evaluated.and_then(|value| match &target {
             Some(target) => {
                 coerce_parameter_with_label(file, range, value, target.clone(), "let alias", true)
             }
@@ -139,6 +108,92 @@ fn resolve_lets<'a>(
     } else {
         Err(diagnostics)
     }
+}
+
+/// One bounded dependency graph for both static and runtime aliases.
+pub(in crate::hierarchy) fn alias_order<'a>(
+    file: &str,
+    declarations: impl Iterator<Item = &'a LetDecl>,
+) -> Result<Vec<&'a LetDecl>, Vec<Diagnostic>> {
+    let declarations = declarations
+        .map(|d| (d.name().to_owned(), d))
+        .collect::<BTreeMap<_, _>>();
+    let definitions = declarations
+        .iter()
+        .map(|(name, d)| {
+            let mut dependencies = BTreeMap::new();
+            let mut pending = vec![d.value()];
+            while let Some(e) = pending.pop() {
+                match e.kind() {
+                    eqiora_lang::ExprKind::Name(n) => {
+                        dependencies.entry(n.clone()).or_insert(e.range());
+                    }
+                    eqiora_lang::ExprKind::Unary { value, .. } => pending.push(value),
+                    eqiora_lang::ExprKind::Binary { left, right, .. } => {
+                        pending.push(right);
+                        pending.push(left);
+                    }
+                    eqiora_lang::ExprKind::Call { arguments, .. } => {
+                        pending.extend(arguments.iter().rev())
+                    }
+                    _ => {}
+                }
+            }
+            (
+                name.clone(),
+                ExpressionDefinition {
+                    expression: d.value(),
+                    target: None,
+                    dependencies,
+                    valid: true,
+                },
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let cycles = expression_cycles(&definitions);
+    if !cycles.is_empty() {
+        return Err(cycles
+            .into_iter()
+            .map(|cycle| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    cycle.range,
+                    format!("let alias dependency cycle: {}", cycle.path.join(" -> ")),
+                )
+            })
+            .collect());
+    }
+    Ok(expression_evaluation_order(&definitions, &BTreeSet::new())
+        .into_iter()
+        .map(|name| declarations[&name])
+        .collect())
+}
+
+fn is_static_expression(expression: &eqiora_lang::Expr, values: &SymbolicParameterMap) -> bool {
+    let mut pending = vec![expression];
+    while let Some(e) = pending.pop() {
+        match e.kind() {
+            eqiora_lang::ExprKind::Number(_) | eqiora_lang::ExprKind::Quantity { .. } => {}
+            eqiora_lang::ExprKind::Name(n) if values.contains_key(n) => {}
+            eqiora_lang::ExprKind::Path(p) if crate::math::constant(p).is_some() => {}
+            eqiora_lang::ExprKind::Unary { value, .. } => pending.push(value),
+            eqiora_lang::ExprKind::Binary { left, right, .. } => {
+                pending.push(left);
+                pending.push(right);
+            }
+            eqiora_lang::ExprKind::Call { callee, arguments }
+                if !matches!(
+                    callee.as_str(),
+                    "derivative" | "pre" | "next" | "coordinate"
+                ) =>
+            {
+                pending.extend(arguments)
+            }
+            _ => return false,
+        }
+    }
+    true
 }
 
 #[cfg(test)]

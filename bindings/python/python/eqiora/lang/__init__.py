@@ -658,7 +658,12 @@ class Component:
         value_type: ValueType | None = None,
         doc: str | None = None,
     ) -> Expression:
-        """Name a private static expression; the compiler owns type admission."""
+        """Name a private immutable expression in this Component's lexical scope.
+
+        The compiler infers type and intrinsic support; aliases add no storage.
+        Explicit on/at assertions and context-dependent coordinate, trace, or
+        normal aliases are not admitted.
+        """
         value = _expression(expression)
         if value._owner is not None and value._owner is not self._component_token:
             raise SourceError("alias expressions must belong to this Component")

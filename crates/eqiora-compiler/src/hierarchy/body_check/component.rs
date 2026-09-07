@@ -80,6 +80,20 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
     fn validate(&mut self) {
         self.bind_complete_exteriors();
         self.bind_interfaces();
+        if let Err(errors) = super::expression::validate_aliases(
+            &mut self.scope,
+            self.definition
+                .declaration
+                .items()
+                .iter()
+                .filter_map(|item| match item {
+                    ComponentItem::Let(d) => Some(d),
+                    _ => None,
+                }),
+            self.compile_time_values,
+        ) {
+            self.diagnostics.extend(errors);
+        }
         self.validate_declarations();
     }
 

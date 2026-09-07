@@ -1,7 +1,15 @@
+use crate::lower::LoweringExpression;
+
 use super::Scope;
 use crate::hierarchy::parameters::{
     ParameterLineage, ResolvedParameter, SymbolicParameterMap, SymbolicParameterValue,
 };
+
+#[derive(Debug, Clone)]
+pub(super) enum ScopedValue {
+    Static(ResolvedParameter),
+    Runtime(LoweringExpression),
+}
 
 impl Scope {
     pub(in crate::hierarchy) fn insert_parameter(
@@ -9,18 +17,29 @@ impl Scope {
         name: String,
         parameter: ResolvedParameter,
     ) -> Option<ResolvedParameter> {
-        self.parameters.insert(name, parameter)
+        self.values
+            .insert(name, ScopedValue::Static(parameter))
+            .and_then(|value| match value {
+                ScopedValue::Static(value) => Some(value),
+                ScopedValue::Runtime(_) => None,
+            })
     }
 
     pub(in crate::hierarchy) fn parameter(&self, name: &str) -> Option<&ResolvedParameter> {
-        self.parameters.get(name)
+        match self.values.get(name) {
+            Some(ScopedValue::Static(value)) => Some(value),
+            _ => None,
+        }
     }
 
     pub(in crate::hierarchy) fn symbolic_parameters(&self) -> SymbolicParameterMap {
-        self.parameters
+        self.values
             .iter()
-            .map(|(name, value)| {
-                (
+            .filter_map(|(name, value)| {
+                let ScopedValue::Static(value) = value else {
+                    return None;
+                };
+                Some((
                     name.clone(),
                     SymbolicParameterValue {
                         value: Some(value.value.literal()),
@@ -28,9 +47,32 @@ impl Scope {
                         expression: Some(value.expression.clone()),
                         lineage: Some(value.lineage.clone()),
                     },
-                )
+                ))
             })
             .collect()
+    }
+
+    pub(in crate::hierarchy) fn value_expression(&self, name: &str) -> Option<LoweringExpression> {
+        match self.values.get(name)? {
+            ScopedValue::Static(_) => Some(self.parameter_expression(name)),
+            ScopedValue::Runtime(expression) => Some(expression.clone()),
+        }
+    }
+
+    pub(in crate::hierarchy) fn insert_runtime_let(
+        &mut self,
+        name: String,
+        expression: LoweringExpression,
+    ) -> Result<(), &'static str> {
+        if self
+            .values
+            .insert(name, ScopedValue::Runtime(expression))
+            .is_some()
+        {
+            Err("runtime let alias collides with a scoped value")
+        } else {
+            Ok(())
+        }
     }
 
     pub(in crate::hierarchy) fn insert_let(
@@ -47,7 +89,11 @@ impl Scope {
             expression,
             lineage: ParameterLineage::Derived,
         };
-        if self.parameters.insert(name, resolved).is_some() {
+        if self
+            .values
+            .insert(name, ScopedValue::Static(resolved))
+            .is_some()
+        {
             Err("static let alias collides with a compile-time value")
         } else {
             Ok(())
