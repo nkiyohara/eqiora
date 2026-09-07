@@ -59,28 +59,13 @@ pub enum CanonicalDeclarationKind {
     Model,
 }
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub enum CanonicalDeclarationVisibility {
-    Private,
-    Public,
-}
-
-impl From<VisibilitySyntax> for CanonicalDeclarationVisibility {
-    fn from(value: VisibilitySyntax) -> Self {
-        match value {
-            VisibilitySyntax::Private => Self::Private,
-            VisibilitySyntax::Public => Self::Public,
-        }
-    }
-}
-
 /// File-layout-independent canonical declaration emitted by the compiler.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CanonicalDeclarationIdentity {
     pub(super) namespace: CompilationNamespaceId,
     pub(super) path: String,
     pub(super) kind: CanonicalDeclarationKind,
-    pub(super) visibility: CanonicalDeclarationVisibility,
+    pub(super) visibility: VisibilitySyntax,
     pub(super) canonical_form: String,
 }
 
@@ -98,7 +83,7 @@ impl CanonicalDeclarationIdentity {
         self.kind
     }
     #[must_use]
-    pub const fn visibility(&self) -> CanonicalDeclarationVisibility {
+    pub const fn visibility(&self) -> VisibilitySyntax {
         self.visibility
     }
     #[must_use]

@@ -17,12 +17,13 @@ mod tests;
 use std::collections::BTreeMap;
 
 use eqiora_compiler::{
-    AnalyzedResolvedHierarchy, CanonicalDeclarationKind, CanonicalDeclarationVisibility,
-    CompilationNamespaceId, ResolvedDependency, ResolvedHierarchyInput, ResolvedSourceUnit,
-    analyze_resolved_hierarchy, preflight_resolved_hierarchy,
+    AnalyzedResolvedHierarchy, CanonicalDeclarationKind, CompilationNamespaceId,
+    ResolvedDependency, ResolvedHierarchyInput, ResolvedSourceUnit, analyze_resolved_hierarchy,
+    preflight_resolved_hierarchy,
 };
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
+use eqiora_lang::VisibilitySyntax;
 use eqiora_package::{
     BundleRoleV1, CanonicalDeclaration, CanonicalModelDigest, ContractError, DeclarationKindV1,
     ExactResolver, ModelPackageIdentityV1, PackageReleaseV1, PackageSourcesV1, QualifiedName,
@@ -907,8 +908,8 @@ fn semantic_content_for_namespace(
                 QualifiedName::parse(declaration.path())?,
                 kind,
                 match declaration.visibility() {
-                    CanonicalDeclarationVisibility::Private => VisibilityV1::Private,
-                    CanonicalDeclarationVisibility::Public => VisibilityV1::Public,
+                    VisibilitySyntax::Private => VisibilityV1::Private,
+                    VisibilitySyntax::Public => VisibilityV1::Public,
                 },
                 CanonicalDeclaration::new(declaration.canonical_form())?,
             ))
