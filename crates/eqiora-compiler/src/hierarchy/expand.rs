@@ -568,7 +568,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             Err(error) => return Err(vec![error]),
         };
 
-        for item in model.items() {
+        for item in model.owned_items() {
             if let Item::Instance(instance) = item {
                 let component = self
                     .elaborator
@@ -602,7 +602,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         self.allocate_runtime_lets(
             &mut root_scope,
             self.model.file,
-            model.items().iter().filter_map(|item| match item {
+            model.owned_items().filter_map(|item| match item {
                 Item::Let(d) => Some(d),
                 _ => None,
             }),
@@ -629,7 +629,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
     fn allocate_model_scope(&mut self, scope: &mut Scope) -> Result<ScopeIdentities, Diagnostic> {
         let model = self.model.clone();
         let mut identities = ScopeIdentities::default();
-        for item in model.items() {
+        for item in model.owned_items() {
             let (name, kind, symbol_kind, parameter_value, range) = match item {
                 Item::Domain(value) => (
                     value.name(),
@@ -698,7 +698,6 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 Item::Initial(_)
                 | Item::Connection(_)
                 | Item::BoundaryConnection(_)
-                | Item::Boundary(_)
                 | Item::Let(_)
                 | Item::Instance(_) => continue,
                 _ => {
@@ -739,7 +738,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             identities.entities.insert(name.to_owned(), identity);
         }
         self.allocate_model_lets(scope, &model)?;
-        for item in model.items() {
+        for item in model.owned_items() {
             let Item::Domain(declaration) = item else {
                 continue;
             };
@@ -765,7 +764,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             }
         }
         self.allocate_cartesian_boundaries(scope, &identities)?;
-        for item in model.items() {
+        for item in model.owned_items() {
             let Item::Field(declaration) = item else {
                 continue;
             };
@@ -795,7 +794,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 )));
             }
         }
-        for item in model.items() {
+        for item in model.owned_items() {
             let Item::Port(declaration) = item else {
                 continue;
             };
@@ -896,14 +895,20 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         normalize_binding_locations(&mut bindings);
         let mut forwarded_field_resolution_bindings =
             parent_scope.forwarded_field_resolution_bindings().to_vec();
-        forwarded_field_resolution_bindings
-            .extend(field_forwarding_locations(instance_file, instance));
+        forwarded_field_resolution_bindings.extend(field_forwarding_locations(
+            instance_file,
+            instance,
+            component.declaration,
+        ));
         normalize_binding_locations(&mut forwarded_field_resolution_bindings);
         let mut forwarded_parameter_resolution_bindings = parent_scope
             .forwarded_parameter_resolution_bindings()
             .to_vec();
-        forwarded_parameter_resolution_bindings
-            .extend(parameter_forwarding_locations(instance_file, instance));
+        forwarded_parameter_resolution_bindings.extend(parameter_forwarding_locations(
+            instance_file,
+            instance,
+            component.declaration,
+        ));
         normalize_binding_locations(&mut forwarded_parameter_resolution_bindings);
         let mut forwarded_boundary_set_resolution_bindings = parent_scope
             .forwarded_boundary_set_resolution_bindings()
@@ -974,12 +979,19 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             },
         )
         .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
-        for binding in instance.clock_bindings() {
+        for binding in instance
+            .bindings()
+            .iter()
+            .filter(|binding| clocks.contains_key(binding.name()))
+        {
+            let eqiora_lang::ExprKind::Name(target) = binding.value().kind() else {
+                unreachable!("validated nominal clock reference")
+            };
             let symbol = parent_scope
-                .symbol(binding.target())
+                .symbol(target)
                 .expect("validated clock binding")
                 .clone();
-            scope.insert_symbol(binding.slot().to_owned(), symbol);
+            scope.insert_symbol(binding.name().to_owned(), symbol);
         }
 
         let field_interface =
@@ -1046,7 +1058,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             scope.insert_field_type(slot, field_type);
         }
 
-        for item in component.items() {
+        for item in component.owned_items() {
             match item {
                 ComponentItem::Parameter(declaration) => {
                     let resolved = parameters[declaration.name()].clone();
@@ -1182,7 +1194,6 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                             .insert((declaration.name().to_owned(), boundary), identity);
                     }
                 }
-                ComponentItem::Support(_) => {}
                 ComponentItem::Field(declaration) => {
                     let support = declaration
                         .domain()
@@ -1346,8 +1357,6 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 }
                 ComponentItem::Let(_)
                 | ComponentItem::Initial(_)
-                | ComponentItem::ClockRequirement(_)
-                | ComponentItem::FieldRequirement(_)
                 | ComponentItem::Connection(_)
                 | ComponentItem::BoundaryConnection(_)
                 | ComponentItem::Instance(_) => {}
@@ -1362,7 +1371,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             }
         }
 
-        for item in component.items() {
+        for item in component.owned_items() {
             if let ComponentItem::Field(field) = item {
                 let activation = super::scope::rewrite_activation(
                     component.file,
@@ -1377,7 +1386,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             }
         }
 
-        for item in component.items() {
+        for item in component.owned_items() {
             match item {
                 ComponentItem::Port(declaration)
                     if matches!(
@@ -1447,7 +1456,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         self.allocate_component_lets(&mut scope, &component)
             .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
 
-        for item in component.items() {
+        for item in component.owned_items() {
             if let ComponentItem::Instance(child) = item {
                 let child_component = self
                     .elaborator
@@ -1479,7 +1488,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         self.allocate_runtime_lets(
             &mut scope,
             component.file,
-            component.items().iter().filter_map(|item| match item {
+            component.owned_items().filter_map(|item| match item {
                 ComponentItem::Let(d) => Some(d),
                 _ => None,
             }),
@@ -1500,8 +1509,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         .map_err(|error| vec![contextualize_diagnostic(error, &instance_path)])?;
 
         let public_ports = component
-            .items()
-            .iter()
+            .owned_items()
             .filter_map(|item| match item {
                 ComponentItem::Port(port) if port.visibility() == VisibilitySyntax::Public => scope
                     .symbol(port.name())
@@ -1511,8 +1519,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             })
             .collect();
         let public_port_families = component
-            .items()
-            .iter()
+            .owned_items()
             .filter_map(|item| match item {
                 ComponentItem::PortFamily(family)
                     if family.port().visibility() == VisibilitySyntax::Public =>
@@ -1541,7 +1548,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         let component = occurrence.definition;
         let instance = occurrence.instance;
         let mut initial_duplicates = BTreeMap::<String, usize>::new();
-        for item in component.items() {
+        for item in component.owned_items() {
             match item {
                 ComponentItem::Initial(declaration) => {
                     let name = crate::source_identity::initial_declaration_name(declaration)?;
@@ -1637,9 +1644,6 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         });
                     }
                 }
-                ComponentItem::Support(_)
-                | ComponentItem::ClockRequirement(_)
-                | ComponentItem::FieldRequirement(_) => {}
                 ComponentItem::Field(declaration) => {
                     let identity = identities.entities[declaration.name()].clone();
                     let (domain, activation) =
@@ -1841,14 +1845,13 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         scope: &Scope,
     ) -> Result<(LoweringPortContract, Option<PhysicalPortMaterialization>), Diagnostic> {
         match declaration.syntax() {
-            PortSyntax::Signal {
-                direction,
-                value_type,
-            } => Ok((
-                LoweringPortContract::Source(PortSyntax::Signal {
-                    direction: *direction,
-                    value_type: value_type.clone(),
-                }),
+            PortSyntax::Signal { .. } => Ok((
+                LoweringPortContract::Source(super::scope::rewrite_port_syntax(
+                    component.file,
+                    declaration.syntax(),
+                    declaration.range(),
+                    scope,
+                )?),
                 None,
             )),
             PortSyntax::ScalarPhysicalConnector { connector } => {
@@ -1968,7 +1971,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
     ) -> Result<(), Diagnostic> {
         let model = self.model.clone();
         let mut initial_duplicates = BTreeMap::<String, usize>::new();
-        for item in model.items() {
+        for item in model.owned_items() {
             match item {
                 Item::Initial(declaration) => {
                     let name = crate::source_identity::initial_declaration_name(declaration)?;
@@ -2137,17 +2140,6 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         },
                     )?;
                 }
-                Item::Boundary(declaration) => {
-                    let ports =
-                        resolve_visible_ports(self.model.file, declaration.port_paths(), scope)?
-                            .into_iter()
-                            .map(|symbol| symbol.internal_name.clone())
-                            .collect();
-                    self.items.push(FlatItemBlueprint::Boundary {
-                        ports,
-                        range: declaration.range(),
-                    });
-                }
                 Item::Let(_) | Item::Instance(_) => {}
                 _ => {
                     return Err(source_error(
@@ -2159,6 +2151,28 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 }
             }
         }
+        let ports = self
+            .model
+            .signature()
+            .iter()
+            .filter_map(|item| match item {
+                eqiora_lang::SignatureItem::Input(value)
+                | eqiora_lang::SignatureItem::Output(value) => Some(value.name()),
+                eqiora_lang::SignatureItem::Port(value) => Some(value.name()),
+                _ => None,
+            })
+            .map(|name| {
+                scope
+                    .symbol(name)
+                    .expect("allocated signature endpoint")
+                    .internal_name
+                    .clone()
+            })
+            .collect();
+        self.items.push(FlatItemBlueprint::Boundary {
+            ports,
+            range: self.model.range(),
+        });
         Ok(())
     }
 

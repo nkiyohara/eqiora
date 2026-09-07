@@ -216,6 +216,7 @@ fn resolved_scalar_port_contract(
         ResolvedPortContract::Signal {
             direction,
             value_type,
+            ..
         } => ScalarPortContract::Signal {
             direction: match direction {
                 SignalDirectionSyntax::Input => SignalDirection::Input,

@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_lang::{BoundaryDecl, DomainSyntax, Item};
+use eqiora_lang::{DomainSyntax, Item};
 use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};
 
 use crate::diagnostics::source_error;
@@ -82,6 +82,33 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
 
     fn bind_non_boundary_interfaces(&mut self) {
         for item in self.definition.declaration.items() {
+            if let Item::Instance(instance) = item {
+                if let Ok(child) = self.scope.elaborator.resolve_component(
+                    &self.scope.namespace,
+                    instance.definition(),
+                    self.scope.file,
+                    instance.range(),
+                ) {
+                    self.proof.children.insert(
+                        instance.name().to_owned(),
+                        ChildInstanceProof {
+                            definition: DefinitionKey {
+                                namespace: child.namespace.clone(),
+                                name: child.declaration.name().to_owned(),
+                            },
+                            range: instance.range(),
+                        },
+                    );
+                    self.scope
+                        .children
+                        .insert(instance.name().to_owned(), child);
+                    self.scope
+                        .child_instances
+                        .insert(instance.name().to_owned(), instance);
+                }
+            }
+        }
+        for item in self.definition.owned_items() {
             let binding = match item {
                 Item::Domain(declaration) => match declaration.syntax() {
                     DomainSyntax::CartesianBox(bounds) => Ok(Some((
@@ -144,38 +171,12 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                 Item::Relation(declaration) => {
                     Ok(Some((declaration.name(), SymbolContract::Relation)))
                 }
-                Item::Instance(instance) => {
-                    if let Ok(child) = self.scope.elaborator.resolve_component(
-                        &self.scope.namespace,
-                        instance.definition(),
-                        self.scope.file,
-                        instance.range(),
-                    ) {
-                        self.proof.children.insert(
-                            instance.name().to_owned(),
-                            ChildInstanceProof {
-                                definition: DefinitionKey {
-                                    namespace: child.namespace.clone(),
-                                    name: child.declaration.name().to_owned(),
-                                },
-                                range: instance.range(),
-                            },
-                        );
-                        self.scope
-                            .children
-                            .insert(instance.name().to_owned(), child);
-                        self.scope
-                            .child_instances
-                            .insert(instance.name().to_owned(), instance);
-                    }
-                    Ok(None)
-                }
+                Item::Instance(_) => Ok(None),
                 Item::Initial(_)
                 | Item::Field(_)
                 | Item::Port(_)
                 | Item::Connection(_)
-                | Item::BoundaryConnection(_)
-                | Item::Boundary(_) => Ok(None),
+                | Item::BoundaryConnection(_) => Ok(None),
                 _ => Err(source_error(
                     codes::LANGUAGE_LOWERING_ERROR,
                     self.scope.file,
@@ -194,7 +195,7 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
     }
 
     fn bind_boundaries(&mut self) {
-        for item in self.definition.declaration.items() {
+        for item in self.definition.owned_items() {
             let Item::Domain(declaration) = item else {
                 continue;
             };
@@ -242,7 +243,7 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
     }
 
     fn bind_fields_and_ports(&mut self) {
-        for item in self.definition.declaration.items() {
+        for item in self.definition.owned_items() {
             match item {
                 Item::Field(declaration) => {
                     let support = declaration
@@ -286,7 +287,7 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
     }
 
     fn validate_declarations(&mut self) {
-        for item in self.definition.declaration.items() {
+        for item in self.definition.owned_items() {
             match item {
                 Item::Initial(declaration) => {
                     if let Err(errors) =
@@ -332,7 +333,6 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                         Err(error) => self.diagnostics.push(error),
                     }
                 }
-                Item::Boundary(declaration) => self.validate_boundary(declaration),
                 _ => {}
             }
         }
@@ -421,14 +421,6 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
         match validate_relation_expression(&self.scope, declaration, support) {
             Ok(endpoints) => self.proof.relation_endpoints.push(endpoints),
             Err(errors) => self.diagnostics.extend(errors),
-        }
-    }
-
-    fn validate_boundary(&mut self, declaration: &BoundaryDecl) {
-        for path in declaration.port_paths() {
-            if let Err(error) = self.scope.resolve_port(path) {
-                self.diagnostics.push(error);
-            }
         }
     }
 }

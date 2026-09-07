@@ -2,7 +2,7 @@
 
 use super::*;
 
-pub(super) fn relation_support(
+pub(in crate::lower) fn relation_support(
     file: &str,
     range: TextRange,
     name: &str,
@@ -109,9 +109,11 @@ fn expression_type_cached(
             }
             Some(Binding::Port(_, contract)) => {
                 match resolve_port_contract(file, expression.range(), contract, bindings)? {
-                    ResolvedPortContract::Signal { value_type, .. } => {
-                        Ok(ExpressionType::new(value_type, None))
-                    }
+                    ResolvedPortContract::Signal {
+                        value_type,
+                        support,
+                        ..
+                    } => Ok(ExpressionType::new(value_type, support)),
                     ResolvedPortContract::ScalarPhysical { .. } => Err(source_error(
                         codes::LANGUAGE_TYPE_ERROR,
                         file,

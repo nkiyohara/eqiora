@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_lang::{ComponentItem, SupportSlotSyntax};
+use eqiora_lang::{ComponentItem, SignatureItem, SupportSlotSyntax};
 use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};
 
 use crate::diagnostics::source_error;
@@ -78,6 +78,7 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
     }
 
     fn validate(&mut self) {
+        self.bind_borrowed_interfaces();
         self.bind_complete_exteriors();
         self.bind_interfaces();
         if let Err(errors) = super::expression::validate_aliases(
@@ -98,8 +99,8 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
     }
 
     fn bind_complete_exteriors(&mut self) {
-        for item in self.definition.declaration.items() {
-            let ComponentItem::Support(declaration) = item else {
+        for item in self.definition.declaration.signature() {
+            let SignatureItem::Support(declaration) = item else {
                 continue;
             };
             let SupportSlotSyntax::CompleteExterior { parent } = declaration.syntax() else {
@@ -131,8 +132,67 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
         }
     }
 
+    fn bind_borrowed_interfaces(&mut self) {
+        for item in self.definition.declaration.signature() {
+            match item {
+                SignatureItem::Support(declaration) => {
+                    if matches!(
+                        declaration.syntax(),
+                        SupportSlotSyntax::CompleteExterior { .. }
+                    ) {
+                        continue;
+                    }
+                    let Some(contract) = self.supports.get(declaration.name()) else {
+                        self.diagnostics.push(source_error(
+                            codes::LANGUAGE_LOWERING_ERROR,
+                            self.definition.file,
+                            declaration.range(),
+                            format!(
+                                "typed support interface is missing slot `{}`",
+                                declaration.name()
+                            ),
+                        ));
+                        continue;
+                    };
+                    self.scope.symbols.insert(
+                        declaration.name().to_owned(),
+                        SymbolContract::Support(contract.support().clone()),
+                    );
+                }
+                SignatureItem::Clock(declaration) => {
+                    self.scope
+                        .symbols
+                        .insert(declaration.name().to_owned(), SymbolContract::Clock);
+                }
+                SignatureItem::Field(declaration) => {
+                    let Some(contract) = self.fields.field(declaration.name()) else {
+                        self.diagnostics.push(source_error(
+                            codes::LANGUAGE_LOWERING_ERROR,
+                            self.definition.file,
+                            declaration.range(),
+                            format!(
+                                "typed Field interface is missing slot `{}`",
+                                declaration.name()
+                            ),
+                        ));
+                        continue;
+                    };
+                    self.scope.symbols.insert(
+                        declaration.name().to_owned(),
+                        SymbolContract::Field(
+                            contract.value().clone(),
+                            declaration.role(),
+                            declaration.activation().clone(),
+                        ),
+                    );
+                }
+                _ => {}
+            }
+        }
+    }
+
     fn bind_interfaces(&mut self) {
-        for item in self.definition.declaration.items() {
+        for item in self.definition.owned_items() {
             match item {
                 ComponentItem::Let(declaration) => {
                     if let Some(value) = self.compile_time_values.get(declaration.name()) {
@@ -212,57 +272,6 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                         Err(mut errors) => self.diagnostics.append(&mut errors),
                     }
                 }
-                ComponentItem::Support(declaration) => {
-                    if matches!(
-                        declaration.syntax(),
-                        SupportSlotSyntax::CompleteExterior { .. }
-                    ) {
-                        continue;
-                    }
-                    let Some(contract) = self.supports.get(declaration.name()) else {
-                        self.diagnostics.push(source_error(
-                            codes::LANGUAGE_LOWERING_ERROR,
-                            self.definition.file,
-                            declaration.range(),
-                            format!(
-                                "typed support interface is missing slot `{}`",
-                                declaration.name()
-                            ),
-                        ));
-                        continue;
-                    };
-                    self.scope.symbols.insert(
-                        declaration.name().to_owned(),
-                        SymbolContract::Support(contract.support().clone()),
-                    );
-                }
-                ComponentItem::ClockRequirement(declaration) => {
-                    self.scope
-                        .symbols
-                        .insert(declaration.name().to_owned(), SymbolContract::Clock);
-                }
-                ComponentItem::FieldRequirement(declaration) => {
-                    let Some(contract) = self.fields.field(declaration.name()) else {
-                        self.diagnostics.push(source_error(
-                            codes::LANGUAGE_LOWERING_ERROR,
-                            self.definition.file,
-                            declaration.range(),
-                            format!(
-                                "typed Field interface is missing slot `{}`",
-                                declaration.name()
-                            ),
-                        ));
-                        continue;
-                    };
-                    self.scope.symbols.insert(
-                        declaration.name().to_owned(),
-                        SymbolContract::Field(
-                            contract.value().clone(),
-                            declaration.role(),
-                            declaration.activation().clone(),
-                        ),
-                    );
-                }
                 ComponentItem::Field(declaration) => {
                     let support = declaration
                         .domain()
@@ -297,31 +306,7 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                         SymbolContract::Relation,
                     );
                 }
-                ComponentItem::Instance(instance) => {
-                    if let Ok(child) = self.scope.elaborator.resolve_component(
-                        &self.definition.namespace,
-                        instance.definition(),
-                        self.definition.file,
-                        instance.range(),
-                    ) {
-                        self.proof.children.insert(
-                            instance.name().to_owned(),
-                            ChildInstanceProof {
-                                definition: DefinitionKey {
-                                    namespace: child.namespace.clone(),
-                                    name: child.declaration.name().to_owned(),
-                                },
-                                range: instance.range(),
-                            },
-                        );
-                        self.scope
-                            .children
-                            .insert(instance.name().to_owned(), child);
-                        self.scope
-                            .child_instances
-                            .insert(instance.name().to_owned(), instance);
-                    }
-                }
+                ComponentItem::Instance(_) => {}
                 ComponentItem::Initial(_)
                 | ComponentItem::Connection(_)
                 | ComponentItem::BoundaryConnection(_) => {}
@@ -333,10 +318,37 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                 )),
             }
         }
+        for item in self.definition.declaration.items() {
+            if let ComponentItem::Instance(instance) = item {
+                if let Ok(child) = self.scope.elaborator.resolve_component(
+                    &self.definition.namespace,
+                    instance.definition(),
+                    self.definition.file,
+                    instance.range(),
+                ) {
+                    self.proof.children.insert(
+                        instance.name().to_owned(),
+                        ChildInstanceProof {
+                            definition: DefinitionKey {
+                                namespace: child.namespace.clone(),
+                                name: child.declaration.name().to_owned(),
+                            },
+                            range: instance.range(),
+                        },
+                    );
+                    self.scope
+                        .children
+                        .insert(instance.name().to_owned(), child);
+                    self.scope
+                        .child_instances
+                        .insert(instance.name().to_owned(), instance);
+                }
+            }
+        }
     }
 
     fn validate_declarations(&mut self) {
-        for item in self.definition.declaration.items() {
+        for item in self.definition.owned_items() {
             match item {
                 ComponentItem::Initial(declaration) => {
                     if let Err(errors) =
@@ -348,10 +360,7 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                 ComponentItem::Let(_)
                 | ComponentItem::Parameter(_)
                 | ComponentItem::Port(_)
-                | ComponentItem::PortFamily(_)
-                | ComponentItem::Support(_)
-                | ComponentItem::ClockRequirement(_)
-                | ComponentItem::FieldRequirement(_) => {}
+                | ComponentItem::PortFamily(_) => {}
                 ComponentItem::Field(declaration) => {
                     if let eqiora_lang::ActivationSyntax::Periodic(clock) = declaration.activation()
                         && !matches!(self.scope.symbols.get(clock), Some(SymbolContract::Clock))

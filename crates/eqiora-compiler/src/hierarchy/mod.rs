@@ -30,6 +30,7 @@ mod expand;
 mod exposure_cuts;
 mod field_slots;
 mod flat;
+mod named_bindings;
 mod occurrence_connections;
 mod parameters;
 mod physical_closure;
@@ -311,7 +312,7 @@ fn compile_external_component_from_definition<'a>(
         .map(|parameter| (parameter.parameter(), parameter))
         .collect::<std::collections::BTreeMap<_, _>>();
     let mut root_items = Vec::new();
-    for item in component.items() {
+    for item in component.owned_items() {
         let ComponentItem::Parameter(declaration) = item else {
             continue;
         };
@@ -336,21 +337,29 @@ fn compile_external_component_from_definition<'a>(
                 ExprKind::Name(parameter.parameter().to_owned()),
                 range,
             )?;
-            SourceAstFactory::parameter_binding(parameter.parameter(), value, range)
+            SourceAstFactory::named_binding(parameter.parameter(), value, range)
         })
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| vec![hierarchy_error(error.message())])?;
     let support_bindings = binding
         .supports()
         .iter()
-        .map(|support| SourceAstFactory::support_binding(support.slot(), support.slot(), range))
+        .map(|support| {
+            SourceAstFactory::named_binding(
+                support.slot(),
+                SourceAstFactory::expression(ExprKind::Name(support.slot().to_owned()), range)?,
+                range,
+            )
+        })
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| vec![hierarchy_error(error.message())])?;
-    let instance = SourceAstFactory::instance_with_support_bindings(
+    let instance = SourceAstFactory::instance(
         "definition",
         component_path,
-        parameter_bindings,
-        support_bindings,
+        parameter_bindings
+            .into_iter()
+            .chain(support_bindings)
+            .collect(),
         range,
     )
     .map_err(|error| vec![hierarchy_error(error.message())])?;
@@ -358,11 +367,13 @@ fn compile_external_component_from_definition<'a>(
     let root = SourceAstFactory::model(
         eqiora_lang::VisibilitySyntax::Private,
         binding.model(),
+        Vec::new(),
         root_items,
         range,
     )
     .map_err(|error| vec![hierarchy_error(error.message())])?;
     let model = preflight::ModelDefinition {
+        owned_interfaces: std::sync::Arc::from([]),
         namespace: component.namespace.clone(),
         file,
         declaration: &root,

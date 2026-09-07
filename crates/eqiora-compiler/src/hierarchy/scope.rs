@@ -385,9 +385,26 @@ pub(super) fn rewrite_model_port(
         PortSyntax::Signal {
             direction,
             value_type,
+            domain,
+            activation,
         } => Ok(PortSyntax::Signal {
             direction: *direction,
             value_type: value_type.clone(),
+            domain: domain
+                .as_deref()
+                .map(|name| {
+                    resolve_local_kind(
+                        file,
+                        range,
+                        scope,
+                        name,
+                        |kind| matches!(kind, SymbolKind::Domain),
+                        "signal support",
+                    )
+                    .map(|symbol| symbol.internal_name.clone())
+                })
+                .transpose()?,
+            activation: rewrite_activation(file, activation, range, scope)?,
         }),
         PortSyntax::ScalarPhysical { domain } => {
             let domain = resolve_local_kind(

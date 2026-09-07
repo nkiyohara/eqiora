@@ -4,89 +4,56 @@ pub(super) fn instance_binding_locations(
     file: &str,
     instance: &InstanceDecl,
 ) -> Vec<SourceLocation> {
-    let mut ranges = instance
+    selected_locations(file, instance, |_| true)
+}
+fn selected_locations(
+    file: &str,
+    instance: &InstanceDecl,
+    accepts: impl Fn(&str) -> bool,
+) -> Vec<SourceLocation> {
+    let mut locations = instance
         .bindings()
         .iter()
-        .map(|binding| binding.range())
-        .chain(
-            instance
-                .support_bindings()
-                .iter()
-                .map(|binding| binding.range()),
-        )
-        .chain(
-            instance
-                .boundary_set_bindings()
-                .iter()
-                .map(|binding| binding.range()),
-        )
-        .chain(
-            instance
-                .field_bindings()
-                .iter()
-                .map(|binding| binding.range()),
-        )
-        .chain(
-            instance
-                .clock_bindings()
-                .iter()
-                .map(|binding| binding.range()),
-        )
+        .filter(|binding| accepts(binding.name()))
+        .map(|binding| SourceLocation::new(file, binding.range()))
         .collect::<Vec<_>>();
-    ranges.sort_by_key(|range| (range.start(), range.end()));
-    ranges
-        .into_iter()
-        .map(|range| SourceLocation::new(file, range))
-        .collect()
+    normalize_binding_locations(&mut locations);
+    locations
 }
-
 pub(super) fn field_forwarding_locations(
     file: &str,
     instance: &InstanceDecl,
+    component: &eqiora_lang::ComponentDecl,
 ) -> Vec<SourceLocation> {
-    if instance.field_bindings().is_empty() {
+    use eqiora_lang::SignatureItem;
+    if !component
+        .signature()
+        .iter()
+        .any(|item| matches!(item, SignatureItem::Field(_)))
+    {
         return Vec::new();
     }
-    let mut ranges = instance
-        .support_bindings()
-        .iter()
-        .map(|binding| binding.range())
-        .chain(
-            instance
-                .field_bindings()
-                .iter()
-                .map(|binding| binding.range()),
-        )
-        .chain(
-            instance
-                .clock_bindings()
-                .iter()
-                .map(|binding| binding.range()),
-        )
-        .collect::<Vec<_>>();
-    ranges.sort_by_key(|range| (range.start(), range.end()));
-    ranges
-        .into_iter()
-        .map(|range| SourceLocation::new(file, range))
-        .collect()
+    selected_locations(file, instance, |name| {
+        component.signature().iter().any(|item| {
+            item.name() == name
+                && matches!(
+                    item,
+                    SignatureItem::Field(_) | SignatureItem::Clock(_) | SignatureItem::Support(_)
+                )
+        })
+    })
 }
-
 pub(super) fn parameter_forwarding_locations(
     file: &str,
     instance: &InstanceDecl,
+    component: &eqiora_lang::ComponentDecl,
 ) -> Vec<SourceLocation> {
-    let mut ranges = instance
-        .bindings()
-        .iter()
-        .map(|binding| binding.range())
-        .collect::<Vec<_>>();
-    ranges.sort_by_key(|range| (range.start(), range.end()));
-    ranges
-        .into_iter()
-        .map(|range| SourceLocation::new(file, range))
-        .collect()
+    selected_locations(file, instance, |name| {
+        component.signature().iter().any(|item| {
+            item.name() == name && matches!(item, eqiora_lang::SignatureItem::Parameter(_))
+        })
+    })
 }
-
 pub(super) fn boundary_set_forwarding_locations(
     file: &str,
     instance: &InstanceDecl,
@@ -95,21 +62,16 @@ pub(super) fn boundary_set_forwarding_locations(
     if support_bindings.boundary_sets().next().is_none() {
         return Vec::new();
     }
-    let mut ranges = instance
-        .support_bindings()
-        .iter()
-        .map(|binding| binding.range())
-        .chain(
-            support_bindings
-                .boundary_sets()
-                .map(|(_, set)| set.source_range()),
-        )
-        .collect::<Vec<_>>();
-    ranges.sort_by_key(|range| (range.start(), range.end()));
-    ranges
-        .into_iter()
-        .map(|range| SourceLocation::new(file, range))
-        .collect()
+    let mut locations = selected_locations(file, instance, |name| {
+        support_bindings.singular_targets().contains_key(name)
+    });
+    locations.extend(
+        support_bindings
+            .boundary_sets()
+            .map(|(_, set)| SourceLocation::new(file, set.source_range())),
+    );
+    normalize_binding_locations(&mut locations);
+    locations
 }
 
 pub(super) fn normalize_binding_locations(bindings: &mut Vec<SourceLocation>) {

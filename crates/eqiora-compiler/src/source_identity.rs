@@ -22,13 +22,14 @@ mod instance;
 mod limits;
 mod model;
 mod property;
+mod signature;
 mod value_type;
 mod visibility;
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_lang::{
-    ActivationSyntax, BinaryOp, BoundaryConnectionDecl, BoundaryDecl, BoundaryFamilyBinderSyntax,
+    ActivationSyntax, BinaryOp, BoundaryConnectionDecl, BoundaryFamilyBinderSyntax,
     BoundaryPairingSyntax, BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax,
     BoundarySideSyntax, CartesianCoordinateSyntax, ClockDecl, ComponentDecl, ComponentItem,
     ComponentParameterDecl, ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl,
@@ -56,7 +57,7 @@ use property::{encode_material_composition, encode_property_contract, encode_pro
 use visibility::encode_visibility;
 
 const MAGIC: &[u8; 8] = b"EQIORASU";
-const CANONICAL_VERSION: u16 = 5;
+const CANONICAL_VERSION: u16 = 6;
 const COMPONENT_CONNECTION_ITEM_TAG: u16 = 6;
 const MODEL_CONNECTION_ITEM_TAG: u16 = 8;
 const COMPONENT_PORT_FAMILY_ITEM_TAG: u16 = 11;
@@ -299,7 +300,7 @@ fn encode_component(
     let member_count = declaration
         .items()
         .len()
-        .checked_add(declaration.property_requirement_syntax().len())
+        .checked_add(declaration.signature().len())
         .ok_or_else(|| source_identity_error("component member count overflows usize"))?;
     budget.account_members(member_count, "component")?;
     let members = encode_container_records(
@@ -319,25 +320,8 @@ fn encode_component(
             encode_visibility(encoder, declaration.visibility())
         })?;
     }
-    let property_syntax = declaration
-        .property_requirement_syntax()
-        .collect::<Vec<_>>();
-    if !property_syntax.is_empty() {
-        let properties =
-            encode_sorted_records(&property_syntax, budget, encode_component_property)?;
-        encoder.field(4, |encoder| encoder.records(&properties))?;
-    }
-    encoder.finish()
-}
-
-fn encode_component_property(
-    declaration: &(&str, &NamePath, TextRange),
-    budget: &mut Budget,
-) -> Result<Vec<u8>, Diagnostic> {
-    let (name, contract, _) = *declaration;
-    let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
-    encoder.field(1, |encoder| encode_name(encoder, name, budget))?;
-    encoder.field(2, |encoder| encode_type_path(encoder, contract, budget))?;
+    let signature = signature::encode_signature(declaration.signature(), budget)?;
+    encoder.field(4, |encoder| encoder.records(&signature))?;
     encoder.finish()
 }
 
@@ -537,10 +521,6 @@ fn encode_model_item(item: &Item, budget: &mut Budget) -> Result<Vec<u8>, Diagno
             })?;
             encode_boundary_connection(&mut encoder, declaration, budget)?;
         }
-        Item::Boundary(declaration) => {
-            encoder.u16(9)?;
-            encode_boundary(&mut encoder, declaration, budget)?;
-        }
         Item::Instance(declaration) => {
             encoder.u16(10)?;
             encode_instance(&mut encoder, declaration, budget)?;
@@ -640,14 +620,6 @@ fn encode_support_slot(
     })
 }
 
-fn encode_field_slot(
-    encoder: &mut Encoder,
-    declaration: &FieldDecl,
-    budget: &mut Budget,
-) -> Result<(), Diagnostic> {
-    encode_field(encoder, declaration, budget)
-}
-
 fn encode_activation(
     encoder: &mut Encoder,
     activation: &ActivationSyntax,
@@ -711,6 +683,8 @@ fn encode_port_syntax(
         PortSyntax::Signal {
             direction,
             value_type,
+            domain,
+            activation,
         } => {
             encoder.u16(1)?;
             encoder.field(1, |encoder| {
@@ -721,7 +695,11 @@ fn encode_port_syntax(
             })?;
             encoder.field(2, |encoder| {
                 value_type::encode_value_type(encoder, value_type, budget, 1)
-            })
+            })?;
+            encoder.field(3, |encoder| {
+                encode_optional_name(encoder, domain.as_deref(), budget)
+            })?;
+            encoder.field(4, |encoder| encode_activation(encoder, activation, budget))
         }
         PortSyntax::ScalarPhysical { domain } => {
             encoder.u16(3)?;
@@ -896,16 +874,6 @@ fn encode_boundary_port_selector(
 ) -> Result<(), Diagnostic> {
     encoder.field(1, |encoder| encode_name(encoder, selector.member(), budget))?;
     encoder.field(2, |encoder| encode_name(encoder, selector.target(), budget))
-}
-
-fn encode_boundary(
-    encoder: &mut Encoder,
-    declaration: &BoundaryDecl,
-    budget: &mut Budget,
-) -> Result<(), Diagnostic> {
-    budget.check_connection_members(declaration.port_paths().len(), "Boundary")?;
-    let paths = encode_sorted_paths(declaration.port_paths(), budget)?;
-    encoder.field(1, |encoder| encoder.records(&paths))
 }
 
 fn encode_optional_name(

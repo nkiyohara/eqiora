@@ -272,7 +272,8 @@ pub(super) fn lower_relation(
 }
 
 mod types;
-use types::{expression_type, relation_support};
+use types::expression_type;
+pub(super) use types::relation_support;
 
 fn spatial_type_error(
     file: &str,

@@ -14,6 +14,7 @@ mod formulation;
 mod instance;
 mod operator;
 mod property;
+mod recovery;
 mod relation;
 mod signature;
 mod value_type;
@@ -938,28 +939,6 @@ impl Parser<'_> {
                 self.error_token(token, "numeric literal must be a finite f64 value");
                 None
             }
-        }
-    }
-
-    fn recover_item(&mut self) {
-        while !self.at(TokenKind::Eof) && !self.at(TokenKind::RightBrace) {
-            if self.at(TokenKind::Semicolon) {
-                self.bump();
-                return;
-            }
-            self.bump();
-        }
-    }
-
-    fn recover_top_level(&mut self) {
-        while !self.at(TokenKind::Eof)
-            && !self.at_keyword("property")
-            && !self.at_keyword("connector")
-            && !self.at_keyword("component")
-            && !self.at_keyword("pure")
-            && !self.at_keyword("model")
-        {
-            self.bump();
         }
     }
 

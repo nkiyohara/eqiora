@@ -54,7 +54,9 @@ pub(super) struct FieldContract {
 pub(super) enum PortContract {
     Signal {
         direction: SignalDirectionSyntax,
-        value_type: eqiora_core::ValueType,
+        value_type: eqiora_lang::ValueTypeSyntax,
+        domain: Option<String>,
+        activation: ActivationSyntax,
     },
     ScalarPhysical {
         domain: String,
@@ -70,6 +72,8 @@ pub(super) enum ResolvedPortContract {
     Signal {
         direction: SignalDirectionSyntax,
         value_type: eqiora_core::ValueType,
+        support: Option<eqiora_schema::kernel::typing::SpatialSupport<RawId>>,
+        clock: Option<Id<kinds::ClockDomain>>,
     },
     ScalarPhysical {
         domain: Id<kinds::Domain>,
@@ -167,9 +171,13 @@ pub(super) fn bind_port(
         PortSyntax::Signal {
             direction,
             value_type,
+            domain,
+            activation,
         } => Ok(PortContract::Signal {
             direction: *direction,
-            value_type: crate::value_types::lower_value_type::<()>(file, value_type, None)?,
+            value_type: value_type.clone(),
+            domain: domain.clone(),
+            activation: activation.clone(),
         }),
         PortSyntax::ScalarPhysical { domain } => Ok(PortContract::ScalarPhysical {
             domain: domain.clone(),
@@ -193,10 +201,37 @@ pub(super) fn resolve_port_contract(
         PortContract::Signal {
             direction,
             value_type,
-        } => Ok(ResolvedPortContract::Signal {
-            direction: *direction,
-            value_type: value_type.clone(),
-        }),
+            domain,
+            activation,
+        } => {
+            let support = domain
+                .as_deref()
+                .map(|name| super::expression::relation_support(file, range, name, bindings))
+                .transpose()?;
+            let value_type =
+                crate::value_types::lower_value_type(file, value_type, support.as_ref())?;
+            let clock = match activation {
+                ActivationSyntax::Continuous => None,
+                ActivationSyntax::Periodic(name) => match bindings.get(name) {
+                    Some(Binding::Clock(id)) => Some(*id),
+                    _ => return Err(unresolved(file, range, name, "signal clock")),
+                },
+                _ => {
+                    return Err(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        range,
+                        "unsupported signal activation",
+                    ));
+                }
+            };
+            Ok(ResolvedPortContract::Signal {
+                direction: *direction,
+                value_type,
+                support,
+                clock,
+            })
+        }
         PortContract::ScalarPhysical { domain } => {
             let Some(Binding::Domain(
                 domain_id,

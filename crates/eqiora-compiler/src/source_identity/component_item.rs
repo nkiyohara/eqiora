@@ -28,10 +28,6 @@ pub(super) fn encode_component_item(
             encoder.u16(15)?;
             encode_initial(&mut encoder, declaration, budget)?;
         }
-        ComponentItem::ClockRequirement(declaration) => {
-            encoder.u16(16)?;
-            encode_name(&mut encoder, declaration.name(), budget)?;
-        }
         ComponentItem::Field(declaration) => {
             encoder.u16(3)?;
             encode_field(&mut encoder, declaration, budget)?;
@@ -67,14 +63,6 @@ pub(super) fn encode_component_item(
         ComponentItem::Instance(declaration) => {
             encoder.u16(7)?;
             encode_instance(&mut encoder, declaration, budget)?;
-        }
-        ComponentItem::Support(declaration) => {
-            encoder.u16(9)?;
-            encode_support_slot(&mut encoder, declaration, budget)?;
-        }
-        ComponentItem::FieldRequirement(declaration) => {
-            encoder.u16(10)?;
-            encode_field_slot(&mut encoder, declaration, budget)?;
         }
         _ => {
             return Err(source_identity_error(

@@ -10,8 +10,8 @@ use std::sync::Arc;
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_lang::{
-    BoundarySetBindingDecl, ComponentDecl, ComponentItem, DomainSyntax, InstanceDecl, Item,
-    ModelDecl, SupportSlotSyntax, TextRange, VisibilitySyntax,
+    ComponentDecl, DomainSyntax, InstanceDecl, Item, ModelDecl, SignatureItem, SupportSlotSyntax,
+    TextRange, VisibilitySyntax,
 };
 use eqiora_schema::kernel::{BoundarySide, typing::SpatialSupport};
 
@@ -105,10 +105,10 @@ pub(super) fn component_support_interface(
     component: &ComponentDecl,
 ) -> Result<SupportInterface, Vec<Diagnostic>> {
     let declarations = component
-        .items()
+        .signature()
         .iter()
         .filter_map(|item| match item {
-            ComponentItem::Support(declaration) => {
+            SignatureItem::Support(declaration) => {
                 Some((declaration.name().to_owned(), declaration))
             }
             _ => None,
@@ -698,7 +698,16 @@ pub(super) fn resolve_instance_support_bindings<I: Clone + Ord>(
     let mut explicit = Vec::new();
     let mut seen = BTreeSet::new();
 
-    for binding in instance.support_bindings() {
+    for binding in super::named_bindings::references(
+        binding_file,
+        instance,
+        |binding| {
+            (interface.get(binding.name()).is_some()
+                || interface.complete_exterior(binding.name()).is_some())
+                && !super::named_bindings::is_boundary_set(binding)
+        },
+        &mut diagnostics,
+    ) {
         if !seen.insert(binding.slot()) {
             diagnostics.push(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
@@ -783,7 +792,12 @@ pub(super) fn resolve_instance_support_bindings<I: Clone + Ord>(
         actual.insert(binding.slot().to_owned(), (support, binding.range()));
     }
 
-    for binding in instance.boundary_set_bindings() {
+    for binding in super::named_bindings::boundary_sets(
+        binding_file,
+        instance,
+        |name| interface.get(name).is_some() || interface.complete_exterior(name).is_some(),
+        &mut diagnostics,
+    ) {
         if !seen.insert(binding.slot()) {
             diagnostics.push(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
@@ -881,7 +895,7 @@ pub(super) fn resolve_instance_support_bindings<I: Clone + Ord>(
         if let Err(error) = membership_budget.charge(binding.members().len()) {
             diagnostics.push(complete_exterior_budget_diagnostic(
                 binding_file,
-                binding,
+                &binding,
                 error,
             ));
             continue;
@@ -1153,7 +1167,7 @@ fn validate_singular_support_shapes<I: Eq>(
 
 fn complete_exterior_budget_diagnostic(
     file: &str,
-    binding: &BoundarySetBindingDecl,
+    binding: &super::named_bindings::BoundarySetBinding<'_>,
     error: CompleteExteriorBudgetError,
 ) -> Diagnostic {
     let message = match error {

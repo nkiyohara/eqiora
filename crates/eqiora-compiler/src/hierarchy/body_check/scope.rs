@@ -45,6 +45,8 @@ pub(super) enum PortContract {
     Signal {
         direction: SignalDirectionSyntax,
         value_type: eqiora_core::ValueType,
+        support: Option<SpatialSupport<String>>,
+        activation: eqiora_lang::ActivationSyntax,
     },
     Physical {
         nominal: PhysicalNominal,
@@ -160,7 +162,11 @@ impl BoundaryFamilyScope {
 impl PortContract {
     pub(super) fn expression_type(&self) -> Option<ExpressionType<String>> {
         match self {
-            Self::Signal { value_type, .. } => Some(ExpressionType::new(value_type.clone(), None)),
+            Self::Signal {
+                value_type,
+                support,
+                ..
+            } => Some(ExpressionType::new(value_type.clone(), support.clone())),
             Self::Physical { .. } => None,
             Self::BoundaryPhysical { .. } => None,
         }
@@ -290,9 +296,7 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
                     return Err(self.invalid_public_port_selection(path));
                 };
                 let port = child
-                    .declaration
-                    .items()
-                    .iter()
+                    .owned_items()
                     .find_map(|item| match item {
                         ComponentItem::Port(port)
                             if port.name() == *member
@@ -388,8 +392,8 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
                 let Some(occurrence) = self.child_instances.get(*instance) else {
                     return Err(self.invalid_public_port_selection(port));
                 };
-                if occurrence.support_bindings().iter().any(|binding| {
-                    binding.slot() == family.binder.set() && binding.target() == active.binder.set()
+                if occurrence.bindings().iter().any(|binding| {
+                    binding.name() == family.binder.set() && matches!(binding.value().kind(),eqiora_lang::ExprKind::Name(target) if target==active.binder.set())
                 }) {
                     Ok(())
                 } else {
@@ -429,9 +433,7 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
                     .get(*instance)
                     .ok_or_else(|| self.invalid_public_port_selection(path))?;
                 let family = child
-                    .declaration
-                    .items()
-                    .iter()
+                    .owned_items()
                     .find_map(|item| match item {
                         ComponentItem::PortFamily(family)
                             if family.port().name() == *member
@@ -501,12 +503,37 @@ pub(super) fn component_port_contract(
         PortSyntax::Signal {
             direction,
             value_type,
-        } => crate::value_types::lower_value_type::<()>(file, value_type, None)
-            .map(|value_type| PortContract::Signal {
+            domain,
+            activation,
+        } => {
+            let interface =
+                super::super::supports::component_support_interface(file, owner.declaration)?;
+            let support = domain
+                .as_deref()
+                .map(|name| {
+                    interface
+                        .get(name)
+                        .map(|contract| contract.support().clone())
+                        .ok_or_else(|| {
+                            vec![unresolved(
+                                file,
+                                declaration.range(),
+                                name,
+                                "signal support",
+                            )]
+                        })
+                })
+                .transpose()?;
+            let value_type =
+                crate::value_types::lower_value_type(file, value_type, support.as_ref())
+                    .map_err(|error| vec![error])?;
+            Ok(PortContract::Signal {
                 direction: *direction,
                 value_type,
+                support,
+                activation: activation.clone(),
             })
-            .map_err(|error| vec![error]),
+        }
         PortSyntax::ScalarPhysicalConnector { connector } => {
             let connector = elaborator
                 .resolve_connector(&owner.namespace, connector, file, declaration.range())
@@ -663,10 +690,12 @@ fn synthetic_component_family_support(
 ) -> Result<SpatialSupport<String>, Diagnostic> {
     let exterior = owner
         .declaration
-        .items()
+        .signature()
         .iter()
         .find_map(|item| match item {
-            ComponentItem::Support(declaration) if declaration.name() == binder.set() => {
+            eqiora_lang::SignatureItem::Support(declaration)
+                if declaration.name() == binder.set() =>
+            {
                 Some(declaration)
             }
             _ => None,
@@ -689,10 +718,10 @@ fn synthetic_component_family_support(
     };
     let parent_declaration = owner
         .declaration
-        .items()
+        .signature()
         .iter()
         .find_map(|item| match item {
-            ComponentItem::Support(declaration) if declaration.name() == parent => {
+            eqiora_lang::SignatureItem::Support(declaration) if declaration.name() == parent => {
                 Some(declaration)
             }
             _ => None,
@@ -931,10 +960,26 @@ pub(super) fn model_port_contract(
         PortSyntax::Signal {
             direction,
             value_type,
-        } => Ok(PortContract::Signal {
-            direction: *direction,
-            value_type: crate::value_types::lower_value_type::<()>(scope.file, value_type, None)?,
-        }),
+            domain,
+            activation,
+        } => {
+            let support = domain
+                .as_deref()
+                .map(|name| {
+                    scope.spatial_support(name).ok_or_else(|| {
+                        scope.wrong_local_kind(declaration.range(), name, "signal support")
+                    })
+                })
+                .transpose()?;
+            let value_type =
+                crate::value_types::lower_value_type(scope.file, value_type, support.as_ref())?;
+            Ok(PortContract::Signal {
+                direction: *direction,
+                value_type,
+                support,
+                activation: activation.clone(),
+            })
+        }
         PortSyntax::ScalarPhysical { domain } => match scope.symbols.get(domain) {
             Some(SymbolContract::Domain(DomainContract::Physical {
                 across_type,

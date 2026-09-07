@@ -70,10 +70,6 @@ impl LoweringModel {
                         ports: c.port_paths().iter().map(|p| p.as_str().into()).collect(),
                         range: c.range(),
                     },
-                    Item::Boundary(declaration) => LoweringItem::Boundary {
-                        ports: declaration.ports().map(str::to_owned).collect(),
-                        range: declaration.range(),
-                    },
                     _ => LoweringItem::Unsupported {
                         range: model.range(),
                     },
@@ -81,6 +77,19 @@ impl LoweringModel {
             })
             .collect::<Result<_, Diagnostic>>()?;
         let mut items: Vec<LoweringItem> = items;
+        items.push(LoweringItem::Boundary {
+            ports: model
+                .signature()
+                .iter()
+                .filter_map(|item| match item {
+                    eqiora_lang::SignatureItem::Input(value)
+                    | eqiora_lang::SignatureItem::Output(value) => Some(value.name().to_owned()),
+                    eqiora_lang::SignatureItem::Port(value) => Some(value.name().to_owned()),
+                    _ => None,
+                })
+                .collect(),
+            range: model.range(),
+        });
         let mut represented_supports = std::collections::BTreeSet::new();
         let representations: Vec<_> = model
             .items()

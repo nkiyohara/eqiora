@@ -93,3 +93,31 @@ fn signature_comments_dimensions_and_private_clocked_ports_round_trip() {
     .unwrap();
     assert_eq!(native.signature(), model.signature());
 }
+
+#[test]
+fn empty_boundary_sets_reach_support_validation() {
+    let doc = parse(
+        "empty.eqi",
+        "model M() { instance c:C(walls=boundaries()); }",
+    )
+    .into_document()
+    .unwrap();
+    let eqiora_lang::Item::Instance(instance) = &doc.models()[0].items()[0] else {
+        panic!("instance")
+    };
+    SourceAstFactory::named_binding(
+        "walls",
+        instance.bindings()[0].value().clone(),
+        instance.range(),
+    )
+    .unwrap();
+    assert!(
+        parse("call.eqi", "model M() { let x=other(); }")
+            .into_document()
+            .is_err()
+    );
+    assert_eq!(
+        format(&doc),
+        format(&parse("empty.eqi", &format(&doc)).into_document().unwrap())
+    );
+}

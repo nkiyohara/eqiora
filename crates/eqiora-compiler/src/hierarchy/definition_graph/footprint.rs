@@ -10,7 +10,7 @@ pub(super) fn component_local_footprint(
     let mut declarations = 0_usize;
     let mut connections = 0_usize;
     let mut local_connectors = BTreeSet::new();
-    for item in definition.declaration.items() {
+    for item in definition.owned_items() {
         match item {
             ComponentItem::Parameter(_)
             | ComponentItem::Port(_)
@@ -117,10 +117,7 @@ pub(super) fn component_local_footprint(
                     );
                 }
             }
-            ComponentItem::Let(_)
-            | ComponentItem::Support(_)
-            | ComponentItem::FieldRequirement(_)
-            | ComponentItem::Instance(_) => {}
+            ComponentItem::Let(_) | ComponentItem::Instance(_) => {}
             _ => {}
         }
         let port = match item {
@@ -165,10 +162,10 @@ fn complete_exterior_cardinality(
 ) -> Option<usize> {
     let support = definition
         .declaration
-        .items()
+        .signature()
         .iter()
         .find_map(|item| match item {
-            ComponentItem::Support(support) if support.name() == set => Some(support),
+            eqiora_lang::SignatureItem::Support(support) if support.name() == set => Some(support),
             _ => None,
         });
     let Some(support) = support else {
@@ -192,10 +189,12 @@ fn complete_exterior_cardinality(
     let parent_name = parent;
     let parent = definition
         .declaration
-        .items()
+        .signature()
         .iter()
         .find_map(|item| match item {
-            ComponentItem::Support(parent_support) if parent_support.name() == parent_name => {
+            eqiora_lang::SignatureItem::Support(parent_support)
+                if parent_support.name() == parent_name =>
+            {
                 Some(parent_support)
             }
             _ => None,
@@ -237,7 +236,7 @@ pub(super) fn model_local_footprint(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> LocalFootprint {
     let mut footprint = LocalFootprint::default();
-    for item in definition.declaration.items() {
+    for item in definition.owned_items() {
         match item {
             Item::Field(field) => checked_local_add(
                 &mut footprint.declarations,
@@ -263,7 +262,7 @@ pub(super) fn model_local_footprint(
                 "Connection",
                 diagnostics,
             ),
-            Item::Boundary(_) | Item::Instance(_) | Item::Let(_) => {}
+            Item::Instance(_) | Item::Let(_) => {}
             _ => checked_local_add(
                 &mut footprint.declarations,
                 1,

@@ -673,13 +673,20 @@ pub(crate) fn lower_typed_model(
                 let Binding::Port(id, contract) = bindings[name].clone() else {
                     unreachable!("first pass assigns Port bindings");
                 };
-                match lower_port(file, *range, id, &contract, &bindings) {
-                    Ok(port) => {
-                        nodes.push(port.into());
-                        Ok(())
+                lower_port(file, *range, id, &contract, &bindings).and_then(|port| {
+                    if let ResolvedPortContract::Signal { support, clock, .. } =
+                        resolve_port_contract(file, *range, &contract, &bindings)?
+                    {
+                        if let Some(support) = support {
+                            edges.push((id.erase(), *support.domain(), EdgeKind::DefinedOn));
+                        }
+                        if let Some(clock) = clock {
+                            edges.push((id.erase(), clock.erase(), EdgeKind::ClockedBy));
+                        }
                     }
-                    Err(diagnostic) => Err(diagnostic),
-                }
+                    nodes.push(port.into());
+                    Ok(())
+                })
             }
             LoweringItem::Clock {
                 name,

@@ -217,10 +217,10 @@ fn validate_definition_bodies_and_parameters(
                             .iter()
                             .any(|item| match item {
                                 ComponentItem::Clock(c) => c.name() == name,
-                                ComponentItem::ClockRequirement(c) => c.name() == name,
                                 _ => false,
                             })
                             .then(|| name.to_owned())
+                            .or_else(|| definition.declaration.signature().iter().any(|item|matches!(item,eqiora_lang::SignatureItem::Clock(c) if c.name()==name)).then(||name.to_owned()))
                     },
                     |slot| {
                         support_bindings

@@ -329,12 +329,16 @@ impl<'a> SymbolicParameterResolver<'a> {
 
 fn parameter_declarations(component: &ComponentDecl) -> BTreeMap<String, &ComponentParameterDecl> {
     component
-        .items()
+        .signature()
         .iter()
         .filter_map(|item| match item {
-            ComponentItem::Parameter(value) => Some((value.name().to_owned(), value)),
+            eqiora_lang::SignatureItem::Parameter(value) => Some((value.name().to_owned(), value)),
             _ => None,
         })
+        .chain(component.items().iter().filter_map(|item| match item {
+            ComponentItem::Parameter(value) => Some((value.name().to_owned(), value)),
+            _ => None,
+        }))
         .collect()
 }
 
@@ -348,29 +352,33 @@ fn resolve_instance_overrides(
 ) -> Result<BTreeMap<String, SymbolicParameterValue>, Vec<Diagnostic>> {
     let mut overrides = BTreeMap::new();
     let mut bound = BTreeSet::new();
-    let mut diagnostics = Vec::new();
-    for binding in instance.bindings() {
-        if !bound.insert(binding.parameter()) {
+    let mut diagnostics = super::named_bindings::validate_names(binding_file, component, instance);
+    for binding in instance
+        .bindings()
+        .iter()
+        .filter(|binding| declarations.contains_key(binding.name()))
+    {
+        if !bound.insert(binding.name()) {
             diagnostics.push(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 binding_file,
                 binding.range(),
                 format!(
                     "duplicate binding for Parameter `{}` in instance `{}`",
-                    binding.parameter(),
+                    binding.name(),
                     instance.name()
                 ),
             ));
             continue;
         }
-        let Some(declaration) = declarations.get(binding.parameter()) else {
+        let Some(declaration) = declarations.get(binding.name()) else {
             diagnostics.push(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 binding_file,
                 binding.range(),
                 format!(
                     "unknown public Parameter `{}` on component `{}`",
-                    binding.parameter(),
+                    binding.name(),
                     component.name()
                 ),
             ));
@@ -383,7 +391,7 @@ fn resolve_instance_overrides(
                 binding.range(),
                 format!(
                     "private Parameter `{}` cannot be bound on instance `{}`",
-                    binding.parameter(),
+                    binding.name(),
                     instance.name()
                 ),
             ));
@@ -416,7 +424,7 @@ fn resolve_instance_overrides(
         .and_then(|value| coerce_parameter(binding_file, binding.range(), value, target));
         match value {
             Ok(value) => {
-                overrides.insert(binding.parameter().to_owned(), value);
+                overrides.insert(binding.name().to_owned(), value);
             }
             Err(error) => diagnostics.push(error),
         }

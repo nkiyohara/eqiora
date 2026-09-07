@@ -164,6 +164,19 @@ impl Parser<'_> {
             };
             if self.at(TokenKind::LeftParen) {
                 self.bump();
+                if self.at(TokenKind::RightParen) && path.to_string() == "boundaries" {
+                    let end = self.bump().range().end();
+                    return Some((
+                        Expr {
+                            kind: ExprKind::Call {
+                                callee: path.clone(),
+                                arguments: Vec::new(),
+                            },
+                            range: TextRange::new(path.range().start(), end),
+                        },
+                        1,
+                    ));
+                }
                 if self.at(TokenKind::RightParen) {
                     self.error_here("operator call requires at least one argument");
                     return None;

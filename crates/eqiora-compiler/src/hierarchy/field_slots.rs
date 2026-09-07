@@ -8,7 +8,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_lang::{ComponentDecl, ComponentItem, FieldDecl, InstanceDecl, Item, ModelDecl};
+use eqiora_lang::{
+    ComponentDecl, ComponentItem, FieldDecl, InstanceDecl, Item, ModelDecl, SignatureItem,
+};
 use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};
 
 use crate::diagnostics::source_error;
@@ -84,12 +86,12 @@ pub(super) fn component_field_interface(
 ) -> Result<FieldInterface, Vec<Diagnostic>> {
     let mut slots = BTreeMap::new();
     let mut diagnostics = Vec::new();
-    for item in component.items() {
-        let ComponentItem::FieldRequirement(declaration) = item else {
+    for item in component.signature() {
+        let SignatureItem::Field(declaration) = item else {
             continue;
         };
         if let eqiora_lang::ActivationSyntax::Periodic(clock) = declaration.activation()
-            && !component.items().iter().any(|item| matches!(item, ComponentItem::ClockRequirement(requirement) if requirement.name() == clock)) {
+            && !component.signature().iter().any(|item| matches!(item, SignatureItem::Clock(requirement) if requirement.name() == clock)) {
                 diagnostics.push(source_error(codes::LANGUAGE_TYPE_ERROR, file, declaration.range(), "required field clock must name a clock requirement in the signature"));
                 continue;
             }
@@ -234,16 +236,21 @@ pub(super) fn resolve_instance_clocks(
     mut resolve: impl FnMut(&str) -> Option<String>,
 ) -> Result<BTreeMap<String, String>, Vec<Diagnostic>> {
     let required: BTreeSet<_> = component
-        .items()
+        .signature()
         .iter()
         .filter_map(|item| match item {
-            ComponentItem::ClockRequirement(clock) => Some(clock.name()),
+            SignatureItem::Clock(clock) => Some(clock.name()),
             _ => None,
         })
         .collect();
     let mut result = BTreeMap::new();
     let mut errors = Vec::new();
-    for binding in instance.clock_bindings() {
+    for binding in super::named_bindings::references(
+        file,
+        instance,
+        |binding| required.contains(binding.name()),
+        &mut errors,
+    ) {
         if let Some(value) = resolve(binding.target())
             .filter(|_| required.contains(binding.slot()) && !result.contains_key(binding.slot()))
         {
@@ -292,7 +299,12 @@ pub(super) fn resolve_instance_fields<I: Clone + Eq>(
     let mut actual = BTreeMap::new();
     let mut seen = BTreeSet::new();
 
-    for binding in instance.field_bindings() {
+    for binding in super::named_bindings::references(
+        binding_file,
+        instance,
+        |binding| interface.get(binding.name()).is_some(),
+        &mut diagnostics,
+    ) {
         if !seen.insert(binding.slot()) {
             diagnostics.push(source_error(
                 codes::LANGUAGE_TYPE_ERROR,

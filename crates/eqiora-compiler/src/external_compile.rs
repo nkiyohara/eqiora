@@ -252,8 +252,8 @@ fn external_geometry_binding(
     parameters: &[(&str, eqiora_lang::Expr)],
 ) -> Result<ExternalComponentBinding, Vec<Diagnostic>> {
     let mut supports = Vec::new();
-    for item in selected.items() {
-        let ComponentItem::Support(slot) = item else {
+    for item in selected.signature() {
+        let eqiora_lang::SignatureItem::Support(slot) = item else {
             continue;
         };
         let selection = geometry.entity_set(slot.name()).ok_or_else(|| {
