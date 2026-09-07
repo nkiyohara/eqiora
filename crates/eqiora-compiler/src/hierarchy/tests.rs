@@ -148,33 +148,72 @@ public component BoundaryLaw(support body: volume(ambient_dimension = 2), suppor
 }
 "#;
 
-fn external_binding() -> crate::external::ExternalComponentBinding {
-    let digest = eqiora_schema::kernel::GeometryDigest::new([0x11; 32]);
-    crate::external::ExternalComponentBinding::new(
-        "BoundModel",
-        "BoundaryLaw",
-        vec![
-            crate::external::ExternalGeometrySupportBinding::region("body", digest, "fluid", 2),
-            crate::external::ExternalGeometrySupportBinding::boundary(
-                "wall", digest, "walls", "body",
-            ),
-        ],
-        vec![crate::external::ExternalParameterBinding::new(
-            "value",
-            eqiora_core::ValueLiteral::try_from(DynQuantity::new(2.0, DimExponents::DIMENSIONLESS))
-                .unwrap(),
-        )],
+fn external_geometry() -> eqiora_geometry::CanonicalGeometryV1 {
+    let graph = eqiora_geometry::GeometryGraph::new();
+    let rectangle = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
+    graph
+        .build(
+            &rectangle,
+            &std::collections::BTreeMap::from([
+                ("fluid".into(), vec![rectangle.region().into()]),
+                (
+                    "walls".into(),
+                    rectangle
+                        .boundaries()
+                        .iter()
+                        .map(|boundary| (*boundary).into())
+                        .collect(),
+                ),
+            ]),
+        )
+        .unwrap()
+}
+
+fn external_supports(
+    geometry: &eqiora_geometry::CanonicalGeometryV1,
+) -> Vec<(&'static str, crate::StaticBindingValue<'_>)> {
+    let region = geometry.entity_set("fluid").unwrap();
+    vec![
+        (
+            "body",
+            crate::StaticBindingValue::GeometrySupport {
+                geometry,
+                selection: region,
+                parent: None,
+            },
+        ),
+        (
+            "wall",
+            crate::StaticBindingValue::GeometrySupport {
+                geometry,
+                selection: geometry.entity_set("walls").unwrap(),
+                parent: Some(region),
+            },
+        ),
+    ]
+}
+
+fn external_value(value: f64) -> eqiora_lang::Expr {
+    eqiora_lang::SourceAstFactory::expression(
+        eqiora_lang::ExprKind::Number(value),
+        Default::default(),
     )
+    .unwrap()
 }
 
 #[test]
 fn external_geometry_supports_enter_the_ordinary_component_lowerer() {
     use eqiora_schema::kernel::{DomainKind, ExprNode, SymbolRef};
 
-    let compiled = super::compile_external_component(
+    let geometry = external_geometry();
+    let value = external_value(2.0);
+    let mut bindings = external_supports(&geometry);
+    bindings.push(("value", crate::StaticBindingValue::Expression(&value)));
+    let compiled = crate::CompiledModel::compile_selected(
         "boundary-law.eqi",
         EXTERNAL_SPATIAL_COMPONENT,
-        &external_binding(),
+        "BoundaryLaw",
+        &bindings,
     )
     .expect("external supports close one Component occurrence");
     assert!(compiled.symbols().get("body").is_some());
@@ -186,6 +225,7 @@ fn external_geometry_supports_enter_the_ordinary_component_lowerer() {
         .expect("external value is retained as a root Parameter");
     assert_eq!(compiled.symbols().get("definition.value"), Some(parameter));
 
+    let geometry_digest = geometry.digest_bytes();
     let mut region = 0;
     let mut boundary = 0;
     let mut parameters = 0;
@@ -201,7 +241,7 @@ fn external_geometry_supports_enter_the_ordinary_component_lowerer() {
                     entity_set,
                 } => {
                     region += 1;
-                    assert_eq!(geometry.bytes(), [0x11; 32]);
+                    assert_eq!(geometry.bytes(), geometry_digest);
                     assert_eq!(entity_set, "fluid");
                 }
                 DomainKind::GeometryBoundary { entity_set } => {
@@ -244,15 +284,14 @@ fn omitted_external_parameter_default_remains_an_expression_constant() {
 
     let source =
         EXTERNAL_SPATIAL_COMPONENT.replace("parameter value: 1)", "parameter value: 1 = 3)");
-    let complete = external_binding();
-    let binding = crate::external::ExternalComponentBinding::new(
-        complete.model(),
-        complete.component(),
-        complete.supports().to_vec(),
-        Vec::new(),
-    );
-    let compiled = super::compile_external_component("default.eqi", &source, &binding)
-        .expect("omitted public default closes the occurrence");
+    let geometry = external_geometry();
+    let compiled = crate::CompiledModel::compile_selected(
+        "default.eqi",
+        &source,
+        "BoundaryLaw",
+        &external_supports(&geometry),
+    )
+    .expect("omitted public default closes the occurrence");
     assert!(compiled.symbols().get("value").is_none());
     assert!(compiled.symbols().get("definition.value").is_none());
     assert!(compiled.transaction().ops().iter().all(|operation| {
@@ -280,75 +319,36 @@ fn omitted_external_parameter_default_remains_an_expression_constant() {
 
 #[test]
 fn external_geometry_binding_inventory_fails_before_a_transaction_exists() {
-    let digest = eqiora_schema::kernel::GeometryDigest::new([0x11; 32]);
-    let region =
-        || crate::external::ExternalGeometrySupportBinding::region("body", digest, "fluid", 2);
-    let boundary = || {
-        crate::external::ExternalGeometrySupportBinding::boundary("wall", digest, "walls", "body")
+    let geometry = external_geometry();
+    let foreign = external_geometry();
+    let value = external_value(2.0);
+    let mut valid = external_supports(&geometry);
+    valid.push(("value", crate::StaticBindingValue::Expression(&value)));
+    let mut duplicate = valid.clone();
+    duplicate.push(valid[0]);
+    let mut missing = valid.clone();
+    missing.remove(0);
+    let mut foreign_parent = valid.clone();
+    foreign_parent[1].1 = crate::StaticBindingValue::GeometrySupport {
+        geometry: &geometry,
+        selection: geometry.entity_set("walls").unwrap(),
+        parent: Some(foreign.entity_set("fluid").unwrap()),
     };
-    let parameter = || {
-        crate::external::ExternalParameterBinding::new(
-            "value",
-            eqiora_core::ValueLiteral::try_from(DynQuantity::new(2.0, DimExponents::DIMENSIONLESS))
-                .unwrap(),
-        )
-    };
-    let mut foreign_boundary = boundary();
-    let crate::external::ExternalGeometrySupportBinding::Boundary {
-        geometry: digest, ..
-    } = &mut foreign_boundary
-    else {
-        unreachable!()
-    };
-    *digest = eqiora_schema::kernel::GeometryDigest::new([0x22; 32]);
-    let mut duplicate_boundary = boundary();
-    let crate::external::ExternalGeometrySupportBinding::Boundary { entity_set, .. } =
-        &mut duplicate_boundary
-    else {
-        unreachable!()
-    };
-    *entity_set = "fluid".to_owned();
-    let cases = [
-        (
-            crate::external::ExternalComponentBinding::new(
-                "Missing",
-                "BoundaryLaw",
-                vec![region()],
-                vec![parameter()],
-            ),
-            "no binding for required support slot `wall`",
-        ),
-        (
-            crate::external::ExternalComponentBinding::new(
-                "Foreign",
-                "BoundaryLaw",
-                vec![region(), foreign_boundary],
-                vec![parameter()],
-            ),
-            "one exact Geometry identity",
-        ),
-        (
-            crate::external::ExternalComponentBinding::new(
-                "Duplicate",
-                "BoundaryLaw",
-                vec![region(), duplicate_boundary],
-                vec![parameter()],
-            ),
-            "bound to more than one support slot",
-        ),
-    ];
-    for (binding, expected) in cases {
-        let diagnostics = super::compile_external_component(
-            "boundary-law.eqi",
+    for (bindings, expected) in [
+        (duplicate, "duplicate"),
+        (missing, "requires binding `body`"),
+        (foreign_parent, "foreign or stale parent"),
+    ] {
+        let errors = crate::CompiledModel::compile_selected(
+            "inventory.eqi",
             EXTERNAL_SPATIAL_COMPONENT,
-            &binding,
+            "BoundaryLaw",
+            &bindings,
         )
         .unwrap_err();
         assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message().contains(expected)),
-            "missing `{expected}` in {diagnostics:#?}"
+            errors.iter().any(|e| e.message().contains(expected)),
+            "{expected}: {errors:?}"
         );
     }
 }
@@ -362,143 +362,88 @@ fn external_dimensioned_parameter_failures_are_typed() {
         ))
         .is_err()
     );
-    let (value, expected) = (
-        DynQuantity::new(
+    let geometry = external_geometry();
+    let value = eqiora_lang::SourceAstFactory::value_literal(
+        &eqiora_core::ValueLiteral::try_from(DynQuantity::new(
             2.0,
-            DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
-        ),
-        "has dimension",
-    );
-    let mut binding = external_binding();
-    binding = crate::external::ExternalComponentBinding::new(
-        "Rejected",
+            DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
+        ))
+        .unwrap(),
+        Default::default(),
+    )
+    .unwrap();
+    let mut bindings = external_supports(&geometry);
+    bindings.push(("value", crate::StaticBindingValue::Expression(&value)));
+    let errors = crate::CompiledModel::compile_selected(
+        "dimension.eqi",
+        EXTERNAL_SPATIAL_COMPONENT,
         "BoundaryLaw",
-        binding.supports().to_vec(),
-        vec![crate::external::ExternalParameterBinding::new(
-            "value",
-            eqiora_core::ValueLiteral::try_from(value).unwrap(),
-        )],
-    );
-    let diagnostics =
-        super::compile_external_component("boundary-law.eqi", EXTERNAL_SPATIAL_COMPONENT, &binding)
-            .unwrap_err();
+        &bindings,
+    )
+    .unwrap_err();
     assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message().contains(expected)),
-        "missing `{expected}` in {diagnostics:#?}",
+        errors.iter().any(|e| e.message().contains("dimension")),
+        "{errors:?}"
     );
 }
 
 #[test]
 fn external_occurrence_rejects_closed_binding_and_source_failures() {
-    let assert_rejected = |source: &str,
-                           binding: crate::external::ExternalComponentBinding,
-                           expected: &str| {
-        let diagnostics =
-            super::compile_external_component("boundary-law.eqi", source, &binding).unwrap_err();
+    let geometry = external_geometry();
+    let value = external_value(2.0);
+    let mut valid = external_supports(&geometry);
+    valid.push(("value", crate::StaticBindingValue::Expression(&value)));
+    let reject = |source: &str,
+                  entry: &str,
+                  bindings: &[(&str, crate::StaticBindingValue<'_>)],
+                  expected: &str| {
+        let errors = crate::CompiledModel::compile_selected("source.eqi", source, entry, bindings)
+            .unwrap_err();
         assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message().contains(expected)),
-            "missing `{expected}` in {diagnostics:#?}",
+            errors.iter().any(|e| e.message().contains(expected)),
+            "{expected}: {errors:?}"
         );
     };
-
-    let valid = external_binding();
-    assert_rejected("not valid eqiora source", valid.clone(), "expected");
-    assert_rejected("model Root() {}", valid.clone(), "definitions-only source");
-    assert_rejected(
+    reject("not valid eqiora source", "BoundaryLaw", &valid, "expected");
+    reject(EXTERNAL_SPATIAL_COMPONENT, "Absent", &valid, "Absent");
+    reject(
         &EXTERNAL_SPATIAL_COMPONENT.replacen("public component", "component", 1),
-        valid.clone(),
+        "BoundaryLaw",
+        &valid,
         "must be declared public",
     );
-
-    let no_parameters = crate::external::ExternalComponentBinding::new(
-        "MissingParameter",
+    reject(
+        EXTERNAL_SPATIAL_COMPONENT,
         "BoundaryLaw",
-        valid.supports().to_vec(),
-        Vec::new(),
+        &valid[..2],
+        "requires binding `value`",
     );
-    assert_rejected(
+    let mut duplicate = valid.clone();
+    duplicate.push(valid[2]);
+    reject(
         EXTERNAL_SPATIAL_COMPONENT,
-        no_parameters,
-        "required Parameter `value` has no instance binding",
+        "BoundaryLaw",
+        &duplicate,
+        "duplicate",
     );
-
-    let parameter = valid.parameters()[0].clone();
-    for (parameters, expected) in [
-        (
-            vec![parameter.clone(), parameter.clone()],
-            "duplicate binding for Parameter `value`",
-        ),
-        (
-            vec![
-                parameter.clone(),
-                crate::external::ExternalParameterBinding::new(
-                    "extra",
-                    eqiora_core::ValueLiteral::try_from(DynQuantity::new(
-                        1.0,
-                        DimExponents::DIMENSIONLESS,
-                    ))
-                    .unwrap(),
-                ),
-            ],
-            "`extra` is not a public requirement",
-        ),
-    ] {
-        assert_rejected(
-            EXTERNAL_SPATIAL_COMPONENT,
-            crate::external::ExternalComponentBinding::new(
-                "RejectedParameter",
-                "BoundaryLaw",
-                valid.supports().to_vec(),
-                parameters,
-            ),
-            expected,
-        );
-    }
-
-    let digest = eqiora_schema::kernel::GeometryDigest::new([0x11; 32]);
-    let extra =
-        crate::external::ExternalGeometrySupportBinding::boundary("extra", digest, "inlet", "body");
-    let mut supports = valid.supports().to_vec();
-    supports.push(extra);
-    assert_rejected(
+    let mut unknown = valid.clone();
+    unknown.push(("extra", valid[2].1));
+    reject(
         EXTERNAL_SPATIAL_COMPONENT,
-        crate::external::ExternalComponentBinding::new(
-            "ExtraSupport",
-            "BoundaryLaw",
-            supports,
-            valid.parameters().to_vec(),
-        ),
-        "`extra` is not a public requirement",
+        "BoundaryLaw",
+        &unknown,
+        "no binding target `extra`",
     );
-
-    let mut wrong_parent = valid.supports().to_vec();
-    let crate::external::ExternalGeometrySupportBinding::Boundary { parent_slot, .. } =
-        &mut wrong_parent[1]
-    else {
-        unreachable!()
-    };
-    *parent_slot = "absent".to_owned();
-    assert_rejected(
+    let mut unknown_support = valid.clone();
+    unknown_support.push(("extra", valid[0].1));
+    reject(
         EXTERNAL_SPATIAL_COMPONENT,
-        crate::external::ExternalComponentBinding::new(
-            "WrongParent",
-            "BoundaryLaw",
-            wrong_parent,
-            valid.parameters().to_vec(),
-        ),
-        "has no region parent binding `absent`",
+        "BoundaryLaw",
+        &unknown_support,
+        "no binding target `extra`",
     );
-
     let excessive = " ".repeat(16 * 1_024 * 1_024 + 1);
-    assert_rejected(
-        &excessive,
-        valid,
-        "exceeding the 16777216 byte hierarchy limit",
-    );
+    reject(&excessive, "BoundaryLaw", &valid, "16777216");
 }
 
 const RESISTOR_SOURCE: &str = r#"
