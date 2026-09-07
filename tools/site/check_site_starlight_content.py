@@ -16,14 +16,6 @@ PRESSURE_CAPTION = "Steady Stokes pressure on a 0.025 m target mesh."
 PUBLIC_CLAIM = "One presentation-only 2D steady incompressible Stokes exact-cylinder demonstration rendered through exact Geometry, typed Gmsh policy, and the root Result path; output counts, digests, numerical values, and pixels are not independently verified."
 WITNESS_COPY = "The current Gmsh output is presentation input, not a fixed mesh or scientific oracle."
 REFERENCE_GUIDANCE = "Look up a declaration, find a physical building block, or inspect an API signature."
-TEXTBOOK_SERIES = (
-    ("circuits-dynamics-hybrid", "Circuits, Dynamics, and Hybrid Systems"),
-    ("fluid-mechanics-cfd", "Fluid Mechanics and Computational Fluid Dynamics"),
-    ("heat-mass-transfer", "Heat and Mass Transfer"),
-    ("mathematical-modeling", "Mathematical Modeling with Eqiora"),
-    ("numerical-simulation", "Numerical Simulation with Eqiora"),
-    ("structural-mechanics-fem", "Structural Mechanics and the Finite Element Method"),
-)
 MODELING_FOUNDATION_CHAPTERS = (
     ("algebraic-relations-networks", "Algebraic relations and networks", "Illustrative"),
     ("boundary-interface-conditions", "Boundary and interface conditions", "Illustrative"),
@@ -483,12 +475,14 @@ def check_starlight_content(
     if home:
         anchors = home.anchors
         destinations = (
-            ("/get-started/", "Get started"),
-            ("/textbooks/", "Textbooks"),
+            ("/learn/", "Learn"),
+            ("/guides/", "Guides"),
             ("/gallery/", "Gallery"),
             ("/reference/", "Reference"),
+            ("/get-started/", "Get started"),
             ("/capabilities/", "Capabilities"),
             ("/release-notes/", "Releases"),
+            ("/contributing/", "Contributing"),
             ("https://github.com/nkiyohara/eqiora", "GitHub"),
         )
         positions = []
@@ -503,7 +497,7 @@ def check_starlight_content(
             errors.append("technical Evidence catalog remains in primary navigation")
 
     capabilities_value = inspections.get(artifact / "capabilities/index.html")
-    textbooks_value = inspections.get(artifact / "textbooks/index.html")
+    learn_value = inspections.get(artifact / "learn/index.html")
     evidence_value = inspections.get(artifact / "evidence/index.html")
     if capabilities_value:
         capabilities = capabilities_value[1]
@@ -521,51 +515,35 @@ def check_starlight_content(
         for phrase in required:
             if phrase not in capabilities.visible_text:
                 errors.append(f"capabilities landing omits {phrase!r}")
-    if textbooks_value:
-        textbooks = textbooks_value[1]
-        for phrase in (
-            "Foundations",
-            "Physics",
-            "Advanced study",
-            "1 executable simulation chapter",
-        ):
-            if phrase not in textbooks.visible_text:
-                errors.append(f"textbooks landing omits {phrase!r}")
-        for slug, title in TEXTBOOK_SERIES:
-            destination = (f"/textbooks/{slug}/", "Open the series map")
-            if destination not in textbooks.anchors:
-                errors.append(f"textbooks landing omits {title!r} series route")
-    for slug, title in TEXTBOOK_SERIES:
-        value = inspections.get(artifact / f"textbooks/{slug}/index.html")
-        if not value:
-            continue
-        page = value[1]
-        chapter_count = (
-            "1 executable simulation chapter"
-            if slug == "mathematical-modeling"
-            else "0 executable chapters"
-        )
-        publication_heading = (
-            "Publication status"
-            if slug == "mathematical-modeling"
-            else "Publication boundary"
-        )
-        for phrase in (title, chapter_count, "Chapter map", publication_heading):
+    if learn_value:
+        for phrase in ("Start a learning path", "Browse by topic"):
+            if phrase not in learn_value[1].visible_text:
+                errors.append(f"Learn landing omits {phrase!r}")
+        if not any(href == "/learn/mathematical-modeling/" for href, _ in learn_value[1].anchors):
+            errors.append("Learn landing omits the mathematical-modeling path")
+    path_value = inspections.get(artifact / "learn/mathematical-modeling/index.html")
+    if path_value:
+        page = path_value[1]
+        for phrase in ("Build a model", "Extend it through space", "Put it to use"):
             if phrase not in page.visible_text:
-                errors.append(f"textbook {title!r} omits {phrase!r}")
-        if slug == "mathematical-modeling":
-            for chapter_slug, chapter_title, _ in MODELING_FOUNDATION_CHAPTERS:
-                destination = (
-                    f"/textbooks/mathematical-modeling/{chapter_slug}/",
-                    chapter_title,
-                )
-                if destination not in page.anchors:
-                    errors.append(
-                        f"textbook {title!r} omits published chapter {chapter_title!r}"
-                    )
+                errors.append(f"learning path omits {phrase!r}")
+        for chapter_slug, chapter_title, _ in MODELING_FOUNDATION_CHAPTERS:
+            destination = (f"/learn/mathematical-modeling/{chapter_slug}/", chapter_title)
+            if destination not in page.anchors:
+                errors.append(f"learning path omits published lesson {chapter_title!r}")
+    for slug, heading in (
+        ("modeling", "Native declarations"),
+        ("execution-and-arrays", "Structured failures"),
+        ("differentiation", "Framework-neutral accepted points"),
+    ):
+        guide_value = inspections.get(artifact / f"guides/{slug}/index.html")
+        if guide_value:
+            for phrase in ("Current-source Python API.", "Canonical guide source", heading):
+                if phrase not in guide_value[1].visible_text:
+                    errors.append(f"guide {slug!r} omits maintained content {phrase!r}")
     for slug, title, status in MODELING_FOUNDATION_CHAPTERS:
         value = inspections.get(
-            artifact / f"textbooks/mathematical-modeling/{slug}/index.html"
+            artifact / f"learn/mathematical-modeling/{slug}/index.html"
         )
         if not value:
             continue
@@ -578,23 +556,23 @@ def check_starlight_content(
             "Exercises",
         ):
             if phrase not in page.visible_text:
-                errors.append(f"textbook chapter {title!r} omits {phrase!r}")
+                errors.append(f"Learn lesson {title!r} omits {phrase!r}")
         if (
-            "/textbooks/mathematical-modeling/",
+            "/learn/mathematical-modeling/",
             "Back to the series map",
         ) not in page.anchors:
-            errors.append(f"textbook chapter {title!r} omits its series return route")
+            errors.append(f"Learn lesson {title!r} omits its learning-path return route")
     if evidence_value:
         evidence = evidence_value[1]
         for phrase in ("Checking a claim", "Find the source", "Run a selected check"):
             if phrase not in evidence.visible_text:
                 errors.append(f"verification guide omits {phrase!r}")
-    if capabilities_value and textbooks_value and case_value and evidence_value:
+    if capabilities_value and learn_value and case_value and evidence_value:
         route_chain = (
             (
-                textbooks_value[1],
+                learn_value[1],
                 "/gallery/exact-cylinder-steady-stokes/",
-                "textbooks landing",
+                "Learn landing",
             ),
             (
                 case_value[1],

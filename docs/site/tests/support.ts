@@ -19,21 +19,21 @@ export const BASE_URL = 'http://127.0.0.1:4173';
 export const DIAGNOSTIC_ROUTE = '/reference/rust/api/eqiora/struct.Diagnostic.html';
 export const SITE_ROUTES = [
   '/',
-  '/api/',
-  '/architecture/',
+  '/contributing/architecture/',
   '/capabilities/',
-  '/concepts/',
+  '/guides/how-eqiora-fits-together/',
   '/contributing/',
   '/evidence/',
-  '/examples/',
   '/gallery/',
   '/gallery/exact-cylinder-steady-stokes/',
   '/gallery/mixed-boundary-elasticity/',
+  '/gallery/transient-cylinder-startup/',
   '/get-started/',
-  '/python/',
-  '/python/differentiation/',
-  '/python/execution-and-arrays/',
-  '/python/modeling/',
+  '/guides/',
+  '/guides/run-and-inspect/',
+  '/guides/differentiation/',
+  '/guides/execution-and-arrays/',
+  '/guides/modeling/',
   '/reference/',
   '/reference/language/',
   '/reference/language/composition/',
@@ -49,6 +49,13 @@ export const SITE_ROUTES = [
   '/reference/python/',
   '/reference/python/diff/',
   '/reference/python/eqiora/',
+  '/reference/python/fem/',
+  '/reference/python/formulation/',
+  '/reference/python/fvm/',
+  '/reference/python/lang/',
+  '/reference/python/solve/',
+  '/reference/python/time/',
+  '/reference/python/viewer/',
   '/reference/python/fluid/',
   '/reference/python/fsi/',
   '/reference/python/geometry/',
@@ -60,21 +67,16 @@ export const SITE_ROUTES = [
   '/reference/python/trajectory/',
   '/reference/rust/',
   '/release-notes/',
-  '/textbooks/',
-  '/textbooks/circuits-dynamics-hybrid/',
-  '/textbooks/fluid-mechanics-cfd/',
-  '/textbooks/heat-mass-transfer/',
-  '/textbooks/mathematical-modeling/',
-  '/textbooks/mathematical-modeling/algebraic-relations-networks/',
-  '/textbooks/mathematical-modeling/boundary-interface-conditions/',
-  '/textbooks/mathematical-modeling/conservation-laws/',
-  '/textbooks/mathematical-modeling/constitutive-laws/',
-  '/textbooks/mathematical-modeling/fields-spatial-domains/',
-  '/textbooks/mathematical-modeling/models-not-simulations/',
-  '/textbooks/mathematical-modeling/ordinary-differential-equations/',
-  '/textbooks/mathematical-modeling/quantities-dimensions-units/',
-  '/textbooks/numerical-simulation/',
-  '/textbooks/structural-mechanics-fem/',
+  '/learn/',
+  '/learn/mathematical-modeling/',
+  '/learn/mathematical-modeling/algebraic-relations-networks/',
+  '/learn/mathematical-modeling/boundary-interface-conditions/',
+  '/learn/mathematical-modeling/conservation-laws/',
+  '/learn/mathematical-modeling/constitutive-laws/',
+  '/learn/mathematical-modeling/fields-spatial-domains/',
+  '/learn/mathematical-modeling/models-not-simulations/',
+  '/learn/mathematical-modeling/ordinary-differential-equations/',
+  '/learn/mathematical-modeling/quantities-dimensions-units/',
   '/404.html',
 ] as const;
 
@@ -106,6 +108,9 @@ type TableRouteShape = Readonly<{
 }>;
 
 export const TABLE_ROUTES = [
+  { route: '/learn/mathematical-modeling/models-not-simulations/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/mathematical-modeling/algebraic-relations-networks/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/mathematical-modeling/fields-spatial-domains/', tables: 1, direct: 1, component: 0 },
   { route: '/capabilities/', tables: 1, direct: 1, component: 0 },
   { route: '/evidence/', tables: 0, direct: 0, component: 0 },
   { route: '/gallery/exact-cylinder-steady-stokes/', tables: 1, direct: 0, component: 1 },
@@ -143,8 +148,8 @@ export function createOrdinaryRoutePlan(): OrdinaryRoutePlan {
 
 export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly string[] {
   if (REFERENCE_START < 1) throw new Error('route authority missing /reference/');
-  if (SITE_ROUTES.length !== 58 || new Set(SITE_ROUTES).size !== 58) {
-    throw new Error('route authority is not 58 unique entries');
+  if (SITE_ROUTES.length !== 60 || new Set(SITE_ROUTES).size !== 60) {
+    throw new Error('route authority is not 60 unique entries');
   }
   const entries = (['A', 'B', 'C'] as const).flatMap((chunk) =>
     plan[chunk].map((route) => ({ chunk, route })),
@@ -162,7 +167,7 @@ export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly strin
   if (missing) throw new Error(`ORDER-MISSING: ${missing}`);
 
   const expected = createOrdinaryRoutePlan();
-  const cardinalities = { A: 1, B: 15, C: 42 } as const;
+  const cardinalities = { A: 1, B: 15, C: 44 } as const;
   for (const chunk of ['A', 'B', 'C'] as const) {
     if (plan[chunk].length !== cardinalities[chunk]) {
       throw new Error(`ORDER-CARDINALITY ${chunk}: ${plan[chunk].length}`);
@@ -174,12 +179,12 @@ export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly strin
       throw new Error(`ORDER-REORDER ${chunk}`);
     }
   }
-  if (entries.length !== 58 || seen.size !== 58) {
-    throw new Error('ORDER-UNION is not exactly 58 entries');
+  if (entries.length !== 60 || seen.size !== 60) {
+    throw new Error('ORDER-UNION is not exactly 60 entries');
   }
 
   const byRoute = new Map(entries.map((entry) => [entry.route, entry]));
-  if (byRoute.size !== 58) throw new Error('ORDER-CANONICAL duplicate identity');
+  if (byRoute.size !== 60) throw new Error('ORDER-CANONICAL duplicate identity');
   const canonical = SITE_ROUTES.map((route) => {
     const entry = byRoute.get(route);
     if (!entry) throw new Error(`ORDER-CANONICAL missing: ${route}`);
@@ -982,12 +987,35 @@ async function observeTables(
             !['#', 'javascript:void(0)'].includes(link.getAttribute('href')!.trim().toLowerCase()),
         ) ? 0 : 1;
       }
+      // KaTeX exposes the equation once to assistive technology through MathML
+      // and paints its aria-hidden HTML sibling. The clipped MathML/TeX source
+      // is not a second visible table label; every painted glyph still receives
+      // the ordinary text checks below. Admit only this complete dual form.
+      const mathAlternatives = new Set<Element>();
+      for (const math of table.querySelectorAll('.katex')) {
+        const alternative = math.querySelector(':scope > .katex-mathml');
+        const presentation = math.querySelector(':scope > .katex-html[aria-hidden="true"]');
+        const semantics = alternative?.querySelector('math > semantics');
+        const alternativeStyle = alternative && getComputedStyle(alternative);
+        const complete = alternative && presentation && semantics &&
+          !alternative.querySelector('[aria-hidden="true"], [hidden]') &&
+          !alternative.hasAttribute('hidden') &&
+          alternative.getAttribute('aria-hidden') !== 'true' &&
+          alternativeStyle?.display !== 'none' &&
+          alternativeStyle?.visibility === 'visible' &&
+          normalize(semantics.querySelector('annotation[encoding="application/x-tex"]')?.textContent ?? '').length > 0 &&
+          Array.from(semantics.children).some((child) => child.tagName.toLowerCase() !== 'annotation' && normalize(child.textContent ?? '').length > 0) &&
+          normalize(presentation.textContent ?? '').length > 0;
+        if (complete) mathAlternatives.add(alternative);
+        else if (runInvariant) failures.text += 1;
+      }
       const textNodes = cells.flatMap((cell) => {
         const nodes: Text[] = [];
         const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
         while (walker.nextNode()) {
           const node = walker.currentNode as Text;
-          if (normalize(node.data).length > 0) nodes.push(node);
+          const alternative = node.parentElement?.closest('.katex-mathml');
+          if (normalize(node.data).length > 0 && !(alternative && mathAlternatives.has(alternative))) nodes.push(node);
         }
         return nodes;
       });

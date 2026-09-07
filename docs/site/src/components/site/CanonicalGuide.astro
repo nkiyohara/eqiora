@@ -1,0 +1,20 @@
+---
+import { canonicalGuide } from '../../canonical-guides';
+import ExactSourceLink from './ExactSourceLink.astro';
+
+const { name } = Astro.props;
+const guide = canonicalGuide(name);
+if (!guide) throw new Error(`No maintained Python guide: ${name}`);
+const { Content } = guide;
+---
+
+<p class="eq-guide-source">
+  <strong>Current-source Python API.</strong>{' '}
+  Using the published wheel? <a href="/guides/run-and-inspect/">Run and inspect</a>.{' '}
+  <ExactSourceLink path={`docs/python/${name}.md`} kind="blob">Canonical guide source</ExactSourceLink>.
+</p>
+<Content />
+
+<style is:global>
+  .eq-guide-source { font-size: var(--eq-text-small); color: var(--eq-color-text-muted); }
+</style>

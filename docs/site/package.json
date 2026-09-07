@@ -8,7 +8,8 @@
     "npm": "11.16.0"
   },
   "scripts": {
-    "build": "ASTRO_TELEMETRY_DISABLED=1 EQIORA_SITE_BUILD_PROFILE=complete astro build",
+    "test": "node --test tests/*.unit.ts",
+    "build": "npm test && ASTRO_TELEMETRY_DISABLED=1 EQIORA_SITE_BUILD_PROFILE=complete astro build",
     "dev": "astro dev",
     "preview": "astro preview",
     "sync": "ASTRO_TELEMETRY_DISABLED=1 astro sync"

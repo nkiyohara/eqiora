@@ -68,21 +68,21 @@ NONCLAIMS = (
 )
 ST_STARLIGHT_ROUTES = (
     "/",
-    "/api/",
-    "/architecture/",
+    "/contributing/architecture/",
     "/capabilities/",
-    "/concepts/",
+    "/guides/how-eqiora-fits-together/",
     "/contributing/",
     "/evidence/",
-    "/examples/",
     "/gallery/",
     "/gallery/exact-cylinder-steady-stokes/",
     "/gallery/mixed-boundary-elasticity/",
+    "/gallery/transient-cylinder-startup/",
     "/get-started/",
-    "/python/",
-    "/python/differentiation/",
-    "/python/execution-and-arrays/",
-    "/python/modeling/",
+    "/guides/",
+    "/guides/run-and-inspect/",
+    "/guides/differentiation/",
+    "/guides/execution-and-arrays/",
+    "/guides/modeling/",
     "/reference/",
     "/reference/language/",
     "/reference/language/composition/",
@@ -98,6 +98,13 @@ ST_STARLIGHT_ROUTES = (
     "/reference/python/",
     "/reference/python/diff/",
     "/reference/python/eqiora/",
+    "/reference/python/fem/",
+    "/reference/python/formulation/",
+    "/reference/python/fvm/",
+    "/reference/python/lang/",
+    "/reference/python/solve/",
+    "/reference/python/time/",
+    "/reference/python/viewer/",
     "/reference/python/fluid/",
     "/reference/python/fsi/",
     "/reference/python/geometry/",
@@ -109,21 +116,16 @@ ST_STARLIGHT_ROUTES = (
     "/reference/python/trajectory/",
     "/reference/rust/",
     "/release-notes/",
-    "/textbooks/",
-    "/textbooks/circuits-dynamics-hybrid/",
-    "/textbooks/fluid-mechanics-cfd/",
-    "/textbooks/heat-mass-transfer/",
-    "/textbooks/mathematical-modeling/",
-    "/textbooks/mathematical-modeling/algebraic-relations-networks/",
-    "/textbooks/mathematical-modeling/boundary-interface-conditions/",
-    "/textbooks/mathematical-modeling/conservation-laws/",
-    "/textbooks/mathematical-modeling/constitutive-laws/",
-    "/textbooks/mathematical-modeling/fields-spatial-domains/",
-    "/textbooks/mathematical-modeling/models-not-simulations/",
-    "/textbooks/mathematical-modeling/ordinary-differential-equations/",
-    "/textbooks/mathematical-modeling/quantities-dimensions-units/",
-    "/textbooks/numerical-simulation/",
-    "/textbooks/structural-mechanics-fem/",
+    "/learn/",
+    "/learn/mathematical-modeling/",
+    "/learn/mathematical-modeling/algebraic-relations-networks/",
+    "/learn/mathematical-modeling/boundary-interface-conditions/",
+    "/learn/mathematical-modeling/conservation-laws/",
+    "/learn/mathematical-modeling/constitutive-laws/",
+    "/learn/mathematical-modeling/fields-spatial-domains/",
+    "/learn/mathematical-modeling/models-not-simulations/",
+    "/learn/mathematical-modeling/ordinary-differential-equations/",
+    "/learn/mathematical-modeling/quantities-dimensions-units/",
 )
 ABSENT_REFERENCES = (
     (
@@ -153,10 +155,11 @@ ABSENT_REFERENCES = (
 )
 
 NAVIGATION = (
-    '<nav class="sidebar"><a href="/get-started/">Get started</a>'
-    '<a href="/textbooks/">Textbooks</a><a href="/gallery/">Gallery</a>'
-    '<a href="/reference/">Reference</a><a href="/capabilities/">Capabilities</a>'
+    '<nav class="sidebar"><a href="/learn/">Learn</a><a href="/guides/">Guides</a>'
+    '<a href="/gallery/">Gallery</a><a href="/reference/">Reference</a>'
+    '<a href="/get-started/">Get started</a><a href="/capabilities/">Capabilities</a>'
     '<a href="/release-notes/">Releases</a>'
+    '<a href="/contributing/">Contributing</a>'
     '<a href="https://github.com/nkiyohara/eqiora">GitHub</a></nav>'
 )
 OLD_SHELL = (
@@ -446,11 +449,11 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             root = Path(temporary)
             artifact, identities = _ordinary(root)
             added_route = "/reference/python/new-module/"
-            source = (artifact / "api/index.html").read_text(encoding="utf-8")
+            source = (artifact / "guides/index.html").read_text(encoding="utf-8")
             _write(
                 artifact / "reference/python/new-module/index.html",
                 source.replace(
-                    f'{SITE_ORIGIN}/api/',
+                    f'{SITE_ORIGIN}/guides/',
                     f'{SITE_ORIGIN}{added_route}',
                 ),
             )
@@ -477,8 +480,8 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
 
         reject(
             "required artifact route missing",
-            lambda artifact: (artifact / "api/index.html").unlink(),
-            "missing required Starlight route /api/",
+            lambda artifact: (artifact / "guides/index.html").unlink(),
+            "missing required Starlight route /guides/",
         )
         reject(
             "additional route without the common shell",
