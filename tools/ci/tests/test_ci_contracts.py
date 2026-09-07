@@ -1073,6 +1073,9 @@ class ChangeClassificationTests(unittest.TestCase):
             "crates/eqiora/src/lib.rs",
             "bindings/python/python/eqiora/fluid.pyi",
             "docs/site/src/content/docs/index.mdx",
+            "docs/python/differentiation.md",
+            "docs/python/execution-and-arrays.md",
+            "docs/python/modeling.md",
             "examples/decay.eqi",
             "examples/python/textbook_decay.py",
             "editor/eqiora/syntaxes/eqiora.tmLanguage.json",
@@ -1083,7 +1086,13 @@ class ChangeClassificationTests(unittest.TestCase):
         )
         for path in relevant:
             with self.subTest(path=path):
-                self.assertTrue(classify([path])["site"])
+                selected = classify([path])
+                self.assertTrue(selected["site"])
+                if path.startswith("docs/python/"):
+                    self.assertEqual(
+                        selected,
+                        {surface: surface == "site" for surface in CLASSIFIED_SURFACES},
+                    )
 
         irrelevant = (
             "README.md",

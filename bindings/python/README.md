@@ -127,7 +127,7 @@ The common `Result` retains their Geometry, Model, Mesh, Plan, Field, and
 observation lineage rather than returning an unowned array. This is one verified 2D
 steady-Stokes case, not general CFD; its precise boundary and the optional
 pressure plot are described in
-[Modeling and realization](https://eqiora.org/python/modeling/#exact-cylinder-steady-stokes-result).
+[Modeling and realization](https://eqiora.org/guides/modeling/#exact-cylinder-steady-stokes-result).
 
 One explicit locked Model Package can also be checked through the installed
 Python distribution:
@@ -152,7 +152,7 @@ convergence, performance, or execution support. It runs no package code or
 tests and creates no registry, installation, publishing, trust, badge,
 attestation, durable report wire, scientific-evidence decision, or Studio
 workflow. The precise boundary is documented under
-[Modeling and realization](https://eqiora.org/python/modeling/#check-one-exact-package-structurally).
+[Modeling and realization](https://eqiora.org/guides/modeling/#check-one-exact-package-structurally).
 
 The accepted exact-cylinder path uses one planar GeometryGraph as the sole
 shape authority:
@@ -308,7 +308,7 @@ projection. If that contract cannot be honored, Eqiora fails instead of
 copying silently. `copy=True` returns an independent writable allocation.
 DLPack exports are fresh versioned CPU snapshots, not aliases of immutable
 result evidence. The complete contract is in
-[Execution, diagnostics, and arrays](https://eqiora.org/python/execution-and-arrays/).
+[Execution, diagnostics, and arrays](https://eqiora.org/guides/execution-and-arrays/).
 
 ## Await, progress, and cancellation
 
@@ -455,7 +455,7 @@ gradient = jax.grad(lambda point: jnp.sum(jax_program(point) ** 2))(theta)
 Device transfer is never hidden. GPU execution, output sharding, higher-order
 differentiation, export/serialization, and general transformation support are
 not claimed. See
-[Differentiation and framework adapters](https://eqiora.org/python/differentiation/).
+[Differentiation and framework adapters](https://eqiora.org/guides/differentiation/).
 
 ## Compatibility and limitations
 
@@ -471,8 +471,8 @@ complete physics library or a safety-certified engineering tool.
 ## Links
 
 - [Documentation](https://eqiora.org)
-- [Python guide](https://eqiora.org/python/)
-- [API index](https://eqiora.org/api/)
+- [Guides](https://eqiora.org/guides/)
+- [Reference](https://eqiora.org/reference/)
 - [Source](https://github.com/nkiyohara/eqiora)
 - [Issue tracker](https://github.com/nkiyohara/eqiora/issues)
 - [Security policy](https://github.com/nkiyohara/eqiora/security/policy)
