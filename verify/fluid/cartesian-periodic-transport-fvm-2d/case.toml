@@ -5,7 +5,6 @@ reference_kind = "transverse-spectral-oracle-and-nonsymmetric-seam-basis-action"
 
 capabilities = [
   "spatial-periodic-boundary-connection",
-  "model-and-transaction-wire-v12",
   "cartesian-periodic-facet-bijection",
   "conservative-periodic-fvm-seam",
   "periodic-upwind-flow-reversal",

@@ -23,7 +23,7 @@ boundary = "u = [0, 0] on all four root-owned sides"
 [canonical_contract]
 packages = 2
 package_wire = 1
-model_wire = 12
+model_wire = 13
 component_owned_domains = 0
 component_owned_fields = 0
 component_owned_relations = 2

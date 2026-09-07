@@ -23,7 +23,7 @@ dependency_edges = 2
 root_direct_dependencies = 1
 physical_unknowns = 14
 physical_residuals = 14
-model_wire = 12
+model_wire = 13
 package_wire = 1
 
 [numerical_contract]

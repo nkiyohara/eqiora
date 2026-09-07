@@ -8,7 +8,7 @@ capabilities = [
   "mesh-independent-boundary-trace-flux-port",
   "coincident-cross-package-boundary-connection",
   "componentwise-vector-residual-scalarization",
-  "explicit-model-wire-v12",
+  "explicit-model-wire-v13",
   "pointwise-trace-flux-power-diagnostics",
   "eliminated-field-exposure-catalog",
 ]
@@ -22,7 +22,7 @@ value_shape = [2]
 interface_coordinate = 1.0
 
 [canonical_contract]
-model_wire = 12
+model_wire = 13
 connector_count = 1
 port_count = 2
 connection_count = 1

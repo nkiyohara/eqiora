@@ -25,7 +25,7 @@ exact_right = "u_right = (3/16 + x/2 - x^2/4, 0) for ell = 1 m"
 
 [canonical_contract]
 spatial_dimension = 2
-model_wire = 12
+model_wire = 13
 semantic_domains = 2
 interface_ports = 2
 interface_connection = "one ordinary conserving Connection"
