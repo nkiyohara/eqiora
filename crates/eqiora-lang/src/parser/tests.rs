@@ -124,7 +124,7 @@ model thermal {
   state temperature: K;
   state command: 1 at control;
   initial { temperature = 293[K]; command = 0; }
-  clock control = periodic(period = 1 / 10, phase = 0 / 1);
+  clock control = periodic(1[s] / 10, phase = 0[s] / 1);
   relation plant {
 derivative(temperature) - command = 0;
   }
@@ -765,7 +765,7 @@ fn parser_rejects_boundary_binders_outside_the_closed_family_sites() {
         ),
         (
             "periodic-relation",
-            "component C() { clock c = periodic(period = 1 / 1, phase = 0 / 1); relation r[b in exterior] on b at c { 1 = 0; } }",
+            "component C() { clock c = periodic(1[s] / 1, phase = 0[s] / 1); relation r[b in exterior] on b at c { 1 = 0; } }",
         ),
         (
             "model-relation",

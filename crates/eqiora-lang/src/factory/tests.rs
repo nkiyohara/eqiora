@@ -68,13 +68,20 @@ fn owned_flat_model_formats_and_parses_identically() {
         range(0, 0),
     )
     .expect("input Port");
-    let clock = SourceAstFactory::clock(
-        "sample",
-        SourceAstFactory::rational(1, 10),
-        SourceAstFactory::rational(0, 1),
-        range(0, 0),
-    )
-    .expect("Clock");
+    let seconds = |number: &str| {
+        SourceAstFactory::expression(
+            ExprKind::Quantity {
+                value: crate::DecimalLiteral::parse(number).unwrap(),
+                unit: Box::new(
+                    SourceAstFactory::expression(ExprKind::Name("s".into()), range(0, 0)).unwrap(),
+                ),
+            },
+            range(0, 0),
+        )
+        .unwrap()
+    };
+    let clock = SourceAstFactory::clock("sample", seconds("0.1"), seconds("0"), range(0, 0))
+        .expect("Clock");
     let residual =
         SourceAstFactory::expression(ExprKind::Name("temperature".to_owned()), range(0, 0))
             .expect("residual");

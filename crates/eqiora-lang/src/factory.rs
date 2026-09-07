@@ -24,9 +24,9 @@ use crate::ast::{
     ConnectorQuantitySyntax, ConnectorSyntax, DomainDecl, DomainSyntax, Equation,
     ExactIntegerSyntax, Expr, ExprKind, FieldBindingDecl, FieldDecl, InstanceDecl, LetDecl,
     NamePath, ParameterBindingDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl,
-    PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax,
-    RationalSyntax, RelationDecl, RelationFamilyDecl, SupportBindingDecl, SupportSlotDecl,
-    SupportSlotSyntax, TextRange, ValueShapeSyntax, VisibilitySyntax,
+    PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax, RelationDecl,
+    RelationFamilyDecl, SupportBindingDecl, SupportSlotDecl, SupportSlotSyntax, TextRange,
+    ValueShapeSyntax, VisibilitySyntax,
 };
 use domain_validation::validate_domain_syntax;
 
@@ -286,17 +286,19 @@ impl SourceAstFactory {
 
     /// Construct an exact periodic Clock declaration.
     ///
-    /// Rational reduction and nonzero-period checks remain semantic lowering
-    /// checks, matching parsed source behavior.
+    /// Exact time admission, rational reduction, and nonzero-period checks remain
+    /// semantic lowering checks, matching parsed source behavior.
     ///
     /// # Errors
-    /// Returns an error for an invalid source identifier or byte range.
+    /// Returns an error for an invalid identifier, range, or expression tree.
     pub fn clock(
         name: impl Into<String>,
-        period: RationalSyntax,
-        phase: RationalSyntax,
+        period: Expr,
+        phase: Expr,
         range: TextRange,
     ) -> Result<ClockDecl, AstConstructionError> {
+        validate_expression(&period)?;
+        validate_expression(&phase)?;
         Ok(ClockDecl {
             comments: Default::default(),
             name: checked_identifier(name, "Clock")?,
@@ -645,15 +647,6 @@ impl SourceAstFactory {
         };
         validate_expression(&expression)?;
         Ok(expression)
-    }
-
-    /// Construct unreduced rational source syntax.
-    #[must_use]
-    pub const fn rational(numerator: u64, denominator: u64) -> RationalSyntax {
-        RationalSyntax {
-            numerator,
-            denominator,
-        }
     }
 }
 

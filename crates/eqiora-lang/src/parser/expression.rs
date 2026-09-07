@@ -7,6 +7,14 @@ use super::*;
 const MAX_EXPRESSION_DEPTH: usize = 256;
 
 impl Parser<'_> {
+    pub(super) fn parse_exact_expression(&mut self) -> Option<Expr> {
+        let previous = self.exact_numeric;
+        self.exact_numeric = true;
+        let result = self.parse_expression(0);
+        self.exact_numeric = previous;
+        result
+    }
+
     pub(super) fn parse_expression(&mut self, minimum_binding_power: u8) -> Option<Expr> {
         self.parse_expression_with_depth(minimum_binding_power)
             .map(|(expression, _)| expression)

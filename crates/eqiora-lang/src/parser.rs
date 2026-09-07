@@ -26,9 +26,8 @@ use crate::ast::{
     DomainDecl, DomainSyntax, ExactIntegerSyntax, Expr, ExprKind, FieldBindingDecl, FieldDecl,
     FrameSyntax, InstanceDecl, Item, NamePath, ParameterBindingDecl, PortDecl, PortSyntax,
     PureOperatorBinaryOp, PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind,
-    PureOperatorFormal, PureValueClassSyntax, RationalSyntax, SignalDirectionSyntax,
-    SupportBindingDecl, SupportSlotDecl, SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax,
-    VisibilitySyntax,
+    PureOperatorFormal, PureValueClassSyntax, SignalDirectionSyntax, SupportBindingDecl,
+    SupportSlotDecl, SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, VisibilitySyntax,
 };
 use crate::lexer::{Token, TokenKind, lex};
 use relation::ParsedRelation;
@@ -131,6 +130,7 @@ pub fn parse(file: impl Into<String>, source: &str) -> ParseResult {
         tokens: &tokens,
         cursor: 0,
         expression_recursion: 0,
+        exact_numeric: false,
         diagnostics: Vec::new(),
     };
     let mut document = parser.parse_document();
@@ -151,6 +151,7 @@ struct Parser<'a> {
     tokens: &'a [Token],
     cursor: usize,
     expression_recursion: usize,
+    exact_numeric: bool,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -701,13 +702,25 @@ impl Parser<'_> {
         self.expect(TokenKind::Equal, "`=` before ClockDomain definition")?;
         self.expect_keyword("periodic")?;
         self.expect(TokenKind::LeftParen, "`(` after `periodic`")?;
-        self.expect_keyword("period")?;
-        self.expect(TokenKind::Equal, "`=` after `period`")?;
-        let period = self.parse_rational()?;
-        self.expect(TokenKind::Comma, "`,` between period and phase")?;
-        self.expect_keyword("phase")?;
-        self.expect(TokenKind::Equal, "`=` after `phase`")?;
-        let phase = self.parse_rational()?;
+        let period = self.parse_exact_expression()?;
+        let phase = if self.at(TokenKind::Comma) {
+            self.bump();
+            self.expect_keyword("phase")?;
+            self.expect(TokenKind::Equal, "`=` after `phase`")?;
+            self.parse_exact_expression()?
+        } else {
+            let range = self.current().range();
+            Expr {
+                kind: ExprKind::Quantity {
+                    value: crate::DecimalLiteral::parse("0").expect("exact zero"),
+                    unit: Box::new(Expr {
+                        kind: ExprKind::Name("s".into()),
+                        range,
+                    }),
+                },
+                range,
+            }
+        };
         self.expect(TokenKind::RightParen, "`)` after periodic clock")?;
         let end = self
             .expect(TokenKind::Semicolon, "`;` after ClockDomain")?
@@ -915,16 +928,6 @@ impl Parser<'_> {
             segments,
             TextRange::new(start, end),
         ))
-    }
-
-    fn parse_rational(&mut self) -> Option<RationalSyntax> {
-        let numerator = self.parse_u64("rational numerator")?;
-        self.expect(TokenKind::Slash, "`/` in rational model time")?;
-        let denominator = self.parse_u64("rational denominator")?;
-        Some(RationalSyntax {
-            numerator,
-            denominator,
-        })
     }
 
     fn parse_u64(&mut self, expected: &str) -> Option<u64> {

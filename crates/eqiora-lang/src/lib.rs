@@ -28,7 +28,7 @@ pub use ast::{
     FrameSyntax, InitialDecl, InstanceDecl, Item, LetDecl, ModelDecl, NamePath,
     ParameterBindingDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorBinaryOp,
     PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal,
-    PureValueClassSyntax, RationalSyntax, RelationDecl, RelationFamilyDecl, SignalDirectionSyntax,
+    PureValueClassSyntax, RelationDecl, RelationFamilyDecl, SignalDirectionSyntax,
     SupportBindingDecl, SupportSlotDecl, SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax,
     ValueTypeSyntax, ValueTypeSyntaxKind, VisibilitySyntax,
 };

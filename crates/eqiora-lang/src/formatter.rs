@@ -491,16 +491,11 @@ fn format_clock(
     output: &mut crate::formatter::comments::Output,
 ) {
     write_indent(output, indent);
-    writeln!(
-        output,
-        "clock {} = periodic(period = {} / {}, phase = {} / {});",
-        declaration.name,
-        declaration.period.numerator,
-        declaration.period.denominator,
-        declaration.phase.numerator,
-        declaration.phase.denominator
-    )
-    .expect("String write");
+    write!(output, "clock {} = periodic(", declaration.name).expect("String write");
+    format_expression(&declaration.period, 0, output);
+    output.push_str(", phase = ");
+    format_expression(&declaration.phase, 0, output);
+    output.push_str(");\n");
 }
 
 fn format_connection(

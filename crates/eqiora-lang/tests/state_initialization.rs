@@ -76,7 +76,7 @@ fn declarations_cannot_encode_initial_conditions_or_representation_aliases() {
 
 #[test]
 fn borrowed_clocks_roundtrip_with_exact_target_and_comment_owner() {
-    let source = "component Delay(clock tick, state memory: V at tick) {}\nmodel Root { clock sample = periodic(period = 1 / 1, phase = 2 / 1); state held: V at sample; instance delay: Delay(\n/// 同じクロック\nclock tick = sample, field memory = held); }";
+    let source = "component Delay(clock tick, state memory: V at tick) {}\nmodel Root { clock sample = periodic(1[s] / 1, phase = 2[s] / 1); state held: V at sample; instance delay: Delay(\n/// 同じクロック\nclock tick = sample, field memory = held); }";
     let document = parse("clocks.eqi", source).into_document().unwrap();
     let Item::Instance(instance) = &document.models()[0].items()[2] else {
         panic!("instance");
