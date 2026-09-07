@@ -10,6 +10,8 @@ capabilities = [
   "python-jax-jit-custom-call",
   "python-jax-installed-wheel",
   "python-jax-common-plan-bound-supplied-rectangle-2d",
+  "python-jax-native-vmap-composition",
+  "python-jax-distinct-point-and-seed-axes",
 ]
 
 [problem]
@@ -39,15 +41,27 @@ first_order_gradient = true
 static_shape = true
 device_platform = "cpu"
 dtype = "float64"
-input_rank = 1
+point_input_rank = 1
+maximum_batch_rank = 32
+ffi_buffer_bytes_limit = 67_108_864
+native_map_retained_numerical_bytes_limit = 67_108_864
+native_product_retained_numerical_bytes_limit = 67_108_864
+peak_memory_bound = false
 hidden_device_transfer = false
-vmap = false
+vmap = true
+nested_vmap = true
+nonleading_axes = true
+shared_input_sum_and_mean_gradients = true
+first_order_jacobian_basis_batches = true
+point_and_seed_axes_are_distinct = true
+failed_member_rejects_dense_operation = true
 higher_order = false
 gpu = false
 tpu = false
 direct_concrete_sharding = false
 explicit_compiled_sharding = false
 pmap = false
+named_collectives = false
 rejects_explicit_compiled_input_sharding = true
 rejects_pmap = true
 export_or_serialization = false

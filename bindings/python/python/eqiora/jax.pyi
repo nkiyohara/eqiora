@@ -10,7 +10,7 @@ import jax
 from . import DifferentiableProgram
 
 class JaxProgram:
-    """Process-local JAX view of one immutable Eqiora program.
+    """Process-local JAX view with native first-order ``vmap`` composition.
 
     Authority: ``bindings/python/python/eqiora/jax.py::JaxProgram``.
     """

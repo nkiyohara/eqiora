@@ -13,6 +13,7 @@ use std::slice;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
+use super::batch::{self, Layout};
 use super::kernel::{self, Action, ActionResult, FailureKind, HandlerFailure};
 use super::{JVP_TARGET, PRIMAL_TARGET, VJP_TARGET};
 use crate::error::catch_native_panic;
@@ -77,6 +78,27 @@ pub(super) fn layout(py: Python<'_>) -> PyResult<Bound<'_, PyDict>> {
         "api_error_create_offset",
         offset_of!(FfiApiPrefix, error_create),
     )?;
+    layout.set_item(
+        "api_error_destroy_offset",
+        offset_of!(FfiApiPrefix, error_destroy),
+    )?;
+    layout.set_item(
+        "api_device_ordinal_offset",
+        offset_of!(FfiApiPrefix, device_ordinal_get),
+    )?;
+    layout.set_item(
+        "api_device_ordinal_required_size",
+        API_DEVICE_ORDINAL_REQUIRED_SIZE,
+    )?;
+    layout.set_item(
+        "device_ordinal_args_size",
+        size_of::<FfiDeviceOrdinalArgs>(),
+    )?;
+    layout.set_item(
+        "device_ordinal_args_required_size",
+        DEVICE_ORDINAL_ARGS_REQUIRED_SIZE,
+    )?;
+    layout.set_item("error_destroy_args_size", size_of::<FfiErrorDestroyArgs>())?;
     Ok(layout)
 }
 
@@ -146,6 +168,8 @@ unsafe fn execute_handler(frame: &mut FfiCallFrame, action: Action) -> Result<()
             frame.stage
         )));
     }
+    // SAFETY: the runtime owns this invocation's API and execution context.
+    unsafe { validate_device_ordinal(frame)? };
     validate_struct_size("XLA_FFI_Args", frame.args.struct_size, size_of::<FfiArgs>())?;
     validate_struct_size("XLA_FFI_Rets", frame.rets.struct_size, size_of::<FfiRets>())?;
     validate_struct_size(
@@ -158,39 +182,42 @@ unsafe fn execute_handler(frame: &mut FfiCallFrame, action: Action) -> Result<()
 
     // SAFETY: the validated attribute table is owned by XLA for the complete
     // synchronous invocation.
-    let key = unsafe { decode_program_key(&frame.attrs) }?;
+    let (key, descriptor) = unsafe { decode_attributes(&frame.attrs) }?;
     let program = kernel::resolve_program(&key)?;
     let input_dimension = program.identity().input_dimension();
     let output_dimension = program.identity().output_dimension();
+    let layout = Layout::new(&descriptor, action, input_dimension, output_dimension)?;
 
     // SAFETY: the validated argument table remains live until this handler
     // returns; decoding creates only an inert raw-range description.
-    let parameters = unsafe { argument_buffer(&frame.args, 0, input_dimension) }?;
+    let parameters = unsafe { argument_buffer(&frame.args, 0, &layout.parameters) }?;
     let direction = match action {
         Action::Primal => None,
         Action::Jvp => {
             // SAFETY: as above, the second argument is decoded without making
             // a Rust slice until all alias checks have completed.
-            Some(unsafe { argument_buffer(&frame.args, 1, input_dimension)? })
+            Some(unsafe { argument_buffer(&frame.args, 1, &layout.direction)? })
         }
         Action::Vjp => {
             // SAFETY: as above, the second argument is decoded without making
             // a Rust slice until all alias checks have completed.
-            Some(unsafe { argument_buffer(&frame.args, 1, output_dimension)? })
+            Some(unsafe { argument_buffer(&frame.args, 1, &layout.direction)? })
         }
-    };
-    let first_output_dimension = match action {
-        Action::Vjp => input_dimension,
-        Action::Primal | Action::Jvp => output_dimension,
     };
     // SAFETY: the validated result table remains live until this handler
     // returns; decoding creates only an inert raw-range description.
-    let first_output = unsafe { result_buffer(&frame.rets, 0, first_output_dimension) }?;
+    let first_output = unsafe { result_buffer(&frame.rets, 0, &layout.first_output) }?;
     let second_output = match action {
         Action::Jvp => {
             // SAFETY: as above, this remains a raw-range description until
             // mutual disjointness has been proved.
-            Some(unsafe { result_buffer(&frame.rets, 1, output_dimension)? })
+            Some(unsafe {
+                result_buffer(
+                    &frame.rets,
+                    1,
+                    layout.second_output.as_ref().expect("JVP shape"),
+                )?
+            })
         }
         Action::Primal | Action::Vjp => None,
     };
@@ -214,17 +241,18 @@ unsafe fn execute_handler(frame: &mut FfiCallFrame, action: Action) -> Result<()
         // SAFETY: every input/output combination was proved disjoint above.
         unsafe { buffer.as_slice() }
     });
-    let result = kernel::compute_action(action, &program, parameter_values, direction_values)?;
+    let result =
+        batch::compute_action(action, program, &layout, parameter_values, direction_values)?;
 
     match (action, result, second_output) {
         (Action::Primal, ActionResult::Primal(values), None) => {
-            validate_values(&values, output_dimension)?;
+            validate_values(&values, first_output.element_count)?;
             // SAFETY: this XLA-owned result range is exclusive and exact.
             unsafe { first_output.copy_from_slice(&values) };
         }
         (Action::Jvp, ActionResult::Jvp { primal, tangent }, Some(second_output)) => {
-            validate_values(&primal, output_dimension)?;
-            validate_values(&tangent, output_dimension)?;
+            validate_values(&primal, first_output.element_count)?;
+            validate_values(&tangent, second_output.element_count)?;
             // SAFETY: both exact XLA-owned result ranges are mutually disjoint.
             unsafe {
                 first_output.copy_from_slice(&primal);
@@ -232,7 +260,7 @@ unsafe fn execute_handler(frame: &mut FfiCallFrame, action: Action) -> Result<()
             }
         }
         (Action::Vjp, ActionResult::Vjp(values), None) => {
-            validate_values(&values, input_dimension)?;
+            validate_values(&values, first_output.element_count)?;
             // SAFETY: this XLA-owned result range is exclusive and exact.
             unsafe { first_output.copy_from_slice(&values) };
         }
@@ -288,7 +316,7 @@ impl RawBuffer {
 unsafe fn argument_buffer(
     arguments: &FfiArgs,
     index: usize,
-    expected: usize,
+    expected: &[usize],
 ) -> Result<RawBuffer, HandlerFailure> {
     // SAFETY: the caller promises that the XLA-owned argument table is live.
     let raw = unsafe { buffer_at(arguments.types, arguments.args, arguments.size, index)? };
@@ -299,7 +327,7 @@ unsafe fn argument_buffer(
 unsafe fn result_buffer(
     results: &FfiRets,
     index: usize,
-    expected: usize,
+    expected: &[usize],
 ) -> Result<RawBuffer, HandlerFailure> {
     // SAFETY: the caller promises that the XLA-owned result table is live.
     let raw = unsafe { buffer_at(results.types, results.rets, results.size, index)? };
@@ -330,7 +358,10 @@ unsafe fn buffer_at(
     Ok(raw.cast())
 }
 
-unsafe fn decode_buffer(raw: *mut FfiBuffer, expected: usize) -> Result<RawBuffer, HandlerFailure> {
+unsafe fn decode_buffer(
+    raw: *mut FfiBuffer,
+    expected_shape: &[usize],
+) -> Result<RawBuffer, HandlerFailure> {
     // SAFETY: the caller validated the erased pointer from the XLA-owned table.
     let buffer = unsafe { &*raw };
     validate_struct_size("XLA_FFI_Buffer", buffer.struct_size, size_of::<FfiBuffer>())?;
@@ -340,16 +371,23 @@ unsafe fn decode_buffer(raw: *mut FfiBuffer, expected: usize) -> Result<RawBuffe
             buffer.dtype
         )));
     }
-    if buffer.rank != 1 || buffer.dims.is_null() {
-        return Err(HandlerFailure::invalid("XLA FFI buffer must be rank one"));
+    if buffer.rank < 1 || buffer.rank as usize != expected_shape.len() || buffer.dims.is_null() {
+        return Err(HandlerFailure::invalid(
+            "XLA FFI buffer rank disagrees with the admitted batch shape",
+        ));
     }
-    // SAFETY: a rank-one buffer owns exactly one dimension entry.
-    let dimension = unsafe { *buffer.dims };
-    if dimension < 0 || dimension as usize != expected {
-        return Err(HandlerFailure::invalid(format!(
-            "XLA FFI buffer length must be {expected}, got {dimension}"
-        )));
+    // SAFETY: the bounded exact rank proves how many XLA-owned dimensions exist.
+    let dimensions = unsafe { slice::from_raw_parts(buffer.dims, expected_shape.len()) };
+    if dimensions
+        .iter()
+        .zip(expected_shape)
+        .any(|(&actual, &expected)| actual < 0 || actual as usize != expected)
+    {
+        return Err(HandlerFailure::invalid(
+            "XLA FFI dimensions disagree with the admitted batch shape",
+        ));
     }
+    let expected = batch::elements(expected_shape)?;
     if expected > 0
         && (buffer.data.is_null()
             || !(buffer.data as usize).is_multiple_of(std::mem::align_of::<f64>()))
@@ -390,38 +428,45 @@ fn ensure_disjoint(first: &RawBuffer, second: &RawBuffer) -> Result<(), HandlerF
     Ok(())
 }
 
-unsafe fn decode_program_key(attributes: &FfiAttrs) -> Result<String, HandlerFailure> {
-    validate_count("attributes", attributes.size, 1)?;
+unsafe fn decode_attributes(attributes: &FfiAttrs) -> Result<(String, String), HandlerFailure> {
+    validate_count("attributes", attributes.size, 2)?;
     if attributes.types.is_null() || attributes.names.is_null() || attributes.attrs.is_null() {
         return Err(HandlerFailure::invalid(
             "XLA FFI attribute table is malformed",
         ));
     }
-    // SAFETY: the exact nonzero count and all table pointers were validated.
-    if unsafe { *attributes.types } != XLA_FFI_ATTR_STRING {
-        return Err(HandlerFailure::invalid(
-            "Eqiora JAX program identity must be a string attribute",
-        ));
+    let mut fields = Vec::with_capacity(2);
+    // XLA orders named attributes lexicographically. Both exact names are
+    // checked, so duplicate, omitted or unexpected metadata fails closed.
+    for (index, expected_name) in [b"batch".as_slice(), b"program_key"].iter().enumerate() {
+        // SAFETY: the exact count and all three pointer tables were validated.
+        let (kind, name, value) = unsafe {
+            (
+                *attributes.types.add(index),
+                *attributes.names.add(index),
+                (*attributes.attrs.add(index)).cast::<FfiByteSpan>(),
+            )
+        };
+        if kind != XLA_FFI_ATTR_STRING || name.is_null() || value.is_null() {
+            return Err(HandlerFailure::invalid(
+                "XLA FFI string attribute is malformed",
+            ));
+        }
+        // SAFETY: XLA owns both non-null byte spans for this invocation.
+        let (name, value) = unsafe { (byte_span(&*name)?, byte_span(&*value)?) };
+        if name != *expected_name || value.len() > 32 * 22 {
+            return Err(HandlerFailure::invalid(
+                "XLA FFI requires bounded batch and program_key attributes",
+            ));
+        }
+        fields.push(
+            std::str::from_utf8(value)
+                .map_err(|_| HandlerFailure::invalid("XLA FFI metadata is not UTF-8"))?
+                .to_owned(),
+        );
     }
-    // SAFETY: the exact nonzero count and both pointer tables were validated.
-    let name = unsafe { *attributes.names };
-    // SAFETY: the exact nonzero count and attribute pointer table were
-    // validated above.
-    let value = unsafe { *attributes.attrs }.cast::<FfiByteSpan>();
-    if name.is_null() || value.is_null() {
-        return Err(HandlerFailure::invalid(
-            "XLA FFI program identity attribute is null",
-        ));
-    }
-    // SAFETY: XLA owns both byte spans for the complete handler invocation.
-    let name = unsafe { byte_span(&*name)? };
-    if name != b"program_key" {
-        return Err(HandlerFailure::invalid(
-            "XLA FFI requires exactly the program_key attribute",
-        ));
-    }
-    // SAFETY: XLA owns both byte spans for the complete handler invocation.
-    let value = unsafe { byte_span(&*value)? };
+    let key = fields.pop().expect("two fields");
+    let value = key.as_bytes();
     if value.len() != 64
         || value
             .iter()
@@ -431,8 +476,7 @@ unsafe fn decode_program_key(attributes: &FfiAttrs) -> Result<String, HandlerFai
             "Eqiora JAX program identity is not a canonical SHA-256 key",
         ));
     }
-    String::from_utf8(value.to_vec())
-        .map_err(|_| HandlerFailure::invalid("Eqiora JAX program identity is not UTF-8"))
+    Ok((key, fields.pop().expect("batch field")))
 }
 
 unsafe fn byte_span(span: &FfiByteSpan) -> Result<&[u8], HandlerFailure> {
@@ -442,6 +486,11 @@ unsafe fn byte_span(span: &FfiByteSpan) -> Result<&[u8], HandlerFailure> {
     if span.ptr.is_null() {
         return Err(HandlerFailure::invalid(
             "XLA FFI string span has a null pointer",
+        ));
+    }
+    if span.len > 32 * 22 {
+        return Err(HandlerFailure::invalid(
+            "XLA FFI metadata span exceeds its bound",
         ));
     }
     // SAFETY: XLA retains this non-null span for the synchronous invocation.
@@ -566,6 +615,28 @@ struct FfiApiPrefix {
     api_version: FfiApiVersion,
     internal_api: *const c_void,
     error_create: Option<unsafe extern "C" fn(arguments: *mut FfiErrorCreateArgs) -> *mut c_void>,
+    error_get_message: *const c_void,
+    error_destroy: Option<unsafe extern "C" fn(arguments: *mut FfiErrorDestroyArgs)>,
+    // Unconsumed function slots: Handler_Register through RunId_Get in the
+    // exact 0.11.0 header. The installed C probe checks the following offset.
+    unconsumed: [*const c_void; 14],
+    device_ordinal_get:
+        Option<unsafe extern "C" fn(arguments: *mut FfiDeviceOrdinalArgs) -> *mut c_void>,
+}
+
+#[repr(C)]
+struct FfiDeviceOrdinalArgs {
+    struct_size: usize,
+    extension_start: *mut FfiExtensionBase,
+    context: *mut c_void,
+    device_ordinal: i32,
+}
+
+#[repr(C)]
+struct FfiErrorDestroyArgs {
+    struct_size: usize,
+    extension_start: *mut FfiExtensionBase,
+    error: *mut c_void,
 }
 
 #[repr(C)]
@@ -656,10 +727,106 @@ const CALL_FRAME_REQUIRED_SIZE: usize = offset_of!(FfiCallFrame, attrs) + size_o
 const METADATA_REQUIRED_SIZE: usize = offset_of!(FfiMetadata, traits) + size_of::<u32>();
 const API_ERROR_CREATE_REQUIRED_SIZE: usize = offset_of!(FfiApiPrefix, error_create)
     + size_of::<Option<unsafe extern "C" fn(*mut FfiErrorCreateArgs) -> *mut c_void>>();
+const API_DEVICE_ORDINAL_REQUIRED_SIZE: usize = offset_of!(FfiApiPrefix, device_ordinal_get)
+    + size_of::<Option<unsafe extern "C" fn(*mut FfiDeviceOrdinalArgs) -> *mut c_void>>();
+const DEVICE_ORDINAL_ARGS_REQUIRED_SIZE: usize =
+    offset_of!(FfiDeviceOrdinalArgs, device_ordinal) + size_of::<i32>();
+
+unsafe fn validate_device_ordinal(frame: &FfiCallFrame) -> Result<(), HandlerFailure> {
+    if frame.api.is_null() || frame.context.is_null() {
+        return Err(HandlerFailure::invalid(
+            "XLA FFI CPU execution context is absent",
+        ));
+    }
+    // SAFETY: the runtime supplies the API prefix; its size guards later slots.
+    validate_struct_size(
+        "XLA_FFI_Api",
+        // SAFETY: the runtime supplies this readable API prefix.
+        unsafe { (*frame.api).struct_size },
+        API_DEVICE_ORDINAL_REQUIRED_SIZE,
+    )?;
+    // SAFETY: the size check includes both function slots read here.
+    let (Some(get), Some(destroy)) = (unsafe { (*frame.api).device_ordinal_get }, unsafe {
+        (*frame.api).error_destroy
+    }) else {
+        return Err(HandlerFailure::invalid(
+            "XLA FFI device ordinal API is unavailable",
+        ));
+    };
+    let mut args = FfiDeviceOrdinalArgs {
+        struct_size: DEVICE_ORDINAL_ARGS_REQUIRED_SIZE,
+        extension_start: ptr::null_mut(),
+        context: frame.context,
+        device_ordinal: -1,
+    };
+    // SAFETY: the exact C arguments and execution context live through the call.
+    let error = unsafe { get(&mut args) };
+    if !error.is_null() {
+        let mut args = FfiErrorDestroyArgs {
+            struct_size: size_of::<FfiErrorDestroyArgs>(),
+            extension_start: ptr::null_mut(),
+            error,
+        };
+        // SAFETY: the runtime returned ownership of this error to the caller.
+        unsafe { destroy(&mut args) };
+        return Err(HandlerFailure::invalid(
+            "XLA FFI could not provide the CPU device ordinal",
+        ));
+    }
+    if args.device_ordinal < 0 {
+        return Err(HandlerFailure::invalid(
+            "XLA FFI CPU device ordinal is invalid",
+        ));
+    }
+    Ok(())
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dense_buffers_reject_wrong_axis_order_dtype_rank_and_aliases() {
+        let mut values = [0.0; 6];
+        let mut dimensions = [2, 3];
+        let mut buffer = FfiBuffer {
+            struct_size: size_of::<FfiBuffer>(),
+            extension_start: ptr::null_mut(),
+            dtype: XLA_FFI_F64,
+            data: values.as_mut_ptr().cast(),
+            rank: 2,
+            dims: dimensions.as_mut_ptr(),
+        };
+        // SAFETY: the test owns the buffer, dimensions and data through each call.
+        let raw = unsafe { decode_buffer(&mut buffer, &[2, 3]) }.unwrap();
+        assert_eq!(raw.element_count, 6);
+        // Equal flat lengths do not admit a different axis association.
+        // SAFETY: the test still owns the buffer, dimensions and data.
+        assert!(unsafe { decode_buffer(&mut buffer, &[3, 2]) }.is_err());
+        buffer.dtype = 11;
+        // SAFETY: only the owned dtype changed; all backing storage remains live.
+        assert!(unsafe { decode_buffer(&mut buffer, &[2, 3]) }.is_err());
+        buffer.dtype = XLA_FFI_F64;
+        buffer.rank = 1;
+        // SAFETY: both owned dimensions remain allocated; the wrong rank rejects.
+        assert!(unsafe { decode_buffer(&mut buffer, &[2, 3]) }.is_err());
+        assert!(ensure_disjoint(&raw, &raw).is_err());
+        let overflow = RawBuffer {
+            address: usize::MAX,
+            byte_len: 8,
+            ..raw
+        };
+        assert!(ensure_disjoint(&overflow, &raw).is_err());
+        let empty = RawBuffer {
+            address: 0,
+            data: ptr::null_mut(),
+            byte_len: 0,
+            element_count: 0,
+        };
+        assert!(ensure_disjoint(&empty, &raw).is_ok());
+        // SAFETY: an empty buffer never constructs a slice from the null pointer.
+        assert!(unsafe { empty.as_slice() }.is_empty());
+    }
 
     #[test]
     fn admitted_jaxlib_layout_matches_reviewed_header() {
@@ -691,5 +858,11 @@ mod tests {
         assert_eq!(METADATA_REQUIRED_SIZE, 36);
         assert_eq!(size_of::<FfiMetadataExtension>(), 32);
         assert_eq!(offset_of!(FfiApiPrefix, error_create), 48);
+        assert_eq!(offset_of!(FfiApiPrefix, error_destroy), 64);
+        assert_eq!(offset_of!(FfiApiPrefix, device_ordinal_get), 184);
+        assert_eq!(API_DEVICE_ORDINAL_REQUIRED_SIZE, 192);
+        assert_eq!(size_of::<FfiDeviceOrdinalArgs>(), 32);
+        assert_eq!(DEVICE_ORDINAL_ARGS_REQUIRED_SIZE, 28);
+        assert_eq!(size_of::<FfiErrorDestroyArgs>(), 24);
     }
 }

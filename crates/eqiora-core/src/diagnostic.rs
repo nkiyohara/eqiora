@@ -254,6 +254,13 @@ impl Diagnostic {
         &self.message
     }
 
+    /// Prefix explanatory context, preserving severity, code and every detail.
+    #[must_use]
+    pub fn with_context(mut self, context: impl AsRef<str>) -> Self {
+        self.message = format!("{}: {}", context.as_ref(), self.message);
+        self
+    }
+
     /// Path to the responsible graph node, when known.
     #[must_use]
     pub fn graph_path(&self) -> Option<&GraphPath> {
@@ -321,3 +328,30 @@ impl fmt::Display for Diagnostic {
 }
 
 impl std::error::Error for Diagnostic {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn context_preserves_every_severity_and_existing_detail() {
+        for severity in [Severity::Error, Severity::Warning, Severity::Note] {
+            let original = Diagnostic::new(severity, codes::NONFINITE_EVALUATION, "overflow")
+                .with_graph_path(GraphPath::new(["model", "field"]))
+                .with_span(Span {
+                    file: "model.eqi".into(),
+                    start: 3,
+                    end: 12,
+                })
+                .with_suggestion(Patch::new("check the input scale"));
+            let contextual = original.clone().with_context("mapped JVP point 1, seed 2");
+            assert_eq!(contextual.message(), "mapped JVP point 1, seed 2: overflow");
+            assert_eq!(contextual.severity(), original.severity());
+            assert_eq!(contextual.code(), original.code());
+            assert_eq!(contextual.graph_path(), original.graph_path());
+            assert_eq!(contextual.source_span(), original.source_span());
+            assert_eq!(contextual.suggestion(), original.suggestion());
+            assert_eq!(original.message(), "overflow");
+        }
+    }
+}

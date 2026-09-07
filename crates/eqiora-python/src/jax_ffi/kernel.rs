@@ -168,52 +168,6 @@ pub(super) enum ActionResult {
     Vjp(Vec<f64>),
 }
 
-pub(super) fn compute_action(
-    action: Action,
-    program: &DifferentiableProgram,
-    parameters: &[f64],
-    direction: Option<&[f64]>,
-) -> Result<ActionResult, HandlerFailure> {
-    let evaluation = program.evaluate(parameters).map_err(diagnostics_failure)?;
-    match action {
-        Action::Primal => {
-            let (output, _) = evaluation.primal().into_parts();
-            Ok(ActionResult::Primal(output))
-        }
-        Action::Jvp => {
-            let tangent =
-                direction.ok_or_else(|| HandlerFailure::internal("JVP tangent is absent"))?;
-            let (primal, tangent, _) = evaluation
-                .jvp(tangent)
-                .map_err(|diagnostic| diagnostics_failure(vec![diagnostic]))?
-                .into_parts();
-            Ok(ActionResult::Jvp { primal, tangent })
-        }
-        Action::Vjp => {
-            let cotangent =
-                direction.ok_or_else(|| HandlerFailure::internal("VJP cotangent is absent"))?;
-            let (_, input_cotangent, _) = evaluation
-                .vjp(cotangent)
-                .map_err(|diagnostic| diagnostics_failure(vec![diagnostic]))?
-                .into_parts();
-            Ok(ActionResult::Vjp(input_cotangent))
-        }
-    }
-}
-
-fn diagnostics_failure(diagnostics: Vec<Diagnostic>) -> HandlerFailure {
-    let message = if diagnostics.is_empty() {
-        "Eqiora rejected the JAX FFI operation without a diagnostic".to_owned()
-    } else {
-        diagnostics
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>()
-            .join("; ")
-    };
-    HandlerFailure::new(FailureKind::FailedPrecondition, message)
-}
-
 #[derive(Debug, Clone, Copy)]
 pub(super) enum FailureKind {
     InvalidArgument,

@@ -188,18 +188,34 @@ _, tangent = jax.jvp(
 gradient = jax.grad(
     lambda point: jnp.sum(jax_program(point) ** 2)
 )(theta)
+
+# Request order and repeated points are preserved by the native map.
+points = jnp.stack((theta + 0.1, theta, theta + 0.1))
+states = jax.jit(jax.vmap(jax_program))(points)
+point_gradients = jax.jit(jax.vmap(jax.grad(
+    lambda point: jnp.mean(jax_program(point))
+)))(points)
 ```
 
-This first slice requires Python 3.12 or newer and the exact JAX/JAXLIB 0.11.0
+This adapter requires Python 3.12 or newer and the exact JAX/JAXLIB 0.11.0
 pair. Separate primal, JVP, and VJP typed FFI targets keep compiled numerical
 execution free of Python host callbacks and do not differentiate solver
 iterations.
 
-Only the numerical Parameter point is traced. Program identity, shapes, dtype,
-layout, and host-CPU placement are static. Inputs are ordinary unsharded
-rank-one host-CPU `float64` arrays. Direct or explicitly compiled input
-sharding, `pmap`, `vmap`, higher-order transformations, explicit output
-sharding, accelerators, export, serialization, multiprocessing, and
-performance claims remain outside this slice.
+Each call takes one rank-one host-CPU `float64` point. Use `vmap` to compose
+mapped and shared arguments, non-leading `in_axes`, `out_axes`, and nested
+batches. `jit`, first-order JVP/VJP, `vmap(grad(...))`, gradients of summed or
+averaged mapped losses, and bounded `jacfwd`/`jacrev` use the native accepted
+map and products. Broadcasting a shared input sums its reverse contributions;
+only an explicit mean divides by the collection size. Any failed member rejects
+the dense operation with an occurrence diagnostic.
+
+Program identity, shapes, dtype, layout, and CPU platform stay static while
+numeric points vary. Point and derivative-seed axes remain distinct, with at
+most 32 combined axes. Each FFI buffer has a 64 MiB limit; the native map and
+products each also have a separate 64 MiB retained-numerical-storage limit,
+not a peak-memory guarantee. Empty and singleton batches retain their shapes.
+Named collective axes, sharding, `pmap`, higher-order derivatives, accelerators,
+and export remain unsupported; batching makes no speedup claim.
 
 Importing base `eqiora` imports neither optional framework.

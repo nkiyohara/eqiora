@@ -17,6 +17,52 @@ fn registered_mapped_product_contract() {
     shared_selection_shape_profile_and_foreign_members_fail_closed();
     empty_scalar_singleton_and_zero_seed_axes_remain_typed();
     numerical_limits_inputs_and_accumulation_fail_closed();
+    failed_actions_preserve_the_original_diagnostic_and_point_seed_occurrence();
+}
+
+#[test]
+fn failed_actions_preserve_the_original_diagnostic_and_point_seed_occurrence() {
+    let (_, program) = fixture();
+    let map = EvaluationMapPlan::new(
+        Arc::new(program),
+        &[&POINTS[0], &POINTS[1], &POINTS[0]],
+        LIMIT,
+    )
+    .unwrap()
+    .execute()
+    .unwrap();
+    let products = EvaluationMapProducts::new(&map, &[], &[3], &[2], &[1], LIMIT).unwrap();
+    // Seed-major grid [2,3]: point 1 / seed 1 is flat grid occurrence 4.
+    // The positive elliptic response and constant-boundary derivative sum to
+    // more than f64::MAX for this finite direction. The VJP boundary component
+    // likewise sums more than one MAX cotangent. Neither result is representable.
+    let bad_direction = [f64::MAX, 0.0, f64::MAX];
+    let mut directions = vec![0.0; 6 * 3];
+    directions[4 * 3..5 * 3].copy_from_slice(&bad_direction);
+    let original = map.members()[1].jvp(&bad_direction).unwrap_err();
+    let error = products.jvp(&[], &directions).unwrap_err();
+    assert_eq!(error.code(), original.code());
+    assert_eq!(error.severity(), original.severity());
+    assert!(error.message().ends_with(original.message()));
+    assert!(
+        error
+            .message()
+            .contains("mapped JVP point occurrence 1 [1], seed occurrence 1 [1], grid offset 4")
+    );
+    let width = map.plan().program_identity().output_dimension();
+    let bad_cotangent = vec![f64::MAX; width];
+    let mut cotangents = vec![0.0; 6 * width];
+    cotangents[4 * width..5 * width].copy_from_slice(&bad_cotangent);
+    let original = map.members()[1].vjp(&bad_cotangent).unwrap_err();
+    let error = products.vjp(&cotangents).unwrap_err();
+    assert_eq!(error.code(), original.code());
+    assert_eq!(error.severity(), original.severity());
+    assert!(error.message().ends_with(original.message()));
+    assert!(
+        error
+            .message()
+            .contains("mapped VJP point occurrence 1 [1], seed occurrence 1 [1], grid offset 4")
+    );
 }
 
 #[test]

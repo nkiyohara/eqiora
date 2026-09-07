@@ -18,3 +18,4 @@ def check_jax_adapter(
     assert_type(bound.input_shape, tuple[int])
     assert_type(bound.output_shape, tuple[int])
     assert_type(bound(parameters), jax.Array)
+    assert_type(jax.jit(jax.vmap(bound))(parameters), jax.Array)
