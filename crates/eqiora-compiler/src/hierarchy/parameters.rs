@@ -22,7 +22,8 @@ use dependencies::{
 };
 mod model_lets;
 use expression_eval::{
-    ExpressionContext, coerce_parameter, coerce_parameter_with_label, evaluate_parameter_expression,
+    ExpressionContext, coerce_parameter, coerce_parameter_with_label, evaluate_initializer,
+    evaluate_parameter_expression,
 };
 pub(super) use model_lets::{alias_order, resolve_component_lets, resolve_model_lets};
 
@@ -279,13 +280,9 @@ impl<'a> SymbolicParameterResolver<'a> {
             {
                 continue;
             }
-            let initializer = crate::typed_values::initializer(
-                parameter.expression,
-                parameter.target.as_ref().expect("valid target"),
-            );
-            let evaluated = evaluate_parameter_expression(
+            let evaluated = evaluate_initializer(
                 self.declaration_file,
-                &initializer,
+                parameter.expression,
                 ExpressionContext::Default,
                 &mut |dependency, range| {
                     self.resolved.get(dependency).cloned().ok_or_else(|| {
@@ -297,6 +294,8 @@ impl<'a> SymbolicParameterResolver<'a> {
                         )
                     })
                 },
+                parameter.target.clone().expect("valid default target"),
+                "Parameter initializer",
             )
             .and_then(|evaluated| {
                 coerce_parameter_with_label(
@@ -796,10 +795,9 @@ pub(crate) fn closed_value(
     expression: &Expr,
     target: ValueType,
 ) -> Result<ValueLiteral, Diagnostic> {
-    let initializer = crate::typed_values::initializer(expression, &target);
-    let evaluated = evaluate_parameter_expression(
+    let evaluated = evaluate_initializer(
         file,
-        &initializer,
+        expression,
         ExpressionContext::Let,
         &mut |name, range| {
             Err(source_error(
@@ -809,6 +807,8 @@ pub(crate) fn closed_value(
                 format!("closed value cannot depend on `{name}`"),
             ))
         },
+        target.clone(),
+        "declared value",
     )?;
     let value = coerce_parameter_with_label(
         file,

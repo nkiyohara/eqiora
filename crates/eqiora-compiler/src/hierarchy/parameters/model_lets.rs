@@ -73,24 +73,32 @@ fn resolve_lets<'a>(
                 continue;
             }
         };
-        let initializer = target
-            .as_ref()
-            .map(|target| crate::typed_values::initializer(declaration.value(), target));
-        let evaluated = evaluate_parameter_expression(
-            file,
-            initializer.as_ref().unwrap_or(declaration.value()),
-            ExpressionContext::Let,
-            &mut |dependency, range| {
-                values.get(dependency).cloned().ok_or_else(|| {
-                    source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        file,
-                        range,
-                        ExpressionContext::Let.unknown_name_message(dependency),
-                    )
-                })
-            },
-        );
+        let mut resolve = |dependency: &str, range| {
+            values.get(dependency).cloned().ok_or_else(|| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    range,
+                    ExpressionContext::Let.unknown_name_message(dependency),
+                )
+            })
+        };
+        let evaluated = match &target {
+            Some(target) => super::expression_eval::evaluate_initializer(
+                file,
+                declaration.value(),
+                ExpressionContext::Let,
+                &mut resolve,
+                target.clone(),
+                "let alias",
+            ),
+            None => evaluate_parameter_expression(
+                file,
+                declaration.value(),
+                ExpressionContext::Let,
+                &mut resolve,
+            ),
+        };
         let range = declaration.range();
         match evaluated.and_then(|value| match &target {
             Some(target) => {

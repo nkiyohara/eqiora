@@ -142,3 +142,31 @@ fn repeated_array_aliases_cannot_expand_past_the_existing_source_type_budget() {
     source.push_str("variable x:1; relation r { x=0; } }");
     reject(&source, "65536");
 }
+
+#[test]
+fn nested_initializer_zero_inherits_only_the_declared_element_shape() {
+    let models=compile("typed.eqi", "model M { parameter data:array<array<complex<V>,2>,2>=[0,[math.complex(1,2),3]]; relation r { data=0; } }").unwrap();
+    let value = models[0]
+        .transaction()
+        .ops()
+        .iter()
+        .find_map(|op| match op {
+            Op::DefineKernelNode {
+                node: KernelNode::Parameter(value),
+            } => Some(value.value()),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(
+        value.components().collect::<Vec<_>>(),
+        vec![(0.0, 0.0), (0.0, 0.0), (1.0, 2.0), (3.0, 0.0)]
+    );
+    reject(
+        "model M { parameter data:array<array<1,2>,2>=[1,[2,3]]; relation r { data=0; } }",
+        "shaped",
+    );
+    reject(
+        "model M { let data=[0,[1,2]]; variable x:1; relation r { x=0; } }",
+        "types",
+    );
+}

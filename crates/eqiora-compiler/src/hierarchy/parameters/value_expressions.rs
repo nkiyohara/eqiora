@@ -9,6 +9,16 @@ pub(super) fn evaluate(
     context: ExpressionContext,
     resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
 ) -> Result<EvaluatedParameter, Diagnostic> {
+    evaluate_with_target(file, expression, context, resolve, None)
+}
+
+pub(super) fn evaluate_with_target(
+    file: &str,
+    expression: &Expr,
+    context: ExpressionContext,
+    resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
+    target: Option<&ValueType>,
+) -> Result<EvaluatedParameter, Diagnostic> {
     let error = |message: String| {
         source_error(
             codes::LANGUAGE_TYPE_ERROR,
@@ -17,12 +27,29 @@ pub(super) fn evaluate(
             message,
         )
     };
-    let evaluate = &mut |value: &Expr| evaluate_parameter_expression(file, value, context, resolve);
+
     let (operands, value_type, lowered, value) = match expression.kind() {
         ExprKind::Array(elements) => {
+            let element_target = target
+                .filter(|target| target.array_rank() > 0)
+                .map(|target| {
+                    typing::index(ExpressionType::<()>::new(target.clone(), None), 0)
+                        .expect("checked array")
+                        .value_type
+                });
             let operands = elements
                 .iter()
-                .map(&mut *evaluate)
+                .map(|element| match &element_target {
+                    Some(target) => super::expression_eval::evaluate_initializer(
+                        file,
+                        element,
+                        context,
+                        resolve,
+                        target.clone(),
+                        "declaration initializer",
+                    ),
+                    None => evaluate_parameter_expression(file, element, context, resolve),
+                })
                 .collect::<Result<Vec<_>, _>>()?;
             let types = operands
                 .iter()
@@ -52,8 +79,8 @@ pub(super) fn evaluate(
             (operands, value_type, lowered, value)
         }
         ExprKind::Index { value, index } => {
-            let operand = evaluate(value)?;
-            let index_value = evaluate(index)?;
+            let operand = evaluate_parameter_expression(file, value, context, resolve)?;
+            let index_value = evaluate_parameter_expression(file, index, context, resolve)?;
             let index = checked_index(file, index.range(), &index_value)?;
             let value_type = typing::index(
                 ExpressionType::<()>::new(operand.value_type.value_type().clone(), None),
@@ -102,6 +129,20 @@ pub(super) fn evaluate(
                     "math.complex requires exactly two real scalar arguments".into(),
                 ));
             };
+            let scalar_target = target
+                .filter(|target| target.shape().is_scalar())
+                .map(|target| ValueType::scalar(ScalarDomain::Real, target.dimension()));
+            let mut evaluate = |value| match &scalar_target {
+                Some(target) => super::expression_eval::evaluate_initializer(
+                    file,
+                    value,
+                    context,
+                    resolve,
+                    target.clone(),
+                    "declaration initializer",
+                ),
+                None => evaluate_parameter_expression(file, value, context, resolve),
+            };
             let real = evaluate(real)?;
             let imag = evaluate(imag)?;
             let value_type = typing::complex(
@@ -137,11 +178,10 @@ pub(super) fn evaluate(
     let known = operands
         .iter()
         .all(|operand| matches!(operand.value_type, EvaluatedType::Known(_)));
-    let lineage = operands
-        .iter()
-        .fold(Some(ParameterLineage::Constant), |lineage, value| {
-            combine_lineages(lineage, value.lineage.clone())
-        });
+    let mut lineage = Some(ParameterLineage::Constant);
+    for operand in &operands {
+        lineage = combine_lineages(lineage, operand.lineage.clone());
+    }
     Ok(EvaluatedParameter {
         value,
         value_type: if known {

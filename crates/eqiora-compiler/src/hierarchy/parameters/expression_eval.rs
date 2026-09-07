@@ -275,6 +275,31 @@ pub(super) fn evaluate_parameter_expression(
     Ok(evaluated)
 }
 
+pub(super) fn evaluate_initializer(
+    file: &str,
+    expression: &Expr,
+    context: ExpressionContext,
+    resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
+    target: ValueType,
+    label: &str,
+) -> Result<EvaluatedParameter, Diagnostic> {
+    let evaluated = if matches!(expression.kind(), ExprKind::Array(_))
+        || matches!(expression.kind(), ExprKind::Call { callee, .. } if callee.as_str() == "math.complex")
+    {
+        super::value_expressions::evaluate_with_target(
+            file,
+            expression,
+            context,
+            resolve,
+            Some(&target),
+        )?
+    } else {
+        evaluate_parameter_expression(file, expression, context, resolve)?
+    };
+    coerce_parameter_with_label(file, expression.range(), evaluated, target, label, true)
+        .map(Into::into)
+}
+
 pub(super) fn coerce_parameter(
     file: &str,
     range: TextRange,
