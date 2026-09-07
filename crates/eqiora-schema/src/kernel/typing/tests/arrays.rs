@@ -72,24 +72,30 @@ fn nested_channel_arrays_preserve_axis_order_and_reject_zero_extents() {
 fn explicit_channels_promote_domain_merge_static_support_and_retain_element_roles() {
     let scalar = ExpressionType::scalar(DimExponents::DIMENSIONLESS, None);
     let supported = ExpressionType::scalar(DimExponents::DIMENSIONLESS, Some(volume("body")));
-    let channel = array(&[scalar.clone(), supported.clone()]).unwrap();
+    let channel = ExpressionType::array(&[scalar.clone(), supported.clone()]).unwrap();
     assert_eq!(channel.support, supported.support);
-    assert_eq!(index(channel.clone(), 1).unwrap(), supported);
-    assert_eq!(index(channel, 2), Err(TypeViolation::IndexOutOfBounds));
-    assert!(array::<&str>(&[]).is_err());
+    assert_eq!(
+        ExpressionType::index(channel.clone(), 1).unwrap(),
+        supported
+    );
+    assert_eq!(
+        ExpressionType::index(channel, 2),
+        Err(TypeViolation::IndexOutOfBounds)
+    );
+    assert!(ExpressionType::<&str>::array(&[]).is_err());
     assert!(
-        array(&[
+        ExpressionType::array(&[
             supported.clone(),
             ExpressionType::scalar(DimExponents::DIMENSIONLESS, Some(volume("other")))
         ])
         .is_err()
     );
-    let complex_scalar = complex(scalar.clone(), supported.clone()).unwrap();
-    let channel = array(&[supported, complex_scalar.clone()]).unwrap();
-    assert_eq!(index(channel, 0).unwrap(), complex_scalar);
-    assert!(complex(complex_scalar, scalar.clone()).is_err());
+    let complex_scalar = ExpressionType::complex(scalar.clone(), supported.clone()).unwrap();
+    let channel = ExpressionType::array(&[supported, complex_scalar.clone()]).unwrap();
+    assert_eq!(ExpressionType::index(channel, 0).unwrap(), complex_scalar);
+    assert!(ExpressionType::complex(complex_scalar, scalar.clone()).is_err());
     assert!(
-        complex(
+        ExpressionType::complex(
             scalar.clone(),
             ExpressionType::scalar(
                 DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
@@ -98,7 +104,7 @@ fn explicit_channels_promote_domain_merge_static_support_and_retain_element_role
         )
         .is_err()
     );
-    assert!(index(scalar, 0).is_err());
+    assert!(ExpressionType::index(scalar, 0).is_err());
 }
 
 #[test]
@@ -112,14 +118,16 @@ fn indexing_removes_only_one_outer_channel_axis() {
     .unwrap();
     let value = ExpressionType::new(element.clone(), Some(volume("body")));
     assert_eq!(
-        index(value.clone(), 0),
+        ExpressionType::index(value.clone(), 0),
         Err(TypeViolation::IndexRequiresArray)
     );
-    let nested = array(&[array(&[value.clone(), value.clone()]).unwrap()]).unwrap();
-    let result = index(index(nested, 0).unwrap(), 1).unwrap();
+    let nested =
+        ExpressionType::array(&[ExpressionType::array(&[value.clone(), value.clone()]).unwrap()])
+            .unwrap();
+    let result = ExpressionType::index(ExpressionType::index(nested, 0).unwrap(), 1).unwrap();
     assert_eq!(result, value);
     assert!(
-        array(&[
+        ExpressionType::array(&[
             value,
             ExpressionType::scalar(DimExponents::DIMENSIONLESS, None)
         ])

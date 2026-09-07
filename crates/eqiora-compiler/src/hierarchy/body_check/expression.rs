@@ -231,7 +231,7 @@ impl ExpressionChecker<'_, '_, '_> {
                     .iter()
                     .map(|element| self.check(element))
                     .collect::<Result<Vec<_>, _>>()?;
-                let inferred = typing::array(&types)
+                let inferred = ExpressionType::array(&types)
                     .map_err(|error| type_error(self.scope.file, expression, error))?;
                 crate::typed_values::check_type(&inferred.value_type).map_err(|message| {
                     source_error(
@@ -249,7 +249,7 @@ impl ExpressionChecker<'_, '_, '_> {
                     index,
                     &self.scope.static_values,
                 )?;
-                typing::index(self.check(value)?, index)
+                ExpressionType::index(self.check(value)?, index)
                     .map_err(|error| type_error(self.scope.file, expression, error))
             }
             ExprKind::Path(path) if path.as_str() == "math.i" => Ok(ExpressionType::new(
@@ -268,7 +268,7 @@ impl ExpressionChecker<'_, '_, '_> {
                         "math.complex requires exactly two real scalar arguments",
                     ));
                 };
-                typing::complex(self.check(real)?, self.check(imag)?)
+                ExpressionType::complex(self.check(real)?, self.check(imag)?)
                     .map_err(|error| type_error(self.scope.file, expression, error))
             }
             ExprKind::Number(_) => Ok(ExpressionType::scalar(DimExponents::DIMENSIONLESS, None)),

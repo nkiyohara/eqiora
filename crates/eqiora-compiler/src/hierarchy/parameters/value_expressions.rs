@@ -1,7 +1,7 @@
 //! Complete static values retain their authored expression dependencies.
 
 use super::*;
-use eqiora_schema::kernel::typing::{self, ExpressionType};
+use eqiora_schema::kernel::typing::ExpressionType;
 
 pub(super) fn evaluate(
     file: &str,
@@ -33,7 +33,7 @@ pub(super) fn evaluate_with_target(
             let element_target = target
                 .filter(|target| target.array_rank() > 0)
                 .map(|target| {
-                    typing::index(ExpressionType::<()>::new(target.clone(), None), 0)
+                    ExpressionType::index(ExpressionType::<()>::new(target.clone(), None), 0)
                         .expect("checked array")
                         .value_type
                 });
@@ -55,7 +55,7 @@ pub(super) fn evaluate_with_target(
                 .iter()
                 .map(|value| ExpressionType::<()>::new(value.value_type.value_type().clone(), None))
                 .collect::<Vec<_>>();
-            let value_type = typing::array(&types)
+            let value_type = ExpressionType::array(&types)
                 .map_err(|violation| error(violation.to_string()))?
                 .value_type;
             crate::typed_values::check_type(&value_type).map_err(error)?;
@@ -82,7 +82,7 @@ pub(super) fn evaluate_with_target(
             let operand = evaluate_parameter_expression(file, value, context, resolve)?;
             let index_value = evaluate_parameter_expression(file, index, context, resolve)?;
             let index = checked_index(file, index.range(), &index_value)?;
-            let value_type = typing::index(
+            let value_type = ExpressionType::index(
                 ExpressionType::<()>::new(operand.value_type.value_type().clone(), None),
                 index,
             )
@@ -145,7 +145,7 @@ pub(super) fn evaluate_with_target(
             };
             let real = evaluate(real)?;
             let imag = evaluate(imag)?;
-            let value_type = typing::complex(
+            let value_type = ExpressionType::complex(
                 ExpressionType::<()>::new(real.value_type.value_type().clone(), None),
                 ExpressionType::new(imag.value_type.value_type().clone(), None),
             )

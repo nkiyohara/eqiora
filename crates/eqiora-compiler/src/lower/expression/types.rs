@@ -79,13 +79,13 @@ fn expression_type_cached(
                 .iter()
                 .map(&mut infer)
                 .collect::<Result<Vec<_>, _>>()?;
-            typing::array(&elements).map_err(violation)
+            ExpressionType::array(&elements).map_err(violation)
         }
         LoweringExpressionNode::Index { value, index } => {
-            typing::index(infer(value)?, *index).map_err(violation)
+            ExpressionType::index(infer(value)?, *index).map_err(violation)
         }
         LoweringExpressionNode::Complex { real, imag } => {
-            typing::complex(infer(real)?, infer(imag)?).map_err(violation)
+            ExpressionType::complex(infer(real)?, infer(imag)?).map_err(violation)
         }
         LoweringExpressionNode::Literal(value) => {
             Ok(ExpressionType::new(value.value_type().clone(), None))
