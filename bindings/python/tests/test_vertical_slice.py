@@ -402,7 +402,7 @@ def test_native_declarations_are_frozen_and_keep_typed_compiler_diagnostics() ->
 
     non_finite = eqiora.Field("x", role=eqiora.FieldRole.State)
     flow = eqiora.Relation("flow", residual=eqiora.derivative(non_finite))
-    with pytest.raises(eqiora.EqioraError, match="must be finite"):
+    with pytest.raises(eqiora.EqioraError, match="non-finite"):
         eqiora.Model.define("invalid", non_finite, flow, eqiora.Initial(non_finite - float("nan")))
 
 def physical_pair() -> tuple[

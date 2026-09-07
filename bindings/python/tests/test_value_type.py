@@ -182,3 +182,17 @@ def test_value_edits_reject_fields_by_alias_and_exact_identity() -> None:
     for target in ("x", model.field_ids[0]):
         with pytest.raises(eqiora.EqioraError, match="Parameter"):
             model.preview_value_edit(target, 2.0)
+
+
+def test_source_field_requires_role_and_rejects_embedded_initial_values() -> None:
+    source = eqiora.lang.Source()
+    component = source.component("Roles")
+    body = component.volume("body", dimensions=1)
+    for kwargs in ({}, {"role": "state"}, {"role": eqiora.FieldRole.State, "initial": 0.0}):
+        with pytest.raises(TypeError):
+            component.field("old", on=body, value_type=eqiora.ValueType.real(), **kwargs)
+    component.field("stored", on=body, value_type=eqiora.ValueType.real(), role=eqiora.FieldRole.State)
+    text = source.to_eqi()
+    assert "support body: volume(ambient_dimension = 1)" in text
+    assert "state stored: 1 on body;" in text
+    assert "representation" not in text
