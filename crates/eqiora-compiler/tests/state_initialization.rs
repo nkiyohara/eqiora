@@ -202,3 +202,53 @@ fn continuum_owner_is_shared_by_exact_support_across_components() {
     assert_eq!(representation("x"), representation("c.load"));
     assert_ne!(representation("x"), representation("z"));
 }
+
+#[test]
+fn source_and_factory_retain_volume_only_field_support() {
+    use eqiora_lang::{Item, SourceAstFactory, VisibilitySyntax};
+    let source = "model M { domain body = box(0,1); domain wall = boundary(body, axis = 0, side = lower); state x: 1 on wall; initial { x = 0; } }";
+    let is_support_error = |errors: Vec<eqiora_core::Diagnostic>| {
+        errors
+            .iter()
+            .any(|error| error.message().contains("requires a volume support"))
+    };
+    assert!(is_support_error(
+        compile("boundary.eqi", source).unwrap_err()
+    ));
+    assert!(is_support_error(
+        compile("boundary.eqi", &format!("component Marker() {{}} {source}")).unwrap_err()
+    ));
+    let document = eqiora_lang::parse("boundary.eqi", source)
+        .into_document()
+        .unwrap();
+    let model = &document.models()[0];
+    let items = model
+        .items()
+        .iter()
+        .map(|item| match item {
+            Item::Field(field) => Item::Field(
+                SourceAstFactory::field(
+                    field.name(),
+                    field.domain().map(str::to_owned),
+                    field.role(),
+                    field.activation().clone(),
+                    field.value_type().clone(),
+                    field.range(),
+                )
+                .unwrap(),
+            ),
+            other => other.clone(),
+        })
+        .collect();
+    let rebuilt = SourceAstFactory::model(
+        VisibilitySyntax::Private,
+        model.name(),
+        items,
+        model.range(),
+    )
+    .unwrap();
+    assert!(is_support_error(
+        eqiora_compiler::lower_model("factory.eqi", &rebuilt).unwrap_err()
+    ));
+    assert!(is_support_error(compile("required.eqi", "component C(support body: volume(ambient_dimension = 1), support wall: boundary(parent = body), state x: 1 on wall) {} model M { variable y: 1; relation r { y = 0; } }").unwrap_err()));
+}

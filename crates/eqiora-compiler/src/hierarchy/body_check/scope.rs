@@ -485,6 +485,17 @@ pub(in crate::hierarchy) fn field_expression_type<I>(
     declaration: &FieldDecl,
     support: Option<SpatialSupport<I>>,
 ) -> Result<ExpressionType<I>, Diagnostic> {
+    if support
+        .as_ref()
+        .is_some_and(|support| !matches!(support, SpatialSupport::Volume { .. }))
+    {
+        return Err(source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            declaration.range(),
+            "source Field requires a volume support",
+        ));
+    }
     let value_type =
         crate::value_types::lower_value_type(file, declaration.value_type(), support.as_ref())?;
     Ok(ExpressionType::new(value_type, support))

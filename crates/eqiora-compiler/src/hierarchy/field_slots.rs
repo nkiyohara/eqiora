@@ -138,6 +138,17 @@ fn field_slot_contract(
                 })
         })
         .transpose()?;
+    if support
+        .as_ref()
+        .is_some_and(|support| !matches!(support, SpatialSupport::Volume { .. }))
+    {
+        return Err(source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            declaration.range(),
+            "source Field requirement requires a volume support",
+        ));
+    }
     let value = ExpressionType::new(
         crate::value_types::lower_value_type(file, declaration.value_type(), support.as_ref())?,
         support,
