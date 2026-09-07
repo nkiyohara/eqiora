@@ -142,7 +142,12 @@ pub(super) fn lower_connection(
             "Connection repeats the same Port",
         ));
     }
-    if let Some(port) = ports.iter().find(|port| connected_ports.contains(port)) {
+    let members = if syntax == ConnectionSyntax::Signal {
+        &ports[ports.len().min(1)..]
+    } else {
+        &ports[..]
+    };
+    if let Some(port) = members.iter().find(|port| connected_ports.contains(port)) {
         return Err(source_error(
             codes::LANGUAGE_TYPE_ERROR,
             file,
@@ -193,7 +198,20 @@ pub(super) fn lower_connection(
     };
     let contracts = definitions
         .iter()
-        .map(resolved_scalar_port_contract)
+        .enumerate()
+        .map(|(index, definition)| {
+            let mut contract = resolved_scalar_port_contract(definition);
+            if kind == ScalarConnectionKind::Signal {
+                if let ScalarPortContract::Signal { direction, .. } = &mut contract {
+                    *direction = if index == 0 {
+                        SignalDirection::Output
+                    } else {
+                        SignalDirection::Input
+                    };
+                }
+            }
+            contract
+        })
         .collect::<Vec<_>>();
     validate_scalar_connection(kind, &contracts).map_err(|violation| {
         source_error(
@@ -203,23 +221,13 @@ pub(super) fn lower_connection(
             lower_connection_violation_message(violation),
         )
     })?;
-    if kind == ScalarConnectionKind::Signal
-        && !matches!(
-            definitions.first(),
-            Some(ResolvedPortContract::Signal {
-                direction: SignalDirectionSyntax::Output,
-                ..
-            })
-        )
-    {
-        return Err(source_error(
-            codes::LANGUAGE_TYPE_ERROR,
-            file,
-            range,
-            "signal Connection source before `->` must be its output Port",
-        ));
+    if let Some(ResolvedPortContract::Signal { support, clock, .. }) = definitions.first() {
+        if definitions.iter().skip(1).any(|contract| !matches!(contract, ResolvedPortContract::Signal { support: candidate_support, clock: candidate_clock, .. } if candidate_support == support && candidate_clock == clock)) {
+            return Err(source_error(codes::LANGUAGE_TYPE_ERROR, file, range,
+                "signal Connection requires exact matching support and clock activation"));
+        }
     }
-    connected_ports.extend(&ports);
+    connected_ports.extend(members);
     Ok((ConnectionDef::new(id, semantics), ports))
 }
 

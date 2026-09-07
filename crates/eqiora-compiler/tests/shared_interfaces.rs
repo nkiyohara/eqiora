@@ -243,3 +243,30 @@ fn closed_and_selected_compilation_share_local_property_admission() {
     assert!(eqiora_compiler::compile("local.eqi", &invalid).is_err());
     assert!(CompiledModel::compile_selected("local.eqi", &invalid, "First", &[]).is_err());
 }
+
+#[test]
+fn directed_connections_retain_wrapper_endpoints_and_allow_fanout() {
+    let source = "component Identity(input u:1,output y:1) {relation value {y=u;}} component Wrapper(input u:1,output y:1) {instance inner:Identity();connect u -> inner.u;connect inner.y -> y;} model M(input u:1,output first:1,output second:1) {instance a:Wrapper();instance b:Wrapper();connect u -> a.u;connect u -> b.u;connect a.y -> first;connect b.y -> second;}";
+    let models = eqiora_compiler::compile("relay.eqi", source).unwrap_or_else(|e| panic!("{e:?}"));
+    let model = &models[0];
+    for name in [
+        "u",
+        "first",
+        "second",
+        "a.u",
+        "a.y",
+        "a.inner.u",
+        "a.inner.y",
+        "b.u",
+        "b.y",
+    ] {
+        assert!(
+            model.symbols().get(name).is_some(),
+            "missing retained endpoint {name}"
+        );
+    }
+    let invalid = source.replace("connect b.y -> second;", "connect b.y -> first;");
+    assert!(eqiora_compiler::compile("relay.eqi", &invalid).is_err());
+    let reversed = source.replace("connect u -> inner.u;", "connect inner.u -> u;");
+    assert!(eqiora_compiler::compile("relay.eqi", &reversed).is_err());
+}

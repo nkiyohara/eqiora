@@ -159,6 +159,9 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                         SymbolContract::Support(contract.support().clone()),
                     );
                 }
+                SignatureItem::Input(value) | SignatureItem::Output(value) => {
+                    self.scope.exposed_signals.insert(value.name().to_owned());
+                }
                 SignatureItem::Clock(declaration) => {
                     self.scope
                         .borrowed_clocks

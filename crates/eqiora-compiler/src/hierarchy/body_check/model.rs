@@ -120,6 +120,10 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
         }
         for item in signature {
             match item {
+                eqiora_lang::SignatureItem::Input(value)
+                | eqiora_lang::SignatureItem::Output(value) => {
+                    self.scope.exposed_signals.insert(value.name().to_owned());
+                }
                 eqiora_lang::SignatureItem::Clock(value) => {
                     self.scope.borrowed_clocks.insert(value.name().to_owned());
                     self.scope

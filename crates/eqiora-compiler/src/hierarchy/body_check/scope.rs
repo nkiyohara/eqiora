@@ -220,6 +220,7 @@ pub(super) struct DefinitionScope<'e, 'd> {
     pub(super) namespace: DefinitionNamespace,
     pub(super) file: &'d str,
     pub(super) symbols: BTreeMap<String, SymbolContract>,
+    pub(super) exposed_signals: BTreeSet<String>,
     pub(super) borrowed_clocks: BTreeSet<String>,
     pub(super) static_values: crate::hierarchy::parameters::SymbolicParameterMap,
     pub(super) children: BTreeMap<String, ComponentDefinition<'d>>,
@@ -237,6 +238,7 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
             namespace,
             file,
             symbols: BTreeMap::new(),
+            exposed_signals: BTreeSet::new(),
             borrowed_clocks: BTreeSet::new(),
             static_values: BTreeMap::new(),
             children: BTreeMap::new(),
@@ -1035,7 +1037,18 @@ pub(super) fn validate_connection(
     let mut contracts = Vec::with_capacity(declaration.port_paths().len());
     for path in declaration.port_paths() {
         keys.push(path.segments().map(str::to_owned).collect::<Vec<_>>());
-        contracts.push(scope.resolve_port(path)?);
+        let mut contract = scope.resolve_port(path)?;
+        if declaration.syntax() == ConnectionSyntax::Signal
+            && scope.exposed_signals.contains(path.as_str())
+        {
+            if let PortContract::Signal { direction, .. } = &mut contract {
+                *direction = match direction {
+                    SignalDirectionSyntax::Input => SignalDirectionSyntax::Output,
+                    SignalDirectionSyntax::Output => SignalDirectionSyntax::Input,
+                };
+            }
+        }
+        contracts.push(contract);
     }
     if keys.iter().collect::<BTreeSet<_>>().len() != keys.len() {
         return Err(source_error(
@@ -1095,7 +1108,12 @@ pub(super) fn validate_connection(
             .map(Some)
             .map_err(|error| connection_fragment_error(scope.file, declaration.range(), error));
     }
-    if let Some(key) = keys
+    let members = if declaration.syntax() == ConnectionSyntax::Signal {
+        &keys[1..]
+    } else {
+        &keys[..]
+    };
+    if let Some(key) = members
         .iter()
         .find(|key| connected_ports.contains(key.as_slice()))
     {
@@ -1110,7 +1128,7 @@ pub(super) fn validate_connection(
         ));
     }
     validate_connection_contract(declaration, &contracts, scope.file)?;
-    connected_ports.extend(keys);
+    connected_ports.extend(members.iter().cloned());
     Ok(None)
 }
 
