@@ -11,6 +11,7 @@ from typing import (
     Any,
     ClassVar,
     Generic,
+    Literal,
     NamedTuple,
     Never,
     Protocol,

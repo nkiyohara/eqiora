@@ -1063,6 +1063,11 @@ invalid candidate
                 safe_extract_sdist(archive, root / "extract")
 
     def test_consumer_tree_preserves_repository_relative_fixture_paths(self) -> None:
+        # test_vertical_slice reads the canonical model schema during collection.
+        self.assertIn(
+            Path("crates/eqiora-api/schemas/compile-v2.schema.json"),
+            PYTHON_TEST_RESOURCES,
+        )
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             extracted = root / "source"
