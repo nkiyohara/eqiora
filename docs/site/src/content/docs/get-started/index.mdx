@@ -31,7 +31,7 @@ git -C eqiora-source remote add origin https://github.com/nkiyohara/eqiora.git
 git -C eqiora-source fetch --depth 1 origin ${process.env.EQIORA_SITE_SOURCE_SHA}
 git -C eqiora-source checkout --detach FETCH_HEAD
 uv venv --python 3.13
-uv pip install --python .venv/bin/python ./eqiora-source`;
+uv pip install --python .venv/bin/python --reinstall-package eqiora ./eqiora-source`;
 
 <Code code={installCommands} lang="bash" title="Install the page's source revision" />
 

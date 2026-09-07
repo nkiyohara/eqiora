@@ -17,7 +17,7 @@ for (const width of [1280, 320]) {
     await page.goto('/get-started/');
     await expect(page.getByRole('heading', { level: 1, name: 'Get started' })).toBeVisible();
     const main = page.getByRole('main');
-    await expect(main).toContainText("uv pip install --python .venv/bin/python ./eqiora-source");
+    await expect(main).toContainText("uv pip install --python .venv/bin/python --reinstall-package eqiora ./eqiora-source");
     const revisionLink = main.getByRole('link', { name: 'The checked-out revision', exact: true });
     const sourceHref = await revisionLink.getAttribute('href');
     const sourceSha = sourceHref?.match(/\/blob\/([0-9a-f]{40})\//)?.[1];
