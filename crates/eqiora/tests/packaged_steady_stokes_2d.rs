@@ -840,13 +840,13 @@ fn canonical_stokes_recognizer_rejects_semantic_near_misses() {
         "div(velocity) - pressure / dynamic_viscosity = 0;",
     ));
     assert_lowering_rejects(&DIRECT.replace(
-        "  relation y_upper_value continuous on y_upper { trace(velocity) = 0; }\n",
+        "  relation y_upper_value on y_upper { trace(velocity) = 0; }\n",
         "",
     ));
 
     let extra_relation = DIRECT.replace(
-        "  relation x_lower_value continuous on x_lower",
-        "  relation redundant_pressure continuous on body { pressure - pressure = 0; }\n\n  relation x_lower_value continuous on x_lower",
+        "  relation x_lower_value on x_lower",
+        "  relation redundant_pressure on body { pressure - pressure = 0; }\n\n  relation x_lower_value on x_lower",
     );
     assert_lowering_rejects(&extra_relation);
 

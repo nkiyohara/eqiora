@@ -16,10 +16,10 @@ model Main {
   parameter dynamic_viscosity: kg / (m * s) = 0.05;
   parameter zero_pressure: kg / (m * s ^ 2) = 0;
 
-  relation force_definition continuous on body {
+  relation force_definition on body {
     force_potential - zero_pressure = 0;
   }
-  relation momentum continuous on body {
+  relation momentum on body {
     density * derivative(velocity)
       + div(density * outer_product(velocity, velocity))
       - div(
@@ -27,12 +27,12 @@ model Main {
         - isotropic_lift(pressure)
       ) - grad(force_potential) = 0;
   }
-  relation incompressibility continuous on body {
+  relation incompressibility on body {
     div(velocity) = 0;
   }
 
-  relation x_lower_value continuous on x_lower { trace(velocity) = 0; }
-  relation x_upper_value continuous on x_upper { trace(velocity) = 0; }
-  relation y_lower_value continuous on y_lower { trace(velocity) = 0; }
-  relation y_upper_value continuous on y_upper { trace(velocity) = 0; }
+  relation x_lower_value on x_lower { trace(velocity) = 0; }
+  relation x_upper_value on x_upper { trace(velocity) = 0; }
+  relation y_lower_value on y_lower { trace(velocity) = 0; }
+  relation y_upper_value on y_upper { trace(velocity) = 0; }
 }

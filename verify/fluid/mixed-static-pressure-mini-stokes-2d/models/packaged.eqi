@@ -14,11 +14,11 @@ model Main {
   parameter pressure_zero_coordinate: m = 2;
   parameter ambient_pressure_value: kg / (m * s ^ 2) = 4.5;
 
-  relation force_definition continuous on body {
+  relation force_definition on body {
     force_potential
       - force_gradient * (coordinate(0) - pressure_zero_coordinate) = 0;
   }
-  relation ambient_pressure_definition continuous on body {
+  relation ambient_pressure_definition on body {
     ambient_pressure - ambient_pressure_value = 0;
   }
   instance law: fluid.SteadyStokesWithPotential2d(

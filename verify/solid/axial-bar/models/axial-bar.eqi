@@ -9,13 +9,13 @@ model axial_bar {
   parameter area: m ^ 2 = 0.01;
   parameter applied_force: kg * m / s ^ 2 = 10000;
 
-  relation equilibrium continuous on bar {
+  relation equilibrium on bar {
     -div(youngs_modulus * area * grad(displacement)) = 0;
   }
-  relation clamp continuous on fixed_end {
+  relation clamp on fixed_end {
     trace(displacement) = 0;
   }
-  relation end_load continuous on loaded_end {
+  relation end_load on loaded_end {
     normal(youngs_modulus * area * grad(displacement)) - applied_force = 0;
   }
 }

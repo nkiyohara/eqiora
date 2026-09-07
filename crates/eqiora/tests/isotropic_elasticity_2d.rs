@@ -322,8 +322,8 @@ fn canonical_lowering_fails_closed_at_physical_identity_and_model_boundaries() {
             "representation space = continuum;\n  clock tick = periodic(period = 1 / 1, phase = 0 / 1);",
         )
         .replace(
-            "relation load continuous on body",
-            "relation load periodic(tick) on body",
+            "relation load on body",
+            "relation load on body at tick",
         );
     assert_lowering_rejects(&periodic_load);
 

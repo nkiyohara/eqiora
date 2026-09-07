@@ -15,33 +15,33 @@ public component SteadyFlowPastCylinder {
   field force_potential on fluid as space: kg / (m * s ^ 2) = 0;
   field inlet_profile on fluid as space: m / s = 0;
 
-  relation force_definition continuous on fluid {
+  relation force_definition on fluid {
     force_potential - zero_pressure = 0;
   }
-  relation inlet_profile_definition continuous on fluid {
+  relation inlet_profile_definition on fluid {
     inlet_profile
       - 4 * inlet_speed * coordinate(1) * (channel_height - coordinate(1))
         / channel_height ^ 2 = 0;
   }
-  relation momentum continuous on fluid {
+  relation momentum on fluid {
     -div(
       2 * dynamic_viscosity * symmetric_part(grad(velocity))
       - isotropic_lift(pressure)
     ) - grad(force_potential) = 0;
   }
-  relation incompressibility continuous on fluid {
+  relation incompressibility on fluid {
     div(velocity) = 0;
   }
 
-  relation inlet_velocity continuous on inlet {
+  relation inlet_velocity on inlet {
     trace(velocity) + normal(isotropic_lift(inlet_profile)) = 0;
   }
-  relation outlet_traction continuous on outlet {
+  relation outlet_traction on outlet {
     normal(
       2 * dynamic_viscosity * symmetric_part(grad(velocity))
       - isotropic_lift(pressure)
     ) = 0;
   }
-  relation wall_velocity continuous on walls { trace(velocity) = 0; }
-  relation cylinder_velocity continuous on cylinder { trace(velocity) = 0; }
+  relation wall_velocity on walls { trace(velocity) = 0; }
+  relation cylinder_velocity on cylinder { trace(velocity) = 0; }
 }

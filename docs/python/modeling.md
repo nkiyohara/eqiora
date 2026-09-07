@@ -92,8 +92,8 @@ text = source.to_eqi()
 model = eqiora.compile(source=source, geometry=geometry, parameters={"length": 1.0})
 ```
 
-Relations accept either `residual=` or a complete `left=` and `right=` pair.
-The latter emits the ordinary Eqiora equation `left = right;`; Python `==` is
+Source Relations require an ordered `left=` and `right=` pair, including an
+explicit `right=0` for a residual equation. They emit `left = right;`; Python `==` is
 not overloaded. The Source draft owns exact supports and expressions, rejects
 foreign handles and resource-limit violations, and freezes on its first emission or compile.
 It emits ordinary readable UTF-8 `.eqi`; `doc=` values become attached `///`
@@ -139,7 +139,8 @@ value = law.field("value", on=law_body, value_type=eqiora.ValueType.real(), init
 law.relation(
     "balance",
     on=law_body,
-    residual=-q.div(diffusivity * q.grad(value)),
+    left=-q.div(diffusivity * q.grad(value)),
+    right=0,
 )
 material = source.material_composition(
     "ReferenceMaterial",
@@ -918,7 +919,7 @@ source_model = eqiora.compile(
     model decay {
       field x: 1 = 1;
       parameter rate: 1 / s = 1;
-      relation flow continuous {
+      relation flow {
         derivative(x) + rate * x = 0;
       }
     }

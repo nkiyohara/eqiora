@@ -325,6 +325,17 @@ fn validate_relations(
                 id,
                 "continuous Relation cannot read Pre or Next symbols",
             ));
+        } else if matches!(nodes.get(&activations[0]), Some(KernelNode::Activation(activation)) if matches!(activation.kind(), ActivationKind::Periodic))
+            && relation
+                .residuals()
+                .nodes()
+                .iter()
+                .any(|node| matches!(node, ExprNode::Symbol(SymbolRef::Derivative(_))))
+        {
+            diagnostics.push(kernel_error(
+                id,
+                "clocked Relation cannot read Derivative symbols",
+            ));
         }
     }
 }

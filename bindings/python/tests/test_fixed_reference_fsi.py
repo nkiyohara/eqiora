@@ -476,7 +476,7 @@ def test_evidence_state_lookup_is_bound_to_exact_result_occurrence() -> None:
 model decay {
   field x: 1 = 1;
   parameter rate: 1 / s = 1;
-  relation flow continuous { derivative(x) + rate * x = 0; }
+  relation flow { derivative(x) + rate * x = 0; }
 }
 """
     )
@@ -502,7 +502,7 @@ def test_unrelated_common_result_rejects_fsi_evidence() -> None:
 model decay {
   field x: 1 = 1;
   parameter rate: 1 / s = 1;
-  relation flow continuous { derivative(x) + rate * x = 0; }
+  relation flow { derivative(x) + rate * x = 0; }
 }
 """
     )

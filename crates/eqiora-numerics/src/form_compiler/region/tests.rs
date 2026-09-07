@@ -22,10 +22,10 @@ const MIXED: &str = "model Mixed {
  parameter viscosity: kg / (m * s) = 2;
  field v on body as space: vector<m / s, 2>;
  field p on body as space: kg / (m * s ^ 2);
- relation balance continuous on body {
+ relation balance on body {
   density * derivative(v) - div(2 * viscosity * symmetric_part(grad(v)) - isotropic_lift(p)) = 0;
  }
- relation constraint continuous on body { div(v) = 0; }
+ relation constraint on body { div(v) = 0; }
 }";
 
 const ELIMINATED: &str = "model Elastic {
@@ -36,8 +36,8 @@ const ELIMINATED: &str = "model Elastic {
  parameter lambda: kg / (m * s ^ 2) = 5;
  field v on body as space: vector<m / s, 2>;
  field d on body as space: vector<m, 2>;
- relation kinematics continuous on body { derivative(d) - v = 0; }
- relation balance continuous on body {
+ relation kinematics on body { derivative(d) - v = 0; }
+ relation balance on body {
   density * derivative(v) - div(2 * mu * symmetric_part(grad(d)) + lambda * isotropic_lift(div(d))) = 0;
  }
 }";
@@ -367,8 +367,8 @@ fn derivative_of_eliminated_state_uses_rate_without_unused_previous_coefficients
         parameter drag: kg / (m ^ 3 * s) = 3;
         field d on body as space: vector<m, 2>;
         field v on body as space: vector<m / s, 2>;
-        relation pair continuous on body { derivative(d) - v = 0; }
-        relation balance continuous on body { drag * derivative(d) = 0; }
+        relation pair on body { derivative(d) - v = 0; }
+        relation balance on body { drag * derivative(d) = 0; }
     }",
     )
     .unwrap();

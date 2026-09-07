@@ -1,32 +1,32 @@
-# Natural equation authoring
+# Uniform equation authoring
 
-This case proves the bounded Relation-body authoring rule: a valid non-sentinel
-`lhs = rhs;` becomes one ordered residual root `Sub(lhs, rhs)`, with source
-statement order retained. It first admits the ordinary nonzero natural model,
-then compares the equivalent explicit residual only through public structural
-equivalence and the structural semantic fingerprint.
+Every Relation statement retains ordered authored `lhs` and `rhs`, including
+zero. The compiler checks both operands using the shared mathematical types
+and exact spatial support before constructing an ordered residual. A bare
+literal zero can inherit the other operand's mathematical type. An explicitly
+typed zero retains its dimension, shape, frame and array roles. The neutral
+rule `lhs - zero → lhs` applies only when the checked result has exactly the
+left operand's complete type and support; it cannot discard complex promotion.
 
-The same fixed sequence checks collision-safe formatting (`(0)` and `(-0)`),
-parse/format topology and byte idempotence, exact parser-owned ranges, the
-legacy finite-binary64-zero sentinel including three dimensionful witnesses,
-paired public diagnostic routes and actual optional spans, one-field mutants,
-the exact locked-package path, and a native explicit residual.
-
-Run it through the repository gate:
+This case first compiles an ordinary nonzero natural equation, then checks
+independently enumerated authored sides and typed residuals, each source form's
+own canonical roundtrip, UTF-8 byte ranges, sixteen fixed zero/precedence rows,
+actual source falsifiers, source-local zero/underflow denials, and public
+structural comparison across direct, exact-package and native construction.
 
 ```bash
 mise run fast -- --case language.natural-equation-authoring
 mise run affected -- --case language.natural-equation-authoring
 ```
 
-The finite sequence contains 35 ordered one-field mutants and at most 262 charged
-public operations. It caps formatter comparisons at 8 KiB aggregate and 1 KiB per
-document, diagnostics at two per source and 40 aggregate, private expected
-records at 64, and the two direct canonical Model vectors at 256 KiB each.
+The fixture corpus has four fields at most, inputs at most 4 KiB, projected
+DAGs at most 32 nodes, per-document formatter output at most 1 KiB, and each
+direct canonical Model vector at most 256 KiB. These bound this executable
+witness, not product performance or allocation. Product expression depth
+and activation/type boundaries have focused owner tests.
 
-This case does not claim equality of fresh occurrence-bearing identities,
-canonical bytes, references, digests, package/native provenance, or source
-spelling. It does not claim uniform downstream spans, algebraic or numerical
-equivalence, solving, execution, performance, residency, inequalities,
-constraints, Cell B/C meaning, Python, Studio, LSP, a new public abstraction,
-or a schema/wire/migration.
+Equal normalized residual structure does not promise equal authored source
+identity or occurrence-bearing artifacts, references, bytes or digests. Root
+order remains structural identity even when equation permutation preserves a
+simultaneous mathematical solution. This case does not claim general algebraic
+equivalence or a new execution backend.

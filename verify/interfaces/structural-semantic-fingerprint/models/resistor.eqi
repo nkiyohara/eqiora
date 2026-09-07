@@ -7,7 +7,7 @@ model resistor {
   port negative: conserving on electrical;
   port tap: conserving on electrical;
   parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2) = 2;
-  relation law continuous {
+  relation law {
     across(positive) - across(negative) - resistance * through(positive) = 0;
     through(positive) + through(negative) + through(tap) = 0;
   }

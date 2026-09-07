@@ -11,7 +11,7 @@ public component PeriodicSide3d {
   public support face: boundary(parent = body);
   public port periodic: conserving PeriodicBoundary over face;
 
-  relation carrier continuous on face {
+  relation carrier on face {
     trace(periodic) - trace(periodic) = 0;
     flux(periodic) - flux(periodic) = 0;
   }

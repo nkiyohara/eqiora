@@ -35,7 +35,7 @@ def test_git_project_pins_branch_and_reopens_without_repository(tmp_path: Path, 
     repo = tmp_path / "repository"
     (repo / "src").mkdir(parents=True)
     (repo / "eqiora.toml").write_text('[package]\nname="org.example.Git"\nversion="1.0.0"\nentry="main"\n')
-    source = "public model Shared { parameter gain: 1 = 2; relation law continuous { gain - 2 = 0; } }"
+    source = "public model Shared { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }"
     (repo / "src/main.eqi").write_text(source)
     git(repo, "init", "--initial-branch=main")
     git(repo, "add", ".")

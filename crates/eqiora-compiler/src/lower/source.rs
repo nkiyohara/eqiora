@@ -46,10 +46,10 @@ impl LoweringModel {
                         name: declaration.name().to_owned(),
                         activation: declaration.activation().clone(),
                         domain: declaration.domain().map(str::to_owned),
-                        residuals: declaration
-                            .residuals()
+                        equations: declaration
+                            .equations()
                             .iter()
-                            .map(LoweringExpression::from_source)
+                            .map(LoweringEquation::from_source)
                             .collect(),
                         range: declaration.range(),
                     },

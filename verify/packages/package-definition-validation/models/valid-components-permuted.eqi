@@ -4,7 +4,7 @@ public component Wrapper {
 }
 
 public component Leaf {
-  relation invariant continuous { offset - period = 0; }
+  relation invariant { offset - period = 0; }
   public parameter offset: s = period;
   public parameter period: s;
 }

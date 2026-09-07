@@ -2,7 +2,7 @@ component Offset {
   public parameter input: 1;
   public parameter offset: 1 = 1;
   field output: 1;
-  relation value continuous { output - input - offset = 0; }
+  relation value { output - input - offset = 0; }
 }
 
 model TwoOffsets {

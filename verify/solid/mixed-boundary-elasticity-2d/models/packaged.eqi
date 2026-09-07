@@ -12,7 +12,7 @@ model Main {
   parameter lambda: kg / (m * s ^ 2) = 0;
   parameter length_scale: m = 1;
 
-  relation load continuous on body {
+  relation load on body {
     load_potential - 2 * mu * coordinate(0) / length_scale = 0;
   }
   instance balance_law: solid.IsotropicBalanceWithPotential2d(

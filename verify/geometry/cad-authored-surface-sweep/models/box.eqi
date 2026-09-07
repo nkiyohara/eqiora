@@ -9,5 +9,5 @@ model Main {
 
   representation scalar_space = continuum;
   field witness on body as scalar_space: 1 = 0;
-  relation retain_body continuous on body { witness = 0; }
+  relation retain_body on body { witness = 0; }
 }

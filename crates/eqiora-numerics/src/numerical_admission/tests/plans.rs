@@ -8,11 +8,11 @@ public component PoissonInterval {
   public parameter source_scale: 1 / m ^ 2;
   representation space = continuum;
   field potential on body as space: 1 = 0;
-  relation balance continuous on body {
+  relation balance on body {
     -div(grad(potential)) - source_scale = 0;
   }
-  relation left_value continuous on left { trace(potential) = 0; }
-  relation right_value continuous on right { trace(potential) = 0; }
+  relation left_value on left { trace(potential) = 0; }
+  relation right_value on right { trace(potential) = 0; }
 }
 "#;
 
@@ -28,15 +28,15 @@ public component PoissonBox {
   public parameter source_scale: 1 / m ^ 2;
   representation space = continuum;
   field potential on body as space: 1 = 0;
-  relation balance continuous on body {
+  relation balance on body {
     -div(grad(potential)) - source_scale = 0;
   }
-  relation x_lower_value continuous on x_lower { trace(potential) = 0; }
-  relation x_upper_value continuous on x_upper { trace(potential) = 0; }
-  relation y_lower_value continuous on y_lower { trace(potential) = 0; }
-  relation y_upper_value continuous on y_upper { trace(potential) = 0; }
-  relation z_lower_value continuous on z_lower { trace(potential) = 0; }
-  relation z_upper_value continuous on z_upper { trace(potential) = 0; }
+  relation x_lower_value on x_lower { trace(potential) = 0; }
+  relation x_upper_value on x_upper { trace(potential) = 0; }
+  relation y_lower_value on y_lower { trace(potential) = 0; }
+  relation y_upper_value on y_upper { trace(potential) = 0; }
+  relation z_lower_value on z_lower { trace(potential) = 0; }
+  relation z_upper_value on z_upper { trace(potential) = 0; }
 }
 "#;
 
@@ -802,12 +802,12 @@ fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_field_results(
             // reaction mass entry is C/3, and a constant load integrates to f/2.
             // Choosing f=8+2*sum(C)/3 therefore gives every interior value 1.
             let load = 8 + 2 * coefficients.iter().sum::<i32>() / 3;
-            source += &format!("relation row{row} continuous on body {{ -div(grad(f{row}))");
+            source += &format!("relation row{row} on body {{ -div(grad(f{row}))");
             for (column, coefficient) in coefficients.iter().enumerate() {
                 source += &format!(" + ({coefficient}) * source_scale * f{column}");
             }
             source += &format!(
-                " - ({load}) * source_scale = 0; }}\nrelation left{row} continuous on left {{ trace(f{row}) = 0; }}\nrelation right{row} continuous on right {{ trace(f{row}) = 0; }}\n"
+                " - ({load}) * source_scale = 0; }}\nrelation left{row} on left {{ trace(f{row}) = 0; }}\nrelation right{row} on right {{ trace(f{row}) = 0; }}\n"
             );
         }
         source += "}";

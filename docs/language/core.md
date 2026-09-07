@@ -354,6 +354,17 @@ Every Relation equality lowers from both operands; literal zero has no parser se
 The system is not evaluated as assignment statements. Retaining operand and equation order
 for exact identity does not create imperative execution order.
 
+The checked residual is ordered `lhs - rhs`. After admitting both complete operand types and
+supports, a right-hand exact literal zero (including parentheses and nested unary minus) may
+be omitted only when the residual type and support are exactly those of `lhs`. An explicitly
+typed zero retains its units, shape, frame, and scalar domain; in particular a complex zero
+cannot lose a required real-to-complex promotion. Computed zeros such as `0 * y`, `y - y`,
+and named zero parameters do not use this literal rule. The authored equality remains intact.
+
+Numeric input rejects a nonzero decimal that underflows to binary64 zero, and unit conversion
+rejects a nonzero input rounded to zero. Exact decimal zero (including `0e-999`) and
+representable nonzero subnormals remain admitted. These checks precede the literal-zero rule.
+
 `math.i` is the dimensionless imaginary unit. `math.complex(real_part, imaginary_part)` constructs
 a complex scalar from real operands with equal dimensions. It is the canonical explicit
 construction; neither bare `i`/`j` suffixes nor implicit imaginary-part removal are admitted.

@@ -542,9 +542,9 @@ mod tests {
     fn public_primitive_exports_owner_and_membership_independently() {
         for body in [
             "",
-            "relation owner continuous { across(p) = 0; }",
+            "relation owner { across(p) = 0; }",
             "public port q: conserving on Pin; connect conserving p, q;",
-            "public port q: conserving on Pin; relation owner continuous { across(p) = 0; } connect conserving p, q;",
+            "public port q: conserving on Pin; relation owner { across(p) = 0; } connect conserving p, q;",
         ] {
             let source = format!(
                 "{PIN} component Primitive {{ public port p: conserving on Pin; {body} }} model Empty {{}}"
@@ -556,7 +556,7 @@ mod tests {
         }
 
         let deduplicated = format!(
-            "{PIN} component Primitive {{ public port p: conserving on Pin; relation owner continuous {{ across(p) + through(p) = 0; }} }} model Empty {{}}"
+            "{PIN} component Primitive {{ public port p: conserving on Pin; relation owner {{ across(p) + through(p) = 0; }} }} model Empty {{}}"
         );
         assert!(
             validate_source(&deduplicated).is_empty(),
@@ -577,7 +577,7 @@ mod tests {
         );
 
         let double = format!(
-            "{PIN} component Broken {{ public port p: conserving on Pin; relation a continuous {{ across(p) = 0; }} relation b continuous {{ through(p) = 0; }} }} model Empty {{}}"
+            "{PIN} component Broken {{ public port p: conserving on Pin; relation a {{ across(p) = 0; }} relation b {{ through(p) = 0; }} }} model Empty {{}}"
         );
         let diagnostics = validate_source(&double);
         assert!(diagnostics.iter().any(|error| {
@@ -600,7 +600,7 @@ mod tests {
         );
 
         let one_open = format!(
-            "{PIN} component Triple {{ public port a: conserving on Pin; public port b: conserving on Pin; public port c: conserving on Pin; }} model OneOpen {{ instance triple: Triple; relation owner continuous {{ across(triple.a) + across(triple.b) + across(triple.c) = 0; }} connect conserving triple.a, triple.b; }}"
+            "{PIN} component Triple {{ public port a: conserving on Pin; public port b: conserving on Pin; public port c: conserving on Pin; }} model OneOpen {{ instance triple: Triple; relation owner {{ across(triple.a) + across(triple.b) + across(triple.c) = 0; }} connect conserving triple.a, triple.b; }}"
         );
         let diagnostics = validate_source(&one_open);
         assert_eq!(diagnostics.len(), 1);
@@ -621,7 +621,7 @@ model Network {
   port a: conserving on electrical;
   port b: conserving on electrical;
   port c: conserving on electrical;
-  relation owners continuous { across(a) + across(b) + across(c) = 0; }
+  relation owners { across(a) + across(b) + across(c) = 0; }
   connect conserving a, b;
   connect conserving b, c;
 }
@@ -632,7 +632,7 @@ model Network {
         );
 
         let double_owner = format!(
-            "{PIN} component Broken {{ public port p: conserving on Pin; relation a continuous {{ across(p) = 0; }} relation b continuous {{ through(p) = 0; }} public port q: conserving on Pin; connect conserving p, q; }} model Empty {{}}"
+            "{PIN} component Broken {{ public port p: conserving on Pin; relation a {{ across(p) = 0; }} relation b {{ through(p) = 0; }} public port q: conserving on Pin; connect conserving p, q; }} model Empty {{}}"
         );
         let diagnostics = validate_source(&double_owner);
         assert!(diagnostics.iter().any(|error| {
@@ -644,12 +644,12 @@ model Network {
     #[test]
     fn child_boundary_partitions_compose_and_remain_extensible() {
         let valid = format!(
-            "{PIN} component Leaf {{ public port a: conserving on Pin; public port b: conserving on Pin; }} component Closed {{ instance leaf: Leaf; relation law continuous {{ across(leaf.a) + across(leaf.b) = 0; }} connect conserving leaf.a, leaf.b; }} model Empty {{}}"
+            "{PIN} component Leaf {{ public port a: conserving on Pin; public port b: conserving on Pin; }} component Closed {{ instance leaf: Leaf; relation law {{ across(leaf.a) + across(leaf.b) = 0; }} connect conserving leaf.a, leaf.b; }} model Empty {{}}"
         );
         assert!(validate_source(&valid).is_empty());
 
         let repeated_fragment = format!(
-            "{PIN} component Leaf {{ public port a: conserving on Pin; public port b: conserving on Pin; relation law continuous {{ across(a) + across(b) = 0; }} connect conserving a, b; }} component Reconnect {{ instance leaf: Leaf; connect conserving leaf.a, leaf.b; }} model Empty {{}}"
+            "{PIN} component Leaf {{ public port a: conserving on Pin; public port b: conserving on Pin; relation law {{ across(a) + across(b) = 0; }} connect conserving a, b; }} component Reconnect {{ instance leaf: Leaf; connect conserving leaf.a, leaf.b; }} model Empty {{}}"
         );
         assert!(
             validate_source(&repeated_fragment).is_empty(),
@@ -657,7 +657,7 @@ model Network {
         );
 
         let transitive_child_partition = format!(
-            "{PIN} component Leaf {{ public port a: conserving on Pin; public port b: conserving on Pin; relation owners continuous {{ across(a) + across(b) = 0; }} connect conserving a, b; }} component Wrapper {{ public port left: conserving on Pin; public port right: conserving on Pin; instance leaf: Leaf; relation owners continuous {{ across(left) + across(right) = 0; }} connect conserving left, leaf.a; connect conserving leaf.b, right; }} model Use {{ instance wrapper: Wrapper; }}"
+            "{PIN} component Leaf {{ public port a: conserving on Pin; public port b: conserving on Pin; relation owners {{ across(a) + across(b) = 0; }} connect conserving a, b; }} component Wrapper {{ public port left: conserving on Pin; public port right: conserving on Pin; instance leaf: Leaf; relation owners {{ across(left) + across(right) = 0; }} connect conserving left, leaf.a; connect conserving leaf.b, right; }} model Use {{ instance wrapper: Wrapper; }}"
         );
         assert!(
             validate_source(&transitive_child_partition).is_empty(),
@@ -665,7 +665,7 @@ model Network {
         );
 
         let two_level_forwarding = format!(
-            "{PIN} component Leaf {{ public port p: conserving on Pin; relation owner continuous {{ across(p) = 0; }} }} component Middle {{ public port p: conserving on Pin; relation owner continuous {{ across(p) = 0; }} instance leaf: Leaf; connect conserving p, leaf.p; }} component Outer {{ public port p: conserving on Pin; relation owner continuous {{ across(p) = 0; }} instance middle: Middle; connect conserving p, middle.p; }} model Use {{ instance outer: Outer; }}"
+            "{PIN} component Leaf {{ public port p: conserving on Pin; relation owner {{ across(p) = 0; }} }} component Middle {{ public port p: conserving on Pin; relation owner {{ across(p) = 0; }} instance leaf: Leaf; connect conserving p, leaf.p; }} component Outer {{ public port p: conserving on Pin; relation owner {{ across(p) = 0; }} instance middle: Middle; connect conserving p, middle.p; }} model Use {{ instance outer: Outer; }}"
         );
         assert!(
             validate_source(&two_level_forwarding).is_empty(),
@@ -676,7 +676,7 @@ model Network {
     #[test]
     fn ownerless_child_port_is_only_deferred_as_an_explicit_exposure() {
         let forwarded = format!(
-            "{PIN} component Leaf {{ public port p: conserving on Pin; relation law continuous {{ across(p) = 0; }} }} component Wrapper {{ public port p: conserving on Pin; instance leaf: Leaf; connect conserving p, leaf.p; }} model Use {{ instance left: Wrapper; instance right: Leaf; connect conserving left.p, right.p; }}"
+            "{PIN} component Leaf {{ public port p: conserving on Pin; relation law {{ across(p) = 0; }} }} component Wrapper {{ public port p: conserving on Pin; instance leaf: Leaf; connect conserving p, leaf.p; }} model Use {{ instance left: Wrapper; instance right: Leaf; connect conserving left.p, right.p; }}"
         );
         assert!(
             validate_source(&forwarded).is_empty(),
@@ -738,7 +738,7 @@ model Network {
   port a: conserving on electrical;
   port b: conserving on electrical;
   port c: conserving on electrical;
-  relation owners continuous { across(a) + across(b) + across(c) = 0; }
+  relation owners { across(a) + across(b) + across(c) = 0; }
   connect conserving a, b;
   connect conserving b, c;
 }
@@ -763,7 +763,7 @@ model Network {
     #[test]
     fn invalid_body_or_child_closure_does_not_cascade() {
         let invalid_body = format!(
-            "{PIN} component Broken {{ public port p: conserving on Pin; relation bad continuous {{ across(p) + missing = 0; }} }} model Use {{ instance broken: Broken; }}"
+            "{PIN} component Broken {{ public port p: conserving on Pin; relation bad {{ across(p) + missing = 0; }} }} model Use {{ instance broken: Broken; }}"
         );
         let diagnostics = validate_source(&invalid_body);
         assert_eq!(diagnostics.len(), 1);

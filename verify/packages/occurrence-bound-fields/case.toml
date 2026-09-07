@@ -9,7 +9,7 @@ capabilities = [
   "exact-package-field-binding-alias-invariance",
   "field-binding-source-provenance",
   "shared-instance-binding-budget",
-  "legacy-source-identity-compatibility",
+  "current-source-identity-separation",
 ]
 
 [canonical_contract]
@@ -26,7 +26,7 @@ field_slot_wire_payloads = 0
 target_field_identity_is_preserved = true
 support_binding_precedes_field_binding = true
 package_name_is_not_an_execution_key = true
-legacy_source_identity_bytes_are_unchanged = true
+source_identity_epoch = 4
 
 [claim_boundary]
 representation = "continuum"

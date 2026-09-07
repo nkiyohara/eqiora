@@ -7,13 +7,13 @@ public component SteadyNewtonianBalance2d {
   public field slot force_potential on body as continuum: kg / (m * s ^ 2);
   public parameter dynamic_viscosity: kg / (m * s);
 
-  relation momentum continuous on body {
+  relation momentum on body {
     -div(
       2 * dynamic_viscosity * symmetric_part(grad(velocity))
       - isotropic_lift(pressure)
     ) - grad(force_potential) = 0;
   }
-  relation incompressibility continuous on body {
+  relation incompressibility on body {
     div(velocity) = 0;
   }
 }
@@ -28,7 +28,7 @@ public component VelocityTractionInterface2d {
   public port mechanical[boundary in exterior]:
     conserving mechanics.VelocityTractionBoundary over boundary;
 
-  relation boundary_interface[boundary in exterior] continuous on boundary {
+  relation boundary_interface[boundary in exterior] on boundary {
     trace(velocity)
       - trace(mechanical[boundary = boundary]) = 0;
     normal(
@@ -75,7 +75,7 @@ public component NoSlip2d {
   public port mechanical:
     conserving mechanics.VelocityTractionBoundary over face;
 
-  relation prescribed_velocity continuous on face {
+  relation prescribed_velocity on face {
     trace(mechanical) = 0;
   }
 }
@@ -86,7 +86,7 @@ public component TractionFree2d {
   public port mechanical:
     conserving mechanics.VelocityTractionBoundary over face;
 
-  relation prescribed_traction continuous on face {
+  relation prescribed_traction on face {
     flux(mechanical) = 0;
   }
 }
@@ -98,7 +98,7 @@ public component NormalPressureOutlet2d {
   public port mechanical:
     conserving mechanics.VelocityTractionBoundary over face;
 
-  relation prescribed_traction continuous on face {
+  relation prescribed_traction on face {
     flux(mechanical)
       - normal(isotropic_lift(exterior_pressure)) = 0;
   }
@@ -111,7 +111,7 @@ public component NormalVelocityInlet2d {
   public port mechanical:
     conserving mechanics.VelocityTractionBoundary over face;
 
-  relation prescribed_velocity continuous on face {
+  relation prescribed_velocity on face {
     trace(mechanical) + normal(isotropic_lift(speed)) = 0;
   }
 }
@@ -123,7 +123,7 @@ public component PrescribedVelocity2d {
   public port mechanical:
     conserving mechanics.VelocityTractionBoundary over face;
 
-  relation prescribed_velocity continuous on face {
+  relation prescribed_velocity on face {
     trace(mechanical) - trace(velocity) = 0;
   }
 }
@@ -136,7 +136,7 @@ public component PrescribedTraction2d {
   public port mechanical:
     conserving mechanics.VelocityTractionBoundary over face;
 
-  relation prescribed_traction continuous on face {
+  relation prescribed_traction on face {
     flux(mechanical) - trace(traction) = 0;
   }
 }

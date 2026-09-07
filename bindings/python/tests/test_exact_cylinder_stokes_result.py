@@ -130,7 +130,7 @@ def test_displaced_fluid_lifecycle_is_absent_and_cross_physics_fails() -> None:
 model decay {
   field x: 1 = 1;
   parameter rate: 1 / s = 1;
-  relation flow continuous { derivative(x) + rate * x = 0; }
+  relation flow { derivative(x) + rate * x = 0; }
 }
 """)
     field = ode.field(ode.field_ids[0])

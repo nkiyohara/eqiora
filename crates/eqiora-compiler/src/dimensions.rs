@@ -376,7 +376,7 @@ model Catalog {
   field power: W = 0;
   field pressure: Pa = 0;
   port frequency: signal input Hz;
-  relation balance continuous {
+  relation balance {
     power = energy / duration;
     pressure = 0;
   }
@@ -401,14 +401,14 @@ connector Motion = scalar_physical(across = Speed, through = Momentum);
 component Law {
   public parameter target: Speed;
   public port input: signal input Speed;
-  relation balance continuous { input - target = 0; }
+  relation balance { input - target = 0; }
 }
 model Example {
   parameter target: Speed = 2[m / s];
   let doubled: Speed = target * 2;
   field velocity: Speed = 0;
   port input: signal input Speed;
-  relation balance continuous { velocity + input - doubled = 0; }
+  relation balance { velocity + input - doubled = 0; }
   instance law: Law(target = target);
 }
 "#;
@@ -526,7 +526,7 @@ property release Reference implements Diffusivity {
 }
 public component Diffusion {
   public property diffusivity: Diffusivity;
-  relation law continuous { diffusivity = 0; }
+  relation law { diffusivity = 0; }
 }
 model Main { instance domain: Diffusion(property diffusivity = Reference); }
 "#;

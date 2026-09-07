@@ -10,13 +10,13 @@ public component SteadyStokesWithPotential2d {
   public field slot force_potential on body as continuum: kg / (m * s ^ 2);
   public parameter dynamic_viscosity: kg / (m * s);
 
-  relation momentum continuous on body {
+  relation momentum on body {
     -div(
       2 * dynamic_viscosity * symmetric_part(grad(velocity))
       - isotropic_lift(pressure)
     ) - grad(force_potential) = 0;
   }
-  relation incompressibility continuous on body {
+  relation incompressibility on body {
     div(velocity) = 0;
   }
 }
@@ -31,7 +31,7 @@ public component NewtonianMechanicalInterface2d {
   public port mechanical[boundary in exterior]:
     conserving mechanics.VelocityTractionBoundary over boundary;
 
-  relation boundary_interface[boundary in exterior] continuous on boundary {
+  relation boundary_interface[boundary in exterior] on boundary {
     trace(velocity)
       - trace(mechanical[boundary = boundary]) = 0;
     normal(
@@ -49,7 +49,7 @@ public component ConservativeNavierStokesWithPotential3d {
   public parameter density: kg / m ^ 3;
   public parameter dynamic_viscosity: kg / (m * s);
 
-  relation momentum continuous on body {
+  relation momentum on body {
     density * derivative(velocity)
       + div(density * outer_product(velocity, velocity))
       - div(
@@ -58,7 +58,7 @@ public component ConservativeNavierStokesWithPotential3d {
       )
       - grad(force_potential) = 0;
   }
-  relation incompressibility continuous on body {
+  relation incompressibility on body {
     div(velocity) = 0;
   }
 }
@@ -73,7 +73,7 @@ public component NewtonianMechanicalInterface3d {
   public port mechanical[boundary in exterior]:
     conserving mechanics.VelocityTractionBoundary over boundary;
 
-  relation boundary_interface[boundary in exterior] continuous on boundary {
+  relation boundary_interface[boundary in exterior] on boundary {
     trace(velocity)
       - trace(mechanical[boundary = boundary]) = 0;
     normal(

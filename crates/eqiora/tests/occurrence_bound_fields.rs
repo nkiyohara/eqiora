@@ -23,10 +23,10 @@ public component FieldLaw {
   public field slot scalar_state on body as continuum: 1;
   public field slot displacement on body as continuum: vector<m, 2>;
 
-  relation scalar_identity continuous on body {
+  relation scalar_identity on body {
     scalar_state - scalar_state = 0;
   }
-  relation vector_identity continuous on body {
+  relation vector_identity on body {
     displacement - displacement = 0;
   }
 }
@@ -57,11 +57,11 @@ public component FieldLawWrapper {
 }
 
 public component FieldLaw {
-  relation vector_identity continuous on body {
+  relation vector_identity on body {
     displacement - displacement = 0;
   }
   public field slot displacement on body as continuum: vector<m, 2>;
-  relation scalar_identity continuous on body {
+  relation scalar_identity on body {
     scalar_state - scalar_state = 0;
   }
   public field slot scalar_state on body as continuum: 1;
@@ -158,7 +158,12 @@ fn source_identity(source: &str) -> LocalSourceIdentity {
     let document = eqiora::language::parse("identity.eqi", source)
         .into_document()
         .expect("identity fixture parses");
-    LocalSourceIdentity::from_document(&document).expect("bounded source identity")
+    let identity = LocalSourceIdentity::from_document(&document).expect("bounded source identity");
+    assert_eq!(
+        identity.namespace().unwrap().segments()[0],
+        "local-source-v4"
+    );
+    identity
 }
 
 fn package_sources(
@@ -392,7 +397,7 @@ fn rebinding_changes_source_identity_and_the_exact_relation_target() {
 component C {
   public support body: volume(ambient_dimension = 2);
   public field slot state on body as continuum: 1;
-  relation identity continuous on body { state - state = 0; }
+  relation identity on body { state - state = 0; }
 }
 model M {
   domain body = box(0, 1, 0, 1);
@@ -427,8 +432,8 @@ component FieldLaw {
   public support body: volume(ambient_dimension = 2);
   public field slot scalar_state on body as continuum: 1;
   public field slot displacement on body as continuum: vector<m, 2>;
-  relation scalar_identity continuous on body { scalar_state - scalar_state = 0; }
-  relation vector_identity continuous on body { displacement - displacement = 0; }
+  relation scalar_identity on body { scalar_state - scalar_state = 0; }
+  relation vector_identity on body { displacement - displacement = 0; }
 }
 "#;
     let cases = [
@@ -616,7 +621,7 @@ component C {
   public parameter gain: 1;
   public support body: volume(ambient_dimension = 2);
   public field slot state on body as continuum: 1;
-  relation identity continuous on body { gain * state - state = 0; }
+  relation identity on body { gain * state - state = 0; }
 }
 model M {
   domain body = box(0, 1, 0, 1);

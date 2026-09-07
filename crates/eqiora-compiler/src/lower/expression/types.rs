@@ -1,0 +1,311 @@
+//! Full operand admission through the shared Kernel typing rules.
+
+use super::*;
+
+pub(super) fn relation_support(
+    file: &str,
+    range: TextRange,
+    name: &str,
+    bindings: &BTreeMap<String, Binding>,
+) -> Result<SpatialSupport<RawId>, Diagnostic> {
+    match bindings.get(name) {
+        Some(Binding::Domain(
+            id,
+            DomainContract::Spatial {
+                dimensions: Some(dimensions),
+                parent: None,
+            },
+        )) => Ok(SpatialSupport::Volume {
+            domain: id.erase(),
+            dimensions: *dimensions,
+        }),
+        Some(Binding::Domain(
+            id,
+            DomainContract::Spatial {
+                parent: Some(parent),
+                ..
+            },
+        )) => {
+            let Some(Binding::Domain(
+                parent_id,
+                DomainContract::Spatial {
+                    dimensions: Some(dimensions),
+                    parent: None,
+                },
+            )) = bindings.get(parent)
+            else {
+                return Err(unresolved(
+                    file,
+                    range,
+                    parent,
+                    "boundary parent volume Domain",
+                ));
+            };
+            Ok(SpatialSupport::Boundary {
+                domain: id.erase(),
+                parent: parent_id.erase(),
+                dimensions: *dimensions,
+            })
+        }
+        _ => Err(unresolved(file, range, name, "spatial Relation Domain")),
+    }
+}
+
+pub(super) fn expression_type(
+    file: &str,
+    expression: &LoweringExpression,
+    bindings: &BTreeMap<String, Binding>,
+    support: Option<&SpatialSupport<RawId>>,
+    discrete: bool,
+) -> Result<ExpressionType<RawId>, Diagnostic> {
+    let infer = |operand| expression_type(file, operand, bindings, support, discrete);
+    let violation = |error| spatial_type_error(file, expression, error);
+    match expression.node.as_ref() {
+        LoweringExpressionNode::Literal(value) => {
+            Ok(ExpressionType::new(value.value_type().clone(), None))
+        }
+        LoweringExpressionNode::Name(name) if name == "time" => {
+            Ok(ExpressionType::scalar(time_dimension(), None))
+        }
+        LoweringExpressionNode::Name(name) => match bindings.get(name) {
+            Some(Binding::Field(_, contract)) => {
+                let value_type =
+                    resolve_field_contract(file, expression.range(), contract, bindings)?;
+                let support = contract
+                    .domain
+                    .as_deref()
+                    .map(|name| relation_support(file, expression.range(), name, bindings))
+                    .transpose()?;
+                Ok(ExpressionType::new(value_type, support))
+            }
+            Some(Binding::Parameter(_, value_type)) => {
+                Ok(ExpressionType::new(value_type.clone(), None))
+            }
+            Some(Binding::Port(_, contract)) => {
+                match resolve_port_contract(file, expression.range(), contract, bindings)? {
+                    ResolvedPortContract::Signal { value_type, .. } => {
+                        Ok(ExpressionType::new(value_type, None))
+                    }
+                    ResolvedPortContract::ScalarPhysical { .. } => Err(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        expression.range(),
+                        format!(
+                            "scalar physical Port `{name}` must be read as `across({name})` or `through({name})`"
+                        ),
+                    )),
+                    ResolvedPortContract::BoundaryPhysical { .. } => Err(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        expression.range(),
+                        format!(
+                            "field-physical Port `{name}` must be read as `trace({name})` or `flux({name})`"
+                        ),
+                    )),
+                }
+            }
+            _ => Err(unresolved(
+                file,
+                expression.range(),
+                name,
+                "expression symbol",
+            )),
+        },
+        LoweringExpressionNode::Neg(value) => infer(value),
+        LoweringExpressionNode::Binary {
+            operator,
+            left,
+            right,
+        } => {
+            let left_type = infer(left)?;
+            let right_type = infer(right)?;
+            match operator {
+                BinaryOp::Add | BinaryOp::Sub => typing::additive(&left_type, &right_type),
+                BinaryOp::Mul => typing::multiply(&left_type, &right_type),
+                BinaryOp::Div => typing::divide(&left_type, &right_type),
+                BinaryOp::Pow => {
+                    let exponent = lowering_integer_literal(right).ok_or_else(|| {
+                        source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            file,
+                            right.range(),
+                            "power exponent must be an i32 integer literal",
+                        )
+                    })?;
+                    typing::power(&left_type, exponent)
+                }
+            }
+            .map_err(violation)
+        }
+        LoweringExpressionNode::Call { callee, argument } => {
+            if callee == "sin" {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    expression.range(),
+                    "bare `sin` is not language vocabulary; use compiler-owned `math.sin`",
+                ));
+            }
+            if callee.starts_with("math.") && !matches!(callee.as_str(), "math.sin" | "math.sqrt") {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    expression.range(),
+                    format!("unknown compiler-owned scalar mathematics member `{callee}`"),
+                ));
+            }
+            if callee == "coordinate" {
+                let axis = lowering_integer_literal(argument)
+                    .and_then(|axis| usize::try_from(axis).ok())
+                    .ok_or_else(|| {
+                        source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            file,
+                            argument.range(),
+                            "coordinate(...) requires a non-negative integer literal axis",
+                        )
+                    })?;
+                return typing::coordinate(axis, support).map_err(violation);
+            }
+            let mut boundary_name = None;
+            let port_contract = if let LoweringExpressionNode::Name(name) = argument.node.as_ref() {
+                if let Some(Binding::Port(_, contract)) = bindings.get(name) {
+                    if let PortContract::BoundaryPhysical { boundary, .. } = contract {
+                        boundary_name = Some(boundary.as_str());
+                    }
+                    Some(resolve_port_contract(
+                        file,
+                        argument.range(),
+                        contract,
+                        bindings,
+                    )?)
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            match (callee.as_str(), port_contract) {
+                ("across", Some(ResolvedPortContract::ScalarPhysical { across_type, .. })) => {
+                    return Ok(ExpressionType::new(across_type, None));
+                }
+                ("through", Some(ResolvedPortContract::ScalarPhysical { through_type, .. })) => {
+                    return Ok(ExpressionType::new(through_type, None));
+                }
+                (
+                    "trace" | "flux",
+                    Some(ResolvedPortContract::BoundaryPhysical {
+                        trace_type,
+                        flux_type,
+                        ..
+                    }),
+                ) => {
+                    let support = relation_support(
+                        file,
+                        argument.range(),
+                        boundary_name.expect("resolved boundary contract retains its name"),
+                        bindings,
+                    )?;
+                    return Ok(ExpressionType::new(
+                        if callee == "trace" {
+                            trace_type
+                        } else {
+                            flux_type
+                        },
+                        Some(support),
+                    ));
+                }
+                ("across" | "through" | "flux", _) => {
+                    let family = if callee == "flux" { "field" } else { "scalar" };
+                    let message = match argument.node.as_ref() {
+                        LoweringExpressionNode::Name(name) => {
+                            format!("`{name}` is not a {family} physical Port")
+                        }
+                        _ => {
+                            format!("`{callee}(...)` requires one bare {family} physical Port name")
+                        }
+                    };
+                    return Err(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        argument.range(),
+                        message,
+                    ));
+                }
+                _ => {}
+            }
+            if matches!(callee.as_str(), "derivative" | "pre" | "next") {
+                if !matches!(argument.node.as_ref(), LoweringExpressionNode::Name(name) if matches!(bindings.get(name), Some(Binding::Field(..))))
+                {
+                    return Err(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        argument.range(),
+                        "time operator requires one Field name",
+                    ));
+                }
+                if (callee == "derivative" && discrete) || (callee != "derivative" && !discrete) {
+                    return Err(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        expression.range(),
+                        format!(
+                            "{} Relation cannot use `{callee}`",
+                            if discrete { "clocked" } else { "continuous" }
+                        ),
+                    ));
+                }
+            }
+            let operand = infer(argument)?;
+            match callee.as_str() {
+                "grad" => typing::gradient(&operand),
+                "div" => typing::divergence(&operand),
+                "symmetric_part" => typing::symmetric_part(&operand),
+                "isotropic_lift" => typing::isotropic_lift(&operand),
+                "trace" => typing::trace(&operand, support),
+                "normal" => typing::normal(&operand, support),
+                "math.sin" => typing::unary_math(UnaryMathFunction::Sin, &operand),
+                "math.sqrt" => typing::unary_math(UnaryMathFunction::Sqrt, &operand),
+                "derivative" => typing::time_derivative(&operand),
+                "pre" | "next" => Ok(operand),
+                _ => {
+                    return Err(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        expression.range(),
+                        format!("unknown scalar operator `{callee}`"),
+                    ));
+                }
+            }
+            .map_err(violation)
+        }
+        LoweringExpressionNode::PureOperator {
+            definition,
+            arguments,
+        } => {
+            let arguments = arguments.iter().map(infer).collect::<Result<Vec<_>, _>>()?;
+            definition
+                .instantiate(&arguments)
+                .map(|application| application.result_type().clone())
+                .map_err(|error| spatial_type_error(file, expression, error))
+        }
+        LoweringExpressionNode::InvalidValue(message) => Err(source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            expression.range(),
+            *message,
+        )),
+        LoweringExpressionNode::UnknownMath(path) => Err(source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            expression.range(),
+            format!("unknown compiler-owned scalar mathematics member `{path}`"),
+        )),
+        LoweringExpressionNode::Unsupported => Err(source_error(
+            codes::LANGUAGE_LOWERING_ERROR,
+            file,
+            expression.range(),
+            "expression syntax is newer than this compiler",
+        )),
+    }
+}

@@ -135,11 +135,11 @@ public component FluidBoundaryLaw {
   public parameter value: 1;
   representation space = continuum;
   field state on fluid as space: 1 = 0;
-  relation volume_law continuous on fluid { state - value = 0; }
-  relation inlet_law continuous on inlet { trace(state) = 0; }
-  relation outlet_law continuous on outlet { trace(state) = 0; }
-  relation walls_law continuous on walls { trace(state) = 0; }
-  relation cylinder_law continuous on cylinder { trace(state) = 0; }
+  relation volume_law on fluid { state - value = 0; }
+  relation inlet_law on inlet { trace(state) = 0; }
+  relation outlet_law on outlet { trace(state) = 0; }
+  relation walls_law on walls { trace(state) = 0; }
+  relation cylinder_law on cylinder { trace(state) = 0; }
 }
 "#;
 
@@ -151,7 +151,7 @@ public component ScalarDiffusion {
   public parameter source_scale: 1 / m ^ 2;
   representation space = continuum;
   field potential on fluid as space: 1 = 0;
-  relation balance continuous on fluid {
+  relation balance on fluid {
     -div(diffusion * grad(potential))
       = source_scale * math.sin(wave_number * coordinate(0));
   }
@@ -183,35 +183,35 @@ public component SteadyFlowPastCylinder {
   field force_potential on fluid as space: kg / (m * s ^ 2) = 0;
   field inlet_profile on fluid as space: m / s = 0;
 
-  relation force_definition continuous on fluid {
+  relation force_definition on fluid {
     force_potential - zero_pressure = 0;
   }
-  relation inlet_profile_definition continuous on fluid {
+  relation inlet_profile_definition on fluid {
     inlet_profile
       - 4 * inlet_speed * coordinate(1) * (channel_height - coordinate(1))
         / channel_height ^ 2 = 0;
   }
-  relation momentum continuous on fluid {
+  relation momentum on fluid {
     -div(
       2 * dynamic_viscosity * symmetric_part(grad(velocity))
       - isotropic_lift(pressure)
     ) - grad(force_potential) = 0;
   }
-  relation incompressibility continuous on fluid {
+  relation incompressibility on fluid {
     div(velocity) = 0;
   }
 
-  relation inlet_velocity continuous on inlet {
+  relation inlet_velocity on inlet {
     trace(velocity) + normal(isotropic_lift(inlet_profile)) = 0;
   }
-  relation outlet_traction continuous on outlet {
+  relation outlet_traction on outlet {
     normal(
       2 * dynamic_viscosity * symmetric_part(grad(velocity))
       - isotropic_lift(pressure)
     ) = 0;
   }
-  relation wall_velocity continuous on walls { trace(velocity) = 0; }
-  relation cylinder_velocity continuous on cylinder { trace(velocity) = 0; }
+  relation wall_velocity on walls { trace(velocity) = 0; }
+  relation cylinder_velocity on cylinder { trace(velocity) = 0; }
 }
 "#;
 
@@ -405,7 +405,7 @@ public component SteadyFlowPastCylinder {
         }
 
         let ordinary_source = format!(
-            "{SCALAR_PRIMAL_SOURCE}\nmodel root {{ field x: 1 = 0; relation hold continuous {{ x = 0; }} }}\n"
+            "{SCALAR_PRIMAL_SOURCE}\nmodel root {{ field x: 1 = 0; relation hold {{ x = 0; }} }}\n"
         );
         let diagnostics = ModelDocument::compile("unsupported.eqi", &ordinary_source)
             .expect_err("ordinary Model compilation cannot discard authored forms");

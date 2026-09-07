@@ -74,7 +74,7 @@ model typed {{
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
   field u on body as space: {syntax}{initializer};
-  relation balance continuous on body {{ u - u = 0; }}
+  relation balance on body {{ u - u = 0; }}
 }}
 """)
     assert field.value_type == value_type

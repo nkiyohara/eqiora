@@ -360,7 +360,7 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
         Inlet::NormalVelocity => (
             r#"  field inlet_speed on body as space: m / s = 0;
   parameter inlet_speed_value: m / s = 1;
-  relation inlet_speed_definition continuous on body {
+  relation inlet_speed_definition on body {
     inlet_speed - inlet_speed_value = 0;
   }
 "#,
@@ -374,10 +374,10 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
             r#"  field inlet_potential on body as space: m ^ 2 / s = 0;
   field inlet_velocity on body as space: vector<m / s, 2>;
   parameter inlet_speed: m / s = 1;
-  relation inlet_potential_definition continuous on body {
+  relation inlet_potential_definition on body {
     inlet_potential - inlet_speed * coordinate(0) = 0;
   }
-  relation inlet_velocity_definition continuous on body {
+  relation inlet_velocity_definition on body {
     inlet_velocity - grad(inlet_potential) = 0;
   }
 "#,
@@ -400,7 +400,7 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
         Outlet::NormalPressure => (
             r#"  field exterior_pressure on body as space: kg / (m * s ^ 2) = 0;
   parameter ambient_pressure: kg / (m * s ^ 2) = 2;
-  relation exterior_pressure_definition continuous on body {
+  relation exterior_pressure_definition on body {
     exterior_pressure - ambient_pressure = 0;
   }
 "#,
@@ -415,10 +415,10 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
   field outlet_traction on body as space:
     vector<kg / (m * s ^ 2), 2>;
   parameter outlet_stress: kg / (m * s ^ 2) = 2;
-  relation traction_potential_definition continuous on body {
+  relation traction_potential_definition on body {
     traction_potential - outlet_stress * coordinate(0) = 0;
   }
-  relation outlet_traction_definition continuous on body {
+  relation outlet_traction_definition on body {
     outlet_traction - grad(traction_potential) = 0;
   }
 "#,
@@ -442,7 +442,7 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
   field force_potential on body as space: kg / (m * s ^ 2) = 0;
   parameter dynamic_viscosity: kg / (m * s) = 2;
   parameter zero_pressure: kg / (m * s ^ 2) = 0;
-  relation force_definition continuous on body {{
+  relation force_definition on body {{
     force_potential - zero_pressure = 0;
   }}
 {inlet_field}{outlet_field}{governing}

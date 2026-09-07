@@ -7,12 +7,12 @@ model ReferenceElasticBody {
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
   representation space = continuum;
-  field displacement on body as space: m shape spatial_vector;
+  field displacement on body as space: vector<m, 2>;
   field load_potential on body as space: kg / (m * s ^ 2);
   parameter mu: kg / (m * s ^ 2) = 3;
   parameter lambda: kg / (m * s ^ 2) = 2;
 
-  relation unloaded continuous on body { load_potential = 0; }
+  relation unloaded on body { load_potential = 0; }
   instance balance: IsotropicBalanceWithPotential2d(
     support body = body, field displacement = displacement,
     field load_potential = load_potential, mu = mu, lambda = lambda

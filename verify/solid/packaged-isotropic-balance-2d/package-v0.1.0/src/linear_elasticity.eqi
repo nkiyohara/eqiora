@@ -5,7 +5,7 @@ public component IsotropicBalanceWithPotential2d {
   public parameter mu: kg / (m * s ^ 2);
   public parameter lambda: kg / (m * s ^ 2);
 
-  relation balance continuous on body {
+  relation balance on body {
     -div(
       2 * mu * symmetric_part(grad(displacement))
       + lambda * isotropic_lift(div(displacement))

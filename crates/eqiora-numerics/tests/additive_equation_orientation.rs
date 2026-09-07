@@ -16,13 +16,13 @@ model additive_poisson {
   parameter diffusion: 1 = 2;
   parameter source: 1 / m ^ 2 = 3;
   parameter value: 1 = 4;
-  relation balance continuous on body {
+  relation balance on body {
     -div(diffusion * grad(potential)) - source = 0;
   }
-  relation x_lower_value continuous on x_lower { trace(potential) - value = 0; }
-  relation x_upper_value continuous on x_upper { trace(potential) - value = 0; }
-  relation y_lower_value continuous on y_lower { trace(potential) - value = 0; }
-  relation y_upper_value continuous on y_upper { trace(potential) - value = 0; }
+  relation x_lower_value on x_lower { trace(potential) - value = 0; }
+  relation x_upper_value on x_upper { trace(potential) - value = 0; }
+  relation y_lower_value on y_lower { trace(potential) - value = 0; }
+  relation y_upper_value on y_upper { trace(potential) - value = 0; }
 }
 "#;
 

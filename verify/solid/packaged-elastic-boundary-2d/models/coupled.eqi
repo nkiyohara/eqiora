@@ -4,7 +4,7 @@ public component BoundaryTerminal {
   public port mechanical:
     conserving solid.QuasistaticMechanicalBoundary over face;
 
-  relation free_traction continuous on face {
+  relation free_traction on face {
     flux(mechanical) = 0;
   }
 }

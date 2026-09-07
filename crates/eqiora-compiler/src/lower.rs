@@ -210,6 +210,42 @@ pub(crate) struct LoweringExpression {
     range: TextRange,
 }
 
+/// Ordered equality, retained through hierarchy substitution until typed lowering.
+#[derive(Debug, Clone)]
+pub(crate) struct LoweringEquation {
+    pub(crate) left: LoweringExpression,
+    pub(crate) right: LoweringExpression,
+    pub(crate) contextual_left_zero: bool,
+    pub(crate) contextual_right_zero: bool,
+    pub(crate) literal_right_zero: bool,
+    pub(crate) range: TextRange,
+}
+
+impl LoweringEquation {
+    pub(crate) fn from_source(equation: &eqiora_lang::Equation) -> Self {
+        Self::rewritten(
+            equation,
+            LoweringExpression::from_source(equation.left()),
+            LoweringExpression::from_source(equation.right()),
+        )
+    }
+
+    pub(crate) fn rewritten(
+        equation: &eqiora_lang::Equation,
+        left: LoweringExpression,
+        right: LoweringExpression,
+    ) -> Self {
+        Self {
+            left,
+            right,
+            contextual_left_zero: equality::is_contextual_zero(equation.left()),
+            contextual_right_zero: equality::is_contextual_zero(equation.right()),
+            literal_right_zero: equality::is_literal_zero(equation.right()),
+            range: equation.range(),
+        }
+    }
+}
+
 impl PartialEq for LoweringExpression {
     fn eq(&self, other: &Self) -> bool {
         self.node == other.node
@@ -381,7 +417,7 @@ pub(crate) enum LoweringItem {
         name: String,
         activation: ActivationSyntax,
         domain: Option<String>,
-        residuals: Vec<LoweringExpression>,
+        equations: Vec<LoweringEquation>,
         range: TextRange,
     },
     Connection {
@@ -398,6 +434,7 @@ pub(crate) enum LoweringItem {
     },
 }
 
+pub(crate) mod equality;
 mod source;
 /// Identity source for one completely staged lowering.
 ///
@@ -494,10 +531,14 @@ pub(crate) fn lower_typed_model(
                     LoweringDomainContract::ExternalGeometryRegion { dimensions, .. } => {
                         Ok(DomainContract::Spatial {
                             dimensions: Some(*dimensions),
+                            parent: None,
                         })
                     }
-                    LoweringDomainContract::ExternalGeometryBoundary { .. } => {
-                        Ok(DomainContract::Spatial { dimensions: None })
+                    LoweringDomainContract::ExternalGeometryBoundary { parent, .. } => {
+                        Ok(DomainContract::Spatial {
+                            dimensions: None,
+                            parent: Some(parent.clone()),
+                        })
                     }
                     LoweringDomainContract::BoundaryPhysical(contract) => {
                         Ok(DomainContract::BoundaryPhysical(contract.clone()))
@@ -798,14 +839,14 @@ pub(crate) fn lower_typed_model(
                 name,
                 activation,
                 domain,
-                residuals,
+                equations,
                 range,
             } => lower_relation(
                 file,
                 *range,
                 activation,
                 domain.as_deref(),
-                residuals,
+                equations,
                 &bindings,
             )
             .map(|lowered| {

@@ -42,7 +42,7 @@ fn authored(reaction: &[Vec<f64>], reverse: bool) -> (String, Vec<String>) {
     }
     for &row in &order {
         source += &format!(
-            "relation balance_{row} continuous on body {{ -div({} * grad({}))",
+            "relation balance_{row} on body {{ -div({} * grad({}))",
             row + 2,
             names[row]
         );
@@ -54,7 +54,7 @@ fn authored(reaction: &[Vec<f64>], reverse: bool) -> (String, Vec<String>) {
         source += &format!(" - {} * inverse_area = 0; }}\n", row + 1);
         for side in ["left", "right"] {
             source += &format!(
-                "relation {side}_{row} continuous on {side} {{ trace({}) = 0; }}\n",
+                "relation {side}_{row} on {side} {{ trace({}) = 0; }}\n",
                 names[row]
             );
         }
@@ -311,20 +311,20 @@ fn fieldwise_nonzero_trace_and_natural_load_recover_linear_fields() {
             "representation space = continuum; parameter q0: 1 / m = 2; parameter q1: 1 / m = 9;",
         )
         .replace(
-            "relation left_0 continuous on left { trace(field_0) = 0; }",
-            "relation left_0 continuous on left { trace(field_0) = 2; }",
+            "relation left_0 on left { trace(field_0) = 0; }",
+            "relation left_0 on left { trace(field_0) = 2; }",
         )
         .replace(
-            "relation left_1 continuous on left { trace(field_1) = 0; }",
-            "relation left_1 continuous on left { trace(field_1) = 4; }",
+            "relation left_1 on left { trace(field_1) = 0; }",
+            "relation left_1 on left { trace(field_1) = 4; }",
         )
         .replace(
-            "relation right_0 continuous on right { trace(field_0) = 0; }",
-            "relation right_0 continuous on right { normal(2 * grad(field_0)) = q0; }",
+            "relation right_0 on right { trace(field_0) = 0; }",
+            "relation right_0 on right { normal(2 * grad(field_0)) = q0; }",
         )
         .replace(
-            "relation right_1 continuous on right { trace(field_1) = 0; }",
-            "relation right_1 continuous on right { normal(3 * grad(field_1)) = q1; }",
+            "relation right_1 on right { trace(field_1) = 0; }",
+            "relation right_1 on right { normal(3 * grad(field_1)) = q1; }",
         );
     let (form, symbols) = compiled(&source);
     let first = symbols.get(&names[0]).unwrap();

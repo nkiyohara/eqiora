@@ -72,7 +72,7 @@ fn caller_geometry(volume: &str) -> CanonicalGeometryV1 {
 
 #[test]
 fn declaration_prose_changes_package_source_but_not_physical_structure() {
-    let source = "/// First explanation.\nmodel Main { field x:1=0; relation balance continuous { x=0; } }\n";
+    let source = "/// First explanation.\nmodel Main { field x:1=0; relation balance { x=0; } }\n";
     let changed = source.replace("First explanation.", "Different explanation.");
     let first = release("org.example.Documented", source, &[]);
     let second = release("org.example.Documented", &changed, &[]);
@@ -130,7 +130,7 @@ model Main { instance load: lib.Resistor(resistance = 2); }
     let library_source = r#"
 public component Resistor {
   public parameter resistance: 1;
-  relation law continuous { resistance - 2 = 0; }
+  relation law { resistance - 2 = 0; }
 }
 "#;
     let manifest = PackageManifestV1::new(
@@ -186,7 +186,7 @@ public component Resistor {
 fn locked_root_can_select_one_direct_dependency_public_model() {
     let dependency = release(
         "org.example.Library",
-        "public model Shared { parameter gain: 1 = 2; relation law continuous { gain - 2 = 0; } }",
+        "public model Shared { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
         &[],
     );
     let root = release(
@@ -285,7 +285,7 @@ property release ReferenceDiffusivity implements Diffusivity {
 }
 public component Diffusion {
   public property diffusivity: Diffusivity;
-  relation law continuous { diffusivity = 0; }
+  relation law { diffusivity = 0; }
 }
 model Main {
   instance domain: Diffusion(property diffusivity = ReferenceDiffusivity);
@@ -353,7 +353,7 @@ public component SpatialLaw {
   public parameter forcing: 1;
   representation space = continuum;
   field state on fluid as space: 1 = 0;
-  relation balance continuous on fluid { state - forcing = 0; }
+  relation balance on fluid { state - forcing = 0; }
 }
 "#;
     let root = release("org.example.SpatialLaw", SOURCE, &[]);
@@ -426,7 +426,7 @@ fn locked_compilation_binds_exact_graph_model_and_package_provenance() {
     const LIBRARY_SOURCE: &str = r#"
 public component Resistor {
   public parameter resistance: 1 = 2;
-  relation law continuous { resistance - 2 = 0; }
+  relation law { resistance - 2 = 0; }
 }
 "#;
     const ROOT_SOURCE: &str = r#"
@@ -597,7 +597,7 @@ fn preparation_is_order_independent_over_one_transitive_exact_closure() {
     const LEAF: &str = r#"
 public component Resistor {
   public parameter resistance: 1 = 2;
-  relation law continuous { resistance - 2 = 0; }
+  relation law { resistance - 2 = 0; }
 }
 "#;
     const MIDDLE: &str = r#"
@@ -635,7 +635,7 @@ fn preparation_rejects_incomplete_duplicate_and_unreachable_inputs() {
     const LIBRARY: &str = r#"
 public component Resistor {
   public parameter resistance: 1 = 2;
-  relation law continuous { resistance - 2 = 0; }
+  relation law { resistance - 2 = 0; }
 }
 "#;
     const ROOT: &str = r#"
@@ -667,7 +667,7 @@ fn dishonest_dependency_source_fails_before_root_release_is_returned() {
     const LIBRARY_SOURCE: &str = r#"
 public component Resistor {
   public parameter resistance: 1 = 2;
-  relation law continuous { resistance - 2 = 0; }
+  relation law { resistance - 2 = 0; }
 }
 "#;
     const ROOT_SOURCE: &str = r#"

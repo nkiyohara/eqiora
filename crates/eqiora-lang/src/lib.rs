@@ -22,7 +22,7 @@ pub use ast::{
     BoundarySetBindingDecl, BoundarySetMemberSyntax, BoundarySideSyntax, ClockDecl, ComponentDecl,
     ComponentItem, ComponentParameterDecl, ComponentPortDecl, ComponentPortFamilyDecl,
     ConnectionDecl, ConnectionSyntax, ConnectorDecl, ConnectorQuantitySyntax, ConnectorSyntax,
-    DocComment, Document, DomainDecl, DomainSyntax, ExactIntegerSyntax, Expr, ExprKind,
+    DocComment, Document, DomainDecl, DomainSyntax, Equation, ExactIntegerSyntax, Expr, ExprKind,
     FieldBindingDecl, FieldDecl, FieldSlotDecl, FrameSyntax, InstanceDecl, Item, ModelDecl,
     NamePath, ParameterBindingDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorBinaryOp,
     PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal,

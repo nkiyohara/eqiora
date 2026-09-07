@@ -5,7 +5,7 @@ public component IsotropicBalanceWithPotential2d {
   public parameter mu: kg / (m * s ^ 2);
   public parameter lambda: kg / (m * s ^ 2);
 
-  relation balance continuous on body {
+  relation balance on body {
     -div(
       2 * mu * symmetric_part(grad(displacement))
       + lambda * isotropic_lift(div(displacement))
@@ -31,7 +31,7 @@ public component IsotropicMechanicalInterface2d {
   public port mechanical[boundary in exterior]:
     conserving QuasistaticMechanicalBoundary over boundary;
 
-  relation boundary_interface[boundary in exterior] continuous on boundary {
+  relation boundary_interface[boundary in exterior] on boundary {
     trace(displacement)
       - trace(mechanical[boundary = boundary]) = 0;
     normal(
@@ -47,7 +47,7 @@ public component FixedDisplacement2d {
   public port mechanical:
     conserving QuasistaticMechanicalBoundary over face;
 
-  relation prescribed_displacement continuous on face {
+  relation prescribed_displacement on face {
     trace(mechanical) = 0;
   }
 }
@@ -58,7 +58,7 @@ public component ZeroTraction2d {
   public port mechanical:
     conserving QuasistaticMechanicalBoundary over face;
 
-  relation prescribed_traction continuous on face {
+  relation prescribed_traction on face {
     flux(mechanical) = 0;
   }
 }
@@ -72,10 +72,10 @@ public component IsotropicElastodynamicsWithPotential2d {
   public parameter mu: kg / (m * s ^ 2);
   public parameter lambda: kg / (m * s ^ 2);
 
-  relation kinematics continuous on body {
+  relation kinematics on body {
     derivative(displacement) - velocity = 0;
   }
-  relation momentum continuous on body {
+  relation momentum on body {
     density * derivative(velocity)
       - div(
         2 * mu * symmetric_part(grad(displacement))
@@ -96,7 +96,7 @@ public component ElastodynamicMechanicalInterface2d {
   public port mechanical[boundary in exterior]:
     conserving mechanics.VelocityTractionBoundary over boundary;
 
-  relation boundary_interface[boundary in exterior] continuous on boundary {
+  relation boundary_interface[boundary in exterior] on boundary {
     trace(velocity)
       - trace(mechanical[boundary = boundary]) = 0;
     normal(
@@ -115,10 +115,10 @@ public component IsotropicElastodynamicsWithPotential3d {
   public parameter mu: kg / (m * s ^ 2);
   public parameter lambda: kg / (m * s ^ 2);
 
-  relation kinematics continuous on body {
+  relation kinematics on body {
     derivative(displacement) - velocity = 0;
   }
-  relation momentum continuous on body {
+  relation momentum on body {
     density * derivative(velocity)
       - div(
         2 * mu * symmetric_part(grad(displacement))
@@ -139,7 +139,7 @@ public component ElastodynamicMechanicalInterface3d {
   public port mechanical[boundary in exterior]:
     conserving mechanics.VelocityTractionBoundary over boundary;
 
-  relation boundary_interface[boundary in exterior] continuous on boundary {
+  relation boundary_interface[boundary in exterior] on boundary {
     trace(velocity)
       - trace(mechanical[boundary = boundary]) = 0;
     normal(

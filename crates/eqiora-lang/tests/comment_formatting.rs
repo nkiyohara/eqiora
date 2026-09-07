@@ -58,17 +58,14 @@ fn formatting_preserves_leading_trailing_and_body_comments() {
 
 #[test]
 fn formatting_still_canonicalizes_comment_free_source() {
-    let document = parse(
-        "plain.eqi",
-        "model plain{field x:1=0;relation r continuous{x=0;}}",
-    )
-    .into_document()
-    .expect("plain source parses");
+    let document = parse("plain.eqi", "model plain{field x:1=0;relation r{x=0;}}")
+        .into_document()
+        .expect("plain source parses");
     let formatted = format(&document);
 
     assert_eq!(
         formatted,
-        "model plain {\n  field x: 1 = 0;\n  relation r continuous {\n    x = 0;\n  }\n}\n"
+        "model plain {\n  field x: 1 = 0;\n  relation r {\n    x = 0;\n  }\n}\n"
     );
     let reparsed = parse("plain.eqi", &formatted)
         .into_document()

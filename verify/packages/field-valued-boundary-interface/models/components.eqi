@@ -11,7 +11,7 @@ public component BoundarySide {
   public support interface: boundary(parent = body);
   public port mechanical: conserving MechanicalBoundary over interface;
 
-  relation carrier continuous on interface {
+  relation carrier on interface {
     trace(mechanical) - trace(mechanical) = 0;
     flux(mechanical) - flux(mechanical) = 0;
   }

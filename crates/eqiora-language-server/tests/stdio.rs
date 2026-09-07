@@ -95,7 +95,7 @@ fn version_command_reports_the_release() {
 
 #[test]
 fn stdio_session_syncs_diagnostics_and_serves_editor_requests() {
-    let source = "dimension Scalar = 1;\npublic component Part{\n  public parameter gain: Scalar;\n  relation law continuous { gain = 0; }\n}\nmodel Demo{\n  parameter input: Scalar = 1;\n  field state: Scalar = 0;\n  instance part: Part(gain = input);\n  relation balance continuous { state = 0; }\n}\n";
+    let source = "dimension Scalar = 1;\npublic component Part{\n  public parameter gain: Scalar;\n  relation law { gain = 0; }\n}\nmodel Demo{\n  parameter input: Scalar = 1;\n  field state: Scalar = 0;\n  instance part: Part(gain = input);\n  relation balance { state = 0; }\n}\n";
     let uri = "file:///workspace/main.eqi";
     let mut child = Command::new(SERVER)
         .stdin(Stdio::piped())

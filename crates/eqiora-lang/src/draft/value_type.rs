@@ -76,6 +76,7 @@ pub(super) fn project(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Item;
     use eqiora_core::{ScalarDomain, ValueFrame, ValueShape};
 
     #[test]

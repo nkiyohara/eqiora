@@ -301,9 +301,9 @@ fn mixed_natural_boundary_reuses_the_volume_coefficient_for_fem_and_fvm() {
             &format!("{coefficient} * grad(potential)"),
         )
         .replace(
-            "relation y_upper_value continuous on y_upper { trace(potential) - boundary_offset = 0; }",
+            "relation y_upper_value on y_upper { trace(potential) - boundary_offset = 0; }",
             &format!(
-                "relation y_upper_value continuous on y_upper {{ normal({coefficient} * grad(potential)) = wave_number; }}"
+                "relation y_upper_value on y_upper {{ normal({coefficient} * grad(potential)) = wave_number; }}"
             ),
         );
     let program = compile_program("mixed-natural-affine-coefficient.eqi", &source);

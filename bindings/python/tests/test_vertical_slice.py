@@ -43,7 +43,7 @@ SOURCE = """
 model decay {
   field x: 1 = 1;
   parameter rate: 1 / s = 1;
-  relation flow continuous {
+  relation flow {
     derivative(x) + rate * x = 0;
   }
 }
@@ -57,7 +57,7 @@ model physical_pair {
   );
   port left: conserving on electrical;
   port right: conserving on electrical;
-  relation component continuous {
+  relation component {
     across(left) = 0;
     through(right) = 0;
   }
@@ -73,11 +73,11 @@ model native_poisson {
   representation scalar_space = continuum;
   field potential on interval as scalar_space: 1 = 0;
   parameter source_scale: 1 / m ^ 2 = 1;
-  relation balance continuous on interval {
+  relation balance on interval {
     -div(grad(potential)) - source_scale = 0;
   }
-  relation lower_value continuous on lower_end { trace(potential) = 0; }
-  relation upper_value continuous on upper_end { trace(potential) = 0; }
+  relation lower_value on lower_end { trace(potential) = 0; }
+  relation upper_value on upper_end { trace(potential) = 0; }
 }
 """
 

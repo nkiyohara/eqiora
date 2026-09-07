@@ -11,7 +11,7 @@ model Root {
   representation space = continuum;
   parameter area: m ^ 2 = 4000000 [mm ^ 2];
   field length on interval as space: m = 0;
-  relation law continuous on interval { length - math.sqrt(area) = 0; }
+  relation law on interval { length - math.sqrt(area) = 0; }
 }
 "#;
     let mut compiled = compile("sqrt.eqi", source).unwrap();
@@ -98,7 +98,7 @@ model plane_source {
   domain plane = box(0, 2, 0, 3);
   representation space = continuum;
   field u on plane as space: m = 0;
-  relation identity continuous on plane {
+  relation identity on plane {
 u - (coordinate(0) + coordinate(1)) = 0;
   }
 }
@@ -141,7 +141,7 @@ model parameterized_source {
   representation space = continuum;
   field u on interval as space: m ^ 2 = 0;
   parameter amplitude: m = 3;
-  relation identity continuous on interval {
+  relation identity on interval {
 u - amplitude ^ 2 * math.sin(coordinate(0) / amplitude) = 0;
   }
 }

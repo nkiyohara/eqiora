@@ -19,7 +19,7 @@ fn compile_program(source: &str) -> (KernelProgram, eqiora::compiler::ModelSymbo
 #[test]
 fn uninitialized_algebraic_field_runs_without_a_model_owned_value() {
     let (program, symbols) = compile_program(
-        "model algebraic { field pressure: 1; relation balance continuous { pressure - 2 = 0; } }",
+        "model algebraic { field pressure: 1; relation balance { pressure - 2 = 0; } }",
     );
     let pressure = symbols.get("pressure").expect("pressure ID");
     assert_eq!(program.value(pressure), None);
@@ -42,7 +42,7 @@ fn uninitialized_algebraic_field_runs_without_a_model_owned_value() {
 #[test]
 fn uninitialized_differential_field_fails_at_execution_admission() {
     let (program, symbols) = compile_program(
-        "model transient { field state: 1; parameter rate: 1 / s = 1; relation evolution continuous { derivative(state) + rate * state = 0; } }",
+        "model transient { field state: 1; parameter rate: 1 / s = 1; relation evolution { derivative(state) + rate * state = 0; } }",
     );
     assert_eq!(program.value(symbols.get("state").expect("state ID")), None);
 
@@ -66,7 +66,7 @@ fn uninitialized_differential_field_fails_at_execution_admission() {
 #[test]
 fn uninitialized_discrete_field_fails_at_execution_admission() {
     let (program, symbols) = compile_program(
-        "model discrete { field state: 1; clock tick = periodic(period = 1 / 1, phase = 0 / 1); relation update periodic(tick) { next(state) - pre(state) = 0; } }",
+        "model discrete { field state: 1; clock tick = periodic(period = 1 / 1, phase = 0 / 1); relation update at tick { next(state) - pre(state) = 0; } }",
     );
     assert_eq!(program.value(symbols.get("state").expect("state ID")), None);
 
@@ -98,12 +98,12 @@ model thermal_controller {
 
   clock control = periodic(period = 1 / 1, phase = 0 / 1);
 
-  relation plant continuous {
+  relation plant {
     derivative(temperature)
       - ((ambient - temperature) / tau + heating_gain * control_in) = 0;
   }
 
-  relation controller periodic(control) {
+  relation controller at control {
     next(command) - controller_gain * (setpoint - temperature) = 0;
     control_out - next(command) = 0;
   }

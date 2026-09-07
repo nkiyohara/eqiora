@@ -584,37 +584,37 @@ fn derivation_rejects_ambiguous_incomplete_foreign_and_mixed_roles() {
     assert_derivation_rejects(&foreign_parameter, "foreign parameter role");
 
     let duplicate_volume = SOURCE.replace(
-        "  relation x_lower_value continuous on x_lower",
+        "  relation x_lower_value on x_lower",
         concat!(
-            "  relation foreign_balance continuous on body {\n",
+            "  relation foreign_balance on body {\n",
             "    -div(2 * mu * symmetric_part(grad(displacement))\n",
             "      + lambda * isotropic_lift(div(displacement)))\n",
             "      - grad(load_potential) = 0;\n",
             "  }\n\n",
-            "  relation x_lower_value continuous on x_lower",
+            "  relation x_lower_value on x_lower",
         ),
     );
     assert_derivation_rejects(&duplicate_volume, "ambiguous volume relation");
 
     let incomplete_boundary = SOURCE.replace(
-        "  relation y_upper_value continuous on y_upper { trace(displacement) = 0; }\n",
+        "  relation y_upper_value on y_upper { trace(displacement) = 0; }\n",
         "",
     );
     assert_derivation_rejects(&incomplete_boundary, "incomplete boundary role");
 
     let duplicate_boundary = SOURCE.replace(
-        "  relation y_upper_value continuous on y_upper { trace(displacement) = 0; }",
+        "  relation y_upper_value on y_upper { trace(displacement) = 0; }",
         concat!(
-            "  relation y_upper_value continuous on y_upper { trace(displacement) = 0; }\n",
-            "  relation y_upper_duplicate continuous on y_upper { trace(displacement) = 0; }",
+            "  relation y_upper_value on y_upper { trace(displacement) = 0; }\n",
+            "  relation y_upper_duplicate on y_upper { trace(displacement) = 0; }",
         ),
     );
     assert_derivation_rejects(&duplicate_boundary, "ambiguous boundary role");
 
     let mixed_boundary = SOURCE.replace(
-        "relation x_upper_value continuous on x_upper { trace(displacement) = 0; }",
+        "relation x_upper_value on x_upper { trace(displacement) = 0; }",
         concat!(
-            "relation x_upper_value continuous on x_upper {\n",
+            "relation x_upper_value on x_upper {\n",
             "    normal(2 * mu * symmetric_part(grad(displacement))\n",
             "      + lambda * isotropic_lift(div(displacement))) = 0;\n",
             "  }",

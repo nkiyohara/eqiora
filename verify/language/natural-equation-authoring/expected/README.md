@@ -1,130 +1,61 @@
-# Frozen expected observations
+# Independently derived equality observations
 
-Both positive files format to the exact 187-byte `models/natural.eqi` bytes.
-Their ordered root vector, excluding ranges, is:
-
-```text
-[
-  Sub(Name(a), Name(b)),
-  Sub(Sub(Name(a), Sub(Name(b), Name(c))), Name(d)),
-  Sub(Neg(Name(a)), Neg(Name(b))),
-]
-```
-
-The natural ranges are:
+`models/natural.eqi` retains the ordered pairs `(a,b)`, `(a-(b-c),d)`,
+and `(-a,-b)`. `models/explicit-residual.eqi` retains each complete residual
+on the left and a literal zero on the right. Each file formats to its own
+bytes, not to the other file. Both checked residual vectors are:
 
 ```text
-Relation(balance)@106..184
-Sub(Name(a)@140..141, Name(b)@144..145)@140..145
-Sub(Sub(Name(a)@151..152,
-        Sub(Name(b)@156..157, Name(c)@160..161)@155..162)@151..162,
-    Name(d)@165..166)@151..166
-Sub(Neg(Name(a)@173..174)@172..174,
-    Neg(Name(b)@178..179)@177..179)@172..179
+Sub(a,b)
+Sub(Sub(a,Sub(b,c)),d)
+Sub(Neg(a),Neg(b))
 ```
 
-The explicit ranges are:
+The sixteen fixed rows distinguish authored sides from checked roots:
 
-```text
-Relation(balance)@106..196
-Sub(Name(a)@140..141, Name(b)@144..145)@140..145
-Sub(Sub(Name(a)@155..156,
-        Sub(Name(b)@160..161, Name(c)@164..165)@159..166)@155..166,
-    Name(d)@169..170)@155..170
-Sub(Neg(Name(a)@181..182)@180..182,
-    Neg(Name(b)@186..187)@185..187)@180..187
-```
+| Authored statement | Checked root | Canonical statement |
+| --- | --- | --- |
+| `x = 0` | `x` | `x = 0` |
+| `x = (0)` | `x` | `x = 0` |
+| `x = ((0))` | `x` | `x = 0` |
+| `x = -0` | `x` | `x = -0` |
+| `x = (-0)` | `x` | `x = -0` |
+| `x = -(-0)` | `x` | `x = --0` |
+| `x = 0e-999` | `x` | `x = 0` |
+| `0 = x` | `Sub(0,x)` | unchanged |
+| `x - 0 = 0` | `Sub(x,0)` | unchanged |
+| `x = 0*y` | `Sub(x,Mul(0,y))` | `x = 0 * y` |
+| `x = y-y` | `Sub(x,Sub(y,y))` | `x = y - y` |
+| `x = zero` | `Sub(x,Parameter(zero))` | unchanged |
+| `x-y = z` | `Sub(Sub(x,y),z)` | `x - y = z` |
+| `x = y-z` | `Sub(x,Sub(y,z))` | `x = y - z` |
+| `-x = -y` | `Sub(Neg(x),Neg(y))` | unchanged |
+| `x-(y-z) = x` | `Sub(Sub(x,Sub(y,z)),x)` | `x - (y - z) = x` |
 
-Natural equations, explicit residuals, locked packages, and native construction
-have equal structural fingerprints. Their independently enumerated expression
-trees above define the expected meaning; this language case does not pin the
-comparison codec's digest bytes.
+Source ranges are independently located in each fixed UTF-8/CRLF input:
+equality begins at its lhs, ends after the complete rhs, and excludes the
+semicolon. Parentheses remain within the authored operand range. No expected
+offset is read from parser output.
 
-## Fixed statement table
+Bare zero works for a dimensionful lhs. Explicit matching-unit zero works;
+wrong or unknown units reject before normalization. `0*missing` still resolves
+its operand; `0*1[s]` still has time dimension. Decimal nonzero underflow
+(`1e-324`, including sign/grouping) rejects at numeric admission. Unit conversion
+nonzero underflow (`5e-324[mm]`) rejects at normalization. Exact decimal zero
+with a large exponent remains zero; the least positive representable subnormal
+(`5e-324`, binary64 bits `1`) remains a nonzero operand.
 
-`U` is exactly `1e-324`.
+Eight actual source mutations independently change multiplication/addition,
+dropped rhs, swapped operands, sign, inner operand order, reassociation, or
+root order. Every mutated model is compiled and compared through the public
+ordered structural fingerprint, rather than mutating an observation clone.
 
-| Input | First root | Golden | Relation / root 0 / root 1 |
-| --- | --- | --- | --- |
-| `x = 0;` | `Name(x)` | `x = 0;` | `80..129 / 108..109 / 119..124` |
-| `x = -0;` | `Name(x)` | `x = 0;` | `80..130 / 108..109 / 120..125` |
-| `x = 1e-324;` | `Name(x)` | `x = 0;` | `80..134 / 108..109 / 124..129` |
-| `x = (0);` | `Sub(Name(x), Number(+0))` | `x = (0);` | `80..131 / 108..115 / 121..126` |
-| `x = (-0);` | `Sub(Name(x), Neg(Number(+0)))` | `x = (-0);` | `80..132 / 108..116 / 122..127` |
-| `x = (1e-324);` | `Sub(Name(x), Number(+0))` | `x = (0);` | `80..136 / 108..120 / 126..131` |
-| `x - 0 = 0;` | `Sub(Name(x), Number(+0))` | `x = (0);` | `80..133 / 108..113 / 123..128` |
-| `x - (-0) = 0;` | `Sub(Name(x), Neg(Number(+0)))` | `x = (-0);` | `80..136 / 108..116 / 126..131` |
-| `x - 1e-324 = 0;` | `Sub(Name(x), Number(+0))` | `x = (0);` | `80..138 / 108..118 / 128..133` |
-| `x = ((0));` | `Sub(Name(x), Number(+0))` | `x = (0);` | `80..133 / 108..117 / 123..128` |
-| `x = 0 * y;` | `Sub(Name(x), Mul(Number(+0), Name(y)))` | `x = 0 * y;` | `80..133 / 108..117 / 123..128` |
-| `x = -(-0);` | `Sub(Name(x), Neg(Neg(Number(+0))))` | `x = --0;` | `80..133 / 108..117 / 123..128` |
-| `x - y = z;` | `Sub(Sub(Name(x), Name(y)), Name(z))` | `x - y = z;` | `80..133 / 108..117 / 123..128` |
-| `x = y - z;` | `Sub(Name(x), Sub(Name(y), Name(z)))` | `x = y - z;` | `80..133 / 108..117 / 123..128` |
-| `-x = -y;` | `Sub(Neg(Name(x)), Neg(Name(y)))` | `-x = -y;` | `80..131 / 108..115 / 121..126` |
-| `x - (y - z) = x;` | `Sub(Sub(Name(x), Sub(Name(y), Name(z))), Name(x))` | `x - (y - z) = x;` | `80..139 / 108..123 / 129..134` |
+The unchanged mathematical permutation oracle is `x+y=3, x-y=1`: adding and
+subtracting gives `(x,y)=(2,1)`. At `(4,-1)` the ordered residual vector is
+`(0,4)`, or `(4,0)` after swapping equations. This justifies solution invariance,
+not identical ordered fingerprints. The focused simultaneity test owns execution.
 
-## Diagnostic table
-
-| Pair | Count | Code/message | Graph path | Source span |
-| --- | ---: | --- | --- | --- |
-| missing lhs | 1 | `EQ0603`, exact unresolved `missing` | none | `diagnostic.eqi:52..59` |
-| missing rhs | 1 | `EQ0603`, exact unresolved `missing` | none | `diagnostic.eqi:58..65` |
-| missing both | 1, lhs only | `EQ0603`, exact unresolved `left_missing` | none | `diagnostic.eqi:34..46` |
-| dimension | 1 | `EQ0603`, exact `[L]`/`[T]` mismatch | none | `diagnostic.eqi:79..97` |
-| shape | 1 | `EQ0304`, incompatible-type prefix | `semantic.Relation.Relation:*…expression.2` | none |
-| frame | 1 | `EQ0304`, incompatible-type prefix | same predicate | none |
-| nominal support | 1 | `EQ0302`, incompatible-support prefix | same predicate | none |
-| root support | 1 | `EQ0302`, residual/scope predicate | same predicate | none |
-
-The malformed 96-byte source produces exactly two ordered `EQ0602`
-diagnostics: `expected \`;\` after residual` at `88..89`, then the declaration
-expectation at `95..96`, both in `malformed.eqi`.
-
-## Ordered one-field mutants
-
-The normal comparator first accepts each frozen observation and then rejects
-exactly these 35 single-field clones, in order:
-
-| # | Family | Sole changed field | Rejected value |
-| ---: | --- | --- | --- |
-| 1 | operator | `root.operator` | `Mul` |
-| 2 | dropped rhs | `root.right` | absent |
-| 3 | swapped operands | `root.ordered_operands` | `[b,a]` |
-| 4 | sign normalization | `root.right` | `Name(b)` |
-| 5 | operand order | `inner.ordered_operands` | `[c,b]` |
-| 6 | root order | `roots` | swap 0 and 1 |
-| 7 | addition | `root.operator` | `Add` |
-| 8 | left precedence | `root.tree` | right-nested subtraction |
-| 9 | right precedence | `root.tree` | left-nested subtraction |
-| 10 | reassociation | `root.tree` | flattened left association |
-| 11 | side swap bytes | `formatted_statement` | `b = a;` |
-| 12 | sentinel distinction | `root.tree` | `Sub(x,0)` |
-| 13 | zero escape omission | `formatted_statement` | `x = 0;` |
-| 14 | negative-zero escape omission | `formatted_statement` | `x = -0;` |
-| 15 | Neg collapse | `root.tree` | `Sub(x,0)` |
-| 16 | underflow preservation | `formatted_statement` | `x = (1e-324);` |
-| 17 | extra grouping | `formatted_statement` | `x = ((0));` |
-| 18 | overbroad zero folding | `root.tree` | `Name(x)` |
-| 19 | overbroad grouping | `formatted_statement` | `x = (0 * y);` |
-| 20 | double-Neg collapse | `root.tree` | `Sub(x,0)` |
-| 21 | root-start drift | `range.start` | `141` |
-| 22 | lhs-only root | `range.end` | `141` |
-| 23 | excluded RHS grouping | `range.end` | `114` |
-| 24 | semicolon inclusion | `range.end` | `116` |
-| 25 | next-statement drift | `range.end` | `121` |
-| 26 | stale formatted offset | `range.start` | `155` |
-| 27 | optional-span manufacture | `source_span` | `Some(205..220)` |
-| 28 | optional-span erasure | `source_span` | none |
-| 29 | identity overclaim | `required_equalities` | exact identity fields added |
-| 30 | structural denial | `structurally_equivalent` | false |
-| 31 | package overclaim | `comparison_kind` | exact artifact |
-| 32 | native overclaim | `comparison_kind` | exact artifact |
-| 33 | dimensionful positive-zero sentinel loss | `root.tree` | `Sub(force,0)` |
-| 34 | dimensionful negative-zero sentinel loss | `root.tree` | `Sub(force,Neg(0))` |
-| 35 | dimensionful underflow-zero sentinel loss | `root.tree` | `Sub(force,0)` |
-
-The package source identity is
-`org.eqiora.oracle.NaturalEquation@1.0.0`, path `models/natural.eqi`, role
-`ModelSource`, entry `natural_equation_oracle`, with no dependencies. The
-native declaration order is fields `a=4`, `b=3`, `c=2`, `d=1`, then Relation
-`balance` with the same three ordered explicit residuals.
+The exact package is `org.eqiora.oracle.NaturalEquation@1.0.0`, entry
+`models.natural`, source `src/models/natural.eqi`, no dependencies. Native fields
+are `a=4,b=3,c=2,d=1` followed by the same three explicit mathematical residuals.
+Only their checked structural meaning is compared; fresh lineage is not equated.

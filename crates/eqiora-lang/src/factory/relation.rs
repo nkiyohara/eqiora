@@ -1,0 +1,89 @@
+//! Checked construction of ordered equalities and Relation declarations.
+
+use super::*;
+
+impl SourceAstFactory {
+    /// Construct an ordered equality without interpreting either side.
+    ///
+    /// # Errors
+    /// Returns an error for a malformed expression or range.
+    pub fn equation(
+        left: Expr,
+        right: Expr,
+        range: TextRange,
+    ) -> Result<Equation, AstConstructionError> {
+        validate_expression(&left)?;
+        validate_expression(&right)?;
+        Ok(Equation {
+            left,
+            right,
+            range: checked_range(range)?,
+        })
+    }
+
+    /// Construct an implicit Relation with at least one equality.
+    ///
+    /// # Errors
+    /// Returns an error for an empty equation set or malformed source shape.
+    pub fn relation(
+        name: impl Into<String>,
+        activation: ActivationSyntax,
+        domain: Option<String>,
+        equations: Vec<Equation>,
+        range: TextRange,
+    ) -> Result<RelationDecl, AstConstructionError> {
+        if equations.is_empty() {
+            return Err(AstConstructionError::new(
+                "a Relation requires at least one equation",
+            ));
+        }
+        if let ActivationSyntax::Periodic(clock) = &activation {
+            validate_identifier(clock, "periodic Clock")?;
+        }
+        if let Some(domain) = &domain {
+            validate_identifier(domain, "Relation Domain")?;
+        }
+        for equation in &equations {
+            validate_expression(equation.left())?;
+            validate_expression(equation.right())?;
+            checked_range(equation.range())?;
+        }
+        Ok(RelationDecl {
+            comments: Default::default(),
+            name: checked_identifier(name, "Relation")?,
+            activation,
+            domain,
+            equations,
+            range: checked_range(range)?,
+        })
+    }
+
+    /// Construct one continuous Relation family over a complete exterior.
+    ///
+    /// # Errors
+    /// Returns an error unless the Relation is continuous, is attached to the
+    /// binder member, and both declarations are structurally valid.
+    pub fn relation_family(
+        relation: RelationDecl,
+        binder: BoundaryFamilyBinderSyntax,
+    ) -> Result<RelationFamilyDecl, AstConstructionError> {
+        validate_boundary_family_binder(&binder)?;
+        if relation.activation() != &ActivationSyntax::Continuous {
+            return Err(AstConstructionError::new(
+                "a boundary Relation family must be continuous",
+            ));
+        }
+        if relation.domain() != Some(binder.member()) {
+            return Err(AstConstructionError::new(
+                "a boundary Relation family Domain must name its binder member",
+            ));
+        }
+        checked_range(relation.range())?;
+        for equation in relation.equations() {
+            validate_expression(equation.left())?;
+            validate_expression(equation.right())?;
+            checked_range(equation.range())?;
+        }
+        Ok(RelationFamilyDecl { relation, binder })
+    }
+}

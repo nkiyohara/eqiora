@@ -27,25 +27,25 @@ const SOURCE: &str = r#"public component MixedBoundaryElasticity2d {
   public parameter mu: kg / (m * s ^ 2);
   public parameter lambda: kg / (m * s ^ 2);
   public parameter length_scale: m;
-  relation load continuous on body {
+  relation load on body {
     load_potential - 2 * mu * coordinate(0) / length_scale = 0;
   }
-  relation balance continuous on body {
+  relation balance on body {
     -div(
       2 * mu * symmetric_part(grad(displacement))
       + lambda * isotropic_lift(div(displacement))
     ) - grad(load_potential) = 0;
   }
-  relation x_lower_fixed continuous on x_lower { trace(displacement) = 0; }
-  relation x_upper_free continuous on x_upper {
+  relation x_lower_fixed on x_lower { trace(displacement) = 0; }
+  relation x_upper_free on x_upper {
     normal(2 * mu * symmetric_part(grad(displacement))
       + lambda * isotropic_lift(div(displacement))) = 0;
   }
-  relation y_lower_free continuous on y_lower {
+  relation y_lower_free on y_lower {
     normal(2 * mu * symmetric_part(grad(displacement))
       + lambda * isotropic_lift(div(displacement))) = 0;
   }
-  relation y_upper_free continuous on y_upper {
+  relation y_upper_free on y_upper {
     normal(2 * mu * symmetric_part(grad(displacement))
       + lambda * isotropic_lift(div(displacement))) = 0;
   }

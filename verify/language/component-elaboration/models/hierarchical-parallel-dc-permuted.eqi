@@ -4,7 +4,7 @@ connector Pin = scalar_physical(
 );
 
 component Ground {
-  relation law continuous {
+  relation law {
     across(terminal) = 0;
   }
 
@@ -16,7 +16,7 @@ component Resistor {
   public port positive: conserving on Pin;
   public parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2);
 
-  relation law continuous {
+  relation law {
     across(positive) - across(negative) - resistance * through(positive) = 0;
     through(positive) + through(negative) = 0;
   }
@@ -27,7 +27,7 @@ component VoltageSource {
   public parameter voltage: kg * m ^ 2 / (s ^ 3 * A);
   public port positive: conserving on Pin;
 
-  relation law continuous {
+  relation law {
     across(positive) - across(negative) - voltage = 0;
     through(positive) + through(negative) = 0;
   }

@@ -15,5 +15,6 @@ requires:
   shape, frame, ambient-dimension, and exact-support failures before graph
   mutation, plus parser rejection of any non-`continuum` slot family.
 
-The case also fixes legacy compatibility: sources without Field slots retain
-their previous canonical source-identity bytes.
+Source identity uses the current ordered-equality epoch `local-source-v4`.
+Changing an exact Field target changes that identity; historical encodings
+are not retained as compatibility alternatives.

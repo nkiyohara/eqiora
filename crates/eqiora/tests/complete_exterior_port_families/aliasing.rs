@@ -19,7 +19,7 @@ public component ExteriorLaw {
   public support exterior: complete_exterior(parent = body);
   public port mechanical[boundary in exterior]:
     conserving MechanicalBoundary over boundary;
-  relation boundary_law[boundary in exterior] continuous on boundary {
+  relation boundary_law[boundary in exterior] on boundary {
     trace(mechanical[boundary = boundary])
       - trace(mechanical[boundary = boundary]) = 0;
     flux(mechanical[boundary = boundary])
@@ -41,7 +41,7 @@ public component BoundaryTerminal {{
   public support body: volume(ambient_dimension = 2);
   public support face: boundary(parent = body);
   public port mechanical: conserving {alias}.MechanicalBoundary over face;
-  relation terminal_law continuous on face {{
+  relation terminal_law on face {{
     trace(mechanical) - trace(mechanical) = 0;
     flux(mechanical) - flux(mechanical) = 0;
   }}

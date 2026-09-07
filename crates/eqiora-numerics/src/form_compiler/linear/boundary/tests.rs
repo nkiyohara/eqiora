@@ -14,12 +14,12 @@ model Boundaries {
  parameter k: 1 = 2;
  parameter other: 1 = 2;
  parameter q: 1 / m = 3;
- relation first continuous on body { -div(k * grad(u)) = 0; }
- relation second continuous on body { -div(grad(v)) = 0; }
- relation ul continuous on left { trace(u) = 2; }
- relation vl continuous on left { trace(v) = 4; }
- relation ur continuous on right { normal(k * grad(u)) = q; }
- relation vr continuous on right { normal(grad(v)) = 0; }
+ relation first on body { -div(k * grad(u)) = 0; }
+ relation second on body { -div(grad(v)) = 0; }
+ relation ul on left { trace(u) = 2; }
+ relation vl on left { trace(v) = 4; }
+ relation ur on right { normal(k * grad(u)) = q; }
+ relation vr on right { normal(grad(v)) = 0; }
 }
 "#;
 
@@ -98,7 +98,7 @@ fn flux_preserves_parameter_identity_not_just_its_value() {
             .replace("normal(k * grad(u))", "normal((2 * k) * grad(u))"),
     )
     .unwrap();
-    derive(&SOURCE.replace("parameter k: 1 = 2;", "parameter k: 1 = 2; field a on body as space: 1; relation coefficient continuous on body { a - k = 0; }")
+    derive(&SOURCE.replace("parameter k: 1 = 2;", "parameter k: 1 = 2; field a on body as space: 1; relation coefficient on body { a - k = 0; }")
         .replace("k * grad(u)", "a * grad(u)")).unwrap();
 }
 
@@ -106,7 +106,5 @@ fn flux_preserves_parameter_identity_not_just_its_value() {
 fn duplicate_missing_and_unknown_dependent_boundaries_reject() {
     assert!(derive(&SOURCE.replace("trace(v) = 4", "trace(u) = 4")).is_err());
     assert!(derive(&SOURCE.replace("trace(u) = 2", "trace(u) = trace(v)")).is_err());
-    assert!(
-        derive(&SOURCE.replace("relation vl continuous on left { trace(v) = 4; }", "")).is_err()
-    );
+    assert!(derive(&SOURCE.replace("relation vl on left { trace(v) = 4; }", "")).is_err());
 }

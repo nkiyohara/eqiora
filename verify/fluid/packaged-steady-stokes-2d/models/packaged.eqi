@@ -13,7 +13,7 @@ model Main {
   parameter wave_number: 1 / m = 6.283185307179586;
   parameter force_scale: kg / (m * s ^ 2) = 1;
 
-  relation force_definition continuous on body {
+  relation force_definition on body {
     force_potential
       - force_scale * (
           math.sin(wave_number * coordinate(0))
@@ -28,8 +28,8 @@ model Main {
     dynamic_viscosity = dynamic_viscosity
   );
 
-  relation x_lower_value continuous on x_lower { trace(velocity) = 0; }
-  relation x_upper_value continuous on x_upper { trace(velocity) = 0; }
-  relation y_lower_value continuous on y_lower { trace(velocity) = 0; }
-  relation y_upper_value continuous on y_upper { trace(velocity) = 0; }
+  relation x_lower_value on x_lower { trace(velocity) = 0; }
+  relation x_upper_value on x_upper { trace(velocity) = 0; }
+  relation y_lower_value on y_lower { trace(velocity) = 0; }
+  relation y_upper_value on y_upper { trace(velocity) = 0; }
 }

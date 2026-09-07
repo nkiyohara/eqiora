@@ -10,6 +10,7 @@ mod document;
 mod domain_validation;
 mod operator;
 mod property;
+mod relation;
 mod value_type;
 
 use crate::ast::{
@@ -17,12 +18,13 @@ use crate::ast::{
     BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax, BoundarySetBindingDecl,
     BoundarySetMemberSyntax, ClockDecl, ComponentItem, ComponentParameterDecl, ComponentPortDecl,
     ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorDecl,
-    ConnectorQuantitySyntax, ConnectorSyntax, DomainDecl, DomainSyntax, ExactIntegerSyntax, Expr,
-    ExprKind, FieldBindingDecl, FieldDecl, FieldSlotDecl, InstanceDecl, Item, LetDecl, NamePath,
-    ParameterBindingDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl, PureOperatorExpr,
-    PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax, RationalSyntax, RelationDecl,
-    RelationFamilyDecl, RepresentationDecl, RepresentationSyntax, SupportBindingDecl,
-    SupportSlotDecl, SupportSlotSyntax, TextRange, ValueShapeSyntax, VisibilitySyntax,
+    ConnectorQuantitySyntax, ConnectorSyntax, DomainDecl, DomainSyntax, Equation,
+    ExactIntegerSyntax, Expr, ExprKind, FieldBindingDecl, FieldDecl, FieldSlotDecl, InstanceDecl,
+    Item, LetDecl, NamePath, ParameterBindingDecl, ParameterDecl, PortDecl, PortSyntax,
+    PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal,
+    PureValueClassSyntax, RationalSyntax, RelationDecl, RelationFamilyDecl, RepresentationDecl,
+    RepresentationSyntax, SupportBindingDecl, SupportSlotDecl, SupportSlotSyntax, TextRange,
+    ValueShapeSyntax, VisibilitySyntax,
 };
 use domain_validation::validate_domain_syntax;
 
@@ -362,68 +364,6 @@ impl SourceAstFactory {
             phase,
             range: checked_range(range)?,
         })
-    }
-
-    /// Construct an implicit Relation with at least one residual.
-    ///
-    /// # Errors
-    /// Returns an error for an empty residual set or malformed source shape.
-    pub fn relation(
-        name: impl Into<String>,
-        activation: ActivationSyntax,
-        domain: Option<String>,
-        residuals: Vec<Expr>,
-        range: TextRange,
-    ) -> Result<RelationDecl, AstConstructionError> {
-        if residuals.is_empty() {
-            return Err(AstConstructionError::new(
-                "a Relation requires at least one residual",
-            ));
-        }
-        if let ActivationSyntax::Periodic(clock) = &activation {
-            validate_identifier(clock, "periodic Clock")?;
-        }
-        if let Some(domain) = &domain {
-            validate_identifier(domain, "Relation Domain")?;
-        }
-        for residual in &residuals {
-            validate_expression(residual)?;
-        }
-        Ok(RelationDecl {
-            comments: Default::default(),
-            name: checked_identifier(name, "Relation")?,
-            activation,
-            domain,
-            residuals,
-            range: checked_range(range)?,
-        })
-    }
-
-    /// Construct one continuous Relation family over a complete exterior.
-    ///
-    /// # Errors
-    /// Returns an error unless the Relation is continuous, is attached to the
-    /// binder member, and both declarations are structurally valid.
-    pub fn relation_family(
-        relation: RelationDecl,
-        binder: BoundaryFamilyBinderSyntax,
-    ) -> Result<RelationFamilyDecl, AstConstructionError> {
-        validate_boundary_family_binder(&binder)?;
-        if relation.activation() != &ActivationSyntax::Continuous {
-            return Err(AstConstructionError::new(
-                "a boundary Relation family must be continuous",
-            ));
-        }
-        if relation.domain() != Some(binder.member()) {
-            return Err(AstConstructionError::new(
-                "a boundary Relation family Domain must name its binder member",
-            ));
-        }
-        checked_range(relation.range())?;
-        for residual in relation.residuals() {
-            validate_expression(residual)?;
-        }
-        Ok(RelationFamilyDecl { relation, binder })
     }
 
     /// Construct a signal or conserving Connection with at least two Ports.

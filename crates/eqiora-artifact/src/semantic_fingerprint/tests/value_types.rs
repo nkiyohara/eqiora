@@ -13,7 +13,7 @@ fn typed_field_initial_zero_survives_source_and_model_replay() {
         "vector<complex<m>, 2>",
     ] {
         let source = format!(
-            "model M {{ domain body = box(0, 1, 0, 1); representation space = continuum; field x on body as space: {ty} = 0; relation r continuous on body {{ x - x = 0; }} }}"
+            "model M {{ domain body = box(0, 1, 0, 1); representation space = continuum; field x on body as space: {ty} = 0; relation r on body {{ x - x = 0; }} }}"
         );
         let original = program(&source);
         let envelope = ModelEnvelope::from_program(&original).unwrap();
@@ -345,7 +345,7 @@ model Typed {{
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
   field value on body as space: {value_type};
-  relation balance continuous on body {{ value - value = 0; }}
+  relation balance on body {{ value - value = 0; }}
 }}
 "#
         );

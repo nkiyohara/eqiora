@@ -181,7 +181,7 @@ fn program(regions: usize, reversed: bool) -> KernelProgram {
         }
         for field in 0..=region {
             source += &format!(
-                "relation row{region}_{field} continuous on body{region} {{ derivative(value{region}_{field}) - div(diffusion{region} * grad(value{region}_{field})) + rate{region} * value{region}_{field}"
+                "relation row{region}_{field} on body{region} {{ derivative(value{region}_{field}) - div(diffusion{region} * grad(value{region}_{field})) + rate{region} * value{region}_{field}"
             );
             for trial in 0..=region {
                 if trial != field {

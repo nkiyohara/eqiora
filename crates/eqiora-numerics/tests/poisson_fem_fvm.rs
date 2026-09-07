@@ -138,7 +138,7 @@ model invalid_axis {
   domain interval = box(0, 1);
   representation space = continuum;
   field length on interval as space: m = 0;
-  relation identity continuous on interval { length - coordinate(1) = 0; }
+  relation identity on interval { length - coordinate(1) = 0; }
 }
 "#;
     let mut compiled = compile("invalid-axis.eqi", source).expect("source shape is valid");
@@ -162,7 +162,7 @@ model coordinate_plane {
   domain plane = box(0, 1, 0, 2);
   representation space = continuum;
   field ordinate on plane as space: m = 0;
-  relation identity continuous on plane { ordinate - coordinate(1) = 0; }
+  relation identity on plane { ordinate - coordinate(1) = 0; }
 }
 "#;
 

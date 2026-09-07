@@ -16,7 +16,7 @@ public component IsotropicMechanicalInterface2d {
   public port mechanical[boundary in exterior]:
     conserving QuasistaticMechanicalBoundary over boundary;
 
-  relation boundary_interface[boundary in exterior] continuous on boundary {
+  relation boundary_interface[boundary in exterior] on boundary {
     trace(displacement)
       - trace(mechanical[boundary = boundary]) = 0;
     normal(
@@ -32,7 +32,7 @@ public component FixedDisplacement2d {
   public port mechanical:
     conserving QuasistaticMechanicalBoundary over face;
 
-  relation prescribed_displacement continuous on face {
+  relation prescribed_displacement on face {
     trace(mechanical) = 0;
   }
 }
@@ -43,7 +43,7 @@ public component ZeroTraction2d {
   public port mechanical:
     conserving QuasistaticMechanicalBoundary over face;
 
-  relation prescribed_traction continuous on face {
+  relation prescribed_traction on face {
     flux(mechanical) = 0;
   }
 }
@@ -70,21 +70,21 @@ model Main {
   parameter lambda: kg / (m * s ^ 2) = 0;
   parameter length_scale: m = 1;
 
-  relation left_load continuous on left {
+  relation left_load on left {
     left_load_potential
       - 2 * mu_left * coordinate(0) / length_scale = 0;
   }
-  relation left_balance continuous on left {
+  relation left_balance on left {
     -div(
       2 * mu_left * symmetric_part(grad(left_displacement))
       + lambda * isotropic_lift(div(left_displacement))
     ) - grad(left_load_potential) = 0;
   }
-  relation right_load continuous on right {
+  relation right_load on right {
     right_load_potential
       - mu_right * coordinate(0) / length_scale = 0;
   }
-  relation right_balance continuous on right {
+  relation right_balance on right {
     -div(
       2 * mu_right * symmetric_part(grad(right_displacement))
       + lambda * isotropic_lift(div(right_displacement))

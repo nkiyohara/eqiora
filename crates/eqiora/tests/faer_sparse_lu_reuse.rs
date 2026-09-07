@@ -33,13 +33,13 @@ const SOURCE: &str = r#"model faer_sparse_lu_reuse {
   parameter source_scale: 1 / m ^ 2 = 2;
   parameter diffusion: 1 = 1;
   parameter boundary_offset: 1 = 0;
-  relation balance continuous on interval {
+  relation balance on interval {
     -div(diffusion * grad(potential)) - source_scale = 0;
   }
-  relation lower_value continuous on lower_end {
+  relation lower_value on lower_end {
     trace(potential) - boundary_offset = 0;
   }
-  relation upper_value continuous on upper_end {
+  relation upper_value on upper_end {
     trace(potential) - boundary_offset = 0;
   }
 }

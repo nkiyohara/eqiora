@@ -140,16 +140,16 @@ fn e2_compiled_and_existing_paths_match_every_local_csr_and_rhs() {
 #[test]
 fn e2_role_assignment_rejects_missing_duplicate_and_reclassified_roles() {
     let missing = SOURCE.replace(
-        "  relation y_upper_value continuous on y_upper { trace(potential) = 0; }\n",
+        "  relation y_upper_value on y_upper { trace(potential) = 0; }\n",
         "",
     );
     assert_role_gate(compile_program(&missing));
 
     let duplicate = SOURCE.replace(
-        "  relation y_upper_value continuous on y_upper { trace(potential) = 0; }\n",
+        "  relation y_upper_value on y_upper { trace(potential) = 0; }\n",
         concat!(
-            "  relation y_upper_value continuous on y_upper { trace(potential) = 0; }\n",
-            "  relation y_upper_value_duplicate continuous on y_upper { trace(potential) = 0; }\n",
+            "  relation y_upper_value on y_upper { trace(potential) = 0; }\n",
+            "  relation y_upper_value_duplicate on y_upper { trace(potential) = 0; }\n",
         ),
     );
     assert_role_gate(compile_program(&duplicate));

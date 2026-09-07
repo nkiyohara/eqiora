@@ -481,7 +481,7 @@ mod tests {
 model decay {
   field x: 1 = 1;
   parameter rate: 1 / s = 1;
-  relation flow continuous {
+  relation flow {
     derivative(x) + rate * x = 0;
   }
 }
@@ -519,7 +519,7 @@ model decay {
                 ResolvedSourceUnit::new(
                     owner.clone(),
                     "src/library/parts.eqi",
-                    "public component Part { public parameter p: 1; relation law continuous { p - 1 = 0; } }",
+                    "public component Part { public parameter p: 1; relation law { p - 1 = 0; } }",
                 )
                 .unwrap(),
             ];
@@ -557,7 +557,7 @@ model Main { instance load: lib.Resistor(resistance = 2); }
         let library = r#"
 public component Resistor {
   public parameter resistance: 1;
-  relation law continuous { resistance - 2 = 0; }
+  relation law { resistance - 2 = 0; }
 }
 "#;
         let compile = |main_path, library_path, reverse| {
@@ -587,7 +587,7 @@ public component Resistor {
                 ),
                 (
                     "src/library/entries.eqi",
-                    "public model Shared { parameter gain: 1 = 2; relation law continuous { gain - 2 = 0; } }",
+                    "public model Shared { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
                 ),
             ],
             "lib.Shared",
@@ -684,7 +684,7 @@ model elastic_relation {
   field displacement on body as space: vector<m, 2>;
   parameter mu: kg / (m * s ^ 2) = 2;
   parameter lambda: kg / (m * s ^ 2) = 3;
-  relation balance continuous on body {
+  relation balance on body {
     -div(
       2 * mu * symmetric_part(grad(displacement))
       + lambda * isotropic_lift(div(displacement))
@@ -711,7 +711,7 @@ model pure_relation {
   representation space = continuum;
   field left on body as space: vector<1, 2>;
   field right on body as space: vector<1, 2>;
-  relation balance continuous on body {
+  relation balance on body {
     div(div(dyadic(left, right))) = 0;
   }
 }

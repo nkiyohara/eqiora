@@ -73,7 +73,7 @@ mod tests {
             vec![crate::ResolvedSourceUnit::new(
                 namespace,
                 "src/main.eqi",
-                "dimension Speed = m / s; model Main { field velocity: Speed = 0; relation balance continuous { velocity = 0; } }",
+                "dimension Speed = m / s; model Main { field velocity: Speed = 0; relation balance { velocity = 0; } }",
             )
             .expect("source path")],
             Vec::new(),

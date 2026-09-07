@@ -8,7 +8,7 @@ fn parser_retains_exact_pure_operator_syntax_and_qualified_applications() {
 model coupled {
   field u: 1 = 0;
   field v: 1 = 0;
-  relation law continuous { ops.dyadic(u, v) = 0; }
+  relation law { ops.dyadic(u, v) = 0; }
 }"#;
     let document = parse("pure-operator.eqi", source)
         .into_document()
@@ -60,7 +60,7 @@ model coupled {
     let Item::Relation(relation) = &document.models()[0].items()[2] else {
         panic!("model relation retained");
     };
-    let ExprKind::Call { callee, arguments } = relation.residuals()[0].kind() else {
+    let ExprKind::Call { callee, arguments } = relation.equations()[0].left().kind() else {
         panic!("residual is a qualified application");
     };
     assert_eq!(callee.segments().collect::<Vec<_>>(), ["ops", "dyadic"]);
@@ -112,7 +112,7 @@ fn parser_requires_pure_operators_before_models_and_nonempty_calls() {
 
     let empty_call = parse(
         "empty-call.eqi",
-        "model M { relation r continuous { ops.identity() = 0; } }",
+        "model M { relation r { ops.identity() = 0; } }",
     );
     assert!(empty_call.into_document().is_err());
 }
@@ -124,10 +124,10 @@ model thermal {
   field temperature: K = 293;
   field command: 1 = 0;
   clock control = periodic(period = 1 / 10, phase = 0 / 1);
-  relation plant continuous {
+  relation plant {
 derivative(temperature) - command = 0;
   }
-  relation controller periodic(control) {
+  relation controller at control {
 next(command) - pre(command) = 0;
   }
 }
@@ -158,7 +158,7 @@ fn parser_retains_scalar_physical_contracts_and_source_ranges() {
     let source = r#"model circuit {
   domain electrical = scalar_physical(across = kg * m ^ 2 / (s ^ 3 * A), through = A);
   port terminal: conserving on electrical;
-  relation component continuous { across(terminal) = 0; }
+  relation component { across(terminal) = 0; }
 }"#;
     let document = parse("circuit.eqi", source)
         .into_document()
@@ -212,7 +212,7 @@ component Pair {
   public port positive: conserving on Pin;
   port command: signal input 1;
   instance inner: Catalog.Resistor(resistance = resistance * scale);
-  relation law continuous { across(inner.positive) - resistance = 0; }
+  relation law { across(inner.positive) - resistance = 0; }
   connect conserving inner.positive, positive;
 }
 
@@ -267,7 +267,7 @@ model parallel {
     let ComponentItem::Relation(relation) = &component.items()[5] else {
         panic!("sixth member is the Relation");
     };
-    let ExprKind::Binary { left, .. } = relation.residuals()[0].kind() else {
+    let ExprKind::Binary { left, .. } = relation.equations()[0].left().kind() else {
         panic!("Relation retains its subtraction");
     };
     let ExprKind::Call { arguments, .. } = left.kind() else {
@@ -503,7 +503,7 @@ fn parser_retains_public_and_private_model_visibility() {
 fn parser_discards_illegal_public_members_and_recovers() {
     let source = r#"
 component Invalid {
-  public relation exposed continuous { 1 = 0; }
+  public relation exposed { 1 = 0; }
   public instance child: Other;
   instance malformed: ;
   parameter retained: 1 = 1;
@@ -551,7 +551,7 @@ model coupled {
   representation state_space = continuum;
   field velocity on fluid as state_space: array<m / s, 2>;
   port interface: conserving MechanicalBoundary over wall;
-  relation balance continuous on wall { flux(interface) = 0; }
+  relation balance on wall { flux(interface) = 0; }
 }
 "#;
     let document = parse("field-physical.eqi", source)
@@ -593,7 +593,7 @@ model coupled {
         panic!("sixth item is the Relation");
     };
     assert!(matches!(
-        relation.residuals()[0].kind(),
+        relation.equations()[0].left().kind(),
         ExprKind::Call { callee, .. } if callee.as_str() == "flux"
     ));
 }
@@ -652,7 +652,7 @@ component BoundaryLaw {
   public support body: volume(ambient_dimension = 2);
   public support exterior: complete_exterior(parent = body);
   public port mechanical[boundary in exterior]: conserving MechanicalBoundary over boundary;
-  relation natural[boundary in exterior] continuous on boundary {
+  relation natural[boundary in exterior] on boundary {
 flux(mechanical[boundary = boundary]) = 0;
   }
   connect conserving [boundary in exterior] child.mechanical[boundary = boundary], mechanical[boundary = boundary];
@@ -689,7 +689,7 @@ support exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
         panic!("fourth component member is a Relation family");
     };
     assert_eq!(relation.relation().domain(), Some("boundary"));
-    let ExprKind::Call { arguments, .. } = relation.relation().residuals()[0].kind() else {
+    let ExprKind::Call { arguments, .. } = relation.relation().equations()[0].left().kind() else {
         panic!("family Relation residual contains flux selection");
     };
     assert!(matches!(
@@ -769,11 +769,11 @@ fn parser_rejects_boundary_binders_outside_the_closed_family_sites() {
         ),
         (
             "periodic-relation",
-            "component C { clock c = periodic(period = 1 / 1, phase = 0 / 1); relation r[b in exterior] periodic(c) on b { 1 = 0; } }",
+            "component C { clock c = periodic(period = 1 / 1, phase = 0 / 1); relation r[b in exterior] on b at c { 1 = 0; } }",
         ),
         (
             "model-relation",
-            "model M { relation r[b in exterior] continuous on b { 1 = 0; } }",
+            "model M { relation r[b in exterior] on b { 1 = 0; } }",
         ),
         (
             "model-connection",

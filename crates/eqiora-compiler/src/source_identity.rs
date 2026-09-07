@@ -51,7 +51,7 @@ use property::{encode_material_composition, encode_property_contract, encode_pro
 use visibility::encode_visibility;
 
 const MAGIC: &[u8; 8] = b"EQIORASU";
-const CANONICAL_VERSION: u16 = 3;
+const CANONICAL_VERSION: u16 = 4;
 const COMPONENT_CONNECTION_ITEM_TAG: u16 = 6;
 const MODEL_CONNECTION_ITEM_TAG: u16 = 8;
 const COMPONENT_PORT_FAMILY_ITEM_TAG: u16 = 11;
@@ -890,11 +890,11 @@ fn encode_relation(
     declaration: &RelationDecl,
     budget: &mut Budget,
 ) -> Result<(), Diagnostic> {
-    if declaration.residuals().len() > budget.limits.max_residuals_per_relation {
+    if declaration.equations().len() > budget.limits.max_residuals_per_relation {
         return Err(source_identity_error(format!(
             "Relation `{}` has {} residuals, exceeding the {} residual limit",
             declaration.name(),
-            declaration.residuals().len(),
+            declaration.equations().len(),
             budget.limits.max_residuals_per_relation
         )));
     }
@@ -916,11 +916,18 @@ fn encode_relation(
     })?;
     encoder.field(4, |encoder| {
         encoder.u32(as_u32(
-            declaration.residuals().len(),
+            declaration.equations().len(),
             "Relation residual count",
         )?)?;
-        for residual in declaration.residuals() {
-            encoder.field(1, |encoder| encode_expression(encoder, residual, budget, 1))?;
+        for equation in declaration.equations() {
+            encoder.field(1, |encoder| {
+                encoder.field(1, |encoder| {
+                    encode_expression(encoder, equation.left(), budget, 1)
+                })?;
+                encoder.field(2, |encoder| {
+                    encode_expression(encoder, equation.right(), budget, 1)
+                })
+            })?;
         }
         Ok(())
     })
@@ -1422,13 +1429,13 @@ mod tests {
         let document = document("model minimal { parameter gain: 1 = 2; }");
         let digest = LocalSourceIdentity::from_document(&document).unwrap();
         let namespace = digest.namespace().unwrap();
-        assert_eq!(namespace.segments()[0], "local-source-v3");
+        assert_eq!(namespace.segments()[0], "local-source-v4");
         assert_eq!(namespace.segments()[1], digest.to_string());
     }
 
     #[test]
     fn formatting_file_and_span_changes_do_not_change_identity() {
-        let compact = "model m{parameter p:1=2;relation r continuous{p-1=0;}}";
+        let compact = "model m{parameter p:1=2;relation r{p-1=0;}}";
         let parsed = document(compact);
         let formatted = format(&parsed);
         let relocated = parse(
@@ -1480,7 +1487,7 @@ component Pair {
   public port positive: conserving on Pin;
   public port negative: conserving on Pin;
   instance inner: Library.Resistor(resistance = resistance, scale = scale);
-  relation law continuous { across(positive) - across(negative) = 0; }
+  relation law { across(positive) - across(negative) = 0; }
   connect conserving positive, inner.positive, negative;
 }
 component Empty {}
@@ -1498,7 +1505,7 @@ connector Pin = scalar_physical(across = 1, through = A);
 component Empty {}
 component Pair {
   connect conserving negative, positive, inner.positive;
-  relation law continuous { across(positive) - across(negative) = 0; }
+  relation law { across(positive) - across(negative) = 0; }
   instance inner: Library.Resistor(scale = scale, resistance = resistance);
   public port negative: conserving on Pin;
   public port positive: conserving on Pin;
@@ -1610,7 +1617,7 @@ public component SurfaceLaw {
   public support exterior: complete_exterior(parent = body);
   public port mechanical[boundary in exterior]:
     conserving MechanicalBoundary over boundary;
-  relation carrier[boundary in exterior] continuous on boundary {
+  relation carrier[boundary in exterior] on boundary {
     trace(mechanical[boundary = boundary])
       - trace(mechanical[boundary = boundary]) = 0;
   }
@@ -1712,7 +1719,7 @@ model M {
     fn retired_scalar_shape_spelling_is_not_an_identity_alias() {
         let retired = eqiora_lang::parse(
             "retired.eqi",
-            "model M { field x: 1 shape [] = 0; relation r continuous { x = 0; } }",
+            "model M { field x: 1 shape [] = 0; relation r { x = 0; } }",
         )
         .into_document();
         assert!(retired.is_err());
@@ -1828,11 +1835,10 @@ model M {
 
     #[test]
     fn semantic_structure_and_exact_values_change_identity() {
-        let base = "model m { parameter p: 1 = 2; relation r continuous { p + 1 = 0; } }";
-        let changed_value = "model m { parameter p: 1 = 3; relation r continuous { p + 1 = 0; } }";
-        let changed_operator =
-            "model m { parameter p: 1 = 2; relation r continuous { p - 1 = 0; } }";
-        let changed_activation = "model m { clock c = periodic(period = 1/1, phase = 0/1); parameter p: 1 = 2; relation r periodic(c) { p + 1 = 0; } }";
+        let base = "model m { parameter p: 1 = 2; relation r { p + 1 = 0; } }";
+        let changed_value = "model m { parameter p: 1 = 3; relation r { p + 1 = 0; } }";
+        let changed_operator = "model m { parameter p: 1 = 2; relation r { p - 1 = 0; } }";
+        let changed_activation = "model m { clock c = periodic(period = 1/1, phase = 0/1); parameter p: 1 = 2; relation r at c { p + 1 = 0; } }";
 
         assert_ne!(identity(base), identity(changed_value));
         assert_ne!(identity(base), identity(changed_operator));
@@ -1841,12 +1847,11 @@ model M {
 
     #[test]
     fn canonical_identity_is_structural_not_algebraic_equivalence() {
-        let folded = "model m { parameter p: 1 = 2; relation r continuous { p + 2 = 0; } }";
-        let unfolded = "model m { parameter p: 1 = 2; relation r continuous { p + (1 + 1) = 0; } }";
+        let folded = "model m { parameter p: 1 = 2; relation r { p + 2 = 0; } }";
+        let unfolded = "model m { parameter p: 1 = 2; relation r { p + (1 + 1) = 0; } }";
         let multiplied_dimension =
-            "model m { parameter area: m * m = 1; relation r continuous { area = 0; } }";
-        let powered_dimension =
-            "model m { parameter area: m ^ 2 = 1; relation r continuous { area = 0; } }";
+            "model m { parameter area: m * m = 1; relation r { area = 0; } }";
+        let powered_dimension = "model m { parameter area: m ^ 2 = 1; relation r { area = 0; } }";
 
         assert_ne!(identity(folded), identity(unfolded));
         assert_ne!(identity(multiplied_dimension), identity(powered_dimension));
@@ -1864,8 +1869,8 @@ model M {
         assert_ne!(identity(public_default), identity(output_port));
         assert_ne!(identity(public_default), identity(changed_binding));
 
-        let on_domain = "model m { domain d = box(0, 1); relation r continuous on d { 1 = 0; } }";
-        let without_domain = "model m { domain d = box(0, 1); relation r continuous { 1 = 0; } }";
+        let on_domain = "model m { domain d = box(0, 1); relation r on d { 1 = 0; } }";
+        let without_domain = "model m { domain d = box(0, 1); relation r { 1 = 0; } }";
         assert_ne!(identity(on_domain), identity(without_domain));
     }
 
@@ -1905,8 +1910,10 @@ model M {
 
     #[test]
     fn residual_root_order_is_preserved() {
-        let first = "model m { parameter a: 1 = 1; parameter b: 1 = 2; relation r continuous { a = 0; b = 0; } }";
-        let reversed = "model m { parameter a: 1 = 1; parameter b: 1 = 2; relation r continuous { b = 0; a = 0; } }";
+        let first =
+            "model m { parameter a: 1 = 1; parameter b: 1 = 2; relation r { a = 0; b = 0; } }";
+        let reversed =
+            "model m { parameter a: 1 = 1; parameter b: 1 = 2; relation r { b = 0; a = 0; } }";
 
         assert_ne!(identity(first), identity(reversed));
     }
@@ -1921,8 +1928,8 @@ model M {
 
     #[test]
     fn negative_zero_has_one_source_transaction_and_model_meaning() {
-        let positive = "connector Pin = scalar_physical(across = 1, through = 1); model m { domain d = box(0, 1); representation space = continuum; field x on d as space: 1 = 0; parameter p: 1 = 0; relation r continuous on d { x + p + 0 = 0; } }";
-        let negative = "connector Pin = scalar_physical(across = 1, through = 1); model m { domain d = box(-0, 1); representation space = continuum; field x on d as space: 1 = -0; parameter p: 1 = -0; relation r continuous on d { x + p + -0 = 0; } }";
+        let positive = "connector Pin = scalar_physical(across = 1, through = 1); model m { domain d = box(0, 1); representation space = continuum; field x on d as space: 1 = 0; parameter p: 1 = 0; relation r on d { x + p + 0 = 0; } }";
+        let negative = "connector Pin = scalar_physical(across = 1, through = 1); model m { domain d = box(-0, 1); representation space = continuum; field x on d as space: 1 = -0; parameter p: 1 = -0; relation r on d { x + p + -0 = 0; } }";
 
         assert_eq!(identity(positive), identity(negative));
         let mut positive = crate::compile("zero.eqi", positive).unwrap();
@@ -1935,10 +1942,10 @@ model M {
 
     #[test]
     fn cartesian_coordinate_sources_preserve_exact_root_declaration_identity() {
-        let parameter = "model m { parameter extent: m = 2; parameter other: m = 2; domain body = box(-1, extent, extent, 6); relation r continuous on body { coordinate(0) - coordinate(0) = 0; } }";
-        let declarations_permuted = "model m { domain body = box(-1, extent, extent, 6); relation r continuous on body { coordinate(0) - coordinate(0) = 0; } parameter other: m = 2; parameter extent: m = 2; }";
-        let fixed = "model m { parameter extent: m = 2; parameter other: m = 2; domain body = box(-1, 2, 2, 6); relation r continuous on body { coordinate(0) - coordinate(0) = 0; } }";
-        let other_root = "model m { parameter extent: m = 2; parameter other: m = 2; domain body = box(-1, other, other, 6); relation r continuous on body { coordinate(0) - coordinate(0) = 0; } }";
+        let parameter = "model m { parameter extent: m = 2; parameter other: m = 2; domain body = box(-1, extent, extent, 6); relation r on body { coordinate(0) - coordinate(0) = 0; } }";
+        let declarations_permuted = "model m { domain body = box(-1, extent, extent, 6); relation r on body { coordinate(0) - coordinate(0) = 0; } parameter other: m = 2; parameter extent: m = 2; }";
+        let fixed = "model m { parameter extent: m = 2; parameter other: m = 2; domain body = box(-1, 2, 2, 6); relation r on body { coordinate(0) - coordinate(0) = 0; } }";
+        let other_root = "model m { parameter extent: m = 2; parameter other: m = 2; domain body = box(-1, other, other, 6); relation r on body { coordinate(0) - coordinate(0) = 0; } }";
 
         assert_eq!(identity(parameter), identity(declarations_permuted));
         assert_ne!(identity(parameter), identity(fixed));
@@ -1947,8 +1954,7 @@ model M {
 
     #[test]
     fn resource_limits_fail_closed() {
-        let base_document =
-            document("model m { parameter p: 1 = 2; relation r continuous { p + 1 = 0; } }");
+        let base_document = document("model m { parameter p: 1 = 2; relation r { p + 1 = 0; } }");
         let top_level = LocalSourceIdentityLimits {
             max_top_level_declarations: 0,
             ..LocalSourceIdentityLimits::default()

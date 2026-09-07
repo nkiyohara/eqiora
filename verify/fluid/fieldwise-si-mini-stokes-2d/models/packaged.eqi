@@ -12,7 +12,7 @@ model Main {
   parameter force_gradient: kg / (m ^ 2 * s ^ 2) = 0.75;
   parameter pressure_zero_coordinate: m = 2;
 
-  relation force_definition continuous on body {
+  relation force_definition on body {
     force_potential
       - force_gradient * (coordinate(0) - pressure_zero_coordinate) = 0;
   }
@@ -24,8 +24,8 @@ model Main {
     dynamic_viscosity = 6[kg / (m * s)]
   );
 
-  relation x_lower_value continuous on x_lower { trace(velocity) = 0; }
-  relation x_upper_value continuous on x_upper { trace(velocity) = 0; }
-  relation y_lower_value continuous on y_lower { trace(velocity) = 0; }
-  relation y_upper_value continuous on y_upper { trace(velocity) = 0; }
+  relation x_lower_value on x_lower { trace(velocity) = 0; }
+  relation x_upper_value on x_upper { trace(velocity) = 0; }
+  relation y_lower_value on y_lower { trace(velocity) = 0; }
+  relation y_upper_value on y_upper { trace(velocity) = 0; }
 }

@@ -12,17 +12,17 @@ model manufactured_poisson_cube {
   parameter wave_number: 1 / m = 3.141592653589793;
   parameter source_scale: 1 / m ^ 2 = 29.608813203268074;
 
-  relation balance continuous on cube {
+  relation balance on cube {
     -div(grad(potential))
       - source_scale
         * math.sin(wave_number * coordinate(0))
         * math.sin(wave_number * coordinate(1))
         * math.sin(wave_number * coordinate(2)) = 0;
   }
-  relation x_lower_value continuous on x_lower { trace(potential) = 0; }
-  relation x_upper_value continuous on x_upper { trace(potential) = 0; }
-  relation y_lower_value continuous on y_lower { trace(potential) = 0; }
-  relation y_upper_value continuous on y_upper { trace(potential) = 0; }
-  relation z_lower_value continuous on z_lower { trace(potential) = 0; }
-  relation z_upper_value continuous on z_upper { trace(potential) = 0; }
+  relation x_lower_value on x_lower { trace(potential) = 0; }
+  relation x_upper_value on x_upper { trace(potential) = 0; }
+  relation y_lower_value on y_lower { trace(potential) = 0; }
+  relation y_upper_value on y_upper { trace(potential) = 0; }
+  relation z_lower_value on z_lower { trace(potential) = 0; }
+  relation z_upper_value on z_upper { trace(potential) = 0; }
 }

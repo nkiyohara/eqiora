@@ -223,13 +223,13 @@ model potential_probe {
   domain y_upper = boundary(body, axis = 1, side = upper);
   representation space = continuum;
   field probe on body as space: m ^ 3 = 0;
-  relation balance continuous on body {
+  relation balance on body {
 -div(grad(probe)) - (coordinate(0) + 2 * coordinate(1)) = 0;
   }
-  relation x_lower_value continuous on x_lower { trace(probe) = 0; }
-  relation x_upper_value continuous on x_upper { trace(probe) = 0; }
-  relation y_lower_value continuous on y_lower { trace(probe) = 0; }
-  relation y_upper_value continuous on y_upper { trace(probe) = 0; }
+  relation x_lower_value on x_lower { trace(probe) = 0; }
+  relation x_upper_value on x_upper { trace(probe) = 0; }
+  relation y_lower_value on y_lower { trace(probe) = 0; }
+  relation y_upper_value on y_upper { trace(probe) = 0; }
 }
 "#;
     let mut compiled = compile("potential-probe.eqi", source).unwrap();

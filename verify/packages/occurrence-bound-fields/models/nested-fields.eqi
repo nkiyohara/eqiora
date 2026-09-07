@@ -3,10 +3,10 @@ component FieldLaw {
   public field slot scalar_state on body as continuum: 1;
   public field slot displacement on body as continuum: vector<m, 2>;
 
-  relation scalar_identity continuous on body {
+  relation scalar_identity on body {
     scalar_state - scalar_state = 0;
   }
-  relation vector_identity continuous on body {
+  relation vector_identity on body {
     displacement - displacement = 0;
   }
 }
@@ -35,4 +35,3 @@ model Main {
     field displacement = displacement
   );
 }
-

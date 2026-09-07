@@ -40,24 +40,24 @@ public component FixedReferenceFsi2d {
   field solid_load_potential on solid as space: kg / (m * s ^ 2) = 0;
 
   // Fluid: transient Stokes momentum balance with incompressibility.
-  relation fluid_load_definition continuous on fluid {
+  relation fluid_load_definition on fluid {
     fluid_load_potential - zero_pressure = 0;
   }
-  relation fluid_momentum continuous on fluid {
+  relation fluid_momentum on fluid {
     fluid_density * derivative(fluid_velocity)
       - div(2 * fluid_viscosity * symmetric_part(grad(fluid_velocity))
         - isotropic_lift(fluid_pressure)) - grad(fluid_load_potential) = 0;
   }
-  relation incompressibility continuous on fluid { div(fluid_velocity) = 0; }
+  relation incompressibility on fluid { div(fluid_velocity) = 0; }
 
   // Solid: velocity is the displacement derivative, followed by momentum balance.
-  relation solid_load_definition continuous on solid {
+  relation solid_load_definition on solid {
     solid_load_potential - zero_pressure = 0;
   }
-  relation solid_kinematics continuous on solid {
+  relation solid_kinematics on solid {
     derivative(solid_displacement) - solid_velocity = 0;
   }
-  relation solid_momentum continuous on solid {
+  relation solid_momentum on solid {
     solid_density * derivative(solid_velocity)
       - div(2 * solid_mu * symmetric_part(grad(solid_displacement))
         + solid_lambda * isotropic_lift(div(solid_displacement)))
@@ -65,22 +65,22 @@ public component FixedReferenceFsi2d {
   }
 
   // Homogeneous exterior velocity conditions leave the touching boundaries for coupling.
-  relation fluid_x_lower_zero continuous on fluid_x_lower { trace(fluid_velocity) = 0; }
-  relation fluid_y_lower_zero continuous on fluid_y_lower { trace(fluid_velocity) = 0; }
-  relation fluid_y_upper_zero continuous on fluid_y_upper { trace(fluid_velocity) = 0; }
-  relation solid_x_upper_zero continuous on solid_x_upper { trace(solid_velocity) = 0; }
-  relation solid_y_lower_zero continuous on solid_y_lower { trace(solid_velocity) = 0; }
-  relation solid_y_upper_zero continuous on solid_y_upper { trace(solid_velocity) = 0; }
+  relation fluid_x_lower_zero on fluid_x_lower { trace(fluid_velocity) = 0; }
+  relation fluid_y_lower_zero on fluid_y_lower { trace(fluid_velocity) = 0; }
+  relation fluid_y_upper_zero on fluid_y_upper { trace(fluid_velocity) = 0; }
+  relation solid_x_upper_zero on solid_x_upper { trace(solid_velocity) = 0; }
+  relation solid_y_lower_zero on solid_y_lower { trace(solid_velocity) = 0; }
+  relation solid_y_upper_zero on solid_y_upper { trace(solid_velocity) = 0; }
 
   // The conserving connection enforces velocity continuity and balanced interface traction.
   port fluid_interface: conserving VelocityTractionBoundary over fluid_x_upper;
   port solid_interface: conserving VelocityTractionBoundary over solid_x_lower;
-  relation fluid_interface_definition continuous on fluid_x_upper {
+  relation fluid_interface_definition on fluid_x_upper {
     trace(fluid_velocity) - trace(fluid_interface) = 0;
     normal(2 * fluid_viscosity * symmetric_part(grad(fluid_velocity))
       - isotropic_lift(fluid_pressure)) - flux(fluid_interface) = 0;
   }
-  relation solid_interface_definition continuous on solid_x_lower {
+  relation solid_interface_definition on solid_x_lower {
     trace(solid_velocity) - trace(solid_interface) = 0;
     normal(2 * solid_mu * symmetric_part(grad(solid_displacement))
       + solid_lambda * isotropic_lift(div(solid_displacement)))

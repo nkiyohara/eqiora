@@ -18,8 +18,8 @@ public component BoundaryState {
   public support interface: boundary(parent = body);
   representation state_space = continuum;
   field state on body as state_space: 1 = 0;
-  relation volume_law continuous on body { state = 0; }
-  relation interface_law continuous on interface { trace(state) = 0; }
+  relation volume_law on body { state = 0; }
+  relation interface_law on interface { trace(state) = 0; }
 }
 
 public component BoundaryWrapper {
@@ -210,7 +210,7 @@ component BoundaryState {
   public support interface: boundary(parent = body);
   representation state_space = continuum;
   field state on body as state_space: 1 = 0;
-  relation law continuous on interface { trace(state) = 0; }
+  relation law on interface { trace(state) = 0; }
 }
 "#;
     let cases = [
@@ -326,7 +326,7 @@ model M {
     let coordinate = r#"
 component C {
   public support body: volume(ambient_dimension = 2);
-  relation law continuous on body { coordinate(2) = 0; }
+  relation law on body { coordinate(2) = 0; }
 }
 model M {
   domain fluid = box(0, 1, 0, 1);

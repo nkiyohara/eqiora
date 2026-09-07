@@ -93,7 +93,7 @@ pub(super) fn lower_relation(
     range: TextRange,
     activation: &ActivationSyntax,
     domain: Option<&str>,
-    residuals: &[LoweringExpression],
+    equations: &[LoweringEquation],
     bindings: &BTreeMap<String, Binding>,
 ) -> Result<LoweredRelation, Diagnostic> {
     if let Some(domain) = domain {
@@ -125,6 +125,10 @@ pub(super) fn lower_relation(
         ));
     }
 
+    let support = domain
+        .map(|name| relation_support(file, range, name, bindings))
+        .transpose()?;
+    let discrete = matches!(activation, ActivationSyntax::Periodic(_));
     let mut lowerer = ExpressionLowerer {
         file,
         bindings,
@@ -132,13 +136,73 @@ pub(super) fn lower_relation(
         dependencies: BTreeSet::new(),
         ports: BTreeSet::new(),
         cache: HashMap::new(),
-        allow_discrete_symbols: matches!(activation, ActivationSyntax::Periodic(_)),
+        allow_discrete_symbols: discrete,
     };
-    let mut roots = Vec::new();
-    for residual in residuals {
-        validate_spatial_operator_types(file, residual, bindings)?;
-        roots.push(lowerer.lower(residual)?.id);
+    let mut normalized = Vec::with_capacity(equations.len());
+    for equation in equations {
+        let left_type =
+            expression_type(file, &equation.left, bindings, support.as_ref(), discrete)?;
+        let right_type =
+            expression_type(file, &equation.right, bindings, support.as_ref(), discrete)?;
+        let checked = equality::check(
+            left_type,
+            right_type,
+            equation.contextual_left_zero,
+            equation.contextual_right_zero,
+        )
+        .map_err(|error| {
+            source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                file,
+                equation.range,
+                error.to_string(),
+            )
+        })?;
+        typing::residual(&checked.residual, support.as_ref()).map_err(|error| {
+            source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                file,
+                equation.range,
+                error.to_string(),
+            )
+        })?;
+        let contextual =
+            |expression: &LoweringExpression, is_zero, value_type: &eqiora_core::ValueType| {
+                if is_zero {
+                    LoweringExpression::literal(
+                        eqiora_core::ValueLiteral::new(value_type.clone(), 0.0)
+                            .expect("zero inhabits every checked mathematical type"),
+                        expression.range(),
+                    )
+                } else {
+                    expression.clone()
+                }
+            };
+        let left = contextual(
+            &equation.left,
+            equation.contextual_left_zero,
+            &checked.left.value_type,
+        );
+        let right = contextual(
+            &equation.right,
+            equation.contextual_right_zero,
+            &checked.right.value_type,
+        );
+        // This neutral-element rule applies only after both operands and the
+        // resulting support/type have passed admission. In particular a real
+        // left side cannot absorb the promotion caused by a complex zero.
+        let residual = if equation.literal_right_zero && checked.residual == checked.left {
+            left
+        } else {
+            LoweringExpression::binary(BinaryOp::Sub, left, right, equation.range)
+        };
+        normalized.push(residual);
     }
+    // Keep all normalized nodes alive for the pointer-keyed lowering cache.
+    let roots = normalized
+        .iter()
+        .map(|residual| lowerer.lower(residual).map(|value| value.id))
+        .collect::<Result<Vec<_>, _>>()?;
     let residuals = lowerer.builder.finish(roots).map_err(|diagnostic| {
         source_error(
             codes::LANGUAGE_LOWERING_ERROR,
@@ -154,138 +218,8 @@ pub(super) fn lower_relation(
     })
 }
 
-/// Apply the shared shape/frame rules before the legacy flat DAG lowerer
-/// erases that information. `None` means this bounded pass encountered a
-/// physical accessor or another expression family whose existing owner still
-/// performs admission; nested spatial operators have already been checked.
-fn validate_spatial_operator_types(
-    file: &str,
-    expression: &LoweringExpression,
-    bindings: &BTreeMap<String, Binding>,
-) -> Result<Option<ExpressionType<RawId>>, Diagnostic> {
-    let typed = match expression.node.as_ref() {
-        LoweringExpressionNode::Literal(value) => {
-            Some(ExpressionType::new(value.value_type().clone(), None))
-        }
-        LoweringExpressionNode::Name(name) if name == "time" => {
-            Some(ExpressionType::scalar(time_dimension(), None))
-        }
-        LoweringExpressionNode::Name(name) => match bindings.get(name) {
-            Some(Binding::Field(_, contract)) => Some(field_expression_type(
-                file,
-                expression.range(),
-                contract,
-                bindings,
-            )?),
-            Some(Binding::Parameter(_, value_type)) => {
-                Some(ExpressionType::new(value_type.clone(), None))
-            }
-            _ => None,
-        },
-        LoweringExpressionNode::Neg(value) => {
-            validate_spatial_operator_types(file, value, bindings)?
-        }
-        LoweringExpressionNode::Binary {
-            operator,
-            left,
-            right,
-        } => {
-            let exponent = (*operator == BinaryOp::Pow)
-                .then(|| lowering_integer_literal(right))
-                .flatten();
-            let left = validate_spatial_operator_types(file, left, bindings)?;
-            let right = validate_spatial_operator_types(file, right, bindings)?;
-            match (left, right) {
-                (Some(left), Some(right)) => {
-                    let result = match operator {
-                        BinaryOp::Add | BinaryOp::Sub if left.dimension() != right.dimension() => {
-                            // Preserve the established flat-lowerer diagnostic,
-                            // which reports the two dimensions compactly.
-                            return Ok(None);
-                        }
-                        BinaryOp::Add | BinaryOp::Sub => typing::additive(&left, &right),
-                        BinaryOp::Mul => typing::multiply(&left, &right),
-                        BinaryOp::Div => typing::divide(&left, &right),
-                        BinaryOp::Pow => {
-                            let Some(exponent) = exponent else {
-                                return Ok(None);
-                            };
-                            typing::power(&left, exponent)
-                        }
-                    };
-                    // Arithmetic diagnostics retain their established owner
-                    // and graph path. Successful composition is needed here
-                    // only to type a surrounding spatial operator.
-                    result.ok()
-                }
-                _ => None,
-            }
-        }
-        LoweringExpressionNode::Call { callee, argument } => {
-            let operand = validate_spatial_operator_types(file, argument, bindings)?;
-            match (callee.as_str(), operand) {
-                ("grad", Some(operand)) => Some(
-                    typing::gradient(&operand)
-                        .map_err(|error| spatial_type_error(file, expression, error))?,
-                ),
-                ("div", Some(operand)) => Some(
-                    typing::divergence(&operand)
-                        .map_err(|error| spatial_type_error(file, expression, error))?,
-                ),
-                ("symmetric_part", Some(operand)) => Some(
-                    typing::symmetric_part(&operand)
-                        .map_err(|error| spatial_type_error(file, expression, error))?,
-                ),
-                ("isotropic_lift", Some(operand)) => Some(
-                    typing::isotropic_lift(&operand)
-                        .map_err(|error| spatial_type_error(file, expression, error))?,
-                ),
-                ("math.sin", Some(operand)) => {
-                    typing::unary_math(UnaryMathFunction::Sin, &operand).ok()
-                }
-                ("math.sqrt", Some(operand)) => {
-                    typing::unary_math(UnaryMathFunction::Sqrt, &operand).ok()
-                }
-                _ => None,
-            }
-        }
-        LoweringExpressionNode::PureOperator { arguments, .. } => {
-            for argument in arguments {
-                validate_spatial_operator_types(file, argument, bindings)?;
-            }
-            None
-        }
-        LoweringExpressionNode::UnknownMath(_)
-        | LoweringExpressionNode::InvalidValue(_)
-        | LoweringExpressionNode::Unsupported => None,
-    };
-    Ok(typed)
-}
-
-fn field_expression_type(
-    file: &str,
-    range: TextRange,
-    contract: &FieldContract,
-    bindings: &BTreeMap<String, Binding>,
-) -> Result<ExpressionType<RawId>, Diagnostic> {
-    let resolved = resolve_field_contract(file, range, contract, bindings)?;
-    let support = contract.domain.as_deref().and_then(|domain| {
-        let Binding::Domain(
-            id,
-            DomainContract::Spatial {
-                dimensions: Some(dimensions),
-            },
-        ) = bindings.get(domain)?
-        else {
-            return None;
-        };
-        Some(SpatialSupport::Volume {
-            domain: id.erase(),
-            dimensions: *dimensions,
-        })
-    });
-    Ok(ExpressionType::new(resolved, support))
-}
+mod types;
+use types::{expression_type, relation_support};
 
 fn spatial_type_error(
     file: &str,
@@ -589,6 +523,14 @@ impl ExpressionLowerer<'_> {
                 self.file,
                 expression.range(),
                 format!("continuous Relation cannot use `{callee}`"),
+            ));
+        }
+        if callee == "derivative" && self.allow_discrete_symbols {
+            return Err(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                self.file,
+                expression.range(),
+                "clocked Relation cannot use `derivative`",
             ));
         }
         let (symbol, dimension) = match callee {

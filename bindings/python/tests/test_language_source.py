@@ -10,6 +10,24 @@ q = eqiora.lang
 u = q.units
 
 
+def test_source_power_preserves_python_negative_base_grouping():
+    source = q.Source()
+    component = source.component("Powers")
+    body = component.volume("body", dimensions=1)
+    x = component.parameter("x", value_type=eqiora.ValueType.real(eqiora.Dimension()))
+    cases = [
+        ("negative_power", -(x**2), "-x ^ 2 = 0;"),
+        ("negative_base", (-x)**2, "(-x) ^ 2 = 0;"),
+        ("signed_power", x**-2, "x ^ -2 = 0;"),
+        ("quantity_base", q.quantity(-2, u.one)**2, "(-2 [1]) ^ 2 = 0;"),
+    ]
+    for name, expression, _ in cases:
+        component.relation(name, on=body, left=expression, right=0)
+    emitted = source.to_eqi()
+    for _, _, text in cases:
+        assert text in emitted
+
+
 def test_documentation_emits_attached_paragraphs_with_utf8_byte_bound():
     source = q.Source()
     source.component("Documented", doc="Summary.\n\nFurther **prose**.")
@@ -52,7 +70,7 @@ def test_input_quantities_compile_from_python_and_emitted_source(tmp_path: Path)
     length = law.field("length", on=region, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)), initial=0)
     law.relation(
         "balance", on=region,
-        residual=length - q.math.sqrt(q.quantity(4, u.m.prefixed("m") ** 2)),
+        right=0, left=length - q.math.sqrt(q.quantity(4, u.m.prefixed("m") ** 2)),
     )
     assert "4 [(mm ^ 2)]" in source.to_eqi()
     direct = eqiora.compile(source=source, geometry=rectangle_geometry())
@@ -120,22 +138,22 @@ def cylinder_source(
     stokes.relation(
         "momentum",
         on=fluid,
-        residual=-q.div(stress) - q.grad(force_potential),
+        right=0, left=-q.div(stress) - q.grad(force_potential),
         doc="Steady Stokes momentum balance.",
     )
-    stokes.relation("incompressibility", on=fluid, residual=q.div(velocity))
+    stokes.relation("incompressibility", on=fluid, right=0, left=q.div(velocity))
     stokes.relation(
         "inlet_velocity",
         on=inlet,
-        residual=q.trace(velocity) + q.normal(q.isotropic_lift(inlet_profile)),
+        right=0, left=q.trace(velocity) + q.normal(q.isotropic_lift(inlet_profile)),
     )
-    stokes.relation("outlet_traction", on=outlet, residual=q.normal(stress))
-    stokes.relation("wall_velocity", on=walls, residual=q.trace(velocity))
-    stokes.relation("cylinder_velocity", on=cylinder, residual=q.trace(velocity))
+    stokes.relation("outlet_traction", on=outlet, right=0, left=q.normal(stress))
+    stokes.relation("wall_velocity", on=walls, right=0, left=q.trace(velocity))
+    stokes.relation("cylinder_velocity", on=cylinder, right=0, left=q.trace(velocity))
     return source
 
 
-def test_relation_accepts_exactly_residual_or_complete_natural_equation() -> None:
+def test_relation_requires_ordered_left_and_right_including_zero() -> None:
     source = q.Source()
     component = source.component("NaturalEquation")
     body = component.volume("body", dimensions=2)
@@ -149,7 +167,7 @@ def test_relation_accepts_exactly_residual_or_complete_natural_equation() -> Non
         right=-source_scale,
         doc="Natural equation.",
     )
-    residual = component.relation("residual", on=body, residual=value)
+    residual = component.relation("residual", on=body, right=0, left=value)
     assert isinstance(natural, q.Relation)
     assert isinstance(residual, q.Relation)
     with pytest.raises(TypeError):
@@ -244,15 +262,15 @@ def scalar_property_source(*, doc: str = "Reference scalar diffusivity release."
     law.relation(
         "balance",
         on=law_region,
-        residual=(
+        right=0, left=(
             -q.div(diffusivity * q.grad(potential))
             - law_source_scale
         ),
     )
-    law.relation("left_value", on=law_left, residual=q.trace(potential))
-    law.relation("right_value", on=law_right, residual=q.trace(potential))
-    law.relation("bottom_value", on=law_bottom, residual=q.trace(potential))
-    law.relation("top_value", on=law_top, residual=q.trace(potential))
+    law.relation("left_value", on=law_left, right=0, left=q.trace(potential))
+    law.relation("right_value", on=law_right, right=0, left=q.trace(potential))
+    law.relation("bottom_value", on=law_bottom, right=0, left=q.trace(potential))
+    law.relation("top_value", on=law_top, right=0, left=q.trace(potential))
 
     root = source.component("PoissonRectangle")
     root_region = root.volume("region", dimensions=2)
@@ -303,7 +321,7 @@ def material_composition_source() -> q.Source:
     region = law.volume("region", dimensions=2)
     conductivity = law.property("conductivity", contract=conductivity_contract)
     capacity = law.property("capacity", contract=capacity_contract)
-    law.relation("law", on=region, residual=conductivity / capacity)
+    law.relation("law", on=region, right=0, left=conductivity / capacity)
     material = source.material_composition(
         "MaterialA",
         properties={
@@ -389,7 +407,7 @@ def scalar_primal_source():
     balance = law.relation(
         "balance",
         on=region,
-        residual=(
+        right=0, left=(
             -q.div(diffusion * q.grad(potential))
             - source_scale * q.math.sin(q.math.pi * wave_number * q.coordinate(0))
         ),
@@ -454,7 +472,7 @@ def test_uninitialized_scalar_field_compiles_from_source_and_emitted_file(
     law = source.component("AlgebraicField")
     region = law.volume("region", dimensions=2)
     potential = law.field("potential", on=region, value_type=eqiora.ValueType.real())
-    law.relation("balance", on=region, residual=potential)
+    law.relation("balance", on=region, right=0, left=potential)
 
     text = source.to_eqi()
     assert "field potential on region as space: 1;" in text

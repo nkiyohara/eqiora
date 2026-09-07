@@ -107,7 +107,7 @@ component Diffusion {
   field potential on region as space: 1 = 0;
   parameter diffusion: 1 = 1;
   parameter source: 1 / m ^ 2 = 1;
-  relation balance continuous on region { -div(diffusion * grad(potential)) = source; }
+  relation balance on region { -div(diffusion * grad(potential)) = source; }
   form primal for balance {
     integrate(region, dot(grad(test(potential)), diffusion * grad(potential)))
       = integrate(region, test(potential) * source);
@@ -133,7 +133,7 @@ component Diffusion {
 
         let misplaced = parse(
             "misplaced.eqi",
-            "component C { relation r continuous { 1 = 0; } form primal for r { integrate(d, test(x)) = integrate(d, test(x)); } parameter p: 1 = 1; }",
+            "component C { relation r { 1 = 0; } form primal for r { integrate(d, test(x)) = integrate(d, test(x)); } parameter p: 1 = 1; }",
         );
         assert!(misplaced.diagnostics().iter().any(|diagnostic| {
             diagnostic

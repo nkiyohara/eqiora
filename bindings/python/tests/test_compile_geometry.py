@@ -51,7 +51,7 @@ def test_source_shape_and_argument_admission_fail_closed(tmp_path: Path) -> None
     root_source = """
 model Main {
   field x: 1 = 1;
-  relation balance continuous { x - 1 = 0; }
+  relation balance { x - 1 = 0; }
 }
 """
     assert eqiora.compile(source=root_source).digest

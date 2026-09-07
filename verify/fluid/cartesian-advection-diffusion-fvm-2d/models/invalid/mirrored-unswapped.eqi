@@ -12,25 +12,25 @@ model Main {
   parameter diffusivity: m ^ 2 / s = 0.2;
   parameter inflow: K = 1;
 
-  relation flow_definition continuous on body {
+  relation flow_definition on body {
     flow_potential - speed * coordinate(0) = 0;
   }
-  relation transport continuous on body {
+  relation transport on body {
     derivative(concentration)
       + div(concentration * grad(flow_potential))
       - div(diffusivity * grad(concentration)) = 0;
   }
 
-  relation x_lower_value continuous on x_lower {
+  relation x_lower_value on x_lower {
     trace(concentration) - inflow = 0;
   }
-  relation x_upper_flux continuous on x_upper {
+  relation x_upper_flux on x_upper {
     normal(diffusivity * grad(concentration)) = 0;
   }
-  relation y_lower_flux continuous on y_lower {
+  relation y_lower_flux on y_lower {
     normal(diffusivity * grad(concentration)) = 0;
   }
-  relation y_upper_flux continuous on y_upper {
+  relation y_upper_flux on y_upper {
     normal(diffusivity * grad(concentration)) = 0;
   }
 }

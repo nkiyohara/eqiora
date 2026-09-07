@@ -12,7 +12,7 @@ public component LoadedFace3d {
   public port mechanical:
     conserving MechanicalBoundary3d over face;
 
-  relation boundary_law continuous on face {
+  relation boundary_law on face {
     trace(mechanical) = 0;
     flux(mechanical) = 0;
   }

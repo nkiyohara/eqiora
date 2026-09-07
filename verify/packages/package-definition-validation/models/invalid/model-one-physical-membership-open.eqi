@@ -8,7 +8,7 @@ component OpenTriple {
 
 model Main {
   instance triple: OpenTriple;
-  relation owner continuous {
+  relation owner {
     across(triple.a) + across(triple.b) + across(triple.c) = 0;
   }
   connect conserving triple.a, triple.b;

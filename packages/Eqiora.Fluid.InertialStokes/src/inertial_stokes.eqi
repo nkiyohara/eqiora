@@ -6,14 +6,14 @@ public component InertialStokesWithPotential2d {
   public parameter density: kg / m ^ 3;
   public parameter dynamic_viscosity: kg / (m * s);
 
-  relation momentum continuous on body {
+  relation momentum on body {
     density * derivative(velocity)
       - div(
         2 * dynamic_viscosity * symmetric_part(grad(velocity))
         - isotropic_lift(pressure)
       ) - grad(force_potential) = 0;
   }
-  relation incompressibility continuous on body {
+  relation incompressibility on body {
     div(velocity) = 0;
   }
 }

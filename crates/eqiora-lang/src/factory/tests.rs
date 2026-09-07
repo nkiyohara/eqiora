@@ -84,7 +84,14 @@ fn owned_flat_model_formats_and_parses_identically() {
         "balance",
         ActivationSyntax::Continuous,
         Some("body".to_owned()),
-        vec![residual],
+        vec![
+            SourceAstFactory::equation(
+                residual,
+                SourceAstFactory::expression(ExprKind::Number(0.0), range(0, 0)).unwrap(),
+                range(0, 0),
+            )
+            .unwrap(),
+        ],
         range(0, 0),
     )
     .expect("Relation");
@@ -557,7 +564,14 @@ fn factory_constructs_complete_exterior_families_and_roundtrips() {
         "natural",
         ActivationSyntax::Continuous,
         Some("boundary".to_owned()),
-        vec![residual],
+        vec![
+            SourceAstFactory::equation(
+                residual,
+                SourceAstFactory::expression(ExprKind::Number(0.0), range(0, 0)).unwrap(),
+                range(0, 0),
+            )
+            .unwrap(),
+        ],
         range(0, 0),
     )
     .expect("Relation");

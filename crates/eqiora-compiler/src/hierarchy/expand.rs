@@ -21,7 +21,7 @@ use crate::identity::{
     DeclarationPath, ElaborationIdentityLimits, ElaborationKey, FullElaborationIdentity,
     GeneratedRole, IdentityNamespace, InstancePath, ModelViewKey,
 };
-use crate::lower::{LoweringDomainContract, LoweringExpression, LoweringPortContract};
+use crate::lower::{LoweringDomainContract, LoweringEquation, LoweringPortContract};
 
 use super::body_check::field_expression_type;
 use super::complete_exterior::CartesianDomain;
@@ -484,11 +484,12 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         file: &str,
         range: eqiora_lang::TextRange,
         relation: FullElaborationIdentity,
-        residuals: &[LoweringExpression],
+        equations: &[LoweringEquation],
     ) -> Result<(), Diagnostic> {
         let mut names = BTreeSet::new();
-        if residuals
+        if equations
             .iter()
+            .flat_map(|equation| [&equation.left, &equation.right])
             .any(|expression| !expression.collect_physical_port_names(&mut names))
         {
             return Err(source_error(
@@ -1742,19 +1743,19 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 }
                 ComponentItem::Relation(declaration) => {
                     let identity = identities.relations[declaration.name()].clone();
-                    let (activation, domain, residuals) =
+                    let (activation, domain, equations) =
                         rewrite_relation(component.file, declaration, scope)?;
                     self.record_physical_relation_owners(
                         component.file,
                         declaration.range(),
                         identity.entity.full,
-                        &residuals,
+                        &equations,
                     )?;
                     self.items.push(FlatItemBlueprint::Relation {
                         name: internal_name(identity.entity.full),
                         activation,
                         domain,
-                        residuals,
+                        equations,
                         range: declaration.range(),
                         identity,
                     });
@@ -1791,29 +1792,38 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                             family.binder().member(),
                             boundary,
                         ));
-                        let residuals = declaration
-                            .residuals()
+                        let equations = declaration
+                            .equations()
                             .iter()
-                            .map(|expression| {
-                                rewrite_expression_with_boundary_member(
-                                    component.file,
-                                    expression,
-                                    scope,
-                                    active,
-                                )
+                            .map(|equation| {
+                                Ok(LoweringEquation::rewritten(
+                                    equation,
+                                    rewrite_expression_with_boundary_member(
+                                        component.file,
+                                        equation.left(),
+                                        scope,
+                                        active,
+                                    )?,
+                                    rewrite_expression_with_boundary_member(
+                                        component.file,
+                                        equation.right(),
+                                        scope,
+                                        active,
+                                    )?,
+                                ))
                             })
                             .collect::<Result<Vec<_>, _>>()?;
                         self.record_physical_relation_owners(
                             component.file,
                             family.range(),
                             identity.entity.full,
-                            &residuals,
+                            &equations,
                         )?;
                         self.items.push(FlatItemBlueprint::Relation {
                             name: internal_name(identity.entity.full),
                             activation: eqiora_lang::ActivationSyntax::Continuous,
                             domain: Some(member.target().to_owned()),
-                            residuals,
+                            equations,
                             range: family.range(),
                             identity,
                         });
@@ -2152,19 +2162,19 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 }
                 Item::Relation(declaration) => {
                     let identity = identities.relations[declaration.name()].clone();
-                    let (activation, domain, residuals) =
+                    let (activation, domain, equations) =
                         rewrite_relation(self.model.file, declaration, scope)?;
                     self.record_physical_relation_owners(
                         self.model.file,
                         declaration.range(),
                         identity.entity.full,
-                        &residuals,
+                        &equations,
                     )?;
                     self.items.push(FlatItemBlueprint::Relation {
                         name: internal_name(identity.entity.full),
                         activation,
                         domain,
-                        residuals,
+                        equations,
                         range: declaration.range(),
                         identity,
                     });

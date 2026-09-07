@@ -44,7 +44,7 @@ pub(super) fn validate_relation_expression(
             "Activation syntax is newer than definition-body validation",
         )),
     }
-    if declaration.residuals().is_empty() {
+    if declaration.equations().is_empty() {
         diagnostics.push(source_error(
             codes::LANGUAGE_LOWERING_ERROR,
             scope.file,
@@ -61,8 +61,8 @@ pub(super) fn validate_relation_expression(
         allow_discrete_symbols: discrete,
         physical_endpoints: PhysicalEndpointSelections::new(),
     };
-    for residual in declaration.residuals() {
-        let inferred = match checker.check(residual) {
+    for equation in declaration.equations() {
+        let inferred = match checker.check_equation(equation) {
             Ok(inferred) => inferred,
             Err(error) => {
                 diagnostics.push(error);
@@ -70,7 +70,7 @@ pub(super) fn validate_relation_expression(
             }
         };
         if let Err(error) = typing::residual(&inferred, checker.relation_support.as_ref()) {
-            diagnostics.push(type_error(scope.file, residual, error));
+            diagnostics.push(type_error(scope.file, equation.left(), error));
         }
     }
     if diagnostics.is_empty() {
@@ -111,7 +111,7 @@ pub(super) fn validate_relation_family_expression(
             "boundary Relation family support must name its binder member",
         ));
     }
-    if relation.residuals().is_empty() {
+    if relation.equations().is_empty() {
         diagnostics.push(source_error(
             codes::LANGUAGE_LOWERING_ERROR,
             scope.file,
@@ -127,8 +127,8 @@ pub(super) fn validate_relation_family_expression(
         allow_discrete_symbols: false,
         physical_endpoints: PhysicalEndpointSelections::new(),
     };
-    for residual in relation.residuals() {
-        let inferred = match checker.check(residual) {
+    for equation in relation.equations() {
+        let inferred = match checker.check_equation(equation) {
             Ok(inferred) => inferred,
             Err(error) => {
                 diagnostics.push(error);
@@ -136,7 +136,7 @@ pub(super) fn validate_relation_family_expression(
             }
         };
         if let Err(error) = typing::residual(&inferred, checker.relation_support.as_ref()) {
-            diagnostics.push(type_error(scope.file, residual, error));
+            diagnostics.push(type_error(scope.file, equation.left(), error));
         }
     }
     if diagnostics.is_empty() {
@@ -155,6 +155,29 @@ struct ExpressionChecker<'a, 'e, 'd> {
 }
 
 impl ExpressionChecker<'_, '_, '_> {
+    fn check_equation(
+        &mut self,
+        equation: &eqiora_lang::Equation,
+    ) -> Result<ExpressionType<String>, Diagnostic> {
+        let left = self.check(equation.left())?;
+        let right = self.check(equation.right())?;
+        crate::lower::equality::check(
+            left,
+            right,
+            crate::lower::equality::is_contextual_zero(equation.left()),
+            crate::lower::equality::is_contextual_zero(equation.right()),
+        )
+        .map(|checked| checked.residual)
+        .map_err(|error| {
+            source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                self.scope.file,
+                equation.range(),
+                error.to_string(),
+            )
+        })
+    }
+
     fn check(&mut self, expression: &Expr) -> Result<ExpressionType<String>, Diagnostic> {
         match expression.kind() {
             ExprKind::Number(_) => Ok(ExpressionType::scalar(DimExponents::DIMENSIONLESS, None)),
@@ -397,6 +420,14 @@ impl ExpressionChecker<'_, '_, '_> {
                 self.scope.file,
                 expression.range(),
                 format!("continuous Relation cannot use `{callee_name}`"),
+            ));
+        }
+        if callee_name == "derivative" && self.allow_discrete_symbols {
+            return Err(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                self.scope.file,
+                expression.range(),
+                "clocked Relation cannot use `derivative`",
             ));
         }
         match callee_name {

@@ -3,7 +3,7 @@ model Network {
   port a: conserving on physical;
   port b: conserving on physical;
   port c: conserving on physical;
-  relation owner continuous {
+  relation owner {
     across(a) - across(b) = 0;
     across(b) - across(c) = 0;
     through(a) + through(b) + through(c) = 0;

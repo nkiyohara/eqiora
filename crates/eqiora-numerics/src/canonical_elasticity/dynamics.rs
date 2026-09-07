@@ -587,9 +587,9 @@ model dynamic_solid_3d {
   parameter lambda: kg / (m * s ^ 2) = 5;
   parameter zero_pressure: kg / (m * s ^ 2) = 0;
 
-  relation load_definition continuous on solid { load - zero_pressure = 0; }
-  relation kinematics continuous on solid { derivative(displacement) - velocity = 0; }
-  relation momentum continuous on solid {
+  relation load_definition on solid { load - zero_pressure = 0; }
+  relation kinematics on solid { derivative(displacement) - velocity = 0; }
+  relation momentum on solid {
     density * derivative(velocity)
       - div(
         2 * mu * symmetric_part(grad(displacement))
@@ -598,12 +598,12 @@ model dynamic_solid_3d {
       - grad(load) = 0;
   }
 
-  relation x_lower_zero continuous on x_lower { trace(velocity) = 0; }
-  relation x_upper_zero continuous on x_upper { trace(velocity) = 0; }
-  relation y_lower_zero continuous on y_lower { trace(velocity) = 0; }
-  relation y_upper_zero continuous on y_upper { trace(velocity) = 0; }
-  relation z_lower_zero continuous on z_lower { trace(velocity) = 0; }
-  relation z_upper_zero continuous on z_upper { trace(velocity) = 0; }
+  relation x_lower_zero on x_lower { trace(velocity) = 0; }
+  relation x_upper_zero on x_upper { trace(velocity) = 0; }
+  relation y_lower_zero on y_lower { trace(velocity) = 0; }
+  relation y_upper_zero on y_upper { trace(velocity) = 0; }
+  relation z_lower_zero on z_lower { trace(velocity) = 0; }
+  relation z_upper_zero on z_upper { trace(velocity) = 0; }
 }
 "#;
 
@@ -656,7 +656,7 @@ model dynamic_solid_3d {
                 "",
             )
             .replace(
-                "  relation z_upper_zero continuous on z_upper { trace(velocity) = 0; }\n",
+                "  relation z_upper_zero on z_upper { trace(velocity) = 0; }\n",
                 "",
             );
         assert!(

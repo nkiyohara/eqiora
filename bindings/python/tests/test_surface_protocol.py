@@ -92,7 +92,7 @@ DECAY = """
 model decay {
   field x: 1 = 1;
   parameter rate: 1 / s = 1;
-  relation flow continuous {
+  relation flow {
     derivative(x) + rate * x = 0;
   }
 }

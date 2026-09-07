@@ -15,13 +15,13 @@ public component AuthoredPoisson {
   public parameter other_source: 1 / m ^ 2;
   representation scalar_space = continuum;
   field potential on square as scalar_space: 1 = 0;
-  relation balance continuous on square {
+  relation balance on square {
     -div(diffusion * grad(potential)) = source_scale;
   }
-  relation x_lower_value continuous on x_lower { trace(potential) = 0; }
-  relation x_upper_value continuous on x_upper { trace(potential) = 0; }
-  relation y_lower_value continuous on y_lower { trace(potential) = 0; }
-  relation y_upper_value continuous on y_upper { trace(potential) = 0; }
+  relation x_lower_value on x_lower { trace(potential) = 0; }
+  relation x_upper_value on x_upper { trace(potential) = 0; }
+  relation y_lower_value on y_lower { trace(potential) = 0; }
+  relation y_upper_value on y_upper { trace(potential) = 0; }
   form primal for balance {
     integrate(square, dot(grad(test(potential)), diffusion * grad(potential)))
       = integrate(square, test(potential) * source_scale);

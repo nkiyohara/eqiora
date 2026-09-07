@@ -2,7 +2,7 @@ connector Pin = scalar_physical(across = 1, through = 1);
 
 component Leaf {
   public port p: conserving on Pin;
-  relation owner continuous { across(p) = 0; }
+  relation owner { across(p) = 0; }
 }
 
 component Wrapper {

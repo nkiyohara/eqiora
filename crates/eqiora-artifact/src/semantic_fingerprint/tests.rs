@@ -13,7 +13,7 @@ const DECAY: &str = r#"
 model decay {
   field x: 1 = 1;
   parameter rate: 1 / s = 1;
-  relation flow continuous { derivative(x) + rate * x = 0; }
+  relation flow { derivative(x) + rate * x = 0; }
 }
 "#;
 
@@ -31,7 +31,7 @@ fn program(source: &str) -> KernelProgram {
 fn independent_occurrence_ids_and_formatting_do_not_change_the_projection() {
     let first = program(DECAY);
     let second = program(
-        "model renamed { parameter r: 1/s = 1; field state: 1=1;\nrelation balance continuous { derivative(state)+r*state=0; } }",
+        "model renamed { parameter r: 1/s = 1; field state: 1=1;\nrelation balance { derivative(state)+r*state=0; } }",
     );
 
     assert_ne!(first.model(), second.model());
@@ -44,11 +44,10 @@ fn independent_occurrence_ids_and_formatting_do_not_change_the_projection() {
 
 #[test]
 fn symmetric_graphs_choose_the_same_exact_label_across_fresh_ids_and_order() {
-    let first = program(
-        "model first { parameter a: 1 = 1; parameter b: 1 = 1; relation r continuous { 0 = 0; } }",
-    );
+    let first =
+        program("model first { parameter a: 1 = 1; parameter b: 1 = 1; relation r { 0 = 0; } }");
     let second = program(
-        "model second { relation balance continuous { 0 = 0; } parameter y: 1 = 1; parameter x: 1 = 1; }",
+        "model second { relation balance { 0 = 0; } parameter y: 1 = 1; parameter x: 1 = 1; }",
     );
     assert!(structurally_equivalent(&first, &second).unwrap());
     assert_eq!(
@@ -79,12 +78,10 @@ fn value_operator_and_rewiring_changes_are_not_alpha_normalized_away() {
     assert!(!structurally_equivalent(&baseline, &changed_value).unwrap());
     assert!(!structurally_equivalent(&baseline, &changed_operator).unwrap());
 
-    let separate = program(
-        "model p { parameter a: 1 = 2; parameter b: 1 = 2; relation r continuous { a-b=0; } }",
-    );
-    let aliased = program(
-        "model p { parameter a: 1 = 2; parameter b: 1 = 2; relation r continuous { a-a=0; } }",
-    );
+    let separate =
+        program("model p { parameter a: 1 = 2; parameter b: 1 = 2; relation r { a-b=0; } }");
+    let aliased =
+        program("model p { parameter a: 1 = 2; parameter b: 1 = 2; relation r { a-a=0; } }");
     assert!(!structurally_equivalent(&separate, &aliased).unwrap());
 }
 
@@ -99,8 +96,8 @@ model network {
   port a2: conserving on a;
   port b1: conserving on b;
   port b2: conserving on b;
-  relation ra continuous { across(a1) - across(a2) = 0; through(a1) + through(a2) = 0; }
-  relation rb continuous { across(b1) - across(b2) = 0; through(b1) + through(b2) = 0; }
+  relation ra { across(a1) - across(a2) = 0; through(a1) + through(a2) = 0; }
+  relation rb { across(b1) - across(b2) = 0; through(b1) + through(b2) = 0; }
   connect conserving a1, a2;
   connect conserving b1, b2;
 }
@@ -115,8 +112,8 @@ model network {
   port a2: conserving on a;
   port b1: conserving on a;
   port b2: conserving on a;
-  relation ra continuous { across(a1) - across(a2) = 0; through(a1) + through(a2) = 0; }
-  relation rb continuous { across(b1) - across(b2) = 0; through(b1) + through(b2) = 0; }
+  relation ra { across(a1) - across(a2) = 0; through(a1) + through(a2) = 0; }
+  relation rb { across(b1) - across(b2) = 0; through(b1) + through(b2) = 0; }
   connect conserving a1, a2;
   connect conserving b1, b2;
 }
@@ -139,7 +136,7 @@ fn exact_canonicalization_fails_instead_of_using_occurrence_order() {
     );
 
     let symmetric = program(
-        "model symmetric { parameter a: 1 = 1; parameter b: 1 = 1; relation r continuous { 0 = 0; } }",
+        "model symmetric { parameter a: 1 = 1; parameter b: 1 = 1; relation r { 0 = 0; } }",
     );
     let error = StructuralSemanticFingerprint::from_program_with_limits(&symmetric, limits)
         .expect_err("ambiguous exact labeling must respect the state limit");

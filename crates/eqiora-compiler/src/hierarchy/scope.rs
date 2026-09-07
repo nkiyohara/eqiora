@@ -11,7 +11,7 @@ use eqiora_lang::{
 
 use crate::diagnostics::source_error;
 use crate::identity::FullElaborationIdentity;
-use crate::lower::LoweringExpression;
+use crate::lower::{LoweringEquation, LoweringExpression};
 use crate::pure_operator::is_builtin_operator;
 use eqiora_schema::kernel::pure_operator::PureOperatorDefinition;
 use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};
@@ -409,7 +409,7 @@ pub(super) fn rewrite_relation(
     file: &str,
     declaration: &RelationDecl,
     scope: &Scope,
-) -> Result<(ActivationSyntax, Option<String>, Vec<LoweringExpression>), Diagnostic> {
+) -> Result<(ActivationSyntax, Option<String>, Vec<LoweringEquation>), Diagnostic> {
     let activation = match declaration.activation() {
         ActivationSyntax::Continuous => ActivationSyntax::Continuous,
         ActivationSyntax::Periodic(clock) => {
@@ -446,12 +446,18 @@ pub(super) fn rewrite_relation(
             .map(|symbol| symbol.internal_name.clone())
         })
         .transpose()?;
-    let residuals = declaration
-        .residuals()
+    let equations = declaration
+        .equations()
         .iter()
-        .map(|expression| rewrite_expression(file, expression, scope))
+        .map(|equation| {
+            Ok(LoweringEquation::rewritten(
+                equation,
+                rewrite_expression(file, equation.left(), scope)?,
+                rewrite_expression(file, equation.right(), scope)?,
+            ))
+        })
         .collect::<Result<Vec<_>, _>>()?;
-    Ok((activation, domain, residuals))
+    Ok((activation, domain, equations))
 }
 
 pub(super) fn rewrite_expression(

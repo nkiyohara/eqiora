@@ -21,7 +21,7 @@ public component IsotropicBalance2d {
   public parameter shear_modulus: kg / (m * s ^ 2);
   public parameter first_lame_parameter: kg / (m * s ^ 2);
 
-  relation balance continuous on body {
+  relation balance on body {
     -div(
       2 * shear_modulus * symmetric_part(grad(displacement))
       + first_lame_parameter * isotropic_lift(div(displacement))
@@ -39,7 +39,7 @@ public component DisplacementTractionInterface2d {
   public port mechanical[boundary in exterior]:
     conserving DisplacementTractionBoundary over boundary;
 
-  relation boundary_interface[boundary in exterior] continuous on boundary {
+  relation boundary_interface[boundary in exterior] on boundary {
     trace(displacement)
       - trace(mechanical[boundary = boundary]) = 0;
     normal(
@@ -167,7 +167,7 @@ public component FixedDisplacement2d {
   public port mechanical:
     conserving DisplacementTractionBoundary over face;
 
-  relation prescribed_displacement continuous on face {
+  relation prescribed_displacement on face {
     trace(mechanical) = 0;
   }
 }
@@ -178,7 +178,7 @@ public component TractionFree2d {
   public port mechanical:
     conserving DisplacementTractionBoundary over face;
 
-  relation prescribed_traction continuous on face {
+  relation prescribed_traction on face {
     flux(mechanical) = 0;
   }
 }
@@ -190,7 +190,7 @@ public component PrescribedDisplacement2d {
   public port mechanical:
     conserving DisplacementTractionBoundary over face;
 
-  relation prescribed_displacement continuous on face {
+  relation prescribed_displacement on face {
     trace(mechanical) - trace(displacement) = 0;
   }
 }
@@ -203,7 +203,7 @@ public component PrescribedTraction2d {
   public port mechanical:
     conserving DisplacementTractionBoundary over face;
 
-  relation prescribed_traction continuous on face {
+  relation prescribed_traction on face {
     flux(mechanical) - trace(traction) = 0;
   }
 }

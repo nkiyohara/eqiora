@@ -27,7 +27,7 @@ public component NewtonianInterface2d {
   public port mechanical:
     conserving VelocityTractionBoundary over face;
 
-  relation interface continuous on face {
+  relation interface on face {
     trace(velocity) - trace(mechanical) = 0;
     normal(
       2 * dynamic_viscosity * symmetric_part(grad(velocity))
@@ -46,7 +46,7 @@ public component ElasticInterface2d {
   public port mechanical:
     conserving VelocityTractionBoundary over face;
 
-  relation interface continuous on face {
+  relation interface on face {
     trace(velocity) - trace(mechanical) = 0;
     normal(
       2 * mu * symmetric_part(grad(displacement))
@@ -83,8 +83,8 @@ model Main {
   parameter lambda: kg / (m * s ^ 2) = 5;
   parameter zero_pressure: kg / (m * s ^ 2) = 0;
 
-  relation fluid_load_definition continuous on fluid { fluid_load - zero_pressure = 0; }
-  relation fluid_momentum continuous on fluid {
+  relation fluid_load_definition on fluid { fluid_load - zero_pressure = 0; }
+  relation fluid_momentum on fluid {
     fluid_density * derivative(fluid_velocity)
       - div(
         2 * viscosity * symmetric_part(grad(fluid_velocity))
@@ -92,13 +92,13 @@ model Main {
       )
       - grad(fluid_load) = 0;
   }
-  relation incompressibility continuous on fluid { div(fluid_velocity) = 0; }
+  relation incompressibility on fluid { div(fluid_velocity) = 0; }
 
-  relation solid_load_definition continuous on solid { solid_load - zero_pressure = 0; }
-  relation kinematics continuous on solid {
+  relation solid_load_definition on solid { solid_load - zero_pressure = 0; }
+  relation kinematics on solid {
     derivative(displacement) - solid_velocity = 0;
   }
-  relation solid_momentum continuous on solid {
+  relation solid_momentum on solid {
     solid_density * derivative(solid_velocity)
       - div(
         2 * mu * symmetric_part(grad(displacement))
@@ -107,12 +107,12 @@ model Main {
       - grad(solid_load) = 0;
   }
 
-  relation fluid_x_lower_zero continuous on fluid_x_lower { trace(fluid_velocity) = 0; }
-  relation fluid_y_lower_zero continuous on fluid_y_lower { trace(fluid_velocity) = 0; }
-  relation fluid_y_upper_zero continuous on fluid_y_upper { trace(fluid_velocity) = 0; }
-  relation solid_x_upper_zero continuous on solid_x_upper { trace(solid_velocity) = 0; }
-  relation solid_y_lower_zero continuous on solid_y_lower { trace(solid_velocity) = 0; }
-  relation solid_y_upper_zero continuous on solid_y_upper { trace(solid_velocity) = 0; }
+  relation fluid_x_lower_zero on fluid_x_lower { trace(fluid_velocity) = 0; }
+  relation fluid_y_lower_zero on fluid_y_lower { trace(fluid_velocity) = 0; }
+  relation fluid_y_upper_zero on fluid_y_upper { trace(fluid_velocity) = 0; }
+  relation solid_x_upper_zero on solid_x_upper { trace(solid_velocity) = 0; }
+  relation solid_y_lower_zero on solid_y_lower { trace(solid_velocity) = 0; }
+  relation solid_y_upper_zero on solid_y_upper { trace(solid_velocity) = 0; }
 
   instance fluid_interface: NewtonianInterface2d(
     support body = fluid,
@@ -182,12 +182,12 @@ fn ale_source_3d() -> String {
             "  domain solid_y_upper = boundary(solid, axis = 1, side = upper);\n  domain solid_z_lower = boundary(solid, axis = 2, side = lower);\n  domain solid_z_upper = boundary(solid, axis = 2, side = upper);",
         )
         .replace(
-            "  relation fluid_y_upper_zero continuous on fluid_y_upper { trace(fluid_velocity) = 0; }",
-            "  relation fluid_y_upper_zero continuous on fluid_y_upper { trace(fluid_velocity) = 0; }\n  relation fluid_z_lower_zero continuous on fluid_z_lower { trace(fluid_velocity) = 0; }\n  relation fluid_z_upper_zero continuous on fluid_z_upper { trace(fluid_velocity) = 0; }",
+            "  relation fluid_y_upper_zero on fluid_y_upper { trace(fluid_velocity) = 0; }",
+            "  relation fluid_y_upper_zero on fluid_y_upper { trace(fluid_velocity) = 0; }\n  relation fluid_z_lower_zero on fluid_z_lower { trace(fluid_velocity) = 0; }\n  relation fluid_z_upper_zero on fluid_z_upper { trace(fluid_velocity) = 0; }",
         )
         .replace(
-            "  relation solid_y_upper_zero continuous on solid_y_upper { trace(solid_velocity) = 0; }",
-            "  relation solid_y_upper_zero continuous on solid_y_upper { trace(solid_velocity) = 0; }\n  relation solid_z_lower_zero continuous on solid_z_lower { trace(solid_velocity) = 0; }\n  relation solid_z_upper_zero continuous on solid_z_upper { trace(solid_velocity) = 0; }",
+            "  relation solid_y_upper_zero on solid_y_upper { trace(solid_velocity) = 0; }",
+            "  relation solid_y_upper_zero on solid_y_upper { trace(solid_velocity) = 0; }\n  relation solid_z_lower_zero on solid_z_lower { trace(solid_velocity) = 0; }\n  relation solid_z_upper_zero on solid_z_upper { trace(solid_velocity) = 0; }",
         )
 }
 
@@ -336,7 +336,7 @@ fn three_dimensional_ale_fsi_rejects_dimension_and_boundary_drift() {
             "",
         )
         .replace(
-            "  relation solid_z_upper_zero continuous on solid_z_upper { trace(solid_velocity) = 0; }\n",
+            "  relation solid_z_upper_zero on solid_z_upper { trace(solid_velocity) = 0; }\n",
             "",
         );
     assert!(lower_ale_fsi_cartesian_3d(&compile_program(&incomplete)).is_err());
@@ -364,7 +364,7 @@ fn rejects_noncoincident_interface_geometry() {
 #[test]
 fn rejects_meaning_outside_the_closed_two_domain_network() {
     assert_rejected(&SOURCE.replace(
-        "relation incompressibility continuous on fluid { div(fluid_velocity) = 0; }",
-        "relation incompressibility continuous on fluid { div(fluid_velocity) = 0; }\n  relation hidden continuous on fluid { pressure = 0; }",
+        "relation incompressibility on fluid { div(fluid_velocity) = 0; }",
+        "relation incompressibility on fluid { div(fluid_velocity) = 0; }\n  relation hidden on fluid { pressure = 0; }",
     ));
 }

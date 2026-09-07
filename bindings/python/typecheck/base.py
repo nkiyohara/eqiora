@@ -24,7 +24,7 @@ def check_language_source() -> None:
         left=eqiora.lang.div(value),
         right=-eqiora.lang.math.pi * value,
     )
-    residual = component.relation("reference", on=volume, residual=value)
+    residual = component.relation("reference", on=volume, left=value, right=0)
     assert_type(natural, eqiora.lang.Relation)
     assert_type(residual, eqiora.lang.Relation)
     assert_type(eqiora.lang.math.pi, eqiora.lang.Expression)

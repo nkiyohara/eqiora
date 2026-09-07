@@ -24,7 +24,7 @@ model Main {
   field inlet_speed on body as space: m / s = 0;
   parameter dynamic_viscosity: kg / (m * s) = 2;
   parameter zero_pressure: kg / (m * s ^ 2) = 0;
-  relation force_definition continuous on body {
+  relation force_definition on body {
     force_potential - zero_pressure = 0;
   }
   instance governing: fluid.SteadyStokesWithPotential2d(
@@ -112,7 +112,7 @@ def test_fetch_and_update_are_explicit_and_failed_add_is_atomic(tmp_path: Path) 
 def test_solid_is_an_ordinary_exact_bundled_dependency(tmp_path: Path) -> None:
     application, store = project(tmp_path)
     (application / "src/main.eqi").write_text(
-        "model Main { parameter gain: 1 = 2; relation law continuous { gain - 2 = 0; } }",
+        "model Main { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
         encoding="utf-8",
     )
     resolution = eqiora.add_bundled_dependency(

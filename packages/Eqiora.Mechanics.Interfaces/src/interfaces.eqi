@@ -12,7 +12,7 @@ public component ZeroVelocity2d {
   public port mechanical:
     conserving VelocityTractionBoundary over face;
 
-  relation prescribed_velocity continuous on face {
+  relation prescribed_velocity on face {
     trace(mechanical) = 0;
   }
 }
@@ -23,7 +23,7 @@ public component ZeroTraction2d {
   public port mechanical:
     conserving VelocityTractionBoundary over face;
 
-  relation prescribed_traction continuous on face {
+  relation prescribed_traction on face {
     flux(mechanical) = 0;
   }
 }
@@ -34,7 +34,7 @@ public component ZeroVelocity3d {
   public port mechanical:
     conserving VelocityTractionBoundary over face;
 
-  relation prescribed_velocity continuous on face {
+  relation prescribed_velocity on face {
     trace(mechanical) = 0;
   }
 }
@@ -45,7 +45,7 @@ public component ZeroTraction3d {
   public port mechanical:
     conserving VelocityTractionBoundary over face;
 
-  relation prescribed_traction continuous on face {
+  relation prescribed_traction on face {
     flux(mechanical) = 0;
   }
 }

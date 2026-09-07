@@ -673,7 +673,7 @@ fn format_expression(
                 BinaryOp::Sub => (" - ", precedence, precedence + 1),
                 BinaryOp::Mul => (" * ", precedence, precedence + 1),
                 BinaryOp::Div => (" / ", precedence, precedence + 1),
-                BinaryOp::Pow => (" ^ ", precedence + 1, precedence),
+                BinaryOp::Pow => (" ^ ", precedence + 1, 6),
             };
             format_expression(left, left_precedence, output);
             output.push_str(symbol);
@@ -709,7 +709,10 @@ fn expression_precedence(expression: &Expr) -> u8 {
         ExprKind::Binary {
             op: BinaryOp::Pow, ..
         } => 7,
-        ExprKind::Unary { .. } => 9,
+        ExprKind::Unary { .. } => 6,
+        // Native source factories may store a negative literal directly rather
+        // than as Unary(Neg). Its printed sign still needs a grouped power base.
+        ExprKind::Number(value) | ExprKind::Quantity { value, .. } if *value < 0.0 => 6,
         ExprKind::Number(_)
         | ExprKind::Quantity { .. }
         | ExprKind::Name(_)

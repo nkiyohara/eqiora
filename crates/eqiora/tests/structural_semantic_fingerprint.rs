@@ -19,7 +19,8 @@ const PHYSICAL: &str =
 
 #[test]
 fn rational_dimension_meaning_survives_canonical_model_replay() {
-    let source = "model Wave { parameter amplitude: m ^ (-1 / 2) = 1; relation r continuous { amplitude = 0; } }";
+    let source =
+        "model Wave { parameter amplitude: m ^ (-1 / 2) = 1; relation r { amplitude = 0; } }";
     let model = ModelDocument::compile("wave.eqi", source).unwrap();
     let equivalent =
         ModelDocument::compile("equal.eqi", &source.replace("-1 / 2", "-2 / 4")).unwrap();
@@ -53,7 +54,7 @@ model RationalQuantities {
   field probability: 1 = 1;
   field length: m = 2;
   field time_root: s ^ (1 / 2) = 1;
-  relation dimensions continuous {
+  relation dimensions {
     probability = amplitude * amplitude * width;
     length = math.sqrt(area);
     time_root = spectral_amplitude;
@@ -88,12 +89,12 @@ model RationalQuantities {
 fn current_generation_is_independent_of_coordinate_vocabulary() {
     let fixed = ModelDocument::compile(
         "fixed.eqi",
-        "model m { parameter length: m = 1; domain body = box(0, 1); relation r continuous on body { coordinate(0) - coordinate(0) = 0; } }",
+        "model m { parameter length: m = 1; domain body = box(0, 1); relation r on body { coordinate(0) - coordinate(0) = 0; } }",
     )
     .unwrap();
     let referenced = ModelDocument::compile(
         "referenced.eqi",
-        "model m { parameter length: m = 1; domain body = box(0, length); relation r continuous on body { coordinate(0) - coordinate(0) = 0; } }",
+        "model m { parameter length: m = 1; domain body = box(0, length); relation r on body { coordinate(0) - coordinate(0) = 0; } }",
     )
     .unwrap();
     for model in [&fixed, &referenced] {
@@ -111,7 +112,7 @@ fn source_native_codec_and_allocation_routes_share_only_structural_identity() {
     let source = ModelDocument::compile("decay.eqi", DECAY).unwrap();
     let independently_compiled = ModelDocument::compile(
         "renamed.eqi",
-        "model renamed { parameter r: 1/s=1; field state: 1=1; relation balance continuous { derivative(state)+r*state=0; } }",
+        "model renamed { parameter r: 1/s=1; field state: 1=1; relation balance { derivative(state)+r*state=0; } }",
     )
     .unwrap();
     let native = ModelDocument::define(&native_decay(false)).unwrap();
@@ -188,17 +189,17 @@ fn nominal_identity_graph_wiring_values_and_operators_remain_meaning() {
 fn mathematical_signed_zero_is_normalized_without_weakening_other_values() {
     let positive = ModelDocument::compile(
         "positive.eqi",
-        "model zero { parameter p: 1 = 0.0; relation r continuous { p = 0; } }",
+        "model zero { parameter p: 1 = 0.0; relation r { p = 0; } }",
     )
     .unwrap();
     let negative = ModelDocument::compile(
         "negative.eqi",
-        "model zero { parameter p: 1 = -0.0; relation r continuous { p = 0; } }",
+        "model zero { parameter p: 1 = -0.0; relation r { p = 0; } }",
     )
     .unwrap();
     let nonzero = ModelDocument::compile(
         "nonzero.eqi",
-        "model zero { parameter p: 1 = 0.0000000000000001; relation r continuous { p = 0; } }",
+        "model zero { parameter p: 1 = 0.0000000000000001; relation r { p = 0; } }",
     )
     .unwrap();
     assert!(positive.structurally_equivalent(&negative).unwrap());
@@ -209,24 +210,24 @@ fn mathematical_signed_zero_is_normalized_without_weakening_other_values() {
 fn semantic_types_support_and_model_time_are_fingerprint_meaning() {
     let scalar = ModelDocument::compile(
         "scalar.eqi",
-        "model m { field value: 1 = 0; relation r continuous { value = 0; } }",
+        "model m { field value: 1 = 0; relation r { value = 0; } }",
     )
     .unwrap();
     let dimensioned = ModelDocument::compile(
         "dimensioned.eqi",
-        "model m { field value: m = 0; relation r continuous { value = 0; } }",
+        "model m { field value: m = 0; relation r { value = 0; } }",
     )
     .unwrap();
     assert!(!scalar.structurally_equivalent(&dimensioned).unwrap());
 
     let scalar_spatial = ModelDocument::compile(
         "scalar-spatial.eqi",
-        "model m { domain body = box(0, 1, 0, 1); representation space = continuum; field value on body as space: m = 0; relation r continuous on body { value = 0; } }",
+        "model m { domain body = box(0, 1, 0, 1); representation space = continuum; field value on body as space: m = 0; relation r on body { value = 0; } }",
     )
     .unwrap();
     let vector_spatial = ModelDocument::compile(
         "vector-spatial.eqi",
-        "model m { domain body = box(0, 1, 0, 1); representation space = continuum; field value on body as space: vector<m, 2>; relation r continuous on body { value = 0; } }",
+        "model m { domain body = box(0, 1, 0, 1); representation space = continuum; field value on body as space: vector<m, 2>; relation r on body { value = 0; } }",
     )
     .unwrap();
     assert!(
@@ -237,24 +238,24 @@ fn semantic_types_support_and_model_time_are_fingerprint_meaning() {
 
     let support_a = ModelDocument::compile(
         "support-a.eqi",
-        "model m { domain a = box(0, 1); domain b = box(0, 2); representation space = continuum; field value on a as space: 1 = 0; relation r continuous on a { value = 0; } }",
+        "model m { domain a = box(0, 1); domain b = box(0, 2); representation space = continuum; field value on a as space: 1 = 0; relation r on a { value = 0; } }",
     )
     .unwrap();
     let support_b = ModelDocument::compile(
         "support-b.eqi",
-        "model m { domain a = box(0, 1); domain b = box(0, 2); representation space = continuum; field value on b as space: 1 = 0; relation r continuous on b { value = 0; } }",
+        "model m { domain a = box(0, 1); domain b = box(0, 2); representation space = continuum; field value on b as space: 1 = 0; relation r on b { value = 0; } }",
     )
     .unwrap();
     assert!(!support_a.structurally_equivalent(&support_b).unwrap());
 
     let slow_clock = ModelDocument::compile(
         "slow.eqi",
-        "model m { field x: 1 = 0; clock tick = periodic(period = 1 / 10, phase = 0 / 1); relation update periodic(tick) { next(x) - x = 0; } }",
+        "model m { field x: 1 = 0; clock tick = periodic(period = 1 / 10, phase = 0 / 1); relation update at tick { next(x) - x = 0; } }",
     )
     .unwrap();
     let fast_clock = ModelDocument::compile(
         "fast.eqi",
-        "model m { field x: 1 = 0; clock tick = periodic(period = 1 / 20, phase = 0 / 1); relation update periodic(tick) { next(x) - x = 0; } }",
+        "model m { field x: 1 = 0; clock tick = periodic(period = 1 / 20, phase = 0 / 1); relation update at tick { next(x) - x = 0; } }",
     )
     .unwrap();
     assert!(!slow_clock.structurally_equivalent(&fast_clock).unwrap());
@@ -282,7 +283,7 @@ fn pathological_default_projection_fails_without_a_partial_identity() {
     for index in 0..258 {
         source.push_str(&format!(" parameter p{index}: 1 = 1;"));
     }
-    source.push_str(" relation balance continuous { 0 = 0; } }");
+    source.push_str(" relation balance { 0 = 0; } }");
     let model = ModelDocument::compile("symmetric.eqi", &source).unwrap();
 
     let error = model
@@ -391,8 +392,8 @@ model network {{
   port a2: conserving on first;
   port b1: conserving on {second_support};
   port b2: conserving on {second_support};
-  relation a continuous {{ across(a1)-across(a2)=0; through(a1)+through(a2)=0; }}
-  relation b continuous {{ across(b1)-across(b2)=0; through(b1)+through(b2)=0; }}
+  relation a {{ across(a1)-across(a2)=0; through(a1)+through(a2)=0; }}
+  relation b {{ across(b1)-across(b2)=0; through(b1)+through(b2)=0; }}
   connect conserving a1, a2;
   connect conserving b1, b2;
 }}

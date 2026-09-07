@@ -8,10 +8,10 @@ component OpenPair {
 model Main {
   instance closed: OpenPair;
   instance open: OpenPair;
-  relation closed_owner continuous {
+  relation closed_owner {
     across(closed.a) + across(closed.b) = 0;
   }
-  relation open_owner continuous {
+  relation open_owner {
     across(open.a) + across(open.b) = 0;
   }
   connect conserving closed.a, closed.b;

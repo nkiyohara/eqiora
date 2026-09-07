@@ -4,7 +4,7 @@ const SOURCE: &str = r#"
 model Decay {
   field x: 1 = 1;
   parameter rate: 1 / s = 2;
-  relation law continuous {
+  relation law {
     derivative(x) + rate * x = 0;
     x - 1 = 0;
   }
