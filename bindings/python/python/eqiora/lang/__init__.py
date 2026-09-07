@@ -1121,7 +1121,7 @@ class Component:
         for clock, period, phase, doc in self._clocks:
             lines.extend(_comment(doc, "  "))
             lines.append(
-                f"  clock {clock._name} = periodic(period = {period.numerator} [s] / {period.denominator}, "
+                f"  clock {clock._name} = periodic({period.numerator} [s] / {period.denominator}, "
                 f"phase = {phase.numerator} [s] / {phase.denominator});"
             )
         for name, expression, value_type, support, clock, doc in self._aliases:

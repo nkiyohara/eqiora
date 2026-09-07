@@ -107,8 +107,8 @@ def test_clock_seconds_emit_exact_quantity_ratios_without_float_conversion():
     component.clock("third", period_s=Fraction(1, 3))
     component.clock("maximum", period_s=maximum, phase_s=Fraction(1, maximum))
     text = source.to_eqi()
-    assert "period = 1 [s] / 3, phase = 0 [s] / 1" in text
-    assert f"period = {maximum} [s] / 1, phase = 1 [s] / {maximum}" in text
+    assert "periodic(1 [s] / 3, phase = 0 [s] / 1" in text
+    assert f"periodic({maximum} [s] / 1, phase = 1 [s] / {maximum}" in text
     for value in (0.1, Decimal("0.1"), True):
         with pytest.raises(TypeError):
             q.Source().component("InvalidClock").clock("tick", period_s=value)
