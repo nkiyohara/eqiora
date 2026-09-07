@@ -89,7 +89,13 @@ def test_decimal_and_centiprefix_quantity_matches_coherent_source():
                        right=q.quantity(Decimal("10"), u.m.prefixed("c")))
     graph = eqiora.geometry.GeometryGraph()
     rectangle = graph.rectangle(x_bounds=(0, 1), y_bounds=(0, 1))
-    geometry = graph.build(rectangle, named_topology={"region": rectangle.region})
+    geometry = graph.build(rectangle, named_topology={
+        "region": rectangle.region,
+        "left": rectangle.boundaries[0],
+        "right": rectangle.boundaries[1],
+        "bottom": rectangle.boundaries[2],
+        "top": rectangle.boundaries[3],
+    })
     authored = eqiora.compile(source=source, geometry=geometry)
     reference = eqiora.compile(source="""
 public component Length(support region: volume(ambient_dimension = 2)) {

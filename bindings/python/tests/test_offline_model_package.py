@@ -132,6 +132,7 @@ EXPECTED_EQIORA_ALL = [
     "div",
     "grad",
     "lang",
+    "units",
     "resolve",
     "resolve_local_project",
     "add_local_dependency",
