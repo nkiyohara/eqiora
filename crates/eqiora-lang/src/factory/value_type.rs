@@ -169,7 +169,7 @@ mod tests {
         .unwrap();
         let parsed = parse(
             "types.eqi",
-            "model M { parameter channels: array<vector<complex<V>, 2>, 3> = 0; }",
+            "model M() { parameter channels: array<vector<complex<V>, 2>, 3> = 0; }",
         )
         .into_document()
         .unwrap();
@@ -183,6 +183,7 @@ mod tests {
         let model = SourceAstFactory::model(
             parsed.models()[0].visibility(),
             "M",
+            Vec::new(),
             vec![Item::Parameter(parameter)],
             range,
         )

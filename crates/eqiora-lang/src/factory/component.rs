@@ -160,6 +160,7 @@ mod tests {
         let component = SourceAstFactory::component_with_primal_form(
             VisibilitySyntax::Private,
             "C",
+            source.signature().to_vec(),
             source.items().to_vec(),
             "balance",
             (left.clone(), right.clone(), range),

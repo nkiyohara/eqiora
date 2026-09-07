@@ -218,13 +218,12 @@ public material composition ReferenceMaterial {
   property diffusivity = ReferenceDiffusivity;
 }
 
-public component Diffusion() {
-  public property diffusivity: Diffusivity;
+public component Diffusion(property diffusivity: Diffusivity) {
   relation law { diffusivity = 0; }
 }
 
-model Main {
-  instance domain: Diffusion(material = ReferenceMaterial);
+model Main() {
+  instance domain: Diffusion(diffusivity = ReferenceMaterial.diffusivity);
 }"#;
         let document = crate::parse("property.eqi", source)
             .into_document()
@@ -233,7 +232,11 @@ model Main {
         assert_eq!(document.property_release_syntax().len(), 1);
         assert_eq!(document.material_composition_syntax().len(), 1);
         assert_eq!(
-            document.components()[0].property_requirement_syntax().len(),
+            document.components()[0]
+                .signature()
+                .iter()
+                .filter(|item| matches!(item, crate::SignatureItem::Property(_)))
+                .count(),
             1
         );
         let formatted = crate::format(&document);
