@@ -39,9 +39,10 @@ public connector Mechanical = field_physical(
   trace = velocity: m / s, flux = traction: kg / (m * s ^ 2),
   shape = spatial_vector, frame = spatial, pairing = euclidean_boundary_duality
 );
-public component Side {
-  public support body: volume(ambient_dimension = DIM);
-  public support face: boundary(parent = body);
+public component Side(
+  support body: volume(ambient_dimension = DIM),
+  support face: boundary(parent = body),
+) {
   public port mechanical: conserving Mechanical over face;
   relation retain on face {
     trace(mechanical) = 0;
