@@ -1,20 +1,45 @@
 ---
 title: Reference
-description: Exact-commit projections of Eqiora's public library and interface surfaces.
+description: Released Eqiora language and standard sources, alongside exact-commit API references.
+editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/index.mdx
 ---
 
 import { Aside, CardGrid } from '@astrojs/starlight/components';
 import ReferenceCard from '@components/site/ReferenceCard.astro';
 
-Browse five separately labelled public surfaces projected from one exact source
-commit. Python and Rust are library references; CLI, control-v2, and MCP are
-separate user-visible protocols, not Python or Rust SDK surfaces.
+Look up a declaration, find a physical building block, or inspect an API signature.
+The language and standard-source pages name the installed release they exercise.
+The generated API and protocol pages describe their labelled documentation commit;
+they may include features newer than that release.
 
 <Aside type="note" title="Choose a reference">
-  These pages describe interfaces and signatures. Start with
-  [Capabilities](/capabilities/) to find runnable problem classes, and use the
-  [verification guide](/evidence/) for verification details.
+  Start with [Get started](/get-started/) for installation and a first run.
+  [Learn](/textbooks/) explains the physics; Reference explains the syntax and
+  supplied declarations. [Capabilities](/capabilities/) records execution limits.
 </Aside>
+
+## Language and physical building blocks
+
+<CardGrid>
+  <ReferenceCard
+    href="/reference/language/"
+    title="Eqiora Language"
+    description="Declarations, SI quantities, residual equations, initialization and component bindings checked with a named installed release."
+    badge="Released syntax"
+  />
+  <ReferenceCard
+    href="/reference/standard-packages/"
+    title="Standard sources"
+    description="Find electrical components, continuum laws and boundary conditions by physical purpose, with their canonical released source."
+    badge="Physical building blocks"
+  />
+</CardGrid>
+
+## Generated APIs and protocols
+
+Python and Rust are library references. CLI, control-v2 and MCP are separate
+interfaces, not additional SDKs. Check each page's source identity before using a
+new API with an older installation.
 
 <CardGrid>
   <ReferenceCard

@@ -1,0 +1,45 @@
+---
+title: Eqiora Language
+description: A lookup guide to source constructs exercised with the installed Eqiora 0.1.0a7 release.
+editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/language/index.mdx
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+This reference targets **Eqiora 0.1.0a7**, installed from PyPI. Its examples were
+checked on Python 3.13.14; the release distributes wheels for Python 3.11–3.14.
+Follow [Get started](/get-started/) to use the same release.
+
+| Look up | Start here |
+|---|---|
+| `model`, `parameter`, `field`, dimensions and spatial declarations | [Declarations](/reference/language/declarations/) |
+| Coherent SI values, dimension expressions and scaled inputs | [Quantities and units](/reference/language/units/) |
+| Residuals, time derivatives, initial values and periodic updates | [Equations and state](/reference/language/equations/) |
+| `component`, named parameters, ports and occurrence-bound fields | [Composition](/reference/language/composition/) |
+| Existing sources, constitutive laws and boundary conditions | [Standard sources](/reference/standard-packages/) |
+
+Save a complete example as a UTF-8 `.eqi` file and compile it with the installed
+release:
+
+```python
+import eqiora
+
+model = eqiora.compile(path="model.eqi")
+```
+
+Compilation checks mathematical declarations. It does not choose a mesh, establish
+that every system is well posed, or execute a solver. The
+[ODE lesson](/textbooks/mathematical-modeling/ordinary-differential-equations/)
+continues from a compiled Model to a Plan, initial State and Result.
+
+<Aside type="caution" title="Release syntax, not the target specification">
+  This release uses `field`, `relation name continuous` and residual `= 0`.
+  Newer `variable`/`state` declarations, `initial` blocks, bracketed quantity
+  inputs and converged signatures are not runnable a7 syntax. Do not combine
+  examples from the contributor target specification with these release pages.
+</Aside>
+
+For exact syntax and checking rules, see the
+[released language frontend](https://github.com/nkiyohara/eqiora/tree/v0.1.0a7/crates/eqiora-lang/src)
+and [released compiler](https://github.com/nkiyohara/eqiora/tree/v0.1.0a7/crates/eqiora-compiler/src).
+The [Python API reference](/reference/python/) is generated separately and may be newer.

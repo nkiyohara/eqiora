@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { stat, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,13 +7,9 @@ import { satteri } from '@astrojs/markdown-satteri';
 import starlight from '@astrojs/starlight';
 import { defineConfig } from 'astro/config';
 
-import { codeRegionAccessibilityPlugin } from './src/plugins/code-region-accessibility.ts';
 import { katexMathPlugin } from './src/plugins/katex.ts';
 
 const SOURCE_SHA = /^[0-9a-f]{40}$/;
-const eqioraLanguage = JSON.parse(
-  readFileSync(fileURLToPath(new URL('../../editor/eqiora/syntaxes/eqiora.tmLanguage.json', import.meta.url)), 'utf8'),
-);
 
 function outputDirectory() {
   const configured = process.env.EQIORA_SITE_ASTRO_OUT_DIR;
@@ -120,13 +116,6 @@ export default defineConfig({
         replacesTitle: false,
       },
       favicon: '/favicon.svg',
-      expressiveCode: {
-        plugins: [codeRegionAccessibilityPlugin],
-        shiki: {
-          langs: [eqioraLanguage],
-          langAlias: { eqi: 'eqiora' },
-        },
-      },
       social: [
         {
           icon: 'github',
@@ -139,6 +128,24 @@ export default defineConfig({
         { label: 'Textbooks', link: '/textbooks/' },
         { label: 'Gallery', link: '/gallery/' },
         { label: 'Reference', link: '/reference/' },
+        {
+          label: 'Language',
+          items: [
+            { label: 'Overview', link: '/reference/language/' },
+            { label: 'Declarations', link: '/reference/language/declarations/' },
+            { label: 'Quantities and units', link: '/reference/language/units/' },
+            { label: 'Equations and state', link: '/reference/language/equations/' },
+            { label: 'Component composition', link: '/reference/language/composition/' },
+          ],
+        },
+        {
+          label: 'Standard sources',
+          items: [
+            { label: 'Overview', link: '/reference/standard-packages/' },
+            { label: 'Electrical components', link: '/reference/standard-packages/electrical/' },
+            { label: 'Continuum laws and boundaries', link: '/reference/standard-packages/continuum/' },
+          ],
+        },
       ],
       head: [
         { tag: 'meta', attrs: { property: 'og:type', content: 'website' } },

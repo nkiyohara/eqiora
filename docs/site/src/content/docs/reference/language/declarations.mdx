@@ -1,0 +1,43 @@
+---
+title: Declarations
+description: The model, parameter and Field declarations accepted by Eqiora 0.1.0a7.
+editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/language/declarations.mdx
+---
+
+import { Code } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import source from './_examples/declarations.eqi?raw';
+
+[Language overview](/reference/language/) · Installed release: **0.1.0a7**
+
+`model Name { ... }` contains declarations and simultaneous relations. Semicolons
+end declarations; `//` introduces a comment. Names are case-sensitive.
+
+<Code code={source} lang="eqiora" title="declarations.eqi" />
+
+| Declaration | Meaning in this example |
+|---|---|
+| `parameter voltage: dimension = 12;` | A fixed mathematical input of 12 coherent SI units; voltage here is measured in volts. |
+| `field current: A;` | An unknown current, not a Python variable or a command to compute it immediately. |
+| `relation ohm continuous { ... }` | An equation constraining those values; declaration order is not execution order. |
+
+An algebraic Field may omit an initial value. For an evolving scalar Field, a
+literal such as `field x: 1 = 1;` supplies its initial value in this release; see
+[Equations and state](/reference/language/equations/). `1` denotes a dimensionless
+type. Do not interpret an omitted initial value as a promise of zero initialization.
+
+## Spatial declarations
+
+A spatial Field also names its exact Domain and continuum Representation. In the
+[complete elastic-body example](/reference/standard-packages/continuum/#elastic-balance-and-boundaries),
+`field displacement on body as space: m shape spatial_vector;` means a vector
+displacement on `body`, in metres. The enclosing `domain body = box(...)` supplies
+the two-dimensional support and `representation space = continuum;` supplies the
+mathematical representation, not a mesh or finite-element choice.
+
+Scalar and vector declarations are not interchangeable. Component support and Field
+requirements bind existing occurrences; see [Composition](/reference/language/composition/).
+
+<ExactSourceLink kind="blob" path="docs/site/src/content/docs/reference/language/_examples/declarations.eqi">Example source</ExactSourceLink>
+· [Released declaration parser](https://github.com/nkiyohara/eqiora/blob/v0.1.0a7/crates/eqiora-lang/src/parser.rs)
+· Next: [Quantities and units](/reference/language/units/)

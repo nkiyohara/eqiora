@@ -15,7 +15,7 @@ PRESSURE_ALT = "Steady Stokes pressure around a cylinder, with the current mesh 
 PRESSURE_CAPTION = "Steady Stokes pressure on a 0.025 m target mesh."
 PUBLIC_CLAIM = "One presentation-only 2D steady incompressible Stokes exact-cylinder demonstration rendered through exact Geometry, typed Gmsh policy, and the root Result path; output counts, digests, numerical values, and pixels are not independently verified."
 WITNESS_COPY = "The current Gmsh output is presentation input, not a fixed mesh or scientific oracle."
-REFERENCE_GUIDANCE = "These pages describe interfaces and signatures."
+REFERENCE_GUIDANCE = "Look up a declaration, find a physical building block, or inspect an API signature."
 TEXTBOOK_SERIES = (
     ("circuits-dynamics-hybrid", "Circuits, Dynamics, and Hybrid Systems"),
     ("fluid-mechanics-cfd", "Fluid Mechanics and Computational Fluid Dynamics"),

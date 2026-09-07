@@ -1,0 +1,18 @@
+// Append after the unchanged Eqiora.Fluid.InertialStokes release source.
+// This checks the law's typed bindings, not initial/boundary completeness or a solve.
+model ReferenceFlowLaw {
+  domain body = box(0, 1, 0, 1);
+  representation space = continuum;
+  field velocity on body as space: m / s shape spatial_vector;
+  field pressure on body as space: kg / (m * s ^ 2);
+  field force_potential on body as space: kg / (m * s ^ 2);
+  parameter density: kg / m ^ 3 = 1;
+  parameter viscosity: kg / (m * s) = 1;
+
+  instance flow: InertialStokesWithPotential2d(
+    support body = body,
+    field velocity = velocity, field pressure = pressure,
+    field force_potential = force_potential,
+    density = density, dynamic_viscosity = viscosity
+  );
+}

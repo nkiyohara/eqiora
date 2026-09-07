@@ -1,0 +1,11 @@
+// Append after the unchanged Eqiora.Electrical.Basic release source.
+model ReferenceCircuit {
+  parameter supply: kg * m ^ 2 / (s ^ 3 * A) = 12;
+  parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2) = 4;
+  instance source: IdealVoltageSource(voltage = supply);
+  instance resistor: Resistor(resistance = resistance);
+  instance ground: Ground;
+
+  connect conserving source.positive, resistor.positive;
+  connect conserving source.negative, resistor.negative, ground.terminal;
+}

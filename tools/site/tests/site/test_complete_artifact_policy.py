@@ -38,7 +38,7 @@ RENDERED_SOURCE_SENTENCE = (
     "Detailed contracts remain in the repository’s architecture, RFCs, "
     "capability matrix, and validated verify manifests."
 )
-REFERENCE_GUIDANCE = "These pages describe interfaces and signatures."
+REFERENCE_GUIDANCE = "Look up a declaration, find a physical building block, or inspect an API signature."
 
 SOURCE_PATHS = (
     "examples/python/exact_cylinder_stokes.py",
@@ -84,6 +84,14 @@ ST_STARLIGHT_ROUTES = (
     "/python/execution-and-arrays/",
     "/python/modeling/",
     "/reference/",
+    "/reference/language/",
+    "/reference/language/composition/",
+    "/reference/language/declarations/",
+    "/reference/language/equations/",
+    "/reference/language/units/",
+    "/reference/standard-packages/",
+    "/reference/standard-packages/continuum/",
+    "/reference/standard-packages/electrical/",
     "/reference/cli/",
     "/reference/control-v2/",
     "/reference/mcp/",
