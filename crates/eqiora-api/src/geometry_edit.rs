@@ -394,8 +394,7 @@ mod tests {
     const TWO_DIMENSIONAL: &str = r"
 model Plane {
   domain body = box(-0.5, 0.5, -0.5, 0.5);
-  representation scalar_space = continuum;
-  field witness on body as scalar_space: 1 = 0;
+  variable witness: 1 on body;
   relation retain_body on body { witness = 0; }
 }
 ";
@@ -403,8 +402,7 @@ model Plane {
 model Pair {
   domain body = box(-0.5, 0.5, -0.5, 0.5, -0.5, 0.5);
   domain peer = box(1.0, 2.0, -0.5, 0.5, -0.5, 0.5);
-  representation scalar_space = continuum;
-  field witness on body as scalar_space: 1 = 0;
+  variable witness: 1 on body;
   relation retain_body on body { witness = 0; }
 }
 ";

@@ -71,8 +71,6 @@ pub enum EditorSymbolKind {
     Support,
     /// Field or required field slot.
     Field,
-    /// Field representation.
-    Representation,
     /// Causal or conserving port.
     Port,
     /// Exact periodic clock.
@@ -531,19 +529,20 @@ fn component_item_symbol(item: &ComponentItem) -> Option<EditorSymbol> {
         ComponentItem::Support(value) => {
             EditorSymbol::leaf(EditorSymbolKind::Support, value.name(), value.range())
         }
-        ComponentItem::FieldSlot(value) => {
+        ComponentItem::FieldRequirement(value) => {
             EditorSymbol::leaf(EditorSymbolKind::Field, value.name(), value.range())
         }
-        ComponentItem::Representation(value) => EditorSymbol::leaf(
-            EditorSymbolKind::Representation,
-            value.name(),
-            value.range(),
-        ),
         ComponentItem::Field(value) => {
             EditorSymbol::leaf(EditorSymbolKind::Field, value.name(), value.range())
         }
+        ComponentItem::ClockRequirement(value) => {
+            EditorSymbol::leaf(EditorSymbolKind::Clock, value.name(), value.range())
+        }
         ComponentItem::Clock(value) => {
             EditorSymbol::leaf(EditorSymbolKind::Clock, value.name(), value.range())
+        }
+        ComponentItem::Initial(value) => {
+            EditorSymbol::leaf(EditorSymbolKind::Relation, "initial", value.range())
         }
         ComponentItem::Relation(value) => {
             EditorSymbol::leaf(EditorSymbolKind::Relation, value.name(), value.range())
@@ -567,11 +566,6 @@ fn model_item_symbol(item: &Item) -> Option<EditorSymbol> {
         Item::Domain(value) => {
             EditorSymbol::leaf(EditorSymbolKind::Domain, value.name(), value.range())
         }
-        Item::Representation(value) => EditorSymbol::leaf(
-            EditorSymbolKind::Representation,
-            value.name(),
-            value.range(),
-        ),
         Item::Field(value) => {
             EditorSymbol::leaf(EditorSymbolKind::Field, value.name(), value.range())
         }
@@ -584,6 +578,9 @@ fn model_item_symbol(item: &Item) -> Option<EditorSymbol> {
         }
         Item::Clock(value) => {
             EditorSymbol::leaf(EditorSymbolKind::Clock, value.name(), value.range())
+        }
+        Item::Initial(value) => {
+            EditorSymbol::leaf(EditorSymbolKind::Relation, "initial", value.range())
         }
         Item::Relation(value) => {
             EditorSymbol::leaf(EditorSymbolKind::Relation, value.name(), value.range())

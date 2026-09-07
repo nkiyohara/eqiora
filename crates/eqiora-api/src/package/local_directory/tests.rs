@@ -186,7 +186,7 @@ fn local_project_editor_analysis_is_read_only_and_accepts_source_overrides() {
 
     let library_sources = author_sources(
         "org.example.EditorLibrary",
-        "public component Resistor {}",
+        "public component Resistor() {}",
         vec![],
     );
     let library_release =
@@ -491,7 +491,11 @@ fn proposed_dependency_changes_are_validated_without_publishing() {
         "model Main { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
         vec![],
     );
-    let library = author_sources("org.example.Library", "public component Shared {}", vec![]);
+    let library = author_sources(
+        "org.example.Library",
+        "public component Shared() {}",
+        vec![],
+    );
     write_package(&fixture.0, "src", &root, &[]);
     write_package(&library_path, "src", &library, &[]);
     let accepted =
