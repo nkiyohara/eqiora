@@ -1066,8 +1066,8 @@ fn accepted_and_rejected_calls_preserve_direct_operation_meaning() {
         model["structuralFingerprint"]["digest"],
         direct_fingerprint.digest()
     );
-    assert_ne!(model["modelId"], direct_reference.model().to_string());
-    assert_ne!(model["digest"], direct_reference.artifact().as_str());
+    assert_eq!(model["modelId"], direct_reference.model().to_string());
+    assert_eq!(model["digest"], direct_reference.artifact().as_str());
     let direct_rejected = ModelDocument::compile("empty.eqi", "").unwrap_err();
     client.send_value(&call_request(
         json!("rejected-parity"),

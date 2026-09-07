@@ -302,12 +302,6 @@ mod full {
         assert!(escaped.stderr.is_empty());
     }
 
-    fn pairwise_distinct<T: Eq + std::fmt::Debug>(values: [T; 3]) {
-        assert_ne!(values[0], values[1]);
-        assert_ne!(values[0], values[2]);
-        assert_ne!(values[1], values[2]);
-    }
-
     #[test]
     fn accepted_and_rejected_files_match_the_independent_direct_operation() {
         assert_eq!(ACCEPTED_BYTES, ACCEPTED_LITERAL);
@@ -344,16 +338,17 @@ mod full {
         );
         assert_eq!(fingerprints[0], fingerprints[1]);
         assert_eq!(fingerprints[0], fingerprints[2]);
-        pairwise_distinct([
-            first.program().model(),
-            second.program().model(),
-            third.program().model(),
-        ]);
-        pairwise_distinct([
-            first.digest().unwrap(),
-            second.digest().unwrap(),
-            third.digest().unwrap(),
-        ]);
+        // Closed source compilation shares canonical identities with selected entries.
+        assert_eq!(first.program().model(), second.program().model());
+        assert_eq!(first.program().model(), third.program().model());
+        assert_eq!(first.digest().unwrap(), second.digest().unwrap());
+        assert_eq!(first.digest().unwrap(), third.digest().unwrap());
+        let changed_source = std::str::from_utf8(ACCEPTED_BYTES)
+            .unwrap()
+            .replace("parameter rate: 1 / s = 1;", "parameter rate: 1 / s = 2;");
+        assert_ne!(changed_source.as_bytes(), ACCEPTED_BYTES);
+        let changed = ModelDocument::compile(accepted_spelling, &changed_source).unwrap();
+        assert_ne!(first.digest().unwrap(), changed.digest().unwrap());
 
         let accepted = run(["check", accepted_spelling], &scratch.path);
         let accepted_line = format!("accepted {}\n", fingerprints[0]);
