@@ -586,8 +586,19 @@ impl AnalyzedResolvedHierarchy {
     #[must_use]
     pub fn property_bindings(
         &self,
-    ) -> impl ExactSizeIterator<Item = (Option<&str>, &str, &str, &str, &str, f64, &str, &str, &str)>
-    {
+    ) -> impl ExactSizeIterator<
+        Item = (
+            Option<&str>,
+            &str,
+            &str,
+            &str,
+            &str,
+            &eqiora_core::ValueLiteral,
+            &str,
+            &str,
+            &str,
+        ),
+    > {
         self.property_bindings.iter().map(|value| {
             (
                 value.composition(),

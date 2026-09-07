@@ -1,5 +1,5 @@
 use super::*;
-use crate::hierarchy::parameters::SymbolicParameterValue;
+use crate::hierarchy::parameters::{ParameterLineage, SymbolicParameterValue};
 use crate::lower::LoweringExpression;
 use eqiora_core::{DimExponents, ScalarDomain, ValueType};
 use eqiora_lang::{BinaryOp, TextRange};
@@ -10,7 +10,16 @@ fn forward_shared_aliases_preserve_the_explicit_parameter_expression() {
         (
             name.to_owned(),
             SymbolicParameterValue {
-                value: Some(value),
+                value: Some(
+                    eqiora_core::ValueLiteral::from_real(
+                        eqiora_core::ValueType::scalar(
+                            eqiora_core::ScalarDomain::Real,
+                            eqiora_core::DimExponents::DIMENSIONLESS,
+                        ),
+                        value,
+                    )
+                    .unwrap(),
+                ),
                 value_type: ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
                 expression: Some(LoweringExpression::name(
                     name.to_owned(),
@@ -41,8 +50,22 @@ fn forward_shared_aliases_preserve_the_explicit_parameter_expression() {
                 values["f"].expression,
                 Some(mul(mul(name("x"), name("x")), name("y")))
             );
-            assert_eq!(values["f"].value, Some(x * x * y));
-            assert_eq!(values["shared"].value, Some(x * x * y + x * x));
+            assert_eq!(
+                values["f"]
+                    .value
+                    .as_ref()
+                    .and_then(|value| value.real_scalar_value())
+                    .map(|quantity| quantity.value()),
+                Some(x * x * y)
+            );
+            assert_eq!(
+                values["shared"]
+                    .value
+                    .as_ref()
+                    .and_then(|value| value.real_scalar_value())
+                    .map(|quantity| quantity.value()),
+                Some(x * x * y + x * x)
+            );
         }
     }
 }
@@ -92,7 +115,14 @@ fn forward_chain_uses_existing_symbolic_term_bound() {
         .unwrap();
     let mut values = BTreeMap::new();
     resolve_model_lets("chain.eqi", &document.models()[0], &mut values).unwrap();
-    assert_eq!(values["a0"].value, Some(2.0));
+    assert_eq!(
+        values["a0"]
+            .value
+            .as_ref()
+            .and_then(|value| value.real_scalar_value())
+            .map(|quantity| quantity.value()),
+        Some(2.0)
+    );
     assert_eq!(values["a0"].value_type, values["a255"].value_type);
     crate::compile("chain.eqi", &source).unwrap();
     let errors = crate::hierarchy::compile_hierarchy_with_limits(
@@ -134,7 +164,9 @@ fn component_aliases_preserve_parameter_interface_and_symbolic_polynomial() {
         let mut values = parameters.clone();
         for (key, value) in [("x", x), ("y", y)] {
             let parameter = values.get_mut(key).unwrap();
-            parameter.value = Some(value);
+            parameter.value = Some(
+                eqiora_core::ValueLiteral::from_real(parameter.value_type.clone(), value).unwrap(),
+            );
             parameter.expression = Some(name(key));
         }
         resolve_component_lets("component.eqi", component, &mut values).unwrap();
@@ -145,7 +177,14 @@ fn component_aliases_preserve_parameter_interface_and_symbolic_polynomial() {
             values["f"].expression,
             Some(mul(mul(name("x"), name("x")), name("y")))
         );
-        assert_eq!(values["f"].value, Some(x * x * y));
+        assert_eq!(
+            values["f"]
+                .value
+                .as_ref()
+                .and_then(|value| value.real_scalar_value())
+                .map(|quantity| quantity.value()),
+            Some(x * x * y)
+        );
         assert!(matches!(
             values["f"].lineage,
             Some(ParameterLineage::Derived)

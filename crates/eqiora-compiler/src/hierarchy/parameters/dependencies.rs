@@ -44,19 +44,25 @@ pub(super) fn collect_expression_dependencies(
                     ));
                 }
             }
-            ExprKind::Path(path) if crate::math::constant(path).is_some() => {}
+            ExprKind::Path(path)
+                if (crate::math::constant(path).is_some() || path.as_str() == "math.i") => {}
             ExprKind::Path(path) => diagnostics.push(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 file,
                 path.range(),
                 context.qualified_name_message(path),
             )),
+            ExprKind::Call { callee, arguments } if callee.as_str() == "math.complex" => {
+                pending.extend(arguments)
+            }
             ExprKind::Call { callee, .. } => diagnostics.push(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 file,
                 expression.range(),
                 context.call_message(callee.as_str()),
             )),
+            ExprKind::Array(elements) => pending.extend(elements),
+            ExprKind::Index { value, index } => pending.extend([value.as_ref(), index.as_ref()]),
             ExprKind::Unary {
                 op: UnaryOp::Neg,
                 value,

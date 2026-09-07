@@ -73,9 +73,12 @@ fn resolve_lets<'a>(
                 continue;
             }
         };
+        let initializer = target
+            .as_ref()
+            .map(|target| crate::typed_values::initializer(declaration.value(), target));
         let evaluated = evaluate_parameter_expression(
             file,
-            declaration.value(),
+            initializer.as_ref().unwrap_or(declaration.value()),
             ExpressionContext::Let,
             &mut |dependency, range| {
                 values.get(dependency).cloned().ok_or_else(|| {
@@ -96,7 +99,9 @@ fn resolve_lets<'a>(
             None => infer_parameter_with_label(file, range, value, "let alias"),
         }) {
             Ok(mut value) => {
-                value.lineage = Some(ParameterLineage::Derived);
+                if !matches!(value.lineage, Some(ParameterLineage::Constant)) {
+                    value.lineage = Some(ParameterLineage::Derived);
+                }
                 values.insert(name, value);
             }
             Err(error) => diagnostics.push(error),
@@ -127,6 +132,10 @@ pub(in crate::hierarchy) fn alias_order<'a>(
                 match e.kind() {
                     eqiora_lang::ExprKind::Name(n) => {
                         dependencies.entry(n.clone()).or_insert(e.range());
+                    }
+                    eqiora_lang::ExprKind::Array(elements) => pending.extend(elements),
+                    eqiora_lang::ExprKind::Index { value, index } => {
+                        pending.extend([value.as_ref(), index.as_ref()])
                     }
                     eqiora_lang::ExprKind::Unary { value, .. } => pending.push(value),
                     eqiora_lang::ExprKind::Binary { left, right, .. } => {
@@ -176,7 +185,12 @@ fn is_static_expression(expression: &eqiora_lang::Expr, values: &SymbolicParamet
         match e.kind() {
             eqiora_lang::ExprKind::Number(_) | eqiora_lang::ExprKind::Quantity { .. } => {}
             eqiora_lang::ExprKind::Name(n) if values.contains_key(n) => {}
-            eqiora_lang::ExprKind::Path(p) if crate::math::constant(p).is_some() => {}
+            eqiora_lang::ExprKind::Path(p)
+                if (crate::math::constant(p).is_some() || p.as_str() == "math.i") => {}
+            eqiora_lang::ExprKind::Array(elements) => pending.extend(elements),
+            eqiora_lang::ExprKind::Index { value, index } => {
+                pending.extend([value.as_ref(), index.as_ref()])
+            }
             eqiora_lang::ExprKind::Unary { value, .. } => pending.push(value),
             eqiora_lang::ExprKind::Binary { left, right, .. } => {
                 pending.push(left);

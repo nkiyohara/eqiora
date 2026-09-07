@@ -42,7 +42,7 @@ impl Scope {
                 Some((
                     name.clone(),
                     SymbolicParameterValue {
-                        value: Some(value.value.literal()),
+                        value: Some(value.value.clone()),
                         value_type: value.value.value_type().clone(),
                         expression: Some(value.expression.clone()),
                         lineage: Some(value.lineage.clone()),
@@ -84,10 +84,9 @@ impl Scope {
             return Err("static let alias did not resolve to a closed expression");
         };
         let resolved = ResolvedParameter {
-            value: eqiora_core::ValueLiteral::new(value.value_type, scalar)
-                .map_err(|_| "static let alias has an invalid typed literal")?,
+            value: scalar,
             expression,
-            lineage: ParameterLineage::Derived,
+            lineage: value.lineage.unwrap_or(ParameterLineage::Derived),
         };
         if self
             .values

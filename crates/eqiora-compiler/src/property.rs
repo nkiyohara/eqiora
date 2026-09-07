@@ -3,8 +3,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_lang::{
-    BinaryOp, ComponentItem, Expr, ExprKind, InstanceDecl, Item, NamePath, SourceAstFactory,
-    TextRange, UnaryOp, VisibilitySyntax,
+    ComponentItem, Expr, InstanceDecl, Item, NamePath, SourceAstFactory, TextRange,
+    VisibilitySyntax,
 };
 
 use crate::diagnostics::source_error;
@@ -20,7 +20,7 @@ pub(crate) struct ResolvedPropertyBinding {
     release: String,
     component: String,
     requirement: String,
-    normalized_value: f64,
+    normalized_value: eqiora_core::ValueLiteral,
     validity: &'static str,
     citation: String,
     license: String,
@@ -48,8 +48,8 @@ impl ResolvedPropertyBinding {
         &self.requirement
     }
     #[must_use]
-    pub const fn normalized_value(&self) -> f64 {
-        self.normalized_value
+    pub const fn normalized_value(&self) -> &eqiora_core::ValueLiteral {
+        &self.normalized_value
     }
     #[must_use]
     pub const fn validity(&self) -> &'static str {
@@ -68,13 +68,13 @@ impl ResolvedPropertyBinding {
 struct Contract {
     file: String,
     visibility: VisibilitySyntax,
-    dimension: Expr,
+    value_type: eqiora_lang::ValueTypeSyntax,
 }
 
 struct Release {
     visibility: VisibilitySyntax,
     contract: Key,
-    value: f64,
+    value: eqiora_core::ValueLiteral,
     citation: String,
     license: String,
 }
@@ -110,7 +110,7 @@ pub(crate) fn validate_and_elaborate(
     let mut diagnostics = Vec::new();
     let mut contracts = BTreeMap::new();
     for unit in units.iter() {
-        for (visibility, name, dimension, range) in unit.document.property_contract_syntax() {
+        for (visibility, name, value_type, range) in unit.document.property_contract_syntax() {
             if name == crate::math::ROOT {
                 diagnostics.push(error(
                     &unit.file,
@@ -119,7 +119,9 @@ pub(crate) fn validate_and_elaborate(
                 ));
                 continue;
             }
-            if let Err(diagnostic) = lower_dimension(&unit.file, dimension) {
+            if let Err(diagnostic) =
+                crate::value_types::lower_value_type::<()>(&unit.file, value_type, None)
+            {
                 diagnostics.push(diagnostic);
                 continue;
             }
@@ -130,7 +132,7 @@ pub(crate) fn validate_and_elaborate(
                     Contract {
                         file: unit.file.clone(),
                         visibility,
-                        dimension: dimension.clone(),
+                        value_type: value_type.clone(),
                     },
                 )
                 .is_some()
@@ -185,14 +187,18 @@ pub(crate) fn validate_and_elaborate(
                     continue;
                 }
             };
-            let contract_dimension = match lower_dimension(&contract.file, &contract.dimension) {
+            let contract_type = match crate::value_types::lower_value_type::<()>(
+                &contract.file,
+                &contract.value_type,
+                None,
+            ) {
                 Ok(value) => value,
                 Err(value) => {
                     diagnostics.push(value);
                     continue;
                 }
             };
-            if source_dimension != contract_dimension {
+            if source_dimension != contract_type.dimension() {
                 diagnostics.push(error(
                     &unit.file,
                     source_dimension_expr.range(),
@@ -200,7 +206,11 @@ pub(crate) fn validate_and_elaborate(
                 ));
                 continue;
             }
-            let source_value = match constant(&unit.file, source_value_expr) {
+            let source_value = match crate::hierarchy::closed_value(
+                &unit.file,
+                source_value_expr,
+                contract_type.clone().with_dimension(source_dimension),
+            ) {
                 Ok(value) => value,
                 Err(value) => {
                     diagnostics.push(value);
@@ -222,7 +232,19 @@ pub(crate) fn validate_and_elaborate(
                     continue;
                 }
             };
-            let value = match crate::units::normalize_value(source_value, scale) {
+            let value = match source_value
+                .components()
+                .map(|(real, imag)| {
+                    Ok((
+                        crate::units::normalize_value(real, scale)?,
+                        crate::units::normalize_value(imag, scale)?,
+                    ))
+                })
+                .collect::<Result<Vec<_>, &'static str>>()
+                .and_then(|values| {
+                    eqiora_core::ValueLiteral::new(contract_type.clone(), values)
+                        .map_err(|_| "invalid normalized property value")
+                }) {
                 Ok(value) => value,
                 Err(message) => {
                     diagnostics.push(error(&unit.file, range, message));
@@ -339,7 +361,10 @@ pub(crate) fn validate_and_elaborate(
                     &unit.file,
                     &mut diagnostics,
                 ) {
-                    dimensions.insert(contract_path.to_string(), contracts[&key].dimension.clone());
+                    dimensions.insert(
+                        contract_path.to_string(),
+                        contracts[&key].value_type.clone(),
+                    );
                 }
             }
         }
@@ -524,14 +549,8 @@ fn validate_instance(
             ));
             continue;
         }
-        let quantity = SourceAstFactory::expression(
-            ExprKind::Quantity {
-                value: release.value,
-                unit: Box::new(contracts[&required_contract].dimension.clone()),
-            },
-            *binding_range,
-        )
-        .expect("validated property value and source range");
+        let quantity = SourceAstFactory::value_literal(&release.value, *binding_range)
+            .expect("validated property value and source range");
         if composition_key.is_some() {
             bound_material_values.push((requirement.to_owned(), quantity));
         } else if let Some((_, release_path, _)) = binding_syntax
@@ -546,7 +565,7 @@ fn validate_instance(
             release: qualified(release_key),
             component: qualified(&component_key),
             requirement: requirement.to_owned(),
-            normalized_value: release.value,
+            normalized_value: release.value.clone(),
             validity: "unconditional",
             citation: release.citation.clone(),
             license: release.license.clone(),
@@ -622,47 +641,23 @@ fn resolve_path<T>(
 }
 
 fn constant(file: &str, expression: &Expr) -> Result<f64, Diagnostic> {
-    let value = match expression.kind() {
-        ExprKind::Number(value) => *value,
-        ExprKind::Path(path) => crate::math::constant(path).ok_or_else(|| {
-            error(
-                file,
-                expression.range(),
-                "property values and normalization must be closed scalar constants",
-            )
-        })?,
-        ExprKind::Unary {
-            op: UnaryOp::Neg,
-            value,
-        } => -constant(file, value)?,
-        ExprKind::Binary { op, left, right } => {
-            let left = constant(file, left)?;
-            let right = constant(file, right)?;
-            match op {
-                BinaryOp::Add => left + right,
-                BinaryOp::Sub => left - right,
-                BinaryOp::Mul => left * right,
-                BinaryOp::Div => left / right,
-                BinaryOp::Pow => left.powf(right),
-            }
-        }
-        _ => {
-            return Err(error(
-                file,
-                expression.range(),
-                "property values and normalization must be closed scalar constants",
-            ));
-        }
-    };
-    if value.is_finite() {
-        Ok(value)
-    } else {
-        Err(error(
+    crate::hierarchy::closed_value(
+        file,
+        expression,
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            eqiora_core::DimExponents::DIMENSIONLESS,
+        ),
+    )?
+    .real_scalar_value()
+    .map(|value| value.value())
+    .ok_or_else(|| {
+        error(
             file,
             expression.range(),
-            "property constant must be finite",
-        ))
-    }
+            "property normalization requires a real dimensionless scalar",
+        )
+    })
 }
 
 fn qualified(key: &Key) -> String {
@@ -686,7 +681,7 @@ mod tests {
     fn rational_property_units_and_pure_operator_dimensions_share_exact_algebra() {
         let source = r#"
 pure operator square(x: scalar) -> scalar = component(x) * component(x);
-property contract Amplitude { scalar value: m ^ (-1 / 2); }
+property contract Amplitude(): m ^ (-1 / 2) { derivatives value_only; }
 property release Reference implements Amplitude {
   value = 8;
   source_unit: m ^ (-2 / 4) = 1 / 4;
@@ -716,7 +711,17 @@ model Main {
         };
         let analyzed = analyze_resolved_hierarchy(input(source)).unwrap();
         // The existing conversion owner applies 8 * (1/4) once.
-        assert_eq!(analyzed.property_bindings().next().unwrap().5, 2.0);
+        assert_eq!(
+            analyzed
+                .property_bindings()
+                .next()
+                .unwrap()
+                .5
+                .component(0)
+                .unwrap()
+                .0,
+            2.0
+        );
         analyzed
             .validate_definitions()
             .unwrap()
@@ -736,7 +741,7 @@ model Main {
     fn exact_scalar_property_elaborates_through_parameter_terms() {
         let root = CompilationNamespaceId::new(["root", "1.0.0", "semantic-digest"]).unwrap();
         let source = r#"
-public property contract Diffusivity { scalar value: m ^ 2 / s; }
+public property contract Diffusivity(): m ^ 2 / s { derivatives value_only; }
 property release ReferenceDiffusivity implements Diffusivity {
   value = 25;
   source_unit: m ^ 2 / s = 1 / 1000;
@@ -759,7 +764,17 @@ model Main { instance domain: Diffusion(property diffusivity = ReferenceDiffusiv
         );
         let analyzed = analyze_resolved_hierarchy(input).expect("property graph analyzes");
         assert_eq!(analyzed.property_bindings().len(), 1);
-        assert_eq!(analyzed.property_bindings().next().unwrap().5, 0.025);
+        assert_eq!(
+            analyzed
+                .property_bindings()
+                .next()
+                .unwrap()
+                .5
+                .component(0)
+                .unwrap()
+                .0,
+            0.025
+        );
         let property_model = analyzed
             .validate_definitions()
             .expect("property definitions validate")
@@ -793,8 +808,8 @@ model Main { instance domain: Diffusion(diffusivity = 0.025[m ^ 2 / s]); }
     fn material_composition_binds_multiple_properties_to_one_component_law() {
         let root = CompilationNamespaceId::new(["root", "1.0.0", "semantic-digest"]).unwrap();
         let source = r#"
-public property contract Conductivity { scalar value: 1; }
-public property contract Capacity { scalar value: 1; }
+public property contract Conductivity(): 1 { derivatives value_only; }
+public property contract Capacity(): 1 { derivatives value_only; }
 public property release ConductivityA implements Conductivity {
   value = 2; source_unit: 1 = 1; validity = unconditional;
   citation = org.example.a; license = spdx.CC0_1_0;
@@ -866,7 +881,7 @@ model Main { instance domain: DiffusionLaw(material = MaterialA); }
     fn incompatible_and_incomplete_property_bindings_fail_before_compilation() {
         let root = CompilationNamespaceId::new(["root", "1.0.0", "semantic-digest"]).unwrap();
         let wrong_dimension = r#"
-property contract Diffusivity { scalar value: m ^ 2 / s; }
+property contract Diffusivity(): m ^ 2 / s { derivatives value_only; }
 property release Wrong implements Diffusivity {
   value = 1; source_unit: kg = 1; validity = unconditional;
   citation = org.example.measurement; license = spdx.CC0_1_0;
@@ -889,7 +904,7 @@ model Main {}
         );
 
         let missing = r#"
-property contract Diffusivity { scalar value: m ^ 2 / s; }
+property contract Diffusivity(): m ^ 2 / s { derivatives value_only; }
 component Diffusion() {
   public property diffusivity: Diffusivity;
   relation law { diffusivity = 0; }
@@ -911,7 +926,7 @@ model Main { instance domain: Diffusion; }
         for (source, expected) in [
             (
                 r#"
-property contract A { scalar value: 1; }
+property contract A(): 1 { derivatives value_only; }
 property release A1 implements A {
   value = 1; source_unit: 1 = 1; validity = unconditional;
   citation = org.example; license = spdx.CC0_1_0;
@@ -927,8 +942,8 @@ model Main { instance law: Law(material = Duplicate); }
             ),
             (
                 r#"
-property contract A { scalar value: 1; }
-property contract B { scalar value: 1; }
+property contract A(): 1 { derivatives value_only; }
+property contract B(): 1 { derivatives value_only; }
 property release B1 implements B {
   value = 1; source_unit: 1 = 1; validity = unconditional;
   citation = org.example; license = spdx.CC0_1_0;
@@ -941,7 +956,7 @@ model Main { instance law: Law(material = Foreign); }
             ),
             (
                 r#"
-property contract A { scalar value: 1; }
+property contract A(): 1 { derivatives value_only; }
 property release A1 implements A {
   value = 1; source_unit: 1 = 1; validity = unconditional;
   citation = org.example; license = spdx.CC0_1_0;
@@ -954,7 +969,7 @@ model Main { instance law: Law(material = EmptyForLaw); }
             ),
             (
                 r#"
-property contract A { scalar value: 1; }
+property contract A(): 1 { derivatives value_only; }
 property release A1 implements A {
   value = 1; source_unit: 1 = 1; validity = unconditional;
   citation = org.example; license = spdx.CC0_1_0;

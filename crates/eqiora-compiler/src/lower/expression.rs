@@ -19,7 +19,10 @@ impl LoweringExpression {
                     }
                     pending.push(argument);
                 }
-                LoweringExpressionNode::Neg(value) => pending.push(value),
+                LoweringExpressionNode::Neg(value)
+                | LoweringExpressionNode::Index { value, .. } => pending.push(value),
+                LoweringExpressionNode::Array(elements) => pending.extend(elements),
+                LoweringExpressionNode::Complex { real, imag } => pending.extend([real, imag]),
                 LoweringExpressionNode::Binary { left, right, .. } => {
                     pending.push(left);
                     pending.push(right);
@@ -35,6 +38,45 @@ impl LoweringExpression {
 
 pub(super) fn from_source(expression: &Expr) -> LoweringExpression {
     let kind = match expression.kind() {
+        ExprKind::Array(elements) => LoweringExpressionNode::Array(
+            elements
+                .iter()
+                .map(LoweringExpression::from_source)
+                .collect(),
+        ),
+        ExprKind::Index { value, index } => match crate::hierarchy::closed_index(index) {
+            Ok(index) => LoweringExpressionNode::Index {
+                value: LoweringExpression::from_source(value),
+                index,
+            },
+            Err(_) => LoweringExpressionNode::InvalidValue(
+                "channel index requires a constant nonnegative integer",
+            ),
+        },
+        ExprKind::Path(path) if path.as_str() == "math.i" => {
+            return LoweringExpression::literal(
+                eqiora_core::ValueLiteral::new(
+                    eqiora_core::ValueType::scalar(
+                        eqiora_core::ScalarDomain::Complex,
+                        DimExponents::DIMENSIONLESS,
+                    ),
+                    [(0.0, 1.0)],
+                )
+                .expect("imaginary unit"),
+                expression.range(),
+            );
+        }
+        ExprKind::Call { callee, arguments } if callee.as_str() == "math.complex" => {
+            match arguments.as_slice() {
+                [real, imag] => LoweringExpressionNode::Complex {
+                    real: LoweringExpression::from_source(real),
+                    imag: LoweringExpression::from_source(imag),
+                },
+                _ => LoweringExpressionNode::InvalidValue(
+                    "math.complex requires exactly two real scalar arguments",
+                ),
+            }
+        }
         ExprKind::Quantity { value, unit } => match crate::units::quantity(*value, unit) {
             Ok(value) => return LoweringExpression::quantity(value, expression.range()),
             Err(message) => LoweringExpressionNode::InvalidValue(message),
@@ -181,7 +223,7 @@ pub(super) fn lower_relation(
             |expression: &LoweringExpression, is_zero, value_type: &eqiora_core::ValueType| {
                 if is_zero {
                     LoweringExpression::literal(
-                        eqiora_core::ValueLiteral::new(value_type.clone(), 0.0)
+                        eqiora_core::ValueLiteral::from_real(value_type.clone(), 0.0)
                             .expect("zero inhabits every checked mathematical type"),
                         expression.range(),
                     )
@@ -270,6 +312,40 @@ impl ExpressionLowerer<'_> {
             return Ok(*lowered);
         }
         let lowered = match expression.node.as_ref() {
+            LoweringExpressionNode::Array(elements) => {
+                let elements = elements
+                    .iter()
+                    .map(|value| self.lower(value))
+                    .collect::<Result<Vec<_>, _>>()?;
+                self.builder
+                    .array(elements.iter().map(|element| element.id))
+                    .map(|id| TypedExpression {
+                        id,
+                        dimension: elements[0].dimension,
+                    })
+                    .map_err(|diagnostic| self.builder_error(expression, diagnostic))
+            }
+            LoweringExpressionNode::Index { value, index } => {
+                let value = self.lower(value)?;
+                self.builder
+                    .index(value.id, *index)
+                    .map(|id| TypedExpression {
+                        id,
+                        dimension: value.dimension,
+                    })
+                    .map_err(|diagnostic| self.builder_error(expression, diagnostic))
+            }
+            LoweringExpressionNode::Complex { real, imag } => {
+                let real = self.lower(real)?;
+                let imag = self.lower(imag)?;
+                self.builder
+                    .complex(real.id, imag.id)
+                    .map(|id| TypedExpression {
+                        id,
+                        dimension: real.dimension,
+                    })
+                    .map_err(|diagnostic| self.builder_error(expression, diagnostic))
+            }
             LoweringExpressionNode::InvalidValue(message) => Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 self.file,

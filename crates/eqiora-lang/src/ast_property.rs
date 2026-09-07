@@ -54,7 +54,8 @@ impl Document {
     #[must_use]
     pub fn property_contract_syntax(
         &self,
-    ) -> impl ExactSizeIterator<Item = (VisibilitySyntax, &str, &crate::ValueTypeSyntax, TextRange)> {
+    ) -> impl ExactSizeIterator<Item = (VisibilitySyntax, &str, &crate::ValueTypeSyntax, TextRange)>
+    {
         self.property_contracts.iter().map(|value| {
             (
                 value.visibility,

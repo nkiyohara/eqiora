@@ -2060,8 +2060,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     self.items.push(FlatItemBlueprint::Parameter {
                         name: internal_name(identity.full),
                         value_type: declaration.value_type().clone(),
-                        value: crate::units::parameter_literal(self.model.file, declaration)?
-                            .literal(),
+                        value: crate::units::parameter_literal(self.model.file, declaration)?,
                         range: declaration.range(),
                         identity,
                     });

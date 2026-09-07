@@ -516,7 +516,7 @@ model Example {
             crate::CompilationNamespaceId::new(["org", "example", "property"]).expect("namespace");
         let source = r#"
 dimension DiffusionDimension = m ^ 2 / s;
-public property contract Diffusivity { scalar value: DiffusionDimension; }
+public property contract Diffusivity(): DiffusionDimension { derivatives value_only; }
 property release Reference implements Diffusivity {
   value = 25;
   source_unit: DiffusionDimension = 1 / 1000;
@@ -540,7 +540,14 @@ model Main { instance domain: Diffusion(property diffusivity = Reference); }
         );
         let analyzed = crate::analyze_resolved_hierarchy(input).expect("property alias analyzes");
         assert_eq!(
-            analyzed.property_bindings().next().expect("binding").5,
+            analyzed
+                .property_bindings()
+                .next()
+                .expect("binding")
+                .5
+                .component(0)
+                .unwrap()
+                .0,
             0.025
         );
         analyzed

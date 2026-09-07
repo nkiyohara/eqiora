@@ -487,6 +487,44 @@ pub(super) fn rewrite_expression_with_boundary_member(
     active: Option<ActiveBoundaryMember<'_>>,
 ) -> Result<LoweringExpression, Diagnostic> {
     let lowered = match expression.kind() {
+        ExprKind::Array(elements) => LoweringExpression::array(
+            elements
+                .iter()
+                .map(|value| rewrite_expression_with_boundary_member(file, value, scope, active))
+                .collect::<Result<Vec<_>, _>>()?,
+            expression.range(),
+        ),
+        ExprKind::Index { value, index } => LoweringExpression::index(
+            rewrite_expression_with_boundary_member(file, value, scope, active)?,
+            crate::hierarchy::parameters::static_index(file, index, &scope.symbolic_parameters())?,
+            expression.range(),
+        ),
+        ExprKind::Path(path) if path.as_str() == "math.i" => LoweringExpression::literal(
+            eqiora_core::ValueLiteral::new(
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Complex,
+                    DimExponents::DIMENSIONLESS,
+                ),
+                [(0.0, 1.0)],
+            )
+            .expect("imaginary unit"),
+            expression.range(),
+        ),
+        ExprKind::Call { callee, arguments } if callee.as_str() == "math.complex" => {
+            let [real, imag] = arguments.as_slice() else {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    expression.range(),
+                    "math.complex requires exactly two real scalar arguments",
+                ));
+            };
+            LoweringExpression::complex(
+                rewrite_expression_with_boundary_member(file, real, scope, active)?,
+                rewrite_expression_with_boundary_member(file, imag, scope, active)?,
+                expression.range(),
+            )
+        }
         ExprKind::Number(_) | ExprKind::Quantity { .. } => {
             LoweringExpression::from_source(expression)
         }

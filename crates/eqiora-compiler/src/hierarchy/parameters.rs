@@ -15,6 +15,7 @@ use super::hierarchy_error;
 
 mod dependencies;
 mod expression_eval;
+mod value_expressions;
 use dependencies::{
     ExpressionDefinition, collect_expression_dependencies, expression_cycles,
     expression_evaluation_order,
@@ -39,7 +40,7 @@ pub(super) struct ResolvedParameter {
 /// public Parameter whose value belongs to a future component occurrence.
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct SymbolicParameterValue {
-    pub(super) value: Option<f64>,
+    pub(super) value: Option<ValueLiteral>,
     pub(super) value_type: ValueType,
     pub(super) expression: Option<LoweringExpression>,
     pub(super) lineage: Option<ParameterLineage>,
@@ -79,7 +80,7 @@ impl EvaluatedType {
 
 #[derive(Debug, Clone, PartialEq)]
 struct EvaluatedParameter {
-    value: Option<f64>,
+    value: Option<ValueLiteral>,
     value_type: EvaluatedType,
     bare_literal: bool,
     expression: Option<LoweringExpression>,
@@ -111,7 +112,7 @@ impl ResolvedParameter {
 impl From<ResolvedParameter> for SymbolicParameterValue {
     fn from(parameter: ResolvedParameter) -> Self {
         Self {
-            value: Some(parameter.value.literal()),
+            value: Some(parameter.value.clone()),
             value_type: parameter.value.value_type().clone(),
             expression: Some(parameter.expression),
             lineage: Some(parameter.lineage),
@@ -278,9 +279,13 @@ impl<'a> SymbolicParameterResolver<'a> {
             {
                 continue;
             }
+            let initializer = crate::typed_values::initializer(
+                parameter.expression,
+                parameter.target.as_ref().expect("valid target"),
+            );
             let evaluated = evaluate_parameter_expression(
                 self.declaration_file,
-                parameter.expression,
+                &initializer,
                 ExpressionContext::Default,
                 &mut |dependency, range| {
                     self.resolved.get(dependency).cloned().ok_or_else(|| {
@@ -536,8 +541,7 @@ impl<'a> ParameterResolver<'a> {
                     Ok((
                         name,
                         ResolvedParameter {
-                            value: ValueLiteral::new(parameter.value_type, value)
-                                .map_err(|error| vec![hierarchy_error(error.to_string())])?,
+                            value,
                             expression,
                             lineage,
                         },
@@ -571,15 +575,19 @@ fn combine_parameters(
         }
         right
             .value
+            .as_ref()
             .map(|value| {
-                exact_i32(value).ok_or_else(|| {
-                    source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        file,
-                        range,
-                        "compile-time power exponent must be an exact i32 integer",
-                    )
-                })
+                value
+                    .real_scalar_value()
+                    .and_then(|quantity| exact_i32(quantity.value()))
+                    .ok_or_else(|| {
+                        source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            file,
+                            range,
+                            "compile-time power exponent must be an exact i32 integer",
+                        )
+                    })
             })
             .transpose()?
     } else {
@@ -598,16 +606,16 @@ fn combine_parameters(
         _ => None,
     };
     let value = match (left.value, right.value) {
-        (Some(left), Some(right)) => {
-            let value = match operator {
-                BinaryOp::Add => left + right,
-                BinaryOp::Sub => left - right,
-                BinaryOp::Mul => left * right,
-                BinaryOp::Div => left / right,
-                BinaryOp::Pow => left.powi(exponent.expect("known exponent was validated")),
-            };
-            Some(finite_constant(file, range, value)?)
-        }
+        (Some(left), Some(right)) => Some(
+            crate::typed_values::binary(
+                operator,
+                &left,
+                &right,
+                value_type.value_type().clone(),
+                exponent,
+            )
+            .map_err(|message| source_error(codes::LANGUAGE_TYPE_ERROR, file, range, message))?,
+        ),
         _ => None,
     };
     Ok(EvaluatedParameter {
@@ -781,3 +789,64 @@ fn constant_dimension_overflow(file: &str, range: TextRange) -> Diagnostic {
 
 #[cfg(test)]
 mod tests;
+
+/// Evaluate a closed declaration through the same typed static expression owner.
+pub(crate) fn closed_value(
+    file: &str,
+    expression: &Expr,
+    target: ValueType,
+) -> Result<ValueLiteral, Diagnostic> {
+    let initializer = crate::typed_values::initializer(expression, &target);
+    let evaluated = evaluate_parameter_expression(
+        file,
+        &initializer,
+        ExpressionContext::Let,
+        &mut |name, range| {
+            Err(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                file,
+                range,
+                format!("closed value cannot depend on `{name}`"),
+            ))
+        },
+    )?;
+    let value = coerce_parameter_with_label(
+        file,
+        expression.range(),
+        evaluated,
+        target,
+        "declared value",
+        true,
+    )?;
+    value.value.ok_or_else(|| {
+        source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            expression.range(),
+            "closed value remained symbolic",
+        )
+    })
+}
+
+pub(in crate::hierarchy) fn static_index(
+    file: &str,
+    expression: &Expr,
+    values: &SymbolicParameterMap,
+) -> Result<u32, Diagnostic> {
+    let evaluated = evaluate_parameter_expression(
+        file,
+        expression,
+        ExpressionContext::Let,
+        &mut |name, range| {
+            values.get(name).cloned().ok_or_else(|| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    range,
+                    "index depends on an unknown or runtime value",
+                )
+            })
+        },
+    )?;
+    value_expressions::checked_index(file, expression.range(), &evaluated)
+}

@@ -70,13 +70,19 @@ impl Parser<'_> {
             .text()
             .to_owned();
         self.expect(TokenKind::LeftParen, "`(` before property inputs")?;
-        self.expect(TokenKind::RightParen, "constant property contracts require empty inputs")?;
+        self.expect(
+            TokenKind::RightParen,
+            "constant property contracts require empty inputs",
+        )?;
         self.expect(TokenKind::Colon, "`:` before property result type")?;
         let value_type = self.parse_value_type()?;
         self.expect(TokenKind::LeftBrace, "`{` before property profile")?;
         self.expect_keyword("derivatives")?;
         self.expect_keyword("value_only")?;
-        self.expect(TokenKind::Semicolon, "`;` after property derivative profile")?;
+        self.expect(
+            TokenKind::Semicolon,
+            "`;` after property derivative profile",
+        )?;
         let end = self
             .expect(TokenKind::RightBrace, "`}` after property contract")?
             .range()

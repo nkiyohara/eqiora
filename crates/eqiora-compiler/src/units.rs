@@ -19,29 +19,7 @@ pub(crate) fn typed_literal(
     expression: &Expr,
     value_type: eqiora_core::ValueType,
 ) -> Result<eqiora_core::ValueLiteral, eqiora_core::Diagnostic> {
-    let dimension = value_type.dimension();
-    let result = match expression.kind() {
-        ExprKind::Number(value) => normalize_value(*value, 1.0),
-        ExprKind::Quantity { value, unit } => quantity(*value, unit).and_then(|quantity| {
-            if quantity.dim() == dimension {
-                Ok(quantity.value())
-            } else {
-                Err("input unit does not match its declared dimension")
-            }
-        }),
-        _ => Err("initial value must be a numeric or quantity literal"),
-    };
-    let diagnostic = |message: String| {
-        crate::diagnostics::source_error(
-            eqiora_core::diagnostic::codes::LANGUAGE_TYPE_ERROR,
-            file,
-            expression.range(),
-            message,
-        )
-    };
-    let literal = result.map_err(|message| diagnostic(message.to_owned()))?;
-    eqiora_core::ValueLiteral::new(value_type, literal)
-        .map_err(|error| diagnostic(error.to_string()))
+    crate::hierarchy::closed_value(file, expression, value_type)
 }
 
 pub(crate) fn coherent_dimension(name: &str) -> Option<DimExponents> {
@@ -336,7 +314,9 @@ model Quantities {
                 })
                 .flat_map(|relation| relation.residuals().nodes())
                 .filter_map(|node| match node {
-                    eqiora_schema::kernel::ExprNode::Constant(value) if value.literal() != 0.0 => {
+                    eqiora_schema::kernel::ExprNode::Constant(value)
+                        if value.component(0).unwrap().0 != 0.0 =>
+                    {
                         Some(value)
                     }
                     _ => None,
@@ -345,7 +325,7 @@ model Quantities {
             assert!(!component_constants.is_empty());
             for value in component_constants {
                 assert_eq!(value.value_type().dimension(), density);
-                assert_eq!(value.literal(), 1000.0, "{literal}");
+                assert_eq!(value.component(0).unwrap().0, 1000.0, "{literal}");
             }
             assert!(crate::compile("wrong-density.eqi", &source.replace(literal, "1[s]")).is_err());
         }

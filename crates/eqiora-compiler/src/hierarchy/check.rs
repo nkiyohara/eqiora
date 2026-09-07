@@ -265,7 +265,7 @@ fn validate_definition_bodies_and_parameters(
                         parameters.insert(
                             parameter.name().to_owned(),
                             SymbolicParameterValue {
-                                value: Some(value.literal()),
+                                value: Some(value.clone()),
                                 value_type: value.value_type().clone(),
                                 expression: None,
                                 lineage: None,
@@ -478,6 +478,8 @@ fn count_expression_terms(
     while let Some(expression) = pending.pop() {
         increment_parameter_terms(terms, 1, elaborator)?;
         match expression.kind() {
+            ExprKind::Array(elements) => pending.extend(elements),
+            ExprKind::Index { value, index } => pending.extend([value.as_ref(), index.as_ref()]),
             ExprKind::Unary { value, .. } => pending.push(value),
             ExprKind::Call { arguments, .. } => pending.extend(arguments),
             ExprKind::Binary { left, right, .. } => {

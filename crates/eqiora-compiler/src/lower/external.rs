@@ -18,6 +18,20 @@ impl LoweringExpression {
             LoweringExpressionNode::Literal(value) => {
                 LoweringExpressionNode::Literal(value.clone())
             }
+            LoweringExpressionNode::Array(elements) => LoweringExpressionNode::Array(
+                elements
+                    .iter()
+                    .map(|value| value.clone_shared(cache))
+                    .collect(),
+            ),
+            LoweringExpressionNode::Index { value, index } => LoweringExpressionNode::Index {
+                value: value.clone_shared(cache),
+                index: *index,
+            },
+            LoweringExpressionNode::Complex { real, imag } => LoweringExpressionNode::Complex {
+                real: real.clone_shared(cache),
+                imag: imag.clone_shared(cache),
+            },
             LoweringExpressionNode::Name(name) => LoweringExpressionNode::Name(name.clone()),
             LoweringExpressionNode::Neg(value) => {
                 LoweringExpressionNode::Neg(value.clone_shared(cache))
