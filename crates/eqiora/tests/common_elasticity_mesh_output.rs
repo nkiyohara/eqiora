@@ -95,7 +95,10 @@ fn accepted() -> Accepted {
         (
             "mu",
             eqiora::language::SourceAstFactory::expression(
-                eqiora::language::ExprKind::Number(3.0),
+                eqiora::language::ExprKind::Number(
+                    eqiora::language::DecimalLiteral::from_f64(3.0)
+                        .expect("finite fixture literal"),
+                ),
                 eqiora::language::TextRange::new(0, 0),
             )
             .unwrap(),
@@ -103,7 +106,10 @@ fn accepted() -> Accepted {
         (
             "lambda",
             eqiora::language::SourceAstFactory::expression(
-                eqiora::language::ExprKind::Number(0.0),
+                eqiora::language::ExprKind::Number(
+                    eqiora::language::DecimalLiteral::from_f64(0.0)
+                        .expect("finite fixture literal"),
+                ),
                 eqiora::language::TextRange::new(0, 0),
             )
             .unwrap(),
@@ -111,7 +117,10 @@ fn accepted() -> Accepted {
         (
             "length_scale",
             eqiora::language::SourceAstFactory::expression(
-                eqiora::language::ExprKind::Number(1.0),
+                eqiora::language::ExprKind::Number(
+                    eqiora::language::DecimalLiteral::from_f64(1.0)
+                        .expect("finite fixture literal"),
+                ),
                 eqiora::language::TextRange::new(0, 0),
             )
             .unwrap(),

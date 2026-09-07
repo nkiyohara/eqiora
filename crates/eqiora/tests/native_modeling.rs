@@ -31,7 +31,10 @@ fn native_and_source_models_share_structure_and_artifacts() {
     );
     // Independent declaration order is presentation, not symbol resolution.
     let initial = eqiora::language::DraftDeclaration::Initial(vec![
-        state.expression() - DraftExpression::constant(1.0),
+        state.expression()
+            - DraftExpression::constant(
+                eqiora::language::DecimalLiteral::from_f64(1.0).expect("finite fixture literal"),
+            ),
     ]);
     let draft =
         ModelDraft::new("decay", [rate.into(), state.into(), flow.into(), initial]).unwrap();

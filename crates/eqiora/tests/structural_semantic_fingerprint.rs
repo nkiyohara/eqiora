@@ -330,7 +330,10 @@ fn native_decay(reversed: bool) -> ModelDraft {
         [DraftExpression::derivative(&field) + rate.expression() * field.expression()],
     );
     let initial = eqiora::language::DraftDeclaration::Initial(vec![
-        field.expression() - DraftExpression::constant(1.0),
+        field.expression()
+            - DraftExpression::constant(
+                eqiora::language::DecimalLiteral::from_f64(1.0).expect("finite fixture literal"),
+            ),
     ]);
     let declarations = if reversed {
         vec![relation.into(), rate.into(), field.into(), initial]

@@ -66,7 +66,10 @@ fn rust_authoring_edit_replay_and_control_share_the_current_profile() {
     );
     let hold = DraftRelation::continuous("hold", [DraftExpression::derivative(&state)]);
     let initial = eqiora::language::DraftDeclaration::Initial(vec![
-        state.expression() - DraftExpression::constant(1.0),
+        state.expression()
+            - DraftExpression::constant(
+                eqiora::language::DecimalLiteral::from_f64(1.0).expect("finite fixture literal"),
+            ),
     ]);
     let draft = ModelDraft::new("decay", [state.into(), hold.into(), initial]).unwrap();
     let native = ModelDocument::define(&draft).unwrap();

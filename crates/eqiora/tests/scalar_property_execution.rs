@@ -740,7 +740,10 @@ fn parameter_expressions() -> Vec<(&'static str, eqiora::language::Expr)> {
             (
                 *name,
                 eqiora::language::SourceAstFactory::expression(
-                    eqiora::language::ExprKind::Number(*value),
+                    eqiora::language::ExprKind::Number(
+                        eqiora::language::DecimalLiteral::from_f64(*value)
+                            .expect("finite fixture literal"),
+                    ),
                     eqiora::language::TextRange::new(0, 0),
                 )
                 .unwrap(),

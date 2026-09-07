@@ -171,7 +171,10 @@ fn document_and_plans_with_source(
         (
             "diffusion",
             eqiora::language::SourceAstFactory::expression(
-                eqiora::language::ExprKind::Number(1.0),
+                eqiora::language::ExprKind::Number(
+                    eqiora::language::DecimalLiteral::from_f64(1.0)
+                        .expect("finite fixture literal"),
+                ),
                 eqiora::language::TextRange::new(0, 0),
             )
             .unwrap(),
@@ -179,7 +182,10 @@ fn document_and_plans_with_source(
         (
             "wave_number",
             eqiora::language::SourceAstFactory::expression(
-                eqiora::language::ExprKind::Number(std::f64::consts::PI),
+                eqiora::language::ExprKind::Number(
+                    eqiora::language::DecimalLiteral::from_f64(std::f64::consts::PI)
+                        .expect("finite fixture literal"),
+                ),
                 eqiora::language::TextRange::new(0, 0),
             )
             .unwrap(),
@@ -187,7 +193,10 @@ fn document_and_plans_with_source(
         (
             "source_scale",
             eqiora::language::SourceAstFactory::expression(
-                eqiora::language::ExprKind::Number(2.0 * std::f64::consts::PI.powi(2)),
+                eqiora::language::ExprKind::Number(
+                    eqiora::language::DecimalLiteral::from_f64(2.0 * std::f64::consts::PI.powi(2))
+                        .expect("finite fixture literal"),
+                ),
                 eqiora::language::TextRange::new(0, 0),
             )
             .unwrap(),
@@ -195,7 +204,10 @@ fn document_and_plans_with_source(
         (
             "boundary_offset",
             eqiora::language::SourceAstFactory::expression(
-                eqiora::language::ExprKind::Number(0.0),
+                eqiora::language::ExprKind::Number(
+                    eqiora::language::DecimalLiteral::from_f64(0.0)
+                        .expect("finite fixture literal"),
+                ),
                 eqiora::language::TextRange::new(0, 0),
             )
             .unwrap(),

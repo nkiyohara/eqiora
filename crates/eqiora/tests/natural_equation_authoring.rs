@@ -55,7 +55,9 @@ fn mul(left: Tree, right: Tree) -> Tree {
 
 fn source_tree(expression: &Expr) -> Tree {
     match expression.kind() {
-        ExprKind::Number(value) => number(*value),
+        ExprKind::Number(value) => {
+            number(value.canonical_text().parse().expect("finite real fixture"))
+        }
         ExprKind::Name(name) => n(name),
         ExprKind::Unary {
             op: UnaryOp::Neg,
