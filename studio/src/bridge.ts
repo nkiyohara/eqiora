@@ -198,9 +198,9 @@ const previewDocument: DocumentProjection = {
       id: "Field:state",
       name: "state",
       kind: "field",
-      summary: "Scalar state with an initial value",
+      summary: "Continuous state constrained by an initial equation",
       dimension: "1",
-      value: 1,
+      value: null,
     },
     {
       id: "Parameter:rate",
@@ -209,6 +209,14 @@ const previewDocument: DocumentProjection = {
       summary: "Canonical model parameter",
       dimension: "T^-1",
       value: 0.8,
+    },
+    {
+      id: "Relation:state_initial",
+      name: "initial state",
+      kind: "relation",
+      summary: "1 initial equation",
+      dimension: null,
+      value: null,
     },
     {
       id: "Relation:decay",
@@ -228,6 +236,13 @@ const previewDocument: DocumentProjection = {
     },
   ],
   edges: [
+    {
+      id: "Relation:state_initial→Field:state:depends-on",
+      source: "Relation:state_initial",
+      target: "Field:state",
+      kind: "depends-on",
+      label: "depends on",
+    },
     {
       id: "Relation:decay→Field:state:depends-on",
       source: "Relation:decay",
@@ -278,7 +293,7 @@ const previewCadDocument: DocumentProjection = {
     ),
     {
       id: "Representation:geometry_space",
-      name: "geometry_space",
+      name: "body continuum",
       kind: "representation",
       summary: "Continuous field representation",
       dimension: null,
@@ -288,9 +303,17 @@ const previewCadDocument: DocumentProjection = {
       id: "Field:marker",
       name: "marker",
       kind: "field",
-      summary: "Scalar field projected through the selected physical boundary",
+      summary: "Scalar variable projected through the selected physical boundary",
       dimension: "1",
-      value: 0,
+      value: null,
+    },
+    {
+      id: "Relation:marker_initial",
+      name: "initial marker",
+      kind: "relation",
+      summary: "1 initial equation",
+      dimension: null,
+      value: null,
     },
     {
       id: "Relation:selected_boundary",
@@ -324,6 +347,13 @@ const previewCadDocument: DocumentProjection = {
       target: "Representation:geometry_space",
       kind: "represented-by",
       label: "represented by",
+    },
+    {
+      id: "Relation:marker_initial→Field:marker:depends-on",
+      source: "Relation:marker_initial",
+      target: "Field:marker",
+      kind: "depends-on",
+      label: "depends on",
     },
     {
       id: "Relation:selected_boundary→Domain:x_upper:applies-on",
@@ -378,7 +408,7 @@ function previewValuePlan(
   const node = document.nodes.find((candidate) => candidate.id === request.targetId);
   if (
     node === undefined ||
-    !["field", "parameter"].includes(node.kind) ||
+    node.kind !== "parameter" ||
     node.value === null ||
     node.dimension === null ||
     node.value === request.value
@@ -448,7 +478,7 @@ const previewBridge: StudioBridge = {
     }
     const plan = previewValuePlan(document, checked.value);
     if (plan === null) {
-      return protocolFailure("Select a quantitative entity and enter a different finite value.");
+      return protocolFailure("Select a Parameter and enter a different finite value.");
     }
     return { protocol: BRIDGE_PROTOCOL, result: plan, diagnostics: [] };
   },

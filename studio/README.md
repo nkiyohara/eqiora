@@ -7,7 +7,7 @@ The current Studio surface contains:
 
 - Eqiora source compile/check, semantic outline, relation view, inspector, and
   source-linked diagnostics;
-- coherent-SI `Field` and `Parameter` value-edit preview, atomic commit, and a
+- coherent-SI `Parameter` value-edit preview, atomic commit, and a
   bounded immutable revision lineage;
 - workspace-only graph layout and keyboard-accessible commands;
 - the verified packaged DC-drive presentation, using its existing pinned

@@ -139,7 +139,8 @@ mod tests {
 
     const SOURCE: &str = r#"
 model decay {
-  field x: 1 = 1;
+  state x: 1;
+  initial { x = 1; }
   parameter rate: 1 / s = 1[1 / s];
   relation flow {
     derivative(x) + rate * x = 0;
@@ -187,10 +188,10 @@ model decay {
         let CompileOutcomeV2::Accepted { model } = control.outcome() else {
             panic!("accepted fixture must return one Model descriptor");
         };
-        assert_eq!(model.schema(), "eqiora.model-envelope/v11");
+        assert_eq!(model.schema(), "eqiora.model-envelope/v12");
         assert_eq!(
             model.transaction_schema(),
-            "eqiora.model-transaction-envelope/v11"
+            "eqiora.model-transaction-envelope/v12"
         );
         assert!(response.diagnostics.is_empty());
         assert!(state.documents.lock().unwrap().contains(&projection.digest));
