@@ -6,8 +6,8 @@ use eqiora_artifact::{
 use eqiora_compiler::projection::{PhysicalExposureContract, PhysicalExposureProjectionMap};
 use eqiora_compiler::provenance::ProvenanceMap;
 use eqiora_compiler::{AnalyzedResolvedHierarchy, analyze_resolved_hierarchy};
-use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
+use eqiora_core::{Diagnostic, ValueLiteral};
 use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_package::{
     BoundRunManifestSchemaV1, CanonicalModelDigest, CanonicalRealizationDigest, CanonicalRunDigest,
@@ -47,7 +47,7 @@ fn collect_property_bindings(
                     release: release.to_owned(),
                     component: component.to_owned(),
                     requirement: requirement.to_owned(),
-                    normalized_value,
+                    normalized_value: normalized_value.clone(),
                     validity: validity.to_owned(),
                     citation: citation.to_owned(),
                     license: license.to_owned(),
@@ -76,7 +76,7 @@ struct PropertyBindingProjection {
     release: String,
     component: String,
     requirement: String,
-    normalized_value: f64,
+    normalized_value: ValueLiteral,
     validity: String,
     citation: String,
     license: String,
@@ -230,8 +230,19 @@ impl PackagedModelDocument {
     #[must_use]
     pub fn property_bindings(
         &self,
-    ) -> impl ExactSizeIterator<Item = (Option<&str>, &str, &str, &str, &str, f64, &str, &str, &str)>
-    {
+    ) -> impl ExactSizeIterator<
+        Item = (
+            Option<&str>,
+            &str,
+            &str,
+            &str,
+            &str,
+            &ValueLiteral,
+            &str,
+            &str,
+            &str,
+        ),
+    > {
         self.property_bindings.iter().map(|value| {
             (
                 value.composition.as_deref(),
@@ -239,7 +250,7 @@ impl PackagedModelDocument {
                 value.release.as_str(),
                 value.component.as_str(),
                 value.requirement.as_str(),
-                value.normalized_value,
+                &value.normalized_value,
                 value.validity.as_str(),
                 value.citation.as_str(),
                 value.license.as_str(),
