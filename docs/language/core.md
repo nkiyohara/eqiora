@@ -167,6 +167,21 @@ derived facts; they cannot sample, hold, broadcast, or relocate the expression. 
 aliases are static. A runtime-dependent alias cannot define an array extent, clock period,
 package identity, or other static requirement.
 
+An alias's inferred activation describes its declared runtime dependencies, before algebraic
+simplification. Static inputs do not add an activation. A current state read contributes its
+exact declared clock or continuous activation; `time` contributes continuous activation.
+Combining dependencies on different nominal clocks, or continuous and clocked dependencies,
+does not produce a single clock. `at clock_name` asserts that all runtime dependencies have
+that exact clock. It rejects static expressions and mixed activations, even when two clocks
+have equal periods. Omitting `at` leaves the inferred dependencies unchanged.
+
+This dependency assertion is separate from evolution-use requirements. Reading the current
+value of a clocked state through an alias remains valid wherever the equivalent direct read
+is valid, including a continuous equation. The assertion does not execute a transition or
+restrict a retained current-value read to its update ticks. An alias containing `pre`, `next`,
+or `derivative` still checks the operator's state role and initialization or relation context
+at each use; a matching assertion cannot discharge those requirements.
+
 ```eqiora
 parameter viscosity @{\mu}: Pa * s = 1.002e-3;
 variable pressure @{p}: Pa on fluid;

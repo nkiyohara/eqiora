@@ -53,7 +53,11 @@ fn current_state_aliases_preserve_continuous_reads_across_distinct_equal_period_
             "derivative(identity) = sum",
             "derivative(integral) = first + second",
         );
-    for source in [explicit.as_str(), MIXED_CLOCKS] {
+    let asserted = MIXED_CLOCKS.replace(
+        "  let sum = first + second;",
+        "  let observed_first at a = first;\n  let sum = observed_first + second;",
+    );
+    for source in [explicit.as_str(), MIXED_CLOCKS, asserted.as_str()] {
         let (program, symbols) = admit(source);
         assert_ne!(symbols.get("a"), symbols.get("b"));
         assert!(symbols.get("sum").is_none());
@@ -103,6 +107,9 @@ fn alias_hidden_evolution_operators_keep_the_exact_context_checks() {
     let prefix = "clock a = periodic(period = 1 / 1, phase = 0 / 1); clock b = periodic(period = 1 / 1, phase = 0 / 1); state x: 1 at a;";
     for body in [
         "let old = pre(x); relation r at b { old = 0; }",
+        "let old at a = pre(x); relation r at b { old = 0; }",
+        "let future at a = next(x); initial { future = 0; }",
+        "let old at a = pre(x); relation r { old = 0; }",
         "let future = next(x); initial { future = 0; }",
         "let old = pre(x); relation r { old = 0; }",
         "let composite = 2*x; relation r at a { next(composite) = 0; }",
