@@ -872,15 +872,39 @@ impl<P: ShortIdProjector> StagingIdAllocator<P> {
     /// key is idempotent. A full-digest or projected-ID collision fails before
     /// either index is mutated.
     pub fn stage(&mut self, key: &ElaborationKey) -> Result<FullElaborationIdentity, Diagnostic> {
+        self.stage_projection(key, None)
+    }
+
+    pub(crate) fn stage_bound_clock(
+        &mut self,
+        key: &ElaborationKey,
+        id: eqiora_core::Id<eqiora_core::entity::kinds::ClockDomain>,
+    ) -> Result<FullElaborationIdentity, Diagnostic> {
+        if key.entity_kind() != EntityKind::ClockDomain {
+            return Err(identity_error(
+                "external clock identity requires a ClockDomain key",
+            ));
+        }
+        self.stage_projection(key, Some(id.ulid().to_bytes()))
+    }
+
+    fn stage_projection(
+        &mut self,
+        key: &ElaborationKey,
+        supplied: Option<[u8; 16]>,
+    ) -> Result<FullElaborationIdentity, Diagnostic> {
         let canonical_key = key.canonical_bytes()?;
         let identity = FullElaborationIdentity(Sha256::digest(&canonical_key).into());
         let kind = key.entity_kind();
+        let projected = supplied.unwrap_or_else(|| self.projector.project(identity));
         if let Ok(index) = self
             .by_identity
             .binary_search_by_key(&identity, |entry| entry.identity)
         {
             let existing = &self.by_identity[index];
-            if existing.canonical_key.as_ref() != canonical_key.as_slice() || existing.kind != kind
+            if existing.canonical_key.as_ref() != canonical_key.as_slice()
+                || existing.kind != kind
+                || existing.projected != projected
             {
                 return Err(identity_error(
                     "distinct canonical elaboration keys share one full SHA-256 identity",
@@ -901,7 +925,6 @@ impl<P: ShortIdProjector> StagingIdAllocator<P> {
             )));
         }
 
-        let projected = self.projector.project(identity);
         let projection_search = self
             .by_projection
             .binary_search_by(|entry| (entry.kind, entry.projected).cmp(&(kind, projected)));

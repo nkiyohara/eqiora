@@ -105,6 +105,7 @@ pub(super) enum FlatItemBlueprint {
         identity: EntityIdentity,
     },
     Clock {
+        supplied_id: Option<Id<kinds::ClockDomain>>,
         name: String,
         period: eqiora_lang::Expr,
         phase: eqiora_lang::Expr,
@@ -228,11 +229,21 @@ impl ExpandedBlueprint {
                 | FlatItemBlueprint::Representation { identity, .. }
                 | FlatItemBlueprint::Field { identity, .. }
                 | FlatItemBlueprint::Parameter { identity, .. }
-                | FlatItemBlueprint::Port { identity, .. }
-                | FlatItemBlueprint::Clock { identity, .. } => {
+                | FlatItemBlueprint::Port { identity, .. } => {
                     allocator
                         .stage(&identity.key)
                         .map_err(|error| vec![error])?;
+                }
+                FlatItemBlueprint::Clock {
+                    identity,
+                    supplied_id,
+                    ..
+                } => {
+                    match supplied_id {
+                        Some(id) => allocator.stage_bound_clock(&identity.key, *id),
+                        None => allocator.stage(&identity.key),
+                    }
+                    .map_err(|error| vec![error])?;
                 }
                 FlatItemBlueprint::Connection { identity, .. } => {
                     allocator

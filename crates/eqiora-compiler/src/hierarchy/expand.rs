@@ -629,6 +629,12 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
     fn allocate_model_scope(&mut self, scope: &mut Scope) -> Result<ScopeIdentities, Diagnostic> {
         let model = self.model.clone();
         let mut identities = ScopeIdentities::default();
+        let parameters =
+            super::parameters::resolve_model_parameters(model.file, model.declaration, |name| {
+                super::clocks::occurrence(scope, name)
+                    .or_else(|| super::clocks::model(model.file, model.declaration, name))
+            })
+            .map_err(|mut errors| errors.remove(0))?;
         for item in model.owned_items() {
             let (name, kind, symbol_kind, parameter_value, range) = match item {
                 Item::Domain(value) => (
@@ -646,7 +652,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     value.range(),
                 ),
                 Item::Parameter(declaration) => {
-                    let value = crate::units::parameter_literal(self.model.file, declaration)?;
+                    let value = parameters[declaration.name()].value.clone();
                     (
                         declaration.name(),
                         EntityKind::Parameter,
@@ -844,8 +850,19 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             &component,
             instance,
             |name| parent_scope.parameter(name).cloned(),
+            |name| super::clocks::occurrence(parent_scope, name),
         )
-        .and_then(ParameterResolver::resolve_all)
+        .and_then(|resolver| {
+            resolver.resolve_all(|name| {
+                super::clocks::component_occurrence(
+                    component.file,
+                    component.declaration,
+                    instance,
+                    parent_scope,
+                    name,
+                )
+            })
+        })
         .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
         let support_interface = component_support_interface(component.file, component.declaration)
             .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
@@ -1682,6 +1699,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 ComponentItem::Clock(declaration) => {
                     let identity = identities.entities[declaration.name()].clone();
                     self.items.push(FlatItemBlueprint::Clock {
+                        supplied_id: None,
                         name: internal_name(identity.full),
                         period: declaration.period().clone(),
                         phase: declaration.phase().clone(),
@@ -2082,7 +2100,11 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     self.items.push(FlatItemBlueprint::Parameter {
                         name: internal_name(identity.full),
                         value_type: declaration.value_type().clone(),
-                        value: crate::units::parameter_literal(self.model.file, declaration)?,
+                        value: scope
+                            .parameter(declaration.name())
+                            .expect("allocated model parameter")
+                            .value
+                            .clone(),
                         range: declaration.range(),
                         identity,
                     });
@@ -2105,6 +2127,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 Item::Clock(declaration) => {
                     let identity = identities.entities[declaration.name()].clone();
                     self.items.push(FlatItemBlueprint::Clock {
+                        supplied_id: None,
                         name: internal_name(identity.full),
                         period: declaration.period().clone(),
                         phase: declaration.phase().clone(),

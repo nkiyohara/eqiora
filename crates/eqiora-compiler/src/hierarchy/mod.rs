@@ -24,6 +24,7 @@ use crate::source_identity::LocalSourceIdentity;
 
 mod body_check;
 mod check;
+mod clocks;
 mod complete_exterior;
 mod definition_graph;
 mod expand;
@@ -354,12 +355,25 @@ fn compile_external_component_from_definition<'a>(
         })
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| vec![hierarchy_error(error.message())])?;
+    let clock_bindings = binding
+        .clocks
+        .iter()
+        .map(|(name, _)| {
+            SourceAstFactory::named_binding(
+                name,
+                SourceAstFactory::expression(ExprKind::Name(name.clone()), range)?,
+                range,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| vec![hierarchy_error(error.message())])?;
     let instance = SourceAstFactory::instance(
         "definition",
         component_path,
         parameter_bindings
             .into_iter()
             .chain(support_bindings)
+            .chain(clock_bindings)
             .collect(),
         range,
     )
@@ -388,7 +402,7 @@ fn compile_external_component_from_definition<'a>(
         },
     )
     .map_err(|error| vec![error])?
-    .expand_external(component, binding.supports())?
+    .expand_external(component, binding.supports(), &binding.clocks)?
     .compile(limits)
 }
 
@@ -419,6 +433,7 @@ fn validate_external_parameters(
     let interface = parameters::resolve_component_parameters_symbolically(
         component.file,
         component.declaration,
+        |name| clocks::component(file, component.declaration, name),
     )?;
     let mut diagnostics = Vec::new();
     for binding in bindings {

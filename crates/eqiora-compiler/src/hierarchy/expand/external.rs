@@ -8,10 +8,13 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         mut self,
         component: ComponentDefinition<'d>,
         supports: &[ExternalGeometrySupportBinding],
+        clocks: &[(String, eqiora_schema::kernel::ClockDomainDef)],
     ) -> Result<ExpandedBlueprint, Vec<Diagnostic>> {
         let model = self.model.clone();
         let mut root_scope = Scope::external_root();
         root_scope.set_pure_operators(self.elaborator.visible_pure_operators(&model.namespace));
+        self.allocate_external_clocks(&mut root_scope, clocks)
+            .map_err(one_diagnostic)?;
         let identities = self
             .allocate_model_scope(&mut root_scope)
             .map_err(one_diagnostic)?;
@@ -31,7 +34,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             self.elaborator.limits.identity,
         )
         .map_err(one_diagnostic)?;
-        self.expand_component(
+        let interface = self.expand_component(
             component,
             instance,
             model.file,
@@ -39,6 +42,15 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             instance.name().to_owned(),
             &root_scope,
         )?;
+        let ports = interface
+            .public_ports
+            .values()
+            .map(|symbol| symbol.internal_name.clone())
+            .collect();
+        self.items.push(FlatItemBlueprint::Boundary {
+            ports,
+            range: model.range(),
+        });
         self.materialize_model_items(&root_scope, &identities)
             .map_err(one_diagnostic)?;
         self.finalize_physical_connections()
@@ -55,7 +67,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         ))
     }
 
-    fn allocate_external_supports(
+    pub(super) fn allocate_external_supports(
         &mut self,
         scope: &mut Scope,
         supports: &[ExternalGeometrySupportBinding],
@@ -159,4 +171,94 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             Vec::new(),
         )
     }
+}
+
+impl RootExpansion<'_, '_> {
+    pub(super) fn allocate_external_clocks(
+        &mut self,
+        scope: &mut Scope,
+        clocks: &[(String, eqiora_schema::kernel::ClockDomainDef)],
+    ) -> Result<(), Diagnostic> {
+        let mut seen =
+            BTreeMap::<ulid::Ulid, (eqiora_schema::kernel::ClockDomainDef, FlatSymbol)>::new();
+        for (slot, clock) in clocks {
+            if let Some((previous, symbol)) = seen.get(&clock.id().ulid()) {
+                if previous != clock {
+                    return Err(hierarchy_error(
+                        "one supplied clock identity has conflicting definitions",
+                    ));
+                }
+                scope.insert_symbol(slot.clone(), symbol.clone());
+                continue;
+            }
+            let eqiora_schema::kernel::ClockKind::Periodic { period, phase } = clock.kind() else {
+                return Err(hierarchy_error("clock requirement needs periodic clock"));
+            };
+            let identity = self.entity_identity(
+                &self.root_path,
+                definition_path(&self.model.namespace, "model", self.model.name(), slot),
+                EntityKind::ClockDomain,
+                SourceLocation::new(self.model.file, self.model.range()),
+                SourceLocation::new(self.model.file, self.model.range()),
+                Vec::new(),
+            )?;
+            self.register_symbol(
+                slot.clone(),
+                slot,
+                &identity,
+                SymbolKind::Clock(period),
+                scope,
+            )?;
+            let symbol = scope.symbol(slot).expect("just registered clock").clone();
+            seen.insert(clock.id().ulid(), (clock.clone(), symbol));
+            self.items.push(FlatItemBlueprint::Clock {
+                supplied_id: Some(clock.id()),
+                name: internal_name(identity.full),
+                period: time_expression(period)?,
+                phase: time_expression(phase)?,
+                range: self.model.range(),
+                identity,
+            });
+        }
+        Ok(())
+    }
+}
+
+fn time_expression(
+    value: eqiora_schema::kernel::RationalTime,
+) -> Result<eqiora_lang::Expr, Diagnostic> {
+    use eqiora_lang::{BinaryOp, DecimalLiteral, ExprKind, SourceAstFactory as F, TextRange};
+    let range = TextRange::default();
+    let leaf = |integer: u64, unit: &str| {
+        F::expression(
+            ExprKind::Quantity {
+                value: DecimalLiteral::parse(&integer.to_string()).expect("u64 decimal"),
+                unit: Box::new(
+                    F::expression(
+                        if unit == "1" {
+                            ExprKind::Number(1.0)
+                        } else {
+                            ExprKind::Name(unit.to_owned())
+                        },
+                        range,
+                    )
+                    .expect("canonical unit"),
+                ),
+            },
+            range,
+        )
+    };
+    F::expression(
+        ExprKind::Binary {
+            op: BinaryOp::Div,
+            left: Box::new(
+                leaf(value.numerator(), "s").map_err(|error| hierarchy_error(error.message()))?,
+            ),
+            right: Box::new(
+                leaf(value.denominator(), "1").map_err(|error| hierarchy_error(error.message()))?,
+            ),
+        },
+        range,
+    )
+    .map_err(|error| hierarchy_error(error.message()))
 }

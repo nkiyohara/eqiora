@@ -21,9 +21,8 @@ use super::field_slots::{
     resolve_instance_fields,
 };
 use super::parameters::{
-    SymbolicParameterMap, SymbolicParameterValue, resolve_component_lets,
-    resolve_component_parameters_symbolically, resolve_model_lets,
-    validate_instance_parameters_symbolically,
+    SymbolicParameterMap, resolve_component_lets, resolve_component_parameters_symbolically,
+    resolve_model_lets, validate_instance_parameters_symbolically,
 };
 use super::preflight::{DefinitionKey, Elaborator};
 use super::supports::{
@@ -87,13 +86,20 @@ fn validate_definition_bodies_and_parameters(
             }
             Err(errors) => diagnostics.extend(errors),
         }
-        match resolve_component_parameters_symbolically(definition.file, definition.declaration) {
+        match resolve_component_parameters_symbolically(
+            definition.file,
+            definition.declaration,
+            |name| super::clocks::component(definition.file, definition.declaration, name),
+        ) {
             Ok(parameters) => {
                 let mut values = parameters.clone();
                 interfaces.insert(key.clone(), parameters);
-                if let Err(errors) =
-                    resolve_component_lets(definition.file, definition.declaration, &mut values)
-                {
+                if let Err(errors) = resolve_component_lets(
+                    definition.file,
+                    definition.declaration,
+                    &mut values,
+                    |name| super::clocks::component(definition.file, definition.declaration, name),
+                ) {
                     diagnostics.extend(errors);
                     continue;
                 }
@@ -171,6 +177,7 @@ fn validate_definition_bodies_and_parameters(
                 instance,
                 parent,
                 child_interface,
+                |name| super::clocks::component(definition.file, definition.declaration, name),
             ) {
                 occurrences_valid = false;
                 diagnostics.extend(errors);
@@ -258,30 +265,23 @@ fn validate_definition_bodies_and_parameters(
                 model_field_contracts(definition.file, definition.declaration, supports)
             })
             .unwrap_or_default();
-        for item in definition.declaration.items() {
-            if let Item::Parameter(parameter) = item {
-                match crate::units::parameter_literal(definition.file, parameter) {
-                    Ok(value) => {
-                        parameters.insert(
-                            parameter.name().to_owned(),
-                            SymbolicParameterValue {
-                                value: Some(value.clone()),
-                                value_type: value.value_type().clone(),
-                                expression: None,
-                                lineage: None,
-                            },
-                        );
-                    }
-                    Err(error) => {
-                        occurrences_valid = false;
-                        diagnostics.push(error);
-                    }
-                }
+        match super::parameters::resolve_model_parameters_symbolically(
+            definition.file,
+            definition.declaration,
+            |name| super::clocks::model(definition.file, definition.declaration, name),
+        ) {
+            Ok(values) => parameters = values,
+            Err(errors) => {
+                occurrences_valid = false;
+                diagnostics.extend(errors);
             }
         }
-        if let Err(errors) =
-            resolve_model_lets(definition.file, definition.declaration, &mut parameters)
-        {
+        if let Err(errors) = resolve_model_lets(
+            definition.file,
+            definition.declaration,
+            &mut parameters,
+            |name| super::clocks::model(definition.file, definition.declaration, name),
+        ) {
             occurrences_valid = false;
             diagnostics.extend(errors);
         }
@@ -317,6 +317,7 @@ fn validate_definition_bodies_and_parameters(
                 instance,
                 &parameters,
                 child_interface,
+                |name| super::clocks::model(definition.file, definition.declaration, name),
             ) {
                 occurrences_valid = false;
                 diagnostics.extend(errors);

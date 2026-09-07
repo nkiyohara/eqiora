@@ -128,6 +128,7 @@ pub(crate) struct ExternalComponentBinding {
     component: String,
     supports: Vec<ExternalGeometrySupportBinding>,
     parameters: Vec<ExternalParameterBinding>,
+    pub(crate) clocks: Vec<(String, eqiora_schema::kernel::ClockDomainDef)>,
 }
 
 impl ExternalComponentBinding {
@@ -144,6 +145,7 @@ impl ExternalComponentBinding {
             component: component.into(),
             supports,
             parameters,
+            clocks: Vec::new(),
         }
     }
 
@@ -166,4 +168,19 @@ impl ExternalComponentBinding {
     pub(crate) fn parameters(&self) -> &[ExternalParameterBinding] {
         &self.parameters
     }
+}
+
+/// One named static argument, interpreted by the selected signature's category.
+#[derive(Clone, Copy, Debug)]
+pub enum StaticBindingValue<'a> {
+    /// A closed typed initializer or an exact source property reference.
+    Expression(&'a eqiora_lang::Expr),
+    /// An existing nominal clock; its identity is preserved.
+    Clock(&'a eqiora_schema::kernel::ClockDomainDef),
+    /// An authoritative Geometry selection and, for a boundary, its exact parent.
+    GeometrySupport {
+        geometry: &'a eqiora_geometry::CanonicalGeometryV1,
+        selection: &'a eqiora_geometry::NamedEntitySet,
+        parent: Option<&'a eqiora_geometry::NamedEntitySet>,
+    },
 }

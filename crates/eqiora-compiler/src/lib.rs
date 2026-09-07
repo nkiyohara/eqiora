@@ -10,6 +10,7 @@ pub mod connection_sets;
 mod diagnostics;
 mod dimensions;
 mod external;
+pub use external::StaticBindingValue;
 mod external_compile;
 mod formulation;
 mod hierarchy;

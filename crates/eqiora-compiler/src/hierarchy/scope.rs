@@ -49,7 +49,7 @@ impl FlatSymbol {
 
 #[derive(Debug, Clone)]
 pub(super) struct InstanceInterface {
-    public_ports: BTreeMap<String, FlatSymbol>,
+    pub(super) public_ports: BTreeMap<String, FlatSymbol>,
     public_port_families: BTreeMap<String, BoundaryPortFamilyIndex>,
 }
 

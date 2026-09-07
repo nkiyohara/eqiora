@@ -12,13 +12,18 @@ impl RootExpansion<'_, '_> {
         model: &ModelDecl,
     ) -> Result<(), Diagnostic> {
         let mut values = scope.symbolic_parameters();
-        crate::hierarchy::parameters::resolve_model_lets(self.model.file, model, &mut values)
-            .map_err(|diagnostics| {
-                diagnostics
-                    .into_iter()
-                    .next()
-                    .unwrap_or_else(|| hierarchy_error("let alias resolution failed"))
-            })?;
+        crate::hierarchy::parameters::resolve_model_lets(
+            self.model.file,
+            model,
+            &mut values,
+            |name| crate::hierarchy::clocks::occurrence(scope, name),
+        )
+        .map_err(|diagnostics| {
+            diagnostics
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| hierarchy_error("let alias resolution failed"))
+        })?;
         for item in model.items() {
             let Item::Let(declaration) = item else {
                 continue;
@@ -45,6 +50,7 @@ impl RootExpansion<'_, '_> {
             component.file,
             component.declaration,
             &mut values,
+            |name| crate::hierarchy::clocks::occurrence(scope, name),
         )?;
         for item in component.items() {
             let eqiora_lang::ComponentItem::Let(declaration) = item else {

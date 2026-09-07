@@ -537,6 +537,7 @@ pub(crate) struct AnalyzedSourceUnit {
     pub(crate) file: String,
     pub(crate) source_bytes: usize,
     pub(crate) document: Document,
+    pub(crate) authored_document: std::sync::Arc<Document>,
 }
 
 /// Completely parsed and globally indexed package hierarchy.
