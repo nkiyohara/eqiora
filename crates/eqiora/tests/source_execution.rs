@@ -19,7 +19,7 @@ fn compile_program(source: &str) -> (KernelProgram, eqiora::compiler::ModelSymbo
 #[test]
 fn uninitialized_algebraic_field_runs_without_a_model_owned_value() {
     let (program, symbols) = compile_program(
-        "model algebraic { field pressure: 1; relation balance { pressure - 2 = 0; } }",
+        "model algebraic { variable pressure: 1; relation balance { pressure - 2 = 0; } }",
     );
     let pressure = symbols.get("pressure").expect("pressure ID");
     assert_eq!(program.value(pressure), None);
@@ -42,7 +42,7 @@ fn uninitialized_algebraic_field_runs_without_a_model_owned_value() {
 #[test]
 fn uninitialized_differential_field_fails_at_execution_admission() {
     let (program, symbols) = compile_program(
-        "model transient { field state: 1; parameter rate: 1 / s = 1; relation evolution { derivative(state) + rate * state = 0; } }",
+        "model transient { state state: 1; parameter rate: 1 / s = 1; relation evolution { derivative(state) + rate * state = 0; } }",
     );
     assert_eq!(program.value(symbols.get("state").expect("state ID")), None);
 
@@ -54,19 +54,15 @@ fn uninitialized_differential_field_fails_at_execution_admission() {
         .expect_err("stateful execution requires an initial value");
     assert_eq!(
         diagnostics[0].code(),
-        eqiora_core::diagnostic::codes::MISSING_EXECUTION_INPUT
+        eqiora_core::diagnostic::codes::NONSQUARE_SYSTEM
     );
-    assert!(
-        diagnostics[0]
-            .message()
-            .contains("requires an initial value")
-    );
+    assert!(diagnostics[0].message().contains("equation"));
 }
 
 #[test]
 fn uninitialized_discrete_field_fails_at_execution_admission() {
     let (program, symbols) = compile_program(
-        "model discrete { field state: 1; clock tick = periodic(period = 1 / 1, phase = 0 / 1); relation update at tick { next(state) - pre(state) = 0; } }",
+        "model discrete { state state: 1 at tick; clock tick = periodic(period = 1 / 1, phase = 0 / 1); relation update at tick { next(state) - pre(state) = 0; } }",
     );
     assert_eq!(program.value(symbols.get("state").expect("state ID")), None);
 
@@ -78,7 +74,7 @@ fn uninitialized_discrete_field_fails_at_execution_admission() {
         .expect_err("discrete execution requires an initial value");
     assert_eq!(
         diagnostics[0].code(),
-        eqiora_core::diagnostic::codes::MISSING_EXECUTION_INPUT
+        eqiora_core::diagnostic::codes::NONSQUARE_SYSTEM
     );
 }
 
@@ -86,8 +82,8 @@ fn uninitialized_discrete_field_fails_at_execution_admission() {
 fn source_lowers_to_the_reference_thermal_controller_trajectory() {
     let source = r#"
 model thermal_controller {
-  field temperature: K = 293;
-  field command: 1 = 0;
+  state temperature: K; initial { temperature = 293[K]; }
+  state command: 1 at control; initial { command = 0; }
   parameter ambient: K = 293;
   parameter tau: s = 10;
   parameter heating_gain: K / s = 2;

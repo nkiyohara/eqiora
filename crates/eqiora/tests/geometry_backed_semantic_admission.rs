@@ -203,6 +203,7 @@ fn positive_model(
                 ValueFrame::SpatialCartesian,
             )
             .expect("spatial-vector Field"),
+            eqiora::kernel::FieldRole::Variable,
         )),
         KernelNode::from(RelationDef::new(
             ids.relation,
@@ -281,6 +282,7 @@ fn boundary_relation_model(
                 ValueFrame::SpatialCartesian,
             )
             .expect("spatial Field"),
+            eqiora::kernel::FieldRole::Variable,
         )),
         KernelNode::from(RelationDef::new(
             ids.relation,
@@ -1493,6 +1495,7 @@ fn admitted_geometry_boundary_field_keeps_its_embedding_diagnostic() {
                     ValueFrame::SpatialCartesian,
                 )
                 .expect("spatial Field"),
+                eqiora::kernel::FieldRole::Variable,
             )),
         ],
         [

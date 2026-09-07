@@ -5,7 +5,7 @@ use eqiora::sem::{Interpreter, ReferenceConfig};
 fn compile(body: &str) -> ModelDocument {
     ModelDocument::compile(
         "simultaneous.eqi",
-        &format!("model M {{ field x: 1 = 4; field y: 1 = -1; relation r {{ {body} }} }}"),
+        &format!("model M {{ variable x: 1; variable y: 1; relation r {{ {body} }} }}"),
     )
     .unwrap()
 }

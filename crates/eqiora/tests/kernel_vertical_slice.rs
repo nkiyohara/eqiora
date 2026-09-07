@@ -57,6 +57,7 @@ fn public_api_builds_a_clocked_relation_network() {
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
             ),
+            eqiora::kernel::FieldRole::Variable,
         )),
         KernelNode::from(relation_definition),
         KernelNode::from(PortDef::signal(

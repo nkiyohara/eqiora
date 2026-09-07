@@ -13,18 +13,20 @@ use eqiora::{Id, RawId};
 const TWO_BOUNDARIES: &str =
     include_str!("../../../verify/packages/component-spatial-supports/models/two-boundaries.eqi");
 const PACKAGE_COMPONENT: &str = r#"
-public component BoundaryState {
-  public support body: volume(ambient_dimension = 2);
-  public support interface: boundary(parent = body);
-  representation state_space = continuum;
-  field state on body as state_space: 1 = 0;
+public component BoundaryState(
+  support body: volume(ambient_dimension = 2),
+  support interface: boundary(parent = body),
+) {
+
+  variable state: 1 on body;
   relation volume_law on body { state = 0; }
   relation interface_law on interface { trace(state) = 0; }
 }
 
-public component BoundaryWrapper {
-  public support body: volume(ambient_dimension = 2);
-  public support interface: boundary(parent = body);
+public component BoundaryWrapper(
+  support body: volume(ambient_dimension = 2),
+  support interface: boundary(parent = body),
+) {
   instance inner: BoundaryState(
     support body = body,
     support interface = interface
@@ -205,11 +207,12 @@ fn support_slots_flatten_to_exact_existing_domains_without_entities_or_aliases()
 #[test]
 fn invalid_support_contracts_fail_before_a_transaction_exists() {
     let component = r#"
-component BoundaryState {
-  public support body: volume(ambient_dimension = 2);
-  public support interface: boundary(parent = body);
-  representation state_space = continuum;
-  field state on body as state_space: 1 = 0;
+component BoundaryState(
+  support body: volume(ambient_dimension = 2),
+  support interface: boundary(parent = body),
+) {
+
+  variable state: 1 on body;
   relation law on interface { trace(state) = 0; }
 }
 "#;
@@ -324,8 +327,9 @@ model M {
     }
 
     let coordinate = r#"
-component C {
-  public support body: volume(ambient_dimension = 2);
+component C(
+  support body: volume(ambient_dimension = 2),
+) {
   relation law on body { coordinate(2) = 0; }
 }
 model M {
@@ -343,17 +347,17 @@ model M {
     for (name, source, expected) in [
         (
             "private-support.eqi",
-            "component C { support body: volume(ambient_dimension = 2); } model M {}",
-            "support slot `body` must be public",
+            "component C() { support body: volume(ambient_dimension = 2); } model M {}",
+            "expected parameter, port, variable, state, initial, clock, relation, connect, or instance in component",
         ),
         (
             "zero-dimension-support.eqi",
-            "component C { public support body: volume(ambient_dimension = 0); } model M {}",
+            "component C(support body: volume(ambient_dimension = 0)) {} model M {}",
             "requires a positive ambient dimension",
         ),
         (
             "unknown-parent-support.eqi",
-            "component C { public support wall: boundary(parent = body); } model M {}",
+            "component C(support wall: boundary(parent = body)) {} model M {}",
             "refers to unknown parent slot `body`",
         ),
     ] {

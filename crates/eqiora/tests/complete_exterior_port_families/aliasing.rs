@@ -14,9 +14,10 @@ public connector MechanicalBoundary = field_physical(
   pairing = euclidean_boundary_duality
 );
 
-public component ExteriorLaw {
-  public support body: volume(ambient_dimension = 2);
-  public support exterior: complete_exterior(parent = body);
+public component ExteriorLaw(
+  support body: volume(ambient_dimension = 2),
+  support exterior: complete_exterior(parent = body),
+) {
   public port mechanical[boundary in exterior]:
     conserving MechanicalBoundary over boundary;
   relation boundary_law[boundary in exterior] on boundary {
@@ -37,9 +38,10 @@ fn root_source(alias: &str) -> String {
         r#"
 import mechanics_package.main as {alias};
 
-public component BoundaryTerminal {{
-  public support body: volume(ambient_dimension = 2);
-  public support face: boundary(parent = body);
+public component BoundaryTerminal(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+) {{
   public port mechanical: conserving {alias}.MechanicalBoundary over face;
   relation terminal_law on face {{
     trace(mechanical) - trace(mechanical) = 0;

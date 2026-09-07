@@ -141,12 +141,12 @@ fn geometry_identity_names_and_topology_are_fingerprint_meaning() {
         StructuralSemanticFingerprint::from_program(&baseline.program).unwrap();
     assert_eq!(
         baseline_fingerprint.generation(),
-        SemanticFingerprintGeneration::V6
+        SemanticFingerprintGeneration::V7
     );
     assert!(
         baseline_fingerprint
             .to_string()
-            .starts_with("eqiora.structural-semantic-fingerprint/v6:")
+            .starts_with("eqiora.structural-semantic-fingerprint/v7:")
     );
 
     let mut changed_digest = GeometryMeaning::default();
@@ -335,6 +335,7 @@ fn build_transaction(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
             ),
+            eqiora::kernel::FieldRole::Variable,
         ))),
         ExtraMeaning::RelationSupport => {}
         ExtraMeaning::BoundaryPortSupport => {

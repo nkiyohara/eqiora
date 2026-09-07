@@ -26,9 +26,9 @@ model scalar_physical_with_spatial_field {
     across = kg * m ^ 2 / (s ^ 3 * A),
     through = A
   );
-  representation scalar_space = continuum;
 
-  field potential on interval as scalar_space: 1 = 0;
+
+  variable potential: 1 on interval;
   port terminal_a: conserving on electrical;
   port terminal_b: conserving on electrical;
 
@@ -55,9 +55,10 @@ public connector MechanicalBoundary = field_physical(
   pairing = euclidean_boundary_duality
 );
 
-public component BoundarySide {
-  public support body: volume(ambient_dimension = 2);
-  public support interface: boundary(parent = body);
+public component BoundarySide(
+  support body: volume(ambient_dimension = 2),
+  support interface: boundary(parent = body),
+) {
   public port mechanical: conserving MechanicalBoundary over interface;
 
   relation carrier on interface {
@@ -72,9 +73,9 @@ model field_boundary_with_spatial_field {
   domain right = boundary(area, axis = 0, side = upper);
   domain bottom = boundary(area, axis = 1, side = lower);
   domain top = boundary(area, axis = 1, side = upper);
-  representation scalar_space = continuum;
 
-  field potential on area as scalar_space: 1 = 0;
+
+  variable potential: 1 on area;
   instance side_a: BoundarySide(
     support body = area,
     support interface = left
@@ -172,7 +173,7 @@ fn artifact_owner_replays_the_current_model_and_preserves_lineage() {
             eqiora_core::ScalarDomain::Real,
             DimExponents::DIMENSIONLESS,
         ),
-        Some(1.0),
+        eqiora::language::FieldRoleSyntax::State,
     );
     let rate = DraftParameter::new(
         "rate",
@@ -186,7 +187,11 @@ fn artifact_owner_replays_the_current_model_and_preserves_lineage() {
         "flow",
         [DraftExpression::derivative(&state) + rate.expression() * state.expression()],
     );
-    let draft = ModelDraft::new("decay", [state.into(), rate.into(), flow.into()]).unwrap();
+    let initial = eqiora::language::DraftDeclaration::Initial(vec![
+        state.expression() - DraftExpression::constant(1.0),
+    ]);
+    let draft =
+        ModelDraft::new("decay", [state.into(), rate.into(), flow.into(), initial]).unwrap();
     let model = ModelDocument::define(&draft).expect("current Model");
     let (realization, _) = resolved_realization(&model, 1);
     let artifact = AcceptedModelArtifact::from_program(model.program())

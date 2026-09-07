@@ -39,9 +39,8 @@ const PACKAGED: &str =
     include_str!("../../../verify/fluid/fieldwise-si-mini-stokes-2d/models/packaged.eqi");
 const COMPONENT_README: &[u8] =
     include_bytes!("../../../verify/fluid/packaged-steady-stokes-2d/package-v0.1.0/README.md");
-const COMPONENT_SOURCE: &[u8] = include_bytes!(
-    "../../../verify/fluid/packaged-steady-stokes-2d/package-v0.1.0/src/incompressible.eqi"
-);
+const COMPONENT_SOURCE: &[u8] =
+    include_bytes!("../../../verify/fluid/packaged-steady-stokes-2d/models/component.eqi");
 const ROOT_PACKAGE: &str = "org.eqiora.verify.fieldwise_si_mini_stokes_2d";
 const VERSION: &str = "0.1.0";
 
@@ -338,8 +337,8 @@ fn equation_aware_adapter_rejects_generic_plan_artifact_and_mesh_drift() {
     assert!(valid_run.validate_against(&other_realization).is_err());
 
     let wrong_shape = DIRECT.replace(
-        "field velocity on body as space: vector<m / s, 2>;",
-        "field velocity on body as space: vector<1, 2>;",
+        "variable velocity: vector<m / s, 2> on body;",
+        "variable velocity: vector<1, 2> on body;",
     );
     match eqiora::api::ModelDocument::compile("wrong-shape.eqi", &wrong_shape) {
         Err(diagnostics) => assert!(!diagnostics.is_empty()),

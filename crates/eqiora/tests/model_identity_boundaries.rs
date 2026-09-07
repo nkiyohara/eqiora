@@ -2,7 +2,7 @@ use eqiora::api::ModelDocument;
 
 const SOURCE: &str = r#"
 model Decay {
-  field x: 1 = 1;
+  state x: 1; initial { x = 1; }
   parameter rate: 1 / s = 2;
   relation law {
     derivative(x) + rate * x = 0;
@@ -40,7 +40,7 @@ fn source_mutations_separate_structure_from_exact_occurrence_identity() {
         (
             "initial state",
             "source.eqi",
-            SOURCE.replace("field x: 1 = 1", "field x: 1 = 3"),
+            SOURCE.replace("initial { x = 1; }", "initial { x = 3; }"),
             false,
         ),
         (

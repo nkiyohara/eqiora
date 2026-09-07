@@ -358,7 +358,7 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
             "  instance x_lower_condition: fluid.NoSlip2d(\n    support body = body, support face = x_lower\n  );",
         ),
         Inlet::NormalVelocity => (
-            r#"  field inlet_speed on body as space: m / s = 0;
+            r#"  variable inlet_speed: m / s on body;
   parameter inlet_speed_value: m / s = 1;
   relation inlet_speed_definition on body {
     inlet_speed - inlet_speed_value = 0;
@@ -371,8 +371,8 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
   );"#,
         ),
         Inlet::PrescribedVelocity => (
-            r#"  field inlet_potential on body as space: m ^ 2 / s = 0;
-  field inlet_velocity on body as space: vector<m / s, 2>;
+            r#"  variable inlet_potential: m ^ 2 / s on body;
+  variable inlet_velocity: vector<m / s, 2> on body;
   parameter inlet_speed: m / s = 1;
   relation inlet_potential_definition on body {
     inlet_potential - inlet_speed * coordinate(0) = 0;
@@ -398,7 +398,7 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
             "  instance x_upper_condition: fluid.TractionFree2d(\n    support body = body, support face = x_upper\n  );",
         ),
         Outlet::NormalPressure => (
-            r#"  field exterior_pressure on body as space: kg / (m * s ^ 2) = 0;
+            r#"  variable exterior_pressure: kg / (m * s ^ 2) on body;
   parameter ambient_pressure: kg / (m * s ^ 2) = 2;
   relation exterior_pressure_definition on body {
     exterior_pressure - ambient_pressure = 0;
@@ -411,9 +411,8 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
   );"#,
         ),
         Outlet::PrescribedTraction => (
-            r#"  field traction_potential on body as space: kg / s ^ 2 = 0;
-  field outlet_traction on body as space:
-    vector<kg / (m * s ^ 2), 2>;
+            r#"  variable traction_potential: kg / s ^ 2 on body;
+  variable outlet_traction: vector<kg / (m * s ^ 2), 2> on body;
   parameter outlet_stress: kg / (m * s ^ 2) = 2;
   relation traction_potential_definition on body {
     traction_potential - outlet_stress * coordinate(0) = 0;
@@ -436,10 +435,10 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
   domain x_upper = boundary(body, axis = 0, side = upper);
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
-  representation space = continuum;
-  field velocity on body as space: vector<m / s, 2>;
-  field pressure on body as space: kg / (m * s ^ 2) = 0;
-  field force_potential on body as space: kg / (m * s ^ 2) = 0;
+
+  variable velocity: vector<m / s, 2> on body;
+  variable pressure: kg / (m * s ^ 2) on body;
+  variable force_potential: kg / (m * s ^ 2) on body;
   parameter dynamic_viscosity: kg / (m * s) = 2;
   parameter zero_pressure: kg / (m * s ^ 2) = 0;
   relation force_definition on body {{

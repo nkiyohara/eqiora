@@ -188,9 +188,11 @@ fn explicit_membership_limit_precedes_geometric_elaboration() {
         .join(", ");
     let source = format!(
         r#"
-public component ExteriorContract {{
-  public support body: volume(ambient_dimension = 2);
-  public support exterior: complete_exterior(parent = body);
+public component ExteriorContract(
+  support body: volume(ambient_dimension = 2),
+  support exterior: complete_exterior(parent = body),
+) {{
+
 }}
 
 model Main {{
@@ -236,9 +238,10 @@ public connector BoundaryScalar = field_physical(
   frame = invariant,
   pairing = euclidean_boundary_duality
 );
-public component OverflowingFamily {{
-  public support body: volume(ambient_dimension = {overflowing_dimension});
-  public support exterior: complete_exterior(parent = body);
+public component OverflowingFamily(
+  support body: volume(ambient_dimension = {overflowing_dimension}),
+  support exterior: complete_exterior(parent = body),
+) {{
   public port boundary[member in exterior]: conserving BoundaryScalar over member;
 }}
 model Main {{}}

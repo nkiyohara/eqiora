@@ -12,7 +12,7 @@ fn native_and_source_models_share_structure_and_artifacts() {
             eqiora_core::ScalarDomain::Real,
             DimExponents::DIMENSIONLESS,
         ),
-        Some(1.0),
+        eqiora::language::FieldRoleSyntax::State,
     );
     let rate = DraftParameter::new(
         "rate",
@@ -27,7 +27,11 @@ fn native_and_source_models_share_structure_and_artifacts() {
         [DraftExpression::derivative(&state) + rate.expression() * state.expression()],
     );
     // Independent declaration order is presentation, not symbol resolution.
-    let draft = ModelDraft::new("decay", [rate.into(), state.into(), flow.into()]).unwrap();
+    let initial = eqiora::language::DraftDeclaration::Initial(vec![
+        state.expression() - DraftExpression::constant(1.0),
+    ]);
+    let draft =
+        ModelDraft::new("decay", [rate.into(), state.into(), flow.into(), initial]).unwrap();
 
     let source = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
     let native = ModelDocument::define(&draft).unwrap();
@@ -55,7 +59,7 @@ fn native_modeling_failures_have_paths_and_never_return_a_model() {
             eqiora_core::ScalarDomain::Real,
             DimExponents::DIMENSIONLESS,
         ),
-        Some(1.0),
+        eqiora::language::FieldRoleSyntax::Variable,
     );
     let foreign = DraftField::new(
         "x",
@@ -63,7 +67,7 @@ fn native_modeling_failures_have_paths_and_never_return_a_model() {
             eqiora_core::ScalarDomain::Real,
             DimExponents::DIMENSIONLESS,
         ),
-        Some(1.0),
+        eqiora::language::FieldRoleSyntax::Variable,
     );
     let relation = DraftRelation::continuous("flow", [foreign.expression()]);
     let diagnostic = ModelDraft::new("decay", [included.into(), relation.into()]).unwrap_err();
@@ -78,7 +82,7 @@ fn native_modeling_failures_have_paths_and_never_return_a_model() {
             eqiora_core::ScalarDomain::Real,
             DimExponents::from_integers([0, 0, 0, 0, 1, 0, 0]).expect("bounded dimension"),
         ),
-        Some(293.0),
+        eqiora::language::FieldRoleSyntax::Variable,
     );
     let duration = DraftParameter::new(
         "duration",

@@ -589,7 +589,7 @@ connector OtherFlange = scalar_physical(
   through = kg * m ^ 2 / s ^ 2
 );
 
-component OtherAnchor {
+component OtherAnchor() {
   public port shaft: conserving on OtherFlange;
   relation law { through(shaft) = 0; }
 }
@@ -1051,7 +1051,7 @@ fn exact_packages_execute_and_accept_one_sampled_acausal_drive() {
         "  clock sample = periodic(period = 1 / 100, phase = 0 / 1);",
         "  clock sample = periodic(period = 1 / 100, phase = 0 / 1);\n\
          \n\
-           field secondary_hold: kg * m ^ 2 / (s ^ 3 * A) = 0;\n\
+           state secondary_hold: kg * m ^ 2 / (s ^ 3 * A) at secondary; initial { secondary_hold = 0; }\n\
            clock secondary = periodic(period = 1 / 50, phase = 0 / 1);\n\
            relation secondary_update at secondary {\n\
              next(secondary_hold) - pre(secondary_hold) = 0;\n\

@@ -28,8 +28,8 @@ const SOURCE: &str = r#"model faer_sparse_lu_reuse {
   domain interval = box(0, 1);
   domain lower_end = boundary(interval, axis = 0, side = lower);
   domain upper_end = boundary(interval, axis = 0, side = upper);
-  representation scalar_space = continuum;
-  field potential on interval as scalar_space: 1 = 0;
+
+  variable potential: 1 on interval;
   parameter source_scale: 1 / m ^ 2 = 2;
   parameter diffusion: 1 = 1;
   parameter boundary_offset: 1 = 0;

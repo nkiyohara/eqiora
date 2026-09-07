@@ -23,11 +23,12 @@ public connector MechanicalBoundary = field_physical(
   shape = spatial_vector
 );
 
-public component ExteriorWrapper {
+public component ExteriorWrapper(
+  support exterior: complete_exterior(parent = body),
+  support body: volume(ambient_dimension = 2),
+) {
   public port mechanical[boundary in exterior]:
     conserving MechanicalBoundary over boundary;
-  public support exterior: complete_exterior(parent = body);
-  public support body: volume(ambient_dimension = 2);
 
   instance child: ExteriorLaw(
     support exterior = exterior,
@@ -39,10 +40,11 @@ public component ExteriorWrapper {
     child.mechanical[boundary = boundary];
 }
 
-public component BoundaryTerminal {
+public component BoundaryTerminal(
+  support face: boundary(parent = body),
+  support body: volume(ambient_dimension = 2),
+) {
   public port mechanical: conserving MechanicalBoundary over face;
-  public support face: boundary(parent = body);
-  public support body: volume(ambient_dimension = 2);
 
   relation terminal_law on face {
     trace(mechanical) - trace(mechanical) = 0;
@@ -50,7 +52,10 @@ public component BoundaryTerminal {
   }
 }
 
-public component ExteriorLaw {
+public component ExteriorLaw(
+  support exterior: complete_exterior(parent = body),
+  support body: volume(ambient_dimension = 2),
+) {
   relation boundary_law[boundary in exterior] on boundary {
     trace(mechanical[boundary = boundary])
       - trace(mechanical[boundary = boundary]) = 0;
@@ -60,8 +65,7 @@ public component ExteriorLaw {
 
   public port mechanical[boundary in exterior]:
     conserving MechanicalBoundary over boundary;
-  public support exterior: complete_exterior(parent = body);
-  public support body: volume(ambient_dimension = 2);
+
 }
 
 model Main {

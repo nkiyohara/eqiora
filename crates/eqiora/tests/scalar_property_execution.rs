@@ -136,7 +136,7 @@ public material composition MaterialA {
     let consumer = release(
         "org.example.MaterialConsumer",
         r#"
-public component Law {
+public component Law() {
   public property conductivity: props.Conductivity;
   public property capacity: props.Capacity;
   relation law { conductivity / capacity = 0; }
@@ -342,14 +342,15 @@ impl Consumer {
         };
         format!(
             r#"
-public component {core} {{
-  public support square: volume(ambient_dimension = 2);
-  public support x_lower: boundary(parent = square);
-  public support x_upper: boundary(parent = square);
-  public support y_lower: boundary(parent = square);
-  public support y_upper: boundary(parent = square);
-  representation scalar_space = continuum;
-  field {field} on square as scalar_space: 1 = 0;
+public component {core}(
+  support square: volume(ambient_dimension = 2),
+  support x_lower: boundary(parent = square),
+  support x_upper: boundary(parent = square),
+  support y_lower: boundary(parent = square),
+  support y_upper: boundary(parent = square),
+) {{
+
+  variable {field}: 1 on square;
 {coefficient_declaration}
   public parameter wave_number: 1 / m;
   public parameter source_scale: 1 / m ^ 2;
@@ -365,12 +366,13 @@ public component {core} {{
   relation y_upper_value on y_upper {{ trace({field}) - boundary_offset = 0; }}
 }}
 
-public component {wrapper} {{
-  public support square: volume(ambient_dimension = 2);
-  public support x_lower: boundary(parent = square);
-  public support x_upper: boundary(parent = square);
-  public support y_lower: boundary(parent = square);
-  public support y_upper: boundary(parent = square);
+public component {wrapper}(
+  support square: volume(ambient_dimension = 2),
+  support x_lower: boundary(parent = square),
+  support x_upper: boundary(parent = square),
+  support y_lower: boundary(parent = square),
+  support y_upper: boundary(parent = square),
+) {{
   public parameter wave_number: 1 / m;
   public parameter source_scale: 1 / m ^ 2;
   public parameter boundary_offset: 1;
@@ -515,14 +517,15 @@ public material composition ReferenceMaterial {{
     };
     format!(
         r#"{material}
-public component DiffusionLaw {{
-  public support square: volume(ambient_dimension = 2);
-  public support x_lower: boundary(parent = square);
-  public support x_upper: boundary(parent = square);
-  public support y_lower: boundary(parent = square);
-  public support y_upper: boundary(parent = square);
-  representation scalar_space = continuum;
-  field potential on square as scalar_space: 1 = 0;
+public component DiffusionLaw(
+  support square: volume(ambient_dimension = 2),
+  support x_lower: boundary(parent = square),
+  support x_upper: boundary(parent = square),
+  support y_lower: boundary(parent = square),
+  support y_upper: boundary(parent = square),
+) {{
+
+  variable potential: 1 on square;
 {coefficient_declarations}
   public parameter wave_number: 1 / m;
   public parameter source_scale: 1 / m ^ 2;
@@ -538,12 +541,13 @@ public component DiffusionLaw {{
   relation y_upper_value on y_upper {{ trace(potential) - boundary_offset = 0; }}
 }}
 
-public component ExecutableDiffusion {{
-  public support square: volume(ambient_dimension = 2);
-  public support x_lower: boundary(parent = square);
-  public support x_upper: boundary(parent = square);
-  public support y_lower: boundary(parent = square);
-  public support y_upper: boundary(parent = square);
+public component ExecutableDiffusion(
+  support square: volume(ambient_dimension = 2),
+  support x_lower: boundary(parent = square),
+  support x_upper: boundary(parent = square),
+  support y_lower: boundary(parent = square),
+  support y_upper: boundary(parent = square),
+) {{
   public parameter wave_number: 1 / m;
   public parameter source_scale: 1 / m ^ 2;
   public parameter boundary_offset: 1;
