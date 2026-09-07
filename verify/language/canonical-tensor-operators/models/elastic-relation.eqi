@@ -1,7 +1,6 @@
 model elastic_relation {
   domain body = box(0, 1, 0, 1);
-  representation space = continuum;
-  field displacement on body as space: vector<m, 2>;
+  variable displacement: vector<m, 2> on body;
   parameter mu: kg / (m * s ^ 2) = 2;
   parameter lambda: kg / (m * s ^ 2) = 3;
   relation balance on body {

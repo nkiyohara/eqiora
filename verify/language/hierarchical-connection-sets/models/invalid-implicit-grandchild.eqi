@@ -1,17 +1,17 @@
 connector Pin = scalar_physical(across = 1, through = 1);
 
-component Leaf {
+component Leaf() {
   public port p: conserving on Pin;
   relation owner { across(p) = 0; }
 }
 
-component Inner {
+component Inner() {
   public port p: conserving on Pin;
   instance leaf: Leaf;
   connect conserving p, leaf.p;
 }
 
-component BrokenOuter {
+component BrokenOuter() {
   public port p: conserving on Pin;
   instance inner: Inner;
 }

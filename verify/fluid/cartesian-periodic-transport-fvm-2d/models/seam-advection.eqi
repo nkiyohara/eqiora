@@ -6,11 +6,12 @@ public connector ScalarTransportBoundary = field_physical(
   pairing = euclidean_boundary_duality
 );
 
-public component PeriodicTransportSide2d {
-  public support body: volume(ambient_dimension = 2);
-  public support face: boundary(parent = body);
-  public field slot concentration on body as continuum: K;
-  public field slot flow_potential on body as continuum: m ^ 2 / s;
+public component PeriodicTransportSide2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+  variable concentration: K on body,
+  variable flow_potential: m ^ 2 / s on body,
+) {
   public parameter diffusivity: m ^ 2 / s;
   public port transport: conserving ScalarTransportBoundary over face;
 
@@ -29,9 +30,9 @@ model Main {
   domain x_upper = boundary(body, axis = 0, side = upper);
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
-  representation space = continuum;
-  field concentration on body as space: K = 1;
-  field flow_potential on body as space: m ^ 2 / s = 0;
+  state concentration: K on body;
+  initial { concentration = 1; }
+  variable flow_potential: m ^ 2 / s on body;
   parameter speed: m / s = 1;
   parameter diffusivity: m ^ 2 / s = 0.2;
   relation flow_definition on body {

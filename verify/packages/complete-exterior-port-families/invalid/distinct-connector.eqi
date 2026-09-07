@@ -14,16 +14,18 @@ public connector TerminalBoundary = field_physical(
   pairing = euclidean_boundary_duality
 );
 
-public component ExteriorLaw {
-  public support body: volume(ambient_dimension = 2);
-  public support exterior: complete_exterior(parent = body);
+public component ExteriorLaw(
+  support body: volume(ambient_dimension = 2),
+  support exterior: complete_exterior(parent = body),
+) {
   public port mechanical[boundary in exterior]:
     conserving SolidBoundary over boundary;
 }
 
-public component BoundaryTerminal {
-  public support body: volume(ambient_dimension = 2);
-  public support face: boundary(parent = body);
+public component BoundaryTerminal(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+) {
   public port mechanical: conserving TerminalBoundary over face;
 }
 

@@ -3,7 +3,7 @@ connector Pin = scalar_physical(
   through = A
 );
 
-component Ground {
+component Ground() {
   relation law {
     across(terminal) = 0;
   }
@@ -11,7 +11,7 @@ component Ground {
   public port terminal: conserving on Pin;
 }
 
-component Resistor {
+component Resistor() {
   public port negative: conserving on Pin;
   public port positive: conserving on Pin;
   public parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2);
@@ -22,7 +22,7 @@ component Resistor {
   }
 }
 
-component VoltageSource {
+component VoltageSource() {
   public port negative: conserving on Pin;
   public parameter voltage: kg * m ^ 2 / (s ^ 3 * A);
   public port positive: conserving on Pin;
@@ -33,7 +33,7 @@ component VoltageSource {
   }
 }
 
-component ParallelDc {
+component ParallelDc() {
   public parameter resistance_four: kg * m ^ 2 / (s ^ 3 * A ^ 2);
   public parameter supply_voltage: kg * m ^ 2 / (s ^ 3 * A);
   public parameter resistance_two: kg * m ^ 2 / (s ^ 3 * A ^ 2);

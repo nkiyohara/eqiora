@@ -1,6 +1,6 @@
 connector Pin = scalar_physical(across = 1, through = 1);
 
-component ClosedLeaf {
+component ClosedLeaf() {
   public port a: conserving on Pin;
   public port b: conserving on Pin;
   relation law {
@@ -9,7 +9,7 @@ component ClosedLeaf {
   connect conserving a, b;
 }
 
-component BrokenParent {
+component BrokenParent() {
   instance leaf: ClosedLeaf;
   connect conserving leaf.a, leaf.b;
 }

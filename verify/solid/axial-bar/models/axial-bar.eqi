@@ -2,9 +2,8 @@ model axial_bar {
   domain bar = box(0, 2);
   domain fixed_end = boundary(bar, axis = 0, side = lower);
   domain loaded_end = boundary(bar, axis = 0, side = upper);
-  representation body_space = continuum;
 
-  field displacement on bar as body_space: m = 0;
+  variable displacement: m on bar;
   parameter youngs_modulus: kg / m / s ^ 2 = 200e9;
   parameter area: m ^ 2 = 0.01;
   parameter applied_force: kg * m / s ^ 2 = 10000;

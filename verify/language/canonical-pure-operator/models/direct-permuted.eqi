@@ -3,10 +3,9 @@ public pure operator dyadic(a: spatial[1], b: spatial[1]) -> spatial[2]
   = component(a, 0) * component(b, 1);
 
 model Main {
-  representation space = continuum;
   domain body = box(0, 1, 0, 1);
-  field right on body as space: vector<1, 2>;
-  field left on body as space: vector<1, 2>;
+  variable right: vector<1, 2> on body;
+  variable left: vector<1, 2> on body;
   relation balance on body {
     div(div(dyadic(left, right))) = 0;
   }

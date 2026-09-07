@@ -1,6 +1,7 @@
-public component BoundaryTerminal {
-  public support body: volume(ambient_dimension = 2);
-  public support face: boundary(parent = body);
+public component BoundaryTerminal(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+) {
   public port mechanical:
     conserving solid.QuasistaticMechanicalBoundary over face;
 
@@ -15,8 +16,7 @@ model Main {
   domain x_upper = boundary(body, axis = 0, side = upper);
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
-  representation space = continuum;
-  field displacement on body as space: vector<m, 2>;
+  variable displacement: vector<m, 2> on body;
   parameter lambda: kg / (m * s ^ 2) = 2;
   parameter mu: kg / (m * s ^ 2) = 3;
 

@@ -2,7 +2,6 @@ model Valid {}
 
 model Invalid {
   domain line = box(0, 1);
-  representation space = continuum;
-  field position on line as space: m = 0;
+  variable position: m on line;
   relation invalid on line { coordinate(1) - position = 0; }
 }

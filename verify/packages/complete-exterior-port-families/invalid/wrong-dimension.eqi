@@ -1,6 +1,7 @@
-public component ExteriorContract3d {
-  public support body: volume(ambient_dimension = 3);
-  public support exterior: complete_exterior(parent = body);
+public component ExteriorContract3d(
+  support body: volume(ambient_dimension = 3),
+  support exterior: complete_exterior(parent = body),
+) {
 }
 
 model Main {
