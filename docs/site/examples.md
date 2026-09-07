@@ -86,7 +86,18 @@ fluid = graph.subtract(rectangle, circle)
 geometry = graph.build(fluid, named_topology={...})
 mesh_plan = eqiora.meshing.resolve(geometry, eqiora.meshing.GmshMesher(...))
 mesh = eqiora.meshing.generate(mesh_plan)
-model = eqiora.compile(path=source_path, geometry=geometry, parameters={...})
+model = eqiora.compile(
+    path=source_path, geometry=geometry, entry="SteadyFlowPastCylinder",
+    bindings={
+        "fluid": geometry.selection("fluid"),
+        **{
+            side: (geometry.selection(side), geometry.selection("fluid"))
+            for side in ("inlet", "outlet", "walls", "cylinder")
+        },
+        "dynamic_viscosity": 0.001, "zero_pressure": 0.0,
+        "inlet_speed": 0.3, "channel_height": 0.41,
+    },
+)
 ```
 
 Compilation owns mathematical meaning; the meshing provider owns realization

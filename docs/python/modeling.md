@@ -324,7 +324,7 @@ assert eqiora.open_project(".", store_root) == resolution
 model = eqiora.compile_package(
     store_root,
     resolution,
-    entry_model="materials.Calibration",
+    entry="materials.Calibration",
 )
 ```
 
