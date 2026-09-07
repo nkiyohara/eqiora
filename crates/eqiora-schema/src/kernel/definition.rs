@@ -66,58 +66,32 @@ impl RepresentationDef {
     }
 }
 
+/// Mathematical evolution ownership, independent of support and scalar type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FieldRole {
+    /// An algebraic unknown; coordinate derivatives do not change its role.
+    Variable,
+    /// An owned state eligible for evolution at its declared activation.
+    State,
+}
+
 /// Exact mathematical Field definition before realization.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FieldDef {
     id: Id<kinds::Field>,
     value_type: ValueType,
-    initial: Option<ValueLiteral>,
+    role: FieldRole,
 }
 
 impl FieldDef {
     /// Define a Field with one complete checked mathematical type.
     #[must_use]
-    pub fn new(id: Id<kinds::Field>, value_type: ValueType) -> Self {
+    pub fn new(id: Id<kinds::Field>, value_type: ValueType, role: FieldRole) -> Self {
         Self {
             id,
             value_type,
-            initial: None,
+            role,
         }
-    }
-
-    /// Attach a fully typed initial value, allowing real-to-complex embedding.
-    ///
-    /// # Errors
-    /// Rejects mismatched dimensions, shapes, frames, or scalar-domain narrowing.
-    pub fn with_initial(mut self, initial: ValueLiteral) -> Result<Self, Diagnostic> {
-        if initial.value_type().dimension() != self.dimension() {
-            return Err(Diagnostic::error(
-                codes::DIMENSION_MISMATCH,
-                format!(
-                    "Field initial dimension [{}] differs from declared [{}]",
-                    initial.value_type().dimension(),
-                    self.dimension()
-                ),
-            )
-            .with_graph_path(kernel_path(self.id.erase())));
-        }
-        if initial
-            .value_type()
-            .clone()
-            .with_common_scalar_domain(&self.value_type)
-            != self.value_type
-        {
-            return Err(Diagnostic::error(
-                codes::INVALID_KERNEL_DEFINITION,
-                "Field initial value type differs from the declared type",
-            )
-            .with_graph_path(kernel_path(self.id.erase())));
-        }
-        self.initial = Some(
-            ValueLiteral::new(self.value_type.clone(), initial.literal())
-                .expect("embedding a validated literal preserves its shape and finiteness"),
-        );
-        Ok(self)
     }
 
     /// Typed Field ID.
@@ -150,10 +124,10 @@ impl FieldDef {
         &self.value_type
     }
 
-    /// Initial value when supplied by the model.
+    /// Author-declared evolution ownership; solver transformations cannot change it.
     #[must_use]
-    pub const fn initial(&self) -> Option<&ValueLiteral> {
-        self.initial.as_ref()
+    pub const fn role(&self) -> FieldRole {
+        self.role
     }
 }
 
@@ -336,13 +310,34 @@ impl PortDef {
 pub struct RelationDef {
     id: Id<kinds::Relation>,
     residuals: ExprDag,
+    initial: bool,
 }
 
 impl RelationDef {
     /// Define one or more residual equations represented by an expression DAG.
     #[must_use]
     pub const fn new(id: Id<kinds::Relation>, residuals: ExprDag) -> Self {
-        Self { id, residuals }
+        Self {
+            id,
+            residuals,
+            initial: false,
+        }
+    }
+
+    /// Define simultaneous fresh-initialization equations using the same residual DAG.
+    #[must_use]
+    pub const fn initial(id: Id<kinds::Relation>, residuals: ExprDag) -> Self {
+        Self {
+            id,
+            residuals,
+            initial: true,
+        }
+    }
+
+    /// Whether this mathematics applies only to fresh initialization, never restart.
+    #[must_use]
+    pub const fn is_initial(&self) -> bool {
+        self.initial
     }
 
     /// Typed Relation ID.
@@ -639,8 +634,6 @@ impl KernelNode {
     #[must_use]
     pub const fn value_dimension(&self) -> Option<DimExponents> {
         match self {
-            Self::Field(value) if value.shape().is_scalar() => Some(value.dimension()),
-            Self::Field(_) => None,
             Self::Parameter(value) => match value.real_scalar_value() {
                 Some(value) => Some(value.dim()),
                 None => None,
@@ -653,10 +646,6 @@ impl KernelNode {
     #[must_use]
     pub const fn initial_value(&self) -> Option<DynQuantity> {
         match self {
-            Self::Field(value) => match value.initial() {
-                Some(initial) => initial.real_scalar_value(),
-                None => None,
-            },
             Self::Parameter(value) => value.real_scalar_value(),
             _ => None,
         }

@@ -9,6 +9,21 @@ use super::{
 };
 
 impl SourceAstFactory {
+    /// Construct one borrowed exact-clock requirement without declaring a period.
+    ///
+    /// # Errors
+    /// Rejects malformed identifiers and ranges.
+    pub fn clock_requirement(
+        name: impl Into<String>,
+        range: TextRange,
+    ) -> Result<crate::ClockRequirementDecl, AstConstructionError> {
+        Ok(crate::ClockRequirementDecl {
+            comments: Default::default(),
+            name: checked_identifier(name, "required clock")?,
+            range: checked_range(range)?,
+        })
+    }
+
     /// Construct one reusable Component declaration.
     ///
     /// # Errors

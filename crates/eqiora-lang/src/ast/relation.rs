@@ -2,6 +2,28 @@
 
 use super::{BoundaryFamilyBinderSyntax, Expr, TextRange};
 
+/// Simultaneous mathematical conditions used only for fresh initialization.
+#[derive(Debug, Clone, PartialEq)]
+pub struct InitialDecl {
+    pub(crate) comments: crate::ast::comments::SourceComments,
+    pub(crate) equations: Vec<Equation>,
+    pub(crate) range: TextRange,
+}
+
+impl InitialDecl {
+    /// Conditions in authored order; their semantics are simultaneous.
+    #[must_use]
+    pub fn equations(&self) -> &[Equation] {
+        &self.equations
+    }
+
+    /// Full initialization-block range.
+    #[must_use]
+    pub const fn range(&self) -> TextRange {
+        self.range
+    }
+}
+
 /// Relation declaration.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RelationDecl {

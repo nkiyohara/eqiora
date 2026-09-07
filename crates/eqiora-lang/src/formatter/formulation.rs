@@ -3,7 +3,7 @@
 use core::fmt::Write;
 
 use crate::ast::formulation::FormulationDecl;
-use crate::ast::{ComponentDecl, VisibilitySyntax};
+use crate::ast::{ComponentDecl, ComponentItem, VisibilitySyntax};
 
 use super::{
     format_component_item, format_component_requirements, format_expression, write_indent,
@@ -17,9 +17,22 @@ pub(super) fn format_component(
     if component.visibility == VisibilitySyntax::Public {
         output.push_str("public ");
     }
-    writeln!(output, "component {} {{", component.name).expect("String write");
+    write!(output, "component {}(", component.name).expect("String write");
+    let requirements: Vec<_> = component
+        .items
+        .iter()
+        .filter(|item| is_requirement(item))
+        .collect();
+    if !requirements.is_empty() {
+        output.push_str("\n");
+        for item in &requirements {
+            super::format_component_requirement(item, 2, output);
+            output.push_str(",\n");
+        }
+    }
+    output.push_str(") {\n");
     format_component_requirements(component, output);
-    for item in &component.items {
+    for item in component.items.iter().filter(|item| !is_requirement(item)) {
         format_component_item(item, 2, output);
     }
     for formulation in &component.formulations {
@@ -27,6 +40,15 @@ pub(super) fn format_component(
     }
     output.push_str("}\n");
     output.end();
+}
+
+fn is_requirement(item: &ComponentItem) -> bool {
+    matches!(
+        item,
+        ComponentItem::Support(_)
+            | ComponentItem::FieldRequirement(_)
+            | ComponentItem::ClockRequirement(_)
+    )
 }
 
 pub(super) fn format_formulation(

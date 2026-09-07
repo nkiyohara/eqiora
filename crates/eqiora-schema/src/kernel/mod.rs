@@ -19,8 +19,9 @@ pub use boundary_physical::{
 pub use definition::{
     ActivationDef, ActivationKind, AxisBounds, BoundarySide, CartesianAxisDefinition,
     CartesianCoordinateSource, ClockDomainDef, ClockKind, ConnectionDef, ConnectionSemantics,
-    DomainDef, DomainKind, EventDirection, FieldDef, GeometryDigest, KernelNode, ParameterDef,
-    PortDef, PortPayload, RelationDef, RepresentationDef, RepresentationKind, SignalDirection,
+    DomainDef, DomainKind, EventDirection, FieldDef, FieldRole, GeometryDigest, KernelNode,
+    ParameterDef, PortDef, PortPayload, RelationDef, RepresentationDef, RepresentationKind,
+    SignalDirection,
 };
 pub use expression::{
     ExprDag, ExprDagBuilder, ExprId, ExprNode, PureOperatorApplication, SymbolRef,

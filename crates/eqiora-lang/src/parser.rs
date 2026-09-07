@@ -13,6 +13,7 @@ mod instance;
 mod operator;
 mod property;
 mod relation;
+mod signature;
 mod value_type;
 
 use crate::ast::{
@@ -22,8 +23,8 @@ use crate::ast::{
     ComponentParameterDecl, ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl,
     ConnectionSyntax, ConnectorDecl, ConnectorQuantitySyntax, ConnectorSyntax, Document,
     DomainDecl, DomainSyntax, ExactIntegerSyntax, Expr, ExprKind, FieldBindingDecl, FieldDecl,
-    FieldSlotDecl, FrameSyntax, InstanceDecl, Item, NamePath, ParameterBindingDecl, PortDecl,
-    PortSyntax, PureOperatorBinaryOp, PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind,
+    FrameSyntax, InstanceDecl, Item, NamePath, ParameterBindingDecl, PortDecl, PortSyntax,
+    PureOperatorBinaryOp, PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind,
     PureOperatorFormal, PureValueClassSyntax, RationalSyntax, RepresentationDecl,
     RepresentationSyntax, SignalDirectionSyntax, SupportBindingDecl, SupportSlotDecl,
     SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, VisibilitySyntax,
@@ -229,38 +230,16 @@ impl Parser<'_> {
                 }))
             });
         }
-        if self.at_keyword("support") {
-            return self
-                .parse_support_slot(start, visibility)
-                .map(ComponentItem::Support)
-                .map(Box::new)
-                .map(ParsedComponentItem::Retained);
-        }
-        if public && self.at_field_slot_declaration() {
-            return self
-                .parse_field_slot(start)
-                .map(ComponentItem::FieldSlot)
-                .map(Box::new)
-                .map(ParsedComponentItem::Retained);
-        }
-
-        if !public && self.at_field_slot_declaration() {
-            let token = self.current().clone();
-            self.error_token(&token, "`field slot` declarations must be public in v1");
-            self.parse_field_slot(start)?;
-            return Some(ParsedComponentItem::Discarded);
-        }
-
         if public {
             let token = self.current().clone();
             self.error_token(
                 &token,
-                "only scalar `parameter`, `port`, `support`, and `field slot` declarations may be public",
+                "only `parameter` and `port` body declarations may be public; support and unknown requirements belong in the signature",
             );
             if self.at_keyword("representation") {
                 self.parse_representation()?;
-            } else if self.at_keyword("field") {
-                self.parse_field()?;
+            } else if self.at_keyword("variable") || self.at_keyword("state") {
+                self.parse_field(true)?;
             } else if self.at_keyword("clock") {
                 self.parse_clock()?;
             } else if self.at_keyword("relation") {
@@ -278,8 +257,10 @@ impl Parser<'_> {
         let item = if self.at_keyword("representation") {
             self.parse_representation()
                 .map(ComponentItem::Representation)
-        } else if self.at_keyword("field") {
-            self.parse_field().map(ComponentItem::Field)
+        } else if self.at_keyword("variable") || self.at_keyword("state") {
+            self.parse_field(true).map(ComponentItem::Field)
+        } else if self.at_keyword("initial") {
+            self.parse_initial().map(ComponentItem::Initial)
         } else if self.at_keyword("clock") {
             self.parse_clock().map(ComponentItem::Clock)
         } else if self.at_keyword("relation") {
@@ -312,8 +293,10 @@ impl Parser<'_> {
             self.parse_domain().map(Item::Domain)
         } else if self.at_keyword("representation") {
             self.parse_representation().map(Item::Representation)
-        } else if self.at_keyword("field") {
-            self.parse_field().map(Item::Field)
+        } else if self.at_keyword("variable") || self.at_keyword("state") {
+            self.parse_field(true).map(Item::Field)
+        } else if self.at_keyword("initial") {
+            self.parse_initial().map(Item::Initial)
         } else if self.at_keyword("parameter") {
             self.parse_parameter().map(Item::Parameter)
         } else if self.at_keyword("let") {
@@ -529,53 +512,50 @@ impl Parser<'_> {
         })
     }
 
-    fn parse_field(&mut self) -> Option<FieldDecl> {
-        let start = self.expect_keyword("field")?.range().start();
+    fn parse_field(&mut self, terminated: bool) -> Option<FieldDecl> {
+        let role = if self.at_keyword("variable") {
+            crate::ast::FieldRoleSyntax::Variable
+        } else if self.at_keyword("state") {
+            crate::ast::FieldRoleSyntax::State
+        } else {
+            self.error_here("expected `variable` or `state`");
+            return None;
+        };
+        let start = self.bump().range().start();
         let name = self
             .expect_identifier("declaration name")?
             .text()
             .to_owned();
-        let (domain, representation) = if self.at_keyword("on") {
-            self.bump();
-            let domain = self.expect_identifier("Field Domain")?.text().to_owned();
-            self.expect_keyword("as")?;
-            let representation = self
-                .expect_identifier("Field Representation")?
-                .text()
-                .to_owned();
-            (Some(domain), Some(representation))
-        } else {
-            (None, None)
-        };
         self.expect(TokenKind::Colon, "`:` before mathematical type")?;
         let value_type = self.parse_value_type()?;
-        let scalar = value_type.is_scalar();
-        let initial = if self.at(TokenKind::Equal) {
+        let domain = if self.at_keyword("on") {
             self.bump();
-            let initial = self.parse_signed_quantity_literal()?;
-            if !scalar
-                && !matches!(
-                    initial.kind(),
-                    ExprKind::Number(0.0) | ExprKind::Quantity { value: 0.0, .. }
-                )
-            {
-                self.error_here("non-scalar Field cannot have a scalar initial value; only contextual zero is supported");
-            }
-            Some(initial)
+            Some(self.expect_identifier("unknown support")?.text().to_owned())
         } else {
             None
         };
-        let end = self
-            .expect(TokenKind::Semicolon, "`;` after declaration")?
-            .range()
-            .end();
+        let activation = if self.at_keyword("at") {
+            self.bump();
+            crate::ActivationSyntax::Periodic(
+                self.expect_identifier("unknown clock")?.text().to_owned(),
+            )
+        } else {
+            crate::ActivationSyntax::Continuous
+        };
+        let end = if terminated {
+            self.expect(TokenKind::Semicolon, "`;` after declaration")?
+                .range()
+                .end()
+        } else {
+            self.previous_significant_range().end()
+        };
         Some(FieldDecl {
             comments: Default::default(),
             name,
             domain,
-            representation,
+            role,
+            activation,
             value_type,
-            initial,
             range: TextRange::new(start, end),
         })
     }
@@ -666,44 +646,12 @@ impl Parser<'_> {
             );
             return None;
         };
-        let end = self
-            .expect(TokenKind::Semicolon, "`;` after support slot")?
-            .range()
-            .end();
+        let end = self.previous_significant_range().end();
         Some(SupportSlotDecl {
             comments: Default::default(),
             visibility,
             name,
             syntax,
-            range: TextRange::new(start, end),
-        })
-    }
-
-    fn parse_field_slot(&mut self, start: u32) -> Option<FieldSlotDecl> {
-        self.expect_keyword("field")?;
-        self.expect_keyword("slot")?;
-        let name = self
-            .expect_identifier("component Field-slot name")?
-            .text()
-            .to_owned();
-        self.expect_keyword("on")?;
-        let support = self
-            .expect_identifier("Field-slot support name")?
-            .text()
-            .to_owned();
-        self.expect_keyword("as")?;
-        self.expect_keyword("continuum")?;
-        self.expect(TokenKind::Colon, "`:` before Field-slot type")?;
-        let value_type = self.parse_value_type()?;
-        let end = self
-            .expect(TokenKind::Semicolon, "`;` after Field slot")?
-            .range()
-            .end();
-        Some(FieldSlotDecl {
-            comments: Default::default(),
-            name,
-            support,
-            value_type,
             range: TextRange::new(start, end),
         })
     }

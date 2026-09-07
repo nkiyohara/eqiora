@@ -74,20 +74,14 @@ impl super::ModelDraft {
                         .spatial_scope
                         .as_ref()
                         .map(|scope| scope.domain.name().to_owned()),
-                    representation: field
-                        .spatial_scope
-                        .as_ref()
-                        .map(|scope| scope.representation.name.clone()),
+                    role: field.role,
+                    activation: ActivationSyntax::Continuous,
                     value_type: value_type::project(
                         &field.value_type,
                         &path,
                         &mut ranges,
                         &mut paths,
                     ),
-                    initial: field.initial.map(|value| Expr {
-                        kind: ExprKind::Number(value),
-                        range,
-                    }),
                     range,
                 }),
                 DraftDeclaration::Parameter(parameter) => Item::Parameter(ParameterDecl {

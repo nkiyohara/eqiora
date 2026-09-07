@@ -72,7 +72,9 @@ impl EdgeKind {
             Self::HasPort => matches!(from, K::Relation) && matches!(to, K::Port),
             Self::Activates => matches!(from, K::Activation) && matches!(to, K::Relation),
             Self::Connects => matches!(from, K::Connection) && matches!(to, K::Port),
-            Self::ClockedBy => matches!(from, K::Activation) && matches!(to, K::ClockDomain),
+            Self::ClockedBy => {
+                matches!(from, K::Activation | K::Field) && matches!(to, K::ClockDomain)
+            }
             Self::Realizes => {
                 matches!(from.graph(), G::Realization) && matches!(to.graph(), G::Semantic)
             }

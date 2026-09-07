@@ -143,24 +143,8 @@ impl ModelDraft {
             }
             match declaration {
                 DraftDeclaration::Field(field) => {
-                    if field.initial.is_some_and(|initial| !initial.is_finite()) {
-                        diagnostics.push(native_diagnostic(
-                            &self.name,
-                            field.name(),
-                            "Field initial value must be finite",
-                        ));
-                    }
                     if let Err(message) = value_type::validate(&field.value_type) {
                         diagnostics.push(native_diagnostic(&self.name, field.name(), message));
-                    }
-                    if !field.value_type.shape().is_scalar()
-                        && field.initial.is_some_and(|value| value != 0.0)
-                    {
-                        diagnostics.push(native_diagnostic(
-                            &self.name,
-                            field.name(),
-                            "non-scalar Field cannot have a scalar initial value",
-                        ));
                     }
                 }
                 DraftDeclaration::Parameter(parameter) => {
@@ -587,7 +571,7 @@ pub struct DraftField {
     symbol: DraftSymbol,
     name: String,
     value_type: ValueType,
-    initial: Option<f64>,
+    role: crate::ast::FieldRoleSyntax,
     spatial_scope: Option<DraftSpatialScope>,
 }
 
@@ -598,14 +582,18 @@ struct DraftSpatialScope {
 }
 
 impl DraftField {
-    /// Declare one Field with an exact type and optional scalar or contextual-zero initializer.
+    /// Declare one unknown with its complete type and explicit evolution role.
     #[must_use]
-    pub fn new(name: impl Into<String>, value_type: ValueType, initial: Option<f64>) -> Self {
+    pub fn new(
+        name: impl Into<String>,
+        value_type: ValueType,
+        role: crate::ast::FieldRoleSyntax,
+    ) -> Self {
         Self {
             symbol: DraftSymbol::new(),
             name: name.into(),
             value_type,
-            initial,
+            role,
             spatial_scope: None,
         }
     }
@@ -618,13 +606,13 @@ impl DraftField {
         domain: &DraftSpatialDomain,
         representation: &DraftRepresentation,
         value_type: ValueType,
-        initial: Option<f64>,
+        role: crate::ast::FieldRoleSyntax,
     ) -> Self {
         Self {
             symbol: DraftSymbol::new(),
             name: name.into(),
             value_type,
-            initial,
+            role,
             spatial_scope: Some(DraftSpatialScope {
                 domain: domain.clone(),
                 representation: representation.clone(),
@@ -650,10 +638,10 @@ impl DraftField {
         &self.value_type
     }
 
-    /// Initial value in coherent SI units.
+    /// Declared evolution role, independent of numerical initialization guesses.
     #[must_use]
-    pub const fn initial(&self) -> Option<f64> {
-        self.initial
+    pub const fn role(&self) -> crate::ast::FieldRoleSyntax {
+        self.role
     }
 
     /// Exact draft-local spatial Domain, when distributed.

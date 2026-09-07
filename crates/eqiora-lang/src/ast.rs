@@ -6,7 +6,7 @@ pub(crate) mod document;
 pub(crate) mod formulation;
 mod name_path;
 mod relation;
-pub use relation::{ActivationSyntax, Equation, RelationDecl, RelationFamilyDecl};
+pub use relation::{ActivationSyntax, Equation, InitialDecl, RelationDecl, RelationFamilyDecl};
 mod value_type;
 
 pub use value_type::{ValueTypeSyntax, ValueTypeSyntaxKind};
@@ -451,52 +451,8 @@ impl BoundaryFamilyBinderSyntax {
     }
 }
 
-/// Required occurrence-bound continuum Field interface.
-///
-/// A Field slot does not own state and does not become a Semantic Kernel node.
-/// Each component occurrence binds it to one exact enclosing Field before
-/// deterministic expansion. V1 slots are necessarily public and continuum,
-/// so neither property is represented as mutable syntax state here.
-#[derive(Debug, Clone, PartialEq)]
-pub struct FieldSlotDecl {
-    pub(crate) comments: crate::ast::comments::SourceComments,
-    pub(crate) name: String,
-    pub(crate) support: String,
-    pub(crate) value_type: ValueTypeSyntax,
-    pub(crate) range: TextRange,
-}
-
-impl FieldSlotDecl {
-    /// Public Field-slot name in this component definition.
-    #[must_use]
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Component support-slot name on which the required Field is defined.
-    #[must_use]
-    pub fn support(&self) -> &str {
-        &self.support
-    }
-
-    /// Complete required mathematical type.
-    #[must_use]
-    pub const fn value_type(&self) -> &ValueTypeSyntax {
-        &self.value_type
-    }
-
-    /// Full declaration range, including the required `public` modifier.
-    #[must_use]
-    pub const fn range(&self) -> TextRange {
-        self.range
-    }
-}
-
-/// Component-body declaration.
-///
-/// Parameter, Port, and Support carry general visibility. Field slots are
-/// public by construction. Public Representations, owned Fields, Relations,
-/// Connections, Clocks, and nested instances remain unrepresentable.
+/// Component signature requirements and private implementation declarations.
+/// Parameter, Port, and property interface convergence is owned by its later slice.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ComponentItem {
@@ -508,12 +464,16 @@ pub enum ComponentItem {
     PortFamily(ComponentPortFamilyDecl),
     /// Required occurrence-bound spatial support.
     Support(SupportSlotDecl),
-    /// Required occurrence-bound continuum Field.
-    FieldSlot(FieldSlotDecl),
+    /// Exact borrowed unknown requirement in the Component signature.
+    FieldRequirement(FieldDecl),
+    /// Exact nominal clock requirement in the Component signature.
+    ClockRequirement(ClockRequirementDecl),
     /// Private canonical field representation.
     Representation(RepresentationDecl),
     /// Private mutable state.
     Field(FieldDecl),
+    /// Simultaneous fresh initialization, owned by this occurrence.
+    Initial(InitialDecl),
     /// Private exact periodic clock.
     Clock(ClockDecl),
     /// Private implicit residual group.
@@ -538,6 +498,8 @@ pub enum Item {
     Representation(RepresentationDecl),
     /// Mutable model state.
     Field(FieldDecl),
+    /// Simultaneous fresh initialization, separate from numerical guesses.
+    Initial(InitialDecl),
     /// Revision-local design value.
     Parameter(ParameterDecl),
     /// Typed compile-time expression alias expanded before Kernel lowering.
@@ -837,6 +799,28 @@ impl RepresentationDecl {
     }
 }
 
+/// Borrowed exact clock requirement; it does not declare another period or phase.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClockRequirementDecl {
+    pub(crate) comments: crate::ast::comments::SourceComments,
+    pub(crate) name: String,
+    pub(crate) range: TextRange,
+}
+
+impl ClockRequirementDecl {
+    /// Signature name used by dependent unknown and Relation activation clauses.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Full signature-entry range.
+    #[must_use]
+    pub const fn range(&self) -> TextRange {
+        self.range
+    }
+}
+
 /// Source representation family.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
@@ -845,15 +829,24 @@ pub enum RepresentationSyntax {
     Continuum,
 }
 
-/// Field source declaration.
+/// Author-declared mathematical evolution role.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FieldRoleSyntax {
+    /// Algebraic unknown; spatial differentiability does not imply state ownership.
+    Variable,
+    /// Owned evolving state at the declared continuous or clocked activation.
+    State,
+}
+
+/// A source unknown with independent role, support, and activation.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FieldDecl {
     pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) name: String,
     pub(crate) domain: Option<String>,
-    pub(crate) representation: Option<String>,
+    pub(crate) role: FieldRoleSyntax,
+    pub(crate) activation: ActivationSyntax,
     pub(crate) value_type: ValueTypeSyntax,
-    pub(crate) initial: Option<Expr>,
     pub(crate) range: TextRange,
 }
 
@@ -870,10 +863,16 @@ impl FieldDecl {
         self.domain.as_deref()
     }
 
-    /// Canonical Representation when this is a distributed Field.
+    /// Author-declared evolution ownership.
     #[must_use]
-    pub fn representation(&self) -> Option<&str> {
-        self.representation.as_deref()
+    pub const fn role(&self) -> FieldRoleSyntax {
+        self.role
+    }
+
+    /// Activation independent of support and scalar type.
+    #[must_use]
+    pub const fn activation(&self) -> &ActivationSyntax {
+        &self.activation
     }
 
     /// Complete declared mathematical type.
@@ -886,13 +885,6 @@ impl FieldDecl {
     #[must_use]
     pub fn dimension(&self) -> &Expr {
         self.value_type.dimension()
-    }
-
-    /// Numeric or explicitly unit-bearing initial literal.
-    /// Bare literals inherit declared units; shaped values admit contextual zero.
-    #[must_use]
-    pub const fn initial(&self) -> Option<&Expr> {
-        self.initial.as_ref()
     }
 
     /// Full declaration range.

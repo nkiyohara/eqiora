@@ -14,8 +14,8 @@ impl Parser<'_> {
     ) -> Option<ComponentDecl> {
         self.expect_keyword("component")?;
         let name = self.expect_identifier("component name")?.text().to_owned();
+        let mut items = self.parse_component_signature()?;
         self.expect(TokenKind::LeftBrace, "`{` after component name")?;
-        let mut items = Vec::new();
         let mut formulations = Vec::new();
         let mut property_requirements = Vec::new();
         let mut formulations_started = false;

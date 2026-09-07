@@ -146,7 +146,11 @@ contract. `form name for law { ... }` owns mathematical trial/test roles and equ
 not mesh or solver configuration. These are closed typed children, not string-valued attributes.
 
 Signature `variable` and `state` entries borrow exact external occurrences. They do not allocate
-private unknowns or transfer ownership of state initialization and updates. Signature `input`
+private unknowns or transfer ownership of state initialization and updates. A `variable`
+requirement reads an exact unknown, including an owned state without changing its role; a `state`
+requirement additionally requires state ownership and the exact declared activation. Definition
+checking and nested forwarding use the declared requirement: binding a state to a `variable`
+formal does not grant that formal time-derivative, `pre`, or `next` capability. Signature `input`
 entries require a compatible driver; signature `output` entries expose values defined by the
 body. A `port` exposes its connector's members and participates in typed connection equations.
 An `on` or `at` clause on a port must satisfy that connector's admitted support and activation
