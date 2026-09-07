@@ -70,6 +70,78 @@ const PERIODIC_SEAM_ADVECTION_SOURCE: &str = include_str!(
 );
 
 #[test]
+fn fresh_transport_initial_equation_is_distinct_from_inflow_and_support_shape() {
+    for (condition, expected) in [
+        ("concentration = 0", 0.0),
+        ("concentration = 0.25[K]", 0.25),
+        ("0.25[K] = concentration", 0.25),
+        ("concentration = inflow / 2", 0.5),
+    ] {
+        let source = SOURCE.replace("concentration = 0;", &format!("{condition};"));
+        let program = compile_program(&source);
+        let model = lower_scalar_transport_cartesian_2d(&program).unwrap();
+        let resolved = resolve_transport(&program, &model, 4, 0.025);
+        let (_, initial) =
+            initialize_resolved_scalar_transport_fvm_2d(&program, &resolved).unwrap();
+        // These are cell averages of a scalar constant function, not shaped
+        // initial data or the distinct 1 K inflow boundary condition.
+        assert!(initial.values().iter().all(|value| *value == expected));
+        assert_eq!(
+            model
+                .boundary(0, BoundarySide::Lower)
+                .unwrap()
+                .value()
+                .unwrap()
+                .constant_value(),
+            Some(1.0)
+        );
+    }
+}
+
+#[test]
+fn transport_initializer_rejects_missing_extra_and_inapplicable_equations() {
+    for condition in [
+        "",
+        "initial { concentration = 0; concentration = 1[K]; }",
+        "initial { concentration = 0; } initial { concentration = 0; }",
+        "initial { flow_potential = 0; }",
+        "initial { derivative(concentration) = 0; }",
+        "initial { concentration - concentration = 0; }",
+        "initial { concentration = inflow / 0; }",
+    ] {
+        let source = SOURCE.replace("initial { concentration = 0; }", condition);
+        let program = compile_program(&source);
+        let model = lower_scalar_transport_cartesian_2d(&program).unwrap();
+        let resolved = resolve_transport(&program, &model, 4, 0.025);
+        let error = initialize_resolved_scalar_transport_fvm_2d(&program, &resolved).unwrap_err();
+        assert_eq!(
+            error.code(),
+            eqiora_core::diagnostic::codes::INVALID_SPATIAL_LOWERING,
+            "{condition}: {error:?}"
+        );
+    }
+    let wrong_support = SOURCE.replace("state concentration: K on body;",
+        "domain other = box(0,2,0,1); state foreign: K on other; state concentration: K on body;")
+        .replace("initial { concentration = 0; }", "initial { concentration = foreign; }");
+    assert!(compile("wrong-support-initial.eqi", &wrong_support).is_err());
+    for shaped in ["array<K, 2>", "vector<K, 2>"] {
+        let source = SOURCE
+            .replace(
+                "state concentration: K",
+                &format!("state concentration: {shaped}"),
+            )
+            .replace(
+                "initial { concentration = 0; }",
+                "initial { concentration = 1[K]; }",
+            );
+        assert!(
+            compile("shaped-initial.eqi", &source).is_err(),
+            "scalar initial value must not broadcast to {shaped}"
+        );
+    }
+}
+
+#[test]
 fn canonical_transport_retains_meaning_without_numerical_policy() {
     let program = compile_program(SOURCE);
     let model = lower_scalar_transport_cartesian_2d(&program).unwrap();

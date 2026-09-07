@@ -36,33 +36,26 @@ use eqiora_meshing::CartesianMesh;
 
 const DIMENSION: usize = 2;
 
-/// Construct the exact generated-mesh initial state from the canonical scalar
-/// Field initial value.
+/// Construct exact cell averages from the admitted constant-on-support scalar
+/// initial equation. A constant scalar function has that same average in each cell.
 ///
 /// This bounded slice has no second callback or array-valued initialization
 /// channel. Shaped provided initial data requires a future typed Run contract.
 ///
 /// # Errors
 /// Rejects lineage/plan drift or a missing, non-scalar, non-finite, or
-/// dimensionally inconsistent canonical Field initial value.
+/// dimensionally inconsistent or inapplicable initial equation.
 pub fn initialize_resolved_scalar_transport_fvm_2d(
     program: &KernelProgram,
     resolved: &ResolvedTransientCellCenteredTransportRealization,
 ) -> Result<(ScalarTransportCartesianModel2d, ScalarTransportCellState2d), Diagnostic> {
     let model = lower_scalar_transport_cartesian_2d(program)?;
     let selection = require_exact_realization(program, &model, resolved)?;
+    let initial = super::initial::constant_initial_value(program, &model)?;
     let mesh = CartesianMesh::uniform(model.bounds(), &[selection.cells; DIMENSION])?;
     let cell_count = mesh
         .entity_count(DIMENSION)
         .expect("2D Cartesian mesh owns top cells");
-    let initial = program.value(model.state().erase()).ok_or_else(|| {
-        invalid_realization("transported scalar Field has no canonical initial value")
-    })?;
-    if initial.dim() != selection.field_dimension || !initial.value().is_finite() {
-        return Err(invalid_realization(
-            "transported scalar Field initial value has the wrong physical dimension or is non-finite",
-        ));
-    }
     let state = ScalarTransportCellState2d {
         model: resolved.model(),
         semantic_revision: resolved.semantic_revision(),
@@ -71,7 +64,7 @@ pub fn initialize_resolved_scalar_transport_fvm_2d(
         mesh,
         time: DynQuantity::new(0.0, time_dimension()),
         value_dimension: selection.field_dimension,
-        values: vec![initial.value(); cell_count],
+        values: vec![initial; cell_count],
     };
     Ok((model, state))
 }
