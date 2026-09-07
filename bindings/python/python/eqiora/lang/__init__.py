@@ -7,6 +7,7 @@ lowerer, and compiler remain the sole authority for mathematical meaning.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from fractions import Fraction
 import math as _stdlib_math
 import os
 from pathlib import Path
@@ -313,6 +314,36 @@ class Support:
         raise AttributeError("Support handles are immutable")
 
 
+class Clock:
+    """An immutable nominal periodic clock belonging to one Component.
+
+    Create clocks with Component.clock(); equal periods do not imply identity.
+    """
+
+    __slots__ = ("_component", "_name")
+
+    def __init__(self, _token: object = _MISSING, _component: object = _MISSING,
+                 _name: str = "") -> None:
+        if _token is not _CREATE:
+            raise TypeError("clocks are created by Component.clock()")
+        object.__setattr__(self, "_component", _component)
+        object.__setattr__(self, "_name", _name)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise AttributeError("Clock handles are immutable")
+
+
+def _clock_seconds(value: Fraction | int, *, positive: bool) -> Fraction:
+    if isinstance(value, bool) or not isinstance(value, (Fraction, int)):
+        raise TypeError("clock seconds must be Fraction or int, not float or bool")
+    exact = Fraction(value)
+    if exact < 0 or (positive and exact == 0):
+        raise SourceError("clock period must be positive and phase must be nonnegative")
+    if exact.numerator > (1 << 64) - 1 or exact.denominator > (1 << 64) - 1:
+        raise SourceError("clock rational numerator and denominator must fit u64")
+    return exact
+
+
 def _number(value: object) -> str:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise TypeError("numeric literals must be finite int or float values, not bool")
@@ -439,6 +470,16 @@ def div(value: object) -> Expression:
     return _unary("div", value)
 
 
+def pre(value: Expression) -> Expression:
+    """Read a State's pre-tick value; the compiler checks clock and context."""
+    return _unary("pre", value)
+
+
+def next(value: Expression) -> Expression:
+    """Name a State's next-tick value; the compiler checks clock and context."""
+    return _unary("next", value)
+
+
 def trace(value: object) -> Expression:
     return _unary("trace", value)
 
@@ -515,6 +556,8 @@ class Component:
 
     __slots__ = (
         "_aliases",
+        "_clocks",
+        "_initials",
         "_component_token",
         "_declaration_count",
         "_doc",
@@ -550,18 +593,20 @@ class Component:
         )
         self._names: set[str] = set()
         self._supports: list[tuple[Support, str, object, tuple[str, ...]]] = []
+        self._clocks: list[tuple[Clock, Fraction, Fraction, tuple[str, ...]]] = []
+        self._initials: list[tuple[tuple[Expression, ...], tuple[str, ...]]] = []
         self._parameters: list[tuple[_Parameter, str, tuple[str, ...]]] = []
-        self._aliases: list[tuple[str, Expression, str | None, Support | None, tuple[str, ...]]] = []
+        self._aliases: list[tuple[str, Expression, str | None, Support | None, Clock | None, tuple[str, ...]]] = []
         self._properties: list[
             tuple[_PropertyRequirement, PropertyContract, tuple[str, ...]]
         ] = []
         self._fields: list[
             tuple[
-                Expression, Support, str, FieldRole, tuple[str, ...]
+                Expression, Support, str, FieldRole, Clock | None, tuple[str, ...]
             ]
         ] = []
         self._relations: list[
-            tuple[str, Support, Expression, Expression, tuple[str, ...]]
+            tuple[str, Support, Expression, Expression, Clock | None, tuple[str, ...]]
         ] = []
         self._formulations: list[
             tuple[Relation, Expression, Expression, tuple[str, ...]]
@@ -599,6 +644,49 @@ class Component:
         ):
             raise SourceError("support must belong to this Component and Source")
         return support
+
+    def _clock(self, clock: Clock | None) -> Clock | None:
+        if clock is not None and (
+            not isinstance(clock, Clock) or clock._component is not self._component_token
+        ):
+            raise SourceError("clock must belong to this Component and Source")
+        return clock
+
+    def clock(
+        self, name: str, *, period_s: Fraction | int,
+        phase_s: Fraction | int = 0, doc: str | None = None,
+    ) -> Clock:
+        """Declare a nominal clock with exact rational period and phase in seconds."""
+        period = _clock_seconds(period_s, positive=True)
+        phase = _clock_seconds(phase_s, positive=False)
+        doc_lines = _doc(doc)
+        admitted = self._add_name(name)
+        clock = Clock(_CREATE, self._component_token, admitted)
+        self._clocks.append((clock, period, phase, doc_lines))
+        return clock
+
+    def initial(self, *residuals: Expression | int | float, doc: str | None = None) -> None:
+        """Add simultaneous fresh-initialization residuals, each equal to zero.
+
+        These are equations, not Field guesses or an ordered sequence of writes.
+        The compiler checks State roles and pre/next permissions.
+        """
+        self._source._ensure_open()
+        expressions = tuple(_expression(value) for value in residuals)
+        if any(value._owner is not None and value._owner is not self._component_token
+               for value in expressions):
+            raise SourceError("initial expressions must belong to this Component")
+        total_nodes = sum(value._nodes for values, _ in self._initials for value in values)
+        total_nodes += sum(value._nodes for value in expressions)
+        if total_nodes > _MAX_EXPRESSION_NODES:
+            raise SourceError(
+                f"Component initial expressions exceed the {_MAX_EXPRESSION_NODES}-node limit"
+            )
+        doc_lines = _doc(doc)
+        if self._declaration_count >= _MAX_DECLARATIONS:
+            raise SourceError(f"Component exceeds the {_MAX_DECLARATIONS}-declaration limit")
+        self._declaration_count += 1
+        self._initials.append((expressions, doc_lines))
 
     def volume(
         self,
@@ -657,14 +745,16 @@ class Component:
         *,
         value_type: ValueType | None = None,
         on: Support | None = None,
+        at: Clock | None = None,
         doc: str | None = None,
     ) -> Expression:
         """Name a private immutable expression in this Component's lexical scope.
 
         The compiler infers type and intrinsic support; aliases add no storage.
         ``on`` asserts the exact inferred support; it cannot move or broadcast
-        an expression. Clock assertions and context-dependent coordinate, trace,
-        or normal aliases are not admitted.
+        an expression. ``at`` asserts one exact clock in the inferred dependency
+        profile; it grants no pre/next permissions. Context-dependent coordinate,
+        trace, or normal aliases are not admitted.
         """
         value = _expression(expression)
         if value._owner is not None and value._owner is not self._component_token:
@@ -673,6 +763,7 @@ class Component:
             raise TypeError("value_type must be an eqiora.ValueType")
         if on is not None:
             self._support(on)
+        at = self._clock(at)
         syntax = None if value_type is None else value_type.to_eqi()
         doc_lines = _doc(doc)
         if sum(item[1]._nodes for item in self._aliases) + value._nodes > _MAX_EXPRESSION_NODES:
@@ -680,7 +771,7 @@ class Component:
                 f"Component alias expressions exceed the {_MAX_EXPRESSION_NODES}-node limit"
             )
         admitted = self._add_name(name)
-        self._aliases.append((admitted, value, syntax, on, doc_lines))
+        self._aliases.append((admitted, value, syntax, on, at, doc_lines))
         return Expression(_CREATE, admitted, self._component_token, 1, 1, 100)
 
     def property(
@@ -706,8 +797,11 @@ class Component:
         on: Support,
         value_type: ValueType,
         role: FieldRole,
+        at: Clock | None = None,
         doc: str | None = None,
     ) -> Expression:
+        """Declare a spatial Field, optionally activated by an exact local clock."""
+        at = self._clock(at)
         on = self._support(on)
         if on._kind != "volume":
             raise SourceError(
@@ -718,9 +812,10 @@ class Component:
         syntax = value_type.to_eqi()
         if not isinstance(role, FieldRole):
             raise TypeError("role must be an eqiora.FieldRole")
+        doc_lines = _doc(doc)
         admitted = self._add_name(name)
         expression = _Field(self._component_token, admitted)
-        self._fields.append((expression, on, syntax, role, _doc(doc)))
+        self._fields.append((expression, on, syntax, role, at, doc_lines))
         return expression
 
     def relation(
@@ -730,8 +825,11 @@ class Component:
         on: Support,
         left: Expression | int | float,
         right: Expression | int | float,
+        at: Clock | None = None,
         doc: str | None = None,
     ) -> Relation:
+        """Declare an equality, optionally active on one exact local clock."""
+        at = self._clock(at)
         on = self._support(on)
         def admit(value: Expression | int | float) -> Expression:
             expression = _expression(value)
@@ -750,7 +848,7 @@ class Component:
 
         left_expression = admit(left)
         right_expression = admit(right)
-        admitted = self._add_name(name)
+        doc_lines = _doc(doc)
         total_nodes = (
             sum(
                 item[2]._nodes + item[3]._nodes
@@ -763,8 +861,9 @@ class Component:
             raise SourceError(
                 f"Component relation expressions exceed the {_MAX_EXPRESSION_NODES}-node limit"
             )
+        admitted = self._add_name(name)
         self._relations.append(
-            (admitted, on, left_expression, right_expression, _doc(doc))
+            (admitted, on, left_expression, right_expression, at, doc_lines)
         )
         return Relation(_CREATE, self._owner, self._component_token, admitted)
 
@@ -934,26 +1033,41 @@ class Component:
             lines.append(f"  public parameter {parameter._name}: {value_type};")
         if self._parameters and (self._aliases or self._fields or self._relations or self._instances):
             lines.append("")
-        for name, expression, value_type, support, doc in self._aliases:
+        for clock, period, phase, doc in self._clocks:
+            lines.extend(_comment(doc, "  "))
+            lines.append(
+                f"  clock {clock._name} = periodic(period = {period.numerator} / {period.denominator}, "
+                f"phase = {phase.numerator} / {phase.denominator});"
+            )
+        for name, expression, value_type, support, clock, doc in self._aliases:
             lines.extend(_comment(doc, "  "))
             assertion = "" if value_type is None else f": {value_type}"
             support_assertion = "" if support is None else f" on {support._name}"
-            lines.append(f"  let {name}{assertion}{support_assertion} = {expression._text};")
+            activation = "" if clock is None else f" at {clock._name}"
+            lines.append(f"  let {name}{assertion}{support_assertion}{activation} = {expression._text};")
         if self._aliases and (self._fields or self._relations or self._instances):
             lines.append("")
         if self._fields:
-            for field, support, value_type, role, doc in self._fields:
+            for field, support, value_type, role, clock, doc in self._fields:
                 lines.extend(_comment(doc, "  "))
                 keyword = "state" if role == FieldRole.State else "variable"
+                activation = "" if clock is None else f" at {clock._name}"
                 lines.append(
                     f"  {keyword} {field._text}: "
-                    f"{value_type} on {support._name};"
+                    f"{value_type} on {support._name}{activation};"
                 )
         if self._fields and (self._relations or self._instances):
             lines.append("")
-        for index, (name, support, left, right, doc) in enumerate(self._relations):
+        for residuals, doc in self._initials:
             lines.extend(_comment(doc, "  "))
-            lines.append(f"  relation {name} on {support._name} {{")
+            lines.append("  initial {")
+            for residual in residuals:
+                lines.extend(_relation_lines(residual, _expression(0)))
+            lines.append("  }")
+        for index, (name, support, left, right, clock, doc) in enumerate(self._relations):
+            lines.extend(_comment(doc, "  "))
+            activation = "" if clock is None else f" at {clock._name}"
+            lines.append(f"  relation {name} on {support._name}{activation} {{")
             lines.extend(_relation_lines(left, right))
             lines.append("  }")
             if index + 1 != len(self._relations):
@@ -1260,6 +1374,7 @@ class Source:
 
 
 __all__ = [
+    "Clock",
     "Component",
     "Expression",
     "MaterialComposition",
@@ -1277,6 +1392,8 @@ __all__ = [
     "isotropic_lift",
     "math",
     "normal",
+    "pre",
+    "next",
     "quantity",
     "symmetric_part",
     "test",

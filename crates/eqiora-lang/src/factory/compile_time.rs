@@ -67,6 +67,7 @@ impl SourceAstFactory {
         name: impl Into<String>,
         value_type: Option<crate::ValueTypeSyntax>,
         domain: Option<String>,
+        activation: Option<String>,
         value: Expr,
         range: TextRange,
     ) -> Result<LetDecl, AstConstructionError> {
@@ -77,6 +78,9 @@ impl SourceAstFactory {
             value_type,
             domain: domain
                 .map(|name| checked_identifier(name, "let support assertion"))
+                .transpose()?,
+            activation: activation
+                .map(|name| checked_identifier(name, "let activation assertion"))
                 .transpose()?,
             value,
             range: checked_range(range)?,
@@ -120,11 +124,13 @@ mod tests {
         let dimension =
             SourceAstFactory::expression(ExprKind::Name("m".to_owned()), range).expect("dimension");
 
-        let inferred = SourceAstFactory::let_alias("inferred", None, None, value.clone(), range)
-            .expect("inferred alias");
+        let inferred =
+            SourceAstFactory::let_alias("inferred", None, None, None, value.clone(), range)
+                .expect("inferred alias");
         let annotated = SourceAstFactory::let_alias(
             "annotated",
             Some(crate::ValueTypeSyntax::real(dimension)),
+            None,
             None,
             value,
             range,

@@ -127,9 +127,34 @@ pass through the expression. Expressions must have an intrinsically inferable sp
 keep context-dependent `coordinate`, `trace`, and `normal` expressions in their relations.
 Writing `on=` cannot give a constant spatial support or select an unspecified boundary.
 An equal-shaped, separately declared Support is still a different nominal support.
-Explicit `at` assertions remain outside this slice. Native/source state operators retain
-their existing exact-clock and initialization rules through aliases; reading a current state
-through an alias adds no clock restriction.
+`at=clock` asserts that the expression's runtime dependencies belong to that exact
+Component-owned Clock. Equal periods do not make different Clocks interchangeable.
+Static expressions and mixtures of continuous and clocked dependencies cannot assert a
+single clock. State operators retain their exact-clock and initialization rules through
+aliases; reading a current state through an alias adds no clock restriction.
+
+Create nominal periodic clocks with exact seconds, using an integer or `fractions.Fraction`:
+
+```python
+from fractions import Fraction
+
+tick = component.clock("tick", period_s=Fraction(1, 10))
+memory = component.field(
+    "memory", on=body, role=eqiora.FieldRole.State,
+    value_type=eqiora.ValueType.real(), at=tick,
+)
+component.initial(q.pre(memory) - 1)
+observed = component.let_alias("observed", memory, on=body, at=tick)
+component.relation(
+    "update", on=body, at=tick, left=q.next(memory), right=q.pre(memory),
+)
+```
+
+The optional `phase_s` defaults to zero. Initial equations are simultaneous, and the
+clock's first tick follows initialization. Clock handles belong to their declaring
+Component; foreign handles are rejected before changing a declaration. `q.pre` and
+`q.next` use the same Rust state-role and use-context checks as emitted source.
+This authoring path does not extend the execution backends' admitted spatial time models.
 
 Source values do not type-check or lower equations in Python. Direct compile
 materializes `source.to_eqi()` and enters the same Rust parser, type checker,

@@ -1,5 +1,8 @@
 //! Intrinsic alias types and shared, use-context evolution obligations.
 
+mod activation;
+use activation::DependencyActivation;
+
 use super::*;
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -8,6 +11,7 @@ use std::sync::Arc;
 pub(in crate::hierarchy::body_check) struct AliasContract {
     pub(super) inferred: ExpressionType<String>,
     pub(super) field_target: Option<String>,
+    activation: DependencyActivation,
     dependencies: Vec<Arc<AliasContract>>,
     evolution: Vec<EvolutionRequirement>,
     endpoints: PhysicalEndpointSelections,
@@ -35,6 +39,14 @@ pub(in crate::hierarchy::body_check) fn validate_aliases<'a>(
                     scope.file,
                     declaration.range(),
                     "static let alias cannot assert spatial support",
+                ));
+            }
+            if declaration.activation().is_some() {
+                errors.push(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    scope.file,
+                    declaration.range(),
+                    "static let alias cannot assert a clock activation",
                 ));
             }
             continue;
@@ -88,6 +100,11 @@ pub(in crate::hierarchy::body_check) fn validate_aliases<'a>(
                 continue;
             }
         };
+        let activation = DependencyActivation::infer(scope, declaration.value());
+        if let Err(error) = activation.validate(scope, declaration) {
+            errors.push(error);
+            continue;
+        }
         let field_target = match declaration.value().kind() {
             ExprKind::Name(name) => match scope.symbols.get(name) {
                 Some(SymbolContract::Field(..)) => Some(name.clone()),
@@ -98,6 +115,7 @@ pub(in crate::hierarchy::body_check) fn validate_aliases<'a>(
         };
         let alias = AliasContract {
             inferred,
+            activation,
             field_target,
             dependencies: checker.alias_dependencies,
             evolution: checker.evolution,

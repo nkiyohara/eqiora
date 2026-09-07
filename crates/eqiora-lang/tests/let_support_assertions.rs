@@ -75,13 +75,14 @@ fn factory_support_assertion_survives_dimension_rewrite_and_reparse() {
             .unwrap(),
         ),
         Some("body".into()),
+        Some("sample".into()),
         value.clone(),
         range,
     )
     .unwrap();
     let mut document = eqiora_lang::parse(
         "base.eqi",
-        "component C() { let q: Length on body = flux; } model M { let q: Length on body = flux; }",
+        "component C() { let q: Length on body at sample = flux; } model M { let q: Length on body at sample = flux; }",
     )
     .into_document()
     .unwrap();
@@ -105,7 +106,12 @@ fn factory_support_assertion_survives_dimension_rewrite_and_reparse() {
         SourceAstFactory::expression(ExprKind::Name("m".into()), range).unwrap()
     });
     let formatted = eqiora_lang::format(&document);
-    assert_eq!(formatted.matches("let q: m on body = flux;").count(), 2);
+    assert_eq!(
+        formatted
+            .matches("let q: m on body at sample = flux;")
+            .count(),
+        2
+    );
     assert_eq!(
         eqiora_lang::format(
             &eqiora_lang::parse("again.eqi", &formatted)
@@ -116,8 +122,26 @@ fn factory_support_assertion_survives_dimension_rewrite_and_reparse() {
     );
     for invalid in ["", "body.other", "two supports"] {
         assert!(
-            SourceAstFactory::let_alias("q", None, Some(invalid.into()), value.clone(), range)
-                .is_err()
+            SourceAstFactory::let_alias(
+                "q",
+                None,
+                None,
+                Some(invalid.into()),
+                value.clone(),
+                range
+            )
+            .is_err()
+        );
+        assert!(
+            SourceAstFactory::let_alias(
+                "q",
+                None,
+                Some(invalid.into()),
+                None,
+                value.clone(),
+                range
+            )
+            .is_err()
         );
     }
 }

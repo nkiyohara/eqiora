@@ -71,13 +71,14 @@ impl ParameterDecl {
     }
 }
 
-/// Immutable local expression alias with optional type and intrinsic-support assertions.
+/// Immutable local expression alias with optional type, support and named activation assertions.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LetDecl {
     pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) name: String,
     pub(crate) value_type: Option<ValueTypeSyntax>,
     pub(crate) domain: Option<String>,
+    pub(crate) activation: Option<String>,
     pub(crate) value: Expr,
     pub(crate) range: TextRange,
 }
@@ -99,6 +100,12 @@ impl LetDecl {
     #[must_use]
     pub fn domain(&self) -> Option<&str> {
         self.domain.as_deref()
+    }
+
+    /// Returns the optional named assertion of the expression's activation.
+    #[must_use]
+    pub fn activation(&self) -> Option<&str> {
+        self.activation.as_deref()
     }
 
     /// Returns the immutable expression.

@@ -42,5 +42,8 @@ pub(super) fn encode_let(
     if let Some(domain) = declaration.domain() {
         encoder.field(4, |encoder| encode_name(encoder, domain, budget))?;
     }
+    if let Some(activation) = declaration.activation() {
+        encoder.field(5, |encoder| encode_name(encoder, activation, budget))?;
+    }
     Ok(())
 }

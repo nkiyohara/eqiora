@@ -37,6 +37,15 @@ class Expression:
     def __neg__(self) -> Expression: ...
 
 @final
+class Clock:
+    """Identify one nominal periodic clock in its exact Component.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::Clock``.
+    """
+
+    ...
+
+@final
 class Support:
     """Identify one volume or parent-boundary declaration in its exact Source.
 
@@ -88,6 +97,11 @@ class Component:
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component``.
     """
 
+    def clock(
+        self, name: str, *, period_s: Fraction | int,
+        phase_s: Fraction | int = 0, doc: str | None = None,
+    ) -> Clock: ...
+    def initial(self, *residuals: Expression | int | float, doc: str | None = None) -> None: ...
     def volume(
         self,
         name: str,
@@ -116,6 +130,7 @@ class Component:
         *,
         value_type: ValueType | None = None,
         on: Support | None = None,
+        at: Clock | None = None,
         doc: str | None = None,
     ) -> Expression: ...
     def property(
@@ -132,6 +147,7 @@ class Component:
         on: Support,
         value_type: ValueType,
         role: FieldRole,
+        at: Clock | None = None,
         doc: str | None = None,
     ) -> Expression: ...
     def relation(
@@ -141,6 +157,7 @@ class Component:
         on: Support,
         left: Expression | int | float,
         right: Expression | int | float,
+        at: Clock | None = None,
         doc: str | None = None,
     ) -> Relation: ...
     def primal_form(
@@ -307,6 +324,20 @@ def div(value: Expression) -> Expression:
 
     ...
 
+def pre(value: Expression) -> Expression:
+    """Read a State's pre-tick value; compiler checks clock and context.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::pre``.
+    """
+    ...
+
+def next(value: Expression) -> Expression:
+    """Name a State's next-tick value; compiler checks clock and context.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::next``.
+    """
+    ...
+
 def trace(value: Expression) -> Expression:
     """Return the language boundary trace of one expression.
 
@@ -347,6 +378,7 @@ def quantity(value: int | float, unit: _Unit) -> Expression:
     ...
 
 __all__ = [
+    "Clock",
     "Component",
     "Expression",
     "MaterialComposition",
@@ -364,6 +396,8 @@ __all__ = [
     "isotropic_lift",
     "math",
     "normal",
+    "pre",
+    "next",
     "quantity",
     "symmetric_part",
     "test",
