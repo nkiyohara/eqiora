@@ -403,22 +403,22 @@ fn scalar_value_edit_plan(
     document: &ModelDocument,
     target: RawId,
     value: f64,
-) -> Result<ValueEditPlan, DiagnosticDto> {
+) -> Result<ValueEditPlan, Box<DiagnosticDto>> {
     let current = document
         .program()
         .typed_value(target)
         .filter(|value| value.real_scalar_value().is_some())
         .ok_or_else(|| {
-            studio_error(
+            Box::new(studio_error(
                 "ST0002",
                 "Studio numeric controls require a real scalar Parameter",
-            )
+            ))
         })?;
     let replacement = ValueLiteral::from_real(current.value_type().clone(), value)
-        .map_err(|error| studio_error("ST0002", &error.to_string()))?;
+        .map_err(|error| Box::new(studio_error("ST0002", error.to_string())))?;
     document
         .preview_value_edit(target, replacement)
-        .map_err(Into::into)
+        .map_err(|error| Box::new(error.into()))
 }
 
 #[tauri::command]
@@ -447,7 +447,7 @@ fn preview_value_edit(
             Ok(dto) => BridgeEnvelope::success(dto),
             Err(diagnostic) => BridgeEnvelope::failure(vec![diagnostic]),
         },
-        Err(diagnostic) => BridgeEnvelope::failure(vec![diagnostic.into()]),
+        Err(diagnostic) => BridgeEnvelope::failure(vec![*diagnostic]),
     }
 }
 
@@ -480,7 +480,7 @@ fn commit_value_edit(
     };
     let plan = match scalar_value_edit_plan(&document, target, request.value) {
         Ok(plan) => plan,
-        Err(diagnostic) => return BridgeEnvelope::failure(vec![diagnostic.into()]),
+        Err(diagnostic) => return BridgeEnvelope::failure(vec![*diagnostic]),
     };
     if request.plan_key != plan.key() {
         return BridgeEnvelope::failure(vec![studio_error(

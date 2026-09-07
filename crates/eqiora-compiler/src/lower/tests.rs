@@ -901,11 +901,14 @@ fn native_lowering_replaces_synthetic_ranges_with_declaration_paths() {
     );
     let duration = eqiora_lang::DraftParameter::new(
         "duration",
-        eqiora_core::ValueType::scalar(
-            eqiora_core::ScalarDomain::Real,
-            DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension"),
-        ),
-        1.0,
+        eqiora_core::ValueLiteral::from_real(
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension"),
+            ),
+            1.0,
+        )
+        .unwrap(),
     );
     let relation = eqiora_lang::DraftRelation::continuous(
         "invalid",
@@ -996,8 +999,11 @@ model resistor {
     let tap = eqiora_lang::DraftConservingPort::new("tap", &electrical);
     let resistance = eqiora_lang::DraftParameter::new(
         "resistance",
-        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, resistance_dimension()),
-        2.0,
+        eqiora_core::ValueLiteral::from_real(
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, resistance_dimension()),
+            2.0,
+        )
+        .unwrap(),
     );
     let law = eqiora_lang::DraftRelation::continuous(
         "law",
