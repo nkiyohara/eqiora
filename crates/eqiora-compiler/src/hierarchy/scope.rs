@@ -468,14 +468,6 @@ pub(super) fn rewrite_equations(
         .collect()
 }
 
-pub(super) fn rewrite_expression(
-    file: &str,
-    expression: &Expr,
-    scope: &Scope,
-) -> Result<LoweringExpression, Diagnostic> {
-    rewrite_expression_with_boundary_member(file, expression, scope, None)
-}
-
 pub(super) fn rewrite_expression_with_boundary_member(
     file: &str,
     expression: &Expr,

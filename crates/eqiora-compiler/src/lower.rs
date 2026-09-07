@@ -17,7 +17,7 @@ use binding::{
 use connection::{lower_connection, prepare_flat_physical_connections};
 use declaration::{lower_clock, lower_port};
 pub(crate) use domain_contract::{LoweringDomainContract, LoweringPortContract};
-use expression::{TypedExpression, lower_relation};
+use expression::lower_relation;
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
