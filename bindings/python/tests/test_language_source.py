@@ -1043,3 +1043,165 @@ def test_alias_support_assertion_rejects_inference_or_context_changes(kind):
     component.relation("balance", on=region, left=value, right=0)
     with pytest.raises(eqiora.ValidationError, match="support|scope|context|trace"):
         eqiora.compile(source=source, geometry=geometry, component=entry)
+
+
+def clocked_alias_source(*, aliases=True, wrong_clock=False):
+    source = q.Source()
+    component = source.component("Clocked")
+    region = component.volume("region", dimensions=2)
+    tick = component.clock("tick", period_s=Fraction(1, 10), doc="Exact sampling clock.")
+    asserted = component.clock("other", period_s=Fraction(1, 10)) if wrong_clock else tick
+    state = component.field("memory", on=region, at=tick, role=eqiora.FieldRole.State,
+                            value_type=eqiora.ValueType.real())
+    observer = component.field("observer", on=region, role=eqiora.FieldRole.Variable,
+                               value_type=eqiora.ValueType.real())
+    component.initial(q.pre(state) - 1, doc="Fresh pre-tick memory.")
+    component.relation("hold", on=region, at=tick, left=q.next(state), right=q.pre(state))
+    current = component.let_alias("current", 2 * state, on=region, at=asserted,
+                                  value_type=eqiora.ValueType.real()) if aliases else 2 * state
+    component.relation("observe", on=region, left=observer, right=current)
+    return source
+
+
+def test_clock_authoring_emits_exact_activation_and_simultaneous_initial():
+    text = clocked_alias_source().to_eqi()
+    assert "/// Exact sampling clock.\n  clock tick = periodic(period = 1 / 10, phase = 0 / 1);" in text
+    assert "state memory: 1 on region at tick;" in text
+    assert "let current: 1 on region at tick = 2 * memory;" in text
+    assert "/// Fresh pre-tick memory.\n  initial {\n    pre(memory) - 1 = 0;\n  }" in text
+    assert "relation hold on region at tick {\n    next(memory) = pre(memory);" in text
+    assert "relation observe on region {" in text
+    simultaneous = q.Source()
+    component = simultaneous.component("Simultaneous")
+    component.initial(1, 2)
+    assert "initial {\n    1 = 0;\n    2 = 0;\n  }" in simultaneous.to_eqi()
+
+
+def test_clock_authoring_normalizes_rationals_and_preserves_nominal_immutability():
+    source = q.Source()
+    component = source.component("Clocks")
+    tick = component.clock("tick", period_s=Fraction(6, 8), phase_s=Fraction(2, 8))
+    equal = component.clock("equal", period_s=Fraction(3, 4), phase_s=Fraction(1, 4))
+    component.clock("maximum", period_s=(1 << 64) - 1, phase_s=Fraction(1, (1 << 64) - 1))
+    assert tick is not equal
+    with pytest.raises(TypeError, match="Component.clock"):
+        q.Clock()
+    with pytest.raises(AttributeError, match="immutable"):
+        tick._name = "changed"
+    assert source.to_eqi().count("period = 3 / 4, phase = 1 / 4") == 2
+    with pytest.raises(q.SourceError, match="frozen"):
+        component.clock("late", period_s=1)
+    with pytest.raises(q.SourceError, match="frozen"):
+        component.initial(0)
+
+
+@pytest.mark.parametrize("keyword, value, error", [
+    ("period_s", 0, q.SourceError), ("period_s", -1, q.SourceError),
+    ("phase_s", -1, q.SourceError), ("period_s", 0.1, TypeError),
+    ("phase_s", 0.0, TypeError), ("period_s", True, TypeError),
+    ("phase_s", False, TypeError), ("period_s", "1/10", TypeError),
+    ("period_s", 1 << 64, q.SourceError),
+    ("phase_s", Fraction(1, 1 << 64), q.SourceError),
+])
+def test_clock_authoring_rejects_invalid_seconds_before_reserving_name(keyword, value, error):
+    component = q.Source().component("Clocks")
+    arguments = {"period_s": 1, keyword: value}
+    with pytest.raises(error):
+        component.clock("tick", **arguments)
+    component.clock("tick", period_s=1)
+
+
+@pytest.mark.parametrize("consumer", ["field", "relation", "alias"])
+@pytest.mark.parametrize("owner", ["sibling", "source", "string"])
+def test_clock_authoring_rejects_foreign_activation_before_mutation(consumer, owner):
+    source = q.Source()
+    component = source.component("Owner")
+    region = component.volume("region", dimensions=2)
+    tick = component.clock("tick", period_s=1)
+    other = (q.Source() if owner == "source" else source).component("Other")
+    foreign = "tick" if owner == "string" else other.clock("tick", period_s=1)
+
+    def declare(clock):
+        if consumer == "field":
+            component.field("candidate", on=region, at=clock, role=eqiora.FieldRole.State,
+                            value_type=eqiora.ValueType.real())
+        elif consumer == "relation":
+            component.relation("candidate", on=region, at=clock, left=0, right=0)
+        else:
+            component.let_alias("candidate", 0, at=clock)
+
+    with pytest.raises(q.SourceError, match="clock must belong to this Component"):
+        declare(foreign)
+    declare(tick)
+
+
+def test_clock_authoring_initial_and_tick_operators_preserve_lexical_expression_ownership():
+    source = q.Source()
+    owner = source.component("Owner")
+    sibling = source.component("Sibling")
+    region = sibling.volume("region", dimensions=2)
+    tick = sibling.clock("tick", period_s=1)
+    state = sibling.field("memory", on=region, at=tick, role=eqiora.FieldRole.State,
+                          value_type=eqiora.ValueType.real())
+    for expression in (q.pre(state), q.next(state) + 1):
+        with pytest.raises(q.SourceError, match="this Component"):
+            owner.initial(expression)
+        with pytest.raises(q.SourceError, match="this Component"):
+            owner.let_alias("foreign", expression)
+    owner.initial(0)
+
+
+def test_clock_authoring_initial_uses_existing_declaration_and_expression_bounds():
+    source = q.Source()
+    component = source.component("Bounded")
+    component.clock("tick", period_s=1)
+    for _ in range(255):
+        component.initial(0)
+    with pytest.raises(q.SourceError, match="256-declaration limit"):
+        component.initial(0)
+    with pytest.raises(q.SourceError, match="256-declaration limit"):
+        component.clock("excess", period_s=1)
+    bounded_source = q.Source()
+    bounded = bounded_source.component("Expressions")
+    expression = q.math.pi
+    for _ in range(11):
+        expression = expression + expression
+    bounded.initial(expression, 0)
+    with pytest.raises(q.SourceError, match="initial expressions exceed the 4096-node limit"):
+        bounded.initial(0)
+    # A rejected residual batch cannot consume a declaration or its output.
+    assert bounded_source.to_eqi().count("initial {") == 1
+
+
+def test_clocked_alias_source_compiles_like_expanded_current_read(tmp_path):
+    source = clocked_alias_source()
+    model = eqiora.compile(source=source, geometry=rectangle_geometry())
+    path = tmp_path / "clocked-alias.eqi"
+    source.write_eqi(path)
+    from_file = eqiora.compile(path=path, geometry=rectangle_geometry())
+    expanded = eqiora.compile(source=clocked_alias_source(aliases=False), geometry=rectangle_geometry())
+    assert model.structural_fingerprint == from_file.structural_fingerprint
+    assert model.structural_fingerprint == expanded.structural_fingerprint
+    assert len(model.field_ids) == len(expanded.field_ids) == 2
+    assert len(model.parameter_ids) == len(expanded.parameter_ids) == 0
+    with pytest.raises(eqiora.EqioraError, match="Parameter"):
+        model.preview_value_edit("current", 9.0)
+
+
+def test_clocked_alias_rejects_distinct_equal_period_clock_assertion():
+    with pytest.raises(eqiora.ValidationError, match="clock|activation"):
+        eqiora.compile(source=clocked_alias_source(wrong_clock=True), geometry=rectangle_geometry())
+
+
+def test_clock_authoring_tick_expressions_retain_depth_bound_and_doc_validation():
+    component = q.Source().component("Bounded")
+    with pytest.raises(q.SourceError, match="doc"):
+        component.clock("tick", period_s=1, doc="x" * 16_385)
+    component.clock("tick", period_s=1)
+    with pytest.raises(q.SourceError, match="doc"):
+        component.initial(0, doc="x" * 16_385)
+    expression = q.math.pi
+    for _ in range(63):
+        expression = q.pre(expression)
+    with pytest.raises(q.SourceError, match="depth"):
+        q.next(expression)
