@@ -408,7 +408,9 @@ Concurrent project writes are rejected; retry after the other operation finishes
 
 Python can bind an existing content-addressed package's public Component to
 caller-owned Geometry and produce the same ordinary immutable `Model` used by
-local source compilation:
+local source compilation. Here `support_bindings` explicitly maps every support
+name in the selected signature to a Geometry selection; each boundary maps to
+`(boundary_selection, parent_selection)`:
 
 ```python
 from pathlib import Path
@@ -421,8 +423,8 @@ model = eqiora.compile_package(
     store_root,
     resolution,
     geometry=geometry,
-    component="PoissonRectangle",
-    parameters={"wave_number": 3.14159, "source_scale": 19.7392},
+    entry="PoissonRectangle",
+    bindings={**support_bindings, "wave_number": 3.14159, "source_scale": 19.7392},
 )
 
 print(model.digest)
@@ -433,11 +435,11 @@ for binding in model.property_bindings:
 ```
 
 The caller selects one explicit store directory and supplies the exact bytes
-from `ResolutionRecordV1.canonical_json()`. Exactly one compile mode is selected:
-`entry_model=` names a root-local or directly imported public Model, while
-`geometry=` plus `component=` binds one root-package public Component to
-caller-owned Geometry and optional parameter values. Rust verifies the complete
-locked closure and uses the same compiler-owned graph in both modes.
+from `ResolutionRecordV1.canonical_json()`. The required `entry=` names the
+selected public Model or Component. `bindings=` explicitly supplies its required
+signature inputs, with `geometry=` authenticating any Geometry selections. Rust
+verifies the complete locked closure and uses the same compiler-owned graph
+for both declaration kinds.
 Human-formatted, reordered, newline-terminated, duplicate-key, or
 store-mismatched resolution bytes fail closed. Missing or ambiguous support
 bindings fail instead of matching Geometry by bounds, coordinates, or digest.
