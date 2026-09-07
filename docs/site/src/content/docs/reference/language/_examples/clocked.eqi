@@ -1,4 +1,4 @@
-model Counter {
+model Counter() {
   clock tick = periodic(1[s] / 10, phase = 0[s] / 1);
   state memory: 1 at tick;
   initial { memory = 0; }

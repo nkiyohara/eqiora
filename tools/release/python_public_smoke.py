@@ -80,8 +80,14 @@ def differentiable_program(eqiora):
     mesh = eqiora.meshing.generate(mesh_plan)
     model = eqiora.compile(
         source=POISSON,
+        entry="ReleaseSmokePoisson",
         geometry=geometry,
-        parameters={
+        bindings={
+            "square": geometry.selection("square"),
+            **{
+                name: (geometry.selection(name), geometry.selection("square"))
+                for name in ("x_lower", "x_upper", "y_lower", "y_upper")
+            },
             "diffusion": 1.0,
             "wave_number": 3.141592653589793,
             "source_scale": 19.739208802178716,
