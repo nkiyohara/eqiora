@@ -433,6 +433,62 @@ fn error(file: &str, range: TextRange, message: impl Into<String>) -> Diagnostic
     source_error(codes::LANGUAGE_TYPE_ERROR, file, range, message)
 }
 
+/// Resolve a selected signature's property argument before scalar projection.
+pub(crate) fn selected_value(
+    units: &[AnalyzedSourceUnit],
+    aliases: &[ResolvedAlias],
+    namespace: &CompilationModuleId,
+    file: &str,
+    requirement: &eqiora_lang::ComponentPropertyDecl,
+    value: &Expr,
+) -> Result<eqiora_core::ValueLiteral, Vec<Diagnostic>> {
+    let path = match value.kind() {
+        eqiora_lang::ExprKind::Name(name) => {
+            NamePath::from_segments([name.as_str()], value.range()).expect("checked name")
+        }
+        eqiora_lang::ExprKind::Path(path) => path.clone(),
+        _ => {
+            return Err(vec![error(
+                file,
+                value.range(),
+                "property binding requires an exact release or composition member reference",
+            )]);
+        }
+    };
+    let catalog = catalog::build(units, aliases)?;
+    let mut diagnostics = Vec::new();
+    let required = resolve_path(
+        namespace,
+        requirement.contract(),
+        aliases,
+        &catalog.contracts,
+        |value| value.visibility,
+        file,
+        &mut diagnostics,
+    );
+    let supplied = resolve_property_value(
+        namespace,
+        &path,
+        aliases,
+        &catalog.releases,
+        &catalog.compositions,
+        file,
+        &mut diagnostics,
+    );
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+    let release = &catalog.releases[&supplied.expect("resolved release").0];
+    if Some(&release.contract) != required.as_ref() {
+        return Err(vec![error(
+            file,
+            value.range(),
+            "property release implements a different nominal contract",
+        )]);
+    }
+    Ok(release.value.clone())
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -776,60 +832,4 @@ model Main() {
             );
         }
     }
-}
-
-/// Resolve a selected signature's property argument before scalar projection.
-pub(crate) fn selected_value(
-    units: &[AnalyzedSourceUnit],
-    aliases: &[ResolvedAlias],
-    namespace: &CompilationModuleId,
-    file: &str,
-    requirement: &eqiora_lang::ComponentPropertyDecl,
-    value: &Expr,
-) -> Result<eqiora_core::ValueLiteral, Vec<Diagnostic>> {
-    let path = match value.kind() {
-        eqiora_lang::ExprKind::Name(name) => {
-            NamePath::from_segments([name.as_str()], value.range()).expect("checked name")
-        }
-        eqiora_lang::ExprKind::Path(path) => path.clone(),
-        _ => {
-            return Err(vec![error(
-                file,
-                value.range(),
-                "property binding requires an exact release or composition member reference",
-            )]);
-        }
-    };
-    let catalog = catalog::build(units, aliases)?;
-    let mut diagnostics = Vec::new();
-    let required = resolve_path(
-        namespace,
-        requirement.contract(),
-        aliases,
-        &catalog.contracts,
-        |value| value.visibility,
-        file,
-        &mut diagnostics,
-    );
-    let supplied = resolve_property_value(
-        namespace,
-        &path,
-        aliases,
-        &catalog.releases,
-        &catalog.compositions,
-        file,
-        &mut diagnostics,
-    );
-    if !diagnostics.is_empty() {
-        return Err(diagnostics);
-    }
-    let release = &catalog.releases[&supplied.expect("resolved release").0];
-    if Some(&release.contract) != required.as_ref() {
-        return Err(vec![error(
-            file,
-            value.range(),
-            "property release implements a different nominal contract",
-        )]);
-    }
-    Ok(release.value.clone())
 }
