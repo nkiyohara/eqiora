@@ -29,17 +29,17 @@ fn valid_program_owns_one_snapshot_revision() {
 
     let mut transaction = Transaction::new("valid continuous model");
     for node in [
-        KernelNode::from(
-            ParameterDef::new(
-                field,
+        KernelNode::from(ParameterDef::new(
+            field,
+            eqiora_core::ValueLiteral::from_real(
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
                 ),
                 1.0,
             )
-            .expect("initial value"),
-        ),
+            .expect("valid parameter value"),
+        )),
         KernelNode::from(RelationDef::new(
             relation,
             expression.finish([residual]).expect("DAG"),
@@ -77,7 +77,9 @@ fn valid_program_owns_one_snapshot_revision() {
     let mut later = Transaction::new("unrelated later commit");
     later.push(Op::SetValue {
         target: field.erase(),
-        value: DynQuantity::new(2.0, DimExponents::DIMENSIONLESS),
+        value: DynQuantity::new(2.0, DimExponents::DIMENSIONLESS)
+            .try_into()
+            .unwrap(),
     });
     store.commit(later).expect("later commit");
     let later_program =
@@ -817,17 +819,17 @@ fn invalid_spatial_expression(
             ),
             eqiora_schema::kernel::FieldRole::Variable,
         )),
-        KernelNode::from(
-            ParameterDef::new(
-                ids.parameter,
+        KernelNode::from(ParameterDef::new(
+            ids.parameter,
+            eqiora_core::ValueLiteral::from_real(
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
                 ),
                 1.0,
             )
-            .unwrap(),
-        ),
+            .expect("valid parameter value"),
+        )),
         KernelNode::from(RelationDef::new(
             relation,
             expression.finish([residual]).expect("DAG"),
@@ -944,4 +946,55 @@ fn shared_spatial_contract_falsifiers_reach_graph_diagnostics() {
                 .is_some_and(|path| path.to_string().contains("expression"))
         }));
     }
+}
+
+#[test]
+fn revision_values_preserve_complex_channels_without_scalar_execution_coercion() {
+    use eqiora_core::{ScalarDomain, ValueLiteral, ValueType};
+    use eqiora_sem::{Interpreter, ReferenceConfig};
+    let id = Id::<kinds::Parameter>::new();
+    let model = OntologyId::<Model>::new();
+    let ty = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+        .array(2)
+        .unwrap();
+    let declared = ValueLiteral::new(ty.clone(), [(1.0, 2.0), (3.0, 4.0)]).unwrap();
+    let edited = ValueLiteral::new(ty, [(5.0, 6.0), (7.0, 8.0)]).unwrap();
+    let mut transaction = Transaction::new("typed parameter snapshot");
+    transaction.push(Op::DefineKernelNode {
+        node: ParameterDef::new(id, declared.clone()).into(),
+    });
+    let relation = Id::<kinds::Relation>::new();
+    let mut dag = ExprDagBuilder::new();
+    let symbol = dag.symbol(SymbolRef::Parameter(id)).unwrap();
+    let residual = dag.sub(symbol, symbol).unwrap();
+    transaction.push(Op::DefineKernelNode {
+        node: RelationDef::initial(relation, dag.finish([residual]).unwrap()).into(),
+    });
+    transaction.push(Op::Connect {
+        from: relation.erase(),
+        to: id.erase(),
+        edge: EdgeKind::DependsOn,
+    });
+    transaction.push(Op::DefineOntologyView {
+        view: ModelView::new(model, [id.erase(), relation.erase()], [])
+            .unwrap()
+            .into(),
+    });
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let old = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    let mut edit = Transaction::new("complete component edit");
+    edit.push(Op::SetValue {
+        target: id.erase(),
+        value: edited.clone(),
+    });
+    store.commit(edit).unwrap();
+    let current = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    assert_eq!(old.typed_value(id.erase()), Some(&declared));
+    assert_eq!(current.typed_value(id.erase()), Some(&edited));
+    assert_eq!(current.value(id.erase()), None);
+    let errors = Interpreter::new()
+        .initialize(&current, ReferenceConfig::new(0.0, 0.1).unwrap())
+        .unwrap_err();
+    assert_eq!(errors[0].code(), codes::NOT_IMPLEMENTED);
 }

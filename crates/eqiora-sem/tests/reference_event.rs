@@ -229,28 +229,28 @@ fn bouncing_fixture(direction: EventDirection, reverse_nodes: bool) -> BouncingF
             eqiora_schema::kernel::FieldRole::State,
         )),
         initial(velocity, DynQuantity::new(0.0, velocity_dimension)),
-        KernelNode::from(
-            ParameterDef::new(
-                gravity,
+        KernelNode::from(ParameterDef::new(
+            gravity,
+            eqiora_core::ValueLiteral::from_real(
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     acceleration_dimension,
                 ),
                 9.81,
             )
-            .unwrap(),
-        ),
-        KernelNode::from(
-            ParameterDef::new(
-                restitution,
+            .expect("valid parameter value"),
+        )),
+        KernelNode::from(ParameterDef::new(
+            restitution,
+            eqiora_core::ValueLiteral::from_real(
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
                 ),
                 0.8,
             )
-            .unwrap(),
-        ),
+            .expect("valid parameter value"),
+        )),
         KernelNode::from(RelationDef::new(
             flight,
             flight_expression
@@ -380,25 +380,25 @@ fn chattering_program() -> KernelProgram {
             eqiora_schema::kernel::FieldRole::State,
         )),
         initial(state, DynQuantity::new(1.0e-6, DimExponents::DIMENSIONLESS)),
-        KernelNode::from(
-            ParameterDef::new(
-                rate,
+        KernelNode::from(ParameterDef::new(
+            rate,
+            eqiora_core::ValueLiteral::from_real(
                 eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time),
                 1.0,
             )
-            .unwrap(),
-        ),
-        KernelNode::from(
-            ParameterDef::new(
-                reset_value,
+            .expect("valid parameter value"),
+        )),
+        KernelNode::from(ParameterDef::new(
+            reset_value,
+            eqiora_core::ValueLiteral::from_real(
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
                 ),
                 1.0e-6,
             )
-            .unwrap(),
-        ),
+            .expect("valid parameter value"),
+        )),
         KernelNode::from(RelationDef::new(
             flow,
             flow_expression.finish([flow_residual]).unwrap(),

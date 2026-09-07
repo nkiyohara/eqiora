@@ -14,7 +14,7 @@ use super::{edge_targets, kernel_error};
 
 pub(super) fn resolve_cartesian_bounds(
     nodes: &BTreeMap<RawId, KernelNode>,
-    values: &BTreeMap<RawId, DynQuantity>,
+    values: &BTreeMap<RawId, eqiora_core::ValueLiteral>,
     edges: &[Edge],
     diagnostics: &mut Vec<Diagnostic>,
 ) -> BTreeMap<RawId, Vec<AxisBounds>> {
@@ -107,7 +107,7 @@ fn resolve_coordinate(
     role: &str,
     source: CartesianCoordinateSource,
     nodes: &BTreeMap<RawId, KernelNode>,
-    values: &BTreeMap<RawId, DynQuantity>,
+    values: &BTreeMap<RawId, eqiora_core::ValueLiteral>,
     references: &mut BTreeSet<RawId>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<DynQuantity> {
@@ -135,7 +135,10 @@ fn resolve_coordinate(
                 ));
                 return None;
             }
-            let Some(value) = values.get(&parameter).copied() else {
+            let Some(value) = values
+                .get(&parameter)
+                .and_then(eqiora_core::ValueLiteral::real_scalar_value)
+            else {
                 diagnostics.push(kernel_error(
                     domain,
                     format!(

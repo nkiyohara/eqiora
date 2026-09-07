@@ -90,7 +90,7 @@ impl KernelProgram {
                             ) {
                                 diagnostics.push(kernel_error(member, "only Parameter nodes own revision-local values; use initial Relations for Fields"));
                             }
-                            values.insert(member, value);
+                            values.insert(member, value.clone());
                         }
                     }
                     None => diagnostics.push(kernel_error(

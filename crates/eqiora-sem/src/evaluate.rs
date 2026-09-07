@@ -183,7 +183,7 @@ mod tests {
                 value_type.scalar_domain() == ScalarDomain::Real && value_type.shape().is_scalar();
             let mut builder = ExprDagBuilder::new();
             let root = builder
-                .constant(ValueLiteral::new(value_type, 0.0).unwrap())
+                .constant(ValueLiteral::from_real(value_type, 0.0).unwrap())
                 .unwrap();
             let result =
                 evaluate_expression(owner, &builder.finish([root]).unwrap(), &mut |_| None);

@@ -248,12 +248,37 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
         let node = self.expression.nodes()[index].clone();
         let mapped = match node {
             ExprNode::Constant(constant) => {
-                // The checked real component projection turns a shaped zero
-                // into one scalar zero; it does not erase a complex domain.
+                let flat = constant
+                    .value_type()
+                    .shape()
+                    .extents()
+                    .iter()
+                    .zip(component)
+                    .fold(0_usize, |offset, (extent, coordinate)| {
+                        offset * extent.get() as usize + *coordinate as usize
+                    });
+                let (real, _) = constant.component(flat).ok_or_else(|| {
+                    invalid_component_ir("literal component is outside its exact shape")
+                })?;
                 self.builder.constant(eqiora_core::DynQuantity::new(
-                    constant.literal(),
+                    real,
                     constant.value_type().dimension(),
                 ))?
+            }
+            ExprNode::Array { elements } => {
+                let (channel, inner) = component.split_first().ok_or_else(|| {
+                    invalid_component_ir("array component needs an outer channel")
+                })?;
+                let element = elements.get(*channel as usize).copied().ok_or_else(|| {
+                    invalid_component_ir("array channel is outside its exact extent")
+                })?;
+                self.lower(element, inner)?
+            }
+            ExprNode::Index { value, index } => {
+                let coordinates = std::iter::once(index)
+                    .chain(component.iter().copied())
+                    .collect::<Vec<_>>();
+                self.lower(value, &coordinates)?
             }
             ExprNode::Symbol(symbol) => self.input(symbol, node_type.shape(), component)?,
             ExprNode::Neg(operand) => {
@@ -540,7 +565,7 @@ mod tests {
                 .unwrap();
             let mut builder = ExprDagBuilder::new();
             let root = builder
-                .constant(ValueLiteral::new(value_type.clone(), 0.0).unwrap())
+                .constant(ValueLiteral::from_real(value_type.clone(), 0.0).unwrap())
                 .unwrap();
             let typed = TypedResidual::infer(
                 builder.finish([root]).unwrap(),
@@ -839,5 +864,40 @@ mod tests {
             })
             .unwrap();
         assert_eq!(values, [10.0, 14.0, 15.0, 21.0]);
+    }
+}
+
+#[cfg(test)]
+mod channel_tests {
+    use super::*;
+    use eqiora_core::{DimExponents, ScalarDomain, ValueLiteral, ValueType};
+    use eqiora_schema::kernel::{ExprDagBuilder, typing::RootContract};
+
+    #[test]
+    fn complete_constant_components_and_explicit_channel_index_keep_order() {
+        let ty = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            .array(2)
+            .unwrap();
+        let mut dag = ExprDagBuilder::new();
+        let left = dag
+            .constant(ValueLiteral::new(ty.clone(), [(2.0, 0.0), (3.0, 0.0)]).unwrap())
+            .unwrap();
+        let right = dag
+            .constant(ValueLiteral::new(ty, [(5.0, 0.0), (7.0, 0.0)]).unwrap())
+            .unwrap();
+        let channels = dag.array([left, right]).unwrap();
+        let selected = dag.index(channels, 1).unwrap();
+        let typed = TypedResidual::infer(
+            dag.finish([channels, selected]).unwrap(),
+            None,
+            RootContract::ComponentwiseResidual,
+            |_| -> Result<ExpressionType<()>, ()> { unreachable!() },
+        )
+        .unwrap();
+        let lowered = ComponentScalarization::lower(&typed).unwrap();
+        assert_eq!(
+            lowered.evaluate(|_| None).unwrap(),
+            [2.0, 3.0, 5.0, 7.0, 5.0, 7.0]
+        );
     }
 }
