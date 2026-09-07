@@ -44,6 +44,7 @@ fn local_entries(
     entry: Option<&str>,
     bindings: &[(&str, StaticBindingValue<'_>)],
 ) -> Result<Vec<CompiledModel>, Vec<Diagnostic>> {
+    source_budget(file, source.len(), HierarchyLimits::default())?;
     let parsed = parse(file, source);
     let document = if entry.is_some() {
         parsed.into_document()?
@@ -68,6 +69,7 @@ pub(super) fn local_document(
     bindings: &[(&str, StaticBindingValue<'_>)],
     limits: HierarchyLimits,
 ) -> Result<Vec<CompiledModel>, Vec<Diagnostic>> {
+    source_budget(file, source_bytes, limits)?;
     let identity = LocalSourceIdentity::from_document(&document).map_err(|error| vec![error])?;
     let document = crate::dimensions::elaborate_dimension_aliases(file, &document)?.into_owned();
     // This private lookup namespace never enters local source/occurrence identity.
@@ -496,4 +498,24 @@ fn bind_model(
         model.range(),
     )
     .map_err(|error| vec![hierarchy_error(error.message())])
+}
+
+fn source_budget(
+    file: &str,
+    source_bytes: usize,
+    limits: HierarchyLimits,
+) -> Result<(), Vec<Diagnostic>> {
+    if source_bytes > limits.max_source_bytes {
+        Err(vec![source_error(
+            codes::LANGUAGE_LOWERING_ERROR,
+            file,
+            TextRange::new(0, u32::try_from(source_bytes).unwrap_or(u32::MAX)),
+            format!(
+                "source requires {source_bytes} bytes, exceeding the {} byte hierarchy limit",
+                limits.max_source_bytes
+            ),
+        )])
+    } else {
+        Ok(())
+    }
 }
