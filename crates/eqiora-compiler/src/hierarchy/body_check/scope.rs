@@ -1,3 +1,4 @@
+mod child_ports;
 mod input_bindings;
 pub(super) use input_bindings::validate_input_bindings;
 mod diagnostics;
@@ -323,7 +324,9 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
                     })
                     .ok_or_else(|| self.invalid_public_port_selection(path))?;
                 component_port_contract(self.elaborator, child, port)
-                    .map(SymbolContract::Port)
+                    .map(|contract| {
+                        SymbolContract::Port(self.specialize_child_port(instance, contract))
+                    })
                     .map_err(|mut errors| {
                         errors.pop().unwrap_or_else(|| {
                             source_error(
@@ -521,6 +524,16 @@ pub(super) fn component_port_contract(
             domain,
             activation,
         } => {
+            if let eqiora_lang::ActivationSyntax::Periodic(clock) = activation {
+                if crate::hierarchy::clocks::component(file, owner.declaration, clock).is_none() {
+                    return Err(vec![unresolved(
+                        file,
+                        declaration.range(),
+                        clock,
+                        "signal clock activation",
+                    )]);
+                }
+            }
             let interface =
                 super::super::supports::component_support_interface(file, owner.declaration)?;
             let support = domain

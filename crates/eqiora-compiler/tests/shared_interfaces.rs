@@ -306,3 +306,16 @@ fn named_inputs_reuse_directed_endpoint_connections() {
     );
     assert!(eqiora_compiler::compile("input.eqi", &duplicate).is_err());
 }
+
+#[test]
+fn child_signal_contracts_use_bound_parent_clock_names() {
+    let source = "component Relay(clock tick:periodic,input u:1 at tick,output y:1 at tick) {relation pass at tick {y=u;}} model M(input u:1 at actual,output y:1 at actual) {clock actual=periodic(1[s]);instance relay:Relay(tick=actual,u=u);relation result at actual {y=relay.y;}}";
+    eqiora_compiler::compile("child.eqi", source).unwrap_or_else(|e| panic!("{e:?}"));
+    let invalid = source
+        .replace(
+            "clock actual=periodic(1[s]);",
+            "clock actual=periodic(1[s]);clock other=periodic(1[s]);",
+        )
+        .replace("result at actual", "result at other");
+    assert!(eqiora_compiler::compile("child.eqi", &invalid).is_err());
+}
