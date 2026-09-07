@@ -149,6 +149,7 @@ mod tests {
                 SourceAstFactory::let_alias(
                     name,
                     None,
+                    None,
                     SourceAstFactory::expression(kind, range).unwrap(),
                     range,
                 )

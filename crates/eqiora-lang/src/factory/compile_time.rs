@@ -59,13 +59,14 @@ impl SourceAstFactory {
         })
     }
 
-    /// Construct a reusable local compile-time expression alias.
+    /// Construct a reusable immutable local expression alias.
     ///
     /// # Errors
     /// Returns an error for malformed source expressions, names, or ranges.
     pub fn let_alias(
         name: impl Into<String>,
         value_type: Option<crate::ValueTypeSyntax>,
+        domain: Option<String>,
         value: Expr,
         range: TextRange,
     ) -> Result<LetDecl, AstConstructionError> {
@@ -74,6 +75,9 @@ impl SourceAstFactory {
             comments: Default::default(),
             name: checked_identifier(name, "let alias")?,
             value_type,
+            domain: domain
+                .map(|name| checked_identifier(name, "let support assertion"))
+                .transpose()?,
             value,
             range: checked_range(range)?,
         })
@@ -116,11 +120,12 @@ mod tests {
         let dimension =
             SourceAstFactory::expression(ExprKind::Name("m".to_owned()), range).expect("dimension");
 
-        let inferred = SourceAstFactory::let_alias("inferred", None, value.clone(), range)
+        let inferred = SourceAstFactory::let_alias("inferred", None, None, value.clone(), range)
             .expect("inferred alias");
         let annotated = SourceAstFactory::let_alias(
             "annotated",
             Some(crate::ValueTypeSyntax::real(dimension)),
+            None,
             value,
             range,
         )

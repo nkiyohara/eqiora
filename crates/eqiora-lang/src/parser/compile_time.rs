@@ -36,6 +36,16 @@ impl Parser<'_> {
         } else {
             None
         };
+        let domain = if self.at_keyword("on") {
+            self.bump();
+            Some(
+                self.expect_identifier("let support assertion")?
+                    .text()
+                    .to_owned(),
+            )
+        } else {
+            None
+        };
         self.expect(TokenKind::Equal, "`=` before alias expression")?;
         let value = self.parse_expression(0)?;
         let end = self
@@ -46,6 +56,7 @@ impl Parser<'_> {
             comments: Default::default(),
             name,
             value_type,
+            domain,
             value,
             range: TextRange::new(start, end),
         })
