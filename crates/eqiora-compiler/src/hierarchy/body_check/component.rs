@@ -500,7 +500,7 @@ mod tests {
             })
             .expect("selected Component exists");
         let compile_time_values =
-            resolve_component_parameters_symbolically(definition.file, definition.declaration)?;
+            resolve_component_parameters_symbolically(definition.file, definition.declaration, |name|crate::hierarchy::clocks::component(definition.file,definition.declaration,name))?;
         let supports = component_support_interface(definition.file, definition.declaration)?;
         let fields = component_field_interface(definition.file, definition.declaration, &supports)?;
         validate(

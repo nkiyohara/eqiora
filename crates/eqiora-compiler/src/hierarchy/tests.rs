@@ -68,12 +68,14 @@ model Derived {
         "annotated.eqi",
         &annotated_document.models()[0],
         &mut annotated_values,
+        |name|super::clocks::model("annotated.eqi",&annotated_document.models()[0],name),
     )
     .expect("annotated aliases resolve");
     super::parameters::resolve_model_lets(
         "inferred.eqi",
         &inferred_document.models()[0],
         &mut inferred_values,
+        |name|super::clocks::model("inferred.eqi",&inferred_document.models()[0],name),
     )
     .expect("known dimensions infer");
     assert_eq!(
