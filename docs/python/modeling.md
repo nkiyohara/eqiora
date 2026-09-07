@@ -95,7 +95,7 @@ fully Python-authored without creating a second equation semantics:
 ```python
 import eqiora
 from eqiora import lang as q
-from eqiora.lang import units as u
+from eqiora import units as u
 
 source = q.Source()
 component = source.component("Diffusion")
@@ -1024,3 +1024,12 @@ assert (
 The structural fingerprint omits names, formatting, source spans, occurrence
 IDs, package provenance, and artifact codec. It is comparison evidence, not a
 replacement for exact identity in execution, replay, provenance, or edits.
+
+
+Quantity inputs use the compiler-owned `eqiora.units` catalog. For example,
+`q.quantity(Decimal("998.2"), u.kg / u.m**3)` preserves the exact decimal input
+until compiler normalization. Import `Decimal` from Python's `decimal` module.
+Integer inputs retain their decimal digits. Float inputs use Python's shortest
+round-trip decimal spelling; this is a source-authoring policy, not a claim of
+exact binary-ratio rescaling. Native numerical inputs remain binary64 values in
+coherent SI. Quantity literal spellings are limited to 256 bytes.

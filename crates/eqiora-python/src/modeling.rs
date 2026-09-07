@@ -3,7 +3,7 @@
 use eqiora::DimExponents;
 use eqiora::api::ModelDocument;
 use eqiora::language::{
-    DraftBoundarySide, DraftConservingConnection, DraftConservingPort, DraftDeclaration,
+    BoundarySideSyntax, DraftConservingConnection, DraftConservingPort, DraftDeclaration,
     DraftExpression, DraftField, DraftParameter, DraftPhysicalDomain, DraftRelation,
     DraftSpatialDomain, FieldRoleSyntax, ModelDraft,
 };
@@ -47,7 +47,7 @@ pub(crate) enum PyBoundarySide {
     Upper,
 }
 
-impl From<PyBoundarySide> for DraftBoundarySide {
+impl From<PyBoundarySide> for BoundarySideSyntax {
     fn from(value: PyBoundarySide) -> Self {
         match value {
             PyBoundarySide::Lower => Self::Lower,
@@ -124,8 +124,8 @@ impl PyDomain {
     #[getter]
     fn side(&self) -> Option<PyBoundarySide> {
         self.value.boundary_side().map(|side| match side {
-            DraftBoundarySide::Lower => PyBoundarySide::Lower,
-            DraftBoundarySide::Upper => PyBoundarySide::Upper,
+            BoundarySideSyntax::Lower => PyBoundarySide::Lower,
+            BoundarySideSyntax::Upper => PyBoundarySide::Upper,
         })
     }
 

@@ -5,6 +5,8 @@ Authority: ``bindings/python/python/eqiora/lang/__init__.py``.
 
 from collections.abc import Mapping, Sequence
 from fractions import Fraction
+from decimal import Decimal
+from ..units import Unit
 from os import PathLike
 from typing import Final, final, overload
 from .. import FieldRole, ValueType
@@ -208,7 +210,7 @@ class Source:
         *,
         implements: PropertyContract,
         value: int | float | complex | Sequence[object],
-        source_unit: _Unit,
+        source_unit: Unit,
         source_scale: int | float,
         citation: str,
         license: str,
@@ -223,41 +225,6 @@ class Source:
     ) -> MaterialComposition: ...
     def to_eqi(self) -> str: ...
     def write_eqi(self, path: str | PathLike[str]) -> None: ...
-
-class _Unit:
-    def __mul__(self, other: _Unit, /) -> _Unit: ...
-    def __truediv__(self, other: _Unit, /) -> _Unit: ...
-    def __pow__(self, exponent: int | Fraction, /) -> _Unit: ...
-    def prefixed(self, prefix: str) -> _Unit: ...
-
-class _Units:
-    kg: _Unit
-    m: _Unit
-    one: _Unit
-    s: _Unit
-    A: _Unit
-    K: _Unit
-    mol: _Unit
-    cd: _Unit
-    Hz: _Unit
-    N: _Unit
-    Pa: _Unit
-    J: _Unit
-    W: _Unit
-    C: _Unit
-    V: _Unit
-    Ohm: _Unit
-    S: _Unit
-    F: _Unit
-    H: _Unit
-    Wb: _Unit
-    T: _Unit
-    g: _Unit
-
-#: Structural SI-unit expressions used by Source declarations.
-#:
-#: Authority: ``bindings/python/python/eqiora/lang/units.py``.
-units: _Units
 
 class _Math:
     pi: Final[Expression]
@@ -381,7 +348,7 @@ def isotropic_lift(value: Expression) -> Expression:
 
     ...
 
-def quantity(value: int | float, unit: _Unit) -> Expression:
+def quantity(value: int | float | Decimal, unit: Unit) -> Expression:
     """Author an input quantity; the compiler owns conversion to coherent SI.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::quantity``.
@@ -414,5 +381,4 @@ __all__ = [
     "symmetric_part",
     "test",
     "trace",
-    "units",
 ]

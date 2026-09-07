@@ -82,6 +82,15 @@ fn python_distribution_version(cargo_version: &str) -> Option<String> {
     Some(format!("{release}{marker}{serial}"))
 }
 
+/// Project the compiler-owned unit catalog without duplicating conversion rules.
+#[pyfunction]
+fn _input_unit_catalog() -> (Vec<(&'static str, bool)>, Vec<&'static str>) {
+    (
+        eqiora::compiler::InputUnitCatalog::symbols().collect(),
+        eqiora::compiler::InputUnitCatalog::prefixes().collect(),
+    )
+}
+
 /// Compile exactly one Eqiora source through the canonical Rust pipeline.
 #[pyfunction]
 #[pyo3(signature = (*, path=None, source=None, filename=None, geometry=None, parameters=None, component=None))]
@@ -261,6 +270,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     trajectory::register(module)?;
     viewer::register(module)?;
     module.add_function(wrap_pyfunction!(compile, module)?)?;
+    module.add_function(wrap_pyfunction!(_input_unit_catalog, module)?)?;
     Ok(())
 }
 

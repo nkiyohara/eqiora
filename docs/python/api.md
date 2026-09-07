@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 18 module summaries and all 183 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 675 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 19 module summaries and all 205 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 676 signature-only entries under documented owning types**.
 
-Inventory: 18 modules, 219 literal public spellings, 183 canonical grouped declarations, 886 visible method signatures (675 non-dunder and 211 dunder), and 76 visible class assignments.
+Inventory: 19 modules, 242 literal public spellings, 205 canonical grouped declarations, 890 visible method signatures (676 non-dunder and 214 dunder), and 76 visible class assignments.
 
 Regenerate with:
 
@@ -1747,6 +1747,16 @@ Bounded Python authoring for deterministic Eqiora Language source.
 
 Authority: [`bindings/python/python/eqiora/lang/__init__.py`](../../bindings/python/python/eqiora/lang/__init__.py)
 
+<a id="api-eqiora-units"></a>
+
+### `eqiora.units`
+
+**Module export.** Continue to [`eqiora.units`](#module-eqiora-units).
+
+Compiler-owned unit catalog for deterministic Source quantity authoring.
+
+Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+
 <a id="api-eqiora-resolve"></a>
 
 ### `eqiora.resolve`
@@ -2456,7 +2466,7 @@ class Source:
     def __init__(self) -> None: ...
     def component(self, name: str, *, doc: str | None=None) -> Component: ...
     def property_contract(self, name: str, *, value_type: ValueType, doc: str | None=None) -> PropertyContract: ...
-    def property_release(self, name: str, *, implements: PropertyContract, value: int | float | complex | Sequence[object], source_unit: _Unit, source_scale: int | float, citation: str, license: str, doc: str | None=None) -> PropertyRelease: ...
+    def property_release(self, name: str, *, implements: PropertyContract, value: int | float | complex | Sequence[object], source_unit: Unit, source_scale: int | float, citation: str, license: str, doc: str | None=None) -> PropertyRelease: ...
     def material_composition(self, name: str, *, properties: Mapping[str, PropertyRelease], doc: str | None=None) -> MaterialComposition: ...
     def to_eqi(self) -> str: ...
     def write_eqi(self, path: str | PathLike[str]) -> None: ...
@@ -2631,7 +2641,7 @@ Author an input quantity; the compiler owns conversion to coherent SI.
 Authority: [`bindings/python/python/eqiora/lang/__init__.py::quantity`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 ```python
-def quantity(value: int | float, unit: _Unit) -> Expression: ...
+def quantity(value: int | float | Decimal, unit: Unit) -> Expression: ...
 ```
 
 <a id="api-eqiora-lang-symmetric_part"></a>
@@ -2670,16 +2680,295 @@ Authority: [`bindings/python/python/eqiora/lang/__init__.py::trace`](../../bindi
 def trace(value: Expression) -> Expression: ...
 ```
 
-<a id="api-eqiora-lang-units"></a>
+<a id="module-eqiora-units"></a>
 
-### `eqiora.lang.units`
+## `eqiora.units`
 
-Structural SI-unit expressions used by Source declarations.
+Compiler-owned unit catalog for deterministic Source quantity authoring.
 
-Authority: [`bindings/python/python/eqiora/lang/units.py`](../../bindings/python/python/eqiora/lang/units.py)
+Module authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+
+Shipped stub: [`bindings/python/python/eqiora/units.pyi`](../../bindings/python/python/eqiora/units.pyi)
+
+<a id="api-eqiora-units-Unit"></a>
+
+### `eqiora.units.Unit`
+
+Compose an immutable bounded structural input-unit expression.
+
+Authority: [`bindings/python/python/eqiora/units.py::Unit`](../../bindings/python/python/eqiora/units.py)
 
 ```python
-units: _Units
+@final
+class Unit:
+    def __mul__(self, other: Unit, /) -> Unit: ...
+    def __truediv__(self, other: Unit, /) -> Unit: ...
+    def __pow__(self, exponent: int | Fraction, /) -> Unit: ...
+    def prefixed(self, prefix: str) -> Unit: ...
+```
+
+<a id="api-eqiora-units-kg"></a>
+
+### `eqiora.units.kg`
+
+Compiler-owned input-unit symbol.
+
+Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+
+```python
+kg: Final[Unit]
+```
+
+<a id="api-eqiora-units-m"></a>
+
+### `eqiora.units.m`
+
+Compiler-owned input-unit symbol.
+
+Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+
+```python
+m: Final[Unit]
+```
+
+<a id="api-eqiora-units-s"></a>
+
+### `eqiora.units.s`
+
+Compiler-owned input-unit symbol.
+
+Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+
+```python
+s: Final[Unit]
+```
+
+<a id="api-eqiora-units-A"></a>
+
+### `eqiora.units.A`
+
+Compiler-owned input-unit symbol.
+
+Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+
+```python
+A: Final[Unit]
+```
+
+<a id="api-eqiora-units-K"></a>
+
+### `eqiora.units.K`
+
+Compiler-owned input-unit symbol.
+
+Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+
+```python
+K: Final[Unit]
+```
+
+<a id="api-eqiora-units-mol"></a>
+
+### `eqiora.units.mol`
+
+Compiler-owned input-unit symbol.
+
+Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+
+```python
+mol: Final[Unit]
+```
+
+<a id="api-eqiora-units-cd"></a>
+
+### `eqiora.units.cd`
+
+Compiler-owned input-unit symbol.
+
+Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+
+```python
+cd: Final[Unit]
+```
+
+<a id="api-eqiora-units-Hz"></a>
+
+### `eqiora.units.Hz`
+
+Compiler-owned input-unit symbol.
+
+Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+
+```python
+Hz: Final[Unit]
+```
+
+<a id="api-eqiora-units-N"></a>
+
+### `eqiora.units.N`
+
+Compiler-owned input-unit symbol.
+
+Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+
+```python
+N: Final[Unit]
+```
+
+<a id="api-eqiora-units-Pa"></a>
+
+### `eqiora.units.Pa`
+
+Compiler-owned input-unit symbol.
+
+Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+
+```python
+Pa: Final[Unit]
+```
+
+<a id="api-eqiora-units-J"></a>
+
+### `eqiora.units.J`
+
+Compiler-owned input-unit symbol.
+
+Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+
+```python
+J: Final[Unit]
+```
+
+<a id="api-eqiora-units-W"></a>
+
+### `eqiora.units.W`
+
+Compiler-owned input-unit symbol.
+
+Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+
+```python
+W: Final[Unit]
+```
+
+<a id="api-eqiora-units-C"></a>
+
+### `eqiora.units.C`
+
+Compiler-owned input-unit symbol.
+
+Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+
+```python
+C: Final[Unit]
+```
+
+<a id="api-eqiora-units-V"></a>
+
+### `eqiora.units.V`
+
+Compiler-owned input-unit symbol.
+
+Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+
+```python
+V: Final[Unit]
+```
+
+<a id="api-eqiora-units-Ohm"></a>
+
+### `eqiora.units.Ohm`
+
+Compiler-owned input-unit symbol.
+
+Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+
+```python
+Ohm: Final[Unit]
+```
+
+<a id="api-eqiora-units-S"></a>
+
+### `eqiora.units.S`
+
+Compiler-owned input-unit symbol.
+
+Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+
+```python
+S: Final[Unit]
+```
+
+<a id="api-eqiora-units-F"></a>
+
+### `eqiora.units.F`
+
+Compiler-owned input-unit symbol.
+
+Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+
+```python
+F: Final[Unit]
+```
+
+<a id="api-eqiora-units-H"></a>
+
+### `eqiora.units.H`
+
+Compiler-owned input-unit symbol.
+
+Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+
+```python
+H: Final[Unit]
+```
+
+<a id="api-eqiora-units-Wb"></a>
+
+### `eqiora.units.Wb`
+
+Compiler-owned input-unit symbol.
+
+Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+
+```python
+Wb: Final[Unit]
+```
+
+<a id="api-eqiora-units-T"></a>
+
+### `eqiora.units.T`
+
+Compiler-owned input-unit symbol.
+
+Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+
+```python
+T: Final[Unit]
+```
+
+<a id="api-eqiora-units-g"></a>
+
+### `eqiora.units.g`
+
+Compiler-owned input-unit symbol.
+
+Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+
+```python
+g: Final[Unit]
+```
+
+<a id="api-eqiora-units-one"></a>
+
+### `eqiora.units.one`
+
+Compiler-owned input-unit symbol.
+
+Authority: [`bindings/python/python/eqiora/units.py`](../../bindings/python/python/eqiora/units.py)
+
+```python
+one: Final[Unit]
 ```
 
 <a id="module-eqiora-meshing"></a>

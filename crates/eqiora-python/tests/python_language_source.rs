@@ -19,7 +19,7 @@ import pathlib
 import tempfile
 
 q = eqiora.lang
-u = q.units
+u = eqiora.units
 
 namespace_probe = q.Source()
 probe_component = namespace_probe.component("ScalarMath")

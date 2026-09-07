@@ -7,7 +7,7 @@ import eqiora
 
 
 q = eqiora.lang
-u = q.units
+u = eqiora.units
 
 
 def test_source_power_preserves_python_negative_base_grouping():
@@ -1065,7 +1065,7 @@ def clocked_alias_source(*, aliases=True, wrong_clock=False):
 
 def test_clock_authoring_emits_exact_activation_and_simultaneous_initial():
     text = clocked_alias_source().to_eqi()
-    assert "/// Exact sampling clock.\n  clock tick = periodic(period = 1 / 10, phase = 0 / 1);" in text
+    assert "/// Exact sampling clock.\n  clock tick = periodic(period = 1 [s] / 10, phase = 0 [s] / 1);" in text
     assert "state memory: 1 on region at tick;" in text
     assert "let current: 1 on region at tick = 2 * memory;" in text
     assert "/// Fresh pre-tick memory.\n  initial {\n    pre(memory) - 1 = 0;\n  }" in text
@@ -1088,7 +1088,7 @@ def test_clock_authoring_normalizes_rationals_and_preserves_nominal_immutability
         q.Clock()
     with pytest.raises(AttributeError, match="immutable"):
         tick._name = "changed"
-    assert source.to_eqi().count("period = 3 / 4, phase = 1 / 4") == 2
+    assert source.to_eqi().count("period = 3 [s] / 4, phase = 1 [s] / 4") == 2
     with pytest.raises(q.SourceError, match="frozen"):
         component.clock("late", period_s=1)
     with pytest.raises(q.SourceError, match="frozen"):

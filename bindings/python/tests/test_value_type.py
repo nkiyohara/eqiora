@@ -115,7 +115,7 @@ def test_source_field_uses_the_shared_type_and_native_formatter() -> None:
     component.field("channels", role=eqiora.FieldRole.Variable, on=body, value_type=value_type)
     assert f"variable channels: {syntax} on body;" in source.to_eqi()
     with pytest.raises(TypeError):
-        component.field("old", role=eqiora.FieldRole.Variable, on=body, unit=eqiora.lang.units.m)
+        component.field("old", role=eqiora.FieldRole.Variable, on=body, unit=eqiora.units.m)
 
 def test_type_emission_obeys_the_native_source_resource_limit() -> None:
     oversized = eqiora.ValueType.array(eqiora.ValueType.real(), 65_537)
@@ -131,9 +131,9 @@ def test_source_parameter_uses_the_shared_type_and_native_formatter() -> None:
     component.parameter("amplitude", value_type=value_type)
     assert f"public parameter amplitude: {value_type.to_eqi()};" in source.to_eqi()
     with pytest.raises(TypeError):
-        component.parameter("old", unit=eqiora.lang.units.m)
+        component.parameter("old", unit=eqiora.units.m)
     with pytest.raises(TypeError, match="eqiora.ValueType"):
-        component.parameter("invalid", value_type=eqiora.lang.units.m)
+        component.parameter("invalid", value_type=eqiora.units.m)
 
 
 def test_parameter_declaration_retains_its_complete_type() -> None:

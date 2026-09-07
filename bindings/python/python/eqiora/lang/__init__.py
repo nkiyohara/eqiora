@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from fractions import Fraction
+from decimal import Decimal, Context, DecimalException, Inexact, Rounded, Overflow, InvalidOperation, MAX_EMAX, MIN_EMIN
 import math as _stdlib_math
 import os
 from pathlib import Path
@@ -18,17 +19,14 @@ from typing import Final
 
 from .._eqiora import FieldRole, ValueType
 
-from . import units
-from .units import Unit
+from ..units import Unit
+from .._source_bounds import _MAX_EXPRESSION_DEPTH, _MAX_EXPRESSION_NODES, _MAX_OUTPUT_BYTES
 
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 _NAME_PATH = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*\Z")
 _MAX_DECLARATIONS = 256
 _MAX_IDENTIFIER_BYTES = 1_024
-_MAX_EXPRESSION_DEPTH = 64
-_MAX_EXPRESSION_NODES = 4096
 _MAX_DOC_BYTES = 16_384
-_MAX_OUTPUT_BYTES = 8 * 1024 * 1024
 _CREATE = object()
 _MISSING = object()
 
@@ -431,12 +429,32 @@ def _literal_expression(value: object) -> Expression:
     return literal(value, 1)
 
 
-def quantity(value: int | float, unit: Unit) -> Expression:
-    """Author an input quantity; the compiler owns conversion to coherent SI."""
+def quantity(value: int | float | Decimal, unit: Unit) -> Expression:
+    """Author an exact decimal input quantity, normalized by the compiler.
+
+    Decimal and integer inputs retain their authored decimal value. Floats use
+    Python's shortest round-trip decimal spelling, not their exact binary ratio.
+    Native numerical inputs remain binary64 coherent-SI values.
+    """
     if not isinstance(unit, Unit):
-        raise TypeError("unit must be an eqiora.lang.units.Unit")
-    text = f"{_number(value)} [{unit._text}]"
-    return Expression(_CREATE, text, None, 1, 1, 25 if value < 0 else 100)
+        raise TypeError("unit must be an eqiora.units.Unit")
+    if isinstance(value, Decimal):
+        if not value.is_finite():
+            raise SourceError("quantity literals must be finite")
+        # Count significant digits before formatting; never expand an exponent
+        # into a potentially enormous fixed-point decimal string.
+        try:
+            bounded = Context(prec=256, Emax=MAX_EMAX, Emin=MIN_EMIN,
+                              traps=[Inexact, Rounded, Overflow, InvalidOperation]).create_decimal(value)
+        except DecimalException as error:
+            raise SourceError("quantity literal exceeds the 256-byte limit") from error
+        literal = str(bounded)
+    else:
+        literal = _number(value)
+    if len(literal.encode("ascii")) > 256:
+        raise SourceError("quantity literal exceeds the 256-byte limit")
+    text = f"{literal} [{unit._text}]"
+    return Expression(_CREATE, text, None, 1, 1, 25 if literal.startswith("-") else 100)
 
 
 def _owner(left: Expression, right: Expression) -> object | None:
@@ -1103,8 +1121,8 @@ class Component:
         for clock, period, phase, doc in self._clocks:
             lines.extend(_comment(doc, "  "))
             lines.append(
-                f"  clock {clock._name} = periodic(period = {period.numerator} / {period.denominator}, "
-                f"phase = {phase.numerator} / {phase.denominator});"
+                f"  clock {clock._name} = periodic(period = {period.numerator} [s] / {period.denominator}, "
+                f"phase = {phase.numerator} [s] / {phase.denominator});"
             )
         for name, expression, value_type, support, clock, doc in self._aliases:
             lines.extend(_comment(doc, "  "))
@@ -1289,7 +1307,7 @@ class Source:
         ):
             raise SourceError("release contract must be the exact contract from this Source")
         if not isinstance(source_unit, Unit):
-            raise TypeError("source_unit must be an eqiora.lang.units.Unit")
+            raise TypeError("source_unit must be an eqiora.units.Unit")
         literal = _literal_expression(value)
         _number(source_scale)
         if source_scale <= 0:
@@ -1469,5 +1487,4 @@ __all__ = [
     "symmetric_part",
     "test",
     "trace",
-    "units",
 ]

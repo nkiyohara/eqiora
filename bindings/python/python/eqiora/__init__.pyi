@@ -31,6 +31,7 @@ from . import fsi as fsi
 from . import fvm as fvm
 from . import geometry as geometry
 from . import lang as lang
+from . import units as units
 from . import meshing as meshing
 from . import solid as solid
 from . import solve as solve
@@ -1776,6 +1777,7 @@ __all__ = [
     "div",
     "grad",
     "lang",
+    "units",
     "resolve",
     "resolve_local_project",
     "add_local_dependency",
