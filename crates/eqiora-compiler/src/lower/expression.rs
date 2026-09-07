@@ -734,3 +734,43 @@ impl ExpressionLowerer<'_> {
         )
     }
 }
+
+pub(super) fn lowering_integer_literal(expression: &LoweringExpression) -> Option<i32> {
+    let value = match expression.node.as_ref() {
+        LoweringExpressionNode::Literal(value)
+            if value.value_type().dimension() == DimExponents::DIMENSIONLESS =>
+        {
+            value.real_scalar_value()?.value()
+        }
+        LoweringExpressionNode::Neg(value) => match value.node.as_ref() {
+            LoweringExpressionNode::Literal(value)
+                if value.value_type().dimension() == DimExponents::DIMENSIONLESS =>
+            {
+                -value.real_scalar_value()?.value()
+            }
+            _ => return None,
+        },
+        _ => return None,
+    };
+    (value.fract() == 0.0 && value >= f64::from(i32::MIN) && value <= f64::from(i32::MAX))
+        .then_some(value as i32)
+}
+
+fn instantiate_pure_dimension(
+    definition: &PureOperatorDefinition,
+    arguments: &[TypedExpression],
+) -> Option<DimExponents> {
+    if arguments.len() != definition.formals().len() {
+        return None;
+    }
+    arguments
+        .iter()
+        .zip(definition.dimension_monomial().exponents())
+        .try_fold(
+            DimExponents::DIMENSIONLESS,
+            |result, (argument, exponent)| {
+                let term = argument.dimension.pow(i32::from(*exponent), 1)?;
+                result.mul(term)
+            },
+        )
+}

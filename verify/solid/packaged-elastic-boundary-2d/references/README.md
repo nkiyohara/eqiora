@@ -10,7 +10,9 @@
 - [RFC 0022](../../../../rfcs/0022-exact-package-identity-and-resolution.md)
   defines exact offline package resolution.
 
-The package source is the immutable `package-v0.2.0` release owned by this
-evidence root. Both digest domains are pinned in `case.toml`, and the live
-public package must match all three bundled files exactly. A later package
-version therefore cannot rewrite accepted `0.2.0` evidence.
+The registered Rust test prepares the current package sources under `packages/`
+through `support/embedded_package.rs` and `prepare_package_release_v1`. Exact
+dependency identities come from that closure. The independent acceptance checks
+bind the typed trace/traction expressions, four exterior members, and identity
+invariance under member order and alias spelling; no copied release tree or
+literal source digest is a second authority.

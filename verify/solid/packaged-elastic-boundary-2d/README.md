@@ -1,10 +1,10 @@
 # Packaged isotropic mechanical boundary in two dimensions
 
-This case verifies the first public Model Package application of
-[RFC 0041](../../../rfcs/0041-complete-exterior-port-families.md). The exact
-`Eqiora.Solid.LinearElasticity@0.2.0` dependency adds a nominal
-displacement/traction Connector and a separate `IsotropicMechanicalInterface2d`
-Component without widening the already accepted volume-balance Component.
+This case verifies the public Model Package application of
+[RFC 0041](../../../rfcs/0041-complete-exterior-port-families.md). It prepares
+the current `Eqiora.Solid.LinearElasticity` and `Eqiora.Mechanics.Interfaces`
+sources as an exact dependency closure, using their nominal displacement/traction
+Connector and `IsotropicMechanicalInterface2d` Component.
 
 The root Model supplies one exact body, all four exact Cartesian exterior
 Domains, and the occurrence displacement Field. Each generated boundary Port
@@ -16,8 +16,7 @@ introducing a numerical boundary method.
 
 The test changes exterior-member order and exact dependency-alias spelling
 and requires identical package identity and canonical Model bytes. It also
-pins the immutable package semantic and source digests, recursively matches
-every flattened Relation expression, and counts the exact Port, Relation,
+recursively matches every flattened Relation expression and counts the exact Port, Relation,
 Activation, and Connection inventory. No family, set, package alias, or
 numerical method survives into the Semantic Model.
 

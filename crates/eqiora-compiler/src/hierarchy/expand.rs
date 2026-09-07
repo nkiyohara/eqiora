@@ -51,8 +51,7 @@ use super::preflight::{
 use super::scope::{
     ActiveBoundaryMember, FlatSymbol, InstanceInterface, Scope, SymbolKind,
     resolve_boundary_port_reference, resolve_local_kind, resolve_ports, resolve_visible_ports,
-    rewrite_expression_with_boundary_member, rewrite_field_scope, rewrite_model_port,
-    rewrite_relation,
+    rewrite_equations, rewrite_field_scope, rewrite_model_port, rewrite_relation,
 };
 use super::supports::{
     CompleteExteriorMembershipBudget, ResolvedBoundaryTarget, ResolvedSupportBindings,
@@ -1792,27 +1791,12 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                             family.binder().member(),
                             boundary,
                         ));
-                        let equations = declaration
-                            .equations()
-                            .iter()
-                            .map(|equation| {
-                                Ok(LoweringEquation::rewritten(
-                                    equation,
-                                    rewrite_expression_with_boundary_member(
-                                        component.file,
-                                        equation.left(),
-                                        scope,
-                                        active,
-                                    )?,
-                                    rewrite_expression_with_boundary_member(
-                                        component.file,
-                                        equation.right(),
-                                        scope,
-                                        active,
-                                    )?,
-                                ))
-                            })
-                            .collect::<Result<Vec<_>, _>>()?;
+                        let equations = rewrite_equations(
+                            component.file,
+                            declaration.equations(),
+                            scope,
+                            active,
+                        )?;
                         self.record_physical_relation_owners(
                             component.file,
                             family.range(),

@@ -99,7 +99,7 @@ fn typed_literal_lowering_preserves_type_through_detachment_and_zero_negation() 
             TextRange::new(0, 1),
         );
         let literal = LoweringExpression::neg(literal.detached_clone(), TextRange::new(0, 1));
-        assert_eq!(lowering_integer_literal(&literal), None);
+        assert_eq!(expression::lowering_integer_literal(&literal), None);
         let parsed = parse("literal.eqi", "model M { relation r { 0 = 0; } }")
             .into_document()
             .unwrap();

@@ -446,18 +446,26 @@ pub(super) fn rewrite_relation(
             .map(|symbol| symbol.internal_name.clone())
         })
         .transpose()?;
-    let equations = declaration
-        .equations()
+    let equations = rewrite_equations(file, declaration.equations(), scope, None)?;
+    Ok((activation, domain, equations))
+}
+
+pub(super) fn rewrite_equations(
+    file: &str,
+    equations: &[eqiora_lang::Equation],
+    scope: &Scope,
+    active: Option<ActiveBoundaryMember<'_>>,
+) -> Result<Vec<LoweringEquation>, Diagnostic> {
+    equations
         .iter()
         .map(|equation| {
             Ok(LoweringEquation::rewritten(
                 equation,
-                rewrite_expression(file, equation.left(), scope)?,
-                rewrite_expression(file, equation.right(), scope)?,
+                rewrite_expression_with_boundary_member(file, equation.left(), scope, active)?,
+                rewrite_expression_with_boundary_member(file, equation.right(), scope, active)?,
             ))
         })
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok((activation, domain, equations))
+        .collect()
 }
 
 pub(super) fn rewrite_expression(
