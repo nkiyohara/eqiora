@@ -74,6 +74,22 @@ pub(super) fn infer_node<I: Clone + Eq, E>(
             };
             divide(&left, &right)
         }
+        ExprNode::Quotient(left, right) | ExprNode::Remainder(left, right) => {
+            let Some((left, right)) = inferred_binary(inferred, *left, *right) else {
+                return NodeInference::Unavailable;
+            };
+            left.integer_quotient(right)
+        }
+        ExprNode::ToReal(value) | ExprNode::ToInteger(value) => {
+            let Some(value) = inferred_type(inferred, *value) else {
+                return NodeInference::Unavailable;
+            };
+            if matches!(node, ExprNode::ToReal(_)) {
+                value.to_real()
+            } else {
+                value.to_integer()
+            }
+        }
         ExprNode::PowI(base, exponent) => {
             let Some(base) = inferred_type(inferred, *base) else {
                 return NodeInference::Unavailable;

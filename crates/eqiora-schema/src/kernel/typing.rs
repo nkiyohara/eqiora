@@ -15,6 +15,7 @@ use eqiora_core::ValueFrame;
 
 mod construction;
 mod inference;
+mod integer;
 use inference::{NodeInference, infer_node, inferred_type};
 mod value;
 pub use value::ExpressionType;
@@ -84,6 +85,8 @@ impl<I> SpatialSupport<I> {
 /// Pure typing failure, retaining identities without choosing diagnostics.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeViolation<I> {
+    /// Discrete domains do not implicitly embed into continuous numeric domains.
+    ScalarDomainMismatch,
     /// An array must contain at least one complete element.
     EmptyArray,
     /// Indexing requires an outer channel-array axis.
@@ -176,7 +179,8 @@ impl<I> TypeViolation<I> {
     pub const fn is_dimension_or_shape(&self) -> bool {
         matches!(
             self,
-            Self::EmptyArray
+            Self::ScalarDomainMismatch
+                | Self::EmptyArray
                 | Self::IndexRequiresArray
                 | Self::IndexOutOfBounds
                 | Self::ComplexRequiresRealScalars
@@ -204,6 +208,9 @@ impl<I> TypeViolation<I> {
 impl<I: fmt::Debug> fmt::Display for TypeViolation<I> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::ScalarDomainMismatch => {
+                formatter.write_str("operation requires compatible admitted scalar domains")
+            }
             Self::EmptyArray => formatter.write_str("array requires at least one element"),
             Self::IndexRequiresArray => {
                 formatter.write_str("indexing requires an outer channel-array axis")
@@ -462,7 +469,8 @@ pub fn additive<I: Clone + Eq>(
     Ok(ExpressionType::new(
         left.value_type
             .clone()
-            .with_common_scalar_domain(&right.value_type),
+            .with_common_scalar_domain(&right.value_type)
+            .ok_or(TypeViolation::ScalarDomainMismatch)?,
         combine_additive_support(&left.support, &right.support)?,
     ))
 }
@@ -472,6 +480,11 @@ pub fn multiply<I: Clone + Eq>(
     left: &ExpressionType<I>,
     right: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
+    if left.value_type.scalar_domain() == eqiora_core::ScalarDomain::Integer
+        && left.value_type != right.value_type
+    {
+        return Err(TypeViolation::ScalarDomainMismatch);
+    }
     let value_type = if left.shape().is_scalar() && left.frame() == ValueFrame::Invariant {
         &right.value_type
     } else if right.shape().is_scalar() && right.frame() == ValueFrame::Invariant {
@@ -483,7 +496,9 @@ pub fn multiply<I: Clone + Eq>(
         value_type
             .clone()
             .with_common_scalar_domain(&left.value_type)
+            .ok_or(TypeViolation::ScalarDomainMismatch)?
             .with_common_scalar_domain(&right.value_type)
+            .ok_or(TypeViolation::ScalarDomainMismatch)?
             .with_dimension(left.dimension().mul(right.dimension()).ok_or(
                 TypeViolation::DimensionOverflow {
                     operation: "multiplication",
@@ -498,6 +513,9 @@ pub fn divide<I: Clone + Eq>(
     numerator: &ExpressionType<I>,
     denominator: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
+    if numerator.value_type.scalar_domain() == eqiora_core::ScalarDomain::Integer {
+        return Err(TypeViolation::ScalarDomainMismatch);
+    }
     if !denominator.shape().is_scalar() || denominator.frame() != ValueFrame::Invariant {
         return Err(TypeViolation::DivisionDenominatorNotScalar);
     }
@@ -506,6 +524,7 @@ pub fn divide<I: Clone + Eq>(
             .value_type
             .clone()
             .with_common_scalar_domain(&denominator.value_type)
+            .ok_or(TypeViolation::ScalarDomainMismatch)?
             .with_dimension(numerator.dimension().div(denominator.dimension()).ok_or(
                 TypeViolation::DimensionOverflow {
                     operation: "division",
@@ -520,6 +539,9 @@ pub fn power<I: Clone>(
     base: &ExpressionType<I>,
     exponent: i32,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
+    if base.value_type.scalar_domain() == eqiora_core::ScalarDomain::Integer {
+        return Err(TypeViolation::ScalarDomainMismatch);
+    }
     if !base.shape().is_scalar() || base.frame() != ValueFrame::Invariant {
         return Err(TypeViolation::PowerRequiresScalar);
     }
@@ -559,6 +581,9 @@ pub fn unary_math<I: Clone>(
     function: UnaryMathFunction,
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
+    if operand.value_type.scalar_domain() == eqiora_core::ScalarDomain::Integer {
+        return Err(TypeViolation::ScalarDomainMismatch);
+    }
     if function == UnaryMathFunction::Sqrt {
         if !operand.shape().is_scalar() || operand.frame() != ValueFrame::Invariant {
             return Err(TypeViolation::PowerRequiresScalar);
@@ -586,6 +611,9 @@ pub fn unary_math<I: Clone>(
 pub fn gradient<I: Clone>(
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
+    if operand.value_type.scalar_domain() == eqiora_core::ScalarDomain::Integer {
+        return Err(TypeViolation::ScalarDomainMismatch);
+    }
     let support = operand
         .support
         .as_ref()
@@ -620,6 +648,9 @@ pub fn gradient<I: Clone>(
 pub fn divergence<I: Clone>(
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
+    if operand.value_type.scalar_domain() == eqiora_core::ScalarDomain::Integer {
+        return Err(TypeViolation::ScalarDomainMismatch);
+    }
     let support = operand
         .support
         .as_ref()
@@ -743,6 +774,9 @@ pub fn scalar_root<I: Clone + Eq>(
 pub fn time_derivative<I: Clone>(
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
+    if operand.value_type.scalar_domain() == eqiora_core::ScalarDomain::Integer {
+        return Err(TypeViolation::ScalarDomainMismatch);
+    }
     Ok(ExpressionType::new(
         operand.value_type.clone().with_dimension(
             operand

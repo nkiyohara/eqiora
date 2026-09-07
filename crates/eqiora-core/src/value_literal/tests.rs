@@ -33,8 +33,8 @@ fn complex_and_spatial_channel_values_retain_every_ordered_component() {
     let value = ValueLiteral::new(ty.clone(), expected).unwrap();
     assert_eq!(value.value_type(), &ty);
     assert_eq!(value.component_count(), 6);
-    assert_eq!(value.components().collect::<Vec<_>>(), expected);
-    assert_eq!(value.components().next_back(), Some((11.0, 12.0)));
+    assert_eq!(value.components().unwrap().collect::<Vec<_>>(), expected);
+    assert_eq!(value.components().unwrap().next_back(), Some((11.0, 12.0)));
     assert_eq!(value.component(6), None);
     assert_eq!(value.real_scalar_value(), None);
     assert!(!value.is_zero());
@@ -67,12 +67,12 @@ fn zero_is_canonical_compact_and_does_not_broadcast_nonzero_scalars() {
     assert_eq!(zero.component_count(), u32::MAX as usize);
     assert_eq!(zero.component(u32::MAX as usize - 1), Some((0.0, 0.0)));
     assert_eq!(zero.component(u32::MAX as usize), None);
-    assert_eq!(zero.components().len(), u32::MAX as usize);
+    assert_eq!(zero.components().unwrap().len(), u32::MAX as usize);
     let ty = real().array(3).unwrap();
     let explicit = ValueLiteral::new(ty.clone(), [(-0.0, -0.0); 3]).unwrap();
     assert_eq!(explicit, ValueLiteral::from_real(ty.clone(), 0.0).unwrap());
     assert!(explicit.is_zero());
-    for (r, i) in explicit.components() {
+    for (r, i) in explicit.components().unwrap() {
         assert_eq!(r.to_bits(), 0.0_f64.to_bits());
         assert_eq!(i.to_bits(), 0.0_f64.to_bits());
     }
@@ -129,4 +129,114 @@ fn invalid_components_cannot_enter_the_value() {
             Err(InvalidValueLiteral::NonFinite)
         );
     }
+}
+
+#[test]
+fn exact_integer_boundaries_arithmetic_and_explicit_conversion() {
+    let int = |n| {
+        ValueLiteral::from_integer(
+            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+            n,
+        )
+        .unwrap()
+    };
+    let n = int(9_007_199_254_740_993);
+    assert_eq!(n.integer_scalar_value(), Some(9_007_199_254_740_993));
+    assert_ne!(n, int(9_007_199_254_740_992));
+    assert!(n.component(0).is_none());
+    assert!(n.components().is_none());
+    assert!(n.real_scalar_value().is_none());
+    assert_eq!(n.checked_add(&int(1)).unwrap(), int(9_007_199_254_740_994));
+    assert_eq!(int(-7).checked_quotient(&int(3)).unwrap(), int(-2));
+    assert_eq!(int(-7).checked_remainder(&int(3)).unwrap(), int(-1));
+    assert_eq!(int(7).checked_remainder(&int(-3)).unwrap(), int(1));
+    assert_eq!(
+        int(i64::MAX).checked_add(&int(1)),
+        Err(InvalidValueLiteral::IntegerOverflow)
+    );
+    assert_eq!(
+        int(i64::MIN).checked_sub(&int(1)),
+        Err(InvalidValueLiteral::IntegerOverflow)
+    );
+    assert_eq!(
+        int(i64::MAX).checked_mul(&int(2)),
+        Err(InvalidValueLiteral::IntegerOverflow)
+    );
+    assert_eq!(
+        int(i64::MIN).checked_neg(),
+        Err(InvalidValueLiteral::IntegerOverflow)
+    );
+    assert_eq!(
+        int(i64::MIN).checked_quotient(&int(-1)),
+        Err(InvalidValueLiteral::IntegerOverflow)
+    );
+    assert_eq!(
+        int(i64::MIN).checked_remainder(&int(-1)),
+        Err(InvalidValueLiteral::IntegerOverflow)
+    );
+    assert_eq!(
+        int(1).checked_quotient(&int(0)),
+        Err(InvalidValueLiteral::ZeroDivisor)
+    );
+    assert_eq!(
+        n.to_real().unwrap().real_scalar_value().unwrap().value(),
+        9_007_199_254_740_992.0
+    );
+    assert_eq!(
+        int(9_007_199_254_740_995)
+            .to_real()
+            .unwrap()
+            .real_scalar_value()
+            .unwrap()
+            .value(),
+        9_007_199_254_740_996.0
+    );
+    let real = |n| {
+        ValueLiteral::from_real(
+            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+            n,
+        )
+        .unwrap()
+    };
+    assert_eq!(
+        real(-9223372036854775808.0).to_integer().unwrap(),
+        int(i64::MIN)
+    );
+    assert_eq!(
+        real(9223372036854775808.0).to_integer(),
+        Err(InvalidValueLiteral::IntegerConversion)
+    );
+    assert_eq!(
+        real(1.5).to_integer(),
+        Err(InvalidValueLiteral::IntegerConversion)
+    );
+    assert_eq!(real(-0.0).to_integer().unwrap(), int(0));
+    assert!(real(1.0).checked_add(&int(1)).is_err());
+}
+
+#[test]
+fn integer_arrays_keep_order_cardinality_and_compact_zero() {
+    let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+        .array(3)
+        .unwrap();
+    let value =
+        ValueLiteral::integer(ty.clone(), [i64::MIN, 9_007_199_254_740_993, i64::MAX]).unwrap();
+    assert_eq!(
+        value.integer_components().unwrap().collect::<Vec<_>>(),
+        [i64::MIN, 9_007_199_254_740_993, i64::MAX]
+    );
+    assert!(value.integer_scalar_value().is_none());
+    assert!(value.integer_component(3).is_none());
+    assert!(ValueLiteral::integer(ty.clone(), [1, 2]).is_err());
+    assert!(ValueLiteral::integer(ty.clone(), [1, 2, 3, 4]).is_err());
+    assert!(ValueLiteral::from_integer(ty.clone(), 1).is_err());
+    assert!(ValueLiteral::from_real(ty.clone(), 0.0).is_err());
+    assert!(ValueLiteral::new(ty, [(0.0, 0.0); 3]).is_err());
+    let huge = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+        .array(u32::MAX)
+        .unwrap();
+    let zero = ValueLiteral::from_integer(huge, 0).unwrap();
+    assert!(zero.is_zero());
+    assert!(matches!(zero.payload, super::Payload::Zero));
+    assert_eq!(zero.integer_component(u32::MAX as usize - 1), Some(0));
 }

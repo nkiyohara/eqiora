@@ -25,9 +25,9 @@ pub struct ValueType {
 impl ValueType {
     /// Promote scalar components to the smallest common domain without changing their roles.
     #[must_use]
-    pub fn with_common_scalar_domain(mut self, other: &Self) -> Self {
-        self.scalar_domain = self.scalar_domain.common(other.scalar_domain);
-        self
+    pub fn with_common_scalar_domain(mut self, other: &Self) -> Option<Self> {
+        self.scalar_domain = self.scalar_domain.common(other.scalar_domain)?;
+        Some(self)
     }
 
     /// Wrap this complete element type in one ordered channel-array axis.
@@ -162,8 +162,14 @@ mod tests {
         let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
         let complex = ValueType::scalar(ScalarDomain::Complex, real.dimension());
         assert_ne!(real, complex);
-        assert_eq!(real.clone().with_common_scalar_domain(&complex), complex);
-        assert_eq!(complex.clone().with_common_scalar_domain(&real), complex);
+        assert_eq!(
+            real.clone().with_common_scalar_domain(&complex),
+            Some(complex.clone())
+        );
+        assert_eq!(
+            complex.clone().with_common_scalar_domain(&real),
+            Some(complex)
+        );
         let channels = ValueType::shaped(
             ScalarDomain::Complex,
             real.dimension(),

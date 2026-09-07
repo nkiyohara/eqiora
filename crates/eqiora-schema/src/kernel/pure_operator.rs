@@ -688,7 +688,9 @@ impl PureOperatorDefinition {
         let mut scalar_domain = eqiora_core::ScalarDomain::Real;
         for (rule, argument) in self.formals.iter().zip(arguments) {
             validate_argument_class(*rule, argument)?;
-            scalar_domain = scalar_domain.common(argument.value_type.scalar_domain());
+            scalar_domain = scalar_domain
+                .common(argument.value_type.scalar_domain())
+                .ok_or(PureOperatorError::FormalTypeMismatch)?;
             let Some(support @ SpatialSupport::Volume { .. }) = argument.support.as_ref() else {
                 return Err(PureOperatorError::FormalTypeMismatch);
             };

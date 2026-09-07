@@ -55,7 +55,10 @@ fn polynomial_operators_preserve_common_scalar_domain_and_exact_component_roles(
     use eqiora_core::{ScalarDomain, ValueType};
     let complex = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS);
     let mut tensor = volume_tensor("body");
-    tensor.value_type = tensor.value_type.with_common_scalar_domain(&complex);
+    tensor.value_type = tensor
+        .value_type
+        .with_common_scalar_domain(&complex)
+        .unwrap();
     let symmetric = PureOperatorDefinition::symmetric_part().unwrap();
     assert_eq!(
         symmetric
@@ -66,7 +69,7 @@ fn polynomial_operators_preserve_common_scalar_domain_and_exact_component_roles(
     );
     let mut left = volume_vector("body", DimExponents::DIMENSIONLESS);
     let right = left.clone();
-    left.value_type = left.value_type.with_common_scalar_domain(&complex);
+    left.value_type = left.value_type.with_common_scalar_domain(&complex).unwrap();
     let dyadic = PureOperatorDefinition::dyadic_product().unwrap();
     let application = dyadic.instantiate(&[left.clone(), right]).unwrap();
     assert_eq!(application.result_type(), &tensor);

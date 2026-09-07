@@ -14,6 +14,7 @@ pub struct ValueLiteral {
 enum Payload {
     Zero,
     Components(Box<[(f64, f64)]>),
+    Integers(Box<[i64]>),
 }
 
 impl ValueLiteral {
@@ -28,6 +29,9 @@ impl ValueLiteral {
         value_type: ValueType,
         components: impl IntoIterator<Item = (f64, f64)>,
     ) -> Result<Self, InvalidValueLiteral> {
+        if value_type.scalar_domain() == ScalarDomain::Integer {
+            return Err(InvalidValueLiteral::ScalarDomain);
+        }
         let count = value_type
             .shape()
             .component_count()
@@ -75,6 +79,9 @@ impl ValueLiteral {
     /// # Errors
     /// Rejects non-finite values and nonzero scalar broadcasting to shaped types.
     pub fn from_real(value_type: ValueType, value: f64) -> Result<Self, InvalidValueLiteral> {
+        if value_type.scalar_domain() == ScalarDomain::Integer {
+            return Err(InvalidValueLiteral::ScalarDomain);
+        }
         if !value.is_finite() {
             return Err(InvalidValueLiteral::NonFinite);
         }
@@ -108,7 +115,11 @@ impl ValueLiteral {
     /// One ordered real/imaginary pair, or `None` outside the exact shape.
     #[must_use]
     pub fn component(&self, index: usize) -> Option<(f64, f64)> {
+        if self.value_type.scalar_domain() == ScalarDomain::Integer {
+            return None;
+        }
         match &self.payload {
+            Payload::Integers(_) => None,
             Payload::Zero => (index < self.component_count()).then_some((0.0, 0.0)),
             Payload::Components(values) => values.get(index).copied(),
         }
@@ -117,8 +128,11 @@ impl ValueLiteral {
     /// Components in row-major, last-axis-fastest order, without materializing zero storage.
     pub fn components(
         &self,
-    ) -> impl ExactSizeIterator<Item = (f64, f64)> + DoubleEndedIterator + '_ {
-        (0..self.component_count()).map(|index| self.component(index).expect("in-range component"))
+    ) -> Option<impl ExactSizeIterator<Item = (f64, f64)> + DoubleEndedIterator + '_> {
+        (self.value_type.scalar_domain() != ScalarDomain::Integer).then(|| {
+            (0..self.component_count())
+                .map(|index| self.component(index).expect("in-range component"))
+        })
     }
 
     /// Whether every real and imaginary component is zero.
@@ -160,6 +174,14 @@ impl TryFrom<DynQuantity> for ValueLiteral {
 /// A literal cannot initialize the requested mathematical type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InvalidValueLiteral {
+    /// The requested scalar domain, dimension or shape is not admitted.
+    ScalarDomain,
+    /// Exact integer arithmetic overflowed.
+    IntegerOverflow,
+    /// An integer quotient or remainder has a zero divisor.
+    ZeroDivisor,
+    /// A real value is fractional or outside the signed integer range.
+    IntegerConversion,
     /// Mathematical components must be finite.
     NonFinite,
     /// Nonzero scalars cannot broadcast to a shape.
@@ -175,6 +197,14 @@ pub enum InvalidValueLiteral {
 impl core::fmt::Display for InvalidValueLiteral {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         formatter.write_str(match self {
+            Self::ScalarDomain => {
+                "operation requires the exact admitted scalar domain, dimension and shape"
+            }
+            Self::IntegerOverflow => "exact integer arithmetic overflow",
+            Self::ZeroDivisor => "integer divisor must be nonzero",
+            Self::IntegerConversion => {
+                "real-to-integer conversion requires an in-range integral value"
+            }
             Self::NonFinite => "mathematical components must be finite",
             Self::NonzeroShape => "a shaped value requires contextual zero or complete components",
             Self::ComponentCount => "component count must exactly match the mathematical type",
@@ -184,6 +214,8 @@ impl core::fmt::Display for InvalidValueLiteral {
     }
 }
 impl std::error::Error for InvalidValueLiteral {}
+
+mod integer;
 
 #[cfg(test)]
 mod tests;

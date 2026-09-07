@@ -119,6 +119,14 @@ pub enum ExprNode {
     Mul(ExprId, ExprId),
     /// Division.
     Div(ExprId, ExprId),
+    /// Exact integer quotient, truncating toward zero.
+    Quotient(ExprId, ExprId),
+    /// Exact integer remainder with the dividend sign.
+    Remainder(ExprId, ExprId),
+    /// Explicit integer scalar to real conversion.
+    ToReal(ExprId),
+    /// Checked integral real scalar to integer conversion.
+    ToInteger(ExprId),
     /// Integer power.
     PowI(ExprId, i32),
     /// One physical Cartesian coordinate selected by zero-based axis. The
@@ -153,6 +161,8 @@ impl ExprNode {
         match self {
             Self::Array { elements } => elements.iter().copied().try_for_each(visit),
             Self::Sample { value, .. }
+            | Self::ToReal(value)
+            | Self::ToInteger(value)
             | Self::Hold(value)
             | Self::Index { value, .. }
             | Self::Neg(value)
@@ -171,6 +181,8 @@ impl ExprNode {
             | Self::Add(left, right)
             | Self::Sub(left, right)
             | Self::Mul(left, right)
+            | Self::Quotient(left, right)
+            | Self::Remainder(left, right)
             | Self::Div(left, right) => {
                 visit(*left)?;
                 visit(*right)
@@ -352,6 +364,23 @@ impl ExprDagBuilder {
     /// Divide two expressions.
     pub fn div(&mut self, left: ExprId, right: ExprId) -> Result<ExprId, Diagnostic> {
         self.push(ExprNode::Div(left, right))
+    }
+
+    /// Checked integer quotient.
+    pub fn quotient(&mut self, left: ExprId, right: ExprId) -> Result<ExprId, Diagnostic> {
+        self.push(ExprNode::Quotient(left, right))
+    }
+    /// Checked integer remainder.
+    pub fn remainder(&mut self, left: ExprId, right: ExprId) -> Result<ExprId, Diagnostic> {
+        self.push(ExprNode::Remainder(left, right))
+    }
+    /// Explicit integer-to-real conversion.
+    pub fn to_real(&mut self, value: ExprId) -> Result<ExprId, Diagnostic> {
+        self.push(ExprNode::ToReal(value))
+    }
+    /// Checked integral real-to-integer conversion.
+    pub fn to_integer(&mut self, value: ExprId) -> Result<ExprId, Diagnostic> {
+        self.push(ExprNode::ToInteger(value))
     }
 
     /// Raise an expression to an integer power.

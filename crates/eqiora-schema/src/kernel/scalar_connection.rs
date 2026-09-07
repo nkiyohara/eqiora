@@ -121,7 +121,11 @@ fn validate_signal<I>(ports: &[ScalarPortContract<I>]) -> Result<(), ScalarConne
             direction: SignalDirection::Input,
             value_type,
         } = port
-            && output_type.clone().with_common_scalar_domain(value_type) != *value_type
+            && output_type
+                .clone()
+                .with_common_scalar_domain(value_type)
+                .as_ref()
+                != Some(value_type)
         {
             return Err(ScalarConnectionViolation::SignalTypeMismatch);
         }
