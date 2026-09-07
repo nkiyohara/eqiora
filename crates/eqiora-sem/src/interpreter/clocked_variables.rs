@@ -14,3 +14,24 @@ pub(super) fn clear_clocked_variables(program: &KernelProgram, state: &mut Runti
         .fields
         .retain(|field, _| !is_clocked_variable(program, *field));
 }
+
+/// Fresh algebraic tick values use the configured guess and require a unique solve.
+pub(super) fn solve_seed(
+    program: &KernelProgram,
+    variables: &[Variable],
+    state: &RuntimeState,
+    config: ReferenceConfig,
+) -> (Vec<f64>, bool) {
+    let mut check_rank = false;
+    let initial = variables
+        .iter()
+        .map(|variable| match variable {
+            Variable::Field(field) if is_clocked_variable(program, *field) => {
+                check_rank = true;
+                config.initial_guess()
+            }
+            _ => variable_value(*variable, state),
+        })
+        .collect();
+    (initial, check_rank)
+}

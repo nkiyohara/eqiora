@@ -951,16 +951,8 @@ fn execute_activated_relations(
         }
     }
     let variables = variables.into_iter().collect::<Vec<_>>();
-    let initial = variables
-        .iter()
-        .map(|variable| match variable {
-            Variable::Field(field) if is_clocked_variable(program, *field) => {
-                config.initial_guess()
-            }
-            _ => variable_value(*variable, &accepted_candidate),
-        })
-        .collect();
-    let check_rank = variables.iter().any(|variable| matches!(variable, Variable::Field(field) if is_clocked_variable(program, *field)));
+    let (initial, check_rank) =
+        clocked_variables::solve_seed(program, &variables, &accepted_candidate, config);
     let residual = |values: &[f64]| {
         let candidates = candidate_maps(&variables, values, &accepted_candidate);
         evaluate_relations(
