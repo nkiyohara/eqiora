@@ -2,7 +2,6 @@ model Valid {}
 
 model Invalid {
   domain line = box(0, 1);
-  representation space = continuum;
-  field displacement on line as space: m = 0;
+  variable displacement: m on line;
   relation invalid on line { normal(grad(displacement)) = 0; }
 }

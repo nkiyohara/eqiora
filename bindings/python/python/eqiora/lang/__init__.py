@@ -15,7 +15,7 @@ import tempfile
 import textwrap
 from typing import Final
 
-from .._eqiora import ValueType
+from .._eqiora import FieldRole, ValueType
 
 from . import units
 from .units import Unit
@@ -556,7 +556,7 @@ class Component:
         ] = []
         self._fields: list[
             tuple[
-                Expression, Support, str, object | None, tuple[str, ...]
+                Expression, Support, str, FieldRole, tuple[str, ...]
             ]
         ] = []
         self._relations: list[
@@ -671,7 +671,7 @@ class Component:
         *,
         on: Support,
         value_type: ValueType,
-        initial: int | float | None = None,
+        role: FieldRole,
         doc: str | None = None,
     ) -> Expression:
         on = self._support(on)
@@ -682,11 +682,11 @@ class Component:
         if not isinstance(value_type, ValueType):
             raise TypeError("value_type must be an eqiora.ValueType")
         syntax = value_type.to_eqi()
-        if initial is not None:
-            _number(initial)
+        if not isinstance(role, FieldRole):
+            raise TypeError("role must be an eqiora.FieldRole")
         admitted = self._add_name(name)
         expression = _Field(self._owner, self._component_token, admitted)
-        self._fields.append((expression, on, syntax, initial, _doc(doc)))
+        self._fields.append((expression, on, syntax, role, _doc(doc)))
         return expression
 
     def relation(
@@ -872,7 +872,15 @@ class Component:
 
     def _render(self) -> str:
         lines = _comment(self._doc, "")
-        lines.append(f"public component {self._name} {{")
+        signature = []
+        for support, kind, detail, doc in self._supports:
+            syntax = (f"volume(ambient_dimension = {detail})" if kind == "volume"
+                      else f"boundary(parent = {detail._name})")
+            signature.extend(_comment(doc, "  "))
+            signature.append(f"  support {support._name}: {syntax},")
+        lines.append(f"public component {self._name}(")
+        lines.extend(signature)
+        lines.append(") {")
         for requirement, contract, doc in self._properties:
             lines.extend(_comment(doc, "  "))
             lines.append(
@@ -886,30 +894,18 @@ class Component:
             or self._instances
         ):
             lines.append("")
-        for support, kind, detail, doc in self._supports:
-            lines.extend(_comment(doc, "  "))
-            if kind == "volume":
-                syntax = f"volume(ambient_dimension = {detail})"
-            else:
-                syntax = f"boundary(parent = {detail._name})"
-            lines.append(f"  public support {support._name}: {syntax};")
-        if self._supports and (
-            self._parameters or self._fields or self._relations or self._instances
-        ):
-            lines.append("")
         for parameter, value_type, doc in self._parameters:
             lines.extend(_comment(doc, "  "))
             lines.append(f"  public parameter {parameter._name}: {value_type};")
         if self._parameters and (self._fields or self._relations or self._instances):
             lines.append("")
         if self._fields:
-            lines.append("  representation space = continuum;")
-            for field, support, value_type, initial, doc in self._fields:
+            for field, support, value_type, role, doc in self._fields:
                 lines.extend(_comment(doc, "  "))
-                initialized = f" = {_number(initial)}" if initial is not None else ""
+                keyword = "state" if role == FieldRole.State else "variable"
                 lines.append(
-                    f"  field {field._text} on {support._name} as space: "
-                    f"{value_type}{initialized};"
+                    f"  {keyword} {field._text}: "
+                    f"{value_type} on {support._name};"
                 )
         if self._fields and (self._relations or self._instances):
             lines.append("")

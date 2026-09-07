@@ -8,9 +8,8 @@ model ScalarBalance {
   domain body = box(0, 1);
   domain lower_face = boundary(body, axis = 0, side = lower);
   domain upper_face = boundary(body, axis = 0, side = upper);
-  representation space = continuum;
 
-  field state on body as space: 1;
+  state state: 1 on body;
   parameter capacity: s / m ^ 2 = 2;
   parameter conductivity: 1 = 3;
   parameter source_density: 1 / m ^ 2 = 0.5;
@@ -42,10 +41,11 @@ public connector ScalarBoundary = field_physical(
   pairing = euclidean_boundary_duality
 );
 
-public component ScalarInterface1d {
-  public support body: volume(ambient_dimension = 1);
-  public support face: boundary(parent = body);
-  public field slot state on body as continuum: 1;
+public component ScalarInterface1d(
+  support body: volume(ambient_dimension = 1),
+  support face: boundary(parent = body),
+  variable state: 1 on body
+) {
   public parameter coefficient: 1;
   public port interface: conserving ScalarBoundary over face;
 
@@ -62,10 +62,9 @@ model CompositeBalance {
   domain right = box(0.5, 1);
   domain right_lower = boundary(right, axis = 0, side = lower);
   domain right_upper = boundary(right, axis = 0, side = upper);
-  representation space = continuum;
 
-  field left_state on left as space: 1;
-  field right_state on right as space: 1;
+  variable left_state: 1 on left;
+  variable right_state: 1 on right;
   parameter left_coefficient: 1 = 2;
   parameter right_coefficient: 1 = 7;
 
@@ -419,9 +418,7 @@ fn program(source: &str) -> KernelProgram {
 }
 
 fn cartesian_regions(dimensions: &[usize]) -> String {
-    let mut source = String::from(
-        "model CartesianScalar {\n  representation space = continuum;\n  parameter coefficient: 1 = 2;\n",
-    );
+    let mut source = String::from("model CartesianScalar {\n  \n  parameter coefficient: 1 = 2;\n");
     for (region, dimensions) in dimensions.iter().copied().enumerate() {
         let bounds = (0..dimensions)
             .flat_map(|_| ["0", "1"])
@@ -436,7 +433,7 @@ fn cartesian_regions(dimensions: &[usize]) -> String {
             }
         }
         source.push_str(&format!(
-            "  field state_{region} on body_{region} as space: 1;\n  relation balance_{region} on body_{region} {{ -div(coefficient * grad(state_{region})) = 0; }}\n"
+            "  variable state_{region}: 1 on body_{region};\n  relation balance_{region} on body_{region} {{ -div(coefficient * grad(state_{region})) = 0; }}\n"
         ));
         for axis in 0..dimensions {
             for side in ["lower", "upper"] {

@@ -46,6 +46,8 @@ pub(super) struct FieldContract {
     pub(super) dimension: DimExponents,
     pub(super) value_type: eqiora_lang::ValueTypeSyntax,
     pub(super) domain: Option<String>,
+    pub(super) role: eqiora_lang::FieldRoleSyntax,
+    pub(super) activation: ActivationSyntax,
 }
 
 #[derive(Debug, Clone)]
@@ -114,10 +116,29 @@ pub(super) fn bind_domain(
 
 pub(super) fn resolve_field_contract(
     file: &str,
-    _range: TextRange,
+    range: TextRange,
     contract: &FieldContract,
     bindings: &BTreeMap<String, Binding>,
 ) -> Result<eqiora_core::ValueType, Diagnostic> {
+    if contract.domain.as_ref().is_some_and(|name| {
+        matches!(
+            bindings.get(name),
+            Some(Binding::Domain(
+                _,
+                DomainContract::Spatial {
+                    parent: Some(_),
+                    ..
+                }
+            ))
+        )
+    }) {
+        return Err(source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            range,
+            "source Field requires a volume support",
+        ));
+    }
     let support = contract.domain.as_ref().and_then(|name| {
         let Binding::Domain(
             id,

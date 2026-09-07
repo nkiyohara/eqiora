@@ -1,6 +1,6 @@
 connector Pin = scalar_physical(across = 1, through = 1);
 
-component OpenPair {
+component OpenPair() {
   public port a: conserving on Pin;
   public port b: conserving on Pin;
 }

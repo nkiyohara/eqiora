@@ -40,7 +40,7 @@ continuous_residuals = 23
 periodic_unknowns = 2
 periodic_residuals = 2
 kernel_parameters = 0
-model_wire = 2
+model_wire = 12
 package_wire = 1
 
 [numerical_contract]

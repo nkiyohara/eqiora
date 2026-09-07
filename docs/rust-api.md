@@ -42,7 +42,10 @@ enable the feature explicitly when they need those binaries.
 
 ## Compile a model
 
-Put this in `src/main.rs`, then run `cargo run`:
+The following example targets this checkout's current authoring contract. Use
+its `crates/eqiora` path dependency when trying the example; the published alpha
+artifacts above retain their released contracts. Put this in `src/main.rs`, then
+run `cargo run`:
 
 ```rust
 use eqiora::api::ModelDocument;
@@ -51,7 +54,8 @@ fn main() {
     let model = ModelDocument::compile(
         "decay.eqi",
         r#"model decay {
-            field x: 1 = 1;
+            state x: 1;
+            initial { x = 1; }
             parameter rate: 1 / s = 1;
             relation flow {
                 derivative(x) + rate * x = 0;

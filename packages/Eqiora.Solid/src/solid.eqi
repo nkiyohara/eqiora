@@ -14,10 +14,11 @@ public property contract PoissonRatio {
   scalar value: 1;
 }
 
-public component IsotropicBalance2d {
-  public support body: volume(ambient_dimension = 2);
-  public field slot displacement on body as continuum: vector<m, 2>;
-  public field slot load_potential on body as continuum: kg / (m * s ^ 2);
+public component IsotropicBalance2d(
+  support body: volume(ambient_dimension = 2),
+  variable displacement: vector<m, 2> on body,
+  variable load_potential: kg / (m * s ^ 2) on body,
+) {
   public parameter shear_modulus: kg / (m * s ^ 2);
   public parameter first_lame_parameter: kg / (m * s ^ 2);
 
@@ -29,10 +30,11 @@ public component IsotropicBalance2d {
   }
 }
 
-public component DisplacementTractionInterface2d {
-  public support body: volume(ambient_dimension = 2);
-  public support exterior: complete_exterior(parent = body);
-  public field slot displacement on body as continuum: vector<m, 2>;
+public component DisplacementTractionInterface2d(
+  support body: volume(ambient_dimension = 2),
+  support exterior: complete_exterior(parent = body),
+  variable displacement: vector<m, 2> on body,
+) {
   public parameter shear_modulus: kg / (m * s ^ 2);
   public parameter first_lame_parameter: kg / (m * s ^ 2);
 
@@ -49,11 +51,12 @@ public component DisplacementTractionInterface2d {
   }
 }
 
-public component PlaneStrainLinearElasticity2d {
-  public support body: volume(ambient_dimension = 2);
-  public support exterior: complete_exterior(parent = body);
-  public field slot displacement on body as continuum: vector<m, 2>;
-  public field slot load_potential on body as continuum: kg / (m * s ^ 2);
+public component PlaneStrainLinearElasticity2d(
+  support body: volume(ambient_dimension = 2),
+  support exterior: complete_exterior(parent = body),
+  variable displacement: vector<m, 2> on body,
+  variable load_potential: kg / (m * s ^ 2) on body,
+) {
   public parameter young_modulus: kg / (m * s ^ 2);
   public parameter poisson_ratio: 1;
 
@@ -82,11 +85,12 @@ public component PlaneStrainLinearElasticity2d {
     interface.mechanical[boundary = boundary];
 }
 
-public component PlaneStressLinearElasticity2d {
-  public support body: volume(ambient_dimension = 2);
-  public support exterior: complete_exterior(parent = body);
-  public field slot displacement on body as continuum: vector<m, 2>;
-  public field slot load_potential on body as continuum: kg / (m * s ^ 2);
+public component PlaneStressLinearElasticity2d(
+  support body: volume(ambient_dimension = 2),
+  support exterior: complete_exterior(parent = body),
+  variable displacement: vector<m, 2> on body,
+  variable load_potential: kg / (m * s ^ 2) on body,
+) {
   public parameter young_modulus: kg / (m * s ^ 2);
   public parameter poisson_ratio: 1;
 
@@ -115,13 +119,14 @@ public component PlaneStressLinearElasticity2d {
     interface.mechanical[boundary = boundary];
 }
 
-public component PlaneStrainMaterial2d {
+public component PlaneStrainMaterial2d(
+  support body: volume(ambient_dimension = 2),
+  support exterior: complete_exterior(parent = body),
+  variable displacement: vector<m, 2> on body,
+  variable load_potential: kg / (m * s ^ 2) on body,
+) {
   public property young_modulus: YoungModulus;
   public property poisson_ratio: PoissonRatio;
-  public support body: volume(ambient_dimension = 2);
-  public support exterior: complete_exterior(parent = body);
-  public field slot displacement on body as continuum: vector<m, 2>;
-  public field slot load_potential on body as continuum: kg / (m * s ^ 2);
   public port mechanical[boundary in exterior]:
     conserving DisplacementTractionBoundary over boundary;
 
@@ -138,13 +143,14 @@ public component PlaneStrainMaterial2d {
     elasticity.mechanical[boundary = boundary];
 }
 
-public component PlaneStressMaterial2d {
+public component PlaneStressMaterial2d(
+  support body: volume(ambient_dimension = 2),
+  support exterior: complete_exterior(parent = body),
+  variable displacement: vector<m, 2> on body,
+  variable load_potential: kg / (m * s ^ 2) on body,
+) {
   public property young_modulus: YoungModulus;
   public property poisson_ratio: PoissonRatio;
-  public support body: volume(ambient_dimension = 2);
-  public support exterior: complete_exterior(parent = body);
-  public field slot displacement on body as continuum: vector<m, 2>;
-  public field slot load_potential on body as continuum: kg / (m * s ^ 2);
   public port mechanical[boundary in exterior]:
     conserving DisplacementTractionBoundary over boundary;
 
@@ -161,9 +167,10 @@ public component PlaneStressMaterial2d {
     elasticity.mechanical[boundary = boundary];
 }
 
-public component FixedDisplacement2d {
-  public support body: volume(ambient_dimension = 2);
-  public support face: boundary(parent = body);
+public component FixedDisplacement2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+) {
   public port mechanical:
     conserving DisplacementTractionBoundary over face;
 
@@ -172,9 +179,10 @@ public component FixedDisplacement2d {
   }
 }
 
-public component TractionFree2d {
-  public support body: volume(ambient_dimension = 2);
-  public support face: boundary(parent = body);
+public component TractionFree2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+) {
   public port mechanical:
     conserving DisplacementTractionBoundary over face;
 
@@ -183,10 +191,11 @@ public component TractionFree2d {
   }
 }
 
-public component PrescribedDisplacement2d {
-  public support body: volume(ambient_dimension = 2);
-  public support face: boundary(parent = body);
-  public field slot displacement on body as continuum: vector<m, 2>;
+public component PrescribedDisplacement2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+  variable displacement: vector<m, 2> on body,
+) {
   public port mechanical:
     conserving DisplacementTractionBoundary over face;
 
@@ -195,11 +204,11 @@ public component PrescribedDisplacement2d {
   }
 }
 
-public component PrescribedTraction2d {
-  public support body: volume(ambient_dimension = 2);
-  public support face: boundary(parent = body);
-  public field slot traction on body as continuum:
-    vector<kg / (m * s ^ 2), 2>;
+public component PrescribedTraction2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+  variable traction: vector<kg / (m * s ^ 2), 2> on body,
+) {
   public port mechanical:
     conserving DisplacementTractionBoundary over face;
 

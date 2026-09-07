@@ -151,10 +151,7 @@ interface InspectorProps {
 
 export function Inspector({ node, position, onNudge, valueEdit }: InspectorProps) {
   const quantitative =
-    node !== null &&
-    (node.kind === "field" || node.kind === "parameter") &&
-    node.value !== null &&
-    node.dimension !== null;
+    node !== null && node.kind === "parameter" && node.value !== null && node.dimension !== null;
   const plan = valueEdit.status.kind === "ready" ? valueEdit.status.plan : null;
   return (
     <section

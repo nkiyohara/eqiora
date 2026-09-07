@@ -17,6 +17,7 @@ pub(super) fn encode_instance(
         .checked_add(declaration.support_bindings().len())
         .and_then(|count| count.checked_add(declaration.boundary_set_bindings().len()))
         .and_then(|count| count.checked_add(declaration.field_bindings().len()))
+        .and_then(|count| count.checked_add(declaration.clock_bindings().len()))
         .and_then(|count| count.checked_add(declaration.property_binding_syntax().len()))
         .and_then(|count| {
             count.checked_add(usize::from(declaration.material_binding_syntax().is_some()))
@@ -93,6 +94,16 @@ pub(super) fn encode_instance(
     }
     if let Some(material) = declaration.material_binding_syntax() {
         encoder.field(8, |encoder| encode_type_path(encoder, material, budget))?;
+    }
+    if !declaration.clock_bindings().is_empty() {
+        let clocks =
+            encode_sorted_records(declaration.clock_bindings(), budget, |binding, budget| {
+                let mut value = Encoder::new(budget.limits.max_canonical_bytes);
+                value.field(1, |encoder| encode_name(encoder, binding.slot(), budget))?;
+                value.field(2, |encoder| encode_name(encoder, binding.target(), budget))?;
+                value.finish()
+            })?;
+        encoder.field(9, |encoder| encoder.records(&clocks))?;
     }
     Ok(())
 }

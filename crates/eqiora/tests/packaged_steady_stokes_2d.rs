@@ -20,9 +20,8 @@ use eqiora_numerics::{
 #[path = "support/embedded_package.rs"]
 mod embedded_package;
 
-const COMPONENT: &str = include_str!(
-    "../../../verify/fluid/packaged-steady-stokes-2d/package-v0.1.0/src/incompressible.eqi"
-);
+const COMPONENT: &str =
+    include_str!("../../../verify/fluid/packaged-steady-stokes-2d/models/component.eqi");
 const COMPONENT_README: &[u8] =
     include_bytes!("../../../verify/fluid/packaged-steady-stokes-2d/package-v0.1.0/README.md");
 const COMPONENT_PERMUTED: &str =
@@ -38,13 +37,12 @@ const PUBLIC_PACKAGE: &str = "Eqiora.Fluid.Incompressible";
 const ROOT_PACKAGE: &str = "org.eqiora.verify.packaged_steady_stokes_2d";
 const VERSION: &str = "0.1.0";
 
-const PACKAGED_TO_DIRECT: [(&str, &str); 19] = [
+const PACKAGED_TO_DIRECT: [(&str, &str); 18] = [
     ("body", "body"),
     ("x_lower", "x_lower"),
     ("x_upper", "x_upper"),
     ("y_lower", "y_lower"),
     ("y_upper", "y_upper"),
-    ("space", "space"),
     ("velocity", "velocity"),
     ("pressure", "pressure"),
     ("force_potential", "force_potential"),
@@ -321,6 +319,18 @@ fn identity_normalized_program(packaged: &ModelDocument, direct: &ModelDocument)
         packaged.program().model().ulid().to_string(),
         direct.program().model().ulid().to_string(),
     )]);
+    // One common spatial support synthesizes one continuum owner with no source alias.
+    let continuum = |model: &serde_json::Value| {
+        let nodes = model["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|node| node["definition"]["kind"] == "representation")
+            .collect::<Vec<_>>();
+        assert_eq!(nodes.len(), 1);
+        id_ulid(&nodes[0]["id"])
+    };
+    identities.insert(continuum(&packaged_value), continuum(&direct_value));
     for (packaged_name, direct_name) in PACKAGED_TO_DIRECT {
         let packaged_id = packaged
             .aliases()
@@ -442,7 +452,7 @@ fn assert_component_and_root_boundaries() {
         component
             .items()
             .iter()
-            .filter(|item| matches!(item, ComponentItem::FieldSlot(_)))
+            .filter(|item| matches!(item, ComponentItem::FieldRequirement(_)))
             .count(),
         3
     );
@@ -852,16 +862,16 @@ fn canonical_stokes_recognizer_rejects_semantic_near_misses() {
 
     let wrong_dimensions = DIRECT
         .replace(
-            "field velocity on body as space: vector<m / s, 2>;",
-            "field velocity on body as space: vector<1, 2>;",
+            "variable velocity: vector<m / s, 2> on body;",
+            "variable velocity: vector<1, 2> on body;",
         )
         .replace(
-            "field pressure on body as space: kg / (m * s ^ 2) = 0;",
-            "field pressure on body as space: 1 / m = 0;",
+            "variable pressure: kg / (m * s ^ 2) on body;",
+            "variable pressure: 1 / m on body;",
         )
         .replace(
-            "field force_potential on body as space: kg / (m * s ^ 2) = 0;",
-            "field force_potential on body as space: 1 / m = 0;",
+            "variable force_potential: kg / (m * s ^ 2) on body;",
+            "variable force_potential: 1 / m on body;",
         )
         .replace(
             "parameter dynamic_viscosity: kg / (m * s) = 2;",
@@ -875,12 +885,12 @@ fn canonical_stokes_recognizer_rejects_semantic_near_misses() {
 
     let distinct_support = DIRECT
         .replace(
-            "  representation space = continuum;",
-            "  domain peer = box(0, 1, 0, 1);\n  representation space = continuum;",
+            "model Main {",
+            "model Main { domain peer = box(0, 1, 0, 1);",
         )
         .replace(
-            "field pressure on body as space:",
-            "field pressure on peer as space:",
+            "variable pressure: kg / (m * s ^ 2) on body;",
+            "variable pressure: kg / (m * s ^ 2) on peer;",
         );
     assert_model_or_lowering_rejects(&distinct_support);
 

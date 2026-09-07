@@ -67,7 +67,7 @@ def test_input_quantities_compile_from_python_and_emitted_source(tmp_path: Path)
     source = q.Source()
     law = source.component("RootLength")
     region = law.volume("region", dimensions=2)
-    length = law.field("length", on=region, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)), initial=0)
+    length = law.field("length", role=eqiora.FieldRole.Variable, on=region, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
     law.relation(
         "balance", on=region,
         right=0, left=length - q.math.sqrt(q.quantity(4, u.m.prefixed("m") ** 2)),
@@ -110,12 +110,12 @@ def cylinder_source(
     inlet_speed = stokes.parameter("inlet_speed", value_type=eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1)))
     channel_height = stokes.parameter("channel_height", value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
 
-    velocity = stokes.field("velocity", on=fluid, value_type=velocity_type)
-    pressure = stokes.field("pressure", on=fluid, value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2)), initial=0)
+    velocity = stokes.field("velocity", role=eqiora.FieldRole.Variable, on=fluid, value_type=velocity_type)
+    pressure = stokes.field("pressure", role=eqiora.FieldRole.Variable, on=fluid, value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2)))
     force_potential = stokes.field(
-        "force_potential", on=fluid, value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2)), initial=0
+        "force_potential", role=eqiora.FieldRole.Variable, on=fluid, value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2))
     )
-    inlet_profile = stokes.field("inlet_profile", on=fluid, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1)), initial=0)
+    inlet_profile = stokes.field("inlet_profile", role=eqiora.FieldRole.Variable, on=fluid, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1)))
 
     stokes.relation(
         "force_definition", on=fluid, left=force_potential, right=zero_pressure
@@ -157,7 +157,7 @@ def test_relation_requires_ordered_left_and_right_including_zero() -> None:
     source = q.Source()
     component = source.component("NaturalEquation")
     body = component.volume("body", dimensions=2)
-    value = component.field("value", on=body, value_type=eqiora.ValueType.real())
+    value = component.field("value", role=eqiora.FieldRole.Variable, on=body, value_type=eqiora.ValueType.real())
     source_scale = component.parameter("source_scale", value_type=eqiora.ValueType.real())
 
     natural = component.relation(
@@ -185,11 +185,11 @@ def test_relation_rejects_mixed_incomplete_foreign_and_nonfinite_equations() -> 
     source = q.Source()
     component = source.component("Relations")
     body = component.volume("body", dimensions=2)
-    value = component.field("value", on=body, value_type=eqiora.ValueType.real())
+    value = component.field("value", role=eqiora.FieldRole.Variable, on=body, value_type=eqiora.ValueType.real())
     foreign = q.Source()
     foreign_component = foreign.component("Foreign")
     foreign_body = foreign_component.volume("body", dimensions=2)
-    foreign_value = foreign_component.field("value", on=foreign_body, value_type=eqiora.ValueType.real())
+    foreign_value = foreign_component.field("value", role=eqiora.FieldRole.Variable, on=foreign_body, value_type=eqiora.ValueType.real())
 
     invalid = (
         lambda: component.relation("missing", on=body),
@@ -258,7 +258,7 @@ def scalar_property_source(*, doc: str = "Reference scalar diffusivity release."
     law_top = law.boundary("top", parent=law_region)
     law_source_scale = law.parameter("source_scale", value_type=eqiora.ValueType.real(eqiora.Dimension(length=-2)))
     diffusivity = law.property("diffusivity", contract=contract)
-    potential = law.field("potential", on=law_region, value_type=eqiora.ValueType.real(), initial=0)
+    potential = law.field("potential", role=eqiora.FieldRole.Variable, on=law_region, value_type=eqiora.ValueType.real())
     law.relation(
         "balance",
         on=law_region,
@@ -403,7 +403,7 @@ def scalar_primal_source():
     diffusion = law.parameter("diffusion", value_type=eqiora.ValueType.real())
     wave_number = law.parameter("wave_number", value_type=eqiora.ValueType.real(eqiora.Dimension(length=-1)))
     source_scale = law.parameter("source_scale", value_type=eqiora.ValueType.real(eqiora.Dimension(length=-2)))
-    potential = law.field("potential", on=region, value_type=eqiora.ValueType.real(), initial=0)
+    potential = law.field("potential", role=eqiora.FieldRole.Variable, on=region, value_type=eqiora.ValueType.real())
     balance = law.relation(
         "balance",
         on=region,
@@ -471,12 +471,12 @@ def test_uninitialized_scalar_field_compiles_from_source_and_emitted_file(
     source = q.Source()
     law = source.component("AlgebraicField")
     region = law.volume("region", dimensions=2)
-    potential = law.field("potential", on=region, value_type=eqiora.ValueType.real())
+    potential = law.field("potential", role=eqiora.FieldRole.Variable, on=region, value_type=eqiora.ValueType.real())
     law.relation("balance", on=region, right=0, left=potential)
 
     text = source.to_eqi()
-    assert "field potential on region as space: 1;" in text
-    assert "field potential on region as space: 1 =" not in text
+    assert "variable potential: 1 on region;" in text
+    assert "variable potential: 1 =" not in text
 
     direct = eqiora.compile(source=source, geometry=rectangle_geometry())
     path = tmp_path / "uninitialized-scalar.eqi"
@@ -619,20 +619,18 @@ def test_source_owns_handles_limits_and_atomic_output(tmp_path: Path) -> None:
     left = q.Source()
     left_component = left.component("Left")
     left_volume = left_component.volume("left", dimensions=2)
-    left_value = left_component.field("value", on=left_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
+    left_value = left_component.field("value", role=eqiora.FieldRole.Variable, on=left_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
     right = q.Source()
     right_component = right.component("Right")
     right_volume = right_component.volume("right", dimensions=2)
-    right_value = right_component.field("value", on=right_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
+    right_value = right_component.field("value", role=eqiora.FieldRole.Variable, on=right_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
 
     invalid = (
         lambda: left_value + right_value,
         lambda: left_component.boundary("foreign_parent", parent=right_volume),
-        lambda: left_component.field("wrong_support", on=right_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1))),
-        lambda: left_component.field("value", on=left_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1))),
-        lambda: left_component.field(
-            "nonfinite", on=left_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)), initial=float("nan")
-        ),
+        lambda: left_component.field("wrong_support", role=eqiora.FieldRole.Variable, on=right_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1))),
+        lambda: left_component.field("value", role=eqiora.FieldRole.Variable, on=left_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1))),
+        lambda: left_value + float("nan"),
     )
     for operation in invalid:
         with pytest.raises(q.SourceError):
@@ -652,7 +650,7 @@ def test_source_owns_handles_limits_and_atomic_output(tmp_path: Path) -> None:
     with pytest.raises(q.SourceError):
         q.Source().component("a" * 1025)
     with pytest.raises(q.SourceError):
-        left_component.field("huge", on=left_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)), initial=1 << 1025)
+        left_value + (1 << 1025)
 
     deep = q.math.pi
     with pytest.raises(q.SourceError):
@@ -668,7 +666,7 @@ def test_source_owns_handles_limits_and_atomic_output(tmp_path: Path) -> None:
     bounded_volume = bounded.volume("volume", dimensions=2)
     with pytest.raises(q.SourceError):
         for index in range(300):
-            bounded.field(f"value_{index}", on=bounded_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
+            bounded.field(f"value_{index}", role=eqiora.FieldRole.Variable, on=bounded_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
 
     target = tmp_path / "target.eqi"
     target.write_text("preserved", encoding="utf-8")

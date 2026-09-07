@@ -16,7 +16,8 @@ the already verified `solid.isotropic-elasticity-2d` case. No second compiler,
 package-specific lowerer, or frozen floating-point solution supplies the
 oracle.
 
-The ordinary author input is the exact `package-v0.1.0` release owned by this
-verification directory. Its immutable package bytes preserve the evidence
-after the live public package advances. The additional component sources
-exist only to falsify provider-name and input-order coupling.
+The ordinary author input is the current checked-in
+`packages/Eqiora.Solid.LinearElasticity` package, prepared as an exact release
+by the executable case. The `package-v0.1.0` snapshot preserves historical
+bytes. Current local component fixtures falsify provider-name and input-order
+coupling without requiring historical source syntax to compile.

@@ -18,10 +18,11 @@ const LOCAL_NESTED: &str =
     include_str!("../../../verify/packages/occurrence-bound-fields/models/nested-fields.eqi");
 const VERSION: &str = "0.1.0";
 const COMPONENT_PACKAGE: &str = r#"
-public component FieldLaw {
-  public support body: volume(ambient_dimension = 2);
-  public field slot scalar_state on body as continuum: 1;
-  public field slot displacement on body as continuum: vector<m, 2>;
+public component FieldLaw(
+  support body: volume(ambient_dimension = 2),
+  variable scalar_state: 1 on body,
+  variable displacement: vector<m, 2> on body,
+) {
 
   relation scalar_identity on body {
     scalar_state - scalar_state = 0;
@@ -31,10 +32,11 @@ public component FieldLaw {
   }
 }
 
-public component FieldLawWrapper {
-  public support body: volume(ambient_dimension = 2);
-  public field slot scalar_state on body as continuum: 1;
-  public field slot displacement on body as continuum: vector<m, 2>;
+public component FieldLawWrapper(
+  support body: volume(ambient_dimension = 2),
+  variable scalar_state: 1 on body,
+  variable displacement: vector<m, 2> on body,
+) {
 
   instance inner: FieldLaw(
     support body = body,
@@ -44,10 +46,11 @@ public component FieldLawWrapper {
 }
 "#;
 const COMPONENT_PACKAGE_PERMUTED: &str = r#"
-public component FieldLawWrapper {
-  public field slot displacement on body as continuum: vector<m, 2>;
-  public field slot scalar_state on body as continuum: 1;
-  public support body: volume(ambient_dimension = 2);
+public component FieldLawWrapper(
+  variable displacement: vector<m, 2> on body,
+  variable scalar_state: 1 on body,
+  support body: volume(ambient_dimension = 2),
+) {
 
   instance inner: FieldLaw(
     field displacement = displacement,
@@ -56,16 +59,18 @@ public component FieldLawWrapper {
   );
 }
 
-public component FieldLaw {
+public component FieldLaw(
+  variable displacement: vector<m, 2> on body,
+  variable scalar_state: 1 on body,
+  support body: volume(ambient_dimension = 2),
+) {
   relation vector_identity on body {
     displacement - displacement = 0;
   }
-  public field slot displacement on body as continuum: vector<m, 2>;
   relation scalar_identity on body {
     scalar_state - scalar_state = 0;
   }
-  public field slot scalar_state on body as continuum: 1;
-  public support body: volume(ambient_dimension = 2);
+
 }
 "#;
 
@@ -228,9 +233,9 @@ model Main {{
     field scalar_state = scalar_state,
     support body = body
   );
-  field displacement on body as space: vector<m, 2>;
-  field scalar_state on body as space: 1 = 0;
-  representation space = continuum;
+  variable displacement: vector<m, 2> on body;
+  variable scalar_state: 1 on body;
+
   domain body = box(0, 1, 0, 1);
 }}
 "#
@@ -242,9 +247,9 @@ import Eqiora.Verify.OccurrenceBoundFields.model as {alias};
 
 model Main {{
   domain body = box(0, 1, 0, 1);
-  representation space = continuum;
-  field scalar_state on body as space: 1 = 0;
-  field displacement on body as space: vector<m, 2>;
+
+  variable scalar_state: 1 on body;
+  variable displacement: vector<m, 2> on body;
   instance law: {alias}.FieldLawWrapper(
     support body = body,
     field scalar_state = scalar_state,
@@ -394,16 +399,17 @@ fn nested_slots_disappear_into_exact_field_and_support_identity() {
 #[test]
 fn rebinding_changes_source_identity_and_the_exact_relation_target() {
     let first = r#"
-component C {
-  public support body: volume(ambient_dimension = 2);
-  public field slot state on body as continuum: 1;
+component C(
+  support body: volume(ambient_dimension = 2),
+  variable state: 1 on body,
+) {
   relation identity on body { state - state = 0; }
 }
 model M {
   domain body = box(0, 1, 0, 1);
-  representation space = continuum;
-  field first on body as space: 1 = 0;
-  field second on body as space: 1 = 0;
+
+  variable first: 1 on body;
+  variable second: 1 on body;
   instance law: C(support body = body, field state = first);
 }
 "#;
@@ -428,10 +434,11 @@ model M {
 #[test]
 fn invalid_field_slots_fail_closed_before_transaction_or_graph_exposure() {
     let component = r#"
-component FieldLaw {
-  public support body: volume(ambient_dimension = 2);
-  public field slot scalar_state on body as continuum: 1;
-  public field slot displacement on body as continuum: vector<m, 2>;
+component FieldLaw(
+  support body: volume(ambient_dimension = 2),
+  variable scalar_state: 1 on body,
+  variable displacement: vector<m, 2> on body,
+) {
   relation scalar_identity on body { scalar_state - scalar_state = 0; }
   relation vector_identity on body { displacement - displacement = 0; }
 }
@@ -442,9 +449,9 @@ component FieldLaw {
             r#"
 model M {
   domain body = box(0, 1, 0, 1);
-  representation space = continuum;
-  field scalar_state on body as space: 1 = 0;
-  field displacement on body as space: vector<m, 2>;
+
+  variable scalar_state: 1 on body;
+  variable displacement: vector<m, 2> on body;
   instance law: FieldLaw(support body = body, field displacement = displacement);
 }
 "#,
@@ -455,9 +462,9 @@ model M {
             r#"
 model M {
   domain body = box(0, 1, 0, 1);
-  representation space = continuum;
-  field scalar_state on body as space: 1 = 0;
-  field displacement on body as space: vector<m, 2>;
+
+  variable scalar_state: 1 on body;
+  variable displacement: vector<m, 2> on body;
   instance law: FieldLaw(
     support body = body,
     field scalar_state = scalar_state,
@@ -473,9 +480,9 @@ model M {
             r#"
 model M {
   domain body = box(0, 1, 0, 1);
-  representation space = continuum;
-  field scalar_state on body as space: 1 = 0;
-  field displacement on body as space: vector<m, 2>;
+
+  variable scalar_state: 1 on body;
+  variable displacement: vector<m, 2> on body;
   instance law: FieldLaw(
     support body = body,
     field scalar_state = scalar_state,
@@ -491,9 +498,9 @@ model M {
             r#"
 model M {
   domain body = box(0, 1, 0, 1);
-  representation space = continuum;
+
   parameter gain: 1 = 0;
-  field displacement on body as space: vector<m, 2>;
+  variable displacement: vector<m, 2> on body;
   instance law: FieldLaw(
     support body = body,
     field scalar_state = gain,
@@ -508,9 +515,9 @@ model M {
             r#"
 model M {
   domain body = box(0, 1, 0, 1);
-  representation space = continuum;
-  field scalar_state on body as space: m = 0;
-  field displacement on body as space: vector<m, 2>;
+
+  variable scalar_state: m on body;
+  variable displacement: vector<m, 2> on body;
   instance law: FieldLaw(
     support body = body,
     field scalar_state = scalar_state,
@@ -525,9 +532,9 @@ model M {
             r#"
 model M {
   domain body = box(0, 1, 0, 1);
-  representation space = continuum;
-  field scalar_state on body as space: 1 = 0;
-  field displacement on body as space: m = 0;
+
+  variable scalar_state: 1 on body;
+  variable displacement: m on body;
   instance law: FieldLaw(
     support body = body,
     field scalar_state = scalar_state,
@@ -542,9 +549,9 @@ model M {
             r#"
 model M {
   domain body = box(0, 1, 0, 1);
-  representation space = continuum;
-  field scalar_state on body as space: 1 = 0;
-  field displacement on body as space: array<m, 2>;
+
+  variable scalar_state: 1 on body;
+  variable displacement: array<m, 2> on body;
   instance law: FieldLaw(
     support body = body,
     field scalar_state = scalar_state,
@@ -560,9 +567,9 @@ model M {
 model M {
   domain body = box(0, 1, 0, 1);
   domain other = box(0, 1, 0, 1);
-  representation space = continuum;
-  field scalar_state on other as space: 1 = 0;
-  field displacement on other as space: vector<m, 2>;
+
+  variable scalar_state: 1 on other;
+  variable displacement: vector<m, 2> on other;
   instance law: FieldLaw(
     support body = body,
     field scalar_state = scalar_state,
@@ -585,13 +592,14 @@ model M {
     assert_compile_rejects_without_graph_mutation(
         "non-continuum-slot",
         r#"
-component C {
-  public support body: volume(ambient_dimension = 2);
+component C(
+  support body: volume(ambient_dimension = 2),
+) {
   public field slot state on body as discrete: 1;
 }
 model M {}
 "#,
-        &["expected `continuum`"],
+        &["support and unknown requirements belong in the signature"],
     );
     assert_compile_rejects_without_graph_mutation(
         "ambient-dimension",
@@ -599,9 +607,9 @@ model M {}
             r#"{component}
 model M {{
   domain line = box(0, 1);
-  representation space = continuum;
-  field scalar_state on line as space: 1 = 0;
-  field displacement on line as space: vector<m, 1>;
+
+  variable scalar_state: 1 on line;
+  variable displacement: vector<m, 1> on line;
   instance law: FieldLaw(
     support body = line,
     field scalar_state = scalar_state,
@@ -617,16 +625,17 @@ model M {{
 #[test]
 fn parameter_support_and_field_bindings_share_one_bounded_identity_budget() {
     let source = r#"
-component C {
+component C(
+  support body: volume(ambient_dimension = 2),
+  variable state: 1 on body,
+) {
   public parameter gain: 1;
-  public support body: volume(ambient_dimension = 2);
-  public field slot state on body as continuum: 1;
   relation identity on body { gain * state - state = 0; }
 }
 model M {
   domain body = box(0, 1, 0, 1);
-  representation space = continuum;
-  field state on body as space: 1 = 0;
+
+  variable state: 1 on body;
   instance law: C(gain = 1, support body = body, field state = state);
 }
 "#;

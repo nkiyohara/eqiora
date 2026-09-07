@@ -2,7 +2,7 @@ use eqiora_lang::{Item, SourceAstFactory, format, parse};
 
 #[test]
 fn declaration_documentation_formats_structurally_and_survives_document_reconstruction() {
-    let source = "/// Model summary.\nmodel M{\n/// State summary.\nfield x:1=0; // keep with x\n// balance\nrelation r{x=0;}\n}\n";
+    let source = "/// Model summary.\nmodel M{\n/// Variable summary.\nvariable x:1; // keep with x\n// balance\nrelation r{x=0;}\n}\n";
     let document = parse("docs.eqi", source).into_document().unwrap();
     let model = &document.models()[0];
     assert_eq!(
@@ -14,13 +14,13 @@ fn declaration_documentation_formats_structurally_and_survives_document_reconstr
     };
     assert_eq!(
         document.doc_comment(field.range()).unwrap().summary(),
-        "State summary."
+        "Variable summary."
     );
     let reconstructed = SourceAstFactory::flat_document(vec![model.clone()]).unwrap();
     let formatted = format(&reconstructed);
     assert_eq!(
         formatted,
-        "/// Model summary.\nmodel M {\n  /// State summary.\n  field x: 1 = 0; // keep with x\n  // balance\n  relation r {\n    x = 0;\n  }\n}\n"
+        "/// Model summary.\nmodel M {\n  /// Variable summary.\n  variable x: 1; // keep with x\n  // balance\n  relation r {\n    x = 0;\n  }\n}\n"
     );
     let reparsed = parse("formatted.eqi", &formatted).into_document().unwrap();
     assert_eq!(format(&reparsed), formatted);
@@ -40,8 +40,8 @@ fn ordinary_leading_comment_and_doc_block_share_the_reconstructed_declaration() 
 }
 
 #[test]
-fn component_signature_and_inline_equation_trivia_have_a_canonical_roundtrip() {
-    let source = "/// Library import.\nimport lib as lib;\n/// Component summary.\ncomponent C {\n/// Rate summary.\npublic parameter rate: // dimension\n1;\nfield x:1=0;\n/// Balance summary.\nrelation r {x // left\n=rate // right\n;}\n}\n";
+fn component_body_and_inline_equation_trivia_have_a_canonical_roundtrip() {
+    let source = "/// Library import.\nimport lib as lib;\n/// Component summary.\ncomponent C() {\n/// Rate summary.\npublic parameter rate: // dimension\n1;\nvariable x:1;\n/// Balance summary.\nrelation r {x // left\n=rate // right\n;}\n}\n";
     let document = parse("docs.eqi", source).into_document().unwrap();
     let formatted = format(&document);
     assert!(formatted.contains("rate: // dimension\n"));
@@ -61,7 +61,7 @@ fn component_signature_and_inline_equation_trivia_have_a_canonical_roundtrip() {
 
 #[test]
 fn blank_line_and_trailing_documentation_do_not_attach() {
-    let source = "/// detached\n\nmodel M {\n  field x:1=0; /// trailing\n  field y:1=0;\n  /// dangling\n}\n";
+    let source = "/// detached\n\nmodel M {\n  variable x: 1; /// trailing\n  variable y: 1;\n  /// dangling\n}\n";
     let document = parse("docs.eqi", source).into_document().unwrap();
     let model = &document.models()[0];
     assert!(document.doc_comment(model.range()).is_none());
@@ -82,7 +82,7 @@ fn blank_line_and_trailing_documentation_do_not_attach() {
 
 #[test]
 fn trailing_block_does_not_capture_next_standalone_documentation() {
-    let source = "model M {\nfield a:1=0; /// trailing a\n/// docs for b\nfield b:1=0;\n}\n";
+    let source = "model M {\nvariable a:1; /// trailing a\n/// docs for b\nvariable b:1;\n}\n";
     let document = parse("docs.eqi", source).into_document().unwrap();
     let Item::Field(field) = &document.models()[0].items()[1] else {
         panic!("Field")
@@ -122,7 +122,7 @@ fn utf8_crlf_documentation_ranges_slice_the_exact_original_block() {
 
 #[test]
 fn repeated_sibling_syntax_carries_only_its_own_docs_when_rebuilt_or_removed() {
-    let source = "model M {\n/// docs a\nfield a:1=0; // tail a\n/// docs b\nfield b:1=0; // tail b\n/// docs c\nfield c:1=0; // tail c\n}\n";
+    let source = "model M {\n/// docs a\nvariable a:1; // tail a\n/// docs b\nvariable b:1; // tail b\n/// docs c\nvariable c:1; // tail c\n}\n";
     let document = parse("docs.eqi", source).into_document().unwrap();
     let model = &document.models()[0];
     for order in [vec![2, 0, 1], vec![2, 0], vec![1]] {
@@ -147,7 +147,7 @@ fn repeated_sibling_syntax_carries_only_its_own_docs_when_rebuilt_or_removed() {
                 format!("docs {}", field.name())
             );
             assert!(text.contains(&format!(
-                "field {}: 1 = 0; // tail {}",
+                "variable {}: 1; // tail {}",
                 field.name(),
                 field.name()
             )));
@@ -158,7 +158,7 @@ fn repeated_sibling_syntax_carries_only_its_own_docs_when_rebuilt_or_removed() {
 
 #[test]
 fn recovery_does_not_attach_displaced_docs_to_a_surviving_declaration() {
-    let source = "model M {\n/// docs for broken\nfield ;\nfield retained:1=0;\n}\n";
+    let source = "model M {\n/// docs for broken\nvariable ;\nvariable retained:1;\n}\n";
     let parsed = parse("incomplete.eqi", source);
     assert!(!parsed.diagnostics().is_empty());
     let document = parsed.document().unwrap();

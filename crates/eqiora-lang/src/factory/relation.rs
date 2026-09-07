@@ -3,6 +3,31 @@
 use super::*;
 
 impl SourceAstFactory {
+    /// Construct simultaneous mathematical initialization conditions.
+    ///
+    /// # Errors
+    /// Rejects empty conditions, malformed expressions, and invalid byte ranges.
+    pub fn initial(
+        equations: Vec<Equation>,
+        range: TextRange,
+    ) -> Result<crate::ast::InitialDecl, AstConstructionError> {
+        if equations.is_empty() {
+            return Err(AstConstructionError::new(
+                "initial requires at least one equation",
+            ));
+        }
+        for equation in &equations {
+            validate_expression(equation.left())?;
+            validate_expression(equation.right())?;
+            checked_range(equation.range())?;
+        }
+        Ok(crate::ast::InitialDecl {
+            comments: Default::default(),
+            equations,
+            range: checked_range(range)?,
+        })
+    }
+
     /// Construct an ordered equality without interpreting either side.
     ///
     /// # Errors

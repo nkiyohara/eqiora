@@ -6,9 +6,10 @@ public connector PeriodicBoundary = field_physical(
   pairing = euclidean_boundary_duality
 );
 
-public component PeriodicSide3d {
-  public support body: volume(ambient_dimension = 3);
-  public support face: boundary(parent = body);
+public component PeriodicSide3d(
+  support body: volume(ambient_dimension = 3),
+  support face: boundary(parent = body),
+) {
   public port periodic: conserving PeriodicBoundary over face;
 
   relation carrier on face {

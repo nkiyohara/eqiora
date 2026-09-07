@@ -30,7 +30,7 @@ later.
 
 After this chapter, you should be able to:
 
-- distinguish a field's support, representation, dimension, and value shape;
+- distinguish a field's role, support, dimension, and value shape;
 - read `grad`, `div`, `trace`, and `normal` by their mathematical roles;
 - identify which quantities live in a volume and which are compared on its
   boundary; and
@@ -42,15 +42,17 @@ The steady cylinder example declares one two-dimensional fluid volume and four
 named parts of its boundary:
 
 ```eqiora
-public support fluid: volume(ambient_dimension = 2);
-public support inlet: boundary(parent = fluid);
-public support outlet: boundary(parent = fluid);
-public support walls: boundary(parent = fluid);
-public support cylinder: boundary(parent = fluid);
-
-representation space = continuum;
-field velocity on fluid as space: vector<m / s, 2>;
-field pressure on fluid as space: kg / (m * s ^ 2) = 0;
+component FlowRegion(
+  support fluid: volume(ambient_dimension = 2),
+  support inlet: boundary(parent = fluid),
+  support outlet: boundary(parent = fluid),
+  support walls: boundary(parent = fluid),
+  support cylinder: boundary(parent = fluid),
+) {
+  variable velocity: vector<m / s, 2> on fluid;
+  variable pressure: kg / (m * s ^ 2) on fluid;
+  // Interior and boundary equations complete the component.
+}
 ```
 
 `velocity` and `pressure` share the support `fluid`, but their value shapes

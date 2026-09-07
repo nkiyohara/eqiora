@@ -34,7 +34,7 @@
           }
         },
         {
-          "match": "\\b(field|parameter|support|port|relation|representation|instance|domain|clock|let|form)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "match": "\\b(variable|state|parameter|support|port|relation|instance|domain|clock|let|form)\\s+([A-Za-z_][A-Za-z0-9_]*)",
           "captures": { "1": { "name": "storage.type.eqiora" }, "2": { "name": "variable.other.definition.eqiora" } }
         }
       ]
@@ -45,7 +45,7 @@
     "keywords": {
       "patterns": [{
         "name": "keyword.control.eqiora",
-        "match": "\\b(?:across|ambient_dimension|as|at|axis|boundaries|boundary|citation|clock|complete_exterior|component|composition|connect|connector|conserving|contract|delta|dimension|discrete|domain|field|for|form|implements|import|in|input|instance|license|let|lower|material|model|on|operator|output|over|parameter|parent|period|periodic|phase|port|primal|private|property|public|pure|rational|relation|release|representation|scalar|shape|side|signal|slot|source_unit|spatial|support|through|unconditional|upper|validity|value|volume)\\b"
+        "match": "\\b(?:across|ambient_dimension|as|at|axis|boundaries|boundary|citation|clock|complete_exterior|component|composition|connect|connector|conserving|contract|delta|dimension|discrete|domain|field|for|form|implements|import|in|initial|input|instance|license|let|lower|material|model|on|operator|output|over|parameter|parent|period|periodic|phase|port|primal|private|property|public|pure|rational|relation|release|scalar|shape|side|signal|source_unit|spatial|state|support|through|unconditional|upper|validity|value|variable|volume)\\b"
       }]
     },
     "functions": {
@@ -57,7 +57,7 @@
     "constants": {
       "patterns": [{
         "name": "constant.language.eqiora",
-        "match": "\\b(?:continuum|euclidean_boundary_duality|invariant|spatial_scalar|spatial_vector)\\b"
+        "match": "\\b(?:euclidean_boundary_duality|invariant|spatial_scalar|spatial_vector)\\b"
       }]
     },
     "units": {

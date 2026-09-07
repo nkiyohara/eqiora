@@ -278,12 +278,12 @@ fn elasticity_finalization_requires_an_admitted_spd_operator() {
 fn canonical_lowering_fails_closed_at_physical_identity_and_model_boundaries() {
     let wrong_dimensions = MANUFACTURED
         .replace(
-            "field displacement on body as space: vector<m, 2>;",
-            "field displacement on body as space: vector<1, 2>;",
+            "variable displacement: vector<m, 2> on body;",
+            "variable displacement: vector<1, 2> on body;",
         )
         .replace(
-            "field load_potential on body as space: kg / (m * s ^ 2) = 0;",
-            "field load_potential on body as space: 1 = 0;",
+            "variable load_potential: kg / (m * s ^ 2) on body;",
+            "variable load_potential: 1 on body;",
         )
         .replace(
             "parameter mu: kg / (m * s ^ 2) = 3;",
@@ -299,16 +299,15 @@ fn canonical_lowering_fails_closed_at_physical_identity_and_model_boundaries() {
         );
     assert_lowering_rejects(&wrong_dimensions);
 
-    let distinct_representations = MANUFACTURED
-        .replace(
-            "representation space = continuum;",
-            "representation space = continuum;\n  representation load_space = continuum;",
-        )
-        .replace(
-            "field load_potential on body as space:",
-            "field load_potential on body as load_space:",
-        );
-    assert_lowering_rejects(&distinct_representations);
+    let retired_representation = MANUFACTURED.replace(
+        "model manufactured_isotropic_elasticity_plane {",
+        "model manufactured_isotropic_elasticity_plane { representation separate = continuum;",
+    );
+    assert!(
+        eqiora::language::parse("retired.eqi", &retired_representation)
+            .into_document()
+            .is_err()
+    );
 
     let ignored_parameter = MANUFACTURED.replace(
         "parameter mu: kg / (m * s ^ 2) = 3;",
@@ -318,8 +317,8 @@ fn canonical_lowering_fails_closed_at_physical_identity_and_model_boundaries() {
 
     let periodic_load = MANUFACTURED
         .replace(
-            "representation space = continuum;",
-            "representation space = continuum;\n  clock tick = periodic(period = 1 / 1, phase = 0 / 1);",
+            "model manufactured_isotropic_elasticity_plane {",
+            "model manufactured_isotropic_elasticity_plane { clock tick = periodic(period = 1 / 1, phase = 0 / 1);",
         )
         .replace(
             "relation load on body",

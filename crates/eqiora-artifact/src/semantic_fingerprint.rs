@@ -26,9 +26,9 @@ use crate::{ArtifactDigest, invalid_artifact};
 use canonical::{Canonicalizer, Encoder};
 use projection::{ConstructionBudget, ProjectionGraph, Reference};
 
-const FINGERPRINT_DOMAIN_V6: &[u8] = b"eqiora.structural-semantic-fingerprint/v6\0";
+const FINGERPRINT_DOMAIN_V7: &[u8] = b"eqiora.structural-semantic-fingerprint/v7\0";
 const PROJECTION_MAGIC: &[u8; 8] = b"EQIORASF";
-const GENERATION_V6: u16 = 6;
+const GENERATION_V7: u16 = 7;
 
 /// Current generation of the structural semantic projection.
 ///
@@ -37,8 +37,8 @@ const GENERATION_V6: u16 = 6;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
 pub enum SemanticFingerprintGeneration {
-    /// Closed projection retaining mathematical scalar domains and component-axis roles.
-    V6,
+    /// Closed projection retaining Field roles and simultaneous initial-equation ownership.
+    V7,
 }
 
 impl SemanticFingerprintGeneration {
@@ -46,19 +46,19 @@ impl SemanticFingerprintGeneration {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::V6 => "eqiora.structural-semantic-fingerprint/v6",
+            Self::V7 => "eqiora.structural-semantic-fingerprint/v7",
         }
     }
 
     const fn code(self) -> u16 {
         match self {
-            Self::V6 => GENERATION_V6,
+            Self::V7 => GENERATION_V7,
         }
     }
 
     const fn hash_domain(self) -> &'static [u8] {
         match self {
-            Self::V6 => FINGERPRINT_DOMAIN_V6,
+            Self::V7 => FINGERPRINT_DOMAIN_V7,
         }
     }
 }
@@ -201,7 +201,7 @@ impl ProjectionIdentity {
         limits: SemanticFingerprintLimits,
     ) -> Result<Self, Diagnostic> {
         validate_limits(limits)?;
-        let generation = SemanticFingerprintGeneration::V6;
+        let generation = SemanticFingerprintGeneration::V7;
         let graph = ProjectionGraph::from_program(program, limits)?;
         let canonical = Canonicalizer::new(&graph, limits).canonicalize()?;
         let mut hasher = Sha256::new();
@@ -250,12 +250,10 @@ fn encode_node(
             encode_dimension(&mut encoder, field.dimension())?;
             encode_shape(&mut encoder, field.shape())?;
             encode_frame(&mut encoder, field.frame())?;
-            encode_optional_quantity(
-                &mut encoder,
-                field
-                    .initial()
-                    .map(|value| DynQuantity::new(value.literal(), value.value_type().dimension())),
-            )?;
+            encoder.u8(match field.role() {
+                eqiora_schema::kernel::FieldRole::Variable => 0,
+                eqiora_schema::kernel::FieldRole::State => 1,
+            })?;
         }
         KernelNode::Parameter(parameter) => {
             encoder.u8(4)?;
@@ -326,6 +324,7 @@ fn encode_node(
         }
         KernelNode::Relation(relation) => {
             encoder.u8(6)?;
+            encoder.u8(u8::from(relation.is_initial()))?;
             encode_expression(
                 &mut encoder,
                 relation.residuals(),
@@ -858,7 +857,7 @@ fn validate_limits(limits: SemanticFingerprintLimits) -> Result<(), Diagnostic> 
 
 fn newer_vocabulary(subject: &str) -> Diagnostic {
     fingerprint_error(format!(
-        "{subject} is newer than structural semantic fingerprint generation v6"
+        "{subject} is newer than structural semantic fingerprint generation v7"
     ))
 }
 

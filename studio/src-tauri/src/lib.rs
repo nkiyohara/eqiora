@@ -709,8 +709,13 @@ fn project_node(
         KernelNode::Relation(definition) => (
             "relation",
             format!(
-                "{} implicit residual{} · {} expression operations",
+                "{} {}{} · {} expression operations",
                 definition.residuals().roots().len(),
+                if definition.is_initial() {
+                    "initial equation"
+                } else {
+                    "implicit residual"
+                },
                 if definition.residuals().roots().len() == 1 {
                     ""
                 } else {
@@ -858,7 +863,8 @@ mod tests {
 
     const SOURCE: &str = r#"
 model decay {
-  field x: 1 = 1;
+  state x: 1;
+  initial { x = 1; }
   parameter rate: 1 / s = 1;
   relation flow {
     derivative(x) + rate * x = 0;
@@ -872,8 +878,8 @@ model decay {
         let digest = document.digest().unwrap();
         let projection = project_document(&document, digest.clone()).unwrap();
         assert_eq!(projection.digest, digest);
-        assert_eq!(projection.nodes.len(), 4);
-        assert_eq!(projection.edges.len(), 3);
+        assert_eq!(projection.nodes.len(), 5);
+        assert_eq!(projection.edges.len(), 4);
         assert!(projection.nodes.iter().any(|node| node.name == "x"));
         assert_eq!(document.digest().unwrap(), projection.digest);
     }
@@ -882,7 +888,7 @@ model decay {
     fn projection_retains_checked_field_types_without_scalar_narrowing() {
         let document = ModelDocument::compile(
             "channels.eqi",
-            "model channels { field channels: array<m, 2> = 0; relation hold { channels = 0; } }",
+            "model channels { variable channels: array<m, 2>; initial { channels = 0; } relation hold { channels = 0; } }",
         )
         .unwrap();
         let projection = project_document(&document, document.digest().unwrap()).unwrap();
@@ -934,7 +940,7 @@ model decay {
     fn projection_retains_rich_types_without_presenting_them_as_real_values() {
         let document = ModelDocument::compile(
             "typed.eqi",
-            "model Typed { parameter amplitude: complex<V> = 2; field channels: array<m, 2> = 0; relation resting { channels = 0; } }",
+            "model Typed { parameter amplitude: complex<V> = 2; variable channels: array<m, 2>; initial { channels = 0; } relation resting { channels = 0; } }",
         )
         .unwrap();
         let projection = project_document(&document, document.digest().unwrap()).unwrap();

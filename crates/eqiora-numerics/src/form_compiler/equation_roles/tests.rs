@@ -54,10 +54,10 @@ fn derive(source: &str) -> Result<EquationRoles, Diagnostic> {
 
 const THREE: &str = "model Three {
  domain body = box(0, 1, 0, 1);
- representation space = continuum;
- field a on body as space: 1;
- field b on body as space: 1;
- field c on body as space: 1;
+
+ variable a: 1 on body;
+ variable b: 1 on body;
+ variable c: 1 on body;
  parameter k: 1 / m ^ 2 = 1;
  relation first on body { -div(grad(a)) + k * (a - b) = 0; }
  relation second on body { -div(grad(b)) + k * (b - a) + k * (b - c) = 0; }
@@ -109,8 +109,8 @@ fn three_principal_scalar_equations_keep_two_way_dependencies() {
         .replace("second", "alpha")
         .replace("third", "omega")
         .replace(
-            "field a on body as space: 1;\n field b on body as space: 1;",
-            "field b on body as space: 1;\n field a on body as space: 1;",
+            "variable a: 1 on body;\n variable b: 1 on body;",
+            "variable b: 1 on body;\n variable a: 1 on body;",
         );
     let reordered = derive(&renamed).unwrap();
     assert_eq!(reordered.relations.len(), roles.relations.len());
@@ -128,10 +128,10 @@ fn ambiguous_principal_selection_rejects() {
 fn coefficient_chains_resolve_but_cycles_and_duplicates_reject() {
     let source = "model Coefficients {
  domain body = box(0, 1, 0, 1);
- representation space = continuum;
- field u on body as space: 1;
- field a on body as space: 1 / m ^ 2;
- field b on body as space: 1 / m ^ 2;
+
+ variable u: 1 on body;
+ variable a: 1 / m ^ 2 on body;
+ variable b: 1 / m ^ 2 on body;
  parameter p: 1 / m ^ 2 = 2;
  relation a_def on body { a - b = 0; }
  relation b_def on body { b - p = 0; }
@@ -215,9 +215,9 @@ fn existing_fsi_equations_derive_coefficients_kinematics_and_mixed_trials() {
 fn mixed_constraint_requires_one_equation_paired_multiplier() {
     let source = "model Mixed {
  domain body = box(0, 1, 0, 1);
- representation space = continuum;
- field u on body as space: vector<m / s, 2>;
- field p on body as space: 1 / s;
+
+ variable u: vector<m / s, 2> on body;
+ variable p: 1 / s on body;
  relation balance on body { -div(symmetric_part(grad(u))) + grad(p) = 0; }
  relation constraint on body { div(u) = 0; }
 }";
@@ -226,8 +226,8 @@ fn mixed_constraint_requires_one_equation_paired_multiplier() {
     let reordered = source.replace(
         "relation balance on body { -div(symmetric_part(grad(u))) + grad(p) = 0; }\n relation constraint on body { div(u) = 0; }",
         "relation renamed_constraint on body { -div(u) = 0; }\n relation renamed_balance on body { -div(symmetric_part(grad(u))) + grad(p) = 0; }",
-    ).replace(" p ", " multiplier ").replace("(p)", "(multiplier)")
-        .replace(" u ", " motion ").replace("(u)", "(motion)");
+    ).replace(" p:", " multiplier:").replace("(p)", "(multiplier)")
+        .replace(" u:", " motion:").replace("(u)", "(motion)");
     assert_ne!(source, reordered);
     assert_eq!(signature(&roles), signature(&derive(&reordered).unwrap()));
     assert!(
@@ -237,10 +237,7 @@ fn mixed_constraint_requires_one_equation_paired_multiplier() {
             .contains("unique gradient multiplier")
     );
     let ambiguous = source
-        .replace(
-            "field p on",
-            "field q on body as space: 1 / s;\n field p on",
-        )
+        .replace("variable p:", "variable q: 1 / s on body;\n variable p:")
         .replace("+ grad(p)", "+ grad(p) + grad(q)");
     assert!(
         derive(&ambiguous)

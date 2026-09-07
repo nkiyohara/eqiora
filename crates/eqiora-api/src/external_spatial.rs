@@ -126,15 +126,9 @@ mod tests {
     use eqiora_schema::kernel::{ExprNode, KernelNode, SymbolRef};
 
     const SOURCE: &str = r#"
-public component FluidBoundaryLaw {
-  public support fluid: volume(ambient_dimension = 2);
-  public support inlet: boundary(parent = fluid);
-  public support outlet: boundary(parent = fluid);
-  public support walls: boundary(parent = fluid);
-  public support cylinder: boundary(parent = fluid);
+public component FluidBoundaryLaw(support fluid: volume(ambient_dimension = 2), support inlet: boundary(parent = fluid), support outlet: boundary(parent = fluid), support walls: boundary(parent = fluid), support cylinder: boundary(parent = fluid)) {
   public parameter value: 1;
-  representation space = continuum;
-  field state on fluid as space: 1 = 0;
+  variable state: 1 on fluid;
   relation volume_law on fluid { state - value = 0; }
   relation inlet_law on inlet { trace(state) = 0; }
   relation outlet_law on outlet { trace(state) = 0; }
@@ -144,13 +138,11 @@ public component FluidBoundaryLaw {
 "#;
 
     const SCALAR_PRIMAL_SOURCE: &str = r#"
-public component ScalarDiffusion {
-  public support fluid: volume(ambient_dimension = 2);
+public component ScalarDiffusion(support fluid: volume(ambient_dimension = 2)) {
   public parameter diffusion: 1;
   public parameter wave_number: 1 / m;
   public parameter source_scale: 1 / m ^ 2;
-  representation space = continuum;
-  field potential on fluid as space: 1 = 0;
+  variable potential: 1 on fluid;
   relation balance on fluid {
     -div(diffusion * grad(potential))
       = source_scale * math.sin(wave_number * coordinate(0));
@@ -166,22 +158,16 @@ public component ScalarDiffusion {
 "#;
 
     const STEADY_FLOW_PAST_CYLINDER_COMPONENT: &str = r#"
-public component SteadyFlowPastCylinder {
-  public support fluid: volume(ambient_dimension = 2);
-  public support inlet: boundary(parent = fluid);
-  public support outlet: boundary(parent = fluid);
-  public support walls: boundary(parent = fluid);
-  public support cylinder: boundary(parent = fluid);
+public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension = 2), support inlet: boundary(parent = fluid), support outlet: boundary(parent = fluid), support walls: boundary(parent = fluid), support cylinder: boundary(parent = fluid)) {
   public parameter dynamic_viscosity: kg / (m * s);
   public parameter zero_pressure: kg / (m * s ^ 2);
   public parameter inlet_speed: m / s;
   public parameter channel_height: m;
-  representation space = continuum;
 
-  field velocity on fluid as space: vector<m / s, 2>;
-  field pressure on fluid as space: kg / (m * s ^ 2) = 0;
-  field force_potential on fluid as space: kg / (m * s ^ 2) = 0;
-  field inlet_profile on fluid as space: m / s = 0;
+  variable velocity: vector<m / s, 2> on fluid;
+  variable pressure: kg / (m * s ^ 2) on fluid;
+  variable force_potential: kg / (m * s ^ 2) on fluid;
+  variable inlet_profile: m / s on fluid;
 
   relation force_definition on fluid {
     force_potential - zero_pressure = 0;
@@ -405,7 +391,7 @@ public component SteadyFlowPastCylinder {
         }
 
         let ordinary_source = format!(
-            "{SCALAR_PRIMAL_SOURCE}\nmodel root {{ field x: 1 = 0; relation hold {{ x = 0; }} }}\n"
+            "{SCALAR_PRIMAL_SOURCE}\nmodel root {{ variable x: 1; relation hold {{ x = 0; }} }}\n"
         );
         let diagnostics = ModelDocument::compile("unsupported.eqi", &ordinary_source)
             .expect_err("ordinary Model compilation cannot discard authored forms");

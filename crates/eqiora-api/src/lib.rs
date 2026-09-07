@@ -474,12 +474,13 @@ mod tests {
     use super::ModelDocument;
     use eqiora_artifact::ReplayableCanonicalModelArtifact;
     use eqiora_compiler::{CompilationNamespaceId, ResolvedHierarchyInput, ResolvedSourceUnit};
-    use eqiora_core::DimExponents;
+    use eqiora_core::{DimExponents, EntityKind};
     use eqiora_lang::{DraftExpression, DraftField, DraftParameter, DraftRelation, ModelDraft};
 
     const SOURCE: &str = r#"
 model decay {
-  field x: 1 = 1;
+  state x: 1;
+  initial { x = 1; }
   parameter rate: 1 / s = 1;
   relation flow {
     derivative(x) + rate * x = 0;
@@ -519,7 +520,7 @@ model decay {
                 ResolvedSourceUnit::new(
                     owner.clone(),
                     "src/library/parts.eqi",
-                    "public component Part { public parameter p: 1; relation law { p - 1 = 0; } }",
+                    "public component Part() { public parameter p: 1; relation law { p - 1 = 0; } }",
                 )
                 .unwrap(),
             ];
@@ -555,7 +556,7 @@ import eqiora.local_project.library.parts as lib;
 model Main { instance load: lib.Resistor(resistance = 2); }
 "#;
         let library = r#"
-public component Resistor {
+public component Resistor() {
   public parameter resistance: 1;
   relation law { resistance - 2 = 0; }
 }
@@ -620,8 +621,8 @@ public component Resistor {
             "models.main",
             [
                 ("../main.eqi", "model Main {}"),
-                ("src/Part.eqi", "public component One {}"),
-                ("src/part.eqi", "public component Two {}"),
+                ("src/Part.eqi", "public component One() {}"),
+                ("src/part.eqi", "public component Two() {}"),
             ],
             "Main",
         )
@@ -644,7 +645,7 @@ public component Resistor {
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
             ),
-            Some(1.0),
+            eqiora_lang::FieldRoleSyntax::State,
         );
         let rate = DraftParameter::new(
             "rate",
@@ -658,13 +659,23 @@ public component Resistor {
             "flow",
             [DraftExpression::derivative(&state) + rate.expression() * state.expression()],
         );
-        let draft = ModelDraft::new("decay", [state.into(), rate.into(), flow.into()]).unwrap();
+        let initial = eqiora_lang::DraftDeclaration::Initial(vec![
+            state.expression() - DraftExpression::constant(1.0),
+        ]);
+        let draft =
+            ModelDraft::new("decay", [state.into(), rate.into(), flow.into(), initial]).unwrap();
 
         let native = ModelDocument::define(&draft).unwrap();
         let bytes = native.canonical_json().unwrap();
         let reconstructed = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(reconstructed.canonical_json().unwrap(), bytes);
-        assert_eq!(native.aliases().len(), 3);
+        for (name, kind) in [
+            ("x", EntityKind::Field),
+            ("rate", EntityKind::Parameter),
+            ("flow", EntityKind::Relation),
+        ] {
+            assert_eq!(native.aliases()[name].kind(), kind);
+        }
 
         let source = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
         assert_ne!(native.digest().unwrap(), source.digest().unwrap());
@@ -680,8 +691,7 @@ public component Resistor {
         let source = r#"
 model elastic_relation {
   domain body = box(0, 1, 0, 1);
-  representation space = continuum;
-  field displacement on body as space: vector<m, 2>;
+  variable displacement: vector<m, 2> on body;
   parameter mu: kg / (m * s ^ 2) = 2;
   parameter lambda: kg / (m * s ^ 2) = 3;
   relation balance on body {
@@ -708,9 +718,8 @@ public pure operator dyadic(left: spatial[1], right: spatial[1]) -> spatial[2]
   = component(left, 0) * component(right, 1);
 model pure_relation {
   domain body = box(0, 1, 0, 1);
-  representation space = continuum;
-  field left on body as space: vector<1, 2>;
-  field right on body as space: vector<1, 2>;
+  variable left: vector<1, 2> on body;
+  variable right: vector<1, 2> on body;
   relation balance on body {
     div(div(dyadic(left, right))) = 0;
   }
@@ -721,7 +730,7 @@ model pure_relation {
         let bytes = current.canonical_json().unwrap();
         let json = String::from_utf8_lossy(&bytes);
         assert!(json.contains("pure-operator-application"));
-        assert!(json.contains("eqiora.model-envelope/v11"));
+        assert!(json.contains("eqiora.model-envelope/v12"));
         let replay = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(replay.canonical_json().unwrap(), bytes);
         assert_eq!(replay.digest().unwrap(), current.digest().unwrap());
@@ -753,7 +762,7 @@ model pure_relation {
         assert!(
             String::from_utf8(plan.transaction_json().unwrap())
                 .unwrap()
-                .contains("eqiora.model-transaction-envelope/v11")
+                .contains("eqiora.model-transaction-envelope/v12")
         );
 
         let result = document.commit_value_edit(plan.clone()).unwrap();
@@ -817,9 +826,10 @@ model pure_relation {
 
     #[test]
     fn value_edit_identity_includes_the_exact_base_artifact() {
-        let base = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
+        let source = SOURCE.replace("model decay {", "model decay { parameter probe: 1 = 0;");
+        let base = ModelDocument::compile("decay.eqi", &source).unwrap();
+        let probe = base.aliases()["probe"];
         let rate = base.aliases()["rate"];
-        let state = base.aliases()["x"];
 
         let left = base
             .commit_value_edit(base.preview_value_edit(rate, 2.0).unwrap())
@@ -829,8 +839,8 @@ model pure_relation {
             .commit_value_edit(base.preview_value_edit(rate, 3.0).unwrap())
             .unwrap()
             .into_document();
-        let left_plan = left.preview_value_edit(state, 2.0).unwrap();
-        let right_plan = right.preview_value_edit(state, 2.0).unwrap();
+        let left_plan = left.preview_value_edit(probe, 4.0).unwrap();
+        let right_plan = right.preview_value_edit(probe, 4.0).unwrap();
 
         assert_eq!(left_plan.base_revision(), right_plan.base_revision());
         assert_eq!(

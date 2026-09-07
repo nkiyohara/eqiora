@@ -17,6 +17,9 @@ macro_rules! instance {
         for node in &$($mutable)? $node.field_bindings {
             $visit(node.range, &$($mutable)? node.comments);
         }
+        for node in &$($mutable)? $node.clock_bindings {
+            $visit(node.range, &$($mutable)? node.comments);
+        }
         for node in &$($mutable)? $node.property_bindings {
             $visit(node.range, &$($mutable)? node.comments);
         }
@@ -66,10 +69,11 @@ macro_rules! owners {
                     ComponentItem::Port(value) => $visit(value.range, &$($mutable)? value.comments),
                     ComponentItem::PortFamily(value) => $visit(value.port.range, &$($mutable)? value.port.comments),
                     ComponentItem::Support(value) => $visit(value.range, &$($mutable)? value.comments),
-                    ComponentItem::FieldSlot(value) => $visit(value.range, &$($mutable)? value.comments),
-                    ComponentItem::Representation(value) => $visit(value.range, &$($mutable)? value.comments),
+                    ComponentItem::FieldRequirement(value) => $visit(value.range, &$($mutable)? value.comments),
                     ComponentItem::Field(value) => $visit(value.range, &$($mutable)? value.comments),
+                    ComponentItem::Initial(value) => $visit(value.range, &$($mutable)? value.comments),
                     ComponentItem::Clock(value) => $visit(value.range, &$($mutable)? value.comments),
+                    ComponentItem::ClockRequirement(value) => $visit(value.range, &$($mutable)? value.comments),
                     ComponentItem::Relation(value) => $visit(value.range, &$($mutable)? value.comments),
                     ComponentItem::RelationFamily(value) => $visit(value.relation.range, &$($mutable)? value.relation.comments),
                     ComponentItem::Connection(value) => $visit(value.range, &$($mutable)? value.comments),
@@ -86,8 +90,8 @@ macro_rules! owners {
             for item in &$($mutable)? node.items {
                 match item {
                     Item::Domain(value) => $visit(value.range, &$($mutable)? value.comments),
-                    Item::Representation(value) => $visit(value.range, &$($mutable)? value.comments),
                     Item::Field(value) => $visit(value.range, &$($mutable)? value.comments),
+                    Item::Initial(value) => $visit(value.range, &$($mutable)? value.comments),
                     Item::Parameter(value) => $visit(value.range, &$($mutable)? value.comments),
                     Item::Let(value) => $visit(value.range, &$($mutable)? value.comments),
                     Item::Port(value) => $visit(value.range, &$($mutable)? value.comments),
@@ -156,8 +160,8 @@ impl Item {
     pub(crate) fn source_comments(&self) -> &SourceComments {
         match self {
             Self::Domain(node) => &node.comments,
-            Self::Representation(node) => &node.comments,
             Self::Field(node) => &node.comments,
+            Self::Initial(node) => &node.comments,
             Self::Parameter(node) => &node.comments,
             Self::Let(node) => &node.comments,
             Self::Port(node) => &node.comments,
@@ -178,9 +182,10 @@ impl ComponentItem {
             Self::Port(node) => &node.comments,
             Self::PortFamily(node) => &node.port.comments,
             Self::Support(node) => &node.comments,
-            Self::FieldSlot(node) => &node.comments,
-            Self::Representation(node) => &node.comments,
+            Self::FieldRequirement(node) => &node.comments,
+            Self::ClockRequirement(node) => &node.comments,
             Self::Field(node) => &node.comments,
+            Self::Initial(node) => &node.comments,
             Self::Clock(node) => &node.comments,
             Self::Relation(node) => &node.comments,
             Self::RelationFamily(node) => &node.relation.comments,

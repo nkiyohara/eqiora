@@ -21,8 +21,8 @@ bounded UI revision navigation
 ```
 
 The editable vocabulary is intentionally one revision-local scalar on a
-`Field` or `Parameter`. The replacement retains the canonical physical
-dimension. `ValueEditPlan` owns base digest, base revision, stable target,
+`Parameter`. Field state and initialization equations are not value-edit targets.
+The replacement retains the canonical physical dimension. `ValueEditPlan` owns base digest, base revision, stable target,
 before/after quantities, exact current transaction digest, and a
 domain-separated preview-to-commit key. `ModelDocument::commit_value_edit`
 canonicalizes and decodes the stored transaction again through the current

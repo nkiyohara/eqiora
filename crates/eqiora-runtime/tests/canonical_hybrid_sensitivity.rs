@@ -160,31 +160,39 @@ fn bouncing_ball(direction: EventDirection) -> BouncingBall {
         let height = expression.symbol(SymbolRef::Field(height)).unwrap();
         expression.finish([height]).unwrap()
     };
+    let initial = Id::<kinds::Relation>::new();
+    let mut initial_expression = ExprDagBuilder::new();
+    let height_initial = initial_expression.symbol(SymbolRef::Field(height)).unwrap();
+    let height_value = initial_expression
+        .constant(DynQuantity::new(1.0, length))
+        .unwrap();
+    let height_condition = initial_expression
+        .sub(height_initial, height_value)
+        .unwrap();
+    let velocity_initial = initial_expression
+        .symbol(SymbolRef::Field(velocity))
+        .unwrap();
+    let velocity_value = initial_expression
+        .constant(DynQuantity::new(0.0, velocity_dimension))
+        .unwrap();
+    let velocity_condition = initial_expression
+        .sub(velocity_initial, velocity_value)
+        .unwrap();
+    let initial_equations = initial_expression
+        .finish([height_condition, velocity_condition])
+        .unwrap();
     let nodes = vec![
-        KernelNode::from(
-            FieldDef::new(
-                height,
-                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, length),
-            )
-            .with_initial(
-                DynQuantity::new(1.0, length)
-                    .try_into()
-                    .expect("finite real initial value"),
-            )
-            .unwrap(),
-        ),
-        KernelNode::from(
-            FieldDef::new(
-                velocity,
-                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, velocity_dimension),
-            )
-            .with_initial(
-                DynQuantity::new(0.0, velocity_dimension)
-                    .try_into()
-                    .expect("finite real initial value"),
-            )
-            .unwrap(),
-        ),
+        KernelNode::from(RelationDef::initial(initial, initial_equations)),
+        KernelNode::from(FieldDef::new(
+            height,
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, length),
+            eqiora_schema::kernel::FieldRole::State,
+        )),
+        KernelNode::from(FieldDef::new(
+            velocity,
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, velocity_dimension),
+            eqiora_schema::kernel::FieldRole::State,
+        )),
         KernelNode::from(
             ParameterDef::new(
                 gravity,
@@ -248,6 +256,16 @@ fn bouncing_ball(direction: EventDirection) -> BouncingBall {
     for node in nodes {
         transaction.push(Op::DefineKernelNode { node });
     }
+    transaction.push(Op::Connect {
+        from: initial.erase(),
+        to: height.erase(),
+        edge: EdgeKind::DependsOn,
+    });
+    transaction.push(Op::Connect {
+        from: initial.erase(),
+        to: velocity.erase(),
+        edge: EdgeKind::DependsOn,
+    });
     connect_dependencies(
         &mut transaction,
         flow.erase(),

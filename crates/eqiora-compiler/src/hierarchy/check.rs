@@ -204,6 +204,18 @@ fn validate_definition_bodies_and_parameters(
                     child.declaration,
                     child_fields,
                     instance,
+                    |name| {
+                        definition
+                            .declaration
+                            .items()
+                            .iter()
+                            .any(|item| match item {
+                                ComponentItem::Clock(c) => c.name() == name,
+                                ComponentItem::ClockRequirement(c) => c.name() == name,
+                                _ => false,
+                            })
+                            .then(|| name.to_owned())
+                    },
                     |slot| {
                         support_bindings
                             .singular_targets()
@@ -381,6 +393,14 @@ fn validate_definition_bodies_and_parameters(
                     child.declaration,
                     child_fields,
                     instance,
+                    |name| {
+                        definition
+                            .declaration
+                            .items()
+                            .iter()
+                            .any(|item| matches!(item, Item::Clock(c) if c.name() == name))
+                            .then(|| name.to_owned())
+                    },
                     |slot| {
                         support_bindings
                             .singular_targets()

@@ -149,7 +149,7 @@ fn compile(source: &str) -> ModelDocument {
 
 fn statements(body: &str) -> String {
     format!(
-        "// α\r\nmodel probe {{ field x: 1 = 1; field y: 1 = 2; field z: 1 = 3; parameter zero: 1 = 0; relation r {{ {body} }} }}"
+        "// α\r\nmodel probe {{ variable x: 1; variable y: 1; variable z: 1; parameter zero: 1 = 0; relation r {{ {body} }} }}"
     )
 }
 
@@ -359,54 +359,54 @@ fn zero_cannot_erase_an_unchecked_operand_or_underflow() {
         "0e-999[m]",
     ] {
         let source =
-            format!("model typed {{ field force: m = 1; relation r {{ force = {rhs}; }} }}");
+            format!("model typed {{ variable force: m; relation r {{ force = {rhs}; }} }}");
         assert_eq!(compiled_roots(&compile(&source)), vec![n("force")]);
     }
     // All denials reach the source-owned boundary after a positive of the same
     // family; offsets are asserted against the authored input, never outputs.
     for (body, expected_code, message) in [
         (
-            "field x: m = 1; relation r { x = 0[s]; }",
+            "variable x: m; relation r { x = 0[s]; }",
             "EQ0603",
             "incompatible types",
         ),
         (
-            "field x: m = 1; relation r { x = 0[unknown]; }",
+            "variable x: m; relation r { x = 0[unknown]; }",
             "EQ0603",
             "unknown input-unit",
         ),
         (
-            "field x: m = 1; relation r { x = 0 * missing; }",
+            "variable x: m; relation r { x = 0 * missing; }",
             "EQ0603",
             "unresolved",
         ),
         (
-            "field x: m = 1; relation r { x = 0 * 1[s]; }",
+            "variable x: m; relation r { x = 0 * 1[s]; }",
             "EQ0603",
             "incompatible types",
         ),
         (
-            "field x: m = 1; relation r { x = 1e-324; }",
+            "variable x: m; relation r { x = 1e-324; }",
             "EQ0602",
             "underflows",
         ),
         (
-            "field x: m = 1; relation r { x = (-1e-324); }",
+            "variable x: m; relation r { x = (-1e-324); }",
             "EQ0602",
             "underflows",
         ),
         (
-            "field x: m = 1; relation r { x = 5e-324[mm]; }",
+            "variable x: m; relation r { x = 5e-324[mm]; }",
             "EQ0603",
             "underflows",
         ),
         (
-            "field x: m = 1; relation r { x = 1e999; }",
+            "variable x: m; relation r { x = 1e999; }",
             "EQ0602",
             "finite",
         ),
         (
-            "field x: 1 = 1; relation r { x = 0 = 0; }",
+            "variable x: 1; relation r { x = 0 = 0; }",
             "EQ0602",
             "after equation",
         ),
@@ -429,7 +429,7 @@ fn zero_cannot_erase_an_unchecked_operand_or_underflow() {
         );
     }
     // Nonzero representable subnormal is not treated as exact zero.
-    let subnormal = compile("model M { field x: 1 = 1; relation r { x = 5e-324; } }");
+    let subnormal = compile("model M { variable x: 1; relation r { x = 5e-324; } }");
     assert_eq!(
         compiled_roots(&subnormal),
         vec![sub(n("x"), number(f64::from_bits(1)))]
@@ -470,19 +470,14 @@ fn exact_package_and_native_residuals_share_only_checked_structural_meaning() {
         natural.structural_fingerprint().unwrap()
     );
 
-    let field = |name, initial| {
+    let field = |name| {
         DraftField::new(
             name,
             ValueType::scalar(eqiora::ScalarDomain::Real, DimExponents::DIMENSIONLESS),
-            Some(initial),
+            eqiora::language::FieldRoleSyntax::Variable,
         )
     };
-    let (a, b, c, d) = (
-        field("a", 4.0),
-        field("b", 3.0),
-        field("c", 2.0),
-        field("d", 1.0),
-    );
+    let (a, b, c, d) = (field("a"), field("b"), field("c"), field("d"));
     let relation = DraftRelation::continuous(
         "balance",
         [

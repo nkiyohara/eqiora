@@ -1,9 +1,11 @@
 # Exact-packaged steady incompressible Stokes law in two dimensions
 
 This case closes one reusable, method-neutral fluid Component over the exact
-offline package path. The immutable `Eqiora.Fluid.Incompressible@0.1.0`
-release owns only one two-dimensional support slot, velocity, pressure, and
-force-potential Field slots, one typed dynamic-viscosity Parameter slot, and
+offline package path. The current `models/component.eqi` fixture supplies the
+`Eqiora.Fluid.Incompressible@0.1.0` test release; the historical
+`package-v0.1.0` snapshot remains unchanged. The Component requires one
+two-dimensional support, velocity, pressure, and force-potential variables,
+one typed dynamic-viscosity Parameter slot, and
 the momentum and incompressibility Relations. The root owns the unit square,
 three Fields, the dynamic-viscosity Parameter, a nonconstant zero-mean
 force-potential definition, and all four zero velocity traces.

@@ -95,7 +95,7 @@ fn version_command_reports_the_release() {
 
 #[test]
 fn stdio_session_syncs_diagnostics_and_serves_editor_requests() {
-    let source = "dimension Scalar = 1;\npublic component Part{\n  public parameter gain: Scalar;\n  relation law { gain = 0; }\n}\nmodel Demo{\n  parameter input: Scalar = 1;\n  field state: Scalar = 0;\n  instance part: Part(gain = input);\n  relation balance { state = 0; }\n}\n";
+    let source = "dimension Scalar = 1;\npublic component Part() {\n  public parameter gain: Scalar;\n  relation law { gain = 0; }\n}\nmodel Demo{\n  parameter input: Scalar = 1;\n  variable state: Scalar;\n  instance part: Part(gain = input);\n  relation balance { state = 0; }\n}\n";
     let uri = "file:///workspace/main.eqi";
     let mut child = Command::new(SERVER)
         .stdin(Stdio::piped())
@@ -192,7 +192,7 @@ fn stdio_session_syncs_diagnostics_and_serves_editor_requests() {
         edits[0]["newText"]
             .as_str()
             .expect("formatted source")
-            .contains("public component Part {")
+            .contains("public component Part() {")
     );
 
     let diagnostics = messages
@@ -224,8 +224,8 @@ fn stdio_session_syncs_diagnostics_and_serves_editor_requests() {
 #[test]
 fn stdio_workspace_resolves_open_modules_and_tracks_unsaved_changes() {
     let main = "// 🧪\nimport editor.workspace.library as lib;\nmodel Main { instance load: lib.Resistor(); }\n";
-    let library = "public component Resistor {}\n";
-    let changed_library = "/// **Updated summary**\n///\n/// [run](command:delete) <script> ```\npublic component Resistor {\n  // unsaved workspace edit\n}\n";
+    let library = "public component Resistor() {}\n";
+    let changed_library = "/// **Updated summary**\n///\n/// [run](command:delete) <script> ```\npublic component Resistor() {\n  // unsaved workspace edit\n}\n";
     let main_uri = "file:///workspace/main.eqi";
     let library_uri = "file:///workspace/library.eqi";
     let mut child = Command::new(SERVER)
@@ -401,7 +401,7 @@ fn stdio_workspace_loads_unopened_exact_package_sources_without_writing_a_lock()
     let fixture = TestDirectory::create("package project");
     let library_path = fixture.0.join("library");
     let root_path = fixture.0.join("root");
-    let library = "public component Resistor {}\n";
+    let library = "public component Resistor() {}\n";
     let root = "import org.example.EditorLibrary.main as library;\nmodel Main { instance load: library.Resistor(); }\n";
     let library_sources = author_sources("org.example.EditorLibrary", library, vec![]);
     let library_release =

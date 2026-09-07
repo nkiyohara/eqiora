@@ -1,8 +1,8 @@
-public component A {
+public component A() {
   instance b: B;
 }
 
-public component B {
+public component B() {
   instance a: A;
 }
 

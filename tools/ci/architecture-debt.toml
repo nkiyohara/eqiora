@@ -150,19 +150,19 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-compiler/src/hierarchy/body_check/scope.rs"
-ceiling = 1324
+ceiling = 1253
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-compiler/src/hierarchy/definition_graph.rs"
-ceiling = 1333
+ceiling = 1213
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-compiler/src/hierarchy/expand.rs"
-ceiling = 2769
+ceiling = 2693
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -174,19 +174,19 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-compiler/src/hierarchy/supports.rs"
-ceiling = 1933
+ceiling = 1925
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-compiler/src/identity.rs"
-ceiling = 1699
+ceiling = 1541
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-compiler/src/source_identity.rs"
-ceiling = 1935
+ceiling = 1933
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -204,25 +204,25 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-lang/src/ast.rs"
-ceiling = 1191
+ceiling = 1178
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-lang/src/draft.rs"
-ceiling = 1115
+ceiling = 1080
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-lang/src/factory.rs"
-ceiling = 1083
+ceiling = 1022
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-lang/src/parser.rs"
-ceiling = 1228
+ceiling = 1149
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -294,7 +294,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-sem/src/interpreter.rs"
-ceiling = 1441
+ceiling = 1241
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -518,20 +518,22 @@ ceiling = 8
 
 [[public_surface]]
 crate = "eqiora-schema"
-ceiling = 90
+ceiling = 91
 reason = """
-88 predate the predicate. One is deliberate: GeometryDigest, added as an
-architecture change so a Kernel Domain can name an authored geometry instead of
-describing a box. Two closed coordinate recipe types distinguish an axis from
-its fixed or exact-Parameter endpoints without adding a geometry-expression
-language. The Kernel gains a way to name a shape and a bounded way to retain
-Cartesian coordinate meaning, not a generic geometry vocabulary.
+The existing GeometryDigest and closed Cartesian coordinate recipe types retain
+exact authored geometry and fixed-or-Parameter endpoints without a general
+geometry-expression language. #858 adds FieldRole as the single closed
+algebraic/state ownership value shared by compiler admission, Kernel typing,
+current wire replay and semantic fingerprinting. Constructor-only encodings
+would distribute this same choice across those consumers, not remove it.
 """
-removal = "withdraw GeometryDigest if a Domain ever carries geometry structurally rather than by reference; replace the two coordinate recipe types and lower by two only when an accepted general coordinate-expression owner safely subsumes their closed grammar"
+removal = "withdraw GeometryDigest or the closed coordinate recipes when accepted structural geometry/general coordinate owners subsume them; withdraw FieldRole and lower by one only if an existing shared typed owner carries the same algebraic/state choice without parallel encodings or consumer-specific constructor dispatch"
 
 [[public_surface]]
 crate = "eqiora-sem"
-ceiling = 18
+ceiling = 19
+reason = "#867 adds InitialState for one accepted fresh solve before the first tick: exact occurrence-keyed Field values and only actual derivative unknowns. Both ordinary and implicit runtime adapters consume it. Trajectory is a post-activation observation surface; a solver's positional state/derivative pair would introduce solver coupling and semantic-layer padding for absent algebraic derivatives. No restart constructor or persisted State is added."
+removal = "withdraw InitialState and lower by one when an already-counted semantics-level result owns the same exact occurrence mapping, actual derivative set and before-first-tick acceptance boundary without conflating observations, numerical guesses or restart history"
 
 [[public_surface]]
 crate = "eqiora-solver"

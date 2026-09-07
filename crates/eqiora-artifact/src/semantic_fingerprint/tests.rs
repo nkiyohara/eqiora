@@ -11,7 +11,7 @@ use eqiora_schema::{Model, ModelView};
 
 const DECAY: &str = r#"
 model decay {
-  field x: 1 = 1;
+  state x: 1; initial { x = 1; }
   parameter rate: 1 / s = 1;
   relation flow { derivative(x) + rate * x = 0; }
 }
@@ -31,7 +31,7 @@ fn program(source: &str) -> KernelProgram {
 fn independent_occurrence_ids_and_formatting_do_not_change_the_projection() {
     let first = program(DECAY);
     let second = program(
-        "model renamed { parameter r: 1/s = 1; field state: 1=1;\nrelation balance { derivative(state)+r*state=0; } }",
+        "model renamed { parameter r: 1/s = 1; state state: 1; initial { state = 1; }\nrelation balance { derivative(state)+r*state=0; } }",
     );
 
     assert_ne!(first.model(), second.model());
@@ -180,13 +180,8 @@ fn manually_allocated_expression(reverse: bool, expose_port: bool) -> KernelProg
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
                 ),
+                eqiora_schema::kernel::FieldRole::Variable,
             )
-            .with_initial(
-                DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)
-                    .try_into()
-                    .expect("finite real initial value"),
-            )
-            .unwrap()
             .into(),
         })
         .push(Op::DefineKernelNode {
@@ -196,13 +191,8 @@ fn manually_allocated_expression(reverse: bool, expose_port: bool) -> KernelProg
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
                 ),
+                eqiora_schema::kernel::FieldRole::Variable,
             )
-            .with_initial(
-                DynQuantity::new(2.0, DimExponents::DIMENSIONLESS)
-                    .try_into()
-                    .expect("finite real initial value"),
-            )
-            .unwrap()
             .into(),
         })
         .push(Op::DefineKernelNode {

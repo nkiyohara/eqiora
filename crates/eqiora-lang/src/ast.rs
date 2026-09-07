@@ -6,7 +6,7 @@ pub(crate) mod document;
 pub(crate) mod formulation;
 mod name_path;
 mod relation;
-pub use relation::{ActivationSyntax, Equation, RelationDecl, RelationFamilyDecl};
+pub use relation::{ActivationSyntax, Equation, InitialDecl, RelationDecl, RelationFamilyDecl};
 mod value_type;
 
 pub use value_type::{ValueTypeSyntax, ValueTypeSyntaxKind};
@@ -451,52 +451,8 @@ impl BoundaryFamilyBinderSyntax {
     }
 }
 
-/// Required occurrence-bound continuum Field interface.
-///
-/// A Field slot does not own state and does not become a Semantic Kernel node.
-/// Each component occurrence binds it to one exact enclosing Field before
-/// deterministic expansion. V1 slots are necessarily public and continuum,
-/// so neither property is represented as mutable syntax state here.
-#[derive(Debug, Clone, PartialEq)]
-pub struct FieldSlotDecl {
-    pub(crate) comments: crate::ast::comments::SourceComments,
-    pub(crate) name: String,
-    pub(crate) support: String,
-    pub(crate) value_type: ValueTypeSyntax,
-    pub(crate) range: TextRange,
-}
-
-impl FieldSlotDecl {
-    /// Public Field-slot name in this component definition.
-    #[must_use]
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Component support-slot name on which the required Field is defined.
-    #[must_use]
-    pub fn support(&self) -> &str {
-        &self.support
-    }
-
-    /// Complete required mathematical type.
-    #[must_use]
-    pub const fn value_type(&self) -> &ValueTypeSyntax {
-        &self.value_type
-    }
-
-    /// Full declaration range, including the required `public` modifier.
-    #[must_use]
-    pub const fn range(&self) -> TextRange {
-        self.range
-    }
-}
-
-/// Component-body declaration.
-///
-/// Parameter, Port, and Support carry general visibility. Field slots are
-/// public by construction. Public Representations, owned Fields, Relations,
-/// Connections, Clocks, and nested instances remain unrepresentable.
+/// Component signature requirements and private implementation declarations.
+/// Parameter, Port, and property interface convergence is owned by its later slice.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ComponentItem {
@@ -508,12 +464,14 @@ pub enum ComponentItem {
     PortFamily(ComponentPortFamilyDecl),
     /// Required occurrence-bound spatial support.
     Support(SupportSlotDecl),
-    /// Required occurrence-bound continuum Field.
-    FieldSlot(FieldSlotDecl),
-    /// Private canonical field representation.
-    Representation(RepresentationDecl),
+    /// Exact borrowed unknown requirement in the Component signature.
+    FieldRequirement(FieldDecl),
+    /// Exact nominal clock requirement in the Component signature.
+    ClockRequirement(ClockRequirementDecl),
     /// Private mutable state.
     Field(FieldDecl),
+    /// Simultaneous fresh initialization, owned by this occurrence.
+    Initial(InitialDecl),
     /// Private exact periodic clock.
     Clock(ClockDecl),
     /// Private implicit residual group.
@@ -534,10 +492,10 @@ pub enum ComponentItem {
 pub enum Item {
     /// Continuous spatial region or one oriented boundary portion.
     Domain(DomainDecl),
-    /// Canonical field representation before discretization.
-    Representation(RepresentationDecl),
     /// Mutable model state.
     Field(FieldDecl),
+    /// Simultaneous fresh initialization, separate from numerical guesses.
+    Initial(InitialDecl),
     /// Revision-local design value.
     Parameter(ParameterDecl),
     /// Typed compile-time expression alias expanded before Kernel lowering.
@@ -568,6 +526,7 @@ pub struct InstanceDecl {
     pub(crate) support_bindings: Vec<SupportBindingDecl>,
     pub(crate) boundary_set_bindings: Vec<BoundarySetBindingDecl>,
     pub(crate) field_bindings: Vec<FieldBindingDecl>,
+    pub(crate) clock_bindings: Vec<ClockBindingDecl>,
     pub(crate) property_bindings: Vec<PropertyBindingDecl>,
     pub(crate) material_binding: Option<NamePath>,
     pub(crate) range: TextRange,
@@ -608,6 +567,12 @@ impl InstanceDecl {
     #[must_use]
     pub fn field_bindings(&self) -> &[FieldBindingDecl] {
         &self.field_bindings
+    }
+
+    /// Named exact-clock bindings in source order.
+    #[must_use]
+    pub fn clock_bindings(&self) -> &[ClockBindingDecl] {
+        &self.clock_bindings
     }
 
     /// Full instance declaration range.
@@ -754,6 +719,35 @@ impl FieldBindingDecl {
     }
 }
 
+/// One named exact Clock binding in a component instantiation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClockBindingDecl {
+    pub(crate) comments: crate::ast::comments::SourceComments,
+    pub(crate) slot: String,
+    pub(crate) target: String,
+    pub(crate) range: TextRange,
+}
+
+impl ClockBindingDecl {
+    /// Signature Clock requirement name in the selected component definition.
+    #[must_use]
+    pub fn slot(&self) -> &str {
+        &self.slot
+    }
+
+    /// Enclosing owned Clock or forwarded Clock requirement name.
+    #[must_use]
+    pub fn target(&self) -> &str {
+        &self.target
+    }
+
+    /// Complete binding range, including the `clock` discriminator.
+    #[must_use]
+    pub const fn range(&self) -> TextRange {
+        self.range
+    }
+}
+
 /// Named semantic Domain declaration.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DomainDecl {
@@ -808,52 +802,46 @@ pub enum DomainSyntax {
     },
 }
 
-/// Canonical Representation declaration.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RepresentationDecl {
+/// Borrowed exact clock requirement; it does not declare another period or phase.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClockRequirementDecl {
     pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) name: String,
-    pub(crate) syntax: RepresentationSyntax,
     pub(crate) range: TextRange,
 }
 
-impl RepresentationDecl {
-    /// Source name.
+impl ClockRequirementDecl {
+    /// Signature name used by dependent unknown and Relation activation clauses.
     #[must_use]
     pub fn name(&self) -> &str {
         &self.name
     }
 
-    /// Representation family.
-    #[must_use]
-    pub const fn syntax(&self) -> RepresentationSyntax {
-        self.syntax
-    }
-
-    /// Full declaration range.
+    /// Full signature-entry range.
     #[must_use]
     pub const fn range(&self) -> TextRange {
         self.range
     }
 }
 
-/// Source representation family.
+/// Author-declared mathematical evolution role.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum RepresentationSyntax {
-    /// Continuous field before a discrete function space is selected.
-    Continuum,
+pub enum FieldRoleSyntax {
+    /// Algebraic unknown; spatial differentiability does not imply state ownership.
+    Variable,
+    /// Owned evolving state at the declared continuous or clocked activation.
+    State,
 }
 
-/// Field source declaration.
+/// A source unknown with independent role, support, and activation.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FieldDecl {
     pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) name: String,
     pub(crate) domain: Option<String>,
-    pub(crate) representation: Option<String>,
+    pub(crate) role: FieldRoleSyntax,
+    pub(crate) activation: ActivationSyntax,
     pub(crate) value_type: ValueTypeSyntax,
-    pub(crate) initial: Option<Expr>,
     pub(crate) range: TextRange,
 }
 
@@ -870,10 +858,16 @@ impl FieldDecl {
         self.domain.as_deref()
     }
 
-    /// Canonical Representation when this is a distributed Field.
+    /// Author-declared evolution ownership.
     #[must_use]
-    pub fn representation(&self) -> Option<&str> {
-        self.representation.as_deref()
+    pub const fn role(&self) -> FieldRoleSyntax {
+        self.role
+    }
+
+    /// Activation independent of support and scalar type.
+    #[must_use]
+    pub const fn activation(&self) -> &ActivationSyntax {
+        &self.activation
     }
 
     /// Complete declared mathematical type.
@@ -886,13 +880,6 @@ impl FieldDecl {
     #[must_use]
     pub fn dimension(&self) -> &Expr {
         self.value_type.dimension()
-    }
-
-    /// Numeric or explicitly unit-bearing initial literal.
-    /// Bare literals inherit declared units; shaped values admit contextual zero.
-    #[must_use]
-    pub const fn initial(&self) -> Option<&Expr> {
-        self.initial.as_ref()
     }
 
     /// Full declaration range.

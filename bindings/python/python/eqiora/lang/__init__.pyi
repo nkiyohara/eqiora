@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from fractions import Fraction
 from os import PathLike
 from typing import Final, final, overload
-from .. import ValueType
+from .. import FieldRole, ValueType
 
 @final
 class SourceError(ValueError):
@@ -122,7 +122,7 @@ class Component:
         *,
         on: Support,
         value_type: ValueType,
-        initial: int | float | None = None,
+        role: FieldRole,
         doc: str | None = None,
     ) -> Expression: ...
     def relation(

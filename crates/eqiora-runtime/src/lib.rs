@@ -15,6 +15,7 @@ use eqiora_sem::{ExpressionBackend, Interpreter, KernelProgram, ReferenceConfig,
 
 mod hybrid;
 mod implicit_time;
+mod initialization;
 mod time;
 
 pub use hybrid::{CanonicalEventLinearization, CanonicalEventProgram, CanonicalRootSet};

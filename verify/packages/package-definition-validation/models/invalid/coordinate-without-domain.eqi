@@ -1,6 +1,6 @@
 model Valid {}
 
 model Invalid {
-  field position: m = 0;
+  variable position: m;
   relation invalid { coordinate(0) - position = 0; }
 }

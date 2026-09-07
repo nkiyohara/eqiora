@@ -1,8 +1,8 @@
 model natural_equation_oracle {
-  field a: 1 = 4;
-  field b: 1 = 3;
-  field c: 1 = 2;
-  field d: 1 = 1;
+  variable a: 1;
+  variable b: 1;
+  variable c: 1;
+  variable d: 1;
   relation balance {
     a - b = 0;
     a - (b - c) - d = 0;

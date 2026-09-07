@@ -1,7 +1,7 @@
 {
   "Component": {
     "prefix": "component",
-    "body": ["public component ${1:Name} {", "  $0", "}"],
+    "body": ["public component ${1:Name}() {", "  $0", "}"],
     "description": "Declare a public Eqiora component"
   },
   "Model": {

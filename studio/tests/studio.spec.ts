@@ -45,3 +45,13 @@ test("has no serious or critical WCAG violations", async ({ page }) => {
     results.violations.filter((item) => item.impact === "serious" || item.impact === "critical"),
   ).toEqual([]);
 });
+
+test("edits Parameters without offering state initial values as revision values", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: /state Field/ }).click();
+  await expect(page.locator("#inspector-value-input")).toHaveCount(0);
+  await page.getByRole("button", { name: /rate Parameter/ }).click();
+  await expect(page.locator("#inspector-value-input")).toBeVisible();
+});

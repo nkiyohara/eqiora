@@ -15,7 +15,7 @@ capabilities = [
   "backward-euler-transport-time-refinement",
   "global-transport-balance",
   "constant-state-preservation-and-boundedness",
-  "canonical-scalar-initial-state-consumption",
+  "canonical-scalar-initial-equation-consumption",
   "non-unit-physical-scaling-invariance",
   "reference-bicgstab-general-jacobi",
 ]
@@ -31,7 +31,7 @@ source = "zero"
 
 [canonical_contract]
 transported_state = "one scalar differential continuum Field"
-initial_state = "one spatially uniform scalar canonical Field value; no caller or mesh-shaped substitution"
+initial_state = "one Model initial equation defining a spatially uniform scalar state on its support; no caller substitution or shaped-value broadcast"
 advector = "coordinate gradient of one structurally affine exactly defined scalar potential Field"
 diffusion = "one positive structurally coordinate-independent coherent-SI expression"
 boundary_data = "one structurally coordinate-independent scalar expression per exact boundary Relation"
@@ -99,7 +99,7 @@ physical_scale_substitution = "must preserve reconstructed physical state and co
 intrinsic_dimension = 2
 fixed_cartesian_mesh = true
 scalar_state = true
-spatially_uniform_scalar_canonical_initial = true
+spatially_uniform_scalar_initial_equation = true
 affine_potential_advector = true
 constant_positive_diffusion = true
 structurally_coordinate_independent_boundary_data = true

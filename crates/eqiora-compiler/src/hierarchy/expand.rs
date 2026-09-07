@@ -39,6 +39,7 @@ use super::flat::{
 
 mod binding_locations;
 mod cartesian;
+mod connector_domain;
 mod external;
 mod model_lets;
 mod names;
@@ -152,6 +153,7 @@ pub(super) struct RootExpansion<'a, 'd> {
     model_key: ModelViewKey,
     model_full: FullElaborationIdentity,
     items: Vec<FlatItemBlueprint>,
+    support_representations: BTreeMap<String, (EntityIdentity, bool)>,
     connector_domains: BTreeMap<ConnectorSpecializationKey, FlatSymbol>,
     display_symbols: BTreeMap<String, DisplayIdentity>,
     physical_ports: BTreeMap<FullElaborationIdentity, PhysicalPortOccurrence>,
@@ -197,6 +199,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             model_key,
             model_full,
             items,
+            support_representations: BTreeMap::new(),
             connector_domains: BTreeMap::new(),
             display_symbols: BTreeMap::new(),
             physical_ports: BTreeMap::new(),
@@ -212,6 +215,29 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 elaborator.limits.complete_exteriors,
             ),
         })
+    }
+
+    fn add_support_representation(
+        &mut self,
+        support: Option<&str>,
+    ) -> Result<Option<String>, Diagnostic> {
+        let Some(support) = support else {
+            return Ok(None);
+        };
+        let (identity, emitted) = self
+            .support_representations
+            .get_mut(support)
+            .ok_or_else(|| hierarchy_error("Field support has no representation owner"))?;
+        let name = internal_name(identity.full);
+        if !*emitted {
+            self.items.push(FlatItemBlueprint::Representation {
+                name: name.clone(),
+                range: identity.definition.range,
+                identity: identity.clone(),
+            });
+            *emitted = true;
+        }
+        Ok(Some(name))
     }
 
     fn entity_identity(
@@ -344,6 +370,18 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         scope: &mut Scope,
     ) -> Result<(), Diagnostic> {
         let internal_name = internal_name(identity.full);
+        if matches!(kind, SymbolKind::Domain) {
+            let key = identity.key.support_representation()?;
+            let representation = EntityIdentity {
+                full: key.full_identity()?,
+                key,
+                definition: identity.definition.clone(),
+                instance: identity.instance.clone(),
+                bindings: identity.bindings.clone(),
+            };
+            self.support_representations
+                .insert(internal_name.clone(), (representation, false));
+        }
         let symbol = FlatSymbol {
             internal_name,
             display_name: display_name.clone(),
@@ -520,198 +558,6 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         Ok(())
     }
 
-    fn connector_domain(
-        &mut self,
-        connector: ConnectorDefinition<'d>,
-        ambient_dimension: Option<usize>,
-    ) -> Result<FlatSymbol, Diagnostic> {
-        let definition = DefinitionKey {
-            namespace: connector.namespace.clone(),
-            name: connector.name().to_owned(),
-        };
-        let (shape, contract) = match connector.syntax() {
-            ConnectorSyntax::ScalarPhysical {
-                across_type,
-                through_type,
-            } => {
-                crate::value_types::lower_scalar_type(connector.file, across_type)?;
-                crate::value_types::lower_scalar_type(connector.file, through_type)?;
-                (
-                    ValueShape::scalar(),
-                    LoweringDomainContract::Source(DomainSyntax::ScalarPhysical {
-                        across_type: across_type.clone(),
-                        through_type: through_type.clone(),
-                    }),
-                )
-            }
-            ConnectorSyntax::FieldPhysical {
-                trace,
-                flux,
-                shape,
-                frame,
-                pairing,
-            } => {
-                let ambient_dimension = ambient_dimension.ok_or_else(|| {
-                    source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        connector.file,
-                        connector.range(),
-                        "field-physical Connector specialization requires an exact boundary support",
-                    )
-                })?;
-                let shape = super::body_check::resolve_value_shape(
-                    connector.file,
-                    connector.range(),
-                    shape,
-                    ambient_dimension,
-                )
-                .map_err(|mut errors| {
-                    errors.pop().unwrap_or_else(|| {
-                        hierarchy_error("value-shape specialization failed without a diagnostic")
-                    })
-                })?;
-                let frame = match frame {
-                    FrameSyntax::Invariant => ValueFrame::Invariant,
-                    FrameSyntax::Spatial => ValueFrame::SpatialCartesian,
-                    _ => {
-                        return Err(source_error(
-                            codes::LANGUAGE_LOWERING_ERROR,
-                            connector.file,
-                            connector.range(),
-                            "Connector frame is newer than this compiler",
-                        ));
-                    }
-                };
-                if frame == ValueFrame::SpatialCartesian
-                    && (shape.is_scalar()
-                        || shape.extents().iter().any(|extent| {
-                            usize::try_from(extent.get()).ok() != Some(ambient_dimension)
-                        }))
-                {
-                    return Err(source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        connector.file,
-                        connector.range(),
-                        "spatial Connector extents must all equal the exact support ambient dimension",
-                    ));
-                }
-                let pairing = match pairing {
-                    BoundaryPairingSyntax::EuclideanBoundaryDuality => {
-                        BoundaryPairing::EuclideanBoundaryDuality
-                    }
-                    _ => {
-                        return Err(source_error(
-                            codes::LANGUAGE_LOWERING_ERROR,
-                            connector.file,
-                            connector.range(),
-                            "Connector pairing is newer than this compiler",
-                        ));
-                    }
-                };
-                let quantity_type = |dimension: &eqiora_lang::Expr| {
-                    eqiora_core::ValueType::shaped(
-                        eqiora_core::ScalarDomain::Real,
-                        lower_dimension(connector.file, dimension)?,
-                        shape.clone(),
-                        frame,
-                    )
-                    .map_err(|error| {
-                        source_error(
-                            codes::LANGUAGE_TYPE_ERROR,
-                            connector.file,
-                            dimension.range(),
-                            error.to_string(),
-                        )
-                    })
-                };
-                let contract = BoundaryPhysicalConnector::new(
-                    quantity_type(trace.dimension())?,
-                    quantity_type(flux.dimension())?,
-                    pairing,
-                )
-                .map_err(|violation| {
-                    source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        connector.file,
-                        connector.range(),
-                        format!("invalid field-physical Connector: {violation:?}"),
-                    )
-                })?;
-                (shape, LoweringDomainContract::BoundaryPhysical(contract))
-            }
-            _ => {
-                return Err(source_error(
-                    codes::LANGUAGE_LOWERING_ERROR,
-                    connector.file,
-                    connector.range(),
-                    "Connector syntax is newer than this compiler",
-                ));
-            }
-        };
-        let key = ConnectorSpecializationKey {
-            definition,
-            shape: shape.clone(),
-        };
-        if let Some(domain) = self.connector_domains.get(&key) {
-            return Ok(domain.clone());
-        }
-        let mut declaration_path = connector.namespace.declaration_prefix();
-        declaration_path.extend(["connector".to_owned(), connector.name().to_owned()]);
-        if matches!(&contract, LoweringDomainContract::BoundaryPhysical(_)) {
-            declaration_path.push("shape".to_owned());
-            let specialization = if shape.is_scalar() {
-                "scalar".to_owned()
-            } else {
-                shape
-                    .extents()
-                    .iter()
-                    .map(|extent| extent.get().to_string())
-                    .collect::<Vec<_>>()
-                    .join("x")
-            };
-            declaration_path.push(specialization);
-        }
-        let identity = self.entity_identity(
-            &self.root_path,
-            declaration_path,
-            EntityKind::Domain,
-            SourceLocation::new(connector.file, connector.range()),
-            SourceLocation::new(self.model.file, self.model.range()),
-            Vec::new(),
-        )?;
-        let internal_name = internal_name(identity.full);
-        self.items.push(FlatItemBlueprint::Domain {
-            name: internal_name.clone(),
-            contract,
-            range: connector.range(),
-            identity: identity.clone(),
-        });
-        let mut display_name = match &connector.namespace {
-            DefinitionNamespace::Local => format!("connector::{}", connector.name()),
-            DefinitionNamespace::Resolved(owner) => {
-                format!("connector::{owner}::{}", connector.name())
-            }
-        };
-        if !shape.is_scalar() {
-            display_name.push_str(&format!("::{shape:?}"));
-        }
-        let symbol = FlatSymbol {
-            internal_name,
-            display_name: display_name.clone(),
-            full_identity: identity.full,
-            kind: SymbolKind::Domain,
-        };
-        self.display_symbols.insert(
-            display_name,
-            DisplayIdentity {
-                full: identity.full,
-                kind: EntityKind::Domain,
-            },
-        );
-        self.connector_domains.insert(key, symbol.clone());
-        Ok(symbol)
-    }
-
     pub(super) fn expand(mut self) -> Result<ExpandedBlueprint, Vec<Diagnostic>> {
         let model = self.model.clone();
         let mut root_scope = Scope::default();
@@ -782,13 +628,6 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     None,
                     value.range(),
                 ),
-                Item::Representation(value) => (
-                    value.name(),
-                    EntityKind::Representation,
-                    SymbolKind::Representation,
-                    None,
-                    value.range(),
-                ),
                 Item::Field(value) => (
                     value.name(),
                     EntityKind::Field,
@@ -846,7 +685,8 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         .insert(value.name().to_owned(), identity);
                     continue;
                 }
-                Item::Connection(_)
+                Item::Initial(_)
+                | Item::Connection(_)
                 | Item::BoundaryConnection(_)
                 | Item::Boundary(_)
                 | Item::Let(_)
@@ -923,6 +763,18 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 .domain()
                 .and_then(|domain| scope.spatial_support(domain).cloned());
             let field_type = field_expression_type(self.model.file, declaration, support)?;
+            scope.field_evolution.insert(
+                declaration.name().to_owned(),
+                (
+                    declaration.role(),
+                    super::scope::rewrite_activation(
+                        self.model.file,
+                        declaration.activation(),
+                        declaration.range(),
+                        scope,
+                    )?,
+                ),
+            );
             if scope
                 .insert_field_type(declaration.name().to_owned(), field_type)
                 .is_some()
@@ -1100,6 +952,26 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             }
         }
 
+        let clocks = super::field_slots::resolve_instance_clocks(
+            instance_file,
+            component.declaration,
+            instance,
+            |name| {
+                parent_scope
+                    .symbol(name)
+                    .filter(|symbol| matches!(symbol.kind, SymbolKind::Clock))
+                    .map(|symbol| symbol.internal_name.clone())
+            },
+        )
+        .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
+        for binding in instance.clock_bindings() {
+            let symbol = parent_scope
+                .symbol(binding.target())
+                .expect("validated clock binding")
+                .clone();
+            scope.insert_symbol(binding.slot().to_owned(), symbol);
+        }
+
         let field_interface =
             component_field_interface(component.file, component.declaration, &support_interface)
                 .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
@@ -1108,16 +980,22 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             component.declaration,
             &field_interface,
             instance,
+            |name| {
+                parent_scope
+                    .symbol(name)
+                    .filter(|symbol| matches!(symbol.kind, SymbolKind::Clock))
+                    .map(|symbol| symbol.internal_name.clone())
+            },
             |slot| scope.spatial_support(slot).cloned(),
             |target| {
                 let symbol = parent_scope.symbol(target)?;
                 if !matches!(symbol.kind, SymbolKind::Field) {
                     return None;
                 }
-                parent_scope
-                    .field_type(target)
-                    .cloned()
-                    .map(FieldContract::continuum)
+                parent_scope.field_type(target).cloned().map(|value| {
+                    let (role, activation) = parent_scope.field_evolution[target].clone();
+                    FieldContract::continuum(value, role, activation)
+                })
             },
         )
         .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
@@ -1145,6 +1023,16 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 )]);
             }
             scope.insert_symbol(slot.clone(), symbol);
+            let requirement = field_interface.field(&slot).expect("resolved requirement");
+            let activation = match &requirement.activation {
+                eqiora_lang::ActivationSyntax::Periodic(clock) => {
+                    eqiora_lang::ActivationSyntax::Periodic(clocks[clock].clone())
+                }
+                other => other.clone(),
+            };
+            scope
+                .field_evolution
+                .insert(slot.clone(), (requirement.role, activation));
             scope.insert_field_type(slot, field_type);
         }
 
@@ -1285,38 +1173,14 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     }
                 }
                 ComponentItem::Support(_) => {}
-                ComponentItem::Representation(declaration) => {
-                    let identity = self
-                        .entity_identity(
-                            &instance_path,
-                            definition_path(
-                                &component.namespace,
-                                "component",
-                                component.name(),
-                                declaration.name(),
-                            ),
-                            EntityKind::Representation,
-                            SourceLocation::new(component.file, declaration.range()),
-                            SourceLocation::new(instance_file, instance.range()),
-                            bindings.clone(),
-                        )
-                        .map_err(one_diagnostic)?;
-                    self.register_symbol(
-                        display_child(&display_prefix, declaration.name()),
-                        declaration.name(),
-                        &identity,
-                        SymbolKind::Representation,
-                        &mut scope,
-                    )
-                    .map_err(one_diagnostic)?;
-                    identities
-                        .entities
-                        .insert(declaration.name().to_owned(), identity);
-                }
                 ComponentItem::Field(declaration) => {
                     let support = declaration
                         .domain()
                         .and_then(|domain| scope.spatial_support(domain).cloned());
+                    scope.field_evolution.insert(
+                        declaration.name().to_owned(),
+                        (declaration.role(), declaration.activation().clone()),
+                    );
                     let field_type = field_expression_type(component.file, declaration, support)
                         .map_err(one_diagnostic)?;
                     let identity = self
@@ -1470,7 +1334,9 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                             .insert((declaration.name().to_owned(), boundary), identity);
                     }
                 }
-                ComponentItem::FieldSlot(_)
+                ComponentItem::Initial(_)
+                | ComponentItem::ClockRequirement(_)
+                | ComponentItem::FieldRequirement(_)
                 | ComponentItem::Connection(_)
                 | ComponentItem::BoundaryConnection(_)
                 | ComponentItem::Instance(_) => {}
@@ -1482,6 +1348,21 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         "component item is newer than hierarchy elaboration",
                     )]);
                 }
+            }
+        }
+
+        for item in component.items() {
+            if let ComponentItem::Field(field) = item {
+                let activation = super::scope::rewrite_activation(
+                    component.file,
+                    field.activation(),
+                    field.range(),
+                    &scope,
+                )
+                .map_err(one_diagnostic)?;
+                scope
+                    .field_evolution
+                    .insert(field.name().to_owned(), (field.role(), activation));
             }
         }
 
@@ -1635,8 +1516,34 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
     ) -> Result<(), Diagnostic> {
         let component = occurrence.definition;
         let instance = occurrence.instance;
+        let mut initial_duplicates = BTreeMap::<String, usize>::new();
         for item in component.items() {
             match item {
+                ComponentItem::Initial(declaration) => {
+                    let name = crate::source_identity::initial_declaration_name(declaration)?;
+                    let duplicate = initial_duplicates.entry(name.clone()).or_default();
+                    let name = format!("{name}-{duplicate}");
+                    *duplicate += 1;
+                    let identity = self.relation_identity(
+                        occurrence.instance_path,
+                        definition_path(&component.namespace, "component", component.name(), &name),
+                        SourceLocation::new(component.file, declaration.range()),
+                        SourceLocation::new(occurrence.instance_file, instance.range()),
+                        Vec::new(),
+                    )?;
+                    let equations =
+                        rewrite_equations(component.file, declaration.equations(), scope, None)?;
+                    self.items.push(FlatItemBlueprint::Relation {
+                        name: internal_name(identity.entity.full),
+                        activation: eqiora_lang::ActivationSyntax::Continuous,
+                        domain: None,
+                        equations,
+                        initial: true,
+                        range: declaration.range(),
+                        identity,
+                    });
+                }
+
                 ComponentItem::Parameter(_) => {}
                 ComponentItem::Port(declaration) => {
                     let identity = identities.entities[declaration.name()].clone();
@@ -1706,26 +1613,21 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         });
                     }
                 }
-                ComponentItem::Support(_) | ComponentItem::FieldSlot(_) => {}
-                ComponentItem::Representation(declaration) => {
-                    let identity = identities.entities[declaration.name()].clone();
-                    self.items.push(FlatItemBlueprint::Representation {
-                        name: internal_name(identity.full),
-                        syntax: declaration.syntax(),
-                        range: declaration.range(),
-                        identity,
-                    });
-                }
+                ComponentItem::Support(_)
+                | ComponentItem::ClockRequirement(_)
+                | ComponentItem::FieldRequirement(_) => {}
                 ComponentItem::Field(declaration) => {
                     let identity = identities.entities[declaration.name()].clone();
-                    let (domain, representation) =
+                    let (domain, activation) =
                         rewrite_field_scope(component.file, declaration, scope)?;
+                    let representation = self.add_support_representation(domain.as_deref())?;
                     self.items.push(FlatItemBlueprint::Field {
                         name: internal_name(identity.full),
                         domain,
                         representation,
                         value_type: declaration.value_type().clone(),
-                        initial: declaration.initial().cloned(),
+                        role: declaration.role(),
+                        activation,
                         range: declaration.range(),
                         identity,
                     });
@@ -1751,6 +1653,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         &equations,
                     )?;
                     self.items.push(FlatItemBlueprint::Relation {
+                        initial: false,
                         name: internal_name(identity.entity.full),
                         activation,
                         domain,
@@ -1804,6 +1707,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                             &equations,
                         )?;
                         self.items.push(FlatItemBlueprint::Relation {
+                            initial: false,
                             name: internal_name(identity.entity.full),
                             activation: eqiora_lang::ActivationSyntax::Continuous,
                             domain: Some(member.target().to_owned()),
@@ -2039,8 +1943,34 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         identities: &ScopeIdentities,
     ) -> Result<(), Diagnostic> {
         let model = self.model.clone();
+        let mut initial_duplicates = BTreeMap::<String, usize>::new();
         for item in model.items() {
             match item {
+                Item::Initial(declaration) => {
+                    let name = crate::source_identity::initial_declaration_name(declaration)?;
+                    let duplicate = initial_duplicates.entry(name.clone()).or_default();
+                    let name = format!("{name}-{duplicate}");
+                    *duplicate += 1;
+                    let identity = self.relation_identity(
+                        &self.root_path,
+                        definition_path(&self.model.namespace, "model", self.model.name(), &name),
+                        SourceLocation::new(self.model.file, declaration.range()),
+                        SourceLocation::new(self.model.file, self.model.range()),
+                        Vec::new(),
+                    )?;
+                    let equations =
+                        rewrite_equations(self.model.file, declaration.equations(), scope, None)?;
+                    self.items.push(FlatItemBlueprint::Relation {
+                        name: internal_name(identity.entity.full),
+                        activation: eqiora_lang::ActivationSyntax::Continuous,
+                        domain: None,
+                        equations,
+                        initial: true,
+                        range: declaration.range(),
+                        identity,
+                    });
+                }
+
                 Item::Domain(declaration) => {
                     let identity = identities.entities[declaration.name()].clone();
                     let syntax = match declaration.syntax() {
@@ -2085,25 +2015,18 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         identity,
                     });
                 }
-                Item::Representation(declaration) => {
-                    let identity = identities.entities[declaration.name()].clone();
-                    self.items.push(FlatItemBlueprint::Representation {
-                        name: internal_name(identity.full),
-                        syntax: declaration.syntax(),
-                        range: declaration.range(),
-                        identity,
-                    });
-                }
                 Item::Field(declaration) => {
                     let identity = identities.entities[declaration.name()].clone();
-                    let (domain, representation) =
+                    let (domain, activation) =
                         rewrite_field_scope(self.model.file, declaration, scope)?;
+                    let representation = self.add_support_representation(domain.as_deref())?;
                     self.items.push(FlatItemBlueprint::Field {
                         name: internal_name(identity.full),
                         domain,
                         representation,
                         value_type: declaration.value_type().clone(),
-                        initial: declaration.initial().cloned(),
+                        role: declaration.role(),
+                        activation,
                         range: declaration.range(),
                         identity,
                     });
@@ -2155,6 +2078,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         &equations,
                     )?;
                     self.items.push(FlatItemBlueprint::Relation {
+                        initial: false,
                         name: internal_name(identity.entity.full),
                         activation,
                         domain,

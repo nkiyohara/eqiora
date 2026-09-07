@@ -213,10 +213,15 @@ fn inline_release(
 
 #[test]
 fn package_preparation_replays_transitive_closure_independent_of_input_order() {
-    let leaf = inline_release("org.example.Leaf", "public component Resistor {}", &[], &[]);
+    let leaf = inline_release(
+        "org.example.Leaf",
+        "public component Resistor() {}",
+        &[],
+        &[],
+    );
     let middle = inline_release(
         "org.example.Middle",
-        "import org.example.Leaf.main as leaf; public component Branch { instance load: leaf.Resistor; }",
+        "import org.example.Leaf.main as leaf; public component Branch() { instance load: leaf.Resistor; }",
         &[("leaf", &leaf)],
         std::slice::from_ref(&leaf),
     );
@@ -254,7 +259,7 @@ fn package_preparation_rejects_unclosed_or_dishonest_release_inputs() {
         Err(PackagePreparationError::DuplicateDependency(_))
     ));
 
-    let extra = inline_release("org.example.Extra", "public component Extra {}", &[], &[]);
+    let extra = inline_release("org.example.Extra", "public component Extra() {}", &[], &[]);
     assert!(matches!(
         prepare_package_release_v1(library_sources(), std::slice::from_ref(&extra)),
         Err(PackagePreparationError::Contract(_))

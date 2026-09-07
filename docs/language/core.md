@@ -146,7 +146,11 @@ contract. `form name for law { ... }` owns mathematical trial/test roles and equ
 not mesh or solver configuration. These are closed typed children, not string-valued attributes.
 
 Signature `variable` and `state` entries borrow exact external occurrences. They do not allocate
-private unknowns or transfer ownership of state initialization and updates. Signature `input`
+private unknowns or transfer ownership of state initialization and updates. A `variable`
+requirement reads an exact unknown, including an owned state without changing its role; a `state`
+requirement additionally requires state ownership and the exact declared activation. Definition
+checking and nested forwarding use the declared requirement: binding a state to a `variable`
+formal does not grant that formal time-derivative, `pre`, or `next` capability. Signature `input`
 entries require a compatible driver; signature `output` entries expose values defined by the
 body. A `port` exposes its connector's members and participates in typed connection equations.
 An `on` or `at` clause on a port must satisfy that connector's admitted support and activation
@@ -281,7 +285,8 @@ context. For example, `voltage = 0;` uses a voltage zero. An unconstrained zero 
 real scalar zero. Contextual zero does not create a frame, support, clock, or basis conversion.
 A numeric initializer of an explicitly dimension-typed declaration uses that dimension's
 coherent unit: `parameter density: kg / m ^ 3 = 1;` needs no repeated unit. This also
-applies to a numeric parameter default, Field initializer, or type-annotated `let`.
+applies to a numeric parameter default or type-annotated `let`; it does not apply to a
+nonzero literal in an initial equation.
 Explicit input units still undergo conversion and dimension checking. This declaration-only
 rule does not assign units to arbitrary expressions or instance arguments; nonzero literals
 elsewhere remain dimensionless.

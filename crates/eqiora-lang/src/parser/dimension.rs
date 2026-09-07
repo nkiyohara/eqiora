@@ -292,7 +292,7 @@ mod tests {
                 format!("dimension D = {dimension}; model M {{}}"),
                 format!("model M {{ parameter x: {dimension} = 1; }}"),
                 format!("model M {{ let x: {dimension} = 1; }}"),
-                format!("component C {{ public parameter x: {dimension}; }} model M {{}}"),
+                format!("component C() {{ public parameter x: {dimension}; }} model M {{}}"),
             ] {
                 assert!(
                     parse("invalid.eqi", &source).into_document().is_err(),

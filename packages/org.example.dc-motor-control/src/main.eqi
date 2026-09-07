@@ -1,14 +1,18 @@
 import Eqiora.Electromechanical.DcDrive.drive as drive;
 import Eqiora.Electrical.Basic.basic as electrical;
 
-component SampledPController {
+component SampledPController() {
   public parameter setpoint: 1 / s;
   public parameter gain: kg * m ^ 2 / (s ^ 2 * A);
   public port measured_speed: signal input 1 / s;
   public port command: signal output kg * m ^ 2 / (s ^ 3 * A);
 
-  field held_voltage: kg * m ^ 2 / (s ^ 3 * A) = 0;
+  state held_voltage: kg * m ^ 2 / (s ^ 3 * A) at sample;
   clock sample = periodic(period = 1 / 100, phase = 0 / 1);
+
+  initial {
+    held_voltage = 0;
+  }
 
   relation update at sample {
     next(held_voltage) - gain * (setpoint - measured_speed) = 0;

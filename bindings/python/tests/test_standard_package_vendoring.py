@@ -17,11 +17,11 @@ model Main {
   domain x_upper = boundary(body, axis = 0, side = upper);
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
-  representation space = continuum;
-  field velocity on body as space: vector<m / s, 2>;
-  field pressure on body as space: kg / (m * s ^ 2) = 0;
-  field force_potential on body as space: kg / (m * s ^ 2) = 0;
-  field inlet_speed on body as space: m / s = 0;
+
+  variable velocity: vector<m / s, 2> on body;
+  variable pressure: kg / (m * s ^ 2) on body;
+  variable force_potential: kg / (m * s ^ 2) on body;
+  variable inlet_speed: m / s on body;
   parameter dynamic_viscosity: kg / (m * s) = 2;
   parameter zero_pressure: kg / (m * s ^ 2) = 0;
   relation force_definition on body {

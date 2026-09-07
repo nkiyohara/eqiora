@@ -9,14 +9,14 @@ import sys
 
 
 POISSON = """
-public component ReleaseSmokePoisson {
-  public support square: volume(ambient_dimension = 2);
-  public support x_lower: boundary(parent = square);
-  public support x_upper: boundary(parent = square);
-  public support y_lower: boundary(parent = square);
-  public support y_upper: boundary(parent = square);
-  representation scalar_space = continuum;
-  field potential on square as scalar_space: 1 = 0;
+public component ReleaseSmokePoisson(
+  support square: volume(ambient_dimension = 2),
+  support x_lower: boundary(parent = square),
+  support x_upper: boundary(parent = square),
+  support y_lower: boundary(parent = square),
+  support y_upper: boundary(parent = square),
+) {
+  variable potential: 1 on square;
   public parameter diffusion: 1;
   public parameter wave_number: 1 / m;
   public parameter source_scale: 1 / m ^ 2;
@@ -35,10 +35,11 @@ public component ReleaseSmokePoisson {
 
 DECAY = """
 model decay {
-  field state: 1 = 1;
+  state x: 1;
+  initial { x = 1; }
   parameter rate: 1 / s = 1;
   relation flow {
-    derivative(state) + rate * state = 0;
+    derivative(x) + rate * x = 0;
   }
 }
 """

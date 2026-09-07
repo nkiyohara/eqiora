@@ -18,7 +18,7 @@ test('Reference navigation reaches language and physical sources', async ({ page
   await page.locator('main').getByRole('link', { name: /Language syntax Eqiora Language/ }).click();
   await expect(page).toHaveURL(/\/reference\/language\/$/);
   await page.locator('main').getByRole('link', { name: 'Declarations', exact: true }).click();
-  await expect(page.locator('main')).toContainText('field current: A;');
+  await expect(page.locator('main')).toContainText('variable current: A;');
   await page.goto('/reference/standard-packages/');
   await page.locator('main').getByRole('link', { name: 'Electrical components', exact: true }).click();
   await expect(page.locator('main')).toContainText('IdealVoltageSource');

@@ -571,7 +571,9 @@ impl PyModel {
 
     fn resolve_edit_target(&self, target: &str) -> Result<RawId, Diagnostic> {
         let document = self.document()?;
-        if let Some(&id) = document.aliases().get(target) {
+        if let Some(&id) = document.aliases().get(target)
+            && id.kind() == EntityKind::Parameter
+        {
             return Ok(id);
         }
         document
@@ -579,14 +581,14 @@ impl PyModel {
             .nodes()
             .map(|node| node.id())
             .find(|id| {
-                matches!(id.kind(), EntityKind::Field | EntityKind::Parameter)
+                id.kind() == EntityKind::Parameter
                     && id.ulid().to_string() == target
             })
             .ok_or_else(|| {
                 Diagnostic::error(
                     codes::NODE_NOT_FOUND,
                     format!(
-                        "value-edit target {target:?} is neither a Field/Parameter alias nor an exact canonical ID in this Model revision"
+                        "value-edit target {target:?} is neither a Parameter alias nor an exact canonical ID in this Model revision"
                     ),
                 )
             })

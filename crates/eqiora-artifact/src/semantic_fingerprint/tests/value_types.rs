@@ -5,7 +5,7 @@ use eqiora_core::ValueType;
 use eqiora_schema::kernel::{AxisBounds, DomainDef, RepresentationDef};
 
 #[test]
-fn typed_field_initial_zero_survives_source_and_model_replay() {
+fn typed_initial_equations_survive_source_and_model_replay() {
     for ty in [
         "1",
         "complex<1>",
@@ -13,7 +13,7 @@ fn typed_field_initial_zero_survives_source_and_model_replay() {
         "vector<complex<m>, 2>",
     ] {
         let source = format!(
-            "model M {{ domain body = box(0, 1, 0, 1); representation space = continuum; field x on body as space: {ty} = 0; relation r on body {{ x - x = 0; }} }}"
+            "model M {{ domain body = box(0, 1, 0, 1); state x: {ty} on body; initial {{ x = 0; }} relation r on body {{ x - x = 0; }} }}"
         );
         let original = program(&source);
         let envelope = ModelEnvelope::from_program(&original).unwrap();
@@ -27,7 +27,12 @@ fn typed_field_initial_zero_survives_source_and_model_replay() {
                 _ => None,
             })
             .unwrap();
-        assert_eq!(field.initial().unwrap().value_type(), field.value_type());
+        assert_eq!(field.role(), eqiora_schema::kernel::FieldRole::State);
+        assert!(
+            original.nodes().any(
+                |node| matches!(node, KernelNode::Relation(relation) if relation.is_initial())
+            )
+        );
         if field.value_type().scalar_domain() != ScalarDomain::Real || !field.shape().is_scalar() {
             let errors = eqiora_sem::Interpreter::new()
                 .run(
@@ -243,7 +248,11 @@ fn spatial_program(value_type: ValueType) -> Result<KernelProgram, Vec<Diagnosti
     let nodes = [
         KernelNode::from(DomainDef::cartesian_box(domain, vec![bounds, bounds]).unwrap()),
         KernelNode::from(RepresentationDef::continuum(representation)),
-        KernelNode::from(FieldDef::new(field, value_type)),
+        KernelNode::from(FieldDef::new(
+            field,
+            value_type,
+            eqiora_schema::kernel::FieldRole::Variable,
+        )),
         KernelNode::from(RelationDef::new(
             relation,
             expression.finish([root]).unwrap(),
@@ -343,8 +352,7 @@ fn source_field_types_reach_semantic_admission_and_exact_model_replay() {
             r#"
 model Typed {{
   domain body = box(0, 1, 0, 1);
-  representation space = continuum;
-  field value on body as space: {value_type};
+  variable value: {value_type} on body;
   relation balance on body {{ value - value = 0; }}
 }}
 "#

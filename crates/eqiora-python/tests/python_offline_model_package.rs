@@ -20,17 +20,19 @@ public property release ReferenceDiffusivity implements Diffusivity {
   license = spdx.CC0_1_0;
 }
 
-public component PoissonLaw {
-  public support region: volume(ambient_dimension = 2);
-  public support left: boundary(parent = region);
-  public support right: boundary(parent = region);
-  public support bottom: boundary(parent = region);
-  public support top: boundary(parent = region);
+public component PoissonLaw(
+  support region: volume(ambient_dimension = 2),
+  support left: boundary(parent = region),
+  support right: boundary(parent = region),
+  support bottom: boundary(parent = region),
+  support top: boundary(parent = region)
+) {
+
   public parameter wave_number: 1 / m;
   public parameter source_scale: 1 / m ^ 2;
   public property diffusivity: Diffusivity;
-  representation space = continuum;
-  field potential on region as space: 1 = 0;
+
+  variable potential: 1 on region;
   relation balance on region {
     -div(diffusivity * grad(potential))
       - source_scale * math.sin(wave_number * coordinate(0))
@@ -42,12 +44,14 @@ public component PoissonLaw {
   relation top_value on top { trace(potential) = 0; }
 }
 
-public component PoissonRectangle {
-  public support region: volume(ambient_dimension = 2);
-  public support left: boundary(parent = region);
-  public support right: boundary(parent = region);
-  public support bottom: boundary(parent = region);
-  public support top: boundary(parent = region);
+public component PoissonRectangle(
+  support region: volume(ambient_dimension = 2),
+  support left: boundary(parent = region),
+  support right: boundary(parent = region),
+  support bottom: boundary(parent = region),
+  support top: boundary(parent = region)
+) {
+
   public parameter wave_number: 1 / m;
   public parameter source_scale: 1 / m ^ 2;
   instance equation: PoissonLaw(
@@ -238,7 +242,7 @@ bottom = law.boundary("bottom", parent=region)
 top = law.boundary("top", parent=region)
 source_scale = law.parameter("source_scale", value_type=eqiora.ValueType.real(eqiora.Dimension(length=-2)))
 diffusivity = law.property("diffusivity", contract=contract)
-potential = law.field("potential", on=region, value_type=eqiora.ValueType.real(), initial=0)
+potential = law.field("potential", role=eqiora.FieldRole.Variable, on=region, value_type=eqiora.ValueType.real())
 law.relation(
     "balance",
     on=region,

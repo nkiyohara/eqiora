@@ -61,7 +61,7 @@ fn rewrite_component_item(item: &mut ComponentItem, rewrite: &mut impl FnMut(&Ex
         ComponentItem::PortFamily(declaration) => {
             rewrite_port(&mut declaration.port.syntax, rewrite);
         }
-        ComponentItem::FieldSlot(declaration) => {
+        ComponentItem::FieldRequirement(declaration) => {
             let dimension = declaration.value_type.dimension_mut();
             *dimension = rewrite(dimension);
         }
@@ -71,8 +71,9 @@ fn rewrite_component_item(item: &mut ComponentItem, rewrite: &mut impl FnMut(&Ex
         }
         ComponentItem::Instance(_)
         | ComponentItem::Support(_)
-        | ComponentItem::Representation(_)
+        | ComponentItem::Initial(_)
         | ComponentItem::Clock(_)
+        | ComponentItem::ClockRequirement(_)
         | ComponentItem::Relation(_)
         | ComponentItem::RelationFamily(_)
         | ComponentItem::Connection(_)
@@ -107,7 +108,7 @@ fn rewrite_item(item: &mut Item, rewrite: &mut impl FnMut(&Expr) -> Expr) {
             }
         }
         Item::Port(declaration) => rewrite_port(&mut declaration.syntax, rewrite),
-        Item::Representation(_)
+        Item::Initial(_)
         | Item::Clock(_)
         | Item::Relation(_)
         | Item::Connection(_)

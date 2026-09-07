@@ -19,15 +19,15 @@ mod parser;
 pub use ast::{
     ActivationSyntax, BinaryOp, BoundaryConnectionDecl, BoundaryDecl, BoundaryFamilyBinderSyntax,
     BoundaryPairingSyntax, BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax,
-    BoundarySetBindingDecl, BoundarySetMemberSyntax, BoundarySideSyntax, ClockDecl, ComponentDecl,
-    ComponentItem, ComponentParameterDecl, ComponentPortDecl, ComponentPortFamilyDecl,
-    ConnectionDecl, ConnectionSyntax, ConnectorDecl, ConnectorQuantitySyntax, ConnectorSyntax,
-    DocComment, Document, DomainDecl, DomainSyntax, Equation, ExactIntegerSyntax, Expr, ExprKind,
-    FieldBindingDecl, FieldDecl, FieldSlotDecl, FrameSyntax, InstanceDecl, Item, ModelDecl,
-    NamePath, ParameterBindingDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorBinaryOp,
-    PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal,
-    PureValueClassSyntax, RationalSyntax, RelationDecl, RelationFamilyDecl, RepresentationDecl,
-    RepresentationSyntax, SignalDirectionSyntax, SupportBindingDecl, SupportSlotDecl,
+    BoundarySetBindingDecl, BoundarySetMemberSyntax, BoundarySideSyntax, ClockBindingDecl,
+    ClockDecl, ClockRequirementDecl, ComponentDecl, ComponentItem, ComponentParameterDecl,
+    ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorDecl,
+    ConnectorQuantitySyntax, ConnectorSyntax, DocComment, Document, DomainDecl, DomainSyntax,
+    Equation, ExactIntegerSyntax, Expr, ExprKind, FieldBindingDecl, FieldDecl, FieldRoleSyntax,
+    FrameSyntax, InitialDecl, InstanceDecl, Item, ModelDecl, NamePath, ParameterBindingDecl,
+    ParameterDecl, PortDecl, PortSyntax, PureOperatorBinaryOp, PureOperatorDecl, PureOperatorExpr,
+    PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax, RationalSyntax, RelationDecl,
+    RelationFamilyDecl, SignalDirectionSyntax, SupportBindingDecl, SupportSlotDecl,
     SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, ValueTypeSyntax, ValueTypeSyntaxKind,
     VisibilitySyntax,
 };
@@ -36,7 +36,7 @@ pub use draft::{
     DraftConservingConnection, DraftConservingPort, DraftDeclaration, DraftExpression, DraftField,
     DraftParameter, DraftPhysicalDomain, DraftRelation, ModelDraft, NativeModelAst,
 };
-pub use draft_spatial::{DraftBoundarySide, DraftRepresentation, DraftSpatialDomain};
+pub use draft_spatial::{DraftBoundarySide, DraftSpatialDomain};
 pub use factory::{AstConstructionError, SourceAstFactory};
 pub use formatter::format;
 pub use lexer::{LexResult, Token, TokenKind, lex};

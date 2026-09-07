@@ -2,7 +2,6 @@ model Valid {}
 
 model Invalid {
   domain line = box(0, 1);
-  representation space = continuum;
-  field state on line as space: 1 = 0;
+  variable state: 1 on line;
   relation invalid on line { trace(state) - state = 0; }
 }

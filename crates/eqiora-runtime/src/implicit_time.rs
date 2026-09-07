@@ -10,14 +10,15 @@ use eqiora_ir::{
 use eqiora_schema::kernel::SymbolRef;
 use eqiora_time::{
     ConstantDerivativeMatrixProof, DaeVariableKind, GeneralImplicitLoweringProof,
-    GeneralImplicitReason, ImplicitDaeProblem, ImplicitTimeSystem, InitialConditionPolicy,
-    TimeLoweringProof,
+    GeneralImplicitReason, ImplicitDaeInitialization, ImplicitDaeProblem, ImplicitTimeSystem,
+    InitialConditionPolicy, TimeLoweringProof,
 };
 
 use crate::CpuProgram;
 use crate::time::{
     invalid_time, require_continuous_activation, require_finite, require_finite_slice, state_order,
 };
+use eqiora_sem::{KernelProgram, ReferenceConfig};
 
 /// Canonical continuous Relation proven to require residual-native execution.
 ///
@@ -32,8 +33,7 @@ pub struct GeneralImplicitProgram {
     state_fields: Vec<Id<kinds::Field>>,
     parameter_fields: Vec<Id<kinds::Parameter>>,
     parameter_values: Vec<f64>,
-    initial_state: Vec<f64>,
-    initial_derivative: Vec<f64>,
+    kernel: KernelProgram,
     bindings: Vec<ImplicitBinding>,
     roles: Vec<DifferentiationRole>,
     proof: GeneralImplicitLoweringProof,
@@ -110,24 +110,6 @@ impl GeneralImplicitProgram {
             variable_kinds,
             reason,
         )?;
-        let initial_state = state_order
-            .fields
-            .iter()
-            .map(|field| {
-                let value = program
-                    .kernel()
-                    .value(field.erase())
-                    .ok_or_else(|| {
-                        invalid_time(
-                            relation,
-                            "every general implicit state requires an initial value or guess",
-                        )
-                    })?
-                    .value();
-                require_finite(relation, value, "state initial value")?;
-                Ok(value)
-            })
-            .collect::<Result<Vec<_>, Diagnostic>>()?;
         let bindings = bind_symbols(program, relation, &operator, &state_order.coordinates)?;
         Ok(Self {
             relation,
@@ -135,8 +117,7 @@ impl GeneralImplicitProgram {
             state_fields: state_order.fields,
             parameter_fields: bindings.parameter_fields,
             parameter_values: bindings.parameter_values,
-            initial_derivative: vec![0.0; initial_state.len()],
-            initial_state,
+            kernel: program.kernel().clone(),
             bindings: bindings.values,
             roles: bindings.roles,
             proof,
@@ -155,16 +136,16 @@ impl GeneralImplicitProgram {
         &self.state_fields
     }
 
-    /// Revision-captured state guess.
-    #[must_use]
-    pub fn initial_state(&self) -> &[f64] {
-        &self.initial_state
-    }
-
-    /// Initial derivative guess in state order.
-    #[must_use]
-    pub fn initial_derivative(&self) -> &[f64] {
-        &self.initial_derivative
+    /// Solve fresh simultaneous initial equations with explicit numerical controls.
+    /// Restart consumes an accepted pair without invoking this operation.
+    ///
+    /// # Errors
+    /// Returns initialization diagnostics for missing, inconsistent, or unsupported conditions.
+    pub fn initialize(
+        &self,
+        config: ReferenceConfig,
+    ) -> Result<ImplicitDaeInitialization, Diagnostic> {
+        super::initialization::initialize(&self.kernel, &self.state_fields, self.relation, config)
     }
 
     /// Deterministic first-occurrence Parameter order.
@@ -191,12 +172,13 @@ impl GeneralImplicitProgram {
     /// Retains [`ImplicitDaeProblem`] validation diagnostics if its invariants
     /// change.
     pub fn implicit_problem(&self) -> Result<ImplicitDaeProblem<'_>, Diagnostic> {
+        let initial = self.initialize(ReferenceConfig::new(0.0, 1.0)?)?;
         ImplicitDaeProblem::new(
             self,
             self.proof.variable_kinds().to_vec(),
-            InitialConditionPolicy::SolveConsistent,
-            self.initial_state.clone(),
-            self.initial_derivative.clone(),
+            InitialConditionPolicy::Provided,
+            initial.state().to_vec(),
+            initial.derivative().to_vec(),
         )
     }
 

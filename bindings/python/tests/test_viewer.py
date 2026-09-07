@@ -14,14 +14,15 @@ from eqiora._eqiora import _compose_view
 
 
 POISSON = """
-public component ViewerPoisson {
-  public support square: volume(ambient_dimension = 2);
-  public support left: boundary(parent = square);
-  public support right: boundary(parent = square);
-  public support bottom: boundary(parent = square);
-  public support top: boundary(parent = square);
-  representation scalar_space = continuum;
-  field potential on square as scalar_space: 1 = 0;
+public component ViewerPoisson(
+  support square: volume(ambient_dimension = 2),
+  support left: boundary(parent = square),
+  support right: boundary(parent = square),
+  support bottom: boundary(parent = square),
+  support top: boundary(parent = square)
+) {
+
+  variable potential: 1 on square;
   public parameter diffusion: 1;
   public parameter source_scale: 1 / m ^ 2;
   relation balance on square {
@@ -35,15 +36,16 @@ public component ViewerPoisson {
 """
 
 ELASTICITY = """
-public component ViewerElasticity {
-  public support square: volume(ambient_dimension = 2);
-  public support left: boundary(parent = square);
-  public support right: boundary(parent = square);
-  public support bottom: boundary(parent = square);
-  public support top: boundary(parent = square);
-  representation space = continuum;
-  field displacement on square as space: vector<m, 2>;
-  field load_potential on square as space: kg / (m * s ^ 2) = 0;
+public component ViewerElasticity(
+  support square: volume(ambient_dimension = 2),
+  support left: boundary(parent = square),
+  support right: boundary(parent = square),
+  support bottom: boundary(parent = square),
+  support top: boundary(parent = square)
+) {
+
+  variable displacement: vector<m, 2> on square;
+  variable load_potential: kg / (m * s ^ 2) on square;
   public parameter stiffness: kg / (m * s ^ 2);
   public parameter lambda: kg / (m * s ^ 2);
   public parameter length_scale: m;

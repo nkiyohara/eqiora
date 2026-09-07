@@ -18,8 +18,8 @@ use crate::ast::{
     ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorSyntax, Document,
     DomainSyntax, Expr, ExprKind, FieldDecl, FrameSyntax, InstanceDecl, Item, PortSyntax,
     PureOperatorBinaryOp, PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind,
-    PureValueClassSyntax, RepresentationSyntax, SignalDirectionSyntax, SupportSlotSyntax, UnaryOp,
-    ValueShapeSyntax, VisibilitySyntax,
+    PureValueClassSyntax, SignalDirectionSyntax, SupportSlotSyntax, UnaryOp, ValueShapeSyntax,
+    VisibilitySyntax,
 };
 use cartesian::format_cartesian_coordinate;
 use compile_time::{format_let, format_parameter};
@@ -256,41 +256,13 @@ fn format_component_item(
         ComponentItem::PortFamily(declaration) => {
             format_component_port_family(declaration, indent, output);
         }
-        ComponentItem::Support(declaration) => {
-            write_indent(output, indent);
-            if declaration.visibility == VisibilitySyntax::Public {
-                output.push_str("public ");
-            }
-            write!(output, "support {}: ", declaration.name).expect("String write");
-            match &declaration.syntax {
-                SupportSlotSyntax::Volume { ambient_dimension } => {
-                    write!(output, "volume(ambient_dimension = {ambient_dimension})")
-                        .expect("String write");
-                }
-                SupportSlotSyntax::Boundary { parent } => {
-                    write!(output, "boundary(parent = {parent})").expect("String write");
-                }
-                SupportSlotSyntax::CompleteExterior { parent } => {
-                    write!(output, "complete_exterior(parent = {parent})").expect("String write");
-                }
-            }
-            output.push_str(";\n");
-        }
-        ComponentItem::FieldSlot(declaration) => {
-            write_indent(output, indent);
-            write!(
-                output,
-                "public field slot {} on {} as continuum: ",
-                declaration.name, declaration.support
-            )
-            .expect("String write");
-            value_type::format_value_type(&declaration.value_type, output);
-            output.push_str(";\n");
-        }
-        ComponentItem::Representation(declaration) => {
-            format_representation(declaration, indent, output);
+        ComponentItem::Support(_)
+        | ComponentItem::FieldRequirement(_)
+        | ComponentItem::ClockRequirement(_) => {
+            unreachable!("requirements are rendered only in the Component signature");
         }
         ComponentItem::Field(declaration) => format_field(declaration, indent, output),
+        ComponentItem::Initial(declaration) => format_initial(declaration, indent, output),
         ComponentItem::Clock(declaration) => format_clock(declaration, indent, output),
         ComponentItem::Relation(declaration) => format_relation(declaration, indent, output),
         ComponentItem::RelationFamily(declaration) => {
@@ -340,10 +312,8 @@ fn format_item(item: &Item, indent: usize, output: &mut crate::formatter::commen
             }
             output.push_str(";\n");
         }
-        Item::Representation(declaration) => {
-            format_representation(declaration, indent, output);
-        }
         Item::Field(declaration) => format_field(declaration, indent, output),
+        Item::Initial(declaration) => format_initial(declaration, indent, output),
         Item::Parameter(declaration) => format_parameter(declaration, indent, output),
         Item::Let(declaration) => format_let(declaration, indent, output),
         Item::Port(declaration) => {
@@ -369,39 +339,79 @@ fn format_item(item: &Item, indent: usize, output: &mut crate::formatter::commen
     output.end();
 }
 
-fn format_representation(
-    declaration: &crate::ast::RepresentationDecl,
-    indent: usize,
-    output: &mut crate::formatter::comments::Output,
-) {
-    write_indent(output, indent);
-    write!(output, "representation {} = ", declaration.name).expect("String write");
-    match declaration.syntax {
-        RepresentationSyntax::Continuum => output.push_str("continuum"),
-    }
-    output.push_str(";\n");
-}
-
 fn format_field(
     declaration: &FieldDecl,
     indent: usize,
     output: &mut crate::formatter::comments::Output,
 ) {
     write_indent(output, indent);
-    write!(output, "field {}", declaration.name).expect("String write");
-    if let (Some(domain), Some(representation)) = (&declaration.domain, &declaration.representation)
-    {
-        write!(output, " on {domain} as {representation}").expect("String write");
-    }
-    output.push_str(": ");
+    format_unknown_head(declaration, output);
+    output.push_str(";\n");
+}
+
+fn format_unknown_head(declaration: &FieldDecl, output: &mut crate::formatter::comments::Output) {
+    let role = match declaration.role {
+        crate::ast::FieldRoleSyntax::Variable => "variable",
+        crate::ast::FieldRoleSyntax::State => "state",
+    };
+    write!(output, "{role} {}: ", declaration.name).expect("String write");
     value_type::format_value_type(&declaration.value_type, output);
-    if let Some(initial) = &declaration.initial {
+    if let Some(domain) = &declaration.domain {
+        write!(output, " on {domain}").expect("String write");
+    }
+    if let crate::ast::ActivationSyntax::Periodic(clock) = &declaration.activation {
+        write!(output, " at {clock}").expect("String write");
+    }
+}
+
+fn format_component_requirement(
+    item: &ComponentItem,
+    indent: usize,
+    output: &mut crate::formatter::comments::Output,
+) {
+    output.begin(item.source_comments());
+    write_indent(output, indent);
+    match item {
+        ComponentItem::Support(declaration) => {
+            write!(output, "support {}: ", declaration.name).expect("String write");
+            match &declaration.syntax {
+                SupportSlotSyntax::Volume { ambient_dimension } => {
+                    write!(output, "volume(ambient_dimension = {ambient_dimension})")
+                        .expect("String write");
+                }
+                SupportSlotSyntax::Boundary { parent } => {
+                    write!(output, "boundary(parent = {parent})").expect("String write");
+                }
+                SupportSlotSyntax::CompleteExterior { parent } => {
+                    write!(output, "complete_exterior(parent = {parent})").expect("String write");
+                }
+            }
+        }
+        ComponentItem::FieldRequirement(declaration) => format_unknown_head(declaration, output),
+        ComponentItem::ClockRequirement(declaration) => {
+            write!(output, "clock {}", declaration.name).expect("String write");
+        }
+        _ => unreachable!("only requirements are rendered in the signature"),
+    }
+    output.end();
+}
+
+fn format_initial(
+    declaration: &crate::ast::InitialDecl,
+    indent: usize,
+    output: &mut crate::formatter::comments::Output,
+) {
+    write_indent(output, indent);
+    output.push_str("initial {\n");
+    for equation in declaration.equations() {
+        write_indent(output, indent + 2);
+        format_expression(equation.left(), 0, output);
         output.push_str(" = ");
-        format_expression(initial, 0, output);
-        output.push_str(";\n");
-    } else {
+        format_expression(equation.right(), 0, output);
         output.push_str(";\n");
     }
+    write_indent(output, indent);
+    output.push_str("}\n");
 }
 
 fn format_value_shape(shape: &ValueShapeSyntax, output: &mut crate::formatter::comments::Output) {
@@ -608,6 +618,15 @@ fn format_instance(
             }
             output.begin(&binding.comments);
             write!(output, "field {} = {}", binding.slot, binding.target).expect("String write");
+            output.end();
+            separated = true;
+        }
+        for (index, binding) in declaration.clock_bindings.iter().enumerate() {
+            if separated || index != 0 {
+                output.push_str(", ");
+            }
+            output.begin(&binding.comments);
+            write!(output, "clock {} = {}", binding.slot, binding.target).expect("String write");
             output.end();
             separated = true;
         }

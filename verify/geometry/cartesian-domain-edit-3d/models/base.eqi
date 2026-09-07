@@ -7,7 +7,6 @@ model Main {
   domain z_lower = boundary(body, axis = 2, side = lower);
   domain z_upper = boundary(body, axis = 2, side = upper);
 
-  representation scalar_space = continuum;
-  field witness on body as scalar_space: 1 = 0;
+  variable witness: 1 on body;
   relation retain_body on body { witness = 0; }
 }

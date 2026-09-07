@@ -434,20 +434,10 @@ fn set_value(state: &mut State, target: RawId, value: DynQuantity) -> Result<(),
     let Some(node) = state.nodes.get_mut(&target) else {
         return Err(not_found(target));
     };
-    if !matches!(target.kind(), EntityKind::Field | EntityKind::Parameter) {
+    if target.kind() != EntityKind::Parameter {
         return Err(Diagnostic::error(
             codes::INVALID_OPERATION,
             format!("SetValue is not valid for {:?}", target.kind()),
-        )
-        .with_graph_path(path_for(target)));
-    }
-    if matches!(
-        node.kernel_definition.as_ref(),
-        Some(KernelNode::Field(field)) if !field.shape().is_scalar()
-    ) {
-        return Err(Diagnostic::error(
-            codes::INVALID_OPERATION,
-            "SetValue does not admit a scalar value for a shaped Field",
         )
         .with_graph_path(path_for(target)));
     }

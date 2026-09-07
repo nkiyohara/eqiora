@@ -55,8 +55,8 @@ model SampledPair(
   output delayed: V at tick,
   output integrated: V at tick
 ) {
-  instance delay: UnitDelay(tick = tick, initial_value = 5 [V]);
-  instance integrator: DiscreteIntegrator(tick = tick, initial_value = 1 [V]);
+  instance delay: UnitDelay(clock tick = tick, initial_value = 5 [V]);
+  instance integrator: DiscreteIntegrator(clock tick = tick, initial_value = 1 [V]);
 
   connect sample -> delay.u;
   connect rate -> integrator.rate;
@@ -96,8 +96,8 @@ model SampledPair(
   output delayed: V at tick,
   output integrated: V at tick
 ) {
-  instance delay: discrete.UnitDelay(tick = tick, initial_value = 5 [V]);
-  instance integrator: discrete.DiscreteIntegrator(tick = tick, initial_value = 1 [V]);
+  instance delay: discrete.UnitDelay(clock tick = tick, initial_value = 5 [V]);
+  instance integrator: discrete.DiscreteIntegrator(clock tick = tick, initial_value = 1 [V]);
   connect sample -> delay.u;
   connect rate -> integrator.rate;
   relation expose at tick {

@@ -1,4 +1,8 @@
-public component IsotropicBalanceWithPotential2d {
+public component IsotropicBalanceWithPotential2d(
+  support body: volume(ambient_dimension = 2),
+  variable load_potential: kg / (m * s ^ 2) on body,
+  variable displacement: vector<m, 2> on body,
+) {
   relation balance on body {
     -div(
       2 * mu * symmetric_part(grad(displacement))
@@ -6,8 +10,5 @@ public component IsotropicBalanceWithPotential2d {
     ) - grad(load_potential) = 0;
   }
   public parameter lambda: kg / (m * s ^ 2);
-  public field slot load_potential on body as continuum: kg / (m * s ^ 2);
   public parameter mu: kg / (m * s ^ 2);
-  public field slot displacement on body as continuum: vector<m, 2>;
-  public support body: volume(ambient_dimension = 2);
 }

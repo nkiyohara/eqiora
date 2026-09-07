@@ -18,22 +18,22 @@ end declarations; `//` introduces a comment and `///` attaches documentation. Na
 | Declaration | Meaning in this example |
 |---|---|
 | `parameter voltage: dimension = 12;` | A fixed mathematical input of 12 coherent SI units; voltage here is measured in volts. |
-| `field current: A;` | An unknown current, not a Python variable or a command to compute it immediately. |
+| `variable current: A;` | An unknown current, not a Python variable or a command to compute it immediately. |
 | `relation ohm { ... }` | An equation constraining those values; declaration order is not execution order. |
 
-An algebraic Field may omit an initial value. For an evolving scalar Field, a
-literal such as `field x: 1 = 1;` supplies its initial value; see
+An algebraic `variable` needs no declaration initial value. An evolving scalar
+uses `state x: 1; initial { x = 1; }` to declare its role and initial equation; see
 [Equations and state](/reference/language/equations/). `1` denotes a dimensionless
 type. Do not interpret an omitted initial value as a promise of zero initialization.
 
 ## Spatial declarations
 
-A spatial Field also names its exact Domain and continuum Representation. In the
+A spatial unknown also names its exact support. In the
 [complete elastic-body example](/reference/standard-packages/continuum/#elastic-balance-and-boundaries),
-`field displacement on body as space: vector<m, 2>;` means a vector
+`variable displacement: vector<m, 2> on body;` means a vector
 displacement on `body`, in metres. The enclosing `domain body = box(...)` supplies
-the two-dimensional support and `representation space = continuum;` supplies the
-mathematical representation, not a mesh or finite-element choice.
+the two-dimensional support. The compiler supplies the admitted continuum
+Representation; source declarations do not select a mesh or finite-element space.
 
 Scalar and vector declarations are not interchangeable. Component support and Field
 requirements bind existing occurrences; see [Composition](/reference/language/composition/).

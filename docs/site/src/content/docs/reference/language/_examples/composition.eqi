@@ -1,7 +1,7 @@
-component Offset {
+component Offset() {
   public parameter input: 1;
   public parameter offset: 1 = 1;
-  field output: 1;
+  variable output: 1;
   relation value { output - input - offset = 0; }
 }
 

@@ -1,6 +1,6 @@
 connector Pin = scalar_physical(across = 1, through = 1);
 
-component Broken {
+component Broken() {
   public port p: conserving on Pin;
   public port q: conserving on Pin;
   relation first_owner { across(p) = 0; }

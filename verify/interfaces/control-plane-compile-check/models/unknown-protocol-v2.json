@@ -3,5 +3,5 @@
   "command": "model.compile-check/v1",
   "requestId": "shared-accepted-v2",
   "filename": "shared-decay.eqi",
-  "source": "model decay {\n  field x: 1 = 1;\n  parameter rate: 1 / s = 1;\n  relation flow {\n    derivative(x) + rate * x = 0;\n  }\n}\n"
+  "source": "model decay {\n  state x: 1; initial { x = 1; }\n  parameter rate: 1 / s = 1;\n  relation flow {\n    derivative(x) + rate * x = 0;\n  }\n}\n"
 }

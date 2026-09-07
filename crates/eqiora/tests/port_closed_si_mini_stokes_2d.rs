@@ -595,9 +595,10 @@ fn alias_and_reverse_connection_endpoints(source: &str) -> String {
 
 fn transparent_open_terminal_source(source: &str) -> String {
     let terminal = r#"
-public component CompatibleOpenVelocityTerminal2d {
-  public support body: volume(ambient_dimension = 2);
-  public support face: boundary(parent = body);
+public component CompatibleOpenVelocityTerminal2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+) {
   public port mechanical:
     conserving mechanics.VelocityTractionBoundary over face;
 

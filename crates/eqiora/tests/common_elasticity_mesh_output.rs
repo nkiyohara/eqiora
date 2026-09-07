@@ -15,15 +15,16 @@ use eqiora_numerics::{
 };
 use serde_json::{Value, json};
 
-const SOURCE: &str = r#"public component MixedBoundaryElasticity2d {
-  public support body: volume(ambient_dimension = 2);
-  public support x_lower: boundary(parent = body);
-  public support x_upper: boundary(parent = body);
-  public support y_lower: boundary(parent = body);
-  public support y_upper: boundary(parent = body);
-  representation space = continuum;
-  field displacement on body as space: vector<m, 2>;
-  field load_potential on body as space: kg / (m * s ^ 2) = 0;
+const SOURCE: &str = r#"public component MixedBoundaryElasticity2d(
+  support body: volume(ambient_dimension = 2),
+  support x_lower: boundary(parent = body),
+  support x_upper: boundary(parent = body),
+  support y_lower: boundary(parent = body),
+  support y_upper: boundary(parent = body),
+) {
+
+  variable displacement: vector<m, 2> on body;
+  variable load_potential: kg / (m * s ^ 2) on body;
   public parameter mu: kg / (m * s ^ 2);
   public parameter lambda: kg / (m * s ^ 2);
   public parameter length_scale: m;

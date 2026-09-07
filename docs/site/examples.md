@@ -46,9 +46,8 @@ model Main {
   domain square = box(0, 1, 0, 1);
   domain x_lower = boundary(square, axis = 0, side = lower);
   // ... three more boundaries ...
-  representation scalar_space = continuum;
 
-  field potential on square as scalar_space: 1 = 0;
+  variable potential: 1 on square;
   parameter wave_number: 1 / m = 3.141592653589793;
   parameter source_scale: 1 / m ^ 2 = 19.739208802178716;
 

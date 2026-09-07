@@ -9,18 +9,19 @@ public connector VelocityTractionBoundary = field_physical(
 
 // Equations-only component for fluid-structure interaction on a fixed reference mesh.
 // Python supplies the adjacent fluid and solid Geometry and binds these support names.
-public component FixedReferenceFsi2d {
+public component FixedReferenceFsi2d(
+  support fluid: volume(ambient_dimension = 2),
+  support fluid_x_lower: boundary(parent = fluid),
+  support fluid_x_upper: boundary(parent = fluid),
+  support fluid_y_lower: boundary(parent = fluid),
+  support fluid_y_upper: boundary(parent = fluid),
+  support solid: volume(ambient_dimension = 2),
+  support solid_x_lower: boundary(parent = solid),
+  support solid_x_upper: boundary(parent = solid),
+  support solid_y_lower: boundary(parent = solid),
+  support solid_y_upper: boundary(parent = solid)
+) {
   // Each 2D volume owns four boundary roles; the touching pair becomes the interface.
-  public support fluid: volume(ambient_dimension = 2);
-  public support fluid_x_lower: boundary(parent = fluid);
-  public support fluid_x_upper: boundary(parent = fluid);
-  public support fluid_y_lower: boundary(parent = fluid);
-  public support fluid_y_upper: boundary(parent = fluid);
-  public support solid: volume(ambient_dimension = 2);
-  public support solid_x_lower: boundary(parent = solid);
-  public support solid_x_upper: boundary(parent = solid);
-  public support solid_y_lower: boundary(parent = solid);
-  public support solid_y_upper: boundary(parent = solid);
 
   // Material properties and the reference pressure are compile-time Model inputs.
   public parameter fluid_density: kg / m ^ 3;
@@ -31,13 +32,13 @@ public component FixedReferenceFsi2d {
   public parameter zero_pressure: kg / (m * s ^ 2);
 
   // Unknown continuum fields are scoped explicitly to the fluid or solid support.
-  representation space = continuum;
-  field fluid_velocity on fluid as space: vector<m / s, 2>;
-  field fluid_pressure on fluid as space: kg / (m * s ^ 2) = 0;
-  field fluid_load_potential on fluid as space: kg / (m * s ^ 2) = 0;
-  field solid_displacement on solid as space: vector<m, 2>;
-  field solid_velocity on solid as space: vector<m / s, 2>;
-  field solid_load_potential on solid as space: kg / (m * s ^ 2) = 0;
+
+  state fluid_velocity: vector<m / s, 2> on fluid;
+  variable fluid_pressure: kg / (m * s ^ 2) on fluid;
+  variable fluid_load_potential: kg / (m * s ^ 2) on fluid;
+  state solid_displacement: vector<m, 2> on solid;
+  state solid_velocity: vector<m / s, 2> on solid;
+  variable solid_load_potential: kg / (m * s ^ 2) on solid;
 
   // Fluid: transient Stokes momentum balance with incompressibility.
   relation fluid_load_definition on fluid {

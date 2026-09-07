@@ -22,11 +22,10 @@ model steady_stokes {
   domain x_upper = boundary(fluid, axis = 0, side = upper);
   domain y_lower = boundary(fluid, axis = 1, side = lower);
   domain y_upper = boundary(fluid, axis = 1, side = upper);
-  representation space = continuum;
 
-  field velocity on fluid as space: vector<m / s, 2>;
-  field pressure on fluid as space: kg / (m * s ^ 2) = 0;
-  field force_potential on fluid as space: kg / (m * s ^ 2) = 0;
+  variable velocity: vector<m / s, 2> on fluid;
+  variable pressure: kg / (m * s ^ 2) on fluid;
+  variable force_potential: kg / (m * s ^ 2) on fluid;
   parameter mu: kg / (m * s) = 2.5;
   parameter load_scale: kg / (m * s ^ 2) = 3;
   parameter length_scale: m = 2;
@@ -58,11 +57,12 @@ public connector VelocityTractionBoundary = field_physical(
   pairing = euclidean_boundary_duality
 );
 
-public component NewtonianBoundary2d {
-  public support body: volume(ambient_dimension = 2);
-  public support face: boundary(parent = body);
-  public field slot velocity on body as continuum: vector<m / s, 2>;
-  public field slot pressure on body as continuum: kg / (m * s ^ 2);
+public component NewtonianBoundary2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+  variable velocity: vector<m / s, 2> on body,
+  variable pressure: kg / (m * s ^ 2) on body
+) {
   public parameter dynamic_viscosity: kg / (m * s);
   public port mechanical:
     conserving VelocityTractionBoundary over face;
@@ -76,10 +76,12 @@ public component NewtonianBoundary2d {
   }
 }
 
-public component NormalPressureTraction2d {
-  public support body: volume(ambient_dimension = 2);
-  public support face: boundary(parent = body);
-  public field slot pressure on body as continuum: kg / (m * s ^ 2);
+public component NormalPressureTraction2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+  variable pressure: kg / (m * s ^ 2) on body
+) {
+
   public port mechanical:
     conserving VelocityTractionBoundary over face;
 
@@ -99,11 +101,10 @@ model transient_navier_stokes {
   domain x_upper = boundary(fluid, axis = 0, side = upper);
   domain y_lower = boundary(fluid, axis = 1, side = lower);
   domain y_upper = boundary(fluid, axis = 1, side = upper);
-  representation space = continuum;
 
-  field velocity on fluid as space: vector<m / s, 2>;
-  field pressure on fluid as space: kg / (m * s ^ 2) = 0;
-  field force_potential on fluid as space: kg / (m * s ^ 2) = 0;
+  state velocity: vector<m / s, 2> on fluid;
+  variable pressure: kg / (m * s ^ 2) on fluid;
+  variable force_potential: kg / (m * s ^ 2) on fluid;
   parameter rho: kg / m ^ 3 = 1.25;
   parameter mu: kg / (m * s) = 0.125;
   parameter zero_pressure: kg / (m * s ^ 2) = 0;
@@ -209,8 +210,8 @@ fn transient_navier_stokes_source_3d() -> String {
             "domain fluid = box(0, 2, -1, 1, -2, 2);",
         )
         .replace(
-            "  representation space = continuum;",
-            "  domain z_lower = boundary(fluid, axis = 2, side = lower);\n  domain z_upper = boundary(fluid, axis = 2, side = upper);\n  representation space = continuum;",
+            "  state velocity:",
+            "  domain z_lower = boundary(fluid, axis = 2, side = lower);\n  domain z_upper = boundary(fluid, axis = 2, side = upper);\n  state velocity:",
         )
         .replace(
             "  relation y_upper_zero on y_upper { trace(velocity) = 0; }",
@@ -227,8 +228,8 @@ fn direct_normal_pressure_relation(field: &str, operator: char) -> String {
 fn source_with_normal_pressure(operator: char) -> String {
     SOURCE
         .replace(
-            "field force_potential on fluid as space: kg / (m * s ^ 2) = 0;",
-            "field force_potential on fluid as space: kg / (m * s ^ 2) = 0;\n  field ambient_pressure on fluid as space: kg / (m * s ^ 2) = 0;",
+            "variable force_potential: kg / (m * s ^ 2) on fluid;",
+            "variable force_potential: kg / (m * s ^ 2) on fluid;\n  variable ambient_pressure: kg / (m * s ^ 2) on fluid;",
         )
         .replace(
             "parameter length_scale: m = 2;",
@@ -761,8 +762,8 @@ fn transient_navier_stokes_rejects_hidden_ale_velocity() {
     assert_transient_navier_stokes_rejected(
         &TRANSIENT_NAVIER_STOKES_SOURCE
             .replace(
-                "field pressure on fluid as space: kg / (m * s ^ 2) = 0;",
-                "field mesh_velocity on fluid as space: vector<m / s, 2>;\n  field pressure on fluid as space: kg / (m * s ^ 2) = 0;",
+                "variable pressure: kg / (m * s ^ 2) on fluid;",
+                "variable mesh_velocity: vector<m / s, 2> on fluid;\n  variable pressure: kg / (m * s ^ 2) on fluid;",
             )
             .replace(
                 "outer_product(velocity, velocity)",

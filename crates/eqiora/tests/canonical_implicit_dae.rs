@@ -76,8 +76,11 @@ fn canonical_state_dependent_mass_dae_uses_only_the_residual_native_seam() {
         codes::INVALID_ARTIFACT
     );
     assert_eq!(system.state_fields(), &[differential, algebraic]);
-    assert_eq!(system.initial_state(), &[1.0, 0.0]);
-    assert_eq!(system.initial_derivative(), &[0.0, 0.0]);
+    let initial = system
+        .initialize(eqiora::sem::ReferenceConfig::new(0.0, 1.0).unwrap())
+        .unwrap();
+    assert_eq!(initial.state(), &[1.0, 1.0]);
+    assert_eq!(initial.derivative(), &[-1.0, 0.0]);
     assert_eq!(system.parameter_fields(), &[rate]);
     assert_eq!(system.parameters(), &[1.0]);
     assert_eq!(
@@ -159,11 +162,23 @@ fn canonical_state_dependent_mass_dae_uses_only_the_residual_native_seam() {
     let accepted_initial =
         ImplicitTimeInitialDataEnvelopeV1::from_initialization(&lowering, &initialized).unwrap();
     let first_solution = backend.solve(&problem, &initial_plan).unwrap();
+    // Numerical guesses are separate Run input and cannot masquerade as an
+    // accepted initialization artifact, even when the fresh Model solve passed.
+    let guess_problem = ImplicitDaeProblem::new(
+        &system,
+        system.lowering_proof().variable_kinds().to_vec(),
+        InitialConditionPolicy::SolveConsistent,
+        vec![1.0, 0.0],
+        vec![0.0, 0.0],
+    )
+    .unwrap();
+    let guess_initial =
+        ImplicitTimeInitialDataEnvelopeV1::from_problem(&lowering, &guess_problem).unwrap();
     assert_eq!(
         ImplicitTimeRunManifestV1::new(
             &lowering,
             &input_initial,
-            &input_initial,
+            &guess_initial,
             &initial_plan,
             first_solution.report(),
         )
@@ -226,7 +241,7 @@ fn canonical_state_dependent_mass_dae_uses_only_the_residual_native_seam() {
         first_solution.report().backend_identity(),
         TimeMethod::Tsitouras45,
         TimeEquationClass::GeneralImplicitDae,
-        InitialConditionPolicy::SolveConsistent,
+        InitialConditionPolicy::Provided,
     );
     assert_eq!(
         ImplicitTimeRunManifestV1::new(
@@ -366,33 +381,28 @@ fn canonical_nonlinear_derivative_relation() -> (
         .constant(DynQuantity::new(1.0, inverse_time_squared))
         .unwrap();
     let residual = expression.sub(squared, one).unwrap();
-    let nodes = [
-        KernelNode::from(
-            FieldDef::new(
-                state,
-                eqiora_core::ValueType::scalar(
-                    eqiora_core::ScalarDomain::Real,
-                    DimExponents::DIMENSIONLESS,
-                ),
-            )
-            .with_initial(
-                DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)
-                    .try_into()
-                    .expect("finite real initial value"),
-            )
-            .unwrap(),
-        ),
+    let mut nodes = vec![
+        KernelNode::from(FieldDef::new(
+            state,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
+            eqiora::kernel::FieldRole::State,
+        )),
         KernelNode::from(RelationDef::new(
             relation,
             expression.finish([residual]).unwrap(),
         )),
         KernelNode::from(ActivationDef::continuous(continuous)),
     ];
+    nodes.push(support::initial_value(
+        state,
+        DynQuantity::new(0.0, DimExponents::DIMENSIONLESS),
+    ));
     let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();
     let mut transaction = Transaction::new("canonical nonlinear-derivative Relation");
-    for node in nodes {
-        transaction.push(Op::DefineKernelNode { node });
-    }
+    support::define_nodes(&mut transaction, nodes);
     transaction
         .push(Op::Connect {
             from: relation.erase(),

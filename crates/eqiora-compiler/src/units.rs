@@ -238,7 +238,7 @@ mod tests {
 
         let source = r#"
 dimension Duration = s;
-component Delay {
+component Delay() {
   public parameter duration: Duration = 10 [ms];
   relation balance { duration - 0.01 [s] = 0; }
 }
@@ -246,7 +246,7 @@ model Quantities {
   parameter duration: Duration = -10[ms];
   let ms: m = 3[m];
   let positive: Duration = 10 [ms];
-  field elapsed: s = 0;
+  variable elapsed: s; initial { elapsed = 0; }
   relation balance { elapsed - positive = 0; }
   instance defaulted: Delay();
   instance bound: Delay(duration = 10 [ms]);
@@ -287,14 +287,19 @@ model Quantities {
 
         let density = DimExponents::from_integers([1, -3, 0, 0, 0, 0, 0]).unwrap();
         for literal in ["1000", "1000[kg / m ^ 3]", "1[g / cm ^ 3]"] {
+            let initial = if literal == "1000" {
+                "1000[kg / m ^ 3]"
+            } else {
+                literal
+            };
             let source = format!(
-                "component C {{
+                "component C() {{
                     public parameter density: kg / m ^ 3 = {literal};
                     relation r {{ density - density = 0; }}
                 }}
                 model M {{
                     parameter p: kg / m ^ 3 = {literal};
-                    field f: kg / m ^ 3 = {literal};
+                    variable f: kg / m ^ 3; initial {{ f = {initial}; }}
                     let alias: kg / m ^ 3 = {literal};
                     instance defaulted: C();
                     instance bound: C(density = alias);
@@ -310,17 +315,11 @@ model Quantities {
                     Op::DefineKernelNode {
                         node: KernelNode::Parameter(parameter),
                     } => parameter.real_scalar_value(),
-                    Op::DefineKernelNode {
-                        node: KernelNode::Field(field),
-                    } => field
-                        .initial()
-                        .and_then(eqiora_core::ValueLiteral::real_scalar_value),
                     _ => None,
                 })
                 .collect();
-            // Only the model Parameter and Field are kernel entities. Component
-            // defaults and let-bound arguments become constants in their relations.
-            assert_eq!(values.len(), 2);
+            // Parameter defaults remain values; initial equations own their constants.
+            assert_eq!(values.len(), 1);
             for value in values {
                 assert_eq!(value.dim(), density);
                 assert_eq!(value.value(), 1000.0, "{literal}");

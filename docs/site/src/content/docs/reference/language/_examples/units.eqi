@@ -1,6 +1,6 @@
 dimension Pressure = kg / (m * s ^ 2);
 model PressureInput {
   parameter pressure: Pressure = 210e9;
-  field measured: Pressure;
+  variable measured: Pressure;
   relation specified { measured - pressure = 0; }
 }

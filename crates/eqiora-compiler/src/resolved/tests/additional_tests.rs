@@ -11,7 +11,7 @@ fn canonical_declarations_ignore_files_formatting_and_input_order() {
                 &package,
                 "parts.component",
                 "z/component.eqi",
-                "public component C { public parameter p: 1 = 2; public parameter q: 1 = 3; }",
+                "public component C() { public parameter p: 1 = 2; public parameter q: 1 = 3; }",
             ),
             module_unit(
                 &package,
@@ -37,7 +37,7 @@ fn canonical_declarations_ignore_files_formatting_and_input_order() {
                 &package,
                 "parts.component",
                 "elsewhere/c.eqi",
-                "public component C {\n public parameter q: 1=3;\n public parameter p: 1=2;\n}",
+                "public component C() {\n public parameter q: 1=3;\n public parameter p: 1=2;\n}",
             ),
         ],
         vec![],
@@ -74,7 +74,7 @@ fn compiler_owned_math_root_cannot_be_a_package_alias() {
                 "root.eqi",
                 "import dependency.main as math; model Main {}",
             ),
-            unit(&dependency, "dependency.eqi", "public component C {}"),
+            unit(&dependency, "dependency.eqi", "public component C() {}"),
         ],
         vec![dependency_edge(&root, &dependency)],
     );
@@ -116,7 +116,7 @@ fn hierarchy_does_not_resolve_bare_sin_as_a_user_operator() {
         vec![unit(
             &root,
             "root.eqi",
-            "public pure operator sin(value: scalar) -> scalar = rational(1, 1); component C { public support body: volume(ambient_dimension = 1); representation space = continuum; field value on body as space: 1 = 0; relation law on body { value - sin(0) = 0; } }",
+            "public pure operator sin(value: scalar) -> scalar = rational(1, 1); component C(support body: volume(ambient_dimension = 1)) {  variable value: 1 on body; initial { value = 0; } relation law on body { value - sin(0) = 0; } }",
         )],
         vec![],
     );

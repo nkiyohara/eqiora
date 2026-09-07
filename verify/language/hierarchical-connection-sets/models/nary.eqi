@@ -1,6 +1,6 @@
 connector Pin = scalar_physical(across = 1, through = 1);
 
-component Terminal {
+component Terminal() {
   public port p: conserving on Pin;
   relation owner { across(p) = 0; }
 }

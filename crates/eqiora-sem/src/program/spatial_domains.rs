@@ -366,6 +366,15 @@ pub(super) fn validate_fields(
         let KernelNode::Field(field) = node else {
             continue;
         };
+        let clocks = edge_targets(edges, id, EdgeKind::ClockedBy);
+        if clocks.len() > 1
+            || (!clocks.is_empty() && field.role() != eqiora_schema::kernel::FieldRole::State)
+        {
+            diagnostics.push(kernel_error(
+                id,
+                "only a state Field may own at most one exact ClockDomain",
+            ));
+        }
         let targets = edge_targets(edges, id, EdgeKind::DefinedOn);
         if targets.is_empty() {
             continue;

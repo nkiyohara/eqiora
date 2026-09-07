@@ -94,6 +94,7 @@ pub(super) fn lower_relation(
     activation: &ActivationSyntax,
     domain: Option<&str>,
     equations: &[LoweringEquation],
+    initial: bool,
     bindings: &BTreeMap<String, Binding>,
 ) -> Result<LoweredRelation, Diagnostic> {
     if let Some(domain) = domain {
@@ -136,14 +137,14 @@ pub(super) fn lower_relation(
         dependencies: BTreeSet::new(),
         ports: BTreeSet::new(),
         cache: HashMap::new(),
-        allow_discrete_symbols: discrete,
+        allow_discrete_symbols: discrete || initial,
+        activation,
+        initial,
     };
     let mut normalized = Vec::with_capacity(equations.len());
     for equation in equations {
-        let left_type =
-            expression_type(file, &equation.left, bindings, support.as_ref(), discrete)?;
-        let right_type =
-            expression_type(file, &equation.right, bindings, support.as_ref(), discrete)?;
+        let left_type = expression_type(file, &equation.left, bindings, support.as_ref())?;
+        let right_type = expression_type(file, &equation.right, bindings, support.as_ref())?;
         let checked = equality::check(
             left_type,
             right_type,
@@ -158,7 +159,15 @@ pub(super) fn lower_relation(
                 error.to_string(),
             )
         })?;
-        typing::residual(&checked.residual, support.as_ref()).map_err(|error| {
+        typing::residual(
+            &checked.residual,
+            if initial {
+                checked.residual.support.as_ref()
+            } else {
+                support.as_ref()
+            },
+        )
+        .map_err(|error| {
             source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 file,
@@ -242,6 +251,8 @@ struct ExpressionLowerer<'a> {
     ports: BTreeSet<RawId>,
     cache: HashMap<usize, TypedExpression>,
     allow_discrete_symbols: bool,
+    activation: &'a ActivationSyntax,
+    initial: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -517,6 +528,30 @@ impl ExpressionLowerer<'_> {
                 "Field operator argument",
             ));
         };
+        if matches!(callee, "derivative" | "pre" | "next") {
+            let eligible = contract.role == eqiora_lang::FieldRoleSyntax::State
+                && match callee {
+                    "derivative" => matches!(contract.activation, ActivationSyntax::Continuous),
+                    "pre" => {
+                        matches!(contract.activation, ActivationSyntax::Periodic(_))
+                            && (self.initial || contract.activation == *self.activation)
+                    }
+                    "next" => {
+                        !self.initial
+                            && matches!(contract.activation, ActivationSyntax::Periodic(_))
+                            && contract.activation == *self.activation
+                    }
+                    _ => false,
+                };
+            if !eligible {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.file,
+                    expression.range(),
+                    "evolution operator requires an eligible declared state at the exact clock",
+                ));
+            }
+        }
         if matches!(callee, "pre" | "next") && !self.allow_discrete_symbols {
             return Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
@@ -525,7 +560,7 @@ impl ExpressionLowerer<'_> {
                 format!("continuous Relation cannot use `{callee}`"),
             ));
         }
-        if callee == "derivative" && self.allow_discrete_symbols {
+        if callee == "derivative" && self.allow_discrete_symbols && !self.initial {
             return Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 self.file,

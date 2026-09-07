@@ -6,9 +6,10 @@ public connector MechanicalBoundary = field_physical(
   pairing = euclidean_boundary_duality
 );
 
-public component BoundarySide {
-  public support body: volume(ambient_dimension = 2);
-  public support interface: boundary(parent = body);
+public component BoundarySide(
+  support body: volume(ambient_dimension = 2),
+  support interface: boundary(parent = body),
+) {
   public port mechanical: conserving MechanicalBoundary over interface;
 
   relation carrier on interface {
@@ -17,9 +18,10 @@ public component BoundarySide {
   }
 }
 
-public component BoundaryWrapper {
-  public support body: volume(ambient_dimension = 2);
-  public support interface: boundary(parent = body);
+public component BoundaryWrapper(
+  support body: volume(ambient_dimension = 2),
+  support interface: boundary(parent = body),
+) {
   public port mechanical: conserving MechanicalBoundary over interface;
 
   instance side: BoundarySide(

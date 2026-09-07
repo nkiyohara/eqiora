@@ -323,11 +323,10 @@ public material composition ReferenceMaterial {{
     let interface = if curated { "governing" } else { "interface" };
     let (boundary_fields, x_lower_condition, x_upper_condition) = if prescribed_boundaries {
         (
-            r#"  field displacement_potential on body as space: m ^ 2 = 0;
-  field boundary_displacement on body as space: vector<m, 2>;
-  field traction_potential on body as space: kg / s ^ 2 = 0;
-  field boundary_traction on body as space:
-    vector<kg / (m * s ^ 2), 2>;
+            r#"  variable displacement_potential: m ^ 2 on body;
+  variable boundary_displacement: vector<m, 2> on body;
+  variable traction_potential: kg / s ^ 2 on body;
+  variable boundary_traction: vector<kg / (m * s ^ 2), 2> on body;
   parameter displacement_scale: m = 1;
   parameter traction_scale: kg / (m * s ^ 2) = 2;
   relation displacement_potential_definition on body {
@@ -372,9 +371,9 @@ public material composition ReferenceMaterial {{
   domain x_upper = boundary(body, axis = 0, side = upper);
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
-  representation space = continuum;
-  field displacement on body as space: vector<m, 2>;
-  field load_potential on body as space: kg / (m * s ^ 2) = 0;
+
+  variable displacement: vector<m, 2> on body;
+  variable load_potential: kg / (m * s ^ 2) on body;
   parameter zero_load: kg / (m * s ^ 2) = 0;
 {material_parameters}
   relation load_definition on body {{

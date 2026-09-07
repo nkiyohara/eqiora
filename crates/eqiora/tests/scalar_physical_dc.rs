@@ -17,7 +17,7 @@ use eqiora::solver::{
     ExecutionReport, LinearOperatorProperties, LinearSolveRequest, LinearSolver,
     LinearSolverBackend, PreconditionerPolicy, ReductionPolicy, SolverPlan,
 };
-use eqiora::{DimExponents, DynQuantity, Id, RawId};
+use eqiora::{DimExponents, Id, RawId};
 use eqiora_backend_faer::FaerLinearSolver;
 use eqiora_numerics::{
     scalar::ScalarPhysicalAffineProblem, scalar::lower_scalar_physical_affine,
@@ -248,12 +248,9 @@ fn with_unrelated_relation(source: &Transaction, model: OntologyId<Model>) -> Tr
                                 eqiora_core::ScalarDomain::Real,
                                 DimExponents::DIMENSIONLESS,
                             ),
+                            eqiora::kernel::FieldRole::Variable,
                         )
                         .into(),
-                    })
-                    .push(Op::SetValue {
-                        target: field.erase(),
-                        value: DynQuantity::new(0.0, DimExponents::DIMENSIONLESS),
                     })
                     .push(Op::DefineKernelNode {
                         node: relation_definition.clone().into(),

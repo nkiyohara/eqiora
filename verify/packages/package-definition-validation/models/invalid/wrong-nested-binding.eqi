@@ -1,8 +1,8 @@
-public component Child {
+public component Child() {
   public parameter period: s;
 }
 
-public component Parent {
+public component Parent() {
   public parameter length: m;
   instance child: Child(period = length);
 }

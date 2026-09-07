@@ -361,14 +361,9 @@ mesh = eqiora.meshing.generate(mesh_plan)
 
 model = eqiora.compile(
     source="""
-    public component DifferentiatedPoisson {
-      public support square: volume(ambient_dimension = 2);
-      public support x_lower: boundary(parent = square);
-      public support x_upper: boundary(parent = square);
-      public support y_lower: boundary(parent = square);
-      public support y_upper: boundary(parent = square);
-      representation scalar_space = continuum;
-      field potential on square as scalar_space: 1 = 0;
+    public component DifferentiatedPoisson(support square: volume(ambient_dimension = 2), support x_lower: boundary(parent = square), support x_upper: boundary(parent = square), support y_lower: boundary(parent = square), support y_upper: boundary(parent = square)) {
+
+      variable potential: 1 on square;
       public parameter diffusion: 1;
       public parameter wave_number: 1 / m;
       public parameter source_scale: 1 / m ^ 2;

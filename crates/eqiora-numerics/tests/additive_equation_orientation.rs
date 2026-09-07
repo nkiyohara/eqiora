@@ -11,8 +11,8 @@ model additive_poisson {
   domain x_upper = boundary(body, axis = 0, side = upper);
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
-  representation space = continuum;
-  field potential on body as space: 1 = 0;
+
+  variable potential: 1 on body;
   parameter diffusion: 1 = 2;
   parameter source: 1 / m ^ 2 = 3;
   parameter value: 1 = 4;

@@ -61,7 +61,7 @@ this complete source into a file named `decay.eqi`:
 
 <Code code={modelSource} lang="eqiora" title="decay.eqi" />
 
-The `.eqi` file describes the model. `field x` carries its initial value,
+The `.eqi` file describes the model. `state x` declares the evolving unknown and `initial { x = 1; }` sets its initial condition,
 `parameter rate` has inverse-second units, and the `relation` states an equation
 with two ordered sides of an equality. The numerical method does not belong in this file.
 

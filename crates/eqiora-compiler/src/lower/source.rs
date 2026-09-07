@@ -5,24 +5,23 @@ impl LoweringModel {
         let items = model
             .items()
             .iter()
-            .map(|item| {
+            .enumerate()
+            .map(|(item_index, item)| {
                 Ok(match item {
                     Item::Domain(declaration) => LoweringItem::Domain {
                         name: declaration.name().to_owned(),
                         contract: LoweringDomainContract::Source(declaration.syntax().clone()),
                         range: declaration.range(),
                     },
-                    Item::Representation(declaration) => LoweringItem::Representation {
-                        name: declaration.name().to_owned(),
-                        syntax: declaration.syntax(),
-                        range: declaration.range(),
-                    },
                     Item::Field(declaration) => LoweringItem::Field {
                         name: declaration.name().to_owned(),
                         domain: declaration.domain().map(str::to_owned),
-                        representation: declaration.representation().map(str::to_owned),
+                        representation: declaration
+                            .domain()
+                            .map(|domain| format!("$continuum-{domain}")),
                         value_type: declaration.value_type().clone(),
-                        initial: declaration.initial().cloned(),
+                        role: declaration.role(),
+                        activation: declaration.activation().clone(),
                         range: declaration.range(),
                     },
                     Item::Parameter(declaration) => LoweringItem::Parameter {
@@ -42,7 +41,20 @@ impl LoweringModel {
                         phase: declaration.phase(),
                         range: declaration.range(),
                     },
+                    Item::Initial(declaration) => LoweringItem::Relation {
+                        name: format!("$initial{item_index}"),
+                        activation: ActivationSyntax::Continuous,
+                        domain: None,
+                        equations: declaration
+                            .equations()
+                            .iter()
+                            .map(LoweringEquation::from_source)
+                            .collect(),
+                        initial: true,
+                        range: declaration.range(),
+                    },
                     Item::Relation(declaration) => LoweringItem::Relation {
+                        initial: false,
                         name: declaration.name().to_owned(),
                         activation: declaration.activation().clone(),
                         domain: declaration.domain().map(str::to_owned),
@@ -68,6 +80,25 @@ impl LoweringModel {
                 })
             })
             .collect::<Result<_, Diagnostic>>()?;
+        let mut items: Vec<LoweringItem> = items;
+        let mut represented_supports = std::collections::BTreeSet::new();
+        let representations: Vec<_> = model
+            .items()
+            .iter()
+            .filter_map(|item| {
+                let Item::Field(field) = item else {
+                    return None;
+                };
+                let domain = field.domain()?;
+                represented_supports
+                    .insert(domain)
+                    .then(|| LoweringItem::Representation {
+                        name: format!("$continuum-{domain}"),
+                        range: field.range(),
+                    })
+            })
+            .collect();
+        items.extend(representations);
         Ok(Self {
             name: model.name().to_owned(),
             range: model.range(),

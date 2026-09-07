@@ -72,7 +72,8 @@ fn caller_geometry(volume: &str) -> CanonicalGeometryV1 {
 
 #[test]
 fn declaration_prose_changes_package_source_but_not_physical_structure() {
-    let source = "/// First explanation.\nmodel Main { field x:1=0; relation balance { x=0; } }\n";
+    let source =
+        "/// First explanation.\nmodel Main { variable x: 1; relation balance { x=0; } }\n";
     let changed = source.replace("First explanation.", "Different explanation.");
     let first = release("org.example.Documented", source, &[]);
     let second = release("org.example.Documented", &changed, &[]);
@@ -128,7 +129,7 @@ import org.example.DeclaredModules.library.parts as lib;
 model Main { instance load: lib.Resistor(resistance = 2); }
 "#;
     let library_source = r#"
-public component Resistor {
+public component Resistor() {
   public parameter resistance: 1;
   relation law { resistance - 2 = 0; }
 }
@@ -214,7 +215,7 @@ fn locked_root_can_select_one_direct_dependency_public_model() {
 fn editor_workspace_replays_exact_locked_dependency_sources() {
     let dependency = release(
         "org.example.EditorLibrary",
-        "public component Resistor {}",
+        "public component Resistor() {}",
         &[],
     );
     let root = release(
@@ -267,7 +268,7 @@ fn editor_workspace_replays_exact_locked_dependency_sources() {
         .hover(reference.file(), reference.range().start() + 8)
         .expect("locked dependency hover");
     assert_eq!(hovered, resistor);
-    assert_eq!(detail, "public component Resistor {}");
+    assert_eq!(detail, "public component Resistor() {}");
 }
 
 #[test]
@@ -283,7 +284,7 @@ property release ReferenceDiffusivity implements Diffusivity {
   citation = org.example.measurement;
   license = spdx.CC0_1_0;
 }
-public component Diffusion {
+public component Diffusion() {
   public property diffusivity: Diffusivity;
   relation law { diffusivity = 0; }
 }
@@ -348,11 +349,9 @@ model Main {
 #[test]
 fn locked_component_binds_caller_geometry_into_ordinary_model() {
     const SOURCE: &str = r#"
-public component SpatialLaw {
-  public support fluid: volume(ambient_dimension = 2);
+public component SpatialLaw(support fluid: volume(ambient_dimension = 2)) {
   public parameter forcing: 1;
-  representation space = continuum;
-  field state on fluid as space: 1 = 0;
+  variable state: 1 on fluid;
   relation balance on fluid { state - forcing = 0; }
 }
 "#;
@@ -424,7 +423,7 @@ public component SpatialLaw {
 #[test]
 fn locked_compilation_binds_exact_graph_model_and_package_provenance() {
     const LIBRARY_SOURCE: &str = r#"
-public component Resistor {
+public component Resistor() {
   public parameter resistance: 1 = 2;
   relation law { resistance - 2 = 0; }
 }
@@ -595,14 +594,14 @@ model Main {
 #[test]
 fn preparation_is_order_independent_over_one_transitive_exact_closure() {
     const LEAF: &str = r#"
-public component Resistor {
+public component Resistor() {
   public parameter resistance: 1 = 2;
   relation law { resistance - 2 = 0; }
 }
 "#;
     const MIDDLE: &str = r#"
 import org.example.Leaf.main as leaf;
-public component Branch {
+public component Branch() {
   instance load: leaf.Resistor(resistance = 3);
 }
 "#;
@@ -633,7 +632,7 @@ model Main {
 #[test]
 fn preparation_rejects_incomplete_duplicate_and_unreachable_inputs() {
     const LIBRARY: &str = r#"
-public component Resistor {
+public component Resistor() {
   public parameter resistance: 1 = 2;
   relation law { resistance - 2 = 0; }
 }
@@ -665,7 +664,7 @@ model Main {
 #[test]
 fn dishonest_dependency_source_fails_before_root_release_is_returned() {
     const LIBRARY_SOURCE: &str = r#"
-public component Resistor {
+public component Resistor() {
   public parameter resistance: 1 = 2;
   relation law { resistance - 2 = 0; }
 }

@@ -1,10 +1,11 @@
 import Eqiora.Mechanics.Interfaces.interfaces as mechanics;
 
-public component SteadyNewtonianBalance2d {
-  public support body: volume(ambient_dimension = 2);
-  public field slot velocity on body as continuum: vector<m / s, 2>;
-  public field slot pressure on body as continuum: kg / (m * s ^ 2);
-  public field slot force_potential on body as continuum: kg / (m * s ^ 2);
+public component SteadyNewtonianBalance2d(
+  support body: volume(ambient_dimension = 2),
+  variable velocity: vector<m / s, 2> on body,
+  variable pressure: kg / (m * s ^ 2) on body,
+  variable force_potential: kg / (m * s ^ 2) on body,
+) {
   public parameter dynamic_viscosity: kg / (m * s);
 
   relation momentum on body {
@@ -18,11 +19,12 @@ public component SteadyNewtonianBalance2d {
   }
 }
 
-public component VelocityTractionInterface2d {
-  public support body: volume(ambient_dimension = 2);
-  public support exterior: complete_exterior(parent = body);
-  public field slot velocity on body as continuum: vector<m / s, 2>;
-  public field slot pressure on body as continuum: kg / (m * s ^ 2);
+public component VelocityTractionInterface2d(
+  support body: volume(ambient_dimension = 2),
+  support exterior: complete_exterior(parent = body),
+  variable velocity: vector<m / s, 2> on body,
+  variable pressure: kg / (m * s ^ 2) on body,
+) {
   public parameter dynamic_viscosity: kg / (m * s);
 
   public port mechanical[boundary in exterior]:
@@ -38,12 +40,13 @@ public component VelocityTractionInterface2d {
   }
 }
 
-public component SteadyStokes2d {
-  public support body: volume(ambient_dimension = 2);
-  public support exterior: complete_exterior(parent = body);
-  public field slot velocity on body as continuum: vector<m / s, 2>;
-  public field slot pressure on body as continuum: kg / (m * s ^ 2);
-  public field slot force_potential on body as continuum: kg / (m * s ^ 2);
+public component SteadyStokes2d(
+  support body: volume(ambient_dimension = 2),
+  support exterior: complete_exterior(parent = body),
+  variable velocity: vector<m / s, 2> on body,
+  variable pressure: kg / (m * s ^ 2) on body,
+  variable force_potential: kg / (m * s ^ 2) on body,
+) {
   public parameter dynamic_viscosity: kg / (m * s);
 
   public port mechanical[boundary in exterior]:
@@ -69,9 +72,10 @@ public component SteadyStokes2d {
     interface.mechanical[boundary = boundary];
 }
 
-public component NoSlip2d {
-  public support body: volume(ambient_dimension = 2);
-  public support face: boundary(parent = body);
+public component NoSlip2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+) {
   public port mechanical:
     conserving mechanics.VelocityTractionBoundary over face;
 
@@ -80,9 +84,10 @@ public component NoSlip2d {
   }
 }
 
-public component TractionFree2d {
-  public support body: volume(ambient_dimension = 2);
-  public support face: boundary(parent = body);
+public component TractionFree2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+) {
   public port mechanical:
     conserving mechanics.VelocityTractionBoundary over face;
 
@@ -91,10 +96,11 @@ public component TractionFree2d {
   }
 }
 
-public component NormalPressureOutlet2d {
-  public support body: volume(ambient_dimension = 2);
-  public support face: boundary(parent = body);
-  public field slot exterior_pressure on body as continuum: kg / (m * s ^ 2);
+public component NormalPressureOutlet2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+  variable exterior_pressure: kg / (m * s ^ 2) on body,
+) {
   public port mechanical:
     conserving mechanics.VelocityTractionBoundary over face;
 
@@ -104,10 +110,11 @@ public component NormalPressureOutlet2d {
   }
 }
 
-public component NormalVelocityInlet2d {
-  public support body: volume(ambient_dimension = 2);
-  public support face: boundary(parent = body);
-  public field slot speed on body as continuum: m / s;
+public component NormalVelocityInlet2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+  variable speed: m / s on body,
+) {
   public port mechanical:
     conserving mechanics.VelocityTractionBoundary over face;
 
@@ -116,10 +123,11 @@ public component NormalVelocityInlet2d {
   }
 }
 
-public component PrescribedVelocity2d {
-  public support body: volume(ambient_dimension = 2);
-  public support face: boundary(parent = body);
-  public field slot velocity on body as continuum: vector<m / s, 2>;
+public component PrescribedVelocity2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+  variable velocity: vector<m / s, 2> on body,
+) {
   public port mechanical:
     conserving mechanics.VelocityTractionBoundary over face;
 
@@ -128,11 +136,11 @@ public component PrescribedVelocity2d {
   }
 }
 
-public component PrescribedTraction2d {
-  public support body: volume(ambient_dimension = 2);
-  public support face: boundary(parent = body);
-  public field slot traction on body as continuum:
-    vector<kg / (m * s ^ 2), 2>;
+public component PrescribedTraction2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+  variable traction: vector<kg / (m * s ^ 2), 2> on body,
+) {
   public port mechanical:
     conserving mechanics.VelocityTractionBoundary over face;
 

@@ -1,5 +1,6 @@
 export const EXAMPLE_SOURCE = `model controlled_decay {
-  field state: 1 = 1;
+  state state: 1;
+  initial { state = 1; }
   parameter rate: 1 / s = 0.8;
   relation decay {
     derivative(state) + rate * state = 0;
@@ -15,8 +16,8 @@ export const CAD_EXAMPLE_SOURCE = `model cad_semantic_selection {
   domain y_upper = boundary(body, axis = 1, side = upper);
   domain z_lower = boundary(body, axis = 2, side = lower);
   domain z_upper = boundary(body, axis = 2, side = upper);
-  representation geometry_space = continuum;
-  field marker on body as geometry_space: 1 = 0;
+  variable marker: 1 on body;
+  initial { marker = 0; }
 
   relation selected_boundary on x_upper {
     trace(marker) = 0;

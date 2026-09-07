@@ -40,9 +40,10 @@ physically appropriate depends on the modeled boundary.
 The standard fluid package includes no-slip and traction-free components:
 
 ```eqiora
-public component NoSlip2d {
-  public support body: volume(ambient_dimension = 2);
-  public support face: boundary(parent = body);
+public component NoSlip2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+) {
   public port mechanical:
     conserving mechanics.VelocityTractionBoundary over face;
 
@@ -51,7 +52,7 @@ public component NoSlip2d {
   }
 }
 
-public component TractionFree2d {
+public component TractionFree2d() {
   // same support and port structure
   relation prescribed_traction on face {
     flux(mechanical) = 0;

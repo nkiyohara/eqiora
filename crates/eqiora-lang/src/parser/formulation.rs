@@ -14,8 +14,8 @@ impl Parser<'_> {
     ) -> Option<ComponentDecl> {
         self.expect_keyword("component")?;
         let name = self.expect_identifier("component name")?.text().to_owned();
+        let mut items = self.parse_component_signature()?;
         self.expect(TokenKind::LeftBrace, "`{` after component name")?;
-        let mut items = Vec::new();
         let mut formulations = Vec::new();
         let mut property_requirements = Vec::new();
         let mut formulations_started = false;
@@ -101,10 +101,10 @@ mod tests {
     #[test]
     fn retains_one_component_primal_form_outside_model_items() {
         let source = r#"
-component Diffusion {
-  public support region: volume(ambient_dimension = 2);
-  representation space = continuum;
-  field potential on region as space: 1 = 0;
+component Diffusion(
+  support region: volume(ambient_dimension = 2)
+) {
+  variable potential: 1 on region;
   parameter diffusion: 1 = 1;
   parameter source: 1 / m ^ 2 = 1;
   relation balance on region { -div(diffusion * grad(potential)) = source; }
@@ -133,7 +133,7 @@ component Diffusion {
 
         let misplaced = parse(
             "misplaced.eqi",
-            "component C { relation r { 1 = 0; } form primal for r { integrate(d, test(x)) = integrate(d, test(x)); } parameter p: 1 = 1; }",
+            "component C() { relation r { 1 = 0; } form primal for r { integrate(d, test(x)) = integrate(d, test(x)); } parameter p: 1 = 1; }",
         );
         assert!(misplaced.diagnostics().iter().any(|diagnostic| {
             diagnostic

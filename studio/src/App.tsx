@@ -75,10 +75,10 @@ export function App() {
   );
   const valueValidation = useMemo(
     () =>
-      selectedNode?.value == null
+      selectedNode?.kind !== "parameter" || selectedNode.value === null
         ? { value: null, error: null }
         : validateValueEditInput(state.valueEditInput, selectedNode.value),
-    [selectedNode?.value, state.valueEditInput],
+    [selectedNode?.kind, selectedNode?.value, state.valueEditInput],
   );
   const valueEditDisabledReason = sourceEdited ? formatMessage("command.reason.edit-source") : null;
   const valueEditExpanded = valueValidation.value !== null || state.valueEditStatus.kind !== "idle";
@@ -168,7 +168,7 @@ export function App() {
       target === null ||
       value === null ||
       sourceEdited ||
-      !["field", "parameter"].includes(target.kind)
+      target.kind !== "parameter"
     )
       return;
     const requestId = ++valuePreviewSequence.current,
@@ -209,6 +209,7 @@ export function App() {
     if (
       state.document === null ||
       selectedNode === null ||
+      selectedNode.kind !== "parameter" ||
       valueValidation.value === null ||
       state.valueEditStatus.kind !== "ready" ||
       sourceEdited ||

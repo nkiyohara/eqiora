@@ -1,4 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
+mod equation;
+pub(crate) use equation::LoweringEquation;
+
 use std::sync::Arc;
 
 mod binding;
@@ -25,8 +28,7 @@ use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id, OntologyId, RawId};
 use eqiora_graph::{EdgeKind, Op, Transaction};
 use eqiora_lang::{
     ActivationSyntax, BinaryOp, BoundarySideSyntax, ConnectionSyntax, DomainSyntax, Expr, ExprKind,
-    Item, ModelDecl, ModelDraft, PortSyntax, RepresentationSyntax, SignalDirectionSyntax,
-    TextRange, UnaryOp,
+    Item, ModelDecl, ModelDraft, PortSyntax, SignalDirectionSyntax, TextRange, UnaryOp,
 };
 use eqiora_schema::kernel::pure_operator::PureOperatorDefinition;
 use eqiora_schema::kernel::scalar_connection::{
@@ -210,42 +212,6 @@ pub(crate) struct LoweringExpression {
     range: TextRange,
 }
 
-/// Ordered equality, retained through hierarchy substitution until typed lowering.
-#[derive(Debug, Clone)]
-pub(crate) struct LoweringEquation {
-    pub(crate) left: LoweringExpression,
-    pub(crate) right: LoweringExpression,
-    pub(crate) contextual_left_zero: bool,
-    pub(crate) contextual_right_zero: bool,
-    pub(crate) literal_right_zero: bool,
-    pub(crate) range: TextRange,
-}
-
-impl LoweringEquation {
-    pub(crate) fn from_source(equation: &eqiora_lang::Equation) -> Self {
-        Self::rewritten(
-            equation,
-            LoweringExpression::from_source(equation.left()),
-            LoweringExpression::from_source(equation.right()),
-        )
-    }
-
-    pub(crate) fn rewritten(
-        equation: &eqiora_lang::Equation,
-        left: LoweringExpression,
-        right: LoweringExpression,
-    ) -> Self {
-        Self {
-            left,
-            right,
-            contextual_left_zero: equality::is_contextual_zero(equation.left()),
-            contextual_right_zero: equality::is_contextual_zero(equation.right()),
-            literal_right_zero: equality::is_literal_zero(equation.right()),
-            range: equation.range(),
-        }
-    }
-}
-
 impl PartialEq for LoweringExpression {
     fn eq(&self, other: &Self) -> bool {
         self.node == other.node
@@ -385,7 +351,6 @@ pub(crate) enum LoweringItem {
     },
     Representation {
         name: String,
-        syntax: RepresentationSyntax,
         range: TextRange,
     },
     Field {
@@ -393,7 +358,8 @@ pub(crate) enum LoweringItem {
         domain: Option<String>,
         representation: Option<String>,
         value_type: eqiora_lang::ValueTypeSyntax,
-        initial: Option<eqiora_lang::Expr>,
+        role: eqiora_lang::FieldRoleSyntax,
+        activation: ActivationSyntax,
         range: TextRange,
     },
     Parameter {
@@ -418,6 +384,7 @@ pub(crate) enum LoweringItem {
         activation: ActivationSyntax,
         domain: Option<String>,
         equations: Vec<LoweringEquation>,
+        initial: bool,
         range: TextRange,
     },
     Connection {
@@ -568,6 +535,8 @@ pub(crate) fn lower_typed_model(
                 name,
                 domain,
                 value_type,
+                role,
+                activation,
                 range,
                 ..
             } => match lower_dimension(file, value_type.dimension()) {
@@ -581,6 +550,8 @@ pub(crate) fn lower_typed_model(
                             dimension,
                             value_type: value_type.clone(),
                             domain: domain.clone(),
+                            role: *role,
+                            activation: activation.clone(),
                         },
                     ),
                     *range,
@@ -695,51 +666,35 @@ pub(crate) fn lower_typed_model(
                     },
                 )
             }
-            LoweringItem::Representation {
-                name,
-                syntax,
-                range,
-            } => {
+            LoweringItem::Representation { name, .. } => {
                 let Binding::Representation(id) = bindings[name].clone() else {
-                    unreachable!("first pass assigns Representation bindings");
+                    unreachable!("representation binding")
                 };
-                match syntax {
-                    RepresentationSyntax::Continuum => {
-                        nodes.push(RepresentationDef::continuum(id).into());
-                        Ok(())
-                    }
-                    _ => Err(source_error(
-                        codes::LANGUAGE_LOWERING_ERROR,
-                        file,
-                        *range,
-                        "Representation syntax is newer than this compiler",
-                    )),
-                }
+                nodes.push(RepresentationDef::continuum(id).into());
+                Ok(())
             }
             LoweringItem::Field {
                 name,
                 domain,
                 representation,
-                initial,
+                role,
+                activation,
                 range,
                 ..
             } => {
                 let Binding::Field(id, contract) = bindings[name].clone() else {
                     unreachable!("first pass assigns Field bindings");
                 };
-                resolve_field_contract(file, *range, &contract, &bindings)
-                    .and_then(|value_type| {
-                        let definition = match initial {
-                            Some(initial) => {
-                                let literal = crate::units::typed_literal(file, initial, value_type.clone())?;
-                                FieldDef::new(id, value_type).with_initial(literal)
-                            }
-                            None => Ok(FieldDef::new(id, value_type)),
-                        }?;
-                        Ok(definition)
-                    })
+                resolve_field_contract(file, *range, &contract, &bindings).map(|value_type| FieldDef::new(id, value_type, match role {
+                            eqiora_lang::FieldRoleSyntax::Variable => eqiora_schema::kernel::FieldRole::Variable,
+                            eqiora_lang::FieldRoleSyntax::State => eqiora_schema::kernel::FieldRole::State,
+                        }))
                     .and_then(|definition| {
                         nodes.push(definition.into());
+                        if let ActivationSyntax::Periodic(clock) = activation {
+                            let Some(Binding::Clock(clock)) = bindings.get(clock) else { return Err(unresolved(file, *range, clock, "Field ClockDomain")); };
+                            edges.push((id.erase(), clock.erase(), EdgeKind::ClockedBy));
+                        }
                         match (domain.as_deref(), representation.as_deref()) {
                             (None, None) => Ok(()),
                             (Some(domain), Some(representation)) => {
@@ -840,6 +795,7 @@ pub(crate) fn lower_typed_model(
                 activation,
                 domain,
                 equations,
+                initial,
                 range,
             } => lower_relation(
                 file,
@@ -847,6 +803,7 @@ pub(crate) fn lower_typed_model(
                 activation,
                 domain.as_deref(),
                 equations,
+                *initial,
                 &bindings,
             )
             .map(|lowered| {
@@ -857,20 +814,31 @@ pub(crate) fn lower_typed_model(
                 else {
                     unreachable!("first pass assigns Relation bindings");
                 };
-                nodes.push(RelationDef::new(relation, lowered.residuals).into());
+                nodes.push(
+                    if *initial {
+                        RelationDef::initial(relation, lowered.residuals)
+                    } else {
+                        RelationDef::new(relation, lowered.residuals)
+                    }
+                    .into(),
+                );
                 let activation_definition = match activation {
                     ActivationSyntax::Continuous => ActivationDef::continuous(activation_id),
                     ActivationSyntax::Periodic(_) => ActivationDef::periodic(activation_id),
                     _ => unreachable!("unsupported Activation was diagnosed"),
                 };
-                nodes.push(activation_definition.into());
+                if !initial {
+                    nodes.push(activation_definition.into());
+                }
                 for dependency in lowered.dependencies {
                     edges.push((relation.erase(), dependency, EdgeKind::DependsOn));
                 }
                 for port in lowered.ports {
                     edges.push((relation.erase(), port, EdgeKind::HasPort));
                 }
-                edges.push((activation_id.erase(), relation.erase(), EdgeKind::Activates));
+                if !initial {
+                    edges.push((activation_id.erase(), relation.erase(), EdgeKind::Activates));
+                }
                 if let Some(domain_name) = domain {
                     let Binding::Domain(domain, _) = bindings[domain_name].clone() else {
                         unreachable!("Relation Domain was resolved while lowering");
@@ -972,9 +940,30 @@ pub(crate) fn lower_typed_model(
     }
     transaction.push(Op::DefineOntologyView { view: view.into() });
 
-    let symbols = bindings
-        .into_iter()
-        .map(|(name, binding)| (name, binding.primary_id()))
+    // Lowering bindings also own synthesized continuum representations and
+    // unnamed initial Relations. Export only authored declaration names; the
+    // synthesized nodes remain members of the unchanged Kernel transaction.
+    let symbols = model
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            LoweringItem::Domain { name, .. }
+            | LoweringItem::Field { name, .. }
+            | LoweringItem::Parameter { name, .. }
+            | LoweringItem::Port { name, .. }
+            | LoweringItem::Clock { name, .. }
+            | LoweringItem::Relation {
+                name,
+                initial: false,
+                ..
+            } => Some(name),
+            LoweringItem::Representation { .. }
+            | LoweringItem::Relation { initial: true, .. }
+            | LoweringItem::Connection { .. }
+            | LoweringItem::Boundary { .. }
+            | LoweringItem::Unsupported { .. } => None,
+        })
+        .map(|name| (name.clone(), bindings[name].primary_id()))
         .collect();
     Ok(CompiledModel {
         model: model_id,

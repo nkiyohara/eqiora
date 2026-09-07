@@ -33,7 +33,7 @@ for invalid in [0.5, 1.0, True, (1, 2), None, 2147483648, -2147483648,
         pass
     else:
         raise AssertionError(f"accepted invalid exponent: {invalid!r}")
-field = eqiora.Field("psi", value_type=eqiora.ValueType.real(wave), initial=1.0)
+field = eqiora.Field("psi", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real(wave))
 assert field.dimension == wave
 balance = eqiora.Relation("balance", residual=field)
 model = eqiora.Model.define("wave", field, balance)
@@ -58,7 +58,7 @@ fn python_native_parameters_lower_complex_scalars_and_shaped_zero() -> PyResult<
 scalar = eqiora.ValueType.complex(eqiora.Dimension(length=1))
 for value_type, value in [(scalar, 2.0), (eqiora.ValueType.array(scalar, 3), 0.0)]:
     coefficient = eqiora.Parameter("coefficient", value_type=value_type, value=value)
-    field = eqiora.Field("state", value_type=value_type)
+    field = eqiora.Field("state", role=eqiora.FieldRole.Variable, value_type=value_type)
     relation = eqiora.Relation("balance", residual=field - coefficient)
     model = eqiora.Model.define("typed_parameter", coefficient, field, relation)
     assert coefficient.value_type == value_type
@@ -105,7 +105,7 @@ fn python_native_modeling_crosses_only_shared_rust_contracts() -> PyResult<()> {
         py.run(
             c_str!(
                 r#"
-x = eqiora.Field("x", initial=1.0)
+x = eqiora.Field("x", role=eqiora.FieldRole.State)
 rate = eqiora.Parameter(
     "rate",
     value_type=eqiora.ValueType.real(eqiora.Dimension(time=-1)),
@@ -115,7 +115,7 @@ flow = eqiora.Relation(
     "flow",
     residual=eqiora.derivative(x) + rate * x,
 )
-scalar_model = eqiora.Model.define("decay", x, rate, flow)
+scalar_model = eqiora.Model.define("decay", x, rate, flow, eqiora.Initial(x - 1.0))
 
 voltage = eqiora.Dimension(mass=1, length=2, time=-3, current=-1)
 current = eqiora.Dimension(current=1)
@@ -156,12 +156,12 @@ upper_end = interval.boundary(
     axis=0,
     side=eqiora.BoundarySide.Upper,
 )
-scalar_space = eqiora.Representation.continuum("scalar_space")
+
 potential = eqiora.Field(
     "potential",
+        role=eqiora.FieldRole.Variable,
     domain=interval,
-    representation=scalar_space,
-    initial=0.0,
+
 )
 source_scale = eqiora.Parameter(
     "source_scale",
@@ -174,7 +174,7 @@ spatial_model = eqiora.Model.define(
     upper_end,
     interval,
     potential,
-    scalar_space,
+
     lower_end,
     eqiora.Relation(
         "upper_value",
@@ -204,7 +204,8 @@ spatial_model = eqiora.Model.define(
             r#"
 model source_decay {
   parameter coefficient: 1 / s = 1;
-  field state: 1 = 1;
+  state state: 1;
+  initial { state = 1; }
   relation balance { derivative(state) + coefficient * state = 0; }
 }
 "#,
@@ -304,8 +305,8 @@ model source_physical {
             module,
             c_str!(
                 r#"
-included = eqiora.Field("x", initial=1.0)
-same_named_foreign = eqiora.Field("x", initial=1.0)
+included = eqiora.Field("x", role=eqiora.FieldRole.Variable)
+same_named_foreign = eqiora.Field("x", role=eqiora.FieldRole.Variable)
 relation = eqiora.Relation("flow", residual=same_named_foreign)
 rejected_model = eqiora.Model.define("foreign_symbol", included, relation)
 "#
@@ -322,8 +323,9 @@ rejected_model = eqiora.Model.define("foreign_symbol", included, relation)
                 r#"
 temperature = eqiora.Field(
     "temperature",
+        role=eqiora.FieldRole.Variable,
     value_type=eqiora.ValueType.real(eqiora.Dimension(temperature=1)),
-    initial=293.0,
+
 )
 duration = eqiora.Parameter(
     "duration",
@@ -412,40 +414,19 @@ rejected_model = eqiora.Model.define(
                 r#"
 included = eqiora.Domain.box("interval", (0.0, 1.0))
 same_named_foreign = eqiora.Domain.box("interval", (0.0, 1.0))
-space = eqiora.Representation.continuum("space")
+
 field = eqiora.Field(
     "u",
+        role=eqiora.FieldRole.Variable,
     domain=same_named_foreign,
-    representation=space,
+
 )
-rejected_model = eqiora.Model.define("foreign_domain", included, space, field)
+rejected_model = eqiora.Model.define("foreign_domain", included, field)
 "#
             ),
             "EQ0603",
             &["foreign_domain", "u"],
             Some("foreign or omitted Domain"),
-        )?;
-
-        assert_rejected_without_model(
-            py,
-            module,
-            c_str!(
-                r#"
-interval = eqiora.Domain.box("interval", (0.0, 1.0))
-included = eqiora.Representation.continuum("space")
-same_named_foreign = eqiora.Representation.continuum("space")
-field = eqiora.Field("u", domain=interval, representation=same_named_foreign)
-rejected_model = eqiora.Model.define(
-    "foreign_representation",
-    interval,
-    included,
-    field,
-)
-"#
-            ),
-            "EQ0603",
-            &["foreign_representation", "u"],
-            Some("foreign or omitted Representation"),
         )?;
 
         assert_rejected_without_model(
@@ -494,8 +475,8 @@ rejected_model = eqiora.Model.define("foreign_parent", included, lower)
             c_str!(
                 r#"
 interval = eqiora.Domain.box("interval", (0.0, 1.0))
-space = eqiora.Representation.continuum("space")
-field = eqiora.Field("u", domain=interval, representation=space)
+
+field = eqiora.Field("u", role=eqiora.FieldRole.Variable, domain=interval)
 invalid = eqiora.Relation(
     "invalid",
     domain=interval,
@@ -504,7 +485,7 @@ invalid = eqiora.Relation(
 rejected_model = eqiora.Model.define(
     "support_mismatch",
     interval,
-    space,
+
     field,
     invalid,
 )

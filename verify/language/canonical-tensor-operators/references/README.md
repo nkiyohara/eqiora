@@ -6,7 +6,7 @@ the operators have closed mathematical component rules and derive their exact
 extent and support from the typed operand rather than a realization sidecar.
 
 The artifact oracle is exact canonical-byte, domain-separated-digest, and typed
-replay equality under explicitly selected Model and Transaction wire v4.
+replay equality under explicitly selected Model and Transaction wire v12.
 Legacy closure is a negative oracle: neither a v3 encoder nor a payload with a
 forged v3 schema tag may accept a v4-only expression.
 

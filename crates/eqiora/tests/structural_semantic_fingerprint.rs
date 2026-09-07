@@ -9,7 +9,7 @@ use eqiora::language::{
 };
 use eqiora::ontology::{Model, ModelView, OntologyId};
 use eqiora::sem::KernelProgram;
-use eqiora::{DimExponents, DynQuantity, Id, kinds};
+use eqiora::{DimExponents, Id, kinds};
 
 const DECAY: &str =
     include_str!("../../../verify/interfaces/structural-semantic-fingerprint/models/decay.eqi");
@@ -34,12 +34,12 @@ fn rational_dimension_meaning_survives_canonical_model_replay() {
     assert!(model.structurally_equivalent(&replay).unwrap());
     let current_schema = String::from_utf8(bytes).unwrap();
     let old_schema =
-        current_schema.replace("eqiora.model-envelope/v11", "eqiora.model-envelope/v10");
+        current_schema.replace("eqiora.model-envelope/v12", "eqiora.model-envelope/v10");
     assert_ne!(old_schema, current_schema);
     assert!(ModelDocument::replay(old_schema.as_bytes()).is_err());
     assert_eq!(
         model.structural_fingerprint().unwrap().generation(),
-        SemanticFingerprintGeneration::V6
+        SemanticFingerprintGeneration::V7
     );
 }
 
@@ -51,9 +51,9 @@ model RationalQuantities {
   parameter width: m = 1;
   parameter area: m ^ 2 = 4;
   parameter spectral_amplitude: Hz ^ (-1 / 2) = 1;
-  field probability: 1 = 1;
-  field length: m = 2;
-  field time_root: s ^ (1 / 2) = 1;
+  variable probability: 1;
+  variable length: m;
+  variable time_root: s ^ (1 / 2);
   relation dimensions {
     probability = amplitude * amplitude * width;
     length = math.sqrt(area);
@@ -71,7 +71,7 @@ model RationalQuantities {
 
     for (original, incompatible) in [
         ("amplitude: m ^ (-1 / 2)", "amplitude: m ^ -1"),
-        ("length: m = 2", "length: m ^ 2 = 2"),
+        ("length: m;", "length: m ^ 2;"),
         (
             "spectral_amplitude: Hz ^ (-1 / 2)",
             "spectral_amplitude: Hz ^ (1 / 2)",
@@ -100,7 +100,7 @@ fn current_generation_is_independent_of_coordinate_vocabulary() {
     for model in [&fixed, &referenced] {
         assert_eq!(
             model.structural_fingerprint().unwrap().generation(),
-            SemanticFingerprintGeneration::V6
+            SemanticFingerprintGeneration::V7
         );
     }
     // Equal endpoint values do not erase the nominal Parameter dependency.
@@ -112,7 +112,7 @@ fn source_native_codec_and_allocation_routes_share_only_structural_identity() {
     let source = ModelDocument::compile("decay.eqi", DECAY).unwrap();
     let independently_compiled = ModelDocument::compile(
         "renamed.eqi",
-        "model renamed { parameter r: 1/s=1; field state: 1=1; relation balance { derivative(state)+r*state=0; } }",
+        "model renamed { parameter r: 1/s=1; state state: 1; initial { state = 1; } relation balance { derivative(state)+r*state=0; } }",
     )
     .unwrap();
     let native = ModelDocument::define(&native_decay(false)).unwrap();
@@ -130,7 +130,7 @@ fn source_native_codec_and_allocation_routes_share_only_structural_identity() {
         );
     }
     let fingerprint = source.structural_fingerprint().unwrap();
-    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V6);
+    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V7);
     assert_eq!(fingerprint.digest().len(), 64);
 
     let replay = eqiora::api::ModelDocument::replay(&source.canonical_json().unwrap()).unwrap();
@@ -210,24 +210,24 @@ fn mathematical_signed_zero_is_normalized_without_weakening_other_values() {
 fn semantic_types_support_and_model_time_are_fingerprint_meaning() {
     let scalar = ModelDocument::compile(
         "scalar.eqi",
-        "model m { field value: 1 = 0; relation r { value = 0; } }",
+        "model m { variable value: 1; relation r { value = 0; } }",
     )
     .unwrap();
     let dimensioned = ModelDocument::compile(
         "dimensioned.eqi",
-        "model m { field value: m = 0; relation r { value = 0; } }",
+        "model m { variable value: m; relation r { value = 0; } }",
     )
     .unwrap();
     assert!(!scalar.structurally_equivalent(&dimensioned).unwrap());
 
     let scalar_spatial = ModelDocument::compile(
         "scalar-spatial.eqi",
-        "model m { domain body = box(0, 1, 0, 1); representation space = continuum; field value on body as space: m = 0; relation r on body { value = 0; } }",
+        "model m { domain body = box(0, 1, 0, 1); variable value: m on body; relation r on body { value = 0; } }",
     )
     .unwrap();
     let vector_spatial = ModelDocument::compile(
         "vector-spatial.eqi",
-        "model m { domain body = box(0, 1, 0, 1); representation space = continuum; field value on body as space: vector<m, 2>; relation r on body { value = 0; } }",
+        "model m { domain body = box(0, 1, 0, 1); variable value: vector<m, 2> on body; relation r on body { value = 0; } }",
     )
     .unwrap();
     assert!(
@@ -238,24 +238,24 @@ fn semantic_types_support_and_model_time_are_fingerprint_meaning() {
 
     let support_a = ModelDocument::compile(
         "support-a.eqi",
-        "model m { domain a = box(0, 1); domain b = box(0, 2); representation space = continuum; field value on a as space: 1 = 0; relation r on a { value = 0; } }",
+        "model m { domain a = box(0, 1); domain b = box(0, 2); variable value: 1 on a; relation r on a { value = 0; } }",
     )
     .unwrap();
     let support_b = ModelDocument::compile(
         "support-b.eqi",
-        "model m { domain a = box(0, 1); domain b = box(0, 2); representation space = continuum; field value on b as space: 1 = 0; relation r on b { value = 0; } }",
+        "model m { domain a = box(0, 1); domain b = box(0, 2); variable value: 1 on b; relation r on b { value = 0; } }",
     )
     .unwrap();
     assert!(!support_a.structurally_equivalent(&support_b).unwrap());
 
     let slow_clock = ModelDocument::compile(
         "slow.eqi",
-        "model m { field x: 1 = 0; clock tick = periodic(period = 1 / 10, phase = 0 / 1); relation update at tick { next(x) - x = 0; } }",
+        "model m { state x: 1 at tick; initial { x = 0; } clock tick = periodic(period = 1 / 10, phase = 0 / 1); relation update at tick { next(x) - x = 0; } }",
     )
     .unwrap();
     let fast_clock = ModelDocument::compile(
         "fast.eqi",
-        "model m { field x: 1 = 0; clock tick = periodic(period = 1 / 20, phase = 0 / 1); relation update at tick { next(x) - x = 0; } }",
+        "model m { state x: 1 at tick; initial { x = 0; } clock tick = periodic(period = 1 / 20, phase = 0 / 1); relation update at tick { next(x) - x = 0; } }",
     )
     .unwrap();
     assert!(!slow_clock.structurally_equivalent(&fast_clock).unwrap());
@@ -300,7 +300,7 @@ fn native_decay(reversed: bool) -> ModelDraft {
             eqiora_core::ScalarDomain::Real,
             DimExponents::DIMENSIONLESS,
         ),
-        Some(1.0),
+        eqiora::language::FieldRoleSyntax::State,
     );
     let rate = DraftParameter::new(
         "coefficient",
@@ -314,10 +314,13 @@ fn native_decay(reversed: bool) -> ModelDraft {
         "balance",
         [DraftExpression::derivative(&field) + rate.expression() * field.expression()],
     );
+    let initial = eqiora::language::DraftDeclaration::Initial(vec![
+        field.expression() - DraftExpression::constant(1.0),
+    ]);
     let declarations = if reversed {
-        vec![relation.into(), rate.into(), field.into()]
+        vec![relation.into(), rate.into(), field.into(), initial]
     } else {
-        vec![field.into(), rate.into(), relation.into()]
+        vec![field.into(), rate.into(), relation.into(), initial]
     };
     ModelDraft::new("native_decay", declarations).unwrap()
 }
@@ -439,13 +442,8 @@ fn manually_allocated_program(reverse_expression: bool, expose_port: bool) -> Ke
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
                 ),
+                eqiora::kernel::FieldRole::Variable,
             )
-            .with_initial(
-                DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)
-                    .try_into()
-                    .expect("finite real initial value"),
-            )
-            .unwrap()
             .into(),
         })
         .push(Op::DefineKernelNode {
@@ -455,13 +453,8 @@ fn manually_allocated_program(reverse_expression: bool, expose_port: bool) -> Ke
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
                 ),
+                eqiora::kernel::FieldRole::Variable,
             )
-            .with_initial(
-                DynQuantity::new(2.0, DimExponents::DIMENSIONLESS)
-                    .try_into()
-                    .expect("finite real initial value"),
-            )
-            .unwrap()
             .into(),
         })
         .push(Op::DefineKernelNode {

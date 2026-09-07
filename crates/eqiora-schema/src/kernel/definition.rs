@@ -66,58 +66,32 @@ impl RepresentationDef {
     }
 }
 
+/// Mathematical evolution ownership, independent of support and scalar type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FieldRole {
+    /// An algebraic unknown; coordinate derivatives do not change its role.
+    Variable,
+    /// An owned state eligible for evolution at its declared activation.
+    State,
+}
+
 /// Exact mathematical Field definition before realization.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FieldDef {
     id: Id<kinds::Field>,
     value_type: ValueType,
-    initial: Option<ValueLiteral>,
+    role: FieldRole,
 }
 
 impl FieldDef {
     /// Define a Field with one complete checked mathematical type.
     #[must_use]
-    pub fn new(id: Id<kinds::Field>, value_type: ValueType) -> Self {
+    pub fn new(id: Id<kinds::Field>, value_type: ValueType, role: FieldRole) -> Self {
         Self {
             id,
             value_type,
-            initial: None,
+            role,
         }
-    }
-
-    /// Attach a fully typed initial value, allowing real-to-complex embedding.
-    ///
-    /// # Errors
-    /// Rejects mismatched dimensions, shapes, frames, or scalar-domain narrowing.
-    pub fn with_initial(mut self, initial: ValueLiteral) -> Result<Self, Diagnostic> {
-        if initial.value_type().dimension() != self.dimension() {
-            return Err(Diagnostic::error(
-                codes::DIMENSION_MISMATCH,
-                format!(
-                    "Field initial dimension [{}] differs from declared [{}]",
-                    initial.value_type().dimension(),
-                    self.dimension()
-                ),
-            )
-            .with_graph_path(kernel_path(self.id.erase())));
-        }
-        if initial
-            .value_type()
-            .clone()
-            .with_common_scalar_domain(&self.value_type)
-            != self.value_type
-        {
-            return Err(Diagnostic::error(
-                codes::INVALID_KERNEL_DEFINITION,
-                "Field initial value type differs from the declared type",
-            )
-            .with_graph_path(kernel_path(self.id.erase())));
-        }
-        self.initial = Some(
-            ValueLiteral::new(self.value_type.clone(), initial.literal())
-                .expect("embedding a validated literal preserves its shape and finiteness"),
-        );
-        Ok(self)
     }
 
     /// Typed Field ID.
@@ -150,10 +124,10 @@ impl FieldDef {
         &self.value_type
     }
 
-    /// Initial value when supplied by the model.
+    /// Author-declared evolution ownership; solver transformations cannot change it.
     #[must_use]
-    pub const fn initial(&self) -> Option<&ValueLiteral> {
-        self.initial.as_ref()
+    pub const fn role(&self) -> FieldRole {
+        self.role
     }
 }
 
@@ -336,13 +310,34 @@ impl PortDef {
 pub struct RelationDef {
     id: Id<kinds::Relation>,
     residuals: ExprDag,
+    initial: bool,
 }
 
 impl RelationDef {
     /// Define one or more residual equations represented by an expression DAG.
     #[must_use]
     pub const fn new(id: Id<kinds::Relation>, residuals: ExprDag) -> Self {
-        Self { id, residuals }
+        Self {
+            id,
+            residuals,
+            initial: false,
+        }
+    }
+
+    /// Define simultaneous fresh-initialization equations using the same residual DAG.
+    #[must_use]
+    pub const fn initial(id: Id<kinds::Relation>, residuals: ExprDag) -> Self {
+        Self {
+            id,
+            residuals,
+            initial: true,
+        }
+    }
+
+    /// Whether this mathematics applies only to fresh initialization, never restart.
+    #[must_use]
+    pub const fn is_initial(&self) -> bool {
+        self.initial
     }
 
     /// Typed Relation ID.
@@ -639,8 +634,6 @@ impl KernelNode {
     #[must_use]
     pub const fn value_dimension(&self) -> Option<DimExponents> {
         match self {
-            Self::Field(value) if value.shape().is_scalar() => Some(value.dimension()),
-            Self::Field(_) => None,
             Self::Parameter(value) => match value.real_scalar_value() {
                 Some(value) => Some(value.dim()),
                 None => None,
@@ -653,10 +646,6 @@ impl KernelNode {
     #[must_use]
     pub const fn initial_value(&self) -> Option<DynQuantity> {
         match self {
-            Self::Field(value) => match value.initial() {
-                Some(initial) => initial.real_scalar_value(),
-                None => None,
-            },
             Self::Parameter(value) => value.real_scalar_value(),
             _ => None,
         }
@@ -736,71 +725,54 @@ mod tests {
     }
 
     #[test]
-    fn field_initial_value_is_dimension_checked() {
-        let field = Id::<kinds::Field>::new();
-        let diagnostic = FieldDef::new(
-            field,
-            ValueType::scalar(
-                eqiora_core::ScalarDomain::Real,
-                dim::TemperatureDim::EXPONENTS,
-            ),
-        )
-        .with_initial(
-            DynQuantity::new(2.0, dim::TimeDim::EXPONENTS)
-                .try_into()
+    fn field_roles_preserve_complete_types_without_declaration_values() {
+        use eqiora_core::ScalarDomain::{Complex, Real};
+        for value_type in [
+            ValueType::scalar(Real, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(Complex, DimExponents::DIMENSIONLESS)
+                .array(3)
                 .unwrap(),
-        )
-        .expect_err("time is not temperature");
-
-        assert_eq!(diagnostic.code(), codes::DIMENSION_MISMATCH);
+        ] {
+            for role in [FieldRole::Variable, FieldRole::State] {
+                let field = FieldDef::new(Id::new(), value_type.clone(), role);
+                assert_eq!(field.value_type(), &value_type);
+                assert_eq!(field.role(), role);
+                assert_eq!(KernelNode::Field(field).initial_value(), None);
+            }
+        }
     }
 
     #[test]
-    fn field_initial_value_rejects_nonfinite_numbers() {
-        let value_type = ValueType::scalar(
+    fn initial_equations_use_typed_residual_validation() {
+        use super::super::typing::{ExpressionType, RootContract, TypedResidual};
+        use super::super::{ExprDagBuilder, SymbolRef};
+        let field = Id::new();
+        let temperature = ValueType::scalar(
             eqiora_core::ScalarDomain::Real,
             dim::TemperatureDim::EXPONENTS,
         );
-        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-            assert!(ValueLiteral::new(value_type.clone(), value).is_err());
+        let mut builder = ExprDagBuilder::new();
+        let value = builder.symbol(SymbolRef::Field(field)).unwrap();
+        let wrong_dimension = builder
+            .constant(DynQuantity::new(2.0, dim::TimeDim::EXPONENTS))
+            .unwrap();
+        let root = builder.sub(value, wrong_dimension).unwrap();
+        let expression = builder.finish([root]).unwrap();
+        let initial = RelationDef::initial(Id::new(), expression.clone());
+        assert!(initial.is_initial());
+        assert!(!RelationDef::new(initial.id(), expression.clone()).is_initial());
+        assert!(
+            TypedResidual::<()>::infer(
+                expression,
+                None,
+                RootContract::ComponentwiseResidual,
+                |_| Ok::<_, ()>(ExpressionType::new(temperature.clone(), None))
+            )
+            .is_err()
+        );
+        for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert!(ValueLiteral::new(temperature.clone(), invalid).is_err());
         }
-        assert!(
-            FieldDef::new(Id::new(), value_type.clone())
-                .with_initial(ValueLiteral::new(value_type.clone(), f64::MAX).unwrap())
-                .is_ok()
-        );
-    }
-
-    #[test]
-    fn field_initial_value_preserves_complete_types() {
-        use eqiora_core::ScalarDomain::{Complex, Real};
-        let real = ValueType::scalar(Real, DimExponents::DIMENSIONLESS);
-        let complex = ValueType::scalar(Complex, real.dimension());
-        let initial = ValueLiteral::new(real.clone(), 2.0).unwrap();
-        let field = FieldDef::new(Id::new(), complex.clone())
-            .with_initial(initial)
-            .unwrap();
-        assert_eq!(field.initial().unwrap().value_type(), &complex);
-        assert_eq!(field.initial().unwrap().real_scalar_value(), None);
-        assert!(
-            FieldDef::new(Id::new(), real.clone())
-                .with_initial(ValueLiteral::new(complex.clone(), 2.0).unwrap())
-                .is_err()
-        );
-        let array = complex.array(3).unwrap();
-        let field = FieldDef::new(Id::new(), array.clone())
-            .with_initial(ValueLiteral::new(array.clone(), -0.0).unwrap())
-            .unwrap();
-        assert_eq!(field.initial().unwrap().value_type(), &array);
-        assert_eq!(
-            field.initial().unwrap().literal().to_bits(),
-            0.0_f64.to_bits()
-        );
-        assert!(
-            FieldDef::new(Id::new(), array)
-                .with_initial(ValueLiteral::new(real, 0.0).unwrap())
-                .is_err()
-        );
     }
 
     #[test]

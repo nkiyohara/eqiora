@@ -8,7 +8,7 @@ use super::{DraftDeclaration, DraftPortReference, NativeModelAst, connection_pat
 use crate::ast::{
     ActivationSyntax, ConnectionDecl, ConnectionSyntax, DomainDecl, DomainSyntax, Equation, Expr,
     ExprKind, FieldDecl, Item, ModelDecl, NamePath, ParameterDecl, PortDecl, PortSyntax,
-    RelationDecl, RepresentationDecl, RepresentationSyntax, TextRange, VisibilitySyntax,
+    RelationDecl, TextRange, VisibilitySyntax,
 };
 
 impl super::ModelDraft {
@@ -29,7 +29,8 @@ impl super::ModelDraft {
                         DraftDeclaration::ConservingConnection(connection) => {
                             connection_path(connection)
                         }
-                        _ => unreachable!("only connections are anonymous"),
+                        DraftDeclaration::Initial(_) => "initial".to_owned(),
+                        _ => unreachable!("named declaration"),
                     });
             let path = GraphPath::new([self.name.clone(), declaration_path]);
             let range = ranges.allocate(&path, &mut paths);
@@ -59,14 +60,6 @@ impl super::ModelDraft {
                     },
                     range,
                 }),
-                DraftDeclaration::Representation(representation) => {
-                    Item::Representation(RepresentationDecl {
-                        comments: Default::default(),
-                        name: representation.name.clone(),
-                        syntax: RepresentationSyntax::Continuum,
-                        range,
-                    })
-                }
                 DraftDeclaration::Field(field) => Item::Field(FieldDecl {
                     comments: Default::default(),
                     name: field.name.clone(),
@@ -74,20 +67,14 @@ impl super::ModelDraft {
                         .spatial_scope
                         .as_ref()
                         .map(|scope| scope.domain.name().to_owned()),
-                    representation: field
-                        .spatial_scope
-                        .as_ref()
-                        .map(|scope| scope.representation.name.clone()),
+                    role: field.role,
+                    activation: ActivationSyntax::Continuous,
                     value_type: value_type::project(
                         &field.value_type,
                         &path,
                         &mut ranges,
                         &mut paths,
                     ),
-                    initial: field.initial.map(|value| Expr {
-                        kind: ExprKind::Number(value),
-                        range,
-                    }),
                     range,
                 }),
                 DraftDeclaration::Parameter(parameter) => Item::Parameter(ParameterDecl {
@@ -123,6 +110,25 @@ impl super::ModelDraft {
                         .map(|domain| domain.name().to_owned()),
                     equations: relation
                         .residuals
+                        .iter()
+                        .map(|expression| {
+                            let left = expression.ast(&path, &mut ranges, &mut paths);
+                            let range = left.range();
+                            Equation {
+                                left,
+                                right: Expr {
+                                    kind: ExprKind::Number(0.0),
+                                    range,
+                                },
+                                range,
+                            }
+                        })
+                        .collect(),
+                    range,
+                }),
+                DraftDeclaration::Initial(residuals) => Item::Initial(crate::ast::InitialDecl {
+                    comments: Default::default(),
+                    equations: residuals
                         .iter()
                         .map(|expression| {
                             let left = expression.ast(&path, &mut ranges, &mut paths);

@@ -115,7 +115,7 @@ fn terminal_network(instances: [&str; 3], fragments: &[Vec<&str>]) -> String {
         .join("\n");
     format!(
         "connector Pin = scalar_physical(across = 1, through = 1);\n\
-         component Terminal {{\n\
+         component Terminal() {{\n\
            public port p: conserving on Pin;\n\
            relation owner {{ across(p) = 0; }}\n\
          }}\n\
@@ -502,11 +502,11 @@ fn nominal_physical_types_and_signal_connections_never_enter_the_union() {
     let nominal_mismatch = r#"
 connector LeftPin = scalar_physical(across = 1, through = 1);
 connector RightPin = scalar_physical(across = 1, through = 1);
-component Left {
+component Left() {
   public port p: conserving on LeftPin;
   relation owner { across(p) = 0; }
 }
-component Right {
+component Right() {
   public port p: conserving on RightPin;
   relation owner { across(p) = 0; }
 }

@@ -6,7 +6,7 @@ use serde_json::Value;
 
 const SCALAR_SOURCE: &str = r#"
 model decay {
-  field x: 1 = 1;
+  state x: 1; initial { x = 1; }
   relation hold {
     derivative(x) = 0;
   }
@@ -50,10 +50,13 @@ fn rust_authoring_edit_replay_and_control_share_the_current_profile() {
             eqiora_core::ScalarDomain::Real,
             DimExponents::DIMENSIONLESS,
         ),
-        Some(1.0),
+        eqiora::language::FieldRoleSyntax::State,
     );
     let hold = DraftRelation::continuous("hold", [DraftExpression::derivative(&state)]);
-    let draft = ModelDraft::new("decay", [state.into(), hold.into()]).unwrap();
+    let initial = eqiora::language::DraftDeclaration::Initial(vec![
+        state.expression() - DraftExpression::constant(1.0),
+    ]);
+    let draft = ModelDraft::new("decay", [state.into(), hold.into(), initial]).unwrap();
     let native = ModelDocument::define(&draft).unwrap();
     let source_scalar = ModelDocument::compile("decay.eqi", SCALAR_SOURCE).unwrap();
     assert!(native.structurally_equivalent(&source_scalar).unwrap());

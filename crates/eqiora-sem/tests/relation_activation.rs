@@ -31,6 +31,7 @@ fn native_kernel_admission_rejects_time_operators_outside_their_activation() {
                     eqiora_core::ScalarDomain::Real,
                     eqiora_core::DimExponents::DIMENSIONLESS,
                 ),
+                eqiora_schema::kernel::FieldRole::State,
             )),
             KernelNode::from(RelationDef::new(
                 relation,

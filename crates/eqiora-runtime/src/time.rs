@@ -10,12 +10,13 @@ use eqiora_ir::{
 };
 use eqiora_schema::kernel::{ActivationKind, KernelNode, SymbolRef};
 use eqiora_time::{
-    ConstantDerivativeMatrixProof, ForwardSensitivityProblem, InitialConditionPolicy,
-    MassParameterDependence, ParametricTimeSystem, TimeEquationClass, TimeLoweringProof,
-    TimeProblem, TimeSystem,
+    ConstantDerivativeMatrixProof, ForwardSensitivityProblem, ImplicitDaeInitialization,
+    InitialConditionPolicy, MassParameterDependence, ParametricTimeSystem, TimeEquationClass,
+    TimeLoweringProof, TimeProblem, TimeSystem,
 };
 
 use crate::CpuProgram;
+use eqiora_sem::{KernelProgram, ReferenceConfig};
 
 /// Canonical continuous Relation proven to have first-order form
 /// `M y_dot = f(t,y)`.
@@ -33,7 +34,7 @@ pub struct FirstOrderProgram {
     state_fields: Vec<Id<kinds::Field>>,
     parameter_fields: Vec<Id<kinds::Parameter>>,
     parameter_values: Vec<f64>,
-    initial_state: Vec<f64>,
+    kernel: KernelProgram,
     bindings: Vec<TimeBinding>,
     roles: Vec<DifferentiationRole>,
     state_symbol_coordinates: Vec<usize>,
@@ -46,7 +47,7 @@ impl FirstOrderProgram {
     /// program and prove an admitted first-order equation class.
     ///
     /// # Errors
-    /// Returns `EQ0705` if activation, symbols, initial values, shapes, or
+    /// Returns `EQ0705` if activation, symbols, shapes, or
     /// derivative structure cannot enter the first-order seam. Existing
     /// Operator IR diagnostics are retained when scalar evaluation fails.
     pub fn lower(program: &CpuProgram, relation: Id<kinds::Relation>) -> Result<Self, Diagnostic> {
@@ -68,24 +69,6 @@ impl FirstOrderProgram {
             .map_err(|failure| derivative_structure_error(relation, failure))?;
         let classified = classify_first_order(relation, &jacobian, &state_fields)?;
 
-        let initial_state = state_fields
-            .iter()
-            .map(|field| {
-                let value = program
-                    .kernel()
-                    .value(field.erase())
-                    .ok_or_else(|| {
-                        invalid_time(
-                            relation,
-                            "every first-order state requires an initial value",
-                        )
-                    })?
-                    .value();
-                require_finite(relation, value, "state initial value")?;
-                Ok(value)
-            })
-            .collect::<Result<Vec<_>, Diagnostic>>()?;
-
         let time_bindings = bind_symbols(program, relation, &operator, &state_order.coordinates)?;
         Ok(Self {
             relation,
@@ -93,7 +76,7 @@ impl FirstOrderProgram {
             state_fields,
             parameter_fields: time_bindings.parameter_fields,
             parameter_values: time_bindings.parameter_values,
-            initial_state,
+            kernel: program.kernel().clone(),
             bindings: time_bindings.values,
             roles: time_bindings.roles,
             state_symbol_coordinates: time_bindings.state_coordinates,
@@ -114,10 +97,17 @@ impl FirstOrderProgram {
         &self.state_fields
     }
 
-    /// Revision-captured initial state or consistency-solve guess.
-    #[must_use]
-    pub fn initial_state(&self) -> &[f64] {
-        &self.initial_state
+    /// Solve fresh simultaneous initial equations before the first activation.
+    /// Numerical tolerances and guesses belong to the supplied execution configuration.
+    /// Restart callers use their accepted State directly instead of this operation.
+    ///
+    /// # Errors
+    /// Returns initialization diagnostics for missing, inconsistent, or unsupported conditions.
+    pub fn initialize(
+        &self,
+        config: ReferenceConfig,
+    ) -> Result<ImplicitDaeInitialization, Diagnostic> {
+        super::initialization::initialize(&self.kernel, &self.state_fields, self.relation, config)
     }
 
     /// Deterministic first-occurrence order of bound Parameter symbols.
@@ -159,7 +149,9 @@ impl FirstOrderProgram {
             self,
             self.equation_class(),
             self.initial_condition_policy(),
-            self.initial_state.clone(),
+            self.initialize(ReferenceConfig::new(0.0, 1.0)?)?
+                .state()
+                .to_vec(),
         )
     }
 
@@ -169,11 +161,23 @@ impl FirstOrderProgram {
     /// Retains `ForwardSensitivityProblem` validation diagnostics when the
     /// Relation has no Parameter symbols or its invariants change.
     pub fn forward_sensitivity_problem(&self) -> Result<ForwardSensitivityProblem<'_>, Diagnostic> {
+        self.require_parameter_independent_initial_conditions()?;
         ForwardSensitivityProblem::new(
             self,
             self.equation_class(),
             self.initial_condition_policy(),
-            self.initial_state.clone(),
+            self.initialize(ReferenceConfig::new(0.0, 1.0)?)?
+                .state()
+                .to_vec(),
+        )
+    }
+
+    fn require_parameter_independent_initial_conditions(&self) -> Result<(), Diagnostic> {
+        super::initialization::require_zero_parameter_tangent(
+            &self.kernel,
+            &self.state_fields,
+            &self.parameter_fields,
+            self.relation,
         )
     }
 
@@ -299,11 +303,20 @@ impl ParametricTimeSystem for FirstOrderProgram {
         parameter_direction: &[f64],
         output: &mut [f64],
     ) -> Result<(), Diagnostic> {
-        self.require_parameter_action_shape(
-            time,
-            &self.initial_state,
+        self.require_parameter_independent_initial_conditions()?;
+        if !time.is_finite()
+            || output.len() != self.state_fields.len()
+            || parameter_direction.len() != self.parameter_fields.len()
+        {
+            return Err(invalid_time(
+                self.relation,
+                "initial Parameter action requires finite time and exact vector shapes",
+            ));
+        }
+        require_finite_slice(
+            self.relation,
             parameter_direction,
-            output,
+            "initial Parameter direction",
         )?;
         output.fill(0.0);
         Ok(())
@@ -349,7 +362,7 @@ impl TimeSystem for FirstOrderProgram {
         direction: &[f64],
         output: &mut [f64],
     ) -> Result<(), Diagnostic> {
-        self.require_action_shape(time, &self.initial_state, Some(direction), output)?;
+        self.require_action_shape(time, direction, Some(direction), output)?;
         let FirstOrderProjection::MassMatrix { coefficients } = &self.projection else {
             return Err(invalid_time(
                 self.relation,

@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn hover_keeps_sanitized_prose_outside_a_source_derived_safe_fence() {
-    let source = "public component C { // ``` hostile fence\n}";
+    let source = "public component C() { // ``` hostile fence\n}";
     let prose = "Summary&#46;\n\n\\[run\\](command&#58;delete)\n\\<script\\>";
     let rendered = markdown_hover(EditorSymbolKind::Component, "C", source, Some(prose));
     assert!(rendered.starts_with(prose));

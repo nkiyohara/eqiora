@@ -19,12 +19,6 @@ impl Parser<'_> {
                 .following_significant_token()
                 .is_some_and(|token| token.kind() == TokenKind::Identifier)
     }
-    pub(super) fn at_field_slot_declaration(&mut self) -> bool {
-        self.at_keyword("field")
-            && self.following_significant_token().is_some_and(|token| {
-                token.kind() == TokenKind::Identifier && token.text() == "slot"
-            })
-    }
     pub(super) fn following_significant_token(&self) -> Option<&Token> {
         self.tokens[self.cursor.saturating_add(1)..]
             .iter()
@@ -250,7 +244,7 @@ public material composition ReferenceMaterial {
   property diffusivity = ReferenceDiffusivity;
 }
 
-public component Diffusion {
+public component Diffusion() {
   public property diffusivity: Diffusivity;
   relation law { diffusivity = 0; }
 }

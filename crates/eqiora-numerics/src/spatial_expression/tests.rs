@@ -8,9 +8,9 @@ fn source_square_root_halves_dimensions_and_checks_value_and_derivative_domains(
     let source = r#"
 model Root {
   domain interval = box(0, 1);
-  representation space = continuum;
+
   parameter area: m ^ 2 = 4000000 [mm ^ 2];
-  field length on interval as space: m = 0;
+  variable length: m on interval;
   relation law on interval { length - math.sqrt(area) = 0; }
 }
 "#;
@@ -52,7 +52,13 @@ model Root {
     assert!(negative.evaluate(&[0.0]).is_err());
     assert!(negative.evaluate_parameter_jvp(&[0.0], &[1.0]).is_err());
     assert!(negative.evaluate_parameter_vjp(&[0.0], 1.0).is_err());
-    assert!(compile("wrong.eqi", &source.replace("space: m =", "space: m ^ 2 =")).is_err());
+    assert!(
+        compile(
+            "wrong.eqi",
+            &source.replace("length: m on", "length: m ^ 2 on")
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -96,8 +102,8 @@ fn lowers_both_axes_from_one_canonical_plane_relation() {
     let source = r#"
 model plane_source {
   domain plane = box(0, 2, 0, 3);
-  representation space = continuum;
-  field u on plane as space: m = 0;
+
+  variable u: m on plane;
   relation identity on plane {
 u - (coordinate(0) + coordinate(1)) = 0;
   }
@@ -138,8 +144,8 @@ fn retains_parameter_identity_and_evaluates_analytic_jvp() {
     let source = r#"
 model parameterized_source {
   domain interval = box(0, 2);
-  representation space = continuum;
-  field u on interval as space: m ^ 2 = 0;
+
+  variable u: m ^ 2 on interval;
   parameter amplitude: m = 3;
   relation identity on interval {
 u - amplitude ^ 2 * math.sin(coordinate(0) / amplitude) = 0;

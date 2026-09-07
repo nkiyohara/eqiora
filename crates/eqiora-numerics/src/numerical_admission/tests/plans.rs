@@ -1,13 +1,13 @@
 use super::*;
 
 const POISSON_INTERVAL: &str = r#"
-public component PoissonInterval {
-  public support body: volume(ambient_dimension = 1);
-  public support left: boundary(parent = body);
-  public support right: boundary(parent = body);
+public component PoissonInterval(
+  support body: volume(ambient_dimension = 1),
+  support left: boundary(parent = body),
+  support right: boundary(parent = body)
+) {
   public parameter source_scale: 1 / m ^ 2;
-  representation space = continuum;
-  field potential on body as space: 1 = 0;
+  variable potential: 1 on body;
   relation balance on body {
     -div(grad(potential)) - source_scale = 0;
   }
@@ -17,17 +17,17 @@ public component PoissonInterval {
 "#;
 
 const POISSON_BOX: &str = r#"
-public component PoissonBox {
-  public support body: volume(ambient_dimension = 3);
-  public support x_lower: boundary(parent = body);
-  public support x_upper: boundary(parent = body);
-  public support y_lower: boundary(parent = body);
-  public support y_upper: boundary(parent = body);
-  public support z_lower: boundary(parent = body);
-  public support z_upper: boundary(parent = body);
+public component PoissonBox(
+  support body: volume(ambient_dimension = 3),
+  support x_lower: boundary(parent = body),
+  support x_upper: boundary(parent = body),
+  support y_lower: boundary(parent = body),
+  support y_upper: boundary(parent = body),
+  support z_lower: boundary(parent = body),
+  support z_upper: boundary(parent = body)
+) {
   public parameter source_scale: 1 / m ^ 2;
-  representation space = continuum;
-  field potential on body as space: 1 = 0;
+  variable potential: 1 on body;
   relation balance on body {
     -div(grad(potential)) - source_scale = 0;
   }
@@ -789,10 +789,16 @@ fn scalar_interval_parameter_point_uses_point_boundary_facets() {
 fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_field_results() {
     for count in [1_i32, 2, 3] {
         let mut source = String::from(
-            "public component Coupled { public support body: volume(ambient_dimension = 1); public support left: boundary(parent = body); public support right: boundary(parent = body); public parameter source_scale: 1 / m ^ 2; representation space = continuum;\n",
+            "public component Coupled(
+  support body: volume(ambient_dimension = 1),
+  support left: boundary(parent = body),
+  support right: boundary(parent = body)
+) {
+  public parameter source_scale: 1 / m ^ 2;
+  \n",
         );
         for row in 0..count {
-            source += &format!("field f{row} on body as space: 1;\n");
+            source += &format!("variable f{row}: 1 on body;\n");
         }
         for row in 0..count {
             let coefficients = (0..count)

@@ -25,7 +25,10 @@ Relations carry a topologically ordered residual-expression DAG. References to
 current values, derivatives, `pre`, and `next` remain expression-level symbols
 rather than reintroducing a top-level continuous/discrete state tuple. Exact
 rational ClockDomain periods preserve multi-rate coincidence independently of
-floating-point realization.
+floating-point realization. Field role and activation declare evolution separately
+from spatial support. Initial Relations carry simultaneous fresh-initialization
+equations; they are neither Field literals nor solver guesses. Restart consumes
+accepted State/history rather than reapplying fresh initial equations.
 
 Spatial Relations use the same DAG with shape-aware `grad`, `div`, `trace`, and
 `normal` operators. Two physics-neutral tensor structure operators complete a
@@ -532,9 +535,9 @@ single current Model contract and accept no artifact-generation selector.
 Source callers use `compile`, client-neutral `ModelDraft` callers use `define`,
 and persisted current bytes use `replay`; all three converge before artifact
 acceptance.
-Canonical bytes expose the persisted `eqiora.model-envelope/v11` schema as an
+Canonical bytes expose the persisted `eqiora.model-envelope/v12` schema as an
 output fact; the suffix is not a selectable authoring profile. Historical
-Model v1--v7 bytes reject, and replay never sniffs, retries, or migrates them.
+Model bytes reject, and replay never sniffs, retries, or migrates them.
 The bounded value-edit and scalar-elliptic application workflows retain exact
 current artifact identity as a checked capability boundary. [RFC
 0083](../rfcs/0083-current-model-artifact-epoch.md) owns this pre-1.0 epoch
@@ -725,12 +728,12 @@ adjoints, checkpoint scheduling, and hybrid-event trajectory composition
 remain milestones under RFC 0011.
 
 Python is an L4 adapter over the public `eqiora` facade, not a parallel model
-implementation. Parsed source and frozen native `Field`, `Parameter`,
-`Relation`, scalar physical `PhysicalDomain` / `ConservingPort`, and anonymous
+implementation. Parsed source and frozen native role-bearing `Field`, `Parameter`,
+`Initial`, and `Relation`, scalar physical `PhysicalDomain` / `ConservingPort`, and anonymous
 N-ary `Connection` declarations converge before one typed compiler lowerer.
 The bounded spatial authoring surface adds runtime-dimensional draft-local
-Cartesian volume and boundary `Domain` identities, one continuum
-`Representation`, supported scalar Fields and Relations, and closed `grad` /
+Cartesian volume and boundary `Domain` identities, compiler-supplied continuum
+Representation, supported scalar Fields and Relations, and closed `grad` /
 `div` / `trace` expression forms. Registered source/Python equivalence and
 execution evidence is one-dimensional.
 Draft closure checks only exact handle membership; dimension, shape, frame,
@@ -1539,10 +1542,11 @@ define this bounded claim.
 Independent authoring routes may express the same accepted relation network
 while correctly producing different exact Model identities. For that narrower
 comparison purpose, `eqiora-artifact` projects the validated `KernelProgram`
-to a generation-tagged `StructuralSemanticFingerprint`. The projection removes
-Model and entity occurrence ULIDs, source presentation, package identity, and
+to a generation-tagged `StructuralSemanticFingerprint` (current generation V7).
+The projection removes Model and entity occurrence ULIDs, source presentation, package identity, and
 exact artifact identity while retaining distinct vertices, nominal references,
-current values, expression structure, semantic edges, physical connections,
+Parameter values, field roles and activation, initial equations, expression
+structure, semantic edges, physical connections,
 and Model boundary membership. Exact partition refinement plus bounded
 individualization selects one canonical labelling; unknown meaning or exhausted
 limits fail closed. Equal digests are confirmed against private canonical
@@ -1756,8 +1760,8 @@ typed actions. Result SVG and semantic-table projections have fixed budgets;
 owned result arrays do not become unbounded DOM state.
 
 Bridge v5 also retains the first canonical model-edit path without adding UI
-semantics. A finite coherent-SI scalar replacement for a `Field` or
-`Parameter` becomes the current `eqiora.model-transaction-envelope/v11`,
+semantics. A finite coherent-SI scalar replacement for a
+`Parameter` becomes the current `eqiora.model-transaction-envelope/v12`,
 containing both `RevisionIs` and typed `ValueEquals` preconditions. Preview
 exposes the transaction's domain-separated identity; exact-key commit
 reconstructs and atomically replays it through the same current owner,

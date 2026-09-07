@@ -202,6 +202,7 @@ impl InstanceDecl {
             && self.support_bindings.is_empty()
             && self.boundary_set_bindings.is_empty()
             && self.field_bindings.is_empty()
+            && self.clock_bindings.is_empty()
             && self.property_bindings.is_empty()
             && self.material_binding.is_none())
     }

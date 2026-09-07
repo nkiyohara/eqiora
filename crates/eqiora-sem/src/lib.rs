@@ -32,7 +32,8 @@ pub use conserving::{
     ScalarPhysicalSubsystemId,
 };
 pub use interpreter::{
-    ExecutionDirective, ExecutionObserver, ExecutionOutcome, ExecutionProgress, ReferenceConfig,
+    ExecutionDirective, ExecutionObserver, ExecutionOutcome, ExecutionProgress, InitialState,
+    ReferenceConfig,
 };
 pub use program::KernelProgram;
 

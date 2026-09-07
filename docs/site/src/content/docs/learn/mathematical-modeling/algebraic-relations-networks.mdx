@@ -57,8 +57,8 @@ Save this as `split.eqi`:
 ```eqiora
 model split {
   parameter supplied: 1 = 1;
-  field branch_a: 1 = 0;
-  field branch_b: 1 = 0;
+  variable branch_a: 1;
+  variable branch_b: 1;
 
   relation conservation {
     branch_a + branch_b - supplied = 0;

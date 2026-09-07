@@ -11,13 +11,13 @@ use eqiora_core::diagnostic::codes;
 fn snapshot_combines_recovery_formatting_symbols_and_semantic_diagnostics() {
     let source = r#"// authored note
 dimension Scalar = 1;
-component Source {
+component Source() {
   public parameter gain: Scalar;
   relation law { gain = 0; }
 }
 model Demo {
   parameter input: Scalar = 1;
-  field state: Scalar = 0;
+  variable state: Scalar;
   instance source: Source(gain = input);
   relation balance { state = 0; }
 }
@@ -76,7 +76,7 @@ model Demo {
     let invalid = EditorService::new(
         "invalid.eqi",
         1,
-        "model M { field x: m = 0; relation r { x + 1 = 0; } }",
+        "model M { variable x: m; relation r { x + 1 = 0; } }",
     );
     assert!(
         invalid
@@ -90,7 +90,7 @@ model Demo {
     let recovering = EditorService::new(
         "broken.eqi",
         1,
-        "model M { field retained: 1 = 0; nonsense; }",
+        "model M { variable retained: 1; nonsense; }",
     );
     assert!(!recovering.current().diagnostics().is_empty());
     assert!(recovering.current().formatted().is_none());
@@ -104,8 +104,8 @@ fn documentation_uses_exact_resolved_files_after_a_declaration_is_renamed() {
         let main = format!(
             "import docs.left as left;\nimport docs.right as right;\nmodel Main {{ instance a: left.{left_name}(); instance b: right.Part(); }}\n"
         );
-        let left = format!("// 🧪\n/// Left declaration.\npublic component {left_name} {{}}\n");
-        let right = "/// Right declaration.\npublic component Part {}\n";
+        let left = format!("// 🧪\n/// Left declaration.\npublic component {left_name}() {{}}\n");
+        let right = "/// Right declaration.\npublic component Part() {}\n";
         let input = ResolvedHierarchyInput::new(
             owner.clone(),
             vec![
@@ -146,7 +146,7 @@ fn documentation_uses_exact_resolved_files_after_a_declaration_is_renamed() {
 
 #[test]
 fn recovered_signature_symbols_keep_only_their_own_documentation() {
-    let source = "/// Component summary.\ncomponent C {\n/// Gain summary.\npublic parameter gain:1;\n/// Broken summary.\nfield ;\nfield retained:1=0;\n}\n";
+    let source = "/// Component summary.\ncomponent C() {\n/// Gain summary.\npublic parameter gain:1;\n/// Broken summary.\nfield ;\nvariable retained:1;\n}\n";
     let service = EditorService::new("docs.eqi", 1, source);
     let snapshot = service.current();
     assert!(!snapshot.diagnostics().is_empty());
@@ -236,8 +236,8 @@ fn workspace_uses_compiler_resolved_module_identities_and_locations() {
     let owner = CompilationNamespaceId::new(["editor_test"]).expect("namespace");
     let main = "// 🧪\nimport editor_test.library.parts as lib;\nmodel Main { instance load: lib.Resistor(); }\n";
     let library = r#"public connector Pin = scalar_physical(across = 1, through = A);
-public component Socket { public port terminal: conserving on Pin; }
-public component Resistor {}
+public component Socket() { public port terminal: conserving on Pin; }
+public component Resistor() {}
 "#;
     let input = ResolvedHierarchyInput::new(
         owner.clone(),
@@ -338,7 +338,7 @@ public component Resistor {}
     assert_eq!(
         &library[usize::try_from(resistor.range().start()).unwrap()
             ..usize::try_from(resistor.range().end()).unwrap()],
-        "public component Resistor {}"
+        "public component Resistor() {}"
     );
     assert!(
         document
@@ -359,7 +359,7 @@ public component Resistor {}
         .hover(reference.file(), reference_start + 4)
         .expect("reference hover");
     assert_eq!(hovered, resistor);
-    assert_eq!(detail, "public component Resistor {}");
+    assert_eq!(detail, "public component Resistor() {}");
     assert_eq!(
         workspace
             .definition_for_reference_at_position(reference.file(), EditorPosition::new(2, 32),)
@@ -370,7 +370,7 @@ public component Resistor {}
         .hover_at_position(reference.file(), EditorPosition::new(2, 32))
         .expect("UTF-16 reference hover");
     assert_eq!(position_hovered, resistor);
-    assert_eq!(position_detail, "public component Resistor {}");
+    assert_eq!(position_detail, "public component Resistor() {}");
     assert_eq!(
         workspace
             .definition_for_reference(reference.file(), reference_start + 4)
@@ -393,7 +393,7 @@ public component Resistor {}
         .hover(resistor.file(), definition_name + 2)
         .expect("definition hover");
     assert_eq!(hovered, resistor);
-    assert_eq!(detail, "public component Resistor {}");
+    assert_eq!(detail, "public component Resistor() {}");
     assert!(
         workspace
             .hover(resistor.file(), resistor.range().start())
@@ -420,7 +420,7 @@ public component Resistor {}
 fn invalid_workspace_retains_recovered_documents_and_diagnostics() {
     let owner = CompilationNamespaceId::new(["editor_recovery"]).expect("namespace");
     let main = "import editor_recovery.library.parts as lib;\nmodel Main { instance load: lib.Resistor(); }\n";
-    let broken = "public component Resistor { nonsense; }\n";
+    let broken = "public component Resistor() { nonsense; }\n";
     let input = ResolvedHierarchyInput::new(
         owner.clone(),
         vec![

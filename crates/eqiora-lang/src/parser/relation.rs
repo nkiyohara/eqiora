@@ -1,6 +1,8 @@
 //! Relation declaration and natural-equation parsing.
 
-use crate::ast::{ActivationSyntax, Equation, RelationDecl, RelationFamilyDecl, TextRange};
+use crate::ast::{
+    ActivationSyntax, Equation, InitialDecl, RelationDecl, RelationFamilyDecl, TextRange,
+};
 use crate::lexer::TokenKind;
 
 use super::Parser;
@@ -11,6 +13,27 @@ pub(super) enum ParsedRelation {
 }
 
 impl Parser<'_> {
+    pub(super) fn parse_initial(&mut self) -> Option<InitialDecl> {
+        let start = self.expect_keyword("initial")?.range().start();
+        self.expect(TokenKind::LeftBrace, "`{` before initialization equations")?;
+        let mut equations = Vec::new();
+        while !self.at(TokenKind::RightBrace) && !self.at(TokenKind::Eof) {
+            equations.push(self.parse_relation_statement()?);
+        }
+        if equations.is_empty() {
+            self.error_here("initial requires at least one equation");
+        }
+        let end = self
+            .expect(TokenKind::RightBrace, "`}` after initialization")?
+            .range()
+            .end();
+        Some(InitialDecl {
+            comments: Default::default(),
+            equations,
+            range: TextRange::new(start, end),
+        })
+    }
+
     pub(super) fn parse_relation(&mut self) -> Option<RelationDecl> {
         match self.parse_relation_inner(false)? {
             ParsedRelation::Ordinary(relation) => Some(relation),

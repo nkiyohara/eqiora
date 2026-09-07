@@ -18,11 +18,12 @@ public connector VelocityTractionBoundary = field_physical(
   pairing = euclidean_boundary_duality
 );
 
-public component NewtonianInterface2d {
-  public support body: volume(ambient_dimension = 2);
-  public support face: boundary(parent = body);
-  public field slot velocity on body as continuum: vector<m / s, 2>;
-  public field slot pressure on body as continuum: kg / (m * s ^ 2);
+public component NewtonianInterface2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+  variable velocity: vector<m / s, 2> on body,
+  variable pressure: kg / (m * s ^ 2) on body
+) {
   public parameter dynamic_viscosity: kg / (m * s);
   public port mechanical:
     conserving VelocityTractionBoundary over face;
@@ -36,11 +37,12 @@ public component NewtonianInterface2d {
   }
 }
 
-public component ElasticInterface2d {
-  public support body: volume(ambient_dimension = 2);
-  public support face: boundary(parent = body);
-  public field slot displacement on body as continuum: vector<m, 2>;
-  public field slot velocity on body as continuum: vector<m / s, 2>;
+public component ElasticInterface2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+  variable displacement: vector<m, 2> on body,
+  variable velocity: vector<m / s, 2> on body
+) {
   public parameter mu: kg / (m * s ^ 2);
   public parameter lambda: kg / (m * s ^ 2);
   public port mechanical:
@@ -66,15 +68,14 @@ model Main {
   domain solid_x_upper = boundary(solid, axis = 0, side = upper);
   domain solid_y_lower = boundary(solid, axis = 1, side = lower);
   domain solid_y_upper = boundary(solid, axis = 1, side = upper);
-  representation fluid_space = continuum;
-  representation solid_space = continuum;
 
-  field fluid_velocity on fluid as fluid_space: vector<m / s, 2>;
-  field pressure on fluid as fluid_space: kg / (m * s ^ 2) = 0;
-  field fluid_load on fluid as fluid_space: kg / (m * s ^ 2) = 0;
-  field displacement on solid as solid_space: vector<m, 2>;
-  field solid_velocity on solid as solid_space: vector<m / s, 2>;
-  field solid_load on solid as solid_space: kg / (m * s ^ 2) = 0;
+
+  state fluid_velocity: vector<m / s, 2> on fluid;
+  variable pressure: kg / (m * s ^ 2) on fluid;
+  variable fluid_load: kg / (m * s ^ 2) on fluid;
+  state displacement: vector<m, 2> on solid;
+  state solid_velocity: vector<m / s, 2> on solid;
+  variable solid_load: kg / (m * s ^ 2) on solid;
 
   parameter fluid_density: kg / m ^ 3 = 2;
   parameter viscosity: kg / (m * s) = 0.5;

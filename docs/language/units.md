@@ -50,11 +50,12 @@ The existing contextual-zero rule is unchanged.
 
 ## Prefixes and conversion
 
-A numeric Field initializer uses its explicitly declared dimension's coherent unit.
-For example, `field pressure: Pa = 2;` and `field pressure: Pa = 2[Pa];` give
-the same initial value. Use an explicit input unit for a conversion, such as
-`field pressure: Pa = 2[kPa];`, which gives 2000 Pa. Incompatible units reject.
-This declaration context does not apply to arbitrary expressions.
+A numeric Parameter default uses its explicitly declared dimension's coherent unit.
+For example, `parameter pressure: Pa = 2;` and
+`parameter pressure: Pa = 2[Pa];` give the same value. An explicit input unit such
+as `parameter pressure: Pa = 2[kPa];` gives 2000 Pa. Unknowns have no declaration
+initializer: use `state pressure: Pa; initial { pressure = 2[kPa]; }` for a
+mathematical initial condition. Its nonzero expression requires explicit units.
 
 The initial prefix set is closed:
 

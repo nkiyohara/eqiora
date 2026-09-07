@@ -1439,16 +1439,16 @@ mod tests {
     }
 
     const COMPONENT: &str = r#"
-component BoundaryState {
-  public support body: volume(ambient_dimension = 2);
-  public support interface: boundary(parent = body);
+component BoundaryState(support body: volume(ambient_dimension = 2), support interface: boundary(parent = body)) {
+
+
 }
 "#;
 
     const EXTERIOR_COMPONENT: &str = r#"
-component BoundaryFamily {
-  public support body: volume(ambient_dimension = 2);
-  public support exterior: complete_exterior(parent = body);
+component BoundaryFamily(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body)) {
+
+
 }
 "#;
 
@@ -1746,23 +1746,15 @@ model Use {{
 
     #[test]
     fn private_support_slots_are_rejected_at_the_definition_boundary() {
-        let document = parse(
-            r#"
-component HiddenSupport {
-  support body: volume(ambient_dimension = 2);
-}
-model Use {}
-"#,
+        let source = "component HiddenSupport() { support body: volume(ambient_dimension = 2); } model Use {}";
+        let diagnostics = eqiora_lang::parse("supports.eqi", source)
+            .into_document()
+            .expect_err("body support is not a signature requirement");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code() == codes::SYNTAX_ERROR)
         );
-        let diagnostics =
-            component_support_interface("supports.eqi", component(&document, "HiddenSupport"))
-                .expect_err("private support slots are uninhabitable in v1");
-
-        assert!(diagnostics.iter().any(|diagnostic| {
-            diagnostic
-                .message()
-                .contains("support slot `body` must be public")
-        }));
     }
 
     #[test]
@@ -1903,18 +1895,18 @@ model Use {{
     fn support_declaration_order_does_not_change_the_interface() {
         let body_first = parse(
             r#"
-component C {
-  public support body: volume(ambient_dimension = 2);
-  public support wall: boundary(parent = body);
+component C(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body)) {
+
+
 }
 model Use {}
 "#,
         );
         let boundary_first = parse(
             r#"
-component C {
-  public support wall: boundary(parent = body);
-  public support body: volume(ambient_dimension = 2);
+component C(support wall: boundary(parent = body), support body: volume(ambient_dimension = 2)) {
+
+
 }
 model Use {}
 "#,

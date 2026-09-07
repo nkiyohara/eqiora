@@ -42,6 +42,9 @@ impl WireModelOp {
             }),
             Op::SetValue { target, value } => {
                 require_semantic_id(*target, "SetValue target")?;
+                if target.kind() != EntityKind::Parameter {
+                    return Err(invalid_artifact("SetValue requires a Parameter"));
+                }
                 Ok(Self::SetValue {
                     target: WireId::from_raw(*target),
                     value: WireQuantity::encode(*value),
@@ -103,10 +106,16 @@ impl WireModelOp {
             Self::DefineKernelNode { node } => Ok(Op::DefineKernelNode {
                 node: node.decode()?,
             }),
-            Self::SetValue { target, value } => Ok(Op::SetValue {
-                target: target.decode_raw()?,
-                value: value.decode()?,
-            }),
+            Self::SetValue { target, value } => {
+                let target = target.decode_raw()?;
+                if target.kind() != EntityKind::Parameter {
+                    return Err(invalid_artifact("SetValue requires a Parameter"));
+                }
+                Ok(Op::SetValue {
+                    target,
+                    value: value.decode()?,
+                })
+            }
             Self::Connect { from, to, edge } => {
                 let from = from.decode_raw()?;
                 let to = to.decode_raw()?;

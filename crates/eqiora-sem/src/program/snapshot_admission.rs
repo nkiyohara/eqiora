@@ -84,6 +84,12 @@ impl KernelProgram {
                     Some(definition) => {
                         nodes.insert(member, definition.clone());
                         if let Some(value) = node.value() {
+                            if !matches!(
+                                definition,
+                                eqiora_schema::kernel::KernelNode::Parameter(_)
+                            ) {
+                                diagnostics.push(kernel_error(member, "only Parameter nodes own revision-local values; use initial Relations for Fields"));
+                            }
                             values.insert(member, value);
                         }
                     }

@@ -9,7 +9,7 @@ Python does not implement a second model semantics.
 ```python
 import eqiora
 
-x = eqiora.Field("x", initial=1.0)
+x = eqiora.Field("x", role=eqiora.FieldRole.State)
 rate = eqiora.Parameter(
     "rate",
     value=1.0,
@@ -19,23 +19,27 @@ flow = eqiora.Relation(
     "flow",
     residual=eqiora.derivative(x) + rate * x,
 )
-model = eqiora.Model.define("decay", x, rate, flow)
+model = eqiora.Model.define("decay", x, rate, eqiora.Initial(x - 1), flow)
 ```
 
 `Field.value_type` holds its mathematical scalar domain, physical dimension and
-component roles. Omitted types are dimensionless real scalars; omitted initial
-values remain absent. Supply an initial value explicitly when one is required.
+component roles. `FieldRole.Variable` declares an algebraic unknown;
+`FieldRole.State` declares evolution or history independently of support.
+Omitted types are dimensionless real scalars. `Initial` supplies simultaneous
+zero-valued residuals for fresh initialization; the Field stores no initial literal.
+Fresh scalar ODE and admitted index-one DAE initialization checks the initial and
+regular equations together. Missing state data, contradictory constraints, or an
+unsupported initialization profile reject; this is not a general high-index DAE
+solver. Restart uses an accepted State/history without reapplying these equations.
 
 ```python
 voltage = eqiora.ValueType.complex(eqiora.Dimension(mass=1, length=2, time=-3, current=-1))
 body = eqiora.Domain.box("body", (0.0, 1.0), (0.0, 1.0))
-space = eqiora.Representation.continuum("space")
 channels = eqiora.Field(
     "channels",
+    role=eqiora.FieldRole.Variable,
     domain=body,
-    representation=space,
     value_type=eqiora.ValueType.array(eqiora.ValueType.vector(voltage, 2), 3),
-    initial=0.0,
 )
 ```
 
@@ -47,18 +51,19 @@ must match the Field's exact Domain. Complex execution is still under developmen
 
 Dimensions accept exact rational exponents, for example
 `eqiora.Dimension(length=Fraction(-1, 2))` with `Fraction` imported from `fractions`.
-A scalar Field's numeric `initial=` value uses its declared dimension's coherent
-unit. A vector, tensor, or array Field can be initialized with `0.0`, which takes
-the complete declared type; a nonzero scalar is not broadcast across components.
+Initial equations follow expression typing: nonzero dimensioned constants need
+an explicit compatible quantity. A scalar is not broadcast into a vector, tensor,
+or array initial state. Distributed execution retains its admitted explicit
+initial-data owner; a declaration alone does not establish executable initialization.
 
 The same `value_type=` objects apply to `Parameter`,
 `eqiora.lang.Component.field`, and `eqiora.lang.Component.parameter`.
 `ValueType.to_eqi()` emits the canonical type through the Rust formatter.
 
-A numeric declaration initializer uses the declared dimension's coherent unit.
+A numeric Parameter default uses the declared dimension's coherent unit.
 For example, `parameter rate: 1 / s = 1;` gives the same value as
 `parameter rate: 1 / s = 1[1 / s];`. Explicit input units still express compatible
-conversions. This context applies only to numeric declaration initializers;
+conversions. This context applies only to numeric Parameter defaults;
 nonzero literals in general expressions do not silently acquire units.
 
 A relation receives an explicit zero-valued residual. Symbolic equality and
@@ -78,7 +83,7 @@ from eqiora.lang import units as u
 source = q.Source()
 component = source.component("Diffusion")
 body = component.volume("body", dimensions=2)
-value = component.field("value", on=body, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
+value = component.field("value", on=body, role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
 length = component.parameter("length", value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
 wave_number = q.math.pi / length
 component.relation(
@@ -135,7 +140,7 @@ release = source.scalar_property_release(
 law = source.component("DiffusionLaw")
 law_body = law.volume("body", dimensions=2)
 diffusivity = law.property("diffusivity", contract=contract)
-value = law.field("value", on=law_body, value_type=eqiora.ValueType.real(), initial=0)
+value = law.field("value", on=law_body, role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
 law.relation(
     "balance",
     on=law_body,
@@ -775,7 +780,7 @@ interchangeable.
 
 ## Spatial declarations
 
-Domain, boundary, Representation, Field support, and Relation support are
+Domain, boundary, Field support, and Relation support are
 exact frozen handles. Python does not infer support from names or reproduce
 the Semantic Kernel's dimensional and spatial checks.
 
@@ -791,11 +796,10 @@ upper = interval.boundary(
     axis=0,
     side=eqiora.BoundarySide.Upper,
 )
-space = eqiora.Representation.continuum("scalar_space")
 potential = eqiora.Field(
     "potential",
+    role=eqiora.FieldRole.Variable,
     domain=interval,
-    representation=space,
 )
 source = eqiora.Parameter(
     "source",
@@ -807,7 +811,6 @@ model = eqiora.Model.define(
     interval,
     lower,
     upper,
-    space,
     potential,
     source,
     eqiora.Relation(
@@ -904,7 +907,7 @@ assert same.revision == child.revision
 ```
 
 The canonical bytes still expose the persisted
-`eqiora.model-envelope/v11` schema, but callers do not select that suffix.
+`eqiora.model-envelope/v12` schema, but callers do not select that suffix.
 `.eqi` remains source text; `.eqmodel` is the canonical compiled Model artifact.
 Only the current schema is accepted; decoding never sniffs, retries, or silently
 migrates an older artifact.
@@ -917,7 +920,8 @@ comparison:
 source_model = eqiora.compile(
     source="""
     model decay {
-      field x: 1 = 1;
+      state x: 1;
+      initial { x = 1; }
       parameter rate: 1 / s = 1;
       relation flow {
         derivative(x) + rate * x = 0;
@@ -925,7 +929,7 @@ source_model = eqiora.compile(
     }
     """
 )
-x = eqiora.Field("x", initial=1.0)
+x = eqiora.Field("x", role=eqiora.FieldRole.State)
 rate = eqiora.Parameter(
     "rate",
     value=1.0,
@@ -935,6 +939,7 @@ native_model = eqiora.Model.define(
     "decay",
     x,
     rate,
+    eqiora.Initial(x - 1),
     eqiora.Relation(
         "flow",
         residual=eqiora.derivative(x) + rate * x,

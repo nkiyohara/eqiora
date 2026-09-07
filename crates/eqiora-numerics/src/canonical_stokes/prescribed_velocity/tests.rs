@@ -55,12 +55,11 @@ model stokes_e1_prescribed_velocity {
   domain outer_x_plus = boundary(fluid, axis = 0, side = upper);
   domain outer_y_minus = boundary(fluid, axis = 1, side = lower);
   domain outer_y_plus = boundary(fluid, axis = 1, side = upper);
-  representation space = continuum;
 
-  field velocity on fluid as space: vector<m / s, 2>;
-  field pressure on fluid as space: kg / (m * s ^ 2) = 0;
-  field force_potential on fluid as space: kg / (m * s ^ 2) = 0;
-  field chi on fluid as space: m ^ 2 / s = 0;
+  variable velocity: vector<m / s, 2> on fluid;
+  variable pressure: kg / (m * s ^ 2) on fluid;
+  variable force_potential: kg / (m * s ^ 2) on fluid;
+  variable chi: m ^ 2 / s on fluid;
   parameter mu: kg / (m * s) = 1;
   parameter U: m / s = 1;
   parameter zero_pressure: kg / (m * s ^ 2) = 0;
@@ -459,8 +458,8 @@ fn finalize_profile_with_transport(
 fn normal_only_incomplete_and_equal_value_identity_mutants_fail_closed() {
     let normal_source = SOURCE
         .replace(
-            "  field chi on fluid as space: m ^ 2 / s = 0;",
-            "  field chi on fluid as space: m ^ 2 / s = 0;\n  field normal_speed on fluid as space: m / s = 0;",
+            "  variable chi: m ^ 2 / s on fluid;",
+            "  variable chi: m ^ 2 / s on fluid;\n  variable normal_speed: m / s on fluid;",
         )
         .replace(
             "  relation define_chi on fluid { chi - U * coordinate(0) = 0; }",
@@ -483,8 +482,8 @@ fn normal_only_incomplete_and_equal_value_identity_mutants_fail_closed() {
 
     let drift_source = SOURCE
         .replace(
-            "  field chi on fluid as space: m ^ 2 / s = 0;",
-            "  field chi on fluid as space: m ^ 2 / s = 0;\n  field chi_alt on fluid as space: m ^ 2 / s = 0;",
+            "  variable chi: m ^ 2 / s on fluid;",
+            "  variable chi: m ^ 2 / s on fluid;\n  variable chi_alt: m ^ 2 / s on fluid;",
         )
         .replace(
             "  parameter U: m / s = 1;",

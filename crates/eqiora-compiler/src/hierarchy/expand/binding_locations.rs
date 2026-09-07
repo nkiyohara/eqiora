@@ -26,6 +26,12 @@ pub(super) fn instance_binding_locations(
                 .iter()
                 .map(|binding| binding.range()),
         )
+        .chain(
+            instance
+                .clock_bindings()
+                .iter()
+                .map(|binding| binding.range()),
+        )
         .collect::<Vec<_>>();
     ranges.sort_by_key(|range| (range.start(), range.end()));
     ranges
@@ -48,6 +54,12 @@ pub(super) fn field_forwarding_locations(
         .chain(
             instance
                 .field_bindings()
+                .iter()
+                .map(|binding| binding.range()),
+        )
+        .chain(
+            instance
+                .clock_bindings()
                 .iter()
                 .map(|binding| binding.range()),
         )

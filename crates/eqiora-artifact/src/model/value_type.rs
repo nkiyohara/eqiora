@@ -85,29 +85,23 @@ mod tests {
     use eqiora_schema::kernel::{FieldDef, KernelNode};
 
     #[test]
-    fn field_initial_wire_rejects_noncanonical_and_invalid_literals() {
-        let value_type = ValueType::scalar(
-            ScalarDomain::Complex,
-            eqiora_core::DimExponents::DIMENSIONLESS,
-        )
-        .array(2)
-        .unwrap();
-        let node = eqiora_schema::kernel::KernelNode::from(
-            eqiora_schema::kernel::FieldDef::new(eqiora_core::Id::new(), value_type.clone())
-                .with_initial(eqiora_core::ValueLiteral::new(value_type, 0.0).unwrap())
-                .unwrap(),
-        );
-        assert_eq!(WireNode::encode(&node).unwrap().decode().unwrap(), node);
-        for invalid in [-0.0, 1.0, f64::INFINITY, f64::NAN] {
-            let mut wire = WireNode::encode(&node).unwrap();
-            let crate::model::WireNodeDefinition::Field { initial, .. } = &mut wire.definition
-            else {
-                panic!("Field");
-            };
-            *initial = Some(invalid);
-            assert!(wire.decode().is_err());
+    fn field_wire_preserves_role_and_rejects_displaced_initial_payload() {
+        let value_type = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+            .array(2)
+            .unwrap();
+        for role in [
+            eqiora_schema::kernel::FieldRole::Variable,
+            eqiora_schema::kernel::FieldRole::State,
+        ] {
+            let node = KernelNode::from(FieldDef::new(Id::new(), value_type.clone(), role));
+            let wire = WireNode::encode(&node).unwrap();
+            assert_eq!(wire.decode().unwrap(), node);
+            let mut json = serde_json::to_value(&wire).unwrap();
+            json["definition"]["initial"] = serde_json::json!(0.0);
+            assert!(serde_json::from_value::<WireNode>(json).is_err());
         }
     }
+
     #[test]
     fn scalar_physical_wire_retains_domains_and_rejects_channel_substitution() {
         use crate::model::{WireNodeDefinition, node::WireDomainKind};
@@ -274,35 +268,22 @@ mod tests {
     }
 
     #[test]
-    fn field_and_parameter_wire_reject_noncanonical_or_invalid_literals() {
+    fn parameter_wire_rejects_noncanonical_or_invalid_literals() {
         let value_type = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
             .array(2)
             .unwrap();
-        for node in [
-            KernelNode::from(
-                eqiora_schema::kernel::ParameterDef::new(Id::new(), value_type.clone(), 0.0)
-                    .unwrap(),
-            ),
-            KernelNode::from(
-                FieldDef::new(Id::new(), value_type.clone())
-                    .with_initial(eqiora_core::ValueLiteral::new(value_type, 0.0).unwrap())
-                    .unwrap(),
-            ),
-        ] {
-            assert_eq!(WireNode::encode(&node).unwrap().decode().unwrap(), node);
-            for invalid in [-0.0, 1.0, f64::INFINITY, f64::NAN] {
-                let mut wire = WireNode::encode(&node).unwrap();
-                match &mut wire.definition {
-                    crate::model::WireNodeDefinition::Parameter { literal, .. } => {
-                        *literal = invalid
-                    }
-                    crate::model::WireNodeDefinition::Field { initial, .. } => {
-                        *initial = Some(invalid)
-                    }
-                    _ => unreachable!("Field or Parameter"),
-                }
-                assert!(wire.decode().is_err());
-            }
+        let node = KernelNode::from(
+            eqiora_schema::kernel::ParameterDef::new(Id::new(), value_type, 0.0).unwrap(),
+        );
+        assert_eq!(WireNode::encode(&node).unwrap().decode().unwrap(), node);
+        for invalid in [-0.0, 1.0, f64::INFINITY, f64::NAN] {
+            let mut wire = WireNode::encode(&node).unwrap();
+            let crate::model::WireNodeDefinition::Parameter { literal, .. } = &mut wire.definition
+            else {
+                unreachable!()
+            };
+            *literal = invalid;
+            assert!(wire.decode().is_err());
         }
     }
 
@@ -359,7 +340,11 @@ mod tests {
             vector.array(2).unwrap(),
             tensor,
         ] {
-            let node = KernelNode::from(FieldDef::new(id, value));
+            let node = KernelNode::from(FieldDef::new(
+                id,
+                value,
+                eqiora_schema::kernel::FieldRole::Variable,
+            ));
             let bytes = serde_json::to_vec(&WireNode::encode(&node).unwrap()).unwrap();
             assert!(encodings.insert(bytes.clone()));
             let replayed: WireNode = serde_json::from_slice(&bytes).unwrap();

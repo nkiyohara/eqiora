@@ -57,13 +57,12 @@ const ROOT_PACKAGE: &str = "org.eqiora.verify.packaged_isotropic_balance_2d";
 const VERSION: &str = "0.1.0";
 const COMPONENTS: usize = 2;
 
-const PACKAGED_TO_EXPLICIT: [(&str, &str); 18] = [
+const PACKAGED_TO_EXPLICIT: [(&str, &str); 17] = [
     ("body", "body"),
     ("x_lower", "x_lower"),
     ("x_upper", "x_upper"),
     ("y_lower", "y_lower"),
     ("y_upper", "y_upper"),
-    ("space", "space"),
     ("displacement", "displacement"),
     ("load_potential", "load_potential"),
     ("mu", "mu"),
@@ -251,7 +250,7 @@ fn assert_component_boundary() {
         component
             .items()
             .iter()
-            .filter(|item| matches!(item, ComponentItem::FieldSlot(_)))
+            .filter(|item| matches!(item, ComponentItem::FieldRequirement(_)))
             .count(),
         2
     );
@@ -312,13 +311,6 @@ fn assert_root_boundary() {
             })
             .count(),
         4
-    );
-    assert_eq!(
-        items
-            .iter()
-            .filter(|item| matches!(item, Item::Representation(_)))
-            .count(),
-        1
     );
     assert_eq!(
         items
@@ -444,7 +436,12 @@ fn erase_relation_implementation(model: &mut serde_json::Value) {
 
 fn assert_identity_normalized_flat_structure(packaged: &ModelDocument, explicit: &ModelDocument) {
     assert_eq!(packaged.aliases().len(), PACKAGED_TO_EXPLICIT.len() + 2);
-    assert_eq!(explicit.aliases().len(), PACKAGED_TO_EXPLICIT.len());
+    assert_eq!(
+        explicit.aliases().len(),
+        PACKAGED_TO_EXPLICIT.len(),
+        "{:?}",
+        explicit.aliases()
+    );
     for eliminated in [
         "balance_law.body",
         "balance_law.displacement",
@@ -482,6 +479,18 @@ fn assert_identity_normalized_flat_structure(packaged: &ModelDocument, explicit:
         packaged.program().model().ulid().to_string(),
         explicit.program().model().ulid().to_string(),
     )]);
+    // One common spatial support synthesizes one continuum owner with no source alias.
+    let continuum = |model: &serde_json::Value| {
+        let nodes = model["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|node| node["definition"]["kind"] == "representation")
+            .collect::<Vec<_>>();
+        assert_eq!(nodes.len(), 1);
+        id_ulid(&nodes[0]["id"])
+    };
+    identities.insert(continuum(&packaged_value), continuum(&explicit_value));
     for (packaged_name, explicit_name) in PACKAGED_TO_EXPLICIT {
         let packaged_id = packaged
             .aliases()

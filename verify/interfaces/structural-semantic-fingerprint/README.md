@@ -2,10 +2,10 @@
 
 This case verifies one versioned, non-authoritative identity for comparing
 accepted Semantic Models built through independent authoring routes. The
-generation-v4 projection removes occurrence ULIDs and source presentation but
+generation-v7 projection removes occurrence ULIDs and source presentation but
 retains the complete admitted kernel graph, nominal identity relationships,
-current values, expression structure, physical connections, and Model boundary
-membership. Geometry-region digests, entity-set names, geometry-boundary names,
+Parameter values, field roles and activation, initial equations, expression
+structure, physical connections, and Model boundary membership. Geometry-region digests, entity-set names, geometry-boundary names,
 and Cartesian coordinate source kinds are retained; nominal dependencies and
 topology remain in the graph edges.
 

@@ -209,7 +209,9 @@ pub fn lower_scalar_transport_cartesian_2d(
             ),
         ));
     }
-    let volume_relations = relations_on(program, domain);
+    let volume_relations = relations_on(program, domain).into_iter().filter(|id| {
+        matches!(program.node(*id), Some(KernelNode::Relation(relation)) if !relation.is_initial())
+    }).collect::<Vec<_>>();
     if volume_relations.len() != 2 {
         return Err(lowering_error(
             domain,

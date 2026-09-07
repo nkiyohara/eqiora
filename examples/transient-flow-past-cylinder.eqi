@@ -1,23 +1,24 @@
 public pure operator outer_product(left: spatial[1], right: spatial[1]) -> spatial[2]
   = component(left, 0) * component(right, 1);
 
-public component TransientFlowPastCylinder {
-  public support fluid: volume(ambient_dimension = 2);
-  public support inlet: boundary(parent = fluid);
-  public support outlet: boundary(parent = fluid);
-  public support walls: boundary(parent = fluid);
-  public support cylinder: boundary(parent = fluid);
+public component TransientFlowPastCylinder(
+  support fluid: volume(ambient_dimension = 2),
+  support inlet: boundary(parent = fluid),
+  support outlet: boundary(parent = fluid),
+  support walls: boundary(parent = fluid),
+  support cylinder: boundary(parent = fluid)
+) {
+
   public parameter density: kg / m ^ 3;
   public parameter dynamic_viscosity: kg / (m * s);
   public parameter zero_pressure: kg / (m * s ^ 2);
   public parameter inlet_speed: m / s;
   public parameter channel_height: m;
-  representation space = continuum;
 
-  field velocity on fluid as space: vector<m / s, 2>;
-  field pressure on fluid as space: kg / (m * s ^ 2) = 0;
-  field force_potential on fluid as space: kg / (m * s ^ 2) = 0;
-  field inlet_profile on fluid as space: m / s = 0;
+  state velocity: vector<m / s, 2> on fluid;
+  variable pressure: kg / (m * s ^ 2) on fluid;
+  variable force_potential: kg / (m * s ^ 2) on fluid;
+  variable inlet_profile: m / s on fluid;
 
   relation force_definition on fluid {
     force_potential - zero_pressure = 0;

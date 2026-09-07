@@ -64,7 +64,8 @@ and its dimension are separate facts.
 
 ```eqiora
 model decay {
-  field x: 1 = 1;
+  state x: 1;
+  initial { x = 1; }
   parameter rate: 1 / s = 1;
 
   relation flow {
@@ -99,7 +100,8 @@ Change only the parameter declaration:
 
 ```eqiora
 model invalid_decay {
-  field x: 1 = 1;
+  state x: 1;
+  initial { x = 1; }
   parameter rate: 1 = 1;
 
   relation flow {
@@ -131,7 +133,8 @@ this chapter only establishes the dimensional bookkeeping it needs.
 
 1. If $x$ has length dimension instead of being dimensionless, derive the
    dimensions of `derivative(x)`, `rate`, and `rate * x`.
-2. Predict whether changing `field x: 1 = 1` to `field x: m = 1` while keeping
+2. Predict whether changing `state x: 1; initial { x = 1; }` to
+   `state x: m; initial { x = 1[m]; }` while keeping
    `rate: 1 / s` preserves consistency. Explain before checking the source.
 3. Create the deliberate failure above, run `eqiora check`, and identify the
    two terms whose dimensions disagree. Restore the inverse-time declaration

@@ -347,8 +347,8 @@ mod tests {
   domain y_upper = boundary(body, axis = 1, side = upper);
   domain z_lower = boundary(body, axis = 2, side = lower);
   domain z_upper = boundary(body, axis = 2, side = upper);
-  representation geometry_space = continuum;
-  field marker on body as geometry_space: 1 = 0;
+  variable marker: 1 on body;
+  initial { marker = 0; }
   relation selected_boundary on x_upper { trace(marker) = 0; }
 }"#;
 

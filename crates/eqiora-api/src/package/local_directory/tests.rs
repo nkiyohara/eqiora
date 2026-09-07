@@ -186,7 +186,7 @@ fn local_project_editor_analysis_is_read_only_and_accepts_source_overrides() {
 
     let library_sources = author_sources(
         "org.example.EditorLibrary",
-        "public component Resistor {}",
+        "public component Resistor() {}",
         vec![],
     );
     let library_release =
@@ -235,7 +235,7 @@ fn local_project_editor_analysis_is_read_only_and_accepts_source_overrides() {
 #[test]
 fn path_loaded_and_in_memory_source_have_identical_declaration_documentation() {
     let fixture = TestDirectory::create("documentation");
-    let source = "// 🧪\r\n/// Model explanation.\r\nmodel Main {\r\n/// State explanation.\r\nfield x:1=0; relation balance { x=0; }\r\n}\r\n";
+    let source = "// 🧪\r\n/// Model explanation.\r\nmodel Main {\r\n/// State explanation.\r\nvariable x:1; relation balance { x=0; }\r\n}\r\n";
     let sources = author_sources("org.example.Documentation", source, vec![]);
     write_package(&fixture.0, "src", &sources, &[]);
     let (workspace, paths) =
@@ -491,7 +491,11 @@ fn proposed_dependency_changes_are_validated_without_publishing() {
         "model Main { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
         vec![],
     );
-    let library = author_sources("org.example.Library", "public component Shared {}", vec![]);
+    let library = author_sources(
+        "org.example.Library",
+        "public component Shared() {}",
+        vec![],
+    );
     write_package(&fixture.0, "src", &root, &[]);
     write_package(&library_path, "src", &library, &[]);
     let accepted =

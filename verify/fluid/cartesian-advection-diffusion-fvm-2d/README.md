@@ -13,7 +13,7 @@ diffusivity, and boundary Relations. It does not own a mesh, face donor,
 quadrature rule, time integrator, or solver. Boundary names are descriptive
 only: the numerical role is derived from the parent-outward sign of
 `grad(flow_potential)` and the exact trace or diffusive-flux Relation.
-The execution starts from the exact canonical Field initial value; there is no
+The execution starts from the exact Model initial equation for the scalar state; there is no
 fixture or caller callback that can replace it.
 
 - Direct flow: [`models/direct.eqi`](models/direct.eqi)

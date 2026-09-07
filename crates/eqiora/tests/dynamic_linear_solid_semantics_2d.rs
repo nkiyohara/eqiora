@@ -348,20 +348,19 @@ fn kinematic_inertia_stress_density_and_closure_near_misses_fail_closed() {
     );
     assert_lowering_rejects(&negative_bulk_2d, "lambda + 2 mu / D > 0");
 
-    let distinct_representation = DIRECT
-        .replace(
-            "representation space = continuum;",
-            "representation space = continuum;\n  representation load_space = continuum;",
-        )
-        .replace(
-            "field load_potential on body as space:",
-            "field load_potential on body as load_space:",
-        );
-    assert_lowering_rejects(&distinct_representation, "same continuum Representation");
+    let retired_representation = DIRECT.replace(
+        "model Main {",
+        "model Main { representation separate = continuum;",
+    );
+    assert!(
+        eqiora::language::parse("retired.eqi", &retired_representation)
+            .into_document()
+            .is_err()
+    );
 
     let scalar_velocity = DIRECT.replace(
-        "field velocity on body as space: vector<m / s, 2>;",
-        "field velocity on body as space: m / s = 0;",
+        "state velocity: vector<m / s, 2> on body;",
+        "state velocity: m / s on body;",
     );
     assert_typed_source_rejects(&scalar_velocity, "shape");
 
@@ -742,9 +741,10 @@ fn alias_and_permute_boundaries_and_connections(source: &str) -> String {
 
 fn transparent_open_terminal_source(source: &str) -> String {
     let terminal = r#"
-public component CompatibleOpenVelocityTerminal2d {
-  public support body: volume(ambient_dimension = 2);
-  public support face: boundary(parent = body);
+public component CompatibleOpenVelocityTerminal2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+) {
   public port mechanical:
     conserving mechanics.VelocityTractionBoundary over face;
 

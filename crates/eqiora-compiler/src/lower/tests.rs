@@ -24,9 +24,9 @@ fn source_signal_types_round_trip_and_reject_narrowing_or_shape_changes() {
             ),
             format!(
                 "dimension Length = m;
-                component Sender {{ public port out: signal output {output};
+                component Sender() {{ public port out: signal output {output};
                     relation r {{ out - out = 0; }} }}
-                component Receiver {{ public port sink: signal input {input};
+                component Receiver() {{ public port sink: signal input {input};
                     relation r {{ sink - sink = 0; }} }}
                 model M {{ instance a: Sender(); instance b: Receiver();
                     connect signal a.out -> b.sink; }}"
@@ -138,7 +138,7 @@ fn typed_literal_lowering_preserves_type_through_detachment_and_zero_negation() 
 fn signed_parameter_quantities_preserve_the_declared_dimension() {
     compile(
         "signed.eqi",
-        "component C {
+        "component C() {
         public parameter length: m = -2[m];
         relation r { length + 1[m] = 0; }
     } model M { instance c: C(); }",
@@ -154,7 +154,7 @@ fn component_parameters_preserve_complex_and_array_literals() {
         "array<array<m, 2>, 3>",
     ] {
         let source = format!(
-            "component C {{
+            "component C() {{
             public parameter x: {syntax} = 0;
             relation r {{ x - x = 0; }}
         }} model M {{ instance c: C(); }}"
@@ -183,7 +183,7 @@ fn component_parameters_preserve_complex_and_array_literals() {
 fn component_real_to_complex_binding_keeps_the_real_parameter_identity() {
     let compiled = compile(
         "embedding.eqi",
-        "component C {
+        "component C() {
         public parameter z: complex<m>;
         relation r { z - z = 0; }
     } model M { parameter p: m = 2[m]; instance c: C(z = p); }",
@@ -227,7 +227,7 @@ fn component_real_to_complex_binding_keeps_the_real_parameter_identity() {
 fn component_array_embedding_and_complex_narrowing_follow_declared_types() {
     compile(
         "array-embedding.eqi",
-        "component C {
+        "component C() {
         public parameter x: array<complex<m>, 3>;
         relation r { x - x = 0; }
     } model M { parameter p: array<m, 3> = 0; instance c: C(x = p); }",
@@ -235,10 +235,10 @@ fn component_array_embedding_and_complex_narrowing_follow_declared_types() {
     .unwrap();
     let errors = compile(
         "narrowing.eqi",
-        "component Sink {
+        "component Sink() {
         public parameter x: m;
         relation r { x - x = 0; }
-    } component C {
+    } component C() {
         public parameter x: complex<m>;
         instance sink: Sink(x = x);
     } model M { instance c: C(x = 0); }",
@@ -257,7 +257,7 @@ fn component_array_embedding_and_complex_narrowing_follow_declared_types() {
 fn component_array_binding_rejects_extent_mismatch() {
     let errors = compile(
         "array-binding.eqi",
-        "component C {
+        "component C() {
         public parameter x: array<complex<m>, 2>;
         relation r { x - x = 0; }
     } model M { parameter p: array<m, 3> = 0; instance c: C(x = p); }",
@@ -350,7 +350,7 @@ fn source_parameter_aliases_do_not_erase_complex_or_array_types() {
         let errors = compile(
             "typed.eqi",
             &format!(
-                "component C {{ public parameter x: m; }} model M {{
+                "component C() {{ public parameter x: m; }} model M {{
                 parameter p: {syntax} = 0;
                 let alias = p;
                 instance c: C(x = alias);
@@ -412,7 +412,7 @@ fn entity_symbols_are_ordered_and_exact() {
 
 #[test]
 fn executable_compile_still_requires_a_model_entry() {
-    let source = "public component Resistor {} public connector Pin = scalar_physical(across = 1, through = A);";
+    let source = "public component Resistor() {} public connector Pin = scalar_physical(across = 1, through = A);";
     let diagnostics = compile("library.eqi", source)
         .expect_err("a declarations-only library is not an executable model");
 
@@ -554,7 +554,7 @@ model assigned {
 fn compiler_rejects_dimensionally_invalid_residual_at_source_span() {
     let source = r#"
 model invalid {
-  field temperature: K = 293[K];
+  variable temperature: K; initial { temperature = 293[K]; }
   parameter tau: s = 10[s];
   relation bad {
     temperature + tau = 0;
@@ -573,7 +573,8 @@ model invalid {
 
 #[test]
 fn compiler_rejects_unresolved_periodic_clock() {
-    let source = "model m { field x: 1 = 0; relation r at missing { next(x) = 0; } }";
+    let source =
+        "model m { state x: 1; initial { x = 0; } relation r at missing { next(x) = 0; } }";
     let diagnostics = compile("missing.eqi", source).expect_err("clock is unresolved");
 
     assert!(
@@ -585,14 +586,14 @@ fn compiler_rejects_unresolved_periodic_clock() {
 
 #[test]
 fn compiler_rejects_discrete_symbols_in_continuous_relations() {
-    let source = "model m { field x: 1 = 0; relation r { next(x) = 0; } }";
+    let source = "model m { state x: 1; initial { x = 0; } relation r { next(x) = 0; } }";
     let diagnostics = compile("activation.eqi", source).expect_err("Next needs a tick");
 
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message().contains("continuous Relation"))
-    );
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message()
+            .contains("eligible declared state at the exact clock")
+    }));
 }
 
 #[test]
@@ -601,8 +602,7 @@ fn compiler_rejects_spatial_boundary_unit_mismatch() {
 model bar {
   domain body = box(0, 1);
   domain loaded = boundary(body, axis = 0, side = upper);
-  representation space = continuum;
-  field u on body as space: m = 0;
+  variable u: m on body; initial { u = 0; }
   parameter stiffness: kg * m / s ^ 2 = 10[kg * m / s ^ 2];
   parameter wrong_load: m = 1[m];
   relation load on loaded {
@@ -623,8 +623,7 @@ fn compiler_requires_dimensionless_trigonometric_arguments() {
     let source = r#"
 model invalid {
   domain interval = box(0, 1);
-  representation space = continuum;
-  field u on interval as space: 1 = 0;
+  variable u: 1 on interval; initial { u = 0; }
   relation balance on interval {
     -div(grad(u)) - math.sin(coordinate(0)) = 0;
   }
@@ -645,8 +644,7 @@ fn compiler_owns_the_scalar_mathematics_namespace() {
     let valid = r#"
 model valid {
   domain interval = box(0, 1);
-  representation space = continuum;
-  field u on interval as space: 1 = 0;
+  variable u: 1 on interval; initial { u = 0; }
   relation balance on interval {
     u - math.sin(math.pi) = 0;
   }
@@ -660,7 +658,7 @@ model valid {
         .find_map(|operation| match operation {
             Op::DefineKernelNode {
                 node: KernelNode::Relation(relation),
-            } => Some(relation),
+            } if !relation.is_initial() => Some(relation),
             _ => None,
         })
         .expect("canonical Relation");
@@ -676,15 +674,15 @@ model valid {
 
     for (source, expected) in [
         (
-            "model invalid { domain d = box(0, 1); representation r = continuum; field u on d as r: 1 = 0; relation law on d { u - sin(0) = 0; } }",
+            "model invalid { domain d = box(0, 1); variable u: 1 on d; initial { u = 0; } relation law on d { u - sin(0) = 0; } }",
             "bare `sin` is not language vocabulary",
         ),
         (
-            "model invalid { domain d = box(0, 1); representation r = continuum; field u on d as r: 1 = 0; relation law on d { u - math.cos(0) = 0; } }",
+            "model invalid { domain d = box(0, 1); variable u: 1 on d; initial { u = 0; } relation law on d { u - math.cos(0) = 0; } }",
             "unknown compiler-owned scalar mathematics member `math.cos`",
         ),
         (
-            "model invalid { domain d = box(0, 1); representation r = continuum; field u on d as r: 1 = 0; relation law on d { u - math.tau = 0; } }",
+            "model invalid { domain d = box(0, 1); variable u: 1 on d; initial { u = 0; } relation law on d { u - math.tau = 0; } }",
             "unknown compiler-owned scalar mathematics member `math.tau`",
         ),
         (
@@ -715,8 +713,7 @@ fn compiler_lowers_canonical_tensor_structure_without_a_physics_node() {
     let source = r#"
 model elastic_relation {
   domain body = box(0, 1, 0, 1);
-  representation space = continuum;
-  field displacement on body as space: vector<m, 2>;
+  variable displacement: vector<m, 2> on body;
   parameter mu: kg / (m * s ^ 2) = 2[kg / (m * s ^ 2)];
   parameter lambda: kg / (m * s ^ 2) = 3[kg / (m * s ^ 2)];
   relation balance on body {
@@ -735,7 +732,7 @@ model elastic_relation {
         .find_map(|operation| match operation {
             Op::DefineKernelNode {
                 node: KernelNode::Relation(relation),
-            } => Some(relation),
+            } if !relation.is_initial() => Some(relation),
             _ => None,
         })
         .expect("canonical Relation");
@@ -760,8 +757,7 @@ fn flat_semantic_typing_distinguishes_scalar_gradients_from_vector_strain() {
     let scalar = r#"
 model scalar_poisson {
   domain body = box(0, 1, 0, 1);
-  representation space = continuum;
-  field potential on body as space: 1;
+  variable potential: 1 on body;
   relation balance on body { -div(grad(potential)) = 0; }
 }
 "#;
@@ -785,9 +781,8 @@ fn source_pure_operators_admit_complex_fields_without_real_narrowing() {
         = component(left, 0) * component(right, 1);
     model M {
         domain body = box(0, 1, 0, 1);
-        representation space = continuum;
-        field left on body as space: vector<complex<1>, 2>;
-        field right on body as space: vector<1, 2>;
+        variable left: vector<complex<1>, 2> on body;
+        variable right: vector<1, 2> on body;
         relation r on body { div(div(dyadic(left, right))) = 0; }
     }";
     compile("complex-operator.eqi", source).unwrap();
@@ -801,9 +796,8 @@ public pure operator dyadic(left: spatial[1], right: spatial[1]) -> spatial[2]
 
 model generic_operator {
   domain body = box(0, 1, 0, 1);
-  representation space = continuum;
-  field left on body as space: vector<1, 2>;
-  field right on body as space: vector<1, 2>;
+  variable left: vector<1, 2> on body;
+  variable right: vector<1, 2> on body;
   relation balance on body {
     div(div(dyadic(left, right))) = 0;
   }
@@ -817,7 +811,7 @@ model generic_operator {
         .find_map(|operation| match operation {
             Op::DefineKernelNode {
                 node: KernelNode::Relation(relation),
-            } => Some(relation),
+            } if !relation.is_initial() => Some(relation),
             _ => None,
         })
         .expect("canonical Relation");
@@ -857,9 +851,8 @@ public pure operator dyadic(left: spatial[1], right: spatial[1]) -> spatial[2]
   = component(left, 0) * component(right, 1);
 model invalid {
   domain body = box(0, 1, 0, 1);
-  representation space = continuum;
-  field scalar on body as space: 1 = 0;
-  field vector on body as space: vector<1, 2>;
+  variable scalar: 1 on body; initial { scalar = 0; }
+  variable vector: vector<1, 2> on body;
   relation balance on body {
 "#;
     for (residual, expected) in [
@@ -883,8 +876,7 @@ fn compiler_requires_a_literal_coordinate_axis() {
     let source = r#"
 model invalid {
   domain interval = box(0, 1);
-  representation space = continuum;
-  field u on interval as space: m = 0;
+  variable u: m on interval; initial { u = 0; }
   relation identity on interval { u - coordinate(u) = 0; }
 }
 "#;
@@ -905,7 +897,7 @@ fn native_lowering_replaces_synthetic_ranges_with_declaration_paths() {
             eqiora_core::ScalarDomain::Real,
             DimExponents::from_integers([0, 0, 0, 0, 1, 0, 0]).expect("bounded dimension"),
         ),
-        Some(293.0),
+        eqiora_lang::FieldRoleSyntax::State,
     );
     let duration = eqiora_lang::DraftParameter::new(
         "duration",
@@ -937,9 +929,8 @@ fn native_lowering_replaces_synthetic_ranges_with_declaration_paths() {
 #[test]
 fn native_field_types_survive_direct_lowering() {
     use eqiora_core::{ScalarDomain, ValueFrame, ValueShape, ValueType};
-    use eqiora_lang::{DraftField, DraftRelation, DraftRepresentation, DraftSpatialDomain};
+    use eqiora_lang::{DraftField, DraftRelation, DraftSpatialDomain};
     let domain = DraftSpatialDomain::cartesian_box("body", [(0.0, 1.0), (0.0, 1.0)]);
-    let space = DraftRepresentation::continuum("space");
     let value_type = ValueType::shaped(
         ScalarDomain::Complex,
         DimExponents::DIMENSIONLESS,
@@ -949,17 +940,18 @@ fn native_field_types_survive_direct_lowering() {
     .unwrap()
     .array(3)
     .unwrap();
-    let field = DraftField::spatial("channels", &domain, &space, value_type.clone(), Some(0.0));
+    let field = DraftField::spatial(
+        "channels",
+        &domain,
+        value_type.clone(),
+        eqiora_lang::FieldRoleSyntax::Variable,
+    );
     let relation = DraftRelation::continuous_on(
         "balance",
         &domain,
         [field.expression() - field.expression()],
     );
-    let draft = ModelDraft::new(
-        "M",
-        [domain.into(), space.into(), field.into(), relation.into()],
-    )
-    .unwrap();
+    let draft = ModelDraft::new("M", [domain.into(), field.into(), relation.into()]).unwrap();
     let compiled = lower_draft(&draft).unwrap();
     let (transaction, _, _) = compiled.into_parts();
     let field = transaction
@@ -973,8 +965,7 @@ fn native_field_types_survive_direct_lowering() {
         })
         .unwrap();
     assert_eq!(field.value_type(), &value_type);
-    assert_eq!(field.initial().unwrap().value_type(), &value_type);
-    assert_eq!(field.initial().unwrap().literal(), 0.0);
+    assert_eq!(field.role(), eqiora_schema::kernel::FieldRole::Variable);
 }
 
 #[test]
@@ -1464,13 +1455,13 @@ fn normalized_physical_semantics(model: &CompiledModel) -> Vec<String> {
 #[test]
 fn declaration_literals_inherit_units_but_general_expressions_and_bindings_do_not() {
     for source in [
-        "model M { field p: m = 2[s]; relation r { p - p = 0; } }",
-        "model M { field p: array<m, 2> = 0[s]; relation r { p - p = 0; } }",
-        "model M { field p: m = 2; relation r { p - 2 = 0; } }",
+        "model M { variable p: m; initial { p = 2[s]; } relation r { p - p = 0; } }",
+        "model M { variable p: array<m, 2>; initial { p = 0[s]; } relation r { p - p = 0; } }",
+        "model M { variable p: m; initial { p = 2; } relation r { p - 2 = 0; } }",
         "model M { let p: m = 1 + 1; relation r { p - p = 0; } }",
         "model M { let n = 2; let p: m = n; relation r { p - p = 0; } }",
-        "component C { public parameter p: m = 1 + 1; relation r { p - p = 0; } } model M { instance c: C(); }",
-        "component C { public parameter p: m; relation r { p - p = 0; } } model M { instance c: C(p = -2); }",
+        "component C() { public parameter p: m = 1 + 1; relation r { p - p = 0; } } model M { instance c: C(); }",
+        "component C() { public parameter p: m; relation r { p - p = 0; } } model M { instance c: C(p = -2); }",
     ] {
         let errors = compile("literal-units.eqi", source).unwrap_err();
         assert!(
@@ -1483,35 +1474,33 @@ fn declaration_literals_inherit_units_but_general_expressions_and_bindings_do_no
     }
     let errors = compile(
         "literal-shape.eqi",
-        "model M { field p: array<m, 2> = 2; relation r { p - p = 0; } }",
+        "model M { variable p: array<m, 2>; initial { p = 2; } relation r { p - p = 0; } }",
     )
     .unwrap_err();
     assert!(errors.iter().any(|error| {
-        error.code() == codes::SYNTAX_ERROR
-            && error
-                .message()
-                .contains("only contextual zero is supported")
+        error.code() == codes::LANGUAGE_TYPE_ERROR
+            && error.message().contains("incompatible types")
             && error.source_span().is_some()
     }));
     for source in [
-        "model M { field p: m = 2; relation r { p - p = 0; } }",
-        "model M { field p: complex<m> = -2; relation r { p - p = 0; } }",
-        "component C { field p: m = 2; relation r { p - p = 0; } } model M { instance c: C(); }",
+        "model M { variable p: m; initial { p = 2[m]; } relation r { p - p = 0; } }",
+        "model M { variable p: complex<m>; initial { p = 0; } relation r { p - p = 0; } }",
+        "component C() { variable p: m; initial { p = 2[m]; } relation r { p - p = 0; } } model M { instance c: C(); }",
         "model M { parameter p: m = 2; relation r { p - p = 0; } }",
         "model M { parameter p: complex<m> = 2; relation r { p - p = 0; } }",
         "model M { let p: m = 2; relation r { p - p = 0; } }",
         "model M { let p: complex<m> = -2; relation r { p - p = 0; } }",
-        "component C { public parameter p: m = 2; relation r { p - p = 0; } } model M { instance c: C(); }",
-        "model M { field p: m = 0; relation r { p - p = 0; } }",
-        "model M { field p: complex<m> = -2[mm]; relation r { p - p = 0; } }",
-        "model M { field p: array<complex<m>, 2> = 0; relation r { p - p = 0; } }",
-        "component C { field p: m = 2[m]; relation r { p - p = 0; } } model M { instance c: C(); }",
+        "component C() { public parameter p: m = 2; relation r { p - p = 0; } } model M { instance c: C(); }",
+        "model M { variable p: m; initial { p = 0; } relation r { p - p = 0; } }",
+        "model M { variable p: m; initial { p = -2[mm]; } relation r { p - p = 0; } }",
+        "model M { variable p: array<complex<m>, 2>; initial { p = 0; } relation r { p - p = 0; } }",
+        "component C() { variable p: m; initial { p = 2[m]; } relation r { p - p = 0; } } model M { instance c: C(); }",
         "model M { parameter p: m = 0; relation r { p - p = 0; } }",
         "model M { parameter p: complex<m> = 2[m]; relation r { p - p = 0; } }",
         "model M { let p: m = -2[m]; relation r { p - p = 0; } }",
         "model M { let p: complex<1> = -2; relation r { p - p = 0; } }",
-        "component C { public parameter p: m = 2[m]; relation r { p - p = 0; } } model M { instance c: C(); }",
-        "component C { public parameter p: m; relation r { p - p = 0; } } model M { instance c: C(p = -2[m]); }",
+        "component C() { public parameter p: m = 2[m]; relation r { p - p = 0; } } model M { instance c: C(); }",
+        "component C() { public parameter p: m; relation r { p - p = 0; } } model M { instance c: C(p = -2[m]); }",
     ] {
         compile("literal-units.eqi", source).unwrap_or_else(|error| panic!("{source}: {error:?}"));
     }
@@ -1522,7 +1511,7 @@ fn source_physical_domains_and_connectors_keep_complex_scalar_types() {
     use eqiora_schema::kernel::DomainKind;
     for source in [
         "model M { domain electrical = scalar_physical(across = complex<V>, through = complex<A>); port p: conserving on electrical; port n: conserving on electrical; relation r { across(p) - across(n) = 0; through(p) + through(n) = 0; } connect conserving p, n; }",
-        "connector Pin = scalar_physical(across = complex<V>, through = complex<A>); component C { public port p: conserving on Pin; relation r { across(p) = 0; through(p) = 0; } } model M { instance a: C(); instance b: C(); connect conserving a.p, b.p; }",
+        "connector Pin = scalar_physical(across = complex<V>, through = complex<A>); component C() { public port p: conserving on Pin; relation r { across(p) = 0; through(p) = 0; } } model M { instance a: C(); instance b: C(); connect conserving a.p, b.p; }",
     ] {
         let document = eqiora_lang::parse("physical.eqi", source)
             .into_document()
@@ -1567,7 +1556,7 @@ fn source_physical_domains_and_connectors_keep_complex_scalar_types() {
                 )
             } else {
                 format!(
-                    "connector Pin = scalar_physical(across = {kind}, through = A); model M {{ field x: 1; }}"
+                    "connector Pin = scalar_physical(across = {kind}, through = A); model M {{ variable x: 1; }}"
                 )
             };
             let errors = compile("physical-shape.eqi", &source).unwrap_err();
@@ -1584,30 +1573,37 @@ fn source_physical_domains_and_connectors_keep_complex_scalar_types() {
 
 #[test]
 fn field_initial_units_normalize_and_report_the_exact_literal() {
-    let source = "model M { field p: complex<m> = -2500[mm]; relation r { p - p = 0; } }";
+    let source = "model M { variable p: m; initial { p = -2500[mm]; } relation r { p - p = 0; } }";
     let compiled = compile("field-initial.eqi", source).unwrap();
-    let field = compiled[0]
+    let initial = compiled[0]
         .transaction()
         .ops()
         .iter()
         .find_map(|op| match op {
             Op::DefineKernelNode {
-                node: KernelNode::Field(field),
-            } => Some(field),
+                node: KernelNode::Relation(relation),
+            } if relation.is_initial() => Some(relation),
             _ => None,
         })
         .unwrap();
-    let initial = field.initial().unwrap();
-    assert_eq!(initial.value_type(), field.value_type());
-    assert_eq!(initial.literal(), -2.5);
+    assert!(initial.residuals().nodes().iter().any(|node| matches!(node, eqiora_schema::kernel::ExprNode::Constant(value) if value.literal() == 2.5)));
+    assert!(
+        initial
+            .residuals()
+            .nodes()
+            .iter()
+            .any(|node| matches!(node, eqiora_schema::kernel::ExprNode::Neg(_)))
+    );
     for literal in ["2[s]", "0[s]"] {
-        let source = format!("model M {{ field p: m = {literal}; relation r {{ p - p = 0; }} }}");
+        let source = format!(
+            "model M {{ variable p: m; initial {{ p = {literal}; }} relation r {{ p - p = 0; }} }}"
+        );
         let errors = compile("field-initial.eqi", &source).unwrap_err();
         assert!(
             errors.iter().any(|error| {
                 error.code() == codes::LANGUAGE_TYPE_ERROR
                     && error.source_span().is_some_and(|span| {
-                        &source[span.start as usize..span.end as usize] == literal
+                        source[span.start as usize..span.end as usize].contains(literal)
                     })
             }),
             "{errors:?}"

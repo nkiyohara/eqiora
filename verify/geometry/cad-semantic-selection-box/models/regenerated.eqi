@@ -6,9 +6,10 @@ public connector MechanicalBoundary3d = field_physical(
   pairing = euclidean_boundary_duality
 );
 
-public component LoadedFace3d {
-  public support body: volume(ambient_dimension = 3);
-  public support face: boundary(parent = body);
+public component LoadedFace3d(
+  support body: volume(ambient_dimension = 3),
+  support face: boundary(parent = body),
+) {
   public port mechanical:
     conserving MechanicalBoundary3d over face;
 

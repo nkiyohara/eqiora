@@ -6,6 +6,9 @@
 //! saturating footprint per definition. Cycle discovery is iterative and
 //! independent of the occurrence-depth limit.
 
+mod cycles;
+use cycles::{cycle_diagnostic, strongly_connected_components};
+
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use eqiora_core::Diagnostic;
@@ -559,14 +562,21 @@ fn component_local_footprint(
         match item {
             ComponentItem::Parameter(_)
             | ComponentItem::Port(_)
-            | ComponentItem::Field(_)
-            | ComponentItem::Representation(_)
+            | ComponentItem::Initial(_)
             | ComponentItem::Clock(_) => checked_local_add(
                 &mut declarations,
                 1,
                 definition.file,
                 definition.declaration.range(),
                 "declaration",
+                diagnostics,
+            ),
+            ComponentItem::Field(field) => checked_local_add(
+                &mut declarations,
+                if field.domain().is_some() { 2 } else { 1 },
+                definition.file,
+                field.range(),
+                "Field and continuum representation",
                 diagnostics,
             ),
             ComponentItem::Relation(_) => checked_local_add(
@@ -656,7 +666,7 @@ fn component_local_footprint(
                 }
             }
             ComponentItem::Support(_)
-            | ComponentItem::FieldSlot(_)
+            | ComponentItem::FieldRequirement(_)
             | ComponentItem::Instance(_) => {}
             _ => {}
         }
@@ -776,6 +786,14 @@ fn model_local_footprint(
     let mut footprint = LocalFootprint::default();
     for item in definition.declaration.items() {
         match item {
+            Item::Field(field) => checked_local_add(
+                &mut footprint.declarations,
+                if field.domain().is_some() { 2 } else { 1 },
+                definition.file,
+                field.range(),
+                "Field and continuum representation",
+                diagnostics,
+            ),
             Item::Relation(_) => checked_local_add(
                 &mut footprint.declarations,
                 2,
@@ -823,144 +841,6 @@ fn checked_local_add(
             format!("local {resource} count overflows usize"),
         )),
     }
-}
-
-fn strongly_connected_components(
-    nodes: &[ComponentNode<'_>],
-) -> Result<DefinitionOrder, Vec<Diagnostic>> {
-    let mut visited = vec![false; nodes.len()];
-    let mut finish = Vec::new();
-    finish
-        .try_reserve_exact(nodes.len())
-        .map_err(|_| vec![definition_error("cannot reserve definition finish order")])?;
-    for start in 0..nodes.len() {
-        if visited[start] {
-            continue;
-        }
-        visited[start] = true;
-        let mut stack = vec![(start, 0_usize)];
-        while let Some((node, edge_index)) = stack.last_mut() {
-            if *edge_index < nodes[*node].edges.len() {
-                let target = nodes[*node].edges[*edge_index].target;
-                *edge_index += 1;
-                if !visited[target] {
-                    visited[target] = true;
-                    stack.push((target, 0));
-                }
-            } else {
-                let (node, _) = stack.pop().expect("definition DFS frame exists");
-                finish.push(node);
-            }
-        }
-    }
-
-    let mut reverse = vec![Vec::new(); nodes.len()];
-    let mut incoming = vec![0_usize; nodes.len()];
-    for node in nodes {
-        for edge in &node.edges {
-            incoming[edge.target] = incoming[edge.target].checked_add(1).ok_or_else(|| {
-                vec![definition_error(
-                    "reverse definition-edge count overflows usize",
-                )]
-            })?;
-        }
-    }
-    for (edges, capacity) in reverse.iter_mut().zip(incoming) {
-        edges
-            .try_reserve_exact(capacity)
-            .map_err(|_| vec![definition_error("cannot reserve reverse definition graph")])?;
-    }
-    for (source, node) in nodes.iter().enumerate() {
-        for edge in &node.edges {
-            reverse[edge.target].push(source);
-        }
-    }
-    for parents in &mut reverse {
-        parents.sort_unstable();
-    }
-
-    visited.fill(false);
-    let mut cyclic = Vec::new();
-    for &start in finish.iter().rev() {
-        if visited[start] {
-            continue;
-        }
-        visited[start] = true;
-        let mut component = Vec::new();
-        let mut stack = vec![start];
-        while let Some(node) = stack.pop() {
-            component.push(node);
-            for &parent in reverse[node].iter().rev() {
-                if !visited[parent] {
-                    visited[parent] = true;
-                    stack.push(parent);
-                }
-            }
-        }
-        component.sort_unstable();
-        let self_loop = component.len() == 1
-            && nodes[component[0]]
-                .edges
-                .iter()
-                .any(|edge| edge.target == component[0]);
-        if component.len() > 1 || self_loop {
-            cyclic.push(component);
-        }
-    }
-    cyclic.sort_by_key(|component| component[0]);
-    Ok(DefinitionOrder {
-        children_first: finish,
-        cyclic_components: cyclic,
-    })
-}
-
-fn cycle_diagnostic(nodes: &[ComponentNode<'_>], component: &[usize]) -> Diagnostic {
-    let start = component[0];
-    let members = component.iter().copied().collect::<BTreeSet<_>>();
-    let first_edge = nodes[start]
-        .edges
-        .iter()
-        .find(|edge| members.contains(&edge.target))
-        .expect("cyclic SCC has an internal edge from every member");
-    let mut path = vec![start];
-    if first_edge.target == start {
-        path.push(start);
-    } else {
-        path.push(first_edge.target);
-        let mut queue = VecDeque::from([first_edge.target]);
-        let mut predecessor = BTreeMap::<usize, usize>::new();
-        predecessor.insert(first_edge.target, first_edge.target);
-        while let Some(node) = queue.pop_front() {
-            if node == start {
-                break;
-            }
-            for edge in &nodes[node].edges {
-                if members.contains(&edge.target) && !predecessor.contains_key(&edge.target) {
-                    predecessor.insert(edge.target, node);
-                    queue.push_back(edge.target);
-                }
-            }
-        }
-        let mut suffix = vec![start];
-        let mut cursor = start;
-        while cursor != first_edge.target {
-            cursor = predecessor[&cursor];
-            suffix.push(cursor);
-        }
-        suffix.reverse();
-        path.extend(suffix.into_iter().skip(1));
-    }
-    let display = path
-        .into_iter()
-        .map(|node| nodes[node].key.display())
-        .collect::<Vec<_>>()
-        .join(" -> ");
-    source_error(
-        codes::LANGUAGE_TYPE_ERROR,
-        first_edge.file,
-        first_edge.range,
-        format!("recursive component definition graph: {display}"),
-    )
 }
 
 fn summarize_component(
@@ -1258,7 +1138,7 @@ mod tests {
 
     #[test]
     fn future_model_depth_boundary_is_exact() {
-        let source = "component C2 {} component C1 { instance c2: C2; } component C0 { instance c1: C1; } model Main { instance root: C0; }";
+        let source = "component C2() {} component C1() { instance c2: C2; } component C0() { instance c1: C1; } model Main { instance root: C0; }";
         let limits = HierarchyLimits {
             max_instance_depth: 4,
             ..HierarchyLimits::default()
@@ -1266,7 +1146,7 @@ mod tests {
         let graph = validate_source(source, limits).expect("Model plus three Components fits");
         assert_eq!(model_summary(&graph, "Main").component_levels(), 4);
 
-        let over = "component C3 {} component C2 { instance c3: C3; } component C1 { instance c2: C2; } component C0 { instance c1: C1; } model Main { instance root: C0; }";
+        let over = "component C3() {} component C2() { instance c3: C3; } component C1() { instance c2: C2; } component C0() { instance c1: C1; } model Main { instance root: C0; }";
         let diagnostics = validate_source(over, limits).expect_err("fifth level fails");
         assert!(diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -1278,7 +1158,7 @@ mod tests {
 
     #[test]
     fn cycle_detection_is_independent_of_depth_cutoff() {
-        let source = "component C0 { instance c1: C1; } component C1 { instance c2: C2; } component C2 { instance c3: C3; } component C3 { instance c4: C4; } component C4 { instance c0: C0; } model Main {}";
+        let source = "component C0() { instance c1: C1; } component C1() { instance c2: C2; } component C2() { instance c3: C3; } component C3() { instance c4: C4; } component C4() { instance c0: C0; } model Main {}";
         let limits = HierarchyLimits {
             max_instance_depth: 4,
             ..HierarchyLimits::default()
@@ -1296,7 +1176,7 @@ mod tests {
 
     #[test]
     fn repeated_definition_edges_retain_occurrence_multiplicity() {
-        let source = "component Leaf {} component Branch { instance a: Leaf; instance b: Leaf; } component Root { instance x: Branch; instance y: Branch; } model Main { instance root: Root; }";
+        let source = "component Leaf() {} component Branch() { instance a: Leaf; instance b: Leaf; } component Root() { instance x: Branch; instance y: Branch; } model Main { instance root: Root; }";
         let graph = validate_source(source, HierarchyLimits::default()).expect("DAG is bounded");
         let root = model_summary(&graph, "Main");
         assert_eq!(root.instances(), 7);
@@ -1305,7 +1185,7 @@ mod tests {
 
     #[test]
     fn exponential_occurrence_fails_from_memoized_definition_summary() {
-        let source = "component C10 {} component C9 { instance a:C10; instance b:C10; } component C8 { instance a:C9; instance b:C9; } component C7 { instance a:C8; instance b:C8; } component C6 { instance a:C7; instance b:C7; } component C5 { instance a:C6; instance b:C6; } component C4 { instance a:C5; instance b:C5; } component C3 { instance a:C4; instance b:C4; } component C2 { instance a:C3; instance b:C3; } component C1 { instance a:C2; instance b:C2; } component C0 { instance a:C1; instance b:C1; } model Main {}";
+        let source = "component C10() {} component C9() { instance a:C10; instance b:C10; } component C8() { instance a:C9; instance b:C9; } component C7() { instance a:C8; instance b:C8; } component C6() { instance a:C7; instance b:C7; } component C5() { instance a:C6; instance b:C6; } component C4() { instance a:C5; instance b:C5; } component C3() { instance a:C4; instance b:C4; } component C2() { instance a:C3; instance b:C3; } component C1() { instance a:C2; instance b:C2; } component C0() { instance a:C1; instance b:C1; } model Main {}";
         let limits = HierarchyLimits {
             max_instances: 1_000,
             ..HierarchyLimits::default()
@@ -1319,7 +1199,7 @@ mod tests {
 
     #[test]
     fn model_edges_share_the_definition_edge_budget() {
-        let source = "component Leaf {} model Main { instance a:Leaf; instance b:Leaf; }";
+        let source = "component Leaf() {} model Main { instance a:Leaf; instance b:Leaf; }";
         let limits = HierarchyLimits {
             max_definition_edges: 1,
             ..HierarchyLimits::default()

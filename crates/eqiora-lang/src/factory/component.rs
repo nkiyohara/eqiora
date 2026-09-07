@@ -1,14 +1,63 @@
 //! Construction of reusable Component declarations.
 
 use crate::ast::formulation::FormulationDecl;
-use crate::ast::{ComponentDecl, ComponentItem, Expr, TextRange, VisibilitySyntax};
+use crate::ast::{ComponentDecl, ComponentItem, Expr, InstanceDecl, TextRange, VisibilitySyntax};
 
 use super::{
     AstConstructionError, SourceAstFactory, checked_identifier, checked_range,
-    validate_component_item, validate_expression,
+    validate_component_item, validate_expression, validate_identifier,
 };
 
 impl SourceAstFactory {
+    /// Construct an exact borrowed-clock binding.
+    ///
+    /// # Errors
+    /// Rejects malformed slot and target identifiers or byte ranges.
+    pub fn clock_binding(
+        slot: impl Into<String>,
+        target: impl Into<String>,
+        range: TextRange,
+    ) -> Result<crate::ClockBindingDecl, AstConstructionError> {
+        Ok(crate::ClockBindingDecl {
+            comments: Default::default(),
+            slot: checked_identifier(slot, "Clock binding slot")?,
+            target: checked_identifier(target, "Clock binding target")?,
+            range: checked_range(range)?,
+        })
+    }
+
+    /// Attach the complete exact-clock binding list to an instance.
+    ///
+    /// # Errors
+    /// Rejects malformed identifiers or byte ranges.
+    pub fn bind_clocks(
+        mut instance: InstanceDecl,
+        bindings: Vec<crate::ClockBindingDecl>,
+    ) -> Result<InstanceDecl, AstConstructionError> {
+        for binding in &bindings {
+            validate_identifier(binding.slot(), "Clock binding slot")?;
+            validate_identifier(binding.target(), "Clock binding target")?;
+            checked_range(binding.range())?;
+        }
+        instance.clock_bindings = bindings;
+        Ok(instance)
+    }
+
+    /// Construct one borrowed exact-clock requirement without declaring a period.
+    ///
+    /// # Errors
+    /// Rejects malformed identifiers and ranges.
+    pub fn clock_requirement(
+        name: impl Into<String>,
+        range: TextRange,
+    ) -> Result<crate::ClockRequirementDecl, AstConstructionError> {
+        Ok(crate::ClockRequirementDecl {
+            comments: Default::default(),
+            name: checked_identifier(name, "required clock")?,
+            range: checked_range(range)?,
+        })
+    }
+
     /// Construct one reusable Component declaration.
     ///
     /// # Errors
@@ -82,7 +131,7 @@ mod tests {
     fn constructs_primal_form_without_model_item_coercion() {
         let parsed = parse(
             "form.eqi",
-            "component C { relation balance { 1 = 0; } form primal for balance { integrate(region, test(value)) = integrate(region, test(value)); } }",
+            "component C() { relation balance { 1 = 0; } form primal for balance { integrate(region, test(value)) = integrate(region, test(value)); } }",
         )
         .into_document()
         .unwrap();

@@ -1,3 +1,5 @@
+#[path = "support/initial.rs"]
+mod initial_support;
 use eqiora_core::entity::kinds;
 use eqiora_core::{DimExponents, DynQuantity, Id, OntologyId};
 use eqiora_graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
@@ -7,6 +9,7 @@ use eqiora_schema::kernel::{
 };
 use eqiora_schema::{Model, ModelView};
 use eqiora_sem::{Interpreter, KernelProgram, ReferenceConfig};
+use initial_support::{define_all, initial};
 
 struct ThermalFixture {
     program: KernelProgram,
@@ -174,36 +177,21 @@ fn thermal_fixture() -> ThermalFixture {
     let expose = controller.sub(output, next_command).expect("output update");
 
     let nodes = [
-        KernelNode::from(
-            FieldDef::new(
-                temperature,
-                eqiora_core::ValueType::scalar(
-                    eqiora_core::ScalarDomain::Real,
-                    temperature_dimension,
-                ),
-            )
-            .with_initial(
-                DynQuantity::new(293.0, temperature_dimension)
-                    .try_into()
-                    .expect("finite real initial value"),
-            )
-            .expect("temperature initial"),
-        ),
-        KernelNode::from(
-            FieldDef::new(
-                command,
-                eqiora_core::ValueType::scalar(
-                    eqiora_core::ScalarDomain::Real,
-                    DimExponents::DIMENSIONLESS,
-                ),
-            )
-            .with_initial(
-                DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)
-                    .try_into()
-                    .expect("finite real initial value"),
-            )
-            .expect("command initial"),
-        ),
+        KernelNode::from(FieldDef::new(
+            temperature,
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, temperature_dimension),
+            eqiora_schema::kernel::FieldRole::State,
+        )),
+        initial(temperature, DynQuantity::new(293.0, temperature_dimension)),
+        KernelNode::from(FieldDef::new(
+            command,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
+            eqiora_schema::kernel::FieldRole::State,
+        )),
+        initial(command, DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)),
         KernelNode::from(
             ParameterDef::new(
                 ambient,
@@ -295,9 +283,7 @@ fn thermal_fixture() -> ThermalFixture {
 
     let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();
     let mut transaction = Transaction::new("thermal plant with sampled controller");
-    for node in nodes {
-        transaction.push(Op::DefineKernelNode { node });
-    }
+    define_all(&mut transaction, nodes);
     connect_dependencies(
         &mut transaction,
         plant_relation.erase(),
@@ -320,6 +306,11 @@ fn thermal_fixture() -> ThermalFixture {
             controller_output.erase(),
         ],
     );
+    transaction.push(Op::Connect {
+        from: command.erase(),
+        to: controller_clock.erase(),
+        edge: EdgeKind::ClockedBy,
+    });
     transaction
         .push(Op::Connect {
             from: plant_relation.erase(),

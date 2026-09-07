@@ -156,7 +156,7 @@ fn e2_role_assignment_rejects_missing_duplicate_and_reclassified_roles() {
 
     let reclassified = SOURCE.replace(
         "  parameter source_scale: 1 / m ^ 2 = 19.739208802178716;",
-        "  field source_scale on square as scalar_space: 1 / m ^ 2 = 19.739208802178716[1 / m ^ 2];",
+        "  variable source_scale: 1 / m ^ 2 on square;",
     );
     assert_role_gate(compile_program(&reclassified));
 }

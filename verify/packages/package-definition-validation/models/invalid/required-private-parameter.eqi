@@ -1,4 +1,4 @@
-public component Broken {
+public component Broken() {
   parameter hidden: s;
 }
 

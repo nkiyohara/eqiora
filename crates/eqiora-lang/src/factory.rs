@@ -19,12 +19,11 @@ use crate::ast::{
     BoundarySetMemberSyntax, ClockDecl, ComponentItem, ComponentParameterDecl, ComponentPortDecl,
     ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorDecl,
     ConnectorQuantitySyntax, ConnectorSyntax, DomainDecl, DomainSyntax, Equation,
-    ExactIntegerSyntax, Expr, ExprKind, FieldBindingDecl, FieldDecl, FieldSlotDecl, InstanceDecl,
-    Item, LetDecl, NamePath, ParameterBindingDecl, ParameterDecl, PortDecl, PortSyntax,
-    PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal,
-    PureValueClassSyntax, RationalSyntax, RelationDecl, RelationFamilyDecl, RepresentationDecl,
-    RepresentationSyntax, SupportBindingDecl, SupportSlotDecl, SupportSlotSyntax, TextRange,
-    ValueShapeSyntax, VisibilitySyntax,
+    ExactIntegerSyntax, Expr, ExprKind, FieldBindingDecl, FieldDecl, InstanceDecl, Item, LetDecl,
+    NamePath, ParameterBindingDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl,
+    PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax,
+    RationalSyntax, RelationDecl, RelationFamilyDecl, SupportBindingDecl, SupportSlotDecl,
+    SupportSlotSyntax, TextRange, ValueShapeSyntax, VisibilitySyntax,
 };
 use domain_validation::validate_domain_syntax;
 
@@ -215,26 +214,6 @@ impl SourceAstFactory {
         })
     }
 
-    /// Construct one public, required continuum Field slot.
-    ///
-    /// # Errors
-    /// Returns an error for malformed names, dimensions, value shapes, or byte
-    /// ranges. Exact support and Field compatibility remain compiler checks.
-    pub fn field_slot(
-        name: impl Into<String>,
-        support: impl Into<String>,
-        value_type: crate::ValueTypeSyntax,
-        range: TextRange,
-    ) -> Result<FieldSlotDecl, AstConstructionError> {
-        Ok(FieldSlotDecl {
-            comments: Default::default(),
-            name: checked_identifier(name, "Field slot")?,
-            support: checked_identifier(support, "Field-slot support")?,
-            value_type,
-            range: checked_range(range)?,
-        })
-    }
-
     /// Construct a Domain declaration.
     ///
     /// # Errors
@@ -254,74 +233,32 @@ impl SourceAstFactory {
         })
     }
 
-    /// Construct a Representation declaration.
+    /// Construct an owned unknown with independent role, support, and activation.
     ///
     /// # Errors
-    /// Returns an error for an invalid source identifier or byte range.
-    pub fn representation(
-        name: impl Into<String>,
-        syntax: RepresentationSyntax,
-        range: TextRange,
-    ) -> Result<RepresentationDecl, AstConstructionError> {
-        Ok(RepresentationDecl {
-            comments: Default::default(),
-            name: checked_identifier(name, "Representation")?,
-            syntax,
-            range: checked_range(range)?,
-        })
-    }
-
-    /// Construct a scalar or spatial Field declaration.
-    ///
-    /// `domain` and `representation` must either both be present or both be
-    /// absent, as required by the source grammar.
-    ///
-    /// # Errors
-    /// Returns an error for an incomplete spatial scope, non-finite initial
-    /// value, malformed expression, identifier, or byte range.
+    /// Rejects malformed identifiers, complete type syntax, or byte ranges.
     pub fn field(
         name: impl Into<String>,
         domain: Option<String>,
-        representation: Option<String>,
+        role: crate::ast::FieldRoleSyntax,
+        activation: ActivationSyntax,
         value_type: crate::ValueTypeSyntax,
-        initial: Option<Expr>,
         range: TextRange,
     ) -> Result<FieldDecl, AstConstructionError> {
-        if domain.is_some() != representation.is_some() {
-            return Err(AstConstructionError::new(
-                "a spatial Field requires both Domain and Representation names",
-            ));
-        }
         if let Some(name) = &domain {
-            validate_identifier(name, "Field Domain")?;
+            validate_identifier(name, "unknown support")?;
         }
-        if let Some(name) = &representation {
-            validate_identifier(name, "Field Representation")?;
+        if let ActivationSyntax::Periodic(clock) = &activation {
+            validate_identifier(clock, "unknown clock")?;
         }
-        let scalar = value_type.is_scalar();
-        if let Some(initial) = &initial {
-            validate_expression(initial)?;
-            let value = match initial.kind() {
-                ExprKind::Number(value) | ExprKind::Quantity { value, .. } => *value,
-                _ => {
-                    return Err(AstConstructionError::new(
-                        "Field initial value must be a numeric or quantity literal",
-                    ));
-                }
-            };
-            if !scalar && value != 0.0 {
-                return Err(AstConstructionError::new(
-                    "non-scalar Field cannot have a scalar initial value",
-                ));
-            }
-        }
+        let value_type = Self::value_type(value_type.kind, value_type.range)?;
         Ok(FieldDecl {
             comments: Default::default(),
-            name: checked_identifier(name, "Field")?,
+            name: checked_identifier(name, "unknown")?,
             domain,
-            representation,
+            role,
+            activation,
             value_type,
-            initial,
             range: checked_range(range)?,
         })
     }
@@ -597,6 +534,7 @@ impl SourceAstFactory {
             support_bindings,
             boundary_set_bindings,
             field_bindings,
+            clock_bindings: Vec::new(),
             property_bindings: Vec::new(),
             material_binding: None,
             range: checked_range(range)?,
@@ -911,10 +849,11 @@ fn validate_component_item(item: &ComponentItem) -> Result<(), AstConstructionEr
             declaration.range()
         }
         ComponentItem::Support(declaration) => declaration.range(),
-        ComponentItem::FieldSlot(declaration) => declaration.range(),
-        ComponentItem::Representation(declaration) => declaration.range(),
+        ComponentItem::FieldRequirement(declaration) => declaration.range(),
         ComponentItem::Field(declaration) => declaration.range(),
+        ComponentItem::Initial(declaration) => declaration.range(),
         ComponentItem::Clock(declaration) => declaration.range(),
+        ComponentItem::ClockRequirement(declaration) => declaration.range(),
         ComponentItem::Relation(declaration) => declaration.range(),
         ComponentItem::RelationFamily(declaration) => {
             validate_boundary_family_binder(declaration.binder())?;

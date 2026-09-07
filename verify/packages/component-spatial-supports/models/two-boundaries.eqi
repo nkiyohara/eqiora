@@ -1,8 +1,8 @@
-component BoundaryState {
-  public support body: volume(ambient_dimension = 2);
-  public support interface: boundary(parent = body);
-  representation state_space = continuum;
-  field state on body as state_space: 1 = 0;
+component BoundaryState(
+  support body: volume(ambient_dimension = 2),
+  support interface: boundary(parent = body),
+) {
+  variable state: 1 on body;
   relation volume_law on body { state = 0; }
   relation coordinate_law on body { coordinate(1) - coordinate(1) = 0; }
   relation interface_law on interface { trace(state) = 0; }

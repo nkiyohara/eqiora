@@ -354,12 +354,11 @@ fn e1_scaffold_source(sealed: &SealedE1Input) -> Result<String, Diagnostic> {
   domain outer_x_plus = boundary(fluid, axis = 0, side = upper);
   domain outer_y_minus = boundary(fluid, axis = 1, side = lower);
   domain outer_y_plus = boundary(fluid, axis = 1, side = upper);
-  representation space = continuum;
 
-  field velocity on fluid as space: vector<m / s, 2>;
-  field pressure on fluid as space: kg / (m * s ^ 2) = 0;
-  field force_potential on fluid as space: kg / (m * s ^ 2) = 0;
-  field chi on fluid as space: m ^ 2 / s = 0;
+  variable velocity: vector<m / s, 2> on fluid;
+  variable pressure: kg / (m * s ^ 2) on fluid;
+  variable force_potential: kg / (m * s ^ 2) on fluid;
+  variable chi: m ^ 2 / s on fluid;
   parameter mu: kg / (m * s) = {viscosity:?};
   parameter speed: m / s = {speed:?};
   parameter zero_pressure: kg / (m * s ^ 2) = 0;

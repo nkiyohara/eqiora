@@ -139,7 +139,7 @@ impl CommonOdePlan {
         let relations = kernel
             .nodes()
             .filter_map(|node| match node {
-                KernelNode::Relation(relation) => Some(relation.id()),
+                KernelNode::Relation(relation) if !relation.is_initial() => Some(relation.id()),
                 _ => None,
             })
             .collect::<Vec<_>>();
@@ -302,7 +302,15 @@ impl CommonOdePlan {
     /// Construct the exact Model-owned initial state at model time zero.
     pub fn initial_state(&self) -> Result<CommonOdeState, Diagnostic> {
         self.model.artifact_reference()?;
-        CommonOdeState::new(self, 0.0, self.program.initial_state().to_vec(), "initial")
+        CommonOdeState::new(
+            self,
+            0.0,
+            self.program
+                .initialize(eqiora_sem::ReferenceConfig::new(0.0, 1.0)?)?
+                .state()
+                .to_vec(),
+            "initial",
+        )
     }
 
     fn problem<'a>(&'a self, state: &CommonOdeState) -> Result<TimeProblem<'a>, Diagnostic> {
@@ -576,7 +584,8 @@ mod tests {
 
     const DECAY: &str = r#"
 model decay {
-  field x: 1 = 1;
+  state x: 1;
+  initial { x = 1; }
   parameter rate: 1 / s = 1;
   relation flow {
     derivative(x) + rate * x = 0;
@@ -631,37 +640,43 @@ model decay {
             .finish([decay_residual, integral_residual])
             .unwrap();
 
+        let initial = Id::<kinds::Relation>::new();
+        let mut initial_expression = ExprDagBuilder::new();
+        let decay_initial = initial_expression.symbol(SymbolRef::Field(decay)).unwrap();
+        let decay_value = initial_expression
+            .constant(DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))
+            .unwrap();
+        let decay_condition = initial_expression.sub(decay_initial, decay_value).unwrap();
+        let integral_initial = initial_expression
+            .symbol(SymbolRef::Field(integral))
+            .unwrap();
+        let integral_value = initial_expression
+            .constant(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
+            .unwrap();
+        let integral_condition = initial_expression
+            .sub(integral_initial, integral_value)
+            .unwrap();
+        let initial_equations = initial_expression
+            .finish([decay_condition, integral_condition])
+            .unwrap();
         let nodes = [
-            KernelNode::from(
-                FieldDef::new(
-                    decay,
-                    eqiora_core::ValueType::scalar(
-                        eqiora_core::ScalarDomain::Real,
-                        DimExponents::DIMENSIONLESS,
-                    ),
-                )
-                .with_initial(
-                    DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)
-                        .try_into()
-                        .expect("finite real initial value"),
-                )
-                .unwrap(),
-            ),
-            KernelNode::from(
-                FieldDef::new(
-                    integral,
-                    eqiora_core::ValueType::scalar(
-                        eqiora_core::ScalarDomain::Real,
-                        DimExponents::DIMENSIONLESS,
-                    ),
-                )
-                .with_initial(
-                    DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)
-                        .try_into()
-                        .expect("finite real initial value"),
-                )
-                .unwrap(),
-            ),
+            KernelNode::from(RelationDef::initial(initial, initial_equations)),
+            KernelNode::from(FieldDef::new(
+                decay,
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+                eqiora_schema::kernel::FieldRole::State,
+            )),
+            KernelNode::from(FieldDef::new(
+                integral,
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+                eqiora_schema::kernel::FieldRole::State,
+            )),
             KernelNode::from(
                 ParameterDef::new(
                     rate,
@@ -679,6 +694,16 @@ model decay {
             transaction.push(Op::DefineKernelNode { node });
         }
         for dependency in [decay.erase(), integral.erase(), rate.erase()] {
+            transaction.push(Op::Connect {
+                from: initial.erase(),
+                to: decay.erase(),
+                edge: EdgeKind::DependsOn,
+            });
+            transaction.push(Op::Connect {
+                from: initial.erase(),
+                to: integral.erase(),
+                edge: EdgeKind::DependsOn,
+            });
             transaction.push(Op::Connect {
                 from: relation.erase(),
                 to: dependency,

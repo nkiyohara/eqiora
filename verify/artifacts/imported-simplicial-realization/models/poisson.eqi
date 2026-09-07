@@ -4,9 +4,8 @@ model imported_simplicial_poisson {
   domain x_upper = boundary(square, axis = 0, side = upper);
   domain y_lower = boundary(square, axis = 1, side = lower);
   domain y_upper = boundary(square, axis = 1, side = upper);
-  representation scalar_space = continuum;
 
-  field potential on square as scalar_space: 1 = 0;
+  variable potential: 1 on square;
   parameter source_scale: 1 / m ^ 2 = 1;
 
   relation balance on square {
