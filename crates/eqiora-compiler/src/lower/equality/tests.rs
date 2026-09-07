@@ -53,7 +53,7 @@ fn contextual_zero_adopts_complete_type_but_explicit_zero_never_does() {
 fn explicit_complex_rhs_zero_keeps_promotion_in_the_actual_residual() {
     let document = eqiora_lang::parse(
         "typed.eqi",
-        "model M { variable x: 1; initial { x = 1; } relation r { x = 0; } }",
+        "model M() { variable x: 1; initial { x = 1; } relation r { x = 0; } }",
     )
     .into_document()
     .unwrap();
@@ -101,7 +101,7 @@ fn explicit_complex_rhs_zero_keeps_promotion_in_the_actual_residual() {
 
 #[test]
 fn substituted_named_zero_is_not_a_literal_neutral_rule() {
-    let source = "component C() { public parameter zero: 1 = 0; variable x: 1; initial { x = 1; } relation r { x = zero; } } model M { instance c: C; }";
+    let source = "component C(parameter zero: 1 = 0) {  variable x: 1; initial { x = 1; } relation r { x = zero; } } model M() { instance c: C(); }";
     let compiled = crate::compile("named.eqi", source).unwrap();
     let dag = compiled[0]
         .transaction()
@@ -124,35 +124,35 @@ fn substituted_named_zero_is_not_a_literal_neutral_rule() {
 fn full_type_support_and_activation_fail_in_the_source_owner() {
     for (source, message) in [
         (
-            "model M { variable x: m; initial { x = 0; } relation r { x = 0[s]; } }",
+            "model M() { variable x: m; initial { x = 0; } relation r { x = 0[s]; } }",
             "incompatible types",
         ),
         (
-            "model M { variable x: array<1,2>; variable y: array<1,3>; relation r { x = y; } }",
+            "model M() { variable x: array<1,2>; variable y: array<1,3>; relation r { x = y; } }",
             "incompatible types",
         ),
         (
-            "model M { domain d = box(0,1,0,1); variable x: vector<1,2> on d; variable y: array<1,2> on d; relation r on d { x = y; } }",
+            "model M() { domain d = box(0,1,0,1); variable x: vector<1,2> on d; variable y: array<1,2> on d; relation r on d { x = y; } }",
             "incompatible types",
         ),
         (
-            "model M { domain a = box(0,1); domain b = box(0,1); variable x: 1 on a; variable y: 1 on b; relation r on a { x = y; } }",
+            "model M() { domain a = box(0,1); domain b = box(0,1); variable x: 1 on a; variable y: 1 on b; relation r on a { x = y; } }",
             "incompatible supports",
         ),
         (
-            "model M { domain a = box(0,1); domain b = box(0,1); variable x: 1 on a; relation r on b { x = 0; } }",
+            "model M() { domain a = box(0,1); domain b = box(0,1); variable x: 1 on a; relation r on b { x = 0; } }",
             "Relation scope",
         ),
         (
-            "model M { state x: 1; initial { x = 0; } relation r { next(x) = pre(x); } }",
+            "model M() { state x: 1; initial { x = 0; } relation r { next(x) = pre(x); } }",
             "eligible declared state at the exact clock",
         ),
         (
-            "model M { clock tick = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1; initial { x = 0; } relation r at tick { derivative(x) = 0; } }",
+            "model M() { clock tick = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1; initial { x = 0; } relation r at tick { derivative(x) = 0; } }",
             "clocked Relation cannot use",
         ),
         (
-            "component C() { state x: 1; initial { x = 0; } clock tick = periodic(1[s] / 1, phase = 0[s] / 1); relation r at tick { derivative(x) = 0; } } model M {}",
+            "component C() { state x: 1; initial { x = 0; } clock tick = periodic(1[s] / 1, phase = 0[s] / 1); relation r at tick { derivative(x) = 0; } } model M() {}",
             "clocked Relation cannot use",
         ),
     ] {
@@ -166,9 +166,9 @@ fn full_type_support_and_activation_fail_in_the_source_owner() {
         );
     }
     for source in [
-        "model M { variable x: complex<1>; initial { x = 0; } relation r { x = -(-0); } }",
-        "model M { domain d = box(0,1,0,1); variable x: vector<m,2> on d; relation r on d { x = 0; } }",
-        "model M { clock tick = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1 at tick; initial { pre(x) = 0; } relation r at tick { next(x) = pre(x); } }",
+        "model M() { variable x: complex<1>; initial { x = 0; } relation r { x = -(-0); } }",
+        "model M() { domain d = box(0,1,0,1); variable x: vector<m,2> on d; relation r on d { x = 0; } }",
+        "model M() { clock tick = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1 at tick; initial { pre(x) = 0; } relation r at tick { next(x) = pre(x); } }",
     ] {
         crate::compile("positive.eqi", source).unwrap();
     }
@@ -201,7 +201,7 @@ fn checked_residuals_preserve_negative_base_and_signed_power_meaning() {
     ] {
         let compiled = crate::compile(
             "precedence.eqi",
-            &format!("model M {{ variable x: 1; initial {{ x = 2; }} relation r {{ {expression} = 0; }} }}"),
+            &format!("model M() {{ variable x: 1; initial {{ x = 2; }} relation r {{ {expression} = 0; }} }}"),
         )
         .unwrap();
         let dag = compiled[0]

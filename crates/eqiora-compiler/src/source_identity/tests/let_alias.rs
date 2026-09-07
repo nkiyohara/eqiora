@@ -2,19 +2,19 @@ use super::identity;
 
 #[test]
 fn complete_let_type_annotations_change_source_identity() {
-    let real = "model m { let x: m = 0; }";
-    let complex = "model m { let x: complex<m> = 0; }";
-    let array = "model m { let x: array<complex<m>, 3> = 0; }";
+    let real = "model m() { let x: m = 0; }";
+    let complex = "model m() { let x: complex<m> = 0; }";
+    let array = "model m() { let x: array<complex<m>, 3> = 0; }";
     assert_ne!(identity(real), identity(complex));
     assert_ne!(identity(complex), identity(array));
 }
 
 #[test]
 fn source_structure_has_exact_identity() {
-    let base = "model m { parameter p: m = 2; let k: 1 / m = math.pi / p; }";
-    let reformatted = "model m {\n parameter p: m = 2;\n let k: 1/m = math.pi/p;\n}";
-    let renamed = "model m { parameter p: m = 2; let wave: 1 / m = math.pi / p; }";
-    let changed = "model m { parameter p: m = 2; let k: 1 / m = 2 / p; }";
+    let base = "model m() { parameter p: m = 2; let k: 1 / m = math.pi / p; }";
+    let reformatted = "model m() {\n parameter p: m = 2;\n let k: 1/m = math.pi/p;\n}";
+    let renamed = "model m() { parameter p: m = 2; let wave: 1 / m = math.pi / p; }";
+    let changed = "model m() { parameter p: m = 2; let k: 1 / m = 2 / p; }";
 
     assert_eq!(identity(base), identity(reformatted));
     assert_ne!(identity(base), identity(renamed));
@@ -23,9 +23,9 @@ fn source_structure_has_exact_identity() {
 
 #[test]
 fn omitted_dimension_has_distinct_deterministic_identity() {
-    let annotated = "model m { parameter p: m = 2; let k: 1 / m = math.pi / p; }";
-    let inferred = "model m { parameter p: m = 2; let k = math.pi / p; }";
-    let reformatted = "model m {\n parameter p: m = 2;\n let k=math.pi/p;\n}";
+    let annotated = "model m() { parameter p: m = 2; let k: 1 / m = math.pi / p; }";
+    let inferred = "model m() { parameter p: m = 2; let k = math.pi / p; }";
+    let reformatted = "model m() {\n parameter p: m = 2;\n let k=math.pi/p;\n}";
 
     assert_ne!(identity(annotated), identity(inferred));
     assert_eq!(identity(inferred), identity(reformatted));
@@ -33,7 +33,7 @@ fn omitted_dimension_has_distinct_deterministic_identity() {
 
 #[test]
 fn support_assertions_change_identity_in_both_containers() {
-    for container in ["model M", "component C()"] {
+    for container in ["model M()", "component C()"] {
         let omitted = format!("{container} {{ let q: m = value; }}");
         let asserted = format!("{container} {{ let q: m on body = value; }}");
         let other = format!("{container} {{ let q: m on other = value; }}");
@@ -56,7 +56,7 @@ fn omitted_activation_keeps_the_existing_record_contract() {
         value_type,
     };
     for (annotation, support) in [("", ""), (": m", ""), ("", " on body"), (": m", " on body")] {
-        let source = format!("model M {{ let q{annotation}{support} = value; }}");
+        let source = format!("model M() {{ let q{annotation}{support} = value; }}");
         let document = eqiora_lang::parse("omitted.eqi", &source)
             .into_document()
             .unwrap();
@@ -96,7 +96,7 @@ fn omitted_activation_keeps_the_existing_record_contract() {
 
 #[test]
 fn activation_assertions_change_identity_in_both_containers() {
-    for container in ["model M", "component C()"] {
+    for container in ["model M()", "component C()"] {
         for support in ["", " on body"] {
             let omitted = format!("{container} {{ let q: m{support} = value; }}");
             let asserted = format!("{container} {{ let q: m{support} at sample = value; }}");
@@ -124,8 +124,8 @@ fn arrays_and_indices_retain_order_shape_and_selection_identity() {
         ("samples[0][1]", "samples[1][0]"),
         ("10[ms]", "(10)[ms]"),
     ] {
-        let left = format!("model M {{ let x = {left}; }}");
-        let right = format!("model M {{ let x = {right}; }}");
+        let left = format!("model M() {{ let x = {left}; }}");
+        let right = format!("model M() {{ let x = {right}; }}");
         assert_ne!(identity(&left), identity(&right));
         let document = eqiora_lang::parse("array.eqi", &left)
             .into_document()
@@ -138,7 +138,7 @@ fn arrays_and_indices_retain_order_shape_and_selection_identity() {
 fn parameter_expression_identity_matches_native_factory_and_preserves_signed_literals() {
     use eqiora_lang::{ExprKind, Item, SourceAstFactory, TextRange, VisibilitySyntax};
     for initializer in ["[1, 2]", "math.complex(1, 2)", "-2", "-2[V]"] {
-        let source = format!("model M {{ parameter p: V = {initializer}; }}");
+        let source = format!("model M() {{ parameter p: V = {initializer}; }}");
         let document = eqiora_lang::parse("parameter.eqi", &source)
             .into_document()
             .unwrap();
@@ -182,7 +182,7 @@ fn parameter_expression_identity_matches_native_factory_and_preserves_signed_lit
 
 #[test]
 fn quantity_identity_preserves_exact_decimals_before_numerical_rounding() {
-    let source = |literal: &str| format!("model M {{ parameter p: m = {literal}[nm]; }}");
+    let source = |literal: &str| format!("model M() {{ parameter p: m = {literal}[nm]; }}");
     assert_eq!(identity(&source("0.1")), identity(&source("10e-2")));
     // These distinct exact decimals round to the same unscaled binary64.
     assert_ne!(
@@ -209,7 +209,7 @@ fn negative_dimensioned_constructor_values_match_native_and_formatted_identity()
             "array<complex<m>, 2>",
         ),
     ] {
-        let source = format!("model M {{ parameter p: {annotation} = {initializer}; }}");
+        let source = format!("model M() {{ parameter p: {annotation} = {initializer}; }}");
         let parsed = eqiora_lang::parse("signed.eqi", &source)
             .into_document()
             .unwrap();
@@ -237,7 +237,7 @@ fn negative_dimensioned_constructor_values_match_native_and_formatted_identity()
     }
     // Negation of an expression remains structural; this is not algebraic folding.
     assert_ne!(
-        identity("model M { let x=-(1[m]+2[m]); }"),
-        identity("model M { let x=-3[m]; }")
+        identity("model M() { let x=-(1[m]+2[m]); }"),
+        identity("model M() { let x=-3[m]; }")
     );
 }

@@ -32,7 +32,7 @@ fn factory_negative_literal_power_bases_are_grouped() {
         format_expression(&expression, 0, &mut output);
         let text = output.finish();
         assert!(text.starts_with("(-2"), "{text}");
-        let source = format!("model M {{ relation r {{ {text} = 0; }} }}");
+        let source = format!("model M() {{ relation r {{ {text} = 0; }} }}");
         let document = parse("factory.eqi", &source).into_document().unwrap();
         let Item::Relation(relation) = &document.models()[0].items()[0] else {
             panic!("relation")
@@ -57,21 +57,21 @@ fn factory_negative_literal_power_bases_are_grouped() {
 
 #[test]
 fn signed_parameter_quantities_round_trip_with_exact_unit_powers() {
-    let source = "model M { parameter value: m ^ (1 / 2) = -4[(mm ^ 2) ^ (1 / 4)]; }";
+    let source = "model M() { parameter value: m ^ (1 / 2) = -4[(mm ^ 2) ^ (1 / 4)]; }";
     let document = parse("quantity.eqi", source).into_document().unwrap();
     let formatted = format(&document);
     assert!(formatted.contains("-4 [(mm ^ 2) ^ (1 / 4)]"));
     let reparsed = parse("quantity.eqi", &formatted).into_document().unwrap();
     assert_eq!(format(&reparsed), formatted);
     for value in ["1 + 2", "-1[ms] + 2"] {
-        let source = format!("model M {{ parameter value: m = {value}; }}");
+        let source = format!("model M() {{ parameter value: m = {value}; }}");
         let parsed = parse("expression.eqi", &source).into_document().unwrap();
         let formatted = format(&parsed);
         let reparsed = parse("expression.eqi", &formatted).into_document().unwrap();
         assert_eq!(format(&reparsed), formatted);
     }
     for value in ["1[]", "1[m", "1[m ^ (1 / 0)]"] {
-        let source = format!("model M {{ parameter value: m = {value}; }}");
+        let source = format!("model M() {{ parameter value: m = {value}; }}");
         assert!(
             parse("invalid.eqi", &source).into_document().is_err(),
             "{source}"
@@ -81,7 +81,7 @@ fn signed_parameter_quantities_round_trip_with_exact_unit_powers() {
 
 #[test]
 fn canonical_format_is_idempotent() {
-    let source = "model m{state x: 1;initial{x=0;}relation r{derivative(x)-(1+x*2)=0;}}";
+    let source = "model m() {state x: 1;initial{x=0;}relation r{derivative(x)-(1+x*2)=0;}}";
     let first = parse("m.eqi", source).into_document().expect("parse");
     let formatted = format(&first);
     let second = parse("m.eqi", &formatted)
@@ -96,7 +96,7 @@ fn canonical_format_is_idempotent() {
 fn pure_operators_format_before_consumers_with_canonical_exact_integers() {
     let source = r#"component Consumer() {}
 public pure operator dyadic(left: spatial[01], right: scalar) -> spatial[2] = component(left, 00) * component(right) + rational(03, 04) * delta(0, 01);
-model M {
+model M() {
   variable u: 1;
   relation law { catalog.dyadic(u, u) = 0; }
 }"#;
@@ -122,7 +122,7 @@ model M {
 #[test]
 fn spatial_source_roundtrips_with_explicit_scope() {
     let source = r#"
-model bar {
+model bar() {
   domain body = box(0, 2);
   domain fixed = boundary(body, axis = 0, side = lower);
   variable u: m on body;
@@ -142,7 +142,7 @@ model bar {
 #[test]
 fn coordinate_math_roundtrips_without_losing_structure() {
     let source = r#"
-model poisson {
+model poisson() {
   domain interval = box(0, 1);
   variable u: 1 on interval;
   parameter wave_number: 1 / m = 3.141592653589793;
@@ -164,7 +164,7 @@ model poisson {
 #[test]
 fn scalar_physical_source_roundtrips_with_nominal_domain() {
     let source = r#"
-model circuit {
+model circuit() {
   domain electrical = scalar_physical(across = kg * m ^ 2 / (s ^ 3 * A), through = A);
   port positive: conserving on electrical;
   relation source { across(positive) = 0; }
@@ -189,19 +189,19 @@ model circuit {
 fn component_source_roundtrips_with_canonical_qualified_names() {
     let source = r#"
 connector Pin=scalar_physical(across=kg*m^2/(s^3*A),through=A);
-component Resistor() {
-public parameter resistance:kg*m^2/(s^3*A^2);
-public port positive:conserving on Pin;
-public port negative:conserving on Pin;
+component Resistor(parameter resistance:kg*m^2/(s^3*A^2), port positive:conserving on Pin, port negative:conserving on Pin) {
+
+
+
 relation law{across(positive)-across(negative)-resistance*through(positive)=0;}
 }
-component Pair() {
-public parameter resistance:kg*m^2/(s^3*A^2)=2;
-public port positive:conserving on Pin;
+component Pair(parameter resistance:kg*m^2/(s^3*A^2)=2, port positive:conserving on Pin) {
+
+
 instance inner:Library.Resistor(resistance=resistance);
 connect conserving positive,inner.positive;
 }
-model circuit{
+model circuit() {
 instance r2:Pair(resistance=2);
 instance r4:Pair(resistance=4);
 connect conserving r2.positive,r4.positive;
@@ -228,10 +228,10 @@ fn component_support_source_roundtrips_with_discriminated_bindings() {
 ) {
 variable state: 1 on body;
 }
-model coupled{
+model coupled() {
 domain fluid=box(0,1,0,1);
 domain wall=boundary(fluid,axis=0,side=lower);
-instance probe:BoundaryState(support interface=wall,gain=2,support body=fluid);
+instance probe:BoundaryState(interface =wall,gain=2,body =fluid);
 }"#;
     let first = parse("supports.eqi", source)
         .into_document()
@@ -244,9 +244,10 @@ instance probe:BoundaryState(support interface=wall,gain=2,support body=fluid);
     assert_eq!(format(&second), formatted);
     assert!(formatted.contains("support body: volume(ambient_dimension = 2),"));
     assert!(formatted.contains("support interface: boundary(parent = body),"));
-    assert!(formatted.contains(
-        "instance probe: BoundaryState(gain = 2, support interface = wall, support body = fluid);"
-    ));
+    assert!(
+        formatted
+            .contains("instance probe: BoundaryState(interface = wall, gain = 2, body = fluid);")
+    );
 }
 
 #[test]
@@ -285,9 +286,8 @@ fn field_physical_source_has_one_fixed_readable_order() {
     let source = r#"public connector MechanicalBoundary=field_physical(pairing=euclidean_boundary_duality,frame=spatial,shape=[2],flux=traction:kg/(m*s^2),trace=velocity:m/s);
 component Wall(
   support wall:boundary(parent=body),
-  support body:volume(ambient_dimension=2)
-) {
-public port interface:conserving MechanicalBoundary over wall;
+  support body:volume(ambient_dimension=2), port interface:conserving MechanicalBoundary over wall) {
+
 variable velocity: vector<m/s, 2>;
 relation load { flux(interface)=0; }
 }"#;
@@ -303,7 +303,7 @@ relation load { flux(interface)=0; }
     assert!(formatted.contains(
         "field_physical(\n  trace = velocity: m / s,\n  flux = traction: kg / (m * s ^ 2),\n  shape = [2],\n  frame = spatial,\n  pairing = euclidean_boundary_duality\n);"
     ));
-    assert!(formatted.contains("public port interface: conserving MechanicalBoundary over wall;"));
+    assert!(formatted.contains("port interface: conserving MechanicalBoundary over wall,"));
     assert!(formatted.contains("variable velocity: vector<m / s, 2>;"));
     assert!(formatted.contains("flux(interface) = 0;"));
 }
@@ -312,14 +312,13 @@ relation load { flux(interface)=0; }
 fn complete_exterior_families_have_one_closed_canonical_spelling() {
     let source = r#"component BoundaryLaw(
   support body:volume(ambient_dimension=2),
-  support exterior:complete_exterior(parent=body)
-) {
-public port mechanical[boundary in exterior]:conserving MechanicalBoundary over boundary;
+  support exterior:complete_exterior(parent=body), port mechanical[boundary in exterior]:conserving MechanicalBoundary over boundary) {
+
 relation natural[boundary in exterior] on boundary{flux(mechanical[boundary=boundary])=0;}
 connect conserving[boundary in exterior] child.mechanical[boundary=boundary],mechanical[boundary=boundary];
 }
-model coupled{
-instance law:BoundaryLaw(support body=fluid,support exterior=boundaries(x_lower,x_upper,y_lower,y_upper));
+model coupled() {
+instance law:BoundaryLaw(body =fluid,exterior =boundaries(x_lower,x_upper,y_lower,y_upper));
 connect conserving law.mechanical[boundary=x_lower],environment;
 }"#;
     let first = parse("complete-exterior.eqi", source)
@@ -333,15 +332,13 @@ connect conserving law.mechanical[boundary=x_lower],environment;
     assert_eq!(format(&second), formatted);
     assert!(formatted.contains("support exterior: complete_exterior(parent = body),"));
     assert!(formatted.contains(
-        "public port mechanical[boundary in exterior]: conserving MechanicalBoundary over boundary;"
+        "port mechanical[boundary in exterior]: conserving MechanicalBoundary over boundary,"
     ));
     assert!(formatted.contains("relation natural[boundary in exterior] on boundary {"));
     assert!(formatted.contains(
         "connect conserving [boundary in exterior] child.mechanical[boundary = boundary], mechanical[boundary = boundary];"
     ));
-    assert!(
-        formatted.contains("support exterior = boundaries(x_lower, x_upper, y_lower, y_upper)")
-    );
+    assert!(formatted.contains("exterior = boundaries(x_lower, x_upper, y_lower, y_upper)"));
     assert!(
         formatted.contains("connect conserving law.mechanical[boundary = x_lower], environment;")
     );
@@ -349,7 +346,7 @@ connect conserving law.mechanical[boundary=x_lower],environment;
 
 #[test]
 fn spatial_periodic_pair_has_one_closed_canonical_spelling() {
-    let source = "model M{connect periodic upper.interface,lower.interface;}";
+    let source = "model M() {connect periodic upper.interface,lower.interface;}";
     let first = parse("periodic.eqi", source)
         .into_document()
         .expect("spatial-periodic source parses");
@@ -366,14 +363,13 @@ fn spatial_periodic_pair_has_one_closed_canonical_spelling() {
 fn legacy_support_relations_and_connections_keep_their_canonical_spelling() {
     let source = r#"component Legacy(
   support body:volume(ambient_dimension=2),
-  support wall:boundary(parent=body)
-) {
-public port interface:conserving MechanicalBoundary over wall;
+  support wall:boundary(parent=body), port interface:conserving MechanicalBoundary over wall) {
+
 relation law on wall{flux(interface)=0;}
 connect conserving interface,child.interface;
 }
-model use_legacy{
-instance legacy:Legacy(support body=fluid,support wall=fixed);
+model use_legacy() {
+instance legacy:Legacy(body =fluid,wall =fixed);
 connect conserving legacy.interface,environment;
 }"#;
     let first = parse("legacy.eqi", source)
@@ -386,7 +382,7 @@ connect conserving legacy.interface,environment;
 
     assert_eq!(format(&second), formatted);
     assert!(formatted.contains("support wall: boundary(parent = body),"));
-    assert!(formatted.contains("public port interface: conserving MechanicalBoundary over wall;"));
+    assert!(formatted.contains("port interface: conserving MechanicalBoundary over wall,"));
     assert!(formatted.contains("relation law on wall {"));
     assert!(formatted.contains("connect conserving interface, child.interface;"));
     assert!(!formatted.contains("boundaries("));

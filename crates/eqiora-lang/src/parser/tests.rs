@@ -5,7 +5,7 @@ fn parser_retains_exact_pure_operator_syntax_and_qualified_applications() {
     let source = r#"public pure operator dyadic(left: spatial[01], right: spatial[1]) -> spatial[2] =
   component(left, 0) * component(right, 1) + rational(03, 4) * delta(0, 1);
 
-model coupled {
+model coupled() {
   variable u: 1;
   variable v: 1;
   relation law { ops.dyadic(u, v) = 0; }
@@ -106,13 +106,13 @@ fn parser_represents_scalar_component_selection_with_zero_axes() {
 fn parser_requires_pure_operators_before_models_and_nonempty_calls() {
     let late = parse(
         "late-operator.eqi",
-        "model M {} pure operator identity(x: scalar) -> scalar = component(x, 0);",
+        "model M() {} pure operator identity(x: scalar) -> scalar = component(x, 0);",
     );
     assert!(late.into_document().is_err());
 
     let empty_call = parse(
         "empty-call.eqi",
-        "model M { relation r { ops.identity() = 0; } }",
+        "model M() { relation r { ops.identity() = 0; } }",
     );
     assert!(empty_call.into_document().is_err());
 }
@@ -120,7 +120,7 @@ fn parser_requires_pure_operators_before_models_and_nonempty_calls() {
 #[test]
 fn parser_builds_continuous_and_periodic_relations() {
     let source = r#"
-model thermal {
+model thermal() {
   state temperature: K;
   state command: 1 at control;
   initial { temperature = 293[K]; command = 0; }
@@ -142,7 +142,7 @@ next(command) - pre(command) = 0;
 
 #[test]
 fn parser_recovers_after_an_invalid_item() {
-    let source = "model m { nonsense; variable x: 1; }";
+    let source = "model m() { nonsense; variable x: 1; }";
     let result = parse("recovery.eqi", source);
 
     assert!(!result.diagnostics().is_empty());
@@ -156,7 +156,7 @@ fn parser_recovers_after_an_invalid_item() {
 
 #[test]
 fn parser_retains_scalar_physical_contracts_and_source_ranges() {
-    let source = r#"model circuit {
+    let source = r#"model circuit() {
   domain electrical = scalar_physical(across = kg * m ^ 2 / (s ^ 3 * A), through = A);
   port terminal: conserving on electrical;
   relation component { across(terminal) = 0; }
@@ -207,21 +207,20 @@ fn parser_builds_typed_component_interfaces_instances_and_paths() {
     let source = r#"
 connector Pin = scalar_physical(across = kg * m ^ 2 / (s ^ 3 * A), through = A);
 
-component Pair() {
-  public parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2);
+component Pair(parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2), port positive: conserving on Pin) {
+
   parameter scale: 1 = 2;
-  public port positive: conserving on Pin;
+
   port command: signal input 1;
   instance inner: Catalog.Resistor(resistance = resistance * scale);
   relation law { across(inner.positive) - resistance = 0; }
   connect conserving inner.positive, positive;
 }
 
-model parallel {
+model parallel(port positive: conserving on Pin) {
   instance r2: Pair(resistance = 2);
   instance r4: Pair(resistance = 4);
-  connect conserving r2.positive, r4.positive;
-  boundary r2.positive;
+  connect conserving r2.positive, r4.positive, positive;
 }
 "#;
     let document = parse("components.eqi", source)
@@ -237,17 +236,17 @@ model parallel {
 
     let component = &document.components()[0];
     assert_eq!(component.name(), "Pair");
-    let ComponentItem::Parameter(resistance) = &component.items()[0] else {
+    let crate::SignatureItem::Parameter(resistance) = &component.signature()[0] else {
         panic!("first member is the public Parameter");
     };
     assert_eq!(resistance.visibility(), VisibilitySyntax::Public);
     assert!(resistance.default().is_none());
-    let ComponentItem::Parameter(scale) = &component.items()[1] else {
+    let ComponentItem::Parameter(scale) = &component.items()[0] else {
         panic!("second member is the private Parameter");
     };
     assert_eq!(scale.visibility(), VisibilitySyntax::Private);
     assert!(scale.default().is_some());
-    let ComponentItem::Port(positive) = &component.items()[2] else {
+    let crate::SignatureItem::Port(positive) = &component.signature()[1] else {
         panic!("third member is the public Port");
     };
     assert_eq!(positive.visibility(), VisibilitySyntax::Public);
@@ -256,16 +255,16 @@ model parallel {
     };
     assert_eq!(connector.segments().collect::<Vec<_>>(), ["Pin"]);
 
-    let ComponentItem::Instance(inner) = &component.items()[4] else {
+    let ComponentItem::Instance(inner) = &component.items()[2] else {
         panic!("fifth member is the nested instance");
     };
     assert_eq!(
         inner.definition().segments().collect::<Vec<_>>(),
         ["Catalog", "Resistor"]
     );
-    assert_eq!(inner.bindings()[0].parameter(), "resistance");
+    assert_eq!(inner.bindings()[0].name(), "resistance");
 
-    let ComponentItem::Relation(relation) = &component.items()[5] else {
+    let ComponentItem::Relation(relation) = &component.items()[3] else {
         panic!("sixth member is the Relation");
     };
     let ExprKind::Binary { left, .. } = relation.equations()[0].left().kind() else {
@@ -290,10 +289,10 @@ model parallel {
         connection.port_paths()[0].segments().collect::<Vec<_>>(),
         ["r2", "positive"]
     );
-    let Item::Boundary(boundary) = &document.models()[0].items()[3] else {
-        panic!("fourth model member is the boundary");
+    let crate::SignatureItem::Port(port) = &document.models()[0].signature()[0] else {
+        panic!("public physical endpoint belongs to signature");
     };
-    assert!(boundary.port_paths()[0].is_qualified());
+    assert_eq!(port.name(), "positive");
 }
 
 #[test]
@@ -305,17 +304,17 @@ fn parser_retains_component_support_requirements_and_mixed_bindings() {
   variable state: 1 on body;
 }
 
-model coupled {
+model coupled() {
   domain fluid = box(0, 1, 0, 1);
   domain wall = boundary(fluid, axis = 0, side = lower);
-  instance probe: BoundaryState(gain = 2, support body = fluid, support interface = wall);
+  instance probe: BoundaryState(gain = 2, body = fluid, interface = wall);
 }"#;
     let document = parse("supports.eqi", source)
         .into_document()
         .expect("support-slot syntax is valid");
     let component = &document.components()[0];
 
-    let ComponentItem::Support(body) = &component.items()[0] else {
+    let crate::SignatureItem::Support(body) = &component.signature()[0] else {
         panic!("first member is the volume support slot");
     };
     assert_eq!(body.visibility(), VisibilitySyntax::Public);
@@ -330,27 +329,30 @@ model coupled {
         "support body: volume(ambient_dimension = 2)"
     );
 
-    let ComponentItem::Support(interface) = &component.items()[1] else {
+    let crate::SignatureItem::Support(interface) = &component.signature()[1] else {
         panic!("second member is the boundary support slot");
     };
     assert!(matches!(
         interface.syntax(),
         SupportSlotSyntax::Boundary { parent } if parent == "body"
     ));
-    let ComponentItem::Field(field) = &component.items()[2] else {
+    let ComponentItem::Field(field) = &component.items()[0] else {
         panic!("third member is the private variable");
     };
     assert_eq!(field.name(), "state");
     let Item::Instance(instance) = &document.models()[0].items()[2] else {
         panic!("third model member is the component instance");
     };
-    assert_eq!(instance.bindings().len(), 1);
-    assert_eq!(instance.bindings()[0].parameter(), "gain");
-    assert_eq!(instance.support_bindings().len(), 2);
-    assert_eq!(instance.support_bindings()[0].slot(), "body");
-    assert_eq!(instance.support_bindings()[0].target(), "fluid");
-    assert_eq!(instance.support_bindings()[1].slot(), "interface");
-    assert_eq!(instance.support_bindings()[1].target(), "wall");
+    assert_eq!(
+        instance
+            .bindings()
+            .iter()
+            .map(|b| b.name())
+            .collect::<Vec<_>>(),
+        ["gain", "body", "interface"]
+    );
+    assert!(matches!(instance.bindings()[1].value().kind(), ExprKind::Name(n) if n == "fluid"));
+    assert!(matches!(instance.bindings()[2].value().kind(), ExprKind::Name(n) if n == "wall"));
 }
 
 #[test]
@@ -358,23 +360,22 @@ fn parser_retains_occurrence_bound_field_slots_and_bindings() {
     let source = r#"component IsotropicBalance2d(
   support body: volume(ambient_dimension = 2),
   variable displacement: vector<m, 2> on body,
-  variable load: vector<kg / (m * s ^ 2), 2> on body,
-) {
-  public parameter mu: kg / (m * s ^ 2);
+  variable load: vector<kg / (m * s ^ 2), 2> on body, parameter mu: kg / (m * s ^ 2)) {
+
 }
 
-model Main {
+model Main() {
   domain body = box(0, 1, 0, 1);
   variable u: vector<m, 2> on body;
   variable f: vector<kg / (m * s ^ 2), 2> on body;
-  instance law: IsotropicBalance2d(mu = 3, support body = body, field displacement = u, field load = f);
+  instance law: IsotropicBalance2d(mu = 3, body = body, displacement = u, load = f);
 }"#;
     let document = parse("field-slots.eqi", source)
         .into_document()
         .expect("Field-slot syntax is valid");
     let component = &document.components()[0];
 
-    let ComponentItem::FieldRequirement(displacement) = &component.items()[1] else {
+    let crate::SignatureItem::Field(displacement) = &component.signature()[1] else {
         panic!("second member is the displacement Field slot");
     };
     assert_eq!(displacement.name(), "displacement");
@@ -391,21 +392,28 @@ model Main {
     let Item::Instance(instance) = &document.models()[0].items()[3] else {
         panic!("fourth model member is the component instance");
     };
-    assert_eq!(instance.bindings().len(), 1);
-    assert_eq!(instance.support_bindings().len(), 1);
-    assert_eq!(instance.field_bindings().len(), 2);
-    assert_eq!(instance.field_bindings()[0].slot(), "displacement");
-    assert_eq!(instance.field_bindings()[0].target(), "u");
-    assert_eq!(instance.field_bindings()[1].slot(), "load");
-    assert_eq!(instance.field_bindings()[1].target(), "f");
-    assert_eq!(crate::format(&document), format!("{source}\n"));
+    assert_eq!(
+        instance
+            .bindings()
+            .iter()
+            .map(|b| b.name())
+            .collect::<Vec<_>>(),
+        ["mu", "body", "displacement", "load"]
+    );
+    assert!(matches!(instance.bindings()[2].value().kind(), ExprKind::Name(n) if n == "u"));
+    assert!(matches!(instance.bindings()[3].value().kind(), ExprKind::Name(n) if n == "f"));
+    let formatted = crate::format(&document);
+    assert_eq!(
+        crate::format(&parse("again.eqi", &formatted).into_document().unwrap()),
+        formatted
+    );
 }
 
 #[test]
 fn field_discriminator_does_not_reserve_the_parameter_name_field() {
     let document = parse(
         "field-parameter.eqi",
-        "component C() { public parameter field: 1; } model m { instance c: C(field = 1); }",
+        "component C(parameter field: 1) {  } model m() { instance c: C(field = 1); }",
     )
     .into_document()
     .expect("`field = expression` remains a Parameter binding");
@@ -413,8 +421,8 @@ fn field_discriminator_does_not_reserve_the_parameter_name_field() {
         panic!("model member is an instance");
     };
 
-    assert_eq!(instance.bindings()[0].parameter(), "field");
-    assert!(instance.field_bindings().is_empty());
+    assert_eq!(instance.bindings()[0].name(), "field");
+    assert_eq!(instance.bindings().len(), 1);
 }
 
 #[test]
@@ -436,7 +444,7 @@ fn parser_rejects_retired_body_field_slots() {
 fn support_discriminator_does_not_reserve_the_parameter_name_support() {
     let document = parse(
         "support-parameter.eqi",
-        "component C() { public parameter support: 1; } model m { instance c: C(support = 1); }",
+        "component C(parameter support: 1) {  } model m() { instance c: C(support = 1); }",
     )
     .into_document()
     .expect("`support = expression` remains a Parameter binding");
@@ -444,8 +452,8 @@ fn support_discriminator_does_not_reserve_the_parameter_name_support() {
         panic!("model member is an instance");
     };
 
-    assert_eq!(instance.bindings()[0].parameter(), "support");
-    assert!(instance.support_bindings().is_empty());
+    assert_eq!(instance.bindings()[0].name(), "support");
+    assert_eq!(instance.bindings().len(), 1);
 }
 
 #[test]
@@ -484,15 +492,18 @@ public component Resistor() {}"#;
 
 #[test]
 fn parser_retains_public_and_private_model_visibility() {
-    let public = parse("entry.eqi", "public model Main {}")
+    let public = parse("entry.eqi", "public model Main() {}")
         .into_document()
         .expect("public Model is accepted");
     assert_eq!(public.models().len(), 1);
     assert_eq!(public.models()[0].visibility(), VisibilitySyntax::Public);
-    assert_eq!(public.models()[0].range(), TextRange::new(0, 20));
-    assert_eq!(crate::format(&public), "public model Main {\n}\n");
+    assert_eq!(
+        public.models()[0].range(),
+        TextRange::new(0, "public model Main() {}".len() as u32)
+    );
+    assert_eq!(crate::format(&public), "public model Main() {\n}\n");
 
-    let private = parse("entry.eqi", "private model Main {}")
+    let private = parse("entry.eqi", "private model Main() {}")
         .into_document()
         .expect("an explicitly package-local Model is accepted");
     assert_eq!(private.models()[0].visibility(), VisibilitySyntax::Private);
@@ -504,11 +515,11 @@ fn parser_discards_illegal_public_members_and_recovers() {
     let source = r#"
 component Invalid() {
   public relation exposed { 1 = 0; }
-  public instance child: Other;
+  public instance child: Other();
   instance malformed: ;
   parameter retained: 1 = 1;
 }
-model root {}
+model root() {}
 "#;
     let result = parse("visibility.eqi", source);
     let document = result.document().expect("recovered compilation unit");
@@ -525,7 +536,7 @@ model root {}
 fn parser_requires_compilation_unit_definitions_before_models() {
     let result = parse(
         "order.eqi",
-        "model first {} component Late() {} model second {}",
+        "model first() {} component Late() {} model second() {}",
     );
     let document = result.document().expect("declarations are recovered");
 
@@ -545,7 +556,7 @@ public connector MechanicalBoundary = field_physical(
   shape = spatial_vector
 );
 
-model coupled {
+model coupled() {
   domain fluid = box(0, 1, 0, 1);
   domain wall = boundary(fluid, axis = 0, side = upper);
   variable velocity: array<m / s, 2> on fluid;
@@ -599,7 +610,7 @@ model coupled {
 
 #[test]
 fn shaped_initial_equations_remain_explicit_for_shared_type_validation() {
-    let source = "model M { state velocity: array<m / s, 2>; initial { velocity = 1[m / s]; } }";
+    let source = "model M() { state velocity: array<m / s, 2>; initial { velocity = 1[m / s]; } }";
     let document = parse("shaped-field.eqi", source)
         .into_document()
         .expect("syntax preserves the equation; compiler validates shape");
@@ -645,19 +656,18 @@ fn parser_retains_closed_complete_exterior_family_syntax() {
     let source = r#"
 component BoundaryLaw(
   support body: volume(ambient_dimension = 2),
-  support exterior: complete_exterior(parent = body)
-) {
-  public port mechanical[boundary in exterior]: conserving MechanicalBoundary over boundary;
+  support exterior: complete_exterior(parent = body), port mechanical[boundary in exterior]: conserving MechanicalBoundary over boundary) {
+
   relation natural[boundary in exterior] on boundary {
 flux(mechanical[boundary = boundary]) = 0;
   }
   connect conserving [boundary in exterior] child.mechanical[boundary = boundary], mechanical[boundary = boundary];
 }
 
-model coupled {
+model coupled() {
   instance law: BoundaryLaw(
-support body = fluid,
-support exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
+body = fluid,
+exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
   );
   connect conserving law.mechanical[boundary = x_lower], environment;
 }
@@ -667,7 +677,7 @@ support exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
         .expect("restricted boundary-family syntax parses");
     let component = &document.components()[0];
 
-    let ComponentItem::Support(exterior) = &component.items()[1] else {
+    let crate::SignatureItem::Support(exterior) = &component.signature()[1] else {
         panic!("second component member is the complete exterior");
     };
     assert!(matches!(
@@ -675,13 +685,13 @@ support exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
         SupportSlotSyntax::CompleteExterior { parent } if parent == "body"
     ));
 
-    let ComponentItem::PortFamily(port) = &component.items()[2] else {
+    let crate::SignatureItem::PortFamily(port) = &component.signature()[2] else {
         panic!("third component member is a Port family");
     };
     assert_eq!(port.binder().member(), "boundary");
     assert_eq!(port.binder().set(), "exterior");
 
-    let ComponentItem::RelationFamily(relation) = &component.items()[3] else {
+    let ComponentItem::RelationFamily(relation) = &component.items()[0] else {
         panic!("fourth component member is a Relation family");
     };
     assert_eq!(relation.relation().domain(), Some("boundary"));
@@ -694,7 +704,7 @@ support exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
             if selector.member() == "boundary" && selector.target() == "boundary"
     ));
 
-    let ComponentItem::BoundaryConnection(connection) = &component.items()[4] else {
+    let ComponentItem::BoundaryConnection(connection) = &component.items()[1] else {
         panic!("fifth component member is a pointwise conserving Connection");
     };
     assert_eq!(connection.binder().expect("binder").set(), "exterior");
@@ -702,18 +712,18 @@ support exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
     let Item::Instance(instance) = &document.models()[0].items()[0] else {
         panic!("first model member is the component instance");
     };
-    assert!(
-        instance
-            .support_bindings()
-            .iter()
-            .any(|binding| { binding.slot() == "body" && binding.target() == "fluid" })
-    );
-    assert_eq!(instance.boundary_set_bindings().len(), 1);
+    assert_eq!(instance.bindings()[0].name(), "body");
+    assert!(matches!(instance.bindings()[0].value().kind(), ExprKind::Name(n) if n == "fluid"));
+    let ExprKind::Call { arguments, .. } = instance.bindings()[1].value().kind() else {
+        panic!("boundaries call")
+    };
     assert_eq!(
-        instance.boundary_set_bindings()[0]
-            .members()
+        arguments
             .iter()
-            .map(BoundarySetMemberSyntax::target)
+            .map(|a| match a.kind() {
+                ExprKind::Name(n) => n.as_str(),
+                _ => panic!("boundary name"),
+            })
             .collect::<Vec<_>>(),
         ["x_lower", "x_upper", "y_lower", "y_upper"]
     );
@@ -731,7 +741,7 @@ support exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
 #[test]
 fn parser_retains_exact_model_spatial_periodic_pairs() {
     let source = r#"
-model periodic {
+model periodic() {
   connect periodic upper.interface, lower.interface;
 }
 "#;
@@ -761,7 +771,7 @@ fn parser_rejects_boundary_binders_outside_the_closed_family_sites() {
     let invalid_sources = [
         (
             "signal-port",
-            "component C() { public port p[b in exterior]: signal input 1; }",
+            "component C(port p[b in exterior]: signal input 1) {  }",
         ),
         (
             "periodic-relation",
@@ -769,11 +779,11 @@ fn parser_rejects_boundary_binders_outside_the_closed_family_sites() {
         ),
         (
             "model-relation",
-            "model M { relation r[b in exterior] on b { 1 = 0; } }",
+            "model M() { relation r[b in exterior] on b { 1 = 0; } }",
         ),
         (
             "model-connection",
-            "model M { connect conserving [b in exterior] left, right; }",
+            "model M() { connect conserving [b in exterior] left, right; }",
         ),
     ];
 
@@ -786,7 +796,7 @@ fn parser_rejects_boundary_binders_outside_the_closed_family_sites() {
 
 #[test]
 fn parser_and_formatter_retain_ordered_dimension_prefix_with_exact_ranges() {
-    let source = "dimension Speed = m / s;\ndimension Acceleration = Speed / s;\nmodel M { variable velocity: Speed; }";
+    let source = "dimension Speed = m / s;\ndimension Acceleration = Speed / s;\nmodel M() { variable velocity: Speed; }";
     let document = parse("dimensions.eqi", source)
         .into_document()
         .expect("dimension prefix parses");
@@ -806,7 +816,7 @@ fn parser_and_formatter_retain_ordered_dimension_prefix_with_exact_ranges() {
 
     let misplaced = parse(
         "misplaced.eqi",
-        "model M { variable x: m; } dimension Length = m;",
+        "model M() { variable x: m; } dimension Length = m;",
     );
     assert!(
         misplaced
