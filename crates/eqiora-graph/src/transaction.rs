@@ -1,6 +1,8 @@
 //! Typed transaction contract.
 
-use eqiora_core::{DynQuantity, EntityKind, Id, OntologyView, RawId, RawOntologyId, entity::kinds};
+use eqiora_core::{
+    EntityKind, Id, OntologyView, RawId, RawOntologyId, ValueLiteral, entity::kinds,
+};
 use eqiora_schema::kernel::KernelNode;
 
 use crate::EdgeKind;
@@ -18,7 +20,7 @@ pub enum Precondition {
         /// Node whose value is asserted.
         target: RawId,
         /// Expected current value.
-        expected: DynQuantity,
+        expected: ValueLiteral,
     },
     /// The federation is still at the given revision.
     RevisionIs(Revision),
@@ -42,12 +44,12 @@ pub enum Op {
         /// Typed definition; its enum variant determines the entity kind.
         node: KernelNode,
     },
-    /// Set a quantitative parameter or field default.
+    /// Set a complete typed Parameter value.
     SetValue {
-        /// Field or parameter to mutate.
+        /// Parameter to mutate.
         target: RawId,
-        /// New SI value with runtime dimension at this storage boundary.
-        value: DynQuantity,
+        /// New complete value, retaining dimension, domain, shape, and frame.
+        value: ValueLiteral,
     },
     /// Create a kernel-schema-approved edge.
     Connect {
