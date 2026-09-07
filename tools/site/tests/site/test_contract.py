@@ -5,7 +5,6 @@ import io
 import json
 import tempfile
 import unittest
-from dataclasses import replace
 from pathlib import Path
 from unittest import mock
 
@@ -21,6 +20,22 @@ from fixture import (
 
 
 class CompleteContractTests(unittest.TestCase):
+    def test_current_copy_rejects_stale_versions_but_release_history_remains(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            _, identities = make_fixture(root)
+            self.assertEqual(checker.check_source(root, identities), [])
+            history = root / "docs/site/src/content/docs/release-notes/alpha-1.mdx"
+            history.parent.mkdir(parents=True, exist_ok=True)
+            history.write_text("Released 0.1.0a1\n", encoding="utf-8")
+            self.assertEqual(checker.check_source(root, identities), [])
+            current = root / "docs/site/src/content/docs/current.mdx"
+            current.write_text("Current release 0.1.0a1\n", encoding="utf-8")
+            self.assertTrue(
+                any("hard-codes product version" in error
+                    for error in checker.check_source(root, identities))
+            )
+
     def test_source_command_reports_checker_result(self) -> None:
         for errors, status in (([], 0), (["invalid site source"], 1)):
             with self.subTest(errors=errors), mock.patch.object(
@@ -32,191 +47,6 @@ class CompleteContractTests(unittest.TestCase):
                 check.assert_called_once_with(REPOSITORY.resolve())
                 if errors:
                     self.assertIn("invalid site source", stderr.getvalue())
-
-    PUBLICATION_RELATIVE = Path(
-        "docs/site/src/data/gallery/exact-cylinder-steady-stokes.publication.json"
-    )
-
-    def test_00_checker_caption_matches_exact_accepted_publication(self) -> None:
-        publication = REPOSITORY / self.PUBLICATION_RELATIVE
-        before = publication.read_bytes()
-        self.assertEqual(checker.sha256(publication), checker.PUBLICATION_SHA256)
-        document = self._read_publication(publication)
-        self.assertEqual(
-            (
-                document["schema"],
-                document["entry_id"],
-                document["admission"]["status"],
-            ),
-            (
-                "eqiora.site.gallery-publication/v1",
-                "exact-cylinder-steady-stokes",
-                "accepted",
-            ),
-        )
-        self.assertEqual(publication.read_bytes(), before)
-        self.assertEqual(
-            checker.PRESSURE_CAPTION,
-            document["publication_payload"]["text"]["caption"],
-        )
-
-    def test_00_publication_provenance_positives_then_mutants(self) -> None:
-        # The real, fixed-production record in the post-B source tree is the
-        # first positive. All source checks pass before any provenance mutant runs.
-        self.assertEqual(checker.check_source(REPOSITORY), [])
-
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            artifact, identities = make_fixture(root)
-            self.assertEqual(
-                checker.check_site(root, artifact, SOURCE_SHA, identities), []
-            )
-
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            _, identities = make_fixture(root)
-            ordinary = root / "docs/site/src/content/docs/current.mdx"
-            ordinary.parent.mkdir(parents=True, exist_ok=True)
-            ordinary.write_text(
-                "This ordinary source contains no Eqiora release literal.\n",
-                encoding="utf-8",
-            )
-            self.assertEqual(checker.check_source(root, identities), [])
-
-        self.assertEqual(
-            checker.CURRENT_VERSION_SOURCE_EXCEPTIONS,
-            {
-                "docs/site/src/content/docs/reference/cli/index.mdx",
-                "docs/site/src/content/docs/reference/mcp/index.mdx",
-            },
-        )
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            _, identities = make_fixture(root)
-            classified_sources = {
-                "docs/site/src/content/docs/release-notes/alpha-1.mdx": (
-                    "Historical Cargo 0.1.0-alpha.1 and Python 0.1.0a1.\n"
-                ),
-                "docs/site/src/content/docs/reference/cli/index.mdx": (
-                    "Generated CLI release 0.1.0-alpha.1.\n"
-                ),
-                "docs/site/src/content/docs/reference/mcp/index.mdx": (
-                    "Generated MCP release 0.1.0a1.\n"
-                ),
-            }
-            for relative, content in classified_sources.items():
-                source = root / relative
-                source.parent.mkdir(parents=True, exist_ok=True)
-                source.write_text(content, encoding="utf-8")
-            self.assertEqual(checker.check_source(root, identities), [])
-
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            _, identities, publication = self._real_publication_fixture(
-                root, "0.1.0-alpha.3"
-            )
-            before = publication.read_bytes()
-            release_identity, release_errors = checker.derive_release_identity(root)
-            self.assertEqual(release_errors, [])
-            self.assertEqual(
-                release_identity,
-                checker.ReleaseIdentity(cargo="0.1.0-alpha.3", python="0.1.0a3"),
-            )
-            self.assertEqual(checker.check_source(root, identities), [])
-            self.assertEqual(publication.read_bytes(), before)
-            self.assertEqual(checker.sha256(publication), checker.PUBLICATION_SHA256)
-            self.assertEqual(
-                self._eqiora_input(self._read_publication(publication))["version"],
-                "0.1.0a3",
-            )
-
-        # Causal mutants execute only after every ordinary positive above.
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            _, identities = make_fixture(root)
-            ordinary = root / "docs/site/src/content/docs/current.mdx"
-            ordinary.parent.mkdir(parents=True, exist_ok=True)
-            ordinary.write_text("Alpha 0.1.0a1\n", encoding="utf-8")
-            errors = checker.check_source(root, identities)
-            self.assertTrue(
-                any(
-                    "hard-codes product version '0.1.0a1': "
-                    "docs/site/src/content/docs/current.mdx" in error
-                    for error in errors
-                ),
-                errors,
-            )
-
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            _, identities = make_fixture(root)
-            copied = (
-                root / "docs/site/src/data/copied/"
-                "exact-cylinder-steady-stokes.publication.json"
-            )
-            copied.parent.mkdir(parents=True, exist_ok=True)
-            copied.write_bytes((REPOSITORY / self.PUBLICATION_RELATIVE).read_bytes())
-            errors = checker.check_source(root, identities)
-            self.assertTrue(
-                any(
-                    "hard-codes product version '0.1.0a3': "
-                    "docs/site/src/data/copied/"
-                    "exact-cylinder-steady-stokes.publication.json" in error
-                    for error in errors
-                ),
-                errors,
-            )
-
-        for stale_version in ("0.1.0a1", "0.1.0a2"):
-            with self.subTest(stale_publication_version=stale_version):
-                with tempfile.TemporaryDirectory() as temporary:
-                    root = Path(temporary)
-                    _, identities, publication = self._real_publication_fixture(root)
-                    document = self._read_publication(publication)
-                    self._eqiora_input(document)["version"] = stale_version
-                    self._write_publication(publication, document)
-                    self._assert_publication_mutant(
-                        root, identities, publication, stale_version
-                    )
-
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            _, identities, publication = self._real_publication_fixture(root)
-            document = self._read_publication(publication)
-            resolved_inputs = self._resolved_inputs(document)
-            eqiora_input = resolved_inputs.pop(4)
-            resolved_inputs.insert(5, eqiora_input)
-            self._write_publication(publication, document)
-            self._assert_publication_mutant(root, identities, publication, "0.1.0a3")
-
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            _, identities, publication = self._real_publication_fixture(root)
-            document = self._read_publication(publication)
-            document["unexpected_eqiora_version"] = "0.1.0-alpha.9"
-            self._write_publication(publication, document)
-            self._assert_publication_mutant(
-                root, identities, publication, "0.1.0a3", "0.1.0-alpha.9"
-            )
-
-        object_mutations = {
-            "kind": "archive",
-            "name": "not-eqiora",
-            "sha256": "0" * 64,
-        }
-        for field, replacement in object_mutations.items():
-            with (
-                self.subTest(publication_object_field=field),
-                tempfile.TemporaryDirectory() as temporary,
-            ):
-                root = Path(temporary)
-                _, identities, publication = self._real_publication_fixture(root)
-                document = self._read_publication(publication)
-                self._eqiora_input(document)[field] = replacement
-                self._write_publication(publication, document)
-                self._assert_publication_mutant(
-                    root, identities, publication, "0.1.0a3"
-                )
 
     def test_00_synthetic_ordinary_site_passes_before_mutants(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -301,7 +131,7 @@ class CompleteContractTests(unittest.TestCase):
         mutations = {
             "fixed-mesh figure alt": (
                 PRESSURE_ALT,
-                PRESSURE_ALT.replace("current Gmsh mesh", "fixed Gmsh mesh"),
+                PRESSURE_ALT.replace("current mesh", "fixed mesh"),
             ),
             "omitted Gmsh and interior-mesh boundary": (
                 WITNESS_COPY,
@@ -331,8 +161,7 @@ class CompleteContractTests(unittest.TestCase):
             old.parent.mkdir(parents=True, exist_ok=True)
             old.write_text(checker.OLD_SOCIAL_LINE, encoding="utf-8")
             for relative in (
-                "docs/site/src/assets/gallery/exact-cylinder-pressure.png",
-                "docs/site/src/data/gallery/exact-cylinder-steady-stokes.publication.json",
+                "docs/site/src/assets/gallery/exact-cylinder-pressure-presentation.png",
                 "docs/site/public/social-card.svg",
             ):
                 (root / relative).unlink()
@@ -343,7 +172,6 @@ class CompleteContractTests(unittest.TestCase):
                 joined,
             )
             self.assertIn("missing exact admitted pressure media", joined)
-            self.assertIn("missing exact admitted publication record", joined)
             self.assertIn("missing exact timeless social card", joined)
             self.assertNotIn("site package must pin", joined)
             self.assertNotIn("Pages path filters", joined)
@@ -502,19 +330,6 @@ class CompleteContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             _, identities = make_fixture(root)
-            publication = (
-                root
-                / "docs/site/src/data/gallery/exact-cylinder-steady-stokes.publication.json"
-            )
-            publication.write_text('{"tuned":true}\n', encoding="utf-8")
-            errors = checker.check_source(root, identities)
-            self.assertTrue(
-                any("publication record digest mismatch" in error for error in errors)
-            )
-
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            _, identities = make_fixture(root)
             old = root / "docs/site/assets/social-card.svg"
             old.parent.mkdir(parents=True, exist_ok=True)
             old.write_text(checker.OLD_SOCIAL_LINE, encoding="utf-8")
@@ -612,76 +427,6 @@ class CompleteContractTests(unittest.TestCase):
             path.read_text(encoding="utf-8").replace(old, new), encoding="utf-8"
         )
 
-    @classmethod
-    def _real_publication_fixture(
-        cls, root: Path, cargo_version: str = "0.1.0-alpha.3"
-    ) -> tuple[Path, checker.SiteIdentities, Path]:
-        artifact, identities = make_fixture(root, cargo_version)
-        publication = root / cls.PUBLICATION_RELATIVE
-        publication.write_bytes((REPOSITORY / cls.PUBLICATION_RELATIVE).read_bytes())
-        return (
-            artifact,
-            replace(identities, publication=checker.PUBLICATION_SHA256),
-            publication,
-        )
-
-    @staticmethod
-    def _read_publication(path: Path) -> dict:
-        return json.loads(path.read_text(encoding="utf-8"))
-
-    @staticmethod
-    def _write_publication(path: Path, document: dict) -> None:
-        path.write_text(
-            json.dumps(
-                document, ensure_ascii=False, separators=(",", ":"), sort_keys=True
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-
-    @staticmethod
-    def _resolved_inputs(document: dict) -> list[dict]:
-        return document["publication_payload"]["renderer"]["environment"][
-            "resolved_inputs"
-        ]
-
-    @classmethod
-    def _eqiora_input(cls, document: dict) -> dict:
-        return cls._resolved_inputs(document)[4]
-
-    def _assert_publication_mutant(
-        self,
-        root: Path,
-        identities: checker.SiteIdentities,
-        publication: Path,
-        *rejected_versions: str,
-    ) -> None:
-        errors = checker.check_source(root, identities)
-        self.assertTrue(
-            any("publication record digest mismatch" in error for error in errors),
-            errors,
-        )
-        for rejected_version in rejected_versions:
-            self.assertTrue(
-                any(
-                    f"hard-codes product version {rejected_version!r}: "
-                    f"{self.PUBLICATION_RELATIVE.as_posix()}" in error
-                    for error in errors
-                ),
-                errors,
-            )
-
-        caller_identity = replace(identities, publication=checker.sha256(publication))
-        caller_errors = checker.check_source(root, caller_identity)
-        for rejected_version in rejected_versions:
-            self.assertTrue(
-                any(
-                    f"hard-codes product version {rejected_version!r}: "
-                    f"{self.PUBLICATION_RELATIVE.as_posix()}" in error
-                    for error in caller_errors
-                ),
-                caller_errors,
-            )
 
 
 if __name__ == "__main__":

@@ -4,10 +4,8 @@ description: Source-traced, static walkthroughs built from admitted Eqiora resul
 ---
 
 import GalleryGrid from '../../../components/gallery/GalleryGrid.astro';
-import pressureImage from '../../../assets/gallery/exact-cylinder-pressure.png';
-import publication from '../../../data/gallery/exact-cylinder-steady-stokes.publication.json';
+import pressureImage from '../../../assets/gallery/exact-cylinder-pressure-thumbnail.png';
 import displacementImage from '../../../assets/gallery/mixed-boundary-elasticity-displacement.png';
-import elasticityPublication from '../../../data/gallery/mixed-boundary-elasticity.publication.json';
 import startupPoster from '../../../assets/gallery/transient-cylinder-startup-poster.png';
 
 Explore bounded demonstrations from model definition to a linked result. Gallery
@@ -19,26 +17,25 @@ claim.
     {
       href: '/gallery/transient-cylinder-startup/',
       title: 'Transient cylinder-flow startup',
-      description: 'Ten accepted startup outputs through the ordinary lifecycle, with typed vorticity, force, pressure probes, and accessible caller-owned media. Explicitly unverified.',
+      description: 'Ten startup outputs showing vorticity and its change near the cylinder.',
       imageSrc: startupPoster.src,
       imageAlt: 'Final cell-average vorticity and its change from the first transient cylinder-flow startup output; presentation only, with no developed wake or benchmark claim.',
       tags: ['Python', '2D', 'transient', 'unverified'],
-      featured: true,
     },
     {
       href: '/gallery/exact-cylinder-steady-stokes/',
       title: 'Exact-cylinder steady Stokes',
-      description: 'A static, source-traced walkthrough of one frozen 2D steady incompressible Stokes demonstration.',
+      description: 'Steady flow from exact channel geometry to a pressure field.',
       imageSrc: pressureImage.src,
-      imageAlt: publication.publication_payload.text.alt,
+      imageAlt: 'Pressure near the cylinder, showing the upstream 0.7 metres of the channel with the pressure scale in pascals.',
       tags: ['Python', '2D', 'steady Stokes'],
     },
     {
       href: '/gallery/mixed-boundary-elasticity/',
       title: 'Mixed-boundary linear elasticity',
-      description: 'One bounded caller-Geometry → common Plan → Result walkthrough with a caller-owned displacement figure.',
+      description: 'Reference and deformed meshes from a mixed-boundary elasticity solve.',
       imageSrc: displacementImage.src,
-      imageAlt: elasticityPublication.publication_payload.text.alt,
+      imageAlt: 'Reference and deformed meshes for the bounded 2D mixed-boundary elasticity example.',
       tags: ['Python', '2D', 'linear elasticity'],
     },
   ]}

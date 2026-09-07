@@ -86,7 +86,7 @@ mesh = eqiora.meshing.generate(mesh_plan)
 
 <Aside type="caution" title="A meshing choice, not convergence">
 
-`0.05 m` is a Gmsh characteristic target. It is not a guarantee on every
+`0.025 m` is a Gmsh characteristic target. It is not a guarantee on every
 realized edge and does not establish mesh or PDE convergence.
 
 </Aside>
@@ -145,7 +145,7 @@ rear_pressure = accepted.sample(plan.capability.pressure, at=(0.25, 0.2))
 
 <ResultFigure
   src={poster.src}
-  alt="Final cell-average vorticity beside its change from the first accepted output. Both remain concentrated around the circular obstacle; no developed alternating wake is shown."
+  alt="Final cell-average vorticity above its change from the first output, concentrated near the cylinder."
   caption="Final absolute field and change from the first output at t = 0.1 s. Presentation only; the visible fields are not a benchmark or validation result."
   units="s⁻¹"
   sourcePath="tools/site/produce_transient_cylinder_startup_media.py"
@@ -171,7 +171,7 @@ rear_pressure = accepted.sample(plan.capability.pressure, at=(0.25, 0.2))
   <img
     class="eq-gallery-motion__still"
     src={reducedMotion.src}
-    alt="The first accepted cell-average vorticity field beside the change in vorticity by step 10. The change panel makes the strengthening and slight downstream extension of the near-cylinder layers visible."
+    alt="The first vorticity output above its change by step 10, showing the strengthening of the near-cylinder layers."
   />
   <figcaption>
     Ten actual accepted outputs, played at two frames per second so the subtle

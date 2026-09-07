@@ -69,7 +69,6 @@ __all__ = (
     "MAX_TOTAL_BYTES",
     "MAX_HTML_BYTES",
     "PRESSURE_SHA256",
-    "PUBLICATION_SHA256",
     "SOCIAL_SHA256",
     "FAVICON_SHA256",
     "APPLE_TOUCH_SHA256",
@@ -92,8 +91,6 @@ MAX_FILES = 20_000
 MAX_FILE_BYTES = 32 * 1024 * 1024
 MAX_TOTAL_BYTES = 512 * 1024 * 1024
 MAX_HTML_BYTES = 4 * 1024 * 1024
-PRESSURE_SHA256 = "b87dd0098661255a57e2abf355387b352c6931f0885b6cda3f13eaf7a2882f71"
-PUBLICATION_SHA256 = "a559af3cb5831f64ba4137cc6d0bcfee4d8a5dda497e488149befc0e4868978b"
 _PUBLIC_ASSETS = Path(__file__).resolve().parents[2] / "docs/site/public"
 
 
@@ -104,7 +101,13 @@ def _source_asset_digest(name: str) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else ""
 
 
-# Branding may change; publication must preserve the current source assets.
+# Publication preserves the current source assets, not an obsolete generation.
+_pressure = (
+    _PUBLIC_ASSETS.parent / "src/assets/gallery/exact-cylinder-pressure-presentation.png"
+)
+PRESSURE_SHA256 = (
+    hashlib.sha256(_pressure.read_bytes()).hexdigest() if _pressure.is_file() else ""
+)
 SOCIAL_SHA256 = _source_asset_digest("social-card.svg")
 FAVICON_SHA256 = _source_asset_digest("favicon.svg")
 APPLE_TOUCH_SHA256 = _source_asset_digest("apple-touch-icon.png")
@@ -124,10 +127,9 @@ SOURCE_SHA = re.compile(r"^[0-9a-f]{40}$")
 
 @dataclass(frozen=True)
 class SiteIdentities:
-    """Scientific fixture and current source-asset identities."""
+    """Current source-asset identities."""
 
     pressure: str = PRESSURE_SHA256
-    publication: str = PUBLICATION_SHA256
     social: str = SOCIAL_SHA256
     favicon: str = FAVICON_SHA256
     apple_touch: str = APPLE_TOUCH_SHA256

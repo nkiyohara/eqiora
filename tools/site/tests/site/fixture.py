@@ -34,11 +34,7 @@ EDITOR_CHECK_INPUTS = (
     "tools/editor/check_syntax_bundle.py",
     "tools/editor/tests/test_syntax_bundle.py",
 )
-PRESSURE_ALT = (
-    "Pressure in pascals for a 2D steady-Stokes exact-cylinder demonstration, "
-    "shown with a viridis color scale and its current Gmsh mesh overlaid. "
-    "Presentation image only; no numerical or mesh-output oracle."
-)
+PRESSURE_ALT = "Steady Stokes pressure around a cylinder, with the current mesh and pressure scale in pascals."
 PUBLIC_CLAIM = (
     "One presentation-only 2D steady incompressible Stokes exact-cylinder "
     "demonstration rendered through exact Geometry, typed Gmsh policy, and the "
@@ -800,7 +796,6 @@ def make_fixture(root: Path, cargo_version: str = "0.1.0-alpha.1"):
     python_version = cargo_version.replace("-alpha.", "a")
     blobs = {
         "pressure": b"fixture admitted pressure",
-        "publication": b'{"fixture":"publication"}\n',
         "social": b"<svg><title>Eqiora</title></svg>\n",
         "favicon": b"<svg><title>Eqiora mark</title></svg>\n",
         "apple": b"fixture apple png",
@@ -852,24 +847,15 @@ def make_fixture(root: Path, cargo_version: str = "0.1.0-alpha.1"):
         "];\n",
     )
     _write(
-        root / "docs/site/src/assets/gallery/exact-cylinder-pressure.png",
+        root / "docs/site/src/assets/gallery/exact-cylinder-pressure-presentation.png",
         blobs["pressure"],
-    )
-    _write(
-        root
-        / "docs/site/src/data/gallery/exact-cylinder-steady-stokes.publication.json",
-        blobs["publication"],
     )
     _write(root / "docs/site/public/social-card.svg", blobs["social"])
     _write(root / "docs/site/public/favicon.svg", blobs["favicon"])
     _write(root / "docs/site/public/apple-touch-icon.png", blobs["apple"])
     identities = checker.SiteIdentities(
         pressure=checker.sha256(
-            root / "docs/site/src/assets/gallery/exact-cylinder-pressure.png"
-        ),
-        publication=checker.sha256(
-            root
-            / "docs/site/src/data/gallery/exact-cylinder-steady-stokes.publication.json"
+            root / "docs/site/src/assets/gallery/exact-cylinder-pressure-presentation.png"
         ),
         social=checker.sha256(root / "docs/site/public/social-card.svg"),
         favicon=checker.sha256(root / "docs/site/public/favicon.svg"),

@@ -222,6 +222,7 @@
  * ------------------------------------------------------------------------- */
 
 .eq-gallery-grid {
+  grid-auto-rows: 1fr;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--eq-space-6);
@@ -238,9 +239,6 @@
 @media (min-width: 40rem) {
   .eq-gallery-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .eq-gallery-grid > .eq-gallery-card[data-featured] {
-    grid-column: span 2;
   }
 }
 
@@ -282,6 +280,7 @@
   position: relative;
   display: block;
   aspect-ratio: 16 / 9;
+  flex: 0 0 auto;
   background-color: var(--eq-color-surface-muted);
   border-bottom: 1px solid var(--eq-color-border);
   overflow: hidden;
@@ -335,18 +334,6 @@
   padding-top: var(--eq-space-2);
 }
 
-.eq-gallery-card[data-featured] .eq-gallery-card__title {
-  font-size: var(--eq-text-h3);
-}
-
-.eq-gallery-card[data-featured] .eq-gallery-card__body {
-  padding: var(--eq-space-6) var(--eq-space-8) var(--eq-space-8);
-}
-
-.eq-gallery-card[data-featured] .eq-gallery-card__description {
-  font-size: var(--eq-text-body);
-  max-width: var(--eq-measure);
-}
 
 /* ---------------------------------------------------------------------------
  * NotebookStage / StageMarker: ordered landmarks with a responsive rail

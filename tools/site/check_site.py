@@ -40,7 +40,6 @@ _ARTIFACT_EXPORTS = (
     "MAX_TOTAL_BYTES",
     "MAX_HTML_BYTES",
     "PRESSURE_SHA256",
-    "PUBLICATION_SHA256",
     "SOCIAL_SHA256",
     "FAVICON_SHA256",
     "APPLE_TOUCH_SHA256",
@@ -104,7 +103,6 @@ MAX_FILE_BYTES = _site_artifact.MAX_FILE_BYTES
 MAX_TOTAL_BYTES = _site_artifact.MAX_TOTAL_BYTES
 MAX_HTML_BYTES = _site_artifact.MAX_HTML_BYTES
 PRESSURE_SHA256 = _site_artifact.PRESSURE_SHA256
-PUBLICATION_SHA256 = _site_artifact.PUBLICATION_SHA256
 SOCIAL_SHA256 = _site_artifact.SOCIAL_SHA256
 FAVICON_SHA256 = _site_artifact.FAVICON_SHA256
 APPLE_TOUCH_SHA256 = _site_artifact.APPLE_TOUCH_SHA256
@@ -467,18 +465,11 @@ def check_source(
             )
     errors.extend(
         _site_artifact.check_exact_source(
-            site / "src/assets/gallery/exact-cylinder-pressure.png",
+            site / "src/assets/gallery/exact-cylinder-pressure-presentation.png",
             identities.pressure,
             "admitted pressure media",
         )
     )
-    record = site / "src/data/gallery" / "exact-cylinder-steady-stokes.publication.json"
-    publication_label = "admitted publication record"
-    record_errors = _site_artifact.check_exact_source(
-        record, identities.publication, publication_label
-    )
-    errors.extend(record_errors)
-    fixed = identities.publication == PUBLICATION_SHA256 and not record_errors
     errors.extend(
         _site_artifact.check_exact_source(
             site / "public/social-card.svg", identities.social, "timeless social card"
@@ -668,8 +659,6 @@ def check_source(
         is_release_history = "release-notes" in source.relative_to(site).parts
         if not is_release_history and relative not in CURRENT_VERSION_SOURCE_EXCEPTIONS:
             for forbidden_version in CURRENT_VERSION.findall(text):
-                if fixed and source == record and forbidden_version == "0.1.0a3":
-                    continue
                 errors.append(
                     f"site source hard-codes product version {forbidden_version!r}: "
                     f"{source.relative_to(root)}"
