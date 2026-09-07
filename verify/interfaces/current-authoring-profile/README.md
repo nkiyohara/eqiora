@@ -5,17 +5,17 @@ This case fixes one current-only authoring profile. Rust
 Studio's authoring request all select the same current semantic vocabulary
 without accepting a wire or codec argument from the user.
 
-The shared `expected/profile.json` fixture fixes the cross-client mapping for
-this revision: the current Model and Transaction schemas are v9. It is a
-conformance input, not a promise that the `current` profile will always use
-those schema identifiers. Source authoring, native definition, a quantitative
-edit, current artifact replay, and control-v2 compilation all traverse the one
-current owner and preserve their typed identity relations.
+The [public compile schema](../../../crates/eqiora-api/schemas/compile-v2.schema.json)
+declares the current Model and Transaction schemas. The registered Rust test
+compares source authoring and native definition, checks a quantitative edit and
+exact artifact replay, and exercises control-v2 compilation through the current
+owner. Schema identifiers are read from that public contract, not a second
+version mapping in this case.
 
-
-The registered Rust test owns the current-authoring/replay boundary.
-Installed-wheel Python and native/TypeScript Studio tests consume the same
-fixture as companion client-adapter checks.
+Installed-wheel Python tests separately check compile/define and replay against
+the same schema. Studio's TypeScript tests check client constants and rejection;
+its native tests exercise the shared control owner and cache admission. Those
+companion checks run in their own client gates, not in this registered Rust case.
 
 Run:
 
