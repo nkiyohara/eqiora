@@ -388,6 +388,21 @@ fn forwarding(
     mismatch: bool,
     duplicate: bool,
 ) -> Result<Forwarding, Vec<eqiora_core::Diagnostic>> {
+    forwarding_with_periods(
+        [
+            RationalTime::new(10, 1000).unwrap(),
+            RationalTime::new(second_period, 1000).unwrap(),
+        ],
+        mismatch,
+        duplicate,
+    )
+}
+
+fn forwarding_with_periods(
+    periods: [RationalTime; 2],
+    mismatch: bool,
+    duplicate: bool,
+) -> Result<Forwarding, Vec<eqiora_core::Diagnostic>> {
     let clocks = [Id::<kinds::ClockDomain>::new(), Id::new()];
     let inputs = [Id::<kinds::Port>::new(), Id::new()];
     let outputs = [Id::<kinds::Port>::new(), Id::new()];
@@ -397,15 +412,9 @@ fn forwarding(
     let mut edges = Vec::new();
     for i in 0..2 {
         let connection = Id::<kinds::Connection>::new();
-        let period = if i == 0 { 10 } else { second_period };
         let nodes = [
             KernelNode::from(
-                ClockDomainDef::periodic(
-                    clocks[i],
-                    RationalTime::new(period, 1000).unwrap(),
-                    RationalTime::ZERO,
-                )
-                .unwrap(),
+                ClockDomainDef::periodic(clocks[i], periods[i], RationalTime::ZERO).unwrap(),
             ),
             PortDef::signal(inputs[i], SignalDirection::Input, value_type()).into(),
             PortDef::signal(outputs[i], SignalDirection::Output, value_type()).into(),
@@ -545,5 +554,37 @@ fn independent_clocks_forward_only_present_samples_and_keep_nominal_identity() {
                 .value(),
             9.
         );
+    }
+}
+
+#[test]
+fn sampled_horizon_compares_exact_ticks_to_the_exact_binary64_bound() {
+    let denominator = 1_u64 << 53;
+    for (numerator, count) in [(denominator + 1, 1), (denominator, 2), (denominator - 1, 2)] {
+        let period = RationalTime::new(numerator, denominator).unwrap();
+        let Forwarding {
+            program,
+            inputs,
+            outputs,
+            clocks,
+        } = forwarding_with_periods([period; 2], false, false).unwrap();
+        let table = vec![ValueLiteral::from_real(value_type(), 7.).unwrap(); count];
+        let mut session = Interpreter::new()
+            .sampled_session(
+                &program,
+                ReferenceConfig::new(1., 1.).unwrap(),
+                [
+                    (inputs[0], clocks[0], table.clone()),
+                    (inputs[1], clocks[1], table),
+                ],
+            )
+            .unwrap();
+        assert_eq!(session.advance_ticks(3).unwrap(), count);
+        assert_eq!(session.next_tick(), None);
+        assert_eq!(session.output(outputs[0], 0).unwrap().0, RationalTime::ZERO);
+        assert_eq!(session.output(outputs[0], 1).is_some(), count == 2);
+        if count == 2 {
+            assert_eq!(session.output(outputs[0], 1).unwrap().0, period);
+        }
     }
 }

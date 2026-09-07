@@ -201,7 +201,7 @@ impl SampledSession {
     pub fn next_tick(&self) -> Option<RationalTime> {
         self.plan
             .next_tick()
-            .filter(|tick| tick.as_seconds_f64() <= self.config.end_time)
+            .filter(|tick| within_horizon(*tick, self.config.end_time))
     }
 
     /// Accepted initialized memory or algebraic Field value.
@@ -349,7 +349,7 @@ fn required_ticks(
     };
     let mut next = phase;
     let mut count = 0;
-    while next.as_seconds_f64() <= config.end_time {
+    while within_horizon(next, config.end_time) {
         if count >= config.max_steps || count >= MAX_INPUT_SAMPLES {
             return Err(config_error("sampled input calendar exceeds step budget"));
         }
@@ -357,4 +357,60 @@ fn required_ticks(
         next = next.checked_add(period)?;
     }
     Ok(count)
+}
+
+// Compare n/d <= significand * 2^exponent without rounding either operand.
+// Configuration admission guarantees a finite, non-negative binary64 horizon.
+fn within_horizon(tick: RationalTime, horizon: f64) -> bool {
+    debug_assert!(horizon.is_finite() && horizon >= 0.0);
+    if tick.is_zero() {
+        return true;
+    }
+    let bits = horizon.to_bits();
+    let biased_exponent = ((bits >> 52) & 0x7ff) as i32;
+    let fraction = bits & ((1_u64 << 52) - 1);
+    let (significand, exponent) = if biased_exponent == 0 {
+        (fraction, -1074)
+    } else {
+        (fraction | (1_u64 << 52), biased_exponent - 1023 - 52)
+    };
+    let numerator = u128::from(tick.numerator());
+    // At most 64 + 53 bits, so this product always fits.
+    let scaled_horizon = u128::from(tick.denominator()) * u128::from(significand);
+    if exponent >= 0 {
+        let shift = exponent as u32;
+        if shift >= 128 || scaled_horizon > (u128::MAX >> shift) {
+            return true;
+        }
+        numerator <= scaled_horizon << shift
+    } else {
+        let shift = (-exponent) as u32;
+        if shift >= 128 || numerator > (u128::MAX >> shift) {
+            return false;
+        }
+        numerator << shift <= scaled_horizon
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn exact_horizon_handles_binary64_extremes_without_large_integer_allocation() {
+        let smallest_tick = RationalTime::new(1, u64::MAX).unwrap();
+        assert!(within_horizon(RationalTime::ZERO, 0.));
+        assert!(!within_horizon(smallest_tick, 0.));
+        assert!(!within_horizon(smallest_tick, f64::from_bits(1)));
+        assert!(!within_horizon(smallest_tick, f64::MIN_POSITIVE));
+        assert!(within_horizon(
+            RationalTime::new(u64::MAX, 1).unwrap(),
+            f64::MAX
+        ));
+        assert!(within_horizon(RationalTime::new(1, 2).unwrap(), 0.5));
+        assert!(!within_horizon(
+            RationalTime::new(1, 2).unwrap(),
+            f64::from_bits(0.5_f64.to_bits() - 1)
+        ));
+    }
 }
