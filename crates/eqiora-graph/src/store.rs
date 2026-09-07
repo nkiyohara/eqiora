@@ -440,19 +440,19 @@ fn set_value(state: &mut State, target: RawId, value: ValueLiteral) -> Result<()
         )
         .with_graph_path(path_for(target)));
     }
-    if let Some(current) = node.value.as_ref() {
-        if current.value_type() != value.value_type() {
-            let code = if current.value_type().dimension() != value.value_type().dimension() {
-                codes::DIMENSION_MISMATCH
-            } else {
-                codes::INVALID_OPERATION
-            };
-            return Err(Diagnostic::error(
-                code,
-                "value edit must preserve the complete declared Parameter type",
-            )
-            .with_graph_path(path_for(target)));
-        }
+    if let Some(current) = node.value.as_ref()
+        && current.value_type() != value.value_type()
+    {
+        let code = if current.value_type().dimension() != value.value_type().dimension() {
+            codes::DIMENSION_MISMATCH
+        } else {
+            codes::INVALID_OPERATION
+        };
+        return Err(Diagnostic::error(
+            code,
+            "value edit must preserve the complete declared Parameter type",
+        )
+        .with_graph_path(path_for(target)));
     }
     node.value = Some(value);
     Ok(())
