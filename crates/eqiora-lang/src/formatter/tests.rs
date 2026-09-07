@@ -63,7 +63,14 @@ fn signed_parameter_quantities_round_trip_with_exact_unit_powers() {
     assert!(formatted.contains("-4 [(mm ^ 2) ^ (1 / 4)]"));
     let reparsed = parse("quantity.eqi", &formatted).into_document().unwrap();
     assert_eq!(format(&reparsed), formatted);
-    for value in ["1[]", "1[m", "1[m ^ (1 / 0)]", "1 + 2", "-1[ms] + 2"] {
+    for value in ["1 + 2", "-1[ms] + 2"] {
+        let source = format!("model M {{ parameter value: m = {value}; }}");
+        let parsed = parse("expression.eqi", &source).into_document().unwrap();
+        let formatted = format(&parsed);
+        let reparsed = parse("expression.eqi", &formatted).into_document().unwrap();
+        assert_eq!(format(&reparsed), formatted);
+    }
+    for value in ["1[]", "1[m", "1[m ^ (1 / 0)]"] {
         let source = format!("model M {{ parameter value: m = {value}; }}");
         assert!(
             parse("invalid.eqi", &source).into_document().is_err(),

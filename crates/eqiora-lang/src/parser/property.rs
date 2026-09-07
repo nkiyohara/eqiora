@@ -236,8 +236,8 @@ impl Parser<'_> {
 mod tests {
     #[test]
     fn contract_release_requirement_and_binding_round_trip() {
-        let source = r#"public property contract Diffusivity {
-  scalar value: m ^ 2 / s;
+        let source = r#"public property contract Diffusivity(): m ^ 2 / s {
+  derivatives value_only;
 }
 
 property release ReferenceDiffusivity implements Diffusivity {
