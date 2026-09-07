@@ -4,7 +4,13 @@ use super::*;
 
 impl Parser<'_> {
     pub(super) fn parse_component_item(&mut self) -> Option<ParsedComponentItem> {
-        let public = self.at_keyword("public");
+        if self.at_keyword("public") {
+            self.error_here(
+                "public requirements belong in the signature; body declarations are private",
+            );
+            return None;
+        }
+        let public = false;
         let start = if public {
             self.bump().range().start()
         } else {
@@ -18,18 +24,20 @@ impl Parser<'_> {
 
         if self.at_keyword("parameter") {
             return self
-                .parse_component_parameter(start, visibility)
+                .parse_component_parameter(start, visibility, true)
                 .map(ComponentItem::Parameter)
                 .map(Box::new)
                 .map(ParsedComponentItem::Retained);
         }
         if self.at_keyword("port") {
-            return self.parse_component_port(start, visibility).map(|port| {
-                ParsedComponentItem::Retained(Box::new(match port {
-                    ParsedComponentPort::Ordinary(port) => ComponentItem::Port(port),
-                    ParsedComponentPort::Family(port) => ComponentItem::PortFamily(port),
-                }))
-            });
+            return self
+                .parse_component_port(start, visibility, true)
+                .map(|port| {
+                    ParsedComponentItem::Retained(Box::new(match port {
+                        ParsedComponentPort::Ordinary(port) => ComponentItem::Port(port),
+                        ParsedComponentPort::Family(port) => ComponentItem::PortFamily(port),
+                    }))
+                });
         }
         if public {
             let token = self.current().clone();

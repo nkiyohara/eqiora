@@ -18,19 +18,17 @@ mod lexer;
 mod parser;
 
 pub use ast::{
-    ActivationSyntax, BinaryOp, BoundaryConnectionDecl, BoundaryDecl, BoundaryFamilyBinderSyntax,
+    ActivationSyntax, BinaryOp, BoundaryConnectionDecl, BoundaryFamilyBinderSyntax,
     BoundaryPairingSyntax, BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax,
-    BoundarySetBindingDecl, BoundarySetMemberSyntax, BoundarySideSyntax, ClockBindingDecl,
-    ClockDecl, ClockRequirementDecl, ComponentDecl, ComponentItem, ComponentParameterDecl,
-    ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorDecl,
-    ConnectorQuantitySyntax, ConnectorSyntax, DocComment, Document, DomainDecl, DomainSyntax,
-    Equation, ExactIntegerSyntax, Expr, ExprKind, FieldBindingDecl, FieldDecl, FieldRoleSyntax,
-    FrameSyntax, InitialDecl, InstanceDecl, Item, LetDecl, ModelDecl, NamePath,
-    ParameterBindingDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorBinaryOp,
-    PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal,
-    PureValueClassSyntax, RelationDecl, RelationFamilyDecl, SignalDirectionSyntax,
-    SupportBindingDecl, SupportSlotDecl, SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax,
-    ValueTypeSyntax, ValueTypeSyntaxKind, VisibilitySyntax,
+    BoundarySideSyntax, ClockDecl, ClockRequirementDecl, ComponentDecl, ComponentItem,
+    ComponentParameterDecl, ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl,
+    ConnectionSyntax, ConnectorDecl, ConnectorQuantitySyntax, ConnectorSyntax, DocComment,
+    Document, DomainDecl, DomainSyntax, Equation, ExactIntegerSyntax, Expr, ExprKind, FieldDecl,
+    FieldRoleSyntax, FrameSyntax, InitialDecl, InstanceDecl, Item, LetDecl, ModelDecl, NamePath,
+    NamedBindingDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorBinaryOp, PureOperatorDecl,
+    PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax, RelationDecl,
+    RelationFamilyDecl, SignalDirectionSyntax, SignatureItem, SupportSlotDecl, SupportSlotSyntax,
+    TextRange, UnaryOp, ValueShapeSyntax, ValueTypeSyntax, ValueTypeSyntaxKind, VisibilitySyntax,
 };
 pub use cartesian::CartesianCoordinateSyntax;
 pub use decimal::DecimalLiteral;
@@ -43,3 +41,5 @@ pub use factory::{AstConstructionError, SourceAstFactory};
 pub use formatter::format;
 pub use lexer::{LexResult, Token, TokenKind, lex};
 pub use parser::{ParseResult, parse};
+
+pub use ast_property::ComponentPropertyDecl;

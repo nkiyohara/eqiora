@@ -1,6 +1,4 @@
-use crate::ast::{
-    ComponentDecl, Document, Expr, InstanceDecl, NamePath, TextRange, VisibilitySyntax,
-};
+use crate::ast::{Document, Expr, NamePath, TextRange, VisibilitySyntax};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct PropertyContractDecl {
@@ -34,8 +32,9 @@ pub(crate) struct MaterialCompositionDecl {
     pub(crate) range: TextRange,
 }
 
+/// One exact nominal property contract in a shared external signature.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ComponentPropertyDecl {
+pub struct ComponentPropertyDecl {
     pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) name: String,
     pub(crate) contract: NamePath,
@@ -186,43 +185,6 @@ impl Document {
     }
 }
 
-impl ComponentDecl {
-    #[must_use]
-    pub fn property_requirement_syntax(
-        &self,
-    ) -> impl ExactSizeIterator<Item = (&str, &NamePath, TextRange)> {
-        self.property_requirements
-            .iter()
-            .map(|value| (value.name.as_str(), &value.contract, value.range))
-    }
-}
-
-impl InstanceDecl {
-    pub(crate) fn has_bindings(&self) -> bool {
-        !(self.bindings.is_empty()
-            && self.support_bindings.is_empty()
-            && self.boundary_set_bindings.is_empty()
-            && self.field_bindings.is_empty()
-            && self.clock_bindings.is_empty()
-            && self.property_bindings.is_empty()
-            && self.material_binding.is_none())
-    }
-
-    #[must_use]
-    pub fn property_binding_syntax(
-        &self,
-    ) -> impl ExactSizeIterator<Item = (&str, &NamePath, TextRange)> {
-        self.property_bindings
-            .iter()
-            .map(|value| (value.property.as_str(), &value.release, value.range))
-    }
-
-    #[must_use]
-    pub const fn material_binding_syntax(&self) -> Option<&NamePath> {
-        self.material_binding.as_ref()
-    }
-}
-
 impl fmt::Display for NamePath {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(&self.text)
@@ -236,3 +198,21 @@ impl NamePath {
     }
 }
 use core::fmt;
+
+impl ComponentPropertyDecl {
+    /// Public signature name.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+    /// Exact nominal property contract path.
+    #[must_use]
+    pub const fn contract(&self) -> &NamePath {
+        &self.contract
+    }
+    /// Full signature-entry range.
+    #[must_use]
+    pub const fn range(&self) -> TextRange {
+        self.range
+    }
+}

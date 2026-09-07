@@ -7,6 +7,7 @@ mod comments;
 mod compile_time;
 mod document;
 mod expression;
+mod signature;
 use expression::format_expression;
 mod formulation;
 mod helpers;
@@ -28,7 +29,7 @@ use formulation::format_component;
 use helpers::{
     format_boundary_port_selector, format_name_paths, format_scalar_physical, write_indent,
 };
-use property::{format_component_requirements, format_properties};
+use property::format_properties;
 use relation::{format_relation, format_relation_family};
 
 /// Canonically format syntax and the comment trivia owned by each declaration.
@@ -94,7 +95,9 @@ pub fn format(document: &Document) -> String {
         if model.visibility == VisibilitySyntax::Public {
             output.push_str("public ");
         }
-        writeln!(output, "model {} {{", model.name).expect("String writes cannot fail");
+        write!(output, "model {}", model.name).expect("String writes cannot fail");
+        signature::format_signature(&model.signature, &mut output);
+        output.push_str(" {\n");
         for item in &model.items {
             format_item(item, 2, &mut output);
         }
@@ -258,11 +261,6 @@ fn format_component_item(
         ComponentItem::PortFamily(declaration) => {
             format_component_port_family(declaration, indent, output);
         }
-        ComponentItem::Support(_)
-        | ComponentItem::FieldRequirement(_)
-        | ComponentItem::ClockRequirement(_) => {
-            unreachable!("requirements are rendered only in the Component signature");
-        }
         ComponentItem::Field(declaration) => format_field(declaration, indent, output),
         ComponentItem::Initial(declaration) => format_initial(declaration, indent, output),
         ComponentItem::Clock(declaration) => format_clock(declaration, indent, output),
@@ -330,12 +328,6 @@ fn format_item(item: &Item, indent: usize, output: &mut crate::formatter::commen
         Item::BoundaryConnection(declaration) => {
             format_boundary_connection(declaration, indent, output);
         }
-        Item::Boundary(declaration) => {
-            write_indent(output, indent);
-            output.push_str("boundary ");
-            format_name_paths(&declaration.ports, output);
-            output.push_str(";\n");
-        }
         Item::Instance(declaration) => format_instance(declaration, indent, output),
     }
     output.end();
@@ -364,38 +356,6 @@ fn format_unknown_head(declaration: &FieldDecl, output: &mut crate::formatter::c
     if let crate::ast::ActivationSyntax::Periodic(clock) = &declaration.activation {
         write!(output, " at {clock}").expect("String write");
     }
-}
-
-fn format_component_requirement(
-    item: &ComponentItem,
-    indent: usize,
-    output: &mut crate::formatter::comments::Output,
-) {
-    output.begin(item.source_comments());
-    write_indent(output, indent);
-    match item {
-        ComponentItem::Support(declaration) => {
-            write!(output, "support {}: ", declaration.name).expect("String write");
-            match &declaration.syntax {
-                SupportSlotSyntax::Volume { ambient_dimension } => {
-                    write!(output, "volume(ambient_dimension = {ambient_dimension})")
-                        .expect("String write");
-                }
-                SupportSlotSyntax::Boundary { parent } => {
-                    write!(output, "boundary(parent = {parent})").expect("String write");
-                }
-                SupportSlotSyntax::CompleteExterior { parent } => {
-                    write!(output, "complete_exterior(parent = {parent})").expect("String write");
-                }
-            }
-        }
-        ComponentItem::FieldRequirement(declaration) => format_unknown_head(declaration, output),
-        ComponentItem::ClockRequirement(declaration) => {
-            write!(output, "clock {}", declaration.name).expect("String write");
-        }
-        _ => unreachable!("only requirements are rendered in the signature"),
-    }
-    output.end();
 }
 
 fn format_initial(
@@ -436,18 +396,22 @@ fn format_value_shape(shape: &ValueShapeSyntax, output: &mut crate::formatter::c
 fn format_port_syntax(syntax: &PortSyntax, output: &mut crate::formatter::comments::Output) {
     match syntax {
         PortSyntax::Signal {
-            direction: SignalDirectionSyntax::Input,
+            direction,
             value_type,
+            domain,
+            activation,
         } => {
-            output.push_str("signal input ");
+            output.push_str(match direction {
+                SignalDirectionSyntax::Input => "signal input ",
+                SignalDirectionSyntax::Output => "signal output ",
+            });
             value_type::format_value_type(value_type, output);
-        }
-        PortSyntax::Signal {
-            direction: SignalDirectionSyntax::Output,
-            value_type,
-        } => {
-            output.push_str("signal output ");
-            value_type::format_value_type(value_type, output);
+            if let Some(domain) = domain {
+                write!(output, " on {domain}").expect("String write");
+            }
+            if let crate::ActivationSyntax::Periodic(clock) = activation {
+                write!(output, " at {clock}").expect("String write");
+            }
         }
         PortSyntax::ScalarPhysical { domain } => {
             write!(output, "conserving on {domain}").expect("String write");
@@ -506,7 +470,7 @@ fn format_connection(
     write_indent(output, indent);
     match declaration.syntax {
         ConnectionSyntax::Signal => {
-            output.push_str("connect signal ");
+            output.push_str("connect ");
             if let Some((source, targets)) = declaration.ports.split_first() {
                 write!(output, "{source} -> ").expect("String write");
                 format_name_paths(targets, output);
@@ -533,7 +497,7 @@ fn format_boundary_connection(
     output.push_str(match declaration.syntax {
         ConnectionSyntax::Conserving => "connect conserving",
         ConnectionSyntax::SpatialPeriodic => "connect periodic",
-        ConnectionSyntax::Signal => "connect signal",
+        ConnectionSyntax::Signal => "connect",
     });
     if let Some(binder) = &declaration.binder {
         output.push(' ');
@@ -571,84 +535,17 @@ fn format_instance(
         declaration.name, declaration.definition
     )
     .expect("String write");
-    if declaration.has_bindings() {
-        output.push('(');
-        let mut separated = false;
-        for (index, binding) in declaration.bindings.iter().enumerate() {
-            if index != 0 {
-                output.push_str(", ");
-            }
-            output.begin(&binding.comments);
-            write!(output, "{} = ", binding.parameter).expect("String write");
-            format_expression(&binding.value, 0, output);
-            output.end();
-            separated = true;
+    output.push('(');
+    for (index, binding) in declaration.bindings.iter().enumerate() {
+        if index > 0 {
+            output.push_str(", ");
         }
-        for binding in &declaration.support_bindings {
-            if separated {
-                output.push_str(", ");
-            }
-            output.begin(&binding.comments);
-            write!(output, "support {} = {}", binding.slot, binding.target).expect("String write");
-            output.end();
-            separated = true;
-        }
-        for binding in &declaration.boundary_set_bindings {
-            if separated {
-                output.push_str(", ");
-            }
-            output.begin(&binding.comments);
-            write!(output, "support {} = boundaries(", binding.slot).expect("String write");
-            for (index, member) in binding.members.iter().enumerate() {
-                if index != 0 {
-                    output.push_str(", ");
-                }
-                output.push_str(&member.target);
-            }
-            output.push(')');
-            output.end();
-            separated = true;
-        }
-        for (index, binding) in declaration.field_bindings.iter().enumerate() {
-            if separated || index != 0 {
-                output.push_str(", ");
-            }
-            output.begin(&binding.comments);
-            write!(output, "field {} = {}", binding.slot, binding.target).expect("String write");
-            output.end();
-            separated = true;
-        }
-        for (index, binding) in declaration.clock_bindings.iter().enumerate() {
-            if separated || index != 0 {
-                output.push_str(", ");
-            }
-            output.begin(&binding.comments);
-            write!(output, "clock {} = {}", binding.slot, binding.target).expect("String write");
-            output.end();
-            separated = true;
-        }
-        for binding in &declaration.property_bindings {
-            if separated {
-                output.push_str(", ");
-            }
-            output.begin(&binding.comments);
-            write!(
-                output,
-                "property {} = {}",
-                binding.property, binding.release
-            )
-            .expect("String write");
-            output.end();
-            separated = true;
-        }
-        if let Some(material) = declaration.material_binding_syntax() {
-            if separated {
-                output.push_str(", ");
-            }
-            write!(output, "material = {material}").expect("String write");
-        }
-        output.push(')');
+        output.begin(&binding.comments);
+        write!(output, "{} = ", binding.name).expect("String write");
+        format_expression(&binding.value, 0, output);
+        output.end();
     }
+    output.push(')');
     output.push_str(";\n");
 }
 

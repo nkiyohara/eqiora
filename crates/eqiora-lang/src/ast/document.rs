@@ -11,11 +11,18 @@ pub struct ModelDecl {
     pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) visibility: VisibilitySyntax,
     pub(crate) name: String,
+    pub(crate) signature: Vec<super::SignatureItem>,
     pub(crate) items: Vec<Item>,
     pub(crate) range: TextRange,
 }
 
 impl ModelDecl {
+    /// Public requirements and occurrence-owned exposed values.
+    #[must_use]
+    pub fn signature(&self) -> &[super::SignatureItem] {
+        &self.signature
+    }
+
     /// Module visibility.
     #[must_use]
     pub const fn visibility(&self) -> VisibilitySyntax {

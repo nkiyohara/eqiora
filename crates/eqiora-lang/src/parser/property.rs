@@ -1,24 +1,11 @@
 use super::Parser;
 use crate::ast::{TextRange, VisibilitySyntax};
 use crate::ast_property::{
-    ComponentPropertyDecl, MaterialCompositionDecl, PropertyBindingDecl, PropertyContractDecl,
-    PropertyReleaseDecl,
+    MaterialCompositionDecl, PropertyBindingDecl, PropertyContractDecl, PropertyReleaseDecl,
 };
 use crate::lexer::{Token, TokenKind};
 
 impl Parser<'_> {
-    pub(super) fn at_support_binding(&mut self) -> bool {
-        self.at_discriminated_binding("support")
-    }
-    pub(super) fn at_field_binding(&mut self) -> bool {
-        self.at_discriminated_binding("field")
-    }
-    fn at_discriminated_binding(&mut self, discriminator: &str) -> bool {
-        self.at_keyword(discriminator)
-            && self
-                .following_significant_token()
-                .is_some_and(|token| token.kind() == TokenKind::Identifier)
-    }
     pub(super) fn following_significant_token(&self) -> Option<&Token> {
         self.tokens[self.cursor.saturating_add(1)..]
             .iter()
@@ -154,27 +141,6 @@ impl Parser<'_> {
             && self.following_significant_token().is_some_and(|token| {
                 token.kind() == TokenKind::Identifier && token.text() == "property"
             })
-    }
-
-    pub(super) fn parse_component_property(&mut self) -> Option<ComponentPropertyDecl> {
-        let start = self.bump().range().start();
-        self.expect_keyword("property")?;
-        let name = self
-            .expect_identifier("property requirement name")?
-            .text()
-            .to_owned();
-        self.expect(TokenKind::Colon, "`:` before property contract")?;
-        let contract = self.parse_name_path("property contract name")?;
-        let end = self
-            .expect(TokenKind::Semicolon, "`;` after property requirement")?
-            .range()
-            .end();
-        Some(ComponentPropertyDecl {
-            comments: Default::default(),
-            name,
-            contract,
-            range: TextRange::new(start, end),
-        })
     }
 
     pub(super) fn parse_property_binding(&mut self, start: u32) -> Option<PropertyBindingDecl> {

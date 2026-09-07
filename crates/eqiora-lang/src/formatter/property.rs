@@ -1,7 +1,7 @@
 use core::fmt::Write;
 
 use super::{format_expression, separate_declaration};
-use crate::ast::{ComponentDecl, Document, VisibilitySyntax};
+use crate::ast::{Document, VisibilitySyntax};
 
 pub(super) fn format_properties(
     document: &Document,
@@ -71,21 +71,6 @@ pub(super) fn format_properties(
             output.end();
         }
         output.push_str("}\n");
-        output.end();
-    }
-}
-
-pub(super) fn format_component_requirements(
-    component: &ComponentDecl,
-    output: &mut crate::formatter::comments::Output,
-) {
-    for (declaration, (name, contract, _)) in component
-        .property_requirements
-        .iter()
-        .zip(component.property_requirement_syntax())
-    {
-        output.begin(&declaration.comments);
-        writeln!(output, "  public property {name}: {contract};").expect("String write");
         output.end();
     }
 }

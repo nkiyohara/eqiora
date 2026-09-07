@@ -3,12 +3,13 @@
 use core::fmt;
 
 mod compile_time;
-use compile_time::validate_parameter_binding;
+use compile_time::validate_named_binding;
 mod component;
 mod dimension_rewrite;
 mod document;
 mod domain_validation;
 mod expression;
+mod signature;
 use expression::validate_expression;
 mod operator;
 mod property;
@@ -17,16 +18,15 @@ pub(crate) mod value_literal;
 mod value_type;
 
 use crate::ast::{
-    ActivationSyntax, BoundaryConnectionDecl, BoundaryDecl, BoundaryFamilyBinderSyntax,
-    BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax, BoundarySetBindingDecl,
-    BoundarySetMemberSyntax, ClockDecl, ComponentParameterDecl, ComponentPortDecl,
-    ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorDecl,
+    ActivationSyntax, BoundaryConnectionDecl, BoundaryFamilyBinderSyntax,
+    BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax, ClockDecl, ComponentParameterDecl,
+    ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorDecl,
     ConnectorQuantitySyntax, ConnectorSyntax, DomainDecl, DomainSyntax, Equation,
-    ExactIntegerSyntax, Expr, ExprKind, FieldBindingDecl, FieldDecl, InstanceDecl, LetDecl,
-    NamePath, ParameterBindingDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl,
-    PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax, RelationDecl,
-    RelationFamilyDecl, SupportBindingDecl, SupportSlotDecl, SupportSlotSyntax, TextRange,
-    ValueShapeSyntax, VisibilitySyntax,
+    ExactIntegerSyntax, Expr, ExprKind, FieldDecl, InstanceDecl, LetDecl, NamePath,
+    NamedBindingDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl, PureOperatorExpr,
+    PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax, RelationDecl,
+    RelationFamilyDecl, SupportSlotDecl, SupportSlotSyntax, TextRange, ValueShapeSyntax,
+    VisibilitySyntax,
 };
 use domain_validation::validate_domain_syntax;
 
@@ -423,214 +423,43 @@ impl SourceAstFactory {
         })
     }
 
-    /// Construct a nonempty public model boundary.
+    /// Construct one occurrence with category-free named bindings.
     ///
     /// # Errors
-    /// Returns an error for an empty boundary or malformed paths/ranges.
-    pub fn boundary(
-        ports: Vec<NamePath>,
-        range: TextRange,
-    ) -> Result<BoundaryDecl, AstConstructionError> {
-        if ports.is_empty() {
-            return Err(AstConstructionError::new(
-                "a boundary requires at least one Port path",
-            ));
-        }
-        for path in &ports {
-            validate_name_path(path)?;
-        }
-        Ok(BoundaryDecl {
-            comments: Default::default(),
-            ports,
-            range: checked_range(range)?,
-        })
-    }
-
-    /// Construct one compile-time component instance.
-    ///
-    /// # Errors
-    /// Returns an error for malformed names, bindings, or ranges.
+    /// Rejects malformed names, expressions, and ranges.
     pub fn instance(
         name: impl Into<String>,
         definition: NamePath,
-        bindings: Vec<ParameterBindingDecl>,
-        range: TextRange,
-    ) -> Result<InstanceDecl, AstConstructionError> {
-        Self::instance_with_support_bindings(name, definition, bindings, Vec::new(), range)
-    }
-
-    /// Construct one compile-time component instance with spatial supports.
-    ///
-    /// # Errors
-    /// Returns an error for malformed names, either binding family, or ranges.
-    pub fn instance_with_support_bindings(
-        name: impl Into<String>,
-        definition: NamePath,
-        bindings: Vec<ParameterBindingDecl>,
-        support_bindings: Vec<SupportBindingDecl>,
-        range: TextRange,
-    ) -> Result<InstanceDecl, AstConstructionError> {
-        Self::instance_with_slot_bindings(
-            name,
-            definition,
-            bindings,
-            support_bindings,
-            Vec::new(),
-            range,
-        )
-    }
-
-    /// Construct one compile-time component instance with occurrence-bound
-    /// support and Field slots.
-    ///
-    /// # Errors
-    /// Returns an error for malformed names, any binding family, or ranges.
-    pub fn instance_with_slot_bindings(
-        name: impl Into<String>,
-        definition: NamePath,
-        bindings: Vec<ParameterBindingDecl>,
-        support_bindings: Vec<SupportBindingDecl>,
-        field_bindings: Vec<FieldBindingDecl>,
-        range: TextRange,
-    ) -> Result<InstanceDecl, AstConstructionError> {
-        Self::instance_with_boundary_set_bindings(
-            name,
-            definition,
-            bindings,
-            support_bindings,
-            Vec::new(),
-            field_bindings,
-            range,
-        )
-    }
-
-    /// Construct one compile-time component instance with every closed
-    /// binding family, including finite complete-exterior bindings.
-    ///
-    /// # Errors
-    /// Returns an error for malformed names, any binding family, or ranges.
-    pub fn instance_with_boundary_set_bindings(
-        name: impl Into<String>,
-        definition: NamePath,
-        bindings: Vec<ParameterBindingDecl>,
-        support_bindings: Vec<SupportBindingDecl>,
-        boundary_set_bindings: Vec<BoundarySetBindingDecl>,
-        field_bindings: Vec<FieldBindingDecl>,
+        bindings: Vec<NamedBindingDecl>,
         range: TextRange,
     ) -> Result<InstanceDecl, AstConstructionError> {
         validate_name_path(&definition)?;
         for binding in &bindings {
-            validate_parameter_binding(binding)?;
-        }
-        for binding in &support_bindings {
-            validate_support_binding(binding)?;
-        }
-        for binding in &boundary_set_bindings {
-            validate_boundary_set_binding(binding)?;
-        }
-        for binding in &field_bindings {
-            validate_field_binding(binding)?;
+            validate_named_binding(binding)?;
         }
         Ok(InstanceDecl {
             comments: Default::default(),
             name: checked_identifier(name, "instance")?,
             definition,
             bindings,
-            support_bindings,
-            boundary_set_bindings,
-            field_bindings,
-            clock_bindings: Vec::new(),
-            property_bindings: Vec::new(),
-            material_binding: None,
             range: checked_range(range)?,
         })
     }
 
-    /// Construct one named component Parameter binding.
+    /// Construct one target-directed named binding.
     ///
     /// # Errors
-    /// Returns an error for a malformed target, expression, or byte range.
-    pub fn parameter_binding(
-        parameter: impl Into<String>,
+    /// Rejects malformed names, expressions, and ranges.
+    pub fn named_binding(
+        name: impl Into<String>,
         value: Expr,
         range: TextRange,
-    ) -> Result<ParameterBindingDecl, AstConstructionError> {
+    ) -> Result<NamedBindingDecl, AstConstructionError> {
         validate_expression(&value)?;
-        Ok(ParameterBindingDecl {
+        Ok(NamedBindingDecl {
             comments: Default::default(),
-            parameter: checked_identifier(parameter, "Parameter binding")?,
+            name: checked_identifier(name, "binding name")?,
             value,
-            range: checked_range(range)?,
-        })
-    }
-
-    /// Construct one named component spatial-support binding.
-    ///
-    /// # Errors
-    /// Returns an error for a malformed slot, target, or byte range.
-    pub fn support_binding(
-        slot: impl Into<String>,
-        target: impl Into<String>,
-        range: TextRange,
-    ) -> Result<SupportBindingDecl, AstConstructionError> {
-        Ok(SupportBindingDecl {
-            comments: Default::default(),
-            slot: checked_identifier(slot, "support binding slot")?,
-            target: checked_identifier(target, "support binding target")?,
-            range: checked_range(range)?,
-        })
-    }
-
-    /// Construct one finite complete-exterior support binding.
-    ///
-    /// Empty member lists remain syntactically representable so semantic
-    /// validation can issue the same contextual diagnostic as parsed source.
-    ///
-    /// # Errors
-    /// Returns an error for malformed members, a slot, or a byte range.
-    pub fn boundary_set_binding(
-        slot: impl Into<String>,
-        members: Vec<BoundarySetMemberSyntax>,
-        range: TextRange,
-    ) -> Result<BoundarySetBindingDecl, AstConstructionError> {
-        for member in &members {
-            validate_boundary_set_member(member)?;
-        }
-        Ok(BoundarySetBindingDecl {
-            comments: Default::default(),
-            slot: checked_identifier(slot, "boundary-set binding slot")?,
-            members,
-            range: checked_range(range)?,
-        })
-    }
-
-    /// Construct one named member of a finite complete-exterior binding.
-    ///
-    /// # Errors
-    /// Returns an error for a malformed target or byte range.
-    pub fn boundary_set_member(
-        target: impl Into<String>,
-        range: TextRange,
-    ) -> Result<BoundarySetMemberSyntax, AstConstructionError> {
-        Ok(BoundarySetMemberSyntax {
-            target: checked_identifier(target, "boundary-set member")?,
-            range: checked_range(range)?,
-        })
-    }
-
-    /// Construct one named occurrence-bound Field binding.
-    ///
-    /// # Errors
-    /// Returns an error for a malformed slot, target, or byte range.
-    pub fn field_binding(
-        slot: impl Into<String>,
-        target: impl Into<String>,
-        range: TextRange,
-    ) -> Result<FieldBindingDecl, AstConstructionError> {
-        Ok(FieldBindingDecl {
-            comments: Default::default(),
-            slot: checked_identifier(slot, "Field binding slot")?,
-            target: checked_identifier(target, "Field binding target")?,
             range: checked_range(range)?,
         })
     }
@@ -812,7 +641,18 @@ fn validate_support_slot_syntax(syntax: &SupportSlotSyntax) -> Result<(), AstCon
 
 fn validate_port_syntax(syntax: &PortSyntax) -> Result<(), AstConstructionError> {
     match syntax {
-        PortSyntax::Signal { value_type, .. } => {
+        PortSyntax::Signal {
+            value_type,
+            domain,
+            activation,
+            ..
+        } => {
+            if let Some(domain) = domain {
+                validate_identifier(domain, "signal support")?;
+            }
+            if let ActivationSyntax::Periodic(clock) = activation {
+                validate_identifier(clock, "signal clock")?;
+            }
             SourceAstFactory::value_type(value_type.kind.clone(), value_type.range).map(|_| ())
         }
         PortSyntax::ScalarPhysical { domain } => {
@@ -845,12 +685,6 @@ fn validate_value_shape(shape: &ValueShapeSyntax) -> Result<(), AstConstructionE
         )),
         ValueShapeSyntax::Exact(_) => Ok(()),
     }
-}
-
-fn validate_support_binding(binding: &SupportBindingDecl) -> Result<(), AstConstructionError> {
-    validate_identifier(binding.slot(), "support binding slot")?;
-    validate_identifier(binding.target(), "support binding target")?;
-    checked_range(binding.range()).map(|_| ())
 }
 
 fn validate_boundary_family_binder(
@@ -920,29 +754,6 @@ fn validate_boundary_connection(
         validate_boundary_port_reference(port)?;
     }
     checked_range(connection.range()).map(|_| ())
-}
-
-fn validate_boundary_set_member(
-    member: &BoundarySetMemberSyntax,
-) -> Result<(), AstConstructionError> {
-    validate_identifier(member.target(), "boundary-set member")?;
-    checked_range(member.range()).map(|_| ())
-}
-
-fn validate_boundary_set_binding(
-    binding: &BoundarySetBindingDecl,
-) -> Result<(), AstConstructionError> {
-    validate_identifier(binding.slot(), "boundary-set binding slot")?;
-    for member in binding.members() {
-        validate_boundary_set_member(member)?;
-    }
-    checked_range(binding.range()).map(|_| ())
-}
-
-fn validate_field_binding(binding: &FieldBindingDecl) -> Result<(), AstConstructionError> {
-    validate_identifier(binding.slot(), "Field binding slot")?;
-    validate_identifier(binding.target(), "Field binding target")?;
-    checked_range(binding.range()).map(|_| ())
 }
 
 #[cfg(test)]

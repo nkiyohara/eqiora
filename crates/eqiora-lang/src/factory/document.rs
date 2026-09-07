@@ -16,13 +16,16 @@ impl SourceAstFactory {
     pub fn model(
         visibility: VisibilitySyntax,
         name: impl Into<String>,
+        signature: Vec<crate::SignatureItem>,
         items: Vec<Item>,
         range: TextRange,
     ) -> Result<ModelDecl, AstConstructionError> {
+        super::signature::validate_signature(&signature)?;
         Ok(ModelDecl {
             comments: Default::default(),
             visibility,
             name: checked_identifier(name, "model")?,
+            signature,
             items,
             range: checked_range(range)?,
         })

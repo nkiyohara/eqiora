@@ -172,6 +172,7 @@ impl Parser<'_> {
     ) -> Option<ModelDecl> {
         self.expect_keyword("model")?;
         let name = self.expect_identifier("model name")?.text().to_owned();
+        let signature = self.parse_signature()?;
         self.expect(TokenKind::LeftBrace, "`{` after model name")?;
         let mut items = Vec::new();
         while !self.at(TokenKind::RightBrace) && !self.at(TokenKind::Eof) {
@@ -188,6 +189,7 @@ impl Parser<'_> {
             comments: Default::default(),
             visibility,
             name,
+            signature,
             items,
             range: TextRange::new(declaration_start, end),
         })

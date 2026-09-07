@@ -163,6 +163,7 @@ impl super::ModelDraft {
         let range = ranges.allocate(&model_path, &mut paths);
         NativeModelAst {
             model: ModelDecl {
+                signature: Vec::new(),
                 comments: Default::default(),
                 visibility: VisibilitySyntax::Private,
                 name: self.name.clone(),

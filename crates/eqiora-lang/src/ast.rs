@@ -3,7 +3,9 @@
 pub(crate) mod comments;
 mod compile_time;
 mod items;
+mod signature;
 pub use items::{ComponentItem, Item};
+pub use signature::SignatureItem;
 pub(crate) mod document;
 pub(crate) mod formulation;
 mod name_path;
@@ -18,7 +20,6 @@ pub(crate) use compile_time::DimensionDecl;
 pub use compile_time::{LetDecl, ParameterDecl};
 pub use document::{Document, ModelDecl};
 
-use crate::ast_property::{ComponentPropertyDecl, PropertyBindingDecl};
 use formulation::FormulationDecl;
 use std::ops::Range;
 
@@ -206,9 +207,9 @@ pub struct ComponentDecl {
     pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) visibility: VisibilitySyntax,
     pub(crate) name: String,
+    pub(crate) signature: Vec<SignatureItem>,
     pub(crate) items: Vec<ComponentItem>,
     pub(crate) formulations: Vec<FormulationDecl>,
-    pub(crate) property_requirements: Vec<ComponentPropertyDecl>,
     pub(crate) range: TextRange,
 }
 
@@ -223,6 +224,12 @@ impl ComponentDecl {
     #[must_use]
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// Public requirements and occurrence-owned exposed values.
+    #[must_use]
+    pub fn signature(&self) -> &[SignatureItem] {
+        &self.signature
     }
 
     /// Component declarations in source order.
@@ -459,226 +466,53 @@ pub struct InstanceDecl {
     pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) name: String,
     pub(crate) definition: NamePath,
-    pub(crate) bindings: Vec<ParameterBindingDecl>,
-    pub(crate) support_bindings: Vec<SupportBindingDecl>,
-    pub(crate) boundary_set_bindings: Vec<BoundarySetBindingDecl>,
-    pub(crate) field_bindings: Vec<FieldBindingDecl>,
-    pub(crate) clock_bindings: Vec<ClockBindingDecl>,
-    pub(crate) property_bindings: Vec<PropertyBindingDecl>,
-    pub(crate) material_binding: Option<NamePath>,
+    pub(crate) bindings: Vec<NamedBindingDecl>,
     pub(crate) range: TextRange,
 }
 
 impl InstanceDecl {
-    /// Source-declared instance path segment.
+    /// Source occurrence name.
     #[must_use]
     pub fn name(&self) -> &str {
         &self.name
     }
-
-    /// Lexically resolved component definition name before semantic lookup.
+    /// Exact lexically resolved definition path.
     #[must_use]
     pub const fn definition(&self) -> &NamePath {
         &self.definition
     }
-
-    /// Named compile-time Parameter bindings in source order.
+    /// Explicit named arguments; the target signature determines each kind.
     #[must_use]
-    pub fn bindings(&self) -> &[ParameterBindingDecl] {
+    pub fn bindings(&self) -> &[NamedBindingDecl] {
         &self.bindings
     }
-
-    /// Named spatial-support bindings in source order.
-    #[must_use]
-    pub fn support_bindings(&self) -> &[SupportBindingDecl] {
-        &self.support_bindings
-    }
-
-    /// Named complete-exterior member-set bindings in source order.
-    #[must_use]
-    pub fn boundary_set_bindings(&self) -> &[BoundarySetBindingDecl] {
-        &self.boundary_set_bindings
-    }
-
-    /// Named occurrence-bound Field bindings in source order.
-    #[must_use]
-    pub fn field_bindings(&self) -> &[FieldBindingDecl] {
-        &self.field_bindings
-    }
-
-    /// Named exact-clock bindings in source order.
-    #[must_use]
-    pub fn clock_bindings(&self) -> &[ClockBindingDecl] {
-        &self.clock_bindings
-    }
-
-    /// Full instance declaration range.
+    /// Full occurrence range.
     #[must_use]
     pub const fn range(&self) -> TextRange {
         self.range
     }
 }
 
-/// One named binding in a component instantiation.
+/// One category-free named occurrence binding.
 #[derive(Debug, Clone, PartialEq)]
-pub struct ParameterBindingDecl {
+pub struct NamedBindingDecl {
     pub(crate) comments: crate::ast::comments::SourceComments,
-    pub(crate) parameter: String,
+    pub(crate) name: String,
     pub(crate) value: Expr,
     pub(crate) range: TextRange,
 }
-
-impl ParameterBindingDecl {
-    /// Public Parameter name in the selected component definition.
+impl NamedBindingDecl {
+    /// Target signature name.
     #[must_use]
-    pub fn parameter(&self) -> &str {
-        &self.parameter
+    pub fn name(&self) -> &str {
+        &self.name
     }
-
-    /// Pure compile-time scalar expression before semantic validation.
+    /// Value or nominal reference before target-directed classification.
     #[must_use]
     pub const fn value(&self) -> &Expr {
         &self.value
     }
-
-    /// Complete binding range.
-    #[must_use]
-    pub const fn range(&self) -> TextRange {
-        self.range
-    }
-}
-
-/// One named spatial-support binding in a component instantiation.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SupportBindingDecl {
-    pub(crate) comments: crate::ast::comments::SourceComments,
-    pub(crate) slot: String,
-    pub(crate) target: String,
-    pub(crate) range: TextRange,
-}
-
-impl SupportBindingDecl {
-    /// Public support-slot name in the selected component definition.
-    #[must_use]
-    pub fn slot(&self) -> &str {
-        &self.slot
-    }
-
-    /// Enclosing Domain or support-slot name bound to this occurrence.
-    #[must_use]
-    pub fn target(&self) -> &str {
-        &self.target
-    }
-
-    /// Complete binding range, including the `support` discriminator.
-    #[must_use]
-    pub const fn range(&self) -> TextRange {
-        self.range
-    }
-}
-
-/// One finite `boundaries(...)` binding for a complete exterior support slot.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BoundarySetBindingDecl {
-    pub(crate) comments: crate::ast::comments::SourceComments,
-    pub(crate) slot: String,
-    pub(crate) members: Vec<BoundarySetMemberSyntax>,
-    pub(crate) range: TextRange,
-}
-
-impl BoundarySetBindingDecl {
-    /// Public complete-exterior support-slot name.
-    #[must_use]
-    pub fn slot(&self) -> &str {
-        &self.slot
-    }
-
-    /// Explicit finite boundary members in source order.
-    #[must_use]
-    pub fn members(&self) -> &[BoundarySetMemberSyntax] {
-        &self.members
-    }
-
-    /// Complete binding range, including the `support` discriminator.
-    #[must_use]
-    pub const fn range(&self) -> TextRange {
-        self.range
-    }
-}
-
-/// One lexically named member of a complete exterior binding.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BoundarySetMemberSyntax {
-    pub(crate) target: String,
-    pub(crate) range: TextRange,
-}
-
-impl BoundarySetMemberSyntax {
-    /// Enclosing boundary Domain selected by this member.
-    #[must_use]
-    pub fn target(&self) -> &str {
-        &self.target
-    }
-
-    /// Exact source range of the member spelling.
-    #[must_use]
-    pub const fn range(&self) -> TextRange {
-        self.range
-    }
-}
-
-/// One named occurrence-bound Field binding in a component instantiation.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FieldBindingDecl {
-    pub(crate) comments: crate::ast::comments::SourceComments,
-    pub(crate) slot: String,
-    pub(crate) target: String,
-    pub(crate) range: TextRange,
-}
-
-impl FieldBindingDecl {
-    /// Public Field-slot name in the selected component definition.
-    #[must_use]
-    pub fn slot(&self) -> &str {
-        &self.slot
-    }
-
-    /// Enclosing owned Field or forwarded Field-slot name.
-    #[must_use]
-    pub fn target(&self) -> &str {
-        &self.target
-    }
-
-    /// Complete binding range, including the `field` discriminator.
-    #[must_use]
-    pub const fn range(&self) -> TextRange {
-        self.range
-    }
-}
-
-/// One named exact Clock binding in a component instantiation.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ClockBindingDecl {
-    pub(crate) comments: crate::ast::comments::SourceComments,
-    pub(crate) slot: String,
-    pub(crate) target: String,
-    pub(crate) range: TextRange,
-}
-
-impl ClockBindingDecl {
-    /// Signature Clock requirement name in the selected component definition.
-    #[must_use]
-    pub fn slot(&self) -> &str {
-        &self.slot
-    }
-
-    /// Enclosing owned Clock or forwarded Clock requirement name.
-    #[must_use]
-    pub fn target(&self) -> &str {
-        &self.target
-    }
-
-    /// Complete binding range, including the `clock` discriminator.
+    /// Full binding range.
     #[must_use]
     pub const fn range(&self) -> TextRange {
         self.range
@@ -865,6 +699,10 @@ pub enum PortSyntax {
         direction: SignalDirectionSyntax,
         /// Mathematical scalar domain, dimension and component roles.
         value_type: ValueTypeSyntax,
+        /// Exact spatial support when distributed.
+        domain: Option<String>,
+        /// Continuous or exact declared periodic activation.
+        activation: ActivationSyntax,
     },
     /// Executable scalar conserving Port, nominally typed by one Domain.
     /// In the flat source slice, a Relation that reads this Port with
@@ -1056,34 +894,6 @@ impl BoundaryPortSelectorSyntax {
     }
 
     /// Full `[member = target]` range.
-    #[must_use]
-    pub const fn range(&self) -> TextRange {
-        self.range
-    }
-}
-
-/// Model boundary declaration.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BoundaryDecl {
-    pub(crate) comments: crate::ast::comments::SourceComments,
-    pub(crate) ports: Vec<NamePath>,
-    pub(crate) range: TextRange,
-}
-
-impl BoundaryDecl {
-    /// Boundary Port spellings.
-    #[must_use]
-    pub fn ports(&self) -> impl ExactSizeIterator<Item = &str> {
-        self.ports.iter().map(NamePath::as_str)
-    }
-
-    /// Structurally segmented boundary Port selections.
-    #[must_use]
-    pub fn port_paths(&self) -> &[NamePath] {
-        &self.ports
-    }
-
-    /// Full declaration range.
     #[must_use]
     pub const fn range(&self) -> TextRange {
         self.range
