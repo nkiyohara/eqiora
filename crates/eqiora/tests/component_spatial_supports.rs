@@ -119,7 +119,7 @@ fn packaged_model(components: &PackageReleaseV1, alias: &str) -> PackagedModelDo
     );
     let source = format!(
         r#"
-import Eqiora.Verify.SpatialSupport.model as() {alias};
+import Eqiora.Verify.SpatialSupport.model as {alias};
 
 model Main() {{
   domain fluid = box(0, 1, 0, 1);
@@ -240,7 +240,7 @@ model M() {
   );
 }
 "#,
-            "unknown support slot `ghost`",
+            "`ghost` is not a public requirement of `BoundaryState`",
         ),
         (
             "duplicate",
@@ -255,7 +255,7 @@ model M() {
   );
 }
 "#,
-            "duplicate binding for support slot `body`",
+            "duplicate named binding `body`",
         ),
         (
             "volume-to-boundary",

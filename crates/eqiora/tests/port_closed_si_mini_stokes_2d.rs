@@ -202,7 +202,7 @@ fn wrong_newtonian_stress_and_nominal_connector_near_misses_fail_closed() {
         .split_once("public component NewtonianMechanicalInterface2d")
         .expect("public fluid source owns a separate boundary Component");
     let wrong_stress_source = format!(
-        "{volume_source}public component NewtonianMechanicalInterface2d() {}",
+        "{volume_source}public component NewtonianMechanicalInterface2d{}",
         boundary_source.replace("- isotropic_lift(pressure)", "+ isotropic_lift(pressure)")
     );
     let wrong_stress_fluid = inline_fluid_release(&mechanics, &wrong_stress_source);

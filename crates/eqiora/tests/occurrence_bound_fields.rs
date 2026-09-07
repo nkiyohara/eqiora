@@ -225,7 +225,7 @@ fn root_source(alias: &str, permuted: bool) -> String {
     if permuted {
         format!(
             r#"
-import Eqiora.Verify.OccurrenceBoundFields.model as() {alias};
+import Eqiora.Verify.OccurrenceBoundFields.model as {alias};
 
 model Main() {{
   instance law: {alias}.FieldLawWrapper(
@@ -243,7 +243,7 @@ model Main() {{
     } else {
         format!(
             r#"
-import Eqiora.Verify.OccurrenceBoundFields.model as() {alias};
+import Eqiora.Verify.OccurrenceBoundFields.model as {alias};
 
 model Main() {{
   domain body = box(0, 1, 0, 1);
@@ -473,7 +473,7 @@ model M() {
   );
 }
 "#,
-            &["duplicate binding for Field slot", "scalar_state"][..],
+            &["duplicate named binding", "scalar_state"][..],
         ),
         (
             "unknown",
@@ -491,7 +491,7 @@ model M() {
   );
 }
 "#,
-            &["unknown Field slot", "ghost"][..],
+            &["not a public requirement", "ghost", "FieldLaw"][..],
         ),
         (
             "wrong-kind",
@@ -599,7 +599,7 @@ component C(
 }
 model M() {}
 "#,
-        &["support and unknown requirements belong in the signature"],
+        &["public requirements belong in the signature"],
     );
     assert_compile_rejects_without_graph_mutation(
         "ambient-dimension",
@@ -648,8 +648,19 @@ model M() {
     };
     let diagnostic = LocalSourceIdentity::from_document_with_limits(&document, limits)
         .expect_err("three binding families share one limit");
-    assert!(diagnostic.message().contains("3 bindings"));
-    assert!(diagnostic.message().contains("2 binding limit"));
+    assert!(
+        diagnostic
+            .message()
+            .contains("instance named binding count exceeds resource limit")
+    );
+    LocalSourceIdentity::from_document_with_limits(
+        &document,
+        LocalSourceIdentityLimits {
+            max_bindings_per_instance: 3,
+            ..limits
+        },
+    )
+    .expect("exactly three named bindings fit the shared budget");
 
     let store = InMemoryGraphStore::new();
     let snapshot = store.snapshot();
