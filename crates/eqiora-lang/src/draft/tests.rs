@@ -52,11 +52,14 @@ fn typed_dimensions_and_expression_references_become_source_ast() {
     );
     let rate = DraftParameter::new(
         "rate",
-        eqiora_core::ValueType::scalar(
-            eqiora_core::ScalarDomain::Real,
-            DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),
-        ),
-        1.0,
+        eqiora_core::ValueLiteral::from_real(
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),
+            ),
+            1.0,
+        )
+        .unwrap(),
     );
     let initial =
         DraftDeclaration::Initial(vec![state.expression() - DraftExpression::constant(1.0)]);
@@ -83,7 +86,10 @@ fn typed_dimensions_and_expression_references_become_source_ast() {
     let Item::Parameter(parameter) = &native.model().items()[1] else {
         panic!("parameter");
     };
-    assert!(matches!(parameter.value().kind(), ExprKind::Number(1.0)));
+    assert!(matches!(
+        parameter.value().kind(),
+        ExprKind::Quantity { value: 1.0, .. }
+    ));
     assert!(matches!(native.model().items()[2], Item::Initial(_)));
 }
 
@@ -144,11 +150,14 @@ fn physical_vocabulary_projects_only_to_existing_source_ast_forms() {
     let negative = DraftConservingPort::new("negative", &electrical);
     let resistance = DraftParameter::new(
         "resistance",
-        eqiora_core::ValueType::scalar(
-            eqiora_core::ScalarDomain::Real,
-            DimExponents::from_integers([1, 2, -3, -2, 0, 0, 0]).expect("bounded dimension"),
-        ),
-        2.0,
+        eqiora_core::ValueLiteral::from_real(
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::from_integers([1, 2, -3, -2, 0, 0, 0]).expect("bounded dimension"),
+            ),
+            2.0,
+        )
+        .unwrap(),
     );
     let relation = DraftRelation::continuous(
         "resistor",
@@ -486,6 +495,12 @@ fn expression_contains_call(expression: &Expr, expected: &str) -> bool {
                 || arguments
                     .iter()
                     .any(|argument| expression_contains_call(argument, expected))
+        }
+        ExprKind::Array(values) => values
+            .iter()
+            .any(|value| expression_contains_call(value, expected)),
+        ExprKind::Index { value, index } => {
+            expression_contains_call(value, expected) || expression_contains_call(index, expected)
         }
         ExprKind::Unary { value, .. } => expression_contains_call(value, expected),
         ExprKind::Binary { left, right, .. } => {

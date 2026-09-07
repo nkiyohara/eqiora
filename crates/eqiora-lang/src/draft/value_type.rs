@@ -86,7 +86,10 @@ mod tests {
             (scalar.clone(), "complex<1>"),
             (scalar.array(3).unwrap(), "array<complex<1>, 3>"),
         ] {
-            let parameter = DraftParameter::new("coefficient", value_type.clone(), 0.0);
+            let parameter = DraftParameter::new(
+                "coefficient",
+                eqiora_core::ValueLiteral::from_real(value_type.clone(), 0.0).unwrap(),
+            );
             assert_eq!(parameter.value_type(), &value_type);
             let draft = ModelDraft::new("M", [parameter.into()]).unwrap();
             let native = draft.native_ast();
@@ -110,7 +113,10 @@ mod tests {
         let oversized = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
             .array(65_537)
             .unwrap();
-        let parameter = DraftParameter::new("large", oversized, 0.0);
+        let parameter = DraftParameter::new(
+            "large",
+            eqiora_core::ValueLiteral::from_real(oversized, 0.0).unwrap(),
+        );
         assert!(ModelDraft::new("M", [parameter.into()]).is_err());
     }
 
