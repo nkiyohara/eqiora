@@ -9,6 +9,8 @@ use eqiora_package::{
 use super::*;
 use crate::package::PackagedModelDocument;
 
+#[cfg(target_os = "linux")]
+mod git;
 mod offline;
 
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
@@ -153,8 +155,13 @@ fn local_project_locks_deterministically_and_reopens_offline() {
     let first =
         resolve_local_package_project_v1(&fixture.0, &first_store).expect("first resolution");
     let lock_bytes = fs::read(fixture.0.join(PROJECT_LOCK)).expect("read exact lock");
-    assert_eq!(lock_bytes, first.canonical_json().expect("canonical lock"));
-    let reopened = ResolutionRecordV1::from_json(&lock_bytes).expect("reopen exact lock");
+    assert_eq!(
+        lock::ProjectLock::decode(&lock_bytes).unwrap().resolution,
+        first
+    );
+    let reopened = lock::ProjectLock::decode(&lock_bytes)
+        .expect("reopen project lock")
+        .resolution;
     let second =
         resolve_local_package_project_v1(&fixture.0, &second_store).expect("repeated resolution");
     assert_eq!(
@@ -275,8 +282,10 @@ fn changed_local_content_generates_a_new_exact_identity() {
     let changed_lock = changed.canonical_json().expect("changed lock");
     assert_ne!(changed_lock, previous_lock);
     assert_eq!(
-        fs::read(fixture.0.join(PROJECT_LOCK)).expect("updated lock"),
-        changed_lock
+        lock::ProjectLock::decode(&fs::read(fixture.0.join(PROJECT_LOCK)).expect("updated lock"))
+            .unwrap()
+            .resolution,
+        changed
     );
 }
 
@@ -416,7 +425,10 @@ fn partial_lock_write_preserves_the_accepted_project_pair() {
     let failure = transaction::commit_using(
         &candidate.project,
         &manifest,
-        &changed.canonical_json().unwrap(),
+        &lock::ProjectLock::new(changed, vec![])
+            .unwrap()
+            .bytes()
+            .unwrap(),
         || Ok(()),
         |file, bytes| {
             file.write_all(&bytes[..bytes.len() / 2])?;
@@ -472,6 +484,7 @@ fn proposed_dependency_changes_are_validated_without_publishing() {
                 version: version.to_owned(),
                 path: Some("library".to_owned()),
                 bundled: false,
+                git: None,
             },
         );
         let candidate = prepare_local_package_project(
@@ -532,7 +545,7 @@ fn proposed_dependency_changes_are_validated_without_publishing() {
             .len(),
         1
     );
-    assert_eq!(read_project_lock(&directory).unwrap(), added);
+    assert_eq!(read_project_lock(&directory).unwrap().resolution, added);
     PackagedModelDocument::compile_locked(&store, &added, "Main").unwrap();
 
     let removed = PackagedModelDocument::remove_local_package_dependency_v1(
@@ -547,7 +560,7 @@ fn proposed_dependency_changes_are_validated_without_publishing() {
             .dependencies
             .is_empty()
     );
-    assert_eq!(read_project_lock(&directory).unwrap(), removed);
+    assert_eq!(read_project_lock(&directory).unwrap().resolution, removed);
     assert_eq!(removed, accepted);
     PackagedModelDocument::compile_locked(&store, &removed, "Main").unwrap();
 }
@@ -629,12 +642,18 @@ fn project_preparation_and_lock_publication_retain_the_opened_directory() {
     transaction::commit(
         &candidate.project,
         &manifest,
-        &resolution.canonical_json().unwrap(),
+        &lock::ProjectLock::new(resolution.clone(), vec![])
+            .unwrap()
+            .bytes()
+            .unwrap(),
     )
     .unwrap();
     assert_eq!(
         fs::read(moved.join(PROJECT_LOCK)).unwrap(),
-        resolution.canonical_json().unwrap()
+        lock::ProjectLock::new(resolution, vec![])
+            .unwrap()
+            .bytes()
+            .unwrap()
     );
     assert!(!original.join(PROJECT_LOCK).exists());
     assert_eq!(

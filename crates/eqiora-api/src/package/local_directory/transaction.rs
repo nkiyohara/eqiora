@@ -20,7 +20,17 @@ fn unique(prefix: &str) -> String {
     )
 }
 
-pub(super) fn write_guard(project: &Dir) -> std::io::Result<std::fs::File> {
+pub(super) struct Guard(std::fs::File);
+
+impl Drop for Guard {
+    fn drop(&mut self) {
+        // Closing alone can retain the lock in another thread's freshly forked child.
+        // Explicit unlock releases this open-file-description lock at the transaction boundary.
+        let _ = self.0.unlock();
+    }
+}
+
+pub(super) fn write_guard(project: &Dir) -> std::io::Result<Guard> {
     let mut options = OpenOptions::new();
     options
         .read(true)
@@ -36,10 +46,10 @@ pub(super) fn write_guard(project: &Dir) -> std::io::Result<std::fs::File> {
     }
     let file = file.into_std();
     file.try_lock().map_err(std::io::Error::other)?;
-    Ok(file)
+    Ok(Guard(file))
 }
 
-pub(super) fn read_guard(project: &Dir) -> std::io::Result<Option<std::fs::File>> {
+pub(super) fn read_guard(project: &Dir) -> std::io::Result<Option<Guard>> {
     let mut options = OpenOptions::new();
     options.read(true).follow(FollowSymlinks::No).nonblock(true);
     let file = match project.open_with(GUARD, &options) {
@@ -54,7 +64,7 @@ pub(super) fn read_guard(project: &Dir) -> std::io::Result<Option<std::fs::File>
     }
     let file = file.into_std();
     file.try_lock_shared().map_err(std::io::Error::other)?;
-    Ok(Some(file))
+    Ok(Some(Guard(file)))
 }
 
 /// Read the accepted lock without repairing an interrupted publication.
@@ -310,6 +320,16 @@ pub(super) fn commit_using(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn transaction_unlock_does_not_wait_for_an_inherited_descriptor() {
+        let fixture = super::super::tests::TestDirectory::create("inherited-guard");
+        let project = super::super::open_project_root(&fixture.0).unwrap();
+        let guard = super::write_guard(&project).unwrap();
+        let inherited = guard.0.try_clone().unwrap();
+        drop(guard);
+        let _next = super::write_guard(&project).unwrap();
+        drop(inherited);
+    }
     use super::*;
 
     #[test]

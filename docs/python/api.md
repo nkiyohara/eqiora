@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 18 module summaries and all 171 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 632 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 18 module summaries and all 172 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 632 signature-only entries under documented owning types**.
 
-Inventory: 18 modules, 201 literal public spellings, 171 canonical grouped declarations, 831 visible method signatures (632 non-dunder and 199 dunder), and 74 visible class assignments.
+Inventory: 18 modules, 202 literal public spellings, 172 canonical grouped declarations, 831 visible method signatures (632 non-dunder and 199 dunder), and 74 visible class assignments.
 
 Regenerate with:
 
@@ -1803,6 +1803,18 @@ Authority: [`crates/eqiora-python/src/package.rs::add_bundled_dependency`](../..
 
 ```python
 def add_bundled_dependency(project_root: str | PathLike[str], store_root: str | PathLike[str], name: str, *, version: str) -> bytes: ...
+```
+
+<a id="api-eqiora-add_git_dependency"></a>
+
+### `eqiora.add_git_dependency`
+
+Add an immutable Git package through the shared native project transaction.
+
+Authority: [`crates/eqiora-python/src/package.rs::add_git_dependency`](../../crates/eqiora-python/src/package.rs)
+
+```python
+def add_git_dependency(project_root: str | PathLike[str], store_root: str | PathLike[str], name: str, *, version: str, repository: str, revision: str) -> bytes: ...
 ```
 
 <a id="api-eqiora-fetch_project"></a>

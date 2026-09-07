@@ -202,14 +202,17 @@ fn cli_command() -> clap::Command {
                             .arg(
                                 Arg::new("dependency-path")
                                     .long("path")
-                                    .required_unless_present("bundled")
-                                    .conflicts_with("bundled"),
+                                    .required_unless_present_any(["bundled", "git"])
+                                    .conflicts_with_all(["bundled", "git"]),
                             )
                             .arg(
                                 Arg::new("bundled")
                                     .long("bundled")
+                                    .conflicts_with("git")
                                     .action(ArgAction::SetTrue),
                             )
+                            .arg(Arg::new("git").long("git").requires("revision"))
+                            .arg(Arg::new("revision").long("rev").requires("git"))
                     } else {
                         command
                     }
@@ -344,7 +347,14 @@ fn run_package_command(package: &clap::ArgMatches) -> CommandResult {
                 let Some(version) = args.get_one::<String>("dependency-version") else {
                     return invalid_command_line();
                 };
-                if args.get_flag("bundled") {
+                if let Some(repository) = args.get_one::<String>("git") {
+                    let Some(revision) = args.get_one::<String>("revision") else {
+                        return invalid_command_line();
+                    };
+                    LockedPackage::add_git_package_dependency_v1(
+                        project, store, name, version, repository, revision,
+                    )
+                } else if args.get_flag("bundled") {
                     LockedPackage::add_bundled_package_dependency_v1(project, store, name, version)
                 } else {
                     let Some(path) = args.get_one::<String>("dependency-path") else {
