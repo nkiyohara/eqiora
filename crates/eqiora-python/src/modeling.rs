@@ -8,12 +8,13 @@ use eqiora::language::{
     DraftSpatialDomain, FieldRoleSyntax, ModelDraft,
 };
 pub(crate) mod dimension;
+pub(crate) mod value_literal;
 mod value_type;
-use value_type::PyValueType;
+pub(crate) use value_type::PyValueType;
 
 use pyo3::exceptions::{PyAttributeError, PyTypeError};
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyBool, PyModule, PyTuple};
+use pyo3::types::{PyAny, PyBool, PyComplex, PyModule, PyTuple};
 
 use crate::diagnostic_error;
 
@@ -268,6 +269,15 @@ impl PyField {
         })
     }
 
+    fn __getitem__(&self, index: &Bound<'_, PyAny>) -> PyResult<PyExpression> {
+        if index.is_instance_of::<PyBool>() {
+            return Err(PyTypeError::new_err("index must be a nonnegative integer"));
+        }
+        Ok(PyExpression::new(
+            self.value.expression().index(index.extract::<u32>()?),
+        ))
+    }
+
     fn __neg__(&self) -> PyExpression {
         PyExpression::new(-self.value.expression())
     }
@@ -319,7 +329,7 @@ impl PyField {
     }
 }
 
-/// Immutable typed Parameter declaration with a real numeric initializer.
+/// Immutable Parameter declaration owning a complete typed value.
 #[pyclass(
     name = "Parameter",
     module = "eqiora._eqiora",
@@ -335,22 +345,28 @@ pub(crate) struct PyParameter {
 impl PyParameter {
     #[new]
     #[pyo3(signature = (name, *, value_type=None, value))]
-    fn new(name: String, value_type: Option<&PyValueType>, value: f64) -> Self {
-        Self {
-            value: DraftParameter::new(
-                name,
-                value_type.map_or_else(
-                    || {
-                        eqiora::ValueType::scalar(
-                            eqiora::ScalarDomain::Real,
-                            DimExponents::DIMENSIONLESS,
-                        )
+    fn new(
+        name: String,
+        value_type: Option<&PyValueType>,
+        value: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let kind = value_type.map_or_else(
+            || {
+                eqiora::ValueType::scalar(
+                    if value.is_instance_of::<PyComplex>() {
+                        eqiora::ScalarDomain::Complex
+                    } else {
+                        eqiora::ScalarDomain::Real
                     },
-                    |value| value.value.clone(),
-                ),
-                value,
-            ),
-        }
+                    DimExponents::DIMENSIONLESS,
+                )
+            },
+            |value| value.value.clone(),
+        );
+        let literal = value_literal::from_python(value, kind)?;
+        Ok(Self {
+            value: DraftParameter::new(name, literal),
+        })
     }
 
     #[getter]
@@ -366,8 +382,8 @@ impl PyParameter {
     }
 
     #[getter]
-    const fn value(&self) -> f64 {
-        self.value.value()
+    fn value(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        value_literal::to_python(py, self.value.value())
     }
 
     #[getter]
@@ -375,6 +391,15 @@ impl PyParameter {
         PyValueType {
             value: self.value.value_type().clone(),
         }
+    }
+
+    fn __getitem__(&self, index: &Bound<'_, PyAny>) -> PyResult<PyExpression> {
+        if index.is_instance_of::<PyBool>() {
+            return Err(PyTypeError::new_err("index must be a nonnegative integer"));
+        }
+        Ok(PyExpression::new(
+            self.value.expression().index(index.extract::<u32>()?),
+        ))
     }
 
     fn __neg__(&self) -> PyExpression {
@@ -422,7 +447,7 @@ impl PyParameter {
             "Parameter({:?}, value_type={:?}, value={:?})",
             self.name(),
             self.value.value_type(),
-            self.value()
+            self.value.value()
         )
     }
 }
@@ -852,6 +877,9 @@ fn expression_from_python(value: &Bound<'_, PyAny>) -> PyResult<DraftExpression>
     if let Ok(parameter) = value.extract::<PyRef<'_, PyParameter>>() {
         return Ok(parameter.value.expression());
     }
+    if let Ok(value) = value.cast::<PyComplex>() {
+        return Ok(DraftExpression::complex(value.real(), value.imag()));
+    }
     if value.is_instance_of::<PyBool>() {
         return Err(expression_type_error());
     }
@@ -887,7 +915,7 @@ fn binary(
 }
 
 fn expression_type_error() -> PyErr {
-    PyTypeError::new_err("expected an Expression, Field, Parameter, or real number")
+    PyTypeError::new_err("expected an Expression, Field, Parameter, or real/complex number")
 }
 
 fn symbolic_truth_error() -> PyErr {

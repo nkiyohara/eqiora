@@ -3,7 +3,7 @@
 Authority: ``bindings/python/python/eqiora/lang/__init__.py``.
 """
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from fractions import Fraction
 from os import PathLike
 from typing import Final, final, overload
@@ -25,16 +25,17 @@ class Expression:
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Expression``.
     """
 
-    def __add__(self, other: Expression | float | int, /) -> Expression: ...
+    def __add__(self, other: Expression | float | int | complex, /) -> Expression: ...
     def __radd__(self, other: float | int, /) -> Expression: ...
-    def __sub__(self, other: Expression | float | int, /) -> Expression: ...
+    def __sub__(self, other: Expression | float | int | complex, /) -> Expression: ...
     def __rsub__(self, other: float | int, /) -> Expression: ...
-    def __mul__(self, other: Expression | float | int, /) -> Expression: ...
+    def __mul__(self, other: Expression | float | int | complex, /) -> Expression: ...
     def __rmul__(self, other: float | int, /) -> Expression: ...
-    def __truediv__(self, other: Expression | float | int, /) -> Expression: ...
+    def __truediv__(self, other: Expression | float | int | complex, /) -> Expression: ...
     def __rtruediv__(self, other: float | int, /) -> Expression: ...
     def __pow__(self, exponent: int, /) -> Expression: ...
     def __neg__(self) -> Expression: ...
+    def __getitem__(self, index: int) -> Expression: ...
 
 @final
 class Clock:
@@ -56,7 +57,7 @@ class Support:
 
 @final
 class PropertyContract:
-    """Identify one scalar property contract in its exact Source.
+    """Identify one typed property contract in its exact Source.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::PropertyContract``.
     """
@@ -101,7 +102,7 @@ class Component:
         self, name: str, *, period_s: Fraction | int,
         phase_s: Fraction | int = 0, doc: str | None = None,
     ) -> Clock: ...
-    def initial(self, *residuals: Expression | int | float, doc: str | None = None) -> None: ...
+    def initial(self, *residuals: Expression | int | float | complex, doc: str | None = None) -> None: ...
     def volume(
         self,
         name: str,
@@ -126,7 +127,7 @@ class Component:
     def let_alias(
         self,
         name: str,
-        expression: Expression | int | float,
+        expression: Expression | int | float | complex,
         *,
         value_type: ValueType | None = None,
         on: Support | None = None,
@@ -155,8 +156,8 @@ class Component:
         name: str,
         *,
         on: Support,
-        left: Expression | int | float,
-        right: Expression | int | float,
+        left: Expression | int | float | complex,
+        right: Expression | int | float | complex,
         at: Clock | None = None,
         doc: str | None = None,
     ) -> Relation: ...
@@ -174,7 +175,7 @@ class Component:
         *,
         component: Component,
         supports: Mapping[Support, Support],
-        parameters: Mapping[Expression, Expression | int | float],
+        parameters: Mapping[Expression, Expression | int | float | complex],
         properties: Mapping[Expression, PropertyRelease] | None = None,
         material: MaterialComposition | None = None,
         doc: str | None = None,
@@ -194,19 +195,19 @@ class Source:
         *,
         doc: str | None = None,
     ) -> Component: ...
-    def scalar_property_contract(
+    def property_contract(
         self,
         name: str,
         *,
-        unit: _Unit,
+        value_type: ValueType,
         doc: str | None = None,
     ) -> PropertyContract: ...
-    def scalar_property_release(
+    def property_release(
         self,
         name: str,
         *,
         implements: PropertyContract,
-        value: int | float,
+        value: int | float | complex | Sequence[object],
         source_unit: _Unit,
         source_scale: int | float,
         citation: str,
@@ -260,15 +261,25 @@ units: _Units
 
 class _Math:
     pi: Final[Expression]
+    i: Final[Expression]
     @staticmethod
-    def sin(value: Expression | float | int) -> Expression: ...
+    def complex(real: Expression | float | int | complex, imaginary: Expression | float | int | complex) -> Expression: ...
     @staticmethod
-    def sqrt(value: Expression | float | int) -> Expression: ...
+    def sin(value: Expression | float | int | complex) -> Expression: ...
+    @staticmethod
+    def sqrt(value: Expression | float | int | complex) -> Expression: ...
 
 #: Exact language constants used by Source expressions.
 #:
 #: Authority: ``bindings/python/python/eqiora/lang/__init__.py::math``.
 math: _Math
+
+def array(values: Sequence[object]) -> Expression:
+    """Construct channel arrays with exact ordered components.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::array``.
+    """
+    ...
 
 def coordinate(axis: int) -> Expression:
     """Return one indexed spatial-coordinate expression.
@@ -295,8 +306,8 @@ def test(field: Expression) -> Expression:
     ...
 
 def dot(
-    left: Expression | float | int,
-    right: Expression | float | int,
+    left: Expression | float | int | complex,
+    right: Expression | float | int | complex,
 ) -> Expression:
     """Return the inner product of two authored expressions.
 
@@ -307,7 +318,7 @@ def dot(
 
 def integrate(
     domain: Support,
-    integrand: Expression | float | int,
+    integrand: Expression | float | int | complex,
 ) -> Expression:
     """Return one volume integral over an exact Source Support.
 
@@ -388,6 +399,7 @@ __all__ = [
     "Source",
     "SourceError",
     "Support",
+    "array",
     "coordinate",
     "dot",
     "div",

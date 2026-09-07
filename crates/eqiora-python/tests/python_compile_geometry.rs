@@ -64,7 +64,7 @@ for args, kwargs in (
 ):
     try:
         eqiora.compile(*args, **kwargs)
-    except (TypeError, eqiora.ValidationError):
+    except (TypeError, ValueError, eqiora.ValidationError):
         pass
     else:
         raise AssertionError("invalid compile ingress was accepted")

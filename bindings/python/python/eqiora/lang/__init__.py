@@ -6,7 +6,7 @@ lowerer, and compiler remain the sole authority for mathematical meaning.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from fractions import Fraction
 import math as _stdlib_math
 import os
@@ -38,23 +38,23 @@ class SourceError(ValueError):
 
 
 class PropertyContract:
-    """An identity-bearing scalar property contract declaration handle."""
+    """An identity-bearing typed property contract declaration handle."""
 
-    __slots__ = ("_doc", "_name", "_owner", "_unit")
+    __slots__ = ("_doc", "_name", "_owner", "_value_type")
 
     def __init__(
         self,
         _token: object = _MISSING,
         _owner: object = _MISSING,
         _name_value: str = "",
-        _unit: Unit | None = None,
+        _value_type: ValueType | None = None,
         _doc: tuple[str, ...] = (),
     ) -> None:
-        if _token is not _CREATE or _unit is None:
+        if _token is not _CREATE or _value_type is None:
             raise TypeError("property contracts are created by Source")
         object.__setattr__(self, "_owner", _owner)
         object.__setattr__(self, "_name", _name_value)
-        object.__setattr__(self, "_unit", _unit)
+        object.__setattr__(self, "_value_type", _value_type)
         object.__setattr__(self, "_doc", _doc)
 
     def __setattr__(self, name: str, value: object) -> None:
@@ -62,7 +62,7 @@ class PropertyContract:
 
 
 class PropertyRelease:
-    """An identity-bearing constant scalar property release handle."""
+    """An identity-bearing constant typed property release handle."""
 
     __slots__ = (
         "_citation",
@@ -83,7 +83,7 @@ class PropertyRelease:
         _owner: object = _MISSING,
         _name_value: str = "",
         _contract: PropertyContract | None = None,
-        _value: int | float = 0,
+        _value: Expression | None = None,
         _source_unit: Unit | None = None,
         _source_scale: int | float = 1,
         _citation: str = "",
@@ -205,6 +205,16 @@ class Expression:
             30,
         )
 
+    def __getitem__(self, index: int) -> Expression:
+        if isinstance(index, bool) or not isinstance(index, int):
+            raise TypeError("expression indices must be nonnegative integers")
+        if index < 0:
+            raise SourceError("expression indices must be nonnegative")
+        text = _number(index)
+        value = f"({self._text})" if self._precedence < 100 else self._text
+        return Expression(_CREATE, f"{value}[{text}]", self._owner,
+                          self._depth + 1, self._nodes + 2, 100)
+
     def __neg__(self) -> Expression:
         value = f"({self._text})" if self._precedence < 25 else self._text
         return Expression(
@@ -220,6 +230,14 @@ class Expression:
 class _Math:
     __slots__ = ()
     pi: Final = Expression(_CREATE, "math.pi", None, 1, 1, 100)
+    i: Final = Expression(_CREATE, "math.i", None, 1, 1, 100)
+
+    @staticmethod
+    def complex(real: object, imaginary: object) -> Expression:
+        left, right = _expression(real), _expression(imaginary)
+        return Expression(_CREATE, f"math.complex({left._text}, {right._text})",
+                          _owner(left, right), max(left._depth, right._depth) + 1,
+                          left._nodes + right._nodes + 1, 100)
 
     @staticmethod
     def sin(value: object) -> Expression:
@@ -360,8 +378,57 @@ def _number(value: object) -> str:
 def _expression(value: object) -> Expression:
     if isinstance(value, Expression):
         return value
+    if isinstance(value, complex):
+        return math.complex(value.real, value.imag)
     text = _number(value)
     return Expression(_CREATE, text, None, 1, 1, 25 if text.startswith("-") else 100)
+
+
+def array(values: Sequence[object]) -> Expression:
+    """Construct ordered channel axes; arrays never infer spatial vector roles."""
+    def build(items: Sequence[object], depth: int) -> Expression:
+        if depth > _MAX_EXPRESSION_DEPTH:
+            raise SourceError("array expression depth exceeds the 64-node nesting limit")
+        if isinstance(items, (str, bytes)) or not isinstance(items, Sequence):
+            raise TypeError("array values must be a nonempty sequence")
+        if not items:
+            raise SourceError("array values must be nonempty")
+        if len(items) >= _MAX_EXPRESSION_NODES:
+            raise SourceError("array expression exceeds the 4096-node limit")
+        expressions = []
+        owner = None
+        nodes = 1
+        for item in items:
+            value = build(item, depth + 1) if isinstance(item, Sequence) and not isinstance(item, (str, bytes)) else _expression(item)
+            if owner is not None and value._owner is not None and value._owner is not owner:
+                raise SourceError("cannot combine expressions from different Source or Component owners")
+            owner = owner if value._owner is None else value._owner
+            nodes += value._nodes
+            if nodes > _MAX_EXPRESSION_NODES:
+                raise SourceError("array expression exceeds the 4096-node limit")
+            expressions.append(value)
+        return Expression(_CREATE, "[" + ", ".join(value._text for value in expressions) + "]",
+                          owner, max(value._depth for value in expressions) + 1, nodes, 100)
+    return build(values, 1)
+
+
+def _literal_expression(value: object) -> Expression:
+    nodes = 0
+    def literal(item: object, depth: int) -> Expression:
+        nonlocal nodes
+        nodes += 1
+        if nodes > _MAX_EXPRESSION_NODES:
+            raise SourceError("literal exceeds the 4096-node limit")
+        if depth > _MAX_EXPRESSION_DEPTH:
+            raise SourceError("literal depth exceeds the 64-node nesting limit")
+        if isinstance(item, Sequence) and not isinstance(item, (str, bytes)):
+            if len(item) >= _MAX_EXPRESSION_NODES:
+                raise SourceError("literal exceeds the 4096-node limit")
+            return array([literal(child, depth + 1) for child in item])
+        if isinstance(item, Expression):
+            raise TypeError("property release values must be numeric literals")
+        return _expression(item)
+    return literal(value, 1)
 
 
 def quantity(value: int | float, unit: Unit) -> Expression:
@@ -665,7 +732,7 @@ class Component:
         self._clocks.append((clock, period, phase, doc_lines))
         return clock
 
-    def initial(self, *residuals: Expression | int | float, doc: str | None = None) -> None:
+    def initial(self, *residuals: Expression | int | float | complex, doc: str | None = None) -> None:
         """Add simultaneous fresh-initialization residuals, each equal to zero.
 
         These are equations, not Field guesses or an ordered sequence of writes.
@@ -741,7 +808,7 @@ class Component:
     def let_alias(
         self,
         name: str,
-        expression: Expression | int | float,
+        expression: Expression | int | float | complex,
         *,
         value_type: ValueType | None = None,
         on: Support | None = None,
@@ -823,15 +890,15 @@ class Component:
         name: str,
         *,
         on: Support,
-        left: Expression | int | float,
-        right: Expression | int | float,
+        left: Expression | int | float | complex,
+        right: Expression | int | float | complex,
         at: Clock | None = None,
         doc: str | None = None,
     ) -> Relation:
         """Declare an equality, optionally active on one exact local clock."""
         at = self._clock(at)
         on = self._support(on)
-        def admit(value: Expression | int | float) -> Expression:
+        def admit(value: Expression | int | float | complex) -> Expression:
             expression = _expression(value)
             if expression._owner is None:
                 return Expression(
@@ -917,7 +984,7 @@ class Component:
         *,
         component: Component,
         supports: Mapping[Support, Support],
-        parameters: Mapping[Expression, Expression | int | float],
+        parameters: Mapping[Expression, Expression | int | float | complex],
         properties: Mapping[Expression, PropertyRelease] | None = None,
         material: MaterialComposition | None = None,
         doc: str | None = None,
@@ -1173,42 +1240,45 @@ class Source:
         self._components.append(component)
         return component
 
-    def scalar_property_contract(
+    def property_contract(
         self,
         name: str,
         *,
-        unit: Unit,
+        value_type: ValueType,
         doc: str | None = None,
     ) -> PropertyContract:
+        """Declare a complete result type for constant value-only property releases."""
         self._ensure_open()
         if self._components:
             raise SourceError("property declarations must precede Components")
-        if not isinstance(unit, Unit):
-            raise TypeError("unit must be an eqiora.lang.units.Unit")
+        if not isinstance(value_type, ValueType):
+            raise TypeError("value_type must be an eqiora.ValueType")
+        value_type.to_eqi()
         doc_lines = _doc(doc)
         admitted = self._add_top_name(name)
         contract = PropertyContract(
             _CREATE,
             self._owner,
             admitted,
-            unit,
+            value_type,
             doc_lines,
         )
         self._contracts.append(contract)
         return contract
 
-    def scalar_property_release(
+    def property_release(
         self,
         name: str,
         *,
         implements: PropertyContract,
-        value: int | float,
+        value: int | float | complex | Sequence[object],
         source_unit: Unit,
         source_scale: int | float,
         citation: str,
         license: str,
         doc: str | None = None,
     ) -> PropertyRelease:
+        """Declare ordered numeric components; the compiler scales every component to SI."""
         self._ensure_open()
         if self._components:
             raise SourceError("property declarations must precede Components")
@@ -1220,7 +1290,7 @@ class Source:
             raise SourceError("release contract must be the exact contract from this Source")
         if not isinstance(source_unit, Unit):
             raise TypeError("source_unit must be an eqiora.lang.units.Unit")
-        _number(value)
+        literal = _literal_expression(value)
         _number(source_scale)
         if source_scale <= 0:
             raise SourceError("source_scale must be finite and strictly positive")
@@ -1233,7 +1303,7 @@ class Source:
             _owner=self._owner,
             _name_value=admitted,
             _contract=implements,
-            _value=value,
+            _value=literal,
             _source_unit=source_unit,
             _source_scale=source_scale,
             _citation=citation_identity,
@@ -1291,9 +1361,9 @@ class Source:
                 for contract in self._contracts:
                     declarations.extend(_comment(contract._doc, ""))
                     declarations.append(
-                        f"public property contract {contract._name} {{"
+                        f"public property contract {contract._name}(): {contract._value_type.to_eqi()} {{"
                     )
-                    declarations.append(f"  scalar value: {contract._unit._text};")
+                    declarations.append("  derivatives value_only;")
                     declarations.append("}")
                     declarations.append("")
                 for release in self._releases:
@@ -1302,7 +1372,7 @@ class Source:
                         "public property release "
                         f"{release._name} implements {release._contract._name} {{"
                     )
-                    declarations.append(f"  value = {_number(release._value)};")
+                    declarations.append(f"  value = {release._value._text};")
                     declarations.append(
                         "  source_unit: "
                         f"{release._source_unit._text} = "
@@ -1384,6 +1454,7 @@ __all__ = [
     "Source",
     "SourceError",
     "Support",
+    "array",
     "coordinate",
     "dot",
     "div",

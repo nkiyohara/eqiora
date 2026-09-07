@@ -129,12 +129,12 @@ impl ModelDraft {
                 }
                 if residuals
                     .iter()
-                    .any(DraftExpression::contains_non_finite_constant)
+                    .any(DraftExpression::contains_invalid_literal)
                 {
                     diagnostics.push(native_diagnostic(
                         &self.name,
                         path,
-                        "equation group contains a non-finite numeric literal",
+                        "equation group contains a non-finite numeric literal or empty array",
                     ));
                 }
             }
@@ -901,25 +901,25 @@ impl DraftExpression {
         }
     }
 
-    fn contains_non_finite_constant(&self) -> bool {
+    fn contains_invalid_literal(&self) -> bool {
         match &self.kind {
             DraftExpressionKind::Constant(value) => !value.is_finite(),
             DraftExpressionKind::Complex(real, imaginary) => {
                 !real.is_finite() || !imaginary.is_finite()
             }
             DraftExpressionKind::Array(values) => {
-                values.iter().any(Self::contains_non_finite_constant)
+                values.is_empty() || values.iter().any(Self::contains_invalid_literal)
             }
-            DraftExpressionKind::Index { value, .. } => value.contains_non_finite_constant(),
+            DraftExpressionKind::Index { value, .. } => value.contains_invalid_literal(),
             DraftExpressionKind::Reference(_)
             | DraftExpressionKind::Derivative(_)
             | DraftExpressionKind::Across(_)
             | DraftExpressionKind::Through(_) => false,
             DraftExpressionKind::Neg(value) | DraftExpressionKind::SpatialCall { value, .. } => {
-                value.contains_non_finite_constant()
+                value.contains_invalid_literal()
             }
             DraftExpressionKind::Binary { left, right, .. } => {
-                left.contains_non_finite_constant() || right.contains_non_finite_constant()
+                left.contains_invalid_literal() || right.contains_invalid_literal()
             }
         }
     }

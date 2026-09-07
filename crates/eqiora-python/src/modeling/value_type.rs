@@ -23,7 +23,7 @@ fn extent(value: &Bound<'_, PyAny>) -> PyResult<u32> {
 )]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PyValueType {
-    pub(super) value: ValueType,
+    pub(crate) value: ValueType,
 }
 
 impl PyValueType {

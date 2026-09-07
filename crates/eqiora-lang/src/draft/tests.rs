@@ -513,3 +513,30 @@ fn expression_contains_call(expression: &Expr, expected: &str) -> bool {
         | ExprKind::BoundaryPortSelection { .. } => false,
     }
 }
+
+#[test]
+fn draft_channel_literals_cannot_hide_empty_arrays_or_foreign_symbols() {
+    let omitted = DraftField::new(
+        "x",
+        eqiora_core::ValueType::scalar(
+            eqiora_core::ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+        ),
+        FieldRoleSyntax::Variable,
+    );
+    let array = DraftExpression::array([omitted.expression()]).index(0);
+    assert!(
+        ModelDraft::new(
+            "foreign",
+            [DraftRelation::continuous("law", [array]).into()]
+        )
+        .is_err()
+    );
+    assert!(
+        ModelDraft::new(
+            "empty",
+            [DraftRelation::continuous("law", [DraftExpression::array([])]).into()]
+        )
+        .is_err()
+    );
+}
