@@ -161,7 +161,7 @@ fn scalar_document_from_source(
     ]
     .map(|(name, value)| (name, eqiora::ValueLiteral::try_from(value).unwrap()));
     {
-        let expressions = (&parameters)
+        let expressions = parameters
             .iter()
             .map(|(name, value)| {
                 (
@@ -174,13 +174,13 @@ fn scalar_document_from_source(
                 )
             })
             .collect::<Vec<_>>();
-        let mut bindings = (&supports)
+        let mut bindings = supports
             .iter()
             .map(|(name, selection, parent)| {
                 (
                     *name,
                     eqiora::compiler::StaticBindingValue::GeometrySupport {
-                        geometry: geometry,
+                        geometry,
                         selection,
                         parent: parent.map(|(_, selection)| selection),
                     },
@@ -264,7 +264,7 @@ fn stokes_document_with_speed(geometry: &CanonicalGeometryV1, inlet_speed: f64) 
     ]
     .map(|(name, value)| (name, eqiora::ValueLiteral::try_from(value).unwrap()));
     {
-        let expressions = (&parameters)
+        let expressions = parameters
             .iter()
             .map(|(name, value)| {
                 (
@@ -277,13 +277,13 @@ fn stokes_document_with_speed(geometry: &CanonicalGeometryV1, inlet_speed: f64) 
                 )
             })
             .collect::<Vec<_>>();
-        let mut bindings = (&supports)
+        let mut bindings = supports
             .iter()
             .map(|(name, selection, parent)| {
                 (
                     *name,
                     eqiora::compiler::StaticBindingValue::GeometrySupport {
-                        geometry: geometry,
+                        geometry,
                         selection,
                         parent: parent.map(|(_, selection)| selection),
                     },
@@ -377,7 +377,7 @@ fn transient_cylinder_document_with_speed(
     ]
     .map(|(name, value)| (name, eqiora::ValueLiteral::try_from(value).unwrap()));
     {
-        let expressions = (&parameters)
+        let expressions = parameters
             .iter()
             .map(|(name, value)| {
                 (
@@ -390,13 +390,13 @@ fn transient_cylinder_document_with_speed(
                 )
             })
             .collect::<Vec<_>>();
-        let mut bindings = (&supports)
+        let mut bindings = supports
             .iter()
             .map(|(name, selection, parent)| {
                 (
                     *name,
                     eqiora::compiler::StaticBindingValue::GeometrySupport {
-                        geometry: geometry,
+                        geometry,
                         selection,
                         parent: parent.map(|(_, selection)| selection),
                     },
