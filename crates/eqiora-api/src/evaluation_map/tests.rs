@@ -20,9 +20,6 @@ use eqiora_solver::REFERENCE_LINEAR_SOLVER;
 use super::{CompleteEvaluationMap, EvaluationMapOccurrence, EvaluationMapPlan};
 use crate::{DifferentiableProgram, ModelDocument};
 
-#[path = "axes_reference.rs"]
-mod axes_reference;
-
 const SOURCE: &str = r#"public component DifferentiatedPoisson {
   public support square: volume(ambient_dimension = 2);
   public support x_lower: boundary(parent = square);
@@ -315,7 +312,7 @@ fn structural_admission_and_resource_limits_precede_evaluation() {
     );
 }
 
-fn fixture() -> (ModelDocument, DifferentiableProgram) {
+pub(super) fn fixture() -> (ModelDocument, DifferentiableProgram) {
     let document = document_from_source(SOURCE);
     let program = program_for(
         &document,
@@ -326,7 +323,7 @@ fn fixture() -> (ModelDocument, DifferentiableProgram) {
     (document, program)
 }
 
-fn program_for(
+pub(super) fn program_for(
     document: &ModelDocument,
     spatial: CommonSpatialPolicy,
     revision: RealizationRevision,

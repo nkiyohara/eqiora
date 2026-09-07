@@ -1,9 +1,9 @@
 # Independent evaluation axes
 
 This contract specifies independent maps. A native ordered map now executes complete input
-points through the existing Q1/TPFA differentiable programs. General nested-axis adapters
-remain specified by the private native indexing reference beside the map owner in
-[`axes_reference.rs`](../../crates/eqiora-api/src/evaluation_map/axes_reference.rs).
+points through the existing Q1/TPFA differentiable programs. Their accepted JVP/VJP products
+support nested point/seed grids using the same private axis owner as the arithmetic reference,
+[`axes.rs`](../../crates/eqiora-api/src/evaluation_map/axes.rs).
 It admits and indexes dense buffers without an evaluator, callback registry, or solver.
 
 ## Existing authorities
@@ -144,6 +144,59 @@ mise run affected -- \
   --case differentiation.bounded-parameter-study-private
 ```
 
-This native map consumes explicit complete points; installed nested-axis adapters, map AD,
-Python/JAX frontends, stochastic execution, threading and persistence remain subsequent
-capabilities. No new source-language executor or source syntax is introduced here.
+## Accepted first-order products
+
+`EvaluationMapProducts` borrows a `CompleteEvaluationMap`; a terminal report is not an
+admissible derivative collection. The shared Parameter IDs are selected explicitly in the
+exact Program coordinate domain. Their values must be identical at every occurrence; equal
+values never imply sharing. Remaining Parameters are mapped in original Program order.
+
+The product view separately admits `point_shape`, `seed_shape` and the positions of point
+axes in their combined grid. Point shapes flatten to the original request inventory; seed
+shapes enumerate independent first-order products. For example, point `[3]`, seed `[2]`,
+and point-axis position `[1]` give seed-major `[2,3]`; `[0]` gives point-major `[3,2]`.
+More than one point or seed axis can be nested and interleaved. These are record axes, not
+physical Field component axes or derivative order. Numerical coordinates remain real
+coherent-SI values in the admitted Program's input/output pairing.
+
+```rust
+use eqiora::api::EvaluationMapProducts;
+
+// `complete` has three accepted points sharing this exact input coordinate.
+let shared = [complete.plan().program_identity().inputs()[0]];
+let products = EvaluationMapProducts::new(&complete, &shared, &[3], &[2], &[1], 1 << 30)?;
+// Shared tangents: seed axes then shared coordinates.
+// Mapped tangents: combined point/seed axes then remaining coordinates.
+let jvp = products.jvp(&shared_tangents, &mapped_tangents)?;
+let vjp = products.vjp(&output_cotangents)?;
+assert_eq!(jvp.products().len(), 6);
+```
+
+For `y_i=f(s,x_i)`, JVP assembles `Ds_i ds + Dx_i dx_i`. VJP preserves each occurrence's
+mapped covector and **sums** shared contributions over points, separately for every seed.
+The original request order determines floating-point accumulation, independently of axis
+placement. Overflow is an error; arbitrary regrouping is not promised bit-identical.
+An arithmetic mean requires a separate explicit outer reduction.
+
+Each result retains the unchanged ordinary JVP/VJP record, complete primal output and exact
+point/Plan evidence. Neither execution nor reverse execution reruns the primal. Malformed or
+nonfinite inputs reject before actions; an action, evidence or finite-sum failure publishes
+no partial derivative collection. Empty point axes produce empty records and zero shared
+sums; zero seed axes perform no derivative actions. Only real first-order implicit products
+exist: product results cannot be differentiated again, and complex/profile adapters remain
+separate admissions.
+
+An explicit byte limit bounds numerical buffers for one complete JVP and one complete VJP,
+including their cloned evidence-point coordinates, duplicate primal payloads, full/mapped
+covectors and shared sums. It does not bound already retained maps, other metadata/record
+allocations, caller buffers, solver scratch or peak process memory. The
+shared private axis owner checks ranks, extents, strides and products before allocation.
+The [mapped-product case](../../verify/differentiation/mapped-products/README.md) derives the
+shared chain rule independently and compares current Q1/TPFA products with ordinary retained
+evaluation actions. Run it with `--case differentiation.mapped-products` in addition to the
+two ordered-map cases above when changing this composition.
+
+This native map consumes explicit complete points. General installed input-axis adapters,
+Python/JAX/PyTorch batching, higher derivatives, stochastic execution, threading and
+persistence remain subsequent capabilities. No new source-language executor or source
+syntax is introduced here.
