@@ -116,8 +116,8 @@ fn public_material_composition_crosses_an_exact_package_boundary() {
     let properties = release(
         "org.example.Materials",
         r#"
-public property contract Conductivity { scalar value: 1; }
-public property contract Capacity { scalar value: 1; }
+public property contract Conductivity(): 1 { derivatives value_only; }
+public property contract Capacity(): 1 { derivatives value_only; }
 property release ConductivityA implements Conductivity {
   value = 2; source_unit: 1 = 1; validity = unconditional;
   citation = org.example.a; license = spdx.CC0_1_0;
@@ -400,8 +400,8 @@ public component {wrapper}(
 fn property_release(value: u32, citation: &str, contract: &str) -> PackageReleaseV1 {
     let source = format!(
         r#"
-public property contract Diffusivity {{ scalar value: 1; }}
-public property contract OtherDiffusivity {{ scalar value: 1; }}
+public property contract Diffusivity(): 1 {{ derivatives value_only; }}
+public property contract OtherDiffusivity(): 1 {{ derivatives value_only; }}
 public property release ReferenceDiffusivity implements {contract} {{
   value = {value};
   source_unit: 1 = 1 / 1000;
@@ -418,8 +418,8 @@ fn reordered_property_release() -> PackageReleaseV1 {
     release(
         PROPERTY_PACKAGE,
         r#"
-public property contract OtherDiffusivity { scalar value: 1; }
-public property contract Diffusivity { scalar value: 1; }
+public property contract OtherDiffusivity(): 1 { derivatives value_only; }
+public property contract Diffusivity(): 1 { derivatives value_only; }
 public property release ReferenceDiffusivity implements Diffusivity {
   value = 25;
   source_unit: 1 = 1 / 1000;
@@ -497,8 +497,8 @@ fn material_source(composed: bool, conductivity: u32, capacity: u32, reverse: bo
             "  property capacity = CapacityValue;\n  property conductivity = ConductivityValue;"
         };
         format!(
-            r#"public property contract Conductivity {{ scalar value: 1; }}
-public property contract Capacity {{ scalar value: 1; }}
+            r#"public property contract Conductivity(): 1 {{ derivatives value_only; }}
+public property contract Capacity(): 1 {{ derivatives value_only; }}
 public property release ConductivityValue implements Conductivity {{
   value = {conductivity}; source_unit: 1 = 1; validity = unconditional;
   citation = org.example.measurement; license = spdx.CC0_1_0;

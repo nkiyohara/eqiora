@@ -274,9 +274,7 @@ fn editor_workspace_replays_exact_locked_dependency_sources() {
 #[test]
 fn locked_scalar_property_replays_offline_with_inspectable_provenance() {
     const SOURCE: &str = r#"
-public property contract Diffusivity {
-  scalar value: m ^ 2 / s;
-}
+public property contract Diffusivity(): m ^ 2 / s { derivatives value_only; }
 property release ReferenceDiffusivity implements Diffusivity {
   value = 25;
   source_unit: m ^ 2 / s = 1 / 1000;
