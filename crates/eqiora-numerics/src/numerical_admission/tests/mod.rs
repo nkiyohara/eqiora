@@ -12,7 +12,7 @@ use eqiora_solver::{
     ReplicatedLinearExecution, SolverPlan,
 };
 
-use eqiora_compiler::CompiledModel;
+use eqiora_compiler::{CompiledModel, StaticBindingValue};
 
 const COMPONENT: &str = r#"
 public component PoissonRectangle(
@@ -92,25 +92,42 @@ fn compile_model(
     filename: &str,
     source: &str,
     geometry: &CanonicalGeometryV1,
-    model: &str,
     component: &str,
     supports: &[SupportBinding<'_>],
     parameters: &[(&str, DynQuantity)],
 ) -> ModelEnvelope {
     let parameters = parameters
         .iter()
-        .map(|(name, value)| (*name, eqiora_core::ValueLiteral::try_from(*value).unwrap()))
+        .map(|(name, value)| {
+            (
+                *name,
+                eqiora_lang::SourceAstFactory::value_literal(
+                    &eqiora_core::ValueLiteral::try_from(*value).unwrap(),
+                    eqiora_lang::TextRange::default(),
+                )
+                .unwrap(),
+            )
+        })
         .collect::<Vec<_>>();
-    let compiled = CompiledModel::compile_external_component(
-        filename,
-        source,
-        model,
-        component,
-        geometry,
-        supports,
-        &parameters,
-    )
-    .unwrap();
+    let mut bindings = supports
+        .iter()
+        .map(|&(name, selection, parent)| {
+            (
+                name,
+                StaticBindingValue::GeometrySupport {
+                    geometry,
+                    selection,
+                    parent: parent.map(|(_, selection)| selection),
+                },
+            )
+        })
+        .collect::<Vec<_>>();
+    bindings.extend(
+        parameters
+            .iter()
+            .map(|(name, value)| (*name, StaticBindingValue::Expression(value))),
+    );
+    let compiled = CompiledModel::compile_selected(filename, source, component, &bindings).unwrap();
     let (transaction, model, _) = compiled.into_parts();
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
@@ -389,7 +406,6 @@ fn fsi_model(geometry: &CanonicalGeometryV1) -> ModelEnvelope {
         "fixed-reference-fsi.eqi",
         FSI_COMPONENT,
         geometry,
-        "FixedReferenceFsiModel",
         "FixedReferenceFsi2d",
         &supports,
         &[
