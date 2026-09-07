@@ -138,9 +138,13 @@ fn one_transport_neutral_operation_owns_both_adapters() {
         1,
         "Python compile must invoke the transport-neutral operation exactly once"
     );
-    let detached_call = rust_call_expression(python, "py.detach");
+    let compact_python = python
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect::<String>();
+    let detached_call = rust_call_expression(&compact_python, "py.detach");
     assert_eq!(
-        detached_call.matches("ModelDocument::compile").count(),
+        detached_call.matches("ModelDocument::compile(").count(),
         1,
         "the py.detach call expression itself must own the operation invocation"
     );

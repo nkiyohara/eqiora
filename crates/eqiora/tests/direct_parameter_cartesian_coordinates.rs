@@ -82,7 +82,7 @@ fn direct_sources_resolve_once_and_match_both_precommitted_revisions() {
 }
 
 #[test]
-fn declaration_permutations_preserve_structure_without_relabelling_exact_occurrences() {
+fn declaration_permutations_preserve_canonical_source_occurrences() {
     let (base_transaction, base_program) = compiled_parts(SOURCE);
     let (permuted_transaction, permuted_program) = compiled_parts(PERMUTED);
 
@@ -92,7 +92,7 @@ fn declaration_permutations_preserve_structure_without_relabelling_exact_occurre
         StructuralSemanticFingerprint::from_program(&base_program).unwrap(),
         StructuralSemanticFingerprint::from_program(&permuted_program).unwrap()
     );
-    assert_ne!(
+    assert_eq!(
         base_model.digest().unwrap(),
         permuted_model.digest().unwrap()
     );
@@ -104,11 +104,11 @@ fn declaration_permutations_preserve_structure_without_relabelling_exact_occurre
         .nodes()
         .map(KernelNode::id)
         .collect::<std::collections::BTreeSet<_>>();
-    assert!(base_ids.is_disjoint(&permuted_ids));
+    assert_eq!(base_ids, permuted_ids);
 
     let base_edit = ModelTransactionEnvelope::from_transaction(&base_transaction).unwrap();
     let permuted_edit = ModelTransactionEnvelope::from_transaction(&permuted_transaction).unwrap();
-    assert_ne!(base_edit.digest().unwrap(), permuted_edit.digest().unwrap());
+    assert_eq!(base_edit.digest().unwrap(), permuted_edit.digest().unwrap());
 
     let model_bytes = base_model.canonical_json().unwrap();
     let replayed = ModelEnvelope::from_json(&model_bytes, ModelDecoderLimits::default()).unwrap();
