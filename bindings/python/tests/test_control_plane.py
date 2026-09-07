@@ -224,11 +224,11 @@ def test_value_edit_is_atomic_immutable_and_stale_base_safe() -> None:
     assert grandchild.revision.number == 3
 
     sibling = base.commit(base.preview_value_edit("rate", 3.0))
-    child_state_edit = child.preview_value_edit("x", 2.0)
-    sibling_state_edit = sibling.preview_value_edit("x", 2.0)
-    assert child_state_edit.key != sibling_state_edit.key
-    assert child_state_edit != sibling_state_edit
-    assert len({child_state_edit, sibling_state_edit}) == 2
+    child_parameter_edit = child.preview_value_edit("rate", 4.0)
+    sibling_parameter_edit = sibling.preview_value_edit("rate", 4.0)
+    assert child_parameter_edit.key != sibling_parameter_edit.key
+    assert child_parameter_edit != sibling_parameter_edit
+    assert len({child_parameter_edit, sibling_parameter_edit}) == 2
 
 
 def test_direct_exception_construction_has_the_stubbed_attributes() -> None:

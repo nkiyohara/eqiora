@@ -71,7 +71,7 @@ def test_native_field_type_matches_source_and_replays(value_type, syntax) -> Non
 model typed {{
   domain body = box(0, 1, 0, 1);
 
-  variable u: {syntax}{initializer} on body;
+  variable u: {syntax} on body;
   relation balance on body {{ u - u = 0; }}
 }}
 """)
@@ -146,3 +146,39 @@ def test_parameter_declaration_retains_its_complete_type() -> None:
     assert eqiora.Parameter("scalar", value=2.0).value_type == eqiora.ValueType.real()
     with pytest.raises(TypeError):
         eqiora.Parameter("old", dimension=dimension, value=1.0)
+
+
+def test_initial_equations_preserve_native_source_identity_and_foreign_ownership() -> None:
+    x = eqiora.Field("x", role=eqiora.FieldRole.State)
+    rate = eqiora.Parameter("rate", value_type=eqiora.ValueType.real(eqiora.Dimension(time=-1)), value=1.0)
+    flow = eqiora.Relation("flow", residual=eqiora.derivative(x) + rate * x)
+    initial = eqiora.Initial(x - 2.0)
+    native = eqiora.Model.define("decay", x, rate, flow, initial)
+    source = eqiora.compile(source="""
+model decay {
+  state x: 1;
+  parameter rate: 1 / s = 1;
+  relation flow { derivative(x) + rate * x = 0; }
+  initial { x = 2; }
+}
+""")
+    assert len(initial.residuals) == 1
+    assert native.structural_fingerprint == source.structural_fingerprint
+    assert eqiora.Model.from_bytes(native.to_bytes()).digest == native.digest
+    foreign = eqiora.Field("x", role=eqiora.FieldRole.State)
+    with pytest.raises(eqiora.ValidationError, match="foreign|omitted"):
+        eqiora.Model.define("foreign", x, rate, flow, eqiora.Initial(foreign - 2.0))
+
+
+def test_initial_equations_do_not_broadcast_scalars_to_shaped_fields() -> None:
+    channels = eqiora.Field("channels", role=eqiora.FieldRole.State,
+                            value_type=eqiora.ValueType.array(eqiora.ValueType.real(), 2))
+    with pytest.raises(eqiora.ValidationError):
+        eqiora.Model.define("no_broadcast", channels, eqiora.Initial(channels - 1.0))
+
+
+def test_value_edits_reject_fields_by_alias_and_exact_identity() -> None:
+    model = eqiora.compile(source="model m { variable x: 1; relation law { x = 1; } }")
+    for target in ("x", model.field_ids[0]):
+        with pytest.raises(eqiora.EqioraError, match="Parameter"):
+            model.preview_value_edit(target, 2.0)

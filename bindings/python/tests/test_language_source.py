@@ -666,7 +666,7 @@ def test_source_owns_handles_limits_and_atomic_output(tmp_path: Path) -> None:
     bounded_volume = bounded.volume("volume", dimensions=2)
     with pytest.raises(q.SourceError):
         for index in range(300):
-            bounded.field(f"value_{index}", on=bounded_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
+            bounded.field(f"value_{index}", role=eqiora.FieldRole.Variable, on=bounded_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
 
     target = tmp_path / "target.eqi"
     target.write_text("preserved", encoding="utf-8")

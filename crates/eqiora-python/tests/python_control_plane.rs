@@ -177,7 +177,7 @@ fn independent_python_control_and_direct_compilations_share_only_structure() -> 
             panic!("control-v2 rejected the accepted frozen source")
         };
         let control_reference = control_document.artifact_reference().unwrap();
-        assert_eq!(model.schema(), "eqiora.model-envelope/v11");
+        assert_eq!(model.schema(), "eqiora.model-envelope/v12");
         assert_eq!(
             model.transaction_schema(),
             "eqiora.model-transaction-envelope/v11"
@@ -426,14 +426,14 @@ fn python_control_plane_preserves_identity_and_fails_closed() -> PyResult<()> {
 
         let sibling_edit = base.call_method1("preview_value_edit", ("rate", 3.0))?;
         let sibling = base.call_method1("commit", (&sibling_edit,))?;
-        let child_state_edit = child.call_method1("preview_value_edit", ("x", 2.0))?;
-        let sibling_state_edit = sibling.call_method1("preview_value_edit", ("x", 2.0))?;
+        let child_parameter_edit = child.call_method1("preview_value_edit", ("rate", 4.0))?;
+        let sibling_parameter_edit = sibling.call_method1("preview_value_edit", ("rate", 4.0))?;
         assert_ne!(
-            child_state_edit.getattr("key")?.extract::<String>()?,
-            sibling_state_edit.getattr("key")?.extract::<String>()?
+            child_parameter_edit.getattr("key")?.extract::<String>()?,
+            sibling_parameter_edit.getattr("key")?.extract::<String>()?
         );
         assert!(
-            !child_state_edit.eq(&sibling_state_edit)?,
+            !child_parameter_edit.eq(&sibling_parameter_edit)?,
             "edits over divergent base artifacts must retain distinct identity"
         );
 
