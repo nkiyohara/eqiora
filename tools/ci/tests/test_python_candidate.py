@@ -1068,6 +1068,10 @@ invalid candidate
             Path("crates/eqiora-api/schemas/compile-v2.schema.json"),
             PYTHON_TEST_RESOURCES,
         )
+        # test_coupled_scalar_example executes this checked-in public example.
+        self.assertIn(
+            Path("examples/python/coupled_scalar.py"), PYTHON_TEST_RESOURCES
+        )
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             extracted = root / "source"
