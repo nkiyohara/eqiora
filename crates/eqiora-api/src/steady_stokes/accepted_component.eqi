@@ -3,12 +3,12 @@ public component SteadyFlowPastCylinder(
   support inlet: boundary(parent = fluid),
   support outlet: boundary(parent = fluid),
   support walls: boundary(parent = fluid),
-  support cylinder: boundary(parent = fluid)
+  support cylinder: boundary(parent = fluid),
+  parameter dynamic_viscosity: kg / (m * s),
+  parameter zero_pressure: kg / (m * s ^ 2),
+  parameter inlet_speed: m / s,
+  parameter channel_height: m
 ) {
-  public parameter dynamic_viscosity: kg / (m * s);
-  public parameter zero_pressure: kg / (m * s ^ 2);
-  public parameter inlet_speed: m / s;
-  public parameter channel_height: m;
 
   variable velocity: vector<m / s, 2> on fluid;
   variable pressure: kg / (m * s ^ 2) on fluid;
