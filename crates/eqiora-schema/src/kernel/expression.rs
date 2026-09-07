@@ -96,6 +96,12 @@ pub enum ExprNode {
     Constant(ValueLiteral),
     /// Kernel symbol reference.
     Symbol(SymbolRef),
+    /// Construct ordered outer channel-array elements.
+    Array { elements: Vec<ExprId> },
+    /// Select one outer channel element using an exact zero-based index.
+    Index { value: ExprId, index: u32 },
+    /// Construct a complex scalar from real and imaginary scalar expressions.
+    Complex { real: ExprId, imag: ExprId },
     /// Unary negation.
     Neg(ExprId),
     /// Addition.
@@ -138,7 +144,9 @@ impl ExprNode {
         mut visit: impl FnMut(ExprId) -> Result<(), E>,
     ) -> Result<(), E> {
         match self {
-            Self::Neg(value)
+            Self::Array { elements } => elements.iter().copied().try_for_each(visit),
+            Self::Index { value, .. }
+            | Self::Neg(value)
             | Self::PowI(value, _)
             | Self::UnaryMath(_, value)
             | Self::Gradient(value)
@@ -147,7 +155,11 @@ impl ExprNode {
             | Self::IsotropicLift(value)
             | Self::Trace(value)
             | Self::NormalComponent(value) => visit(*value),
-            Self::Add(left, right)
+            Self::Complex {
+                real: left,
+                imag: right,
+            }
+            | Self::Add(left, right)
             | Self::Sub(left, right)
             | Self::Mul(left, right)
             | Self::Div(left, right) => {
@@ -225,6 +237,12 @@ impl ExprDagBuilder {
                 "pure operator applications must be added with ExprDagBuilder::pure_operator",
             ));
         }
+        if matches!(&node, ExprNode::Array { elements } if elements.is_empty()) {
+            return Err(Diagnostic::error(
+                codes::INVALID_EXPRESSION_DAG,
+                "array expressions require at least one element",
+            ));
+        }
         node.try_for_each_operand(|operand| self.validate_prior_operand(operand))?;
         let id = self.next_id()?;
         self.nodes.push(node);
@@ -247,6 +265,26 @@ impl ExprDagBuilder {
         } else {
             Ok(())
         }
+    }
+
+    /// Construct an ordered outer channel array from existing DAG nodes.
+    pub fn array(
+        &mut self,
+        elements: impl IntoIterator<Item = ExprId>,
+    ) -> Result<ExprId, Diagnostic> {
+        self.push(ExprNode::Array {
+            elements: elements.into_iter().collect(),
+        })
+    }
+
+    /// Select one outer channel-array element; typing checks the exact bound.
+    pub fn index(&mut self, value: ExprId, index: u32) -> Result<ExprId, Diagnostic> {
+        self.push(ExprNode::Index { value, index })
+    }
+
+    /// Construct a complex scalar; typing checks both real scalar operands.
+    pub fn complex(&mut self, real: ExprId, imag: ExprId) -> Result<ExprId, Diagnostic> {
+        self.push(ExprNode::Complex { real, imag })
     }
 
     /// Add a checked constant; a numerical quantity supplies an explicit real scalar type.

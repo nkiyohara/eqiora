@@ -67,3 +67,97 @@ fn nested_channel_arrays_preserve_axis_order_and_reject_zero_extents() {
     assert_eq!(nested.shape(), &ValueShape::new([3, 2]).unwrap());
     assert_eq!(nested.frame(), ValueFrame::Invariant);
 }
+
+#[test]
+fn explicit_channels_promote_domain_merge_static_support_and_retain_element_roles() {
+    let scalar = ExpressionType::scalar(DimExponents::DIMENSIONLESS, None);
+    let supported = ExpressionType::scalar(DimExponents::DIMENSIONLESS, Some(volume("body")));
+    let channel = array(&[scalar.clone(), supported.clone()]).unwrap();
+    assert_eq!(channel.support, supported.support);
+    assert_eq!(index(channel.clone(), 1).unwrap(), supported);
+    assert_eq!(index(channel, 2), Err(TypeViolation::IndexOutOfBounds));
+    assert!(array::<&str>(&[]).is_err());
+    assert!(
+        array(&[
+            supported.clone(),
+            ExpressionType::scalar(DimExponents::DIMENSIONLESS, Some(volume("other")))
+        ])
+        .is_err()
+    );
+    let complex_scalar = complex(scalar.clone(), supported.clone()).unwrap();
+    let channel = array(&[supported, complex_scalar.clone()]).unwrap();
+    assert_eq!(index(channel, 0).unwrap(), complex_scalar);
+    assert!(complex(complex_scalar, scalar.clone()).is_err());
+    assert!(
+        complex(
+            scalar.clone(),
+            ExpressionType::scalar(
+                DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
+                None
+            )
+        )
+        .is_err()
+    );
+    assert!(index(scalar, 0).is_err());
+}
+
+#[test]
+fn indexing_removes_only_one_outer_channel_axis() {
+    let element = ValueType::shaped(
+        ScalarDomain::Real,
+        DimExponents::DIMENSIONLESS,
+        ValueShape::new([2, 2]).unwrap(),
+        ValueFrame::SpatialCartesian,
+    )
+    .unwrap();
+    let value = ExpressionType::new(element.clone(), Some(volume("body")));
+    assert_eq!(
+        index(value.clone(), 0),
+        Err(TypeViolation::IndexRequiresArray)
+    );
+    let nested = array(&[array(&[value.clone(), value.clone()]).unwrap()]).unwrap();
+    let result = index(index(nested, 0).unwrap(), 1).unwrap();
+    assert_eq!(result, value);
+    assert!(
+        array(&[
+            value,
+            ExpressionType::scalar(DimExponents::DIMENSIONLESS, None)
+        ])
+        .is_err()
+    );
+}
+
+#[test]
+fn constructed_nodes_flow_through_dag_typing_and_operand_validation() {
+    use super::super::super::ExprDagBuilder;
+    let mut builder = ExprDagBuilder::new();
+    assert!(builder.array([]).is_err());
+    let one = builder
+        .constant(eqiora_core::DynQuantity::new(
+            1.0,
+            DimExponents::DIMENSIONLESS,
+        ))
+        .unwrap();
+    let pair = builder.complex(one, one).unwrap();
+    let channels = builder.array([pair, pair]).unwrap();
+    let selected = builder.index(channels, 1).unwrap();
+    let dag = builder.finish([selected]).unwrap();
+    let typed =
+        TypedResidual::<&str>::infer(dag, None, RootContract::ComponentwiseResidual, |_| {
+            Err::<ExpressionType<&str>, _>(())
+        })
+        .unwrap();
+    assert_eq!(
+        typed
+            .node_type(selected)
+            .unwrap()
+            .value_type
+            .scalar_domain(),
+        ScalarDomain::Complex
+    );
+    assert!(typed.node_type(selected).unwrap().shape().is_scalar());
+    let mut empty = ExprDagBuilder::new();
+    assert!(empty.array([one]).is_err());
+    assert!(empty.index(one, 0).is_err());
+    assert!(empty.complex(one, one).is_err());
+}

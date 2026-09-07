@@ -13,7 +13,9 @@ use super::pure_operator::PureOperatorError;
 use super::{ExprDag, ExprId, ExprNode, SymbolRef, UnaryMathFunction};
 use eqiora_core::ValueFrame;
 
+mod construction;
 mod value;
+pub use construction::{array, complex, index};
 pub use value::ExpressionType;
 
 /// Exact spatial support carried by an expression value.
@@ -81,6 +83,14 @@ impl<I> SpatialSupport<I> {
 /// Pure typing failure, retaining identities without choosing diagnostics.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeViolation<I> {
+    /// An array must contain at least one complete element.
+    EmptyArray,
+    /// Indexing requires an outer channel-array axis.
+    IndexRequiresArray,
+    /// The index lies outside the exact outer extent.
+    IndexOutOfBounds,
+    /// Complex construction requires two real scalar operands.
+    ComplexRequiresRealScalars,
     /// Additive operands have unequal dimensions or shapes.
     AdditiveTypeMismatch {
         /// Left operand type.
@@ -165,7 +175,11 @@ impl<I> TypeViolation<I> {
     pub const fn is_dimension_or_shape(&self) -> bool {
         matches!(
             self,
-            Self::AdditiveTypeMismatch { .. }
+            Self::EmptyArray
+                | Self::IndexRequiresArray
+                | Self::IndexOutOfBounds
+                | Self::ComplexRequiresRealScalars
+                | Self::AdditiveTypeMismatch { .. }
                 | Self::DimensionOverflow { .. }
                 | Self::MultiplicationRequiresScalar
                 | Self::IncompatibleFrame
@@ -189,6 +203,16 @@ impl<I> TypeViolation<I> {
 impl<I: fmt::Debug> fmt::Display for TypeViolation<I> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::EmptyArray => formatter.write_str("array requires at least one element"),
+            Self::IndexRequiresArray => {
+                formatter.write_str("indexing requires an outer channel-array axis")
+            }
+            Self::IndexOutOfBounds => {
+                formatter.write_str("array index is outside its exact extent")
+            }
+            Self::ComplexRequiresRealScalars => {
+                formatter.write_str("complex construction requires real scalar operands")
+            }
             Self::AdditiveTypeMismatch { left, right } => write!(
                 formatter,
                 "addition/subtraction combines incompatible types {left:?} and {right:?}"
@@ -443,6 +467,31 @@ fn infer_node<I: Clone + Eq, E>(
                     error,
                 },
             };
+        }
+        ExprNode::Array { elements } => {
+            let Some(elements) = elements
+                .iter()
+                .map(|id| inferred_type(inferred, *id))
+                .collect::<Option<Vec<_>>>()
+            else {
+                return NodeInference::Unavailable;
+            };
+            array(&elements)
+        }
+        ExprNode::Index {
+            value,
+            index: position,
+        } => {
+            let Some(value) = inferred_type(inferred, *value) else {
+                return NodeInference::Unavailable;
+            };
+            index(value, *position)
+        }
+        ExprNode::Complex { real, imag } => {
+            let Some((real, imag)) = inferred_binary(inferred, *real, *imag) else {
+                return NodeInference::Unavailable;
+            };
+            complex(real, imag)
         }
         ExprNode::Neg(value) => {
             return inferred_type(inferred, *value)
