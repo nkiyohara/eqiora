@@ -8,7 +8,7 @@ public component IdealVoltageSource {
   public port positive: conserving on Pin;
   public port negative: conserving on Pin;
 
-  relation law continuous {
+  relation law {
     across(positive) - across(negative) - voltage = 0;
     through(positive) + through(negative) = 0;
   }
@@ -19,7 +19,7 @@ component Resistor {
   public port positive: conserving on Pin;
   public port negative: conserving on Pin;
 
-  relation law continuous {
+  relation law {
     across(positive) - across(negative) - resistance * through(positive) = 0;
     through(positive) + through(negative) = 0;
   }
@@ -39,7 +39,7 @@ public component ResistiveBranch {
 public component Ground {
   public port terminal: conserving on Pin;
 
-  relation law continuous {
+  relation law {
     across(terminal) = 0;
   }
 }

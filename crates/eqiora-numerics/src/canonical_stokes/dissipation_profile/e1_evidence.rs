@@ -367,27 +367,27 @@ fn e1_scaffold_source(sealed: &SealedE1Input) -> Result<String, Diagnostic> {
   parameter second_mode: 1 = {a2:?};
   parameter fourth_mode: 1 = {a4:?};
 
-  relation force continuous on fluid {{ force_potential - zero_pressure = 0; }}
-  relation momentum continuous on fluid {{
+  relation force on fluid {{ force_potential - zero_pressure = 0; }}
+  relation momentum on fluid {{
     -div(
       2 * mu * symmetric_part(grad(velocity))
       - isotropic_lift(pressure)
     ) - grad(force_potential) = 0;
   }}
-  relation incompressibility continuous on fluid {{ div(velocity) = 0; }}
-  relation define_chi continuous on fluid {{ chi - speed * coordinate(0) = 0; }}
+  relation incompressibility on fluid {{ div(velocity) = 0; }}
+  relation define_chi on fluid {{ chi - speed * coordinate(0) = 0; }}
 
-  relation body_zero continuous on body {{ trace(velocity) = 0; }}
-  relation outer_x_minus_value continuous on outer_x_minus {{
+  relation body_zero on body {{ trace(velocity) = 0; }}
+  relation outer_x_minus_value on outer_x_minus {{
     trace(velocity) - trace(grad(chi)) = 0;
   }}
-  relation outer_x_plus_value continuous on outer_x_plus {{
+  relation outer_x_plus_value on outer_x_plus {{
     trace(velocity) - trace(grad(chi)) = 0;
   }}
-  relation outer_y_minus_value continuous on outer_y_minus {{
+  relation outer_y_minus_value on outer_y_minus {{
     trace(velocity) - trace(grad(chi)) = 0;
   }}
-  relation outer_y_plus_value continuous on outer_y_plus {{
+  relation outer_y_plus_value on outer_y_plus {{
     trace(velocity) - trace(grad(chi)) = 0;
   }}
 }}

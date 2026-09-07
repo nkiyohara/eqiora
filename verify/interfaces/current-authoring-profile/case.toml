@@ -10,15 +10,11 @@ capabilities = [
   "current-model-transaction-edit",
 ]
 
-conformance_kits = ["current-authoring-profile-v1"]
-
 [claim_boundary]
 rust_compile_define_current = true
 python_compile_define_current = true
 studio_compile_current = true
 model_owner = "current"
-model_schema = "eqiora.model-envelope/v8"
-transaction_schema = "eqiora.model-transaction-envelope/v8"
 current_artifact_replay = true
 value_edit_retains_current_owner = true
 caller_selects_wire_or_codec = false

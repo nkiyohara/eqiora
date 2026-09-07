@@ -25,15 +25,15 @@ public component PoissonRectangle {
   public parameter source_scale: 1 / m ^ 2;
   representation space = continuum;
   field potential on region as space: 1 = 0;
-  relation balance continuous on region {
+  relation balance on region {
     -div(grad(potential))
       - source_scale * math.sin(wave_number * coordinate(0))
         * math.sin(wave_number * coordinate(1)) = 0;
   }
-  relation left_value continuous on left { trace(potential) = 0; }
-  relation right_value continuous on right { trace(potential) = 0; }
-  relation bottom_value continuous on bottom { trace(potential) = 0; }
-  relation top_value continuous on top { trace(potential) = 0; }
+  relation left_value on left { trace(potential) = 0; }
+  relation right_value on right { trace(potential) = 0; }
+  relation bottom_value on bottom { trace(potential) = 0; }
+  relation top_value on top { trace(potential) = 0; }
 }
 "#;
 
@@ -52,25 +52,25 @@ public component MixedBoundaryElasticity {
   representation space = continuum;
   field displacement on region as space: vector<m, 2>;
   field load_potential on region as space: kg / (m * s ^ 2) = 0;
-  relation load continuous on region {
+  relation load on region {
     load_potential - 2 * mu * coordinate(0) / length_scale = 0;
   }
-  relation balance continuous on region {
+  relation balance on region {
     -div(
       2 * mu * symmetric_part(grad(displacement))
       + lambda * isotropic_lift(div(displacement))
     ) - grad(load_potential) = 0;
   }
-  relation left_fixed continuous on left { trace(displacement) = 0; }
-  relation right_free continuous on right {
+  relation left_fixed on left { trace(displacement) = 0; }
+  relation right_free on right {
     normal(2 * mu * symmetric_part(grad(displacement))
       + lambda * isotropic_lift(div(displacement))) = 0;
   }
-  relation bottom_free continuous on bottom {
+  relation bottom_free on bottom {
     normal(2 * mu * symmetric_part(grad(displacement))
       + lambda * isotropic_lift(div(displacement))) = 0;
   }
-  relation top_free continuous on top {
+  relation top_free on top {
     normal(2 * mu * symmetric_part(grad(displacement))
       + lambda * isotropic_lift(div(displacement))) = 0;
   }

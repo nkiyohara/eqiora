@@ -7,7 +7,7 @@ component Leaf {
 
 component ClosedPair {
   instance leaf: Leaf;
-  relation law continuous {
+  relation law {
     across(leaf.left) + across(leaf.right) = 0;
   }
   connect conserving leaf.left, leaf.right;

@@ -13,13 +13,13 @@ fn snapshot_combines_recovery_formatting_symbols_and_semantic_diagnostics() {
 dimension Scalar = 1;
 component Source {
   public parameter gain: Scalar;
-  relation law continuous { gain = 0; }
+  relation law { gain = 0; }
 }
 model Demo {
   parameter input: Scalar = 1;
   field state: Scalar = 0;
   instance source: Source(gain = input);
-  relation balance continuous { state = 0; }
+  relation balance { state = 0; }
 }
 "#;
     let service = EditorService::new("demo.eqi", 7, source);
@@ -76,7 +76,7 @@ model Demo {
     let invalid = EditorService::new(
         "invalid.eqi",
         1,
-        "model M { field x: m = 0; relation r continuous { x + 1 = 0; } }",
+        "model M { field x: m = 0; relation r { x + 1 = 0; } }",
     );
     assert!(
         invalid

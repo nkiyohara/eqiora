@@ -20,7 +20,7 @@ model Main {
   field pressure on fluid as space: kg / (m * s ^ 2) = 0;
   field fluid_load on fluid as space: kg / (m * s ^ 2) = 0;
   parameter zero_fluid_load: kg / (m * s ^ 2) = 0;
-  relation fluid_load_definition continuous on fluid {
+  relation fluid_load_definition on fluid {
     fluid_load - zero_fluid_load = 0;
   }
   instance fluid_law: fluid_laws.ConservativeNavierStokesWithPotential3d(
@@ -46,7 +46,7 @@ model Main {
   field solid_velocity on solid as space: vector<m / s, 3>;
   field solid_load on solid as space: kg / (m * s ^ 2) = 0;
   parameter zero_solid_load: kg / (m * s ^ 2) = 0;
-  relation solid_load_definition continuous on solid {
+  relation solid_load_definition on solid {
     solid_load - zero_solid_load = 0;
   }
   instance solid_law: solid_laws.IsotropicElastodynamicsWithPotential3d(

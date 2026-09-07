@@ -44,14 +44,14 @@ public component BoundaryTerminal {
   public support face: boundary(parent = body);
   public support body: volume(ambient_dimension = 2);
 
-  relation terminal_law continuous on face {
+  relation terminal_law on face {
     trace(mechanical) - trace(mechanical) = 0;
     flux(mechanical) - flux(mechanical) = 0;
   }
 }
 
 public component ExteriorLaw {
-  relation boundary_law[boundary in exterior] continuous on boundary {
+  relation boundary_law[boundary in exterior] on boundary {
     trace(mechanical[boundary = boundary])
       - trace(mechanical[boundary = boundary]) = 0;
     flux(mechanical[boundary = boundary])

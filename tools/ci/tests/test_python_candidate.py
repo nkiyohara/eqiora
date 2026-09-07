@@ -1072,6 +1072,14 @@ invalid candidate
         self.assertIn(
             Path("examples/python/coupled_scalar.py"), PYTHON_TEST_RESOURCES
         )
+        # The installed Reference test executes displayed Python and its sources.
+        reference = Path("docs/site/src/content/docs/reference")
+        for relative in (
+            reference / "standard-packages/continuum.mdx",
+            reference / "language/_examples/clocked.eqi",
+            Path("packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi"),
+        ):
+            self.assertIn(relative, PYTHON_TEST_RESOURCES)
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             extracted = root / "source"

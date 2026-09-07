@@ -591,7 +591,7 @@ connector OtherFlange = scalar_physical(
 
 component OtherAnchor {
   public port shaft: conserving on OtherFlange;
-  relation law continuous { through(shaft) = 0; }
+  relation law { through(shaft) = 0; }
 }
 "#;
     let nominal_mismatch = ROOT_SOURCE
@@ -1053,7 +1053,7 @@ fn exact_packages_execute_and_accept_one_sampled_acausal_drive() {
          \n\
            field secondary_hold: kg * m ^ 2 / (s ^ 3 * A) = 0;\n\
            clock secondary = periodic(period = 1 / 50, phase = 0 / 1);\n\
-           relation secondary_update periodic(secondary) {\n\
+           relation secondary_update at secondary {\n\
              next(secondary_hold) - pre(secondary_hold) = 0;\n\
            }",
     );

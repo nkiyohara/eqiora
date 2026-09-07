@@ -31,21 +31,21 @@ model steady_stokes {
   parameter load_scale: kg / (m * s ^ 2) = 3;
   parameter length_scale: m = 2;
 
-  relation force continuous on fluid {
+  relation force on fluid {
     force_potential - load_scale * coordinate(0) / length_scale = 0;
   }
-  relation momentum continuous on fluid {
+  relation momentum on fluid {
     -div(
       2 * mu * symmetric_part(grad(velocity))
       - isotropic_lift(pressure)
     ) - grad(force_potential) = 0;
   }
-  relation incompressibility continuous on fluid { div(velocity) = 0; }
+  relation incompressibility on fluid { div(velocity) = 0; }
 
-  relation x_lower_zero continuous on x_lower { trace(velocity) = 0; }
-  relation x_upper_zero continuous on x_upper { trace(velocity) = 0; }
-  relation y_lower_zero continuous on y_lower { trace(velocity) = 0; }
-  relation y_upper_zero continuous on y_upper { trace(velocity) = 0; }
+  relation x_lower_zero on x_lower { trace(velocity) = 0; }
+  relation x_upper_zero on x_upper { trace(velocity) = 0; }
+  relation y_lower_zero on y_lower { trace(velocity) = 0; }
+  relation y_upper_zero on y_upper { trace(velocity) = 0; }
 }
 "#;
 
@@ -67,7 +67,7 @@ public component NewtonianBoundary2d {
   public port mechanical:
     conserving VelocityTractionBoundary over face;
 
-  relation interface continuous on face {
+  relation interface on face {
     trace(velocity) - trace(mechanical) = 0;
     normal(
       2 * dynamic_viscosity * symmetric_part(grad(velocity))
@@ -83,7 +83,7 @@ public component NormalPressureTraction2d {
   public port mechanical:
     conserving VelocityTractionBoundary over face;
 
-  relation prescribed_traction continuous on face {
+  relation prescribed_traction on face {
     flux(mechanical) - normal(isotropic_lift(pressure)) = 0;
   }
 }
@@ -108,10 +108,10 @@ model transient_navier_stokes {
   parameter mu: kg / (m * s) = 0.125;
   parameter zero_pressure: kg / (m * s ^ 2) = 0;
 
-  relation force continuous on fluid {
+  relation force on fluid {
     force_potential - zero_pressure = 0;
   }
-  relation momentum continuous on fluid {
+  relation momentum on fluid {
     rho * derivative(velocity)
       + div(rho * outer_product(velocity, velocity))
       - div(
@@ -120,12 +120,12 @@ model transient_navier_stokes {
       )
       - grad(force_potential) = 0;
   }
-  relation incompressibility continuous on fluid { div(velocity) = 0; }
+  relation incompressibility on fluid { div(velocity) = 0; }
 
-  relation x_lower_zero continuous on x_lower { trace(velocity) = 0; }
-  relation x_upper_zero continuous on x_upper { trace(velocity) = 0; }
-  relation y_lower_zero continuous on y_lower { trace(velocity) = 0; }
-  relation y_upper_zero continuous on y_upper { trace(velocity) = 0; }
+  relation x_lower_zero on x_lower { trace(velocity) = 0; }
+  relation x_upper_zero on x_upper { trace(velocity) = 0; }
+  relation y_lower_zero on y_lower { trace(velocity) = 0; }
+  relation y_upper_zero on y_upper { trace(velocity) = 0; }
 }
 "#;
 
@@ -213,14 +213,14 @@ fn transient_navier_stokes_source_3d() -> String {
             "  domain z_lower = boundary(fluid, axis = 2, side = lower);\n  domain z_upper = boundary(fluid, axis = 2, side = upper);\n  representation space = continuum;",
         )
         .replace(
-            "  relation y_upper_zero continuous on y_upper { trace(velocity) = 0; }",
-            "  relation y_upper_zero continuous on y_upper { trace(velocity) = 0; }\n  relation z_lower_zero continuous on z_lower { trace(velocity) = 0; }\n  relation z_upper_zero continuous on z_upper { trace(velocity) = 0; }",
+            "  relation y_upper_zero on y_upper { trace(velocity) = 0; }",
+            "  relation y_upper_zero on y_upper { trace(velocity) = 0; }\n  relation z_lower_zero on z_lower { trace(velocity) = 0; }\n  relation z_upper_zero on z_upper { trace(velocity) = 0; }",
         )
 }
 
 fn direct_normal_pressure_relation(field: &str, operator: char) -> String {
     format!(
-        "relation x_upper_zero continuous on x_upper {{\n    normal(\n      2 * mu * symmetric_part(grad(velocity))\n      - isotropic_lift(pressure)\n    ) {operator} normal(isotropic_lift({field})) = 0;\n  }}"
+        "relation x_upper_zero on x_upper {{\n    normal(\n      2 * mu * symmetric_part(grad(velocity))\n      - isotropic_lift(pressure)\n    ) {operator} normal(isotropic_lift({field})) = 0;\n  }}"
     )
 }
 
@@ -235,11 +235,11 @@ fn source_with_normal_pressure(operator: char) -> String {
             "parameter length_scale: m = 2;\n  parameter ambient_pressure_value: kg / (m * s ^ 2) = 4.5;",
         )
         .replace(
-            "  relation force continuous on fluid {",
-            "  relation ambient_pressure_definition continuous on fluid {\n    ambient_pressure - ambient_pressure_value = 0;\n  }\n  relation force continuous on fluid {",
+            "  relation force on fluid {",
+            "  relation ambient_pressure_definition on fluid {\n    ambient_pressure - ambient_pressure_value = 0;\n  }\n  relation force on fluid {",
         )
         .replace(
-            "relation x_upper_zero continuous on x_upper { trace(velocity) = 0; }",
+            "relation x_upper_zero on x_upper { trace(velocity) = 0; }",
             &direct_normal_pressure_relation("ambient_pressure", operator),
         )
 }
@@ -443,8 +443,8 @@ fn rejects_inconsistent_or_duplicate_additive_stokes_roles() {
 #[test]
 fn retains_exact_flux_zero_meaning_without_claiming_a_realization() {
     let source = SOURCE.replace(
-        "relation x_upper_zero continuous on x_upper { trace(velocity) = 0; }",
-        "relation x_upper_zero continuous on x_upper {\n    normal(\n      2 * mu * symmetric_part(grad(velocity))\n      - isotropic_lift(pressure)\n    ) = 0;\n  }",
+        "relation x_upper_zero on x_upper { trace(velocity) = 0; }",
+        "relation x_upper_zero on x_upper {\n    normal(\n      2 * mu * symmetric_part(grad(velocity))\n      - isotropic_lift(pressure)\n    ) = 0;\n  }",
     );
     let model = lower_steady_incompressible_stokes_cartesian_2d(&compile_program(&source))
         .expect("exact zero Newtonian traction remains canonical meaning");
@@ -534,7 +534,7 @@ fn rejects_normal_pressure_sign_and_semantic_field_aliases() {
 
     for field in ["pressure", "force_potential"] {
         let source = SOURCE.replace(
-            "relation x_upper_zero continuous on x_upper { trace(velocity) = 0; }",
+            "relation x_upper_zero on x_upper { trace(velocity) = 0; }",
             &direct_normal_pressure_relation(field, '+'),
         );
         assert_rejected(&source);
@@ -549,7 +549,7 @@ fn fails_closed_on_operator_boundary_and_model_drift() {
     ));
     assert_rejected(&SOURCE.replace("- isotropic_lift(pressure)", "+ isotropic_lift(pressure)"));
     assert_rejected(&SOURCE.replace(
-        "relation incompressibility continuous on fluid { div(velocity) = 0; }",
+        "relation incompressibility on fluid { div(velocity) = 0; }",
         "",
     ));
     assert_rejected(&SOURCE.replace("trace(velocity) = 0;", "trace(pressure) = 0;"));
@@ -706,7 +706,7 @@ fn three_dimensional_transient_flow_rejects_dimension_and_boundary_drift() {
             "",
         )
         .replace(
-            "  relation z_upper_zero continuous on z_upper { trace(velocity) = 0; }\n",
+            "  relation z_upper_zero on z_upper { trace(velocity) = 0; }\n",
             "",
         );
     assert!(
@@ -773,7 +773,7 @@ fn transient_navier_stokes_rejects_hidden_ale_velocity() {
 
 #[test]
 fn transient_navier_stokes_normalizes_only_explicit_whole_sign_reversal() {
-    let marker = "  relation momentum continuous on fluid {";
+    let marker = "  relation momentum on fluid {";
     let relation = TRANSIENT_NAVIER_STOKES_SOURCE
         .find(marker)
         .expect("momentum Relation marker");

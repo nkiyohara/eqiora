@@ -6,5 +6,5 @@ model Invalid {
   representation space = continuum;
   field a on left as space: 1 = 0;
   field b on right as space: 1 = 0;
-  relation invalid continuous on left { a - b = 0; }
+  relation invalid on left { a - b = 0; }
 }

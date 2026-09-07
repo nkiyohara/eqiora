@@ -37,7 +37,7 @@ fn fixture(name: &str) -> (TestDirectory, PathBuf, PathBuf, PathBuf, String) {
     command(&repo, &["init", "--initial-branch=main"]);
     let sources = author_sources(
         "org.example.Git",
-        "public model Shared { parameter gain: 1 = 2; relation law continuous { gain - 2 = 0; } }",
+        "public model Shared { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
         vec![],
     );
     write_package(&repo, "src", &sources, &[]);
@@ -131,7 +131,7 @@ fn git_retains_complete_repository_local_closure_for_offline_compile() {
     fs::write(repo.join(PROJECT_MANIFEST), format!("{manifest}\n[dependencies.\"org.example.Inner\"]\nversion=\"1.0.0\"\npath=\"dependency\"\n")).unwrap();
     fs::write(
         repo.join("src/main.eqi"),
-        "import org.example.Inner.main as inner; public model Shared { parameter gain: 1 = 2; relation law continuous { gain - 2 = 0; } }",
+        "import org.example.Inner.main as inner; public model Shared { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
     )
     .unwrap();
     command(&repo, &["add", "."]);
@@ -207,7 +207,7 @@ fn git_branch_fetch_is_pinned_update_is_explicit_and_vendor_is_offline() {
     .unwrap();
     fs::write(
         repo.join("src/main.eqi"),
-        "public model Shared { parameter gain: 1 = 3; relation law continuous { gain - 3 = 0; } }",
+        "public model Shared { parameter gain: 1 = 3; relation law { gain - 3 = 0; } }",
     )
     .unwrap();
     command(&repo, &["add", "."]);

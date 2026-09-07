@@ -99,9 +99,8 @@ The shared native owner publishes the manifest, lock and exact store entries.
 `eqiora.vendor_project(...)` copies the complete accepted closure to an offline
 store; `eqiora.open_project(...)` validates it without consulting source transport.
 
-Top-level directories contain the current package sources. Versioned release
-artifacts live under [`releases/<package>/<version>`](releases/). Dependency
-selection uses exact package identity rather than directory location.
+Top-level directories contain the current package sources. Dependency selection
+uses exact package identity rather than directory location.
 
 - [`Eqiora.Electrical.Basic`](Eqiora.Electrical.Basic/) provides one scalar
   conserving connector and three ideal static components.

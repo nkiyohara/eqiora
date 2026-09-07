@@ -29,7 +29,7 @@ model invalid_targets {
   parameter scalar: 1 = 1;
   parameter ordinary_length: m = 1;
   domain body = box(0, 1, 0, 1, 0, 1);
-  relation retain continuous on body {
+  relation retain on body {
     coordinate(0) - coordinate(0) = 0;
   }
 }
@@ -38,7 +38,7 @@ const TWO_DIMENSIONAL: &str = r"
 model planar_parameter_box {
   parameter extent: m = 2;
   domain body = box(-1, extent, extent, 6);
-  relation retain continuous on body {
+  relation retain on body {
     coordinate(0) - coordinate(0) = 0;
   }
 }

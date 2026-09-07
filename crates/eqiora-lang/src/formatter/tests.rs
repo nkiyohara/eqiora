@@ -1,6 +1,59 @@
-use crate::parse;
+use crate::{TextRange, parse};
 
 use super::*;
+
+#[test]
+fn factory_negative_literal_power_bases_are_grouped() {
+    for kind in [
+        ExprKind::Number(-2.0),
+        ExprKind::Quantity {
+            value: -2.0,
+            unit: Box::new(Expr {
+                kind: ExprKind::Name("m".into()),
+                range: TextRange::new(0, 0),
+            }),
+        },
+    ] {
+        let expression = Expr {
+            kind: ExprKind::Binary {
+                op: BinaryOp::Pow,
+                left: Box::new(Expr {
+                    kind,
+                    range: TextRange::new(0, 0),
+                }),
+                right: Box::new(Expr {
+                    kind: ExprKind::Number(2.0),
+                    range: TextRange::new(0, 0),
+                }),
+            },
+            range: TextRange::new(0, 0),
+        };
+        let mut output = comments::Output::default();
+        format_expression(&expression, 0, &mut output);
+        let text = output.finish();
+        assert!(text.starts_with("(-2"), "{text}");
+        let source = format!("model M {{ relation r {{ {text} = 0; }} }}");
+        let document = parse("factory.eqi", &source).into_document().unwrap();
+        let Item::Relation(relation) = &document.models()[0].items()[0] else {
+            panic!("relation")
+        };
+        let ExprKind::Binary {
+            op: BinaryOp::Pow,
+            left,
+            ..
+        } = relation.equations()[0].left().kind()
+        else {
+            panic!("power")
+        };
+        assert!(matches!(
+            left.kind(),
+            ExprKind::Unary {
+                op: UnaryOp::Neg,
+                ..
+            }
+        ));
+    }
+}
 
 #[test]
 fn signed_parameter_quantities_round_trip_with_exact_unit_powers() {
@@ -21,7 +74,7 @@ fn signed_parameter_quantities_round_trip_with_exact_unit_powers() {
 
 #[test]
 fn canonical_format_is_idempotent() {
-    let source = "model m{field x:1=0;relation r continuous{derivative(x)-(1+x*2)=0;}}";
+    let source = "model m{field x:1=0;relation r{derivative(x)-(1+x*2)=0;}}";
     let first = parse("m.eqi", source).into_document().expect("parse");
     let formatted = format(&first);
     let second = parse("m.eqi", &formatted)
@@ -29,7 +82,7 @@ fn canonical_format_is_idempotent() {
         .expect("formatted parse");
 
     assert_eq!(format(&second), formatted);
-    assert!(formatted.contains("derivative(x) = 1 + x * 2;"));
+    assert!(formatted.contains("derivative(x) - (1 + x * 2) = 0;"));
 }
 
 #[test]
@@ -38,7 +91,7 @@ fn pure_operators_format_before_consumers_with_canonical_exact_integers() {
 public pure operator dyadic(left: spatial[01], right: scalar) -> spatial[2] = component(left, 00) * component(right) + rational(03, 04) * delta(0, 01);
 model M {
   field u: 1 = 0;
-  relation law continuous { catalog.dyadic(u, u) = 0; }
+  relation law { catalog.dyadic(u, u) = 0; }
 }"#;
     let document = parse("pure-format.eqi", source)
         .into_document()
@@ -67,7 +120,7 @@ model bar {
   domain fixed = boundary(body, axis = 0, side = lower);
   representation space = continuum;
   field u on body as space: m = 0;
-  relation clamp continuous on fixed { trace(u) = 0; }
+  relation clamp on fixed { trace(u) = 0; }
 }
 "#;
     let first = parse("bar.eqi", source).into_document().expect("parse");
@@ -77,7 +130,7 @@ model bar {
         .expect("formatted parse");
 
     assert_eq!(format(&second), formatted);
-    assert!(formatted.contains("relation clamp continuous on fixed"));
+    assert!(formatted.contains("relation clamp on fixed"));
 }
 
 #[test]
@@ -88,7 +141,7 @@ model poisson {
   representation space = continuum;
   field u on interval as space: 1 = 0;
   parameter wave_number: 1 / m = 3.141592653589793;
-  relation balance continuous on interval {
+  relation balance on interval {
 -div(grad(u)) - math.sin(wave_number * coordinate(0)) = 0;
   }
 }
@@ -109,7 +162,7 @@ fn scalar_physical_source_roundtrips_with_nominal_domain() {
 model circuit {
   domain electrical = scalar_physical(across = kg * m ^ 2 / (s ^ 3 * A), through = A);
   port positive: conserving on electrical;
-  relation source continuous { across(positive) = 0; }
+  relation source { across(positive) = 0; }
 }
 "#;
     let first = parse("circuit.eqi", source)
@@ -135,7 +188,7 @@ component Resistor{
 public parameter resistance:kg*m^2/(s^3*A^2);
 public port positive:conserving on Pin;
 public port negative:conserving on Pin;
-relation law continuous{across(positive)-across(negative)-resistance*through(positive)=0;}
+relation law{across(positive)-across(negative)-resistance*through(positive)=0;}
 }
 component Pair{
 public parameter resistance:kg*m^2/(s^3*A^2)=2;
@@ -231,7 +284,7 @@ public support wall:boundary(parent=body);
 public support body:volume(ambient_dimension=2);
 public port interface:conserving MechanicalBoundary over wall;
 field velocity: vector<m/s, 2>;
-relation load continuous { flux(interface)=0; }
+relation load { flux(interface)=0; }
 }"#;
     let first = parse("boundary.eqi", source)
         .into_document()
@@ -256,7 +309,7 @@ fn complete_exterior_families_have_one_closed_canonical_spelling() {
 public support body:volume(ambient_dimension=2);
 public support exterior:complete_exterior(parent=body);
 public port mechanical[boundary in exterior]:conserving MechanicalBoundary over boundary;
-relation natural[boundary in exterior] continuous on boundary{flux(mechanical[boundary=boundary])=0;}
+relation natural[boundary in exterior] on boundary{flux(mechanical[boundary=boundary])=0;}
 connect conserving[boundary in exterior] child.mechanical[boundary=boundary],mechanical[boundary=boundary];
 }
 model coupled{
@@ -276,7 +329,7 @@ connect conserving law.mechanical[boundary=x_lower],environment;
     assert!(formatted.contains(
         "public port mechanical[boundary in exterior]: conserving MechanicalBoundary over boundary;"
     ));
-    assert!(formatted.contains("relation natural[boundary in exterior] continuous on boundary {"));
+    assert!(formatted.contains("relation natural[boundary in exterior] on boundary {"));
     assert!(formatted.contains(
         "connect conserving [boundary in exterior] child.mechanical[boundary = boundary], mechanical[boundary = boundary];"
     ));
@@ -309,7 +362,7 @@ fn legacy_support_relations_and_connections_keep_their_canonical_spelling() {
 public support body:volume(ambient_dimension=2);
 public support wall:boundary(parent=body);
 public port interface:conserving MechanicalBoundary over wall;
-relation law continuous on wall{flux(interface)=0;}
+relation law on wall{flux(interface)=0;}
 connect conserving interface,child.interface;
 }
 model use_legacy{
@@ -327,7 +380,7 @@ connect conserving legacy.interface,environment;
     assert_eq!(format(&second), formatted);
     assert!(formatted.contains("public support wall: boundary(parent = body);"));
     assert!(formatted.contains("public port interface: conserving MechanicalBoundary over wall;"));
-    assert!(formatted.contains("relation law continuous on wall {"));
+    assert!(formatted.contains("relation law on wall {"));
     assert!(formatted.contains("connect conserving interface, child.interface;"));
     assert!(!formatted.contains("boundaries("));
     assert!(!formatted.contains("[boundary"));

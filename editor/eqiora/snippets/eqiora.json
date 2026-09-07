@@ -11,7 +11,7 @@
   },
   "Relation": {
     "prefix": "relation",
-    "body": ["relation ${1:name} continuous on ${2:domain} {", "  ${3:left} = ${4:right};", "}"],
+    "body": ["relation ${1:name} on ${2:domain} {", "  ${3:left} = ${4:right};", "}"],
     "description": "Declare a continuous relation"
   }
 }

@@ -12,22 +12,6 @@ from xml.etree import ElementTree
 __all__ = ("check_references",)
 
 SITE_ORIGIN = "https://eqiora.org"
-# These pages exercise the published a7 distribution, not the site source commit.
-RELEASED_REFERENCE_VERSION = "0.1.0a7"
-RELEASED_REFERENCE_SHA = "e72f744cf6956e0e3c1f03aad65868d726f8ebbf"
-RELEASED_REFERENCE_PAGES = frozenset(
-    Path(f"reference/{relative}/index.html")
-    for relative in (
-        "language",
-        "language/composition",
-        "language/declarations",
-        "language/equations",
-        "language/units",
-        "standard-packages",
-        "standard-packages/continuum",
-        "standard-packages/electrical",
-    )
-)
 MAX_DATA_URL_BYTES = 1_048_576
 MAX_HTML_REFERENCES = 1_000_000
 MAX_CSS_URLS = 4_096
@@ -241,30 +225,12 @@ def _check_html(
             target_url.scheme
             and f"{target_url.scheme}://{target_url.netloc}" != SITE_ORIGIN
         ):
-            released_source = (
-                tag == "a"
-                and attribute == "href"
-                and relative in RELEASED_REFERENCE_PAGES
-                and re.search(
-                    rf"(?<![A-Za-z0-9_.-]){re.escape(RELEASED_REFERENCE_VERSION)}(?![A-Za-z0-9_.-])",
-                    parsed[page_path].visible_text,
-                )
-                and not target_url.query
-                and all(
-                    part not in {".", ".."} and re.fullmatch(r"[A-Za-z0-9_.-]+", part)
-                    for part in target_url.path.split("/")[5:]
-                )
-                and re.match(
-                    rf"^https://github\.com/nkiyohara/eqiora/(?:blob|tree)/{RELEASED_REFERENCE_SHA}/",
-                    value,
-                )
-            )
             if re.match(
                 r"^/nkiyohara/eqiora/(?:blob|tree)/", target_url.path
             ) and not re.match(
                 rf"^https://github\.com/nkiyohara/eqiora/(?:blob|tree)/{source_sha}/",
                 value,
-            ) and not released_source:
+            ):
                 report(
                     f"{relative}: repository source link does not use the exact asserted SHA: {value!r}"
                 )

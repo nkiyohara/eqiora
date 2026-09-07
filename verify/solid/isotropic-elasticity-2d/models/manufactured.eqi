@@ -13,7 +13,7 @@ model manufactured_isotropic_elasticity_plane {
   parameter wave_number: 1 / m = 3.141592653589793;
   parameter load_scale: kg / (m * s ^ 2) = 1;
 
-  relation load continuous on body {
+  relation load on body {
     load_potential
       - load_scale * (
           math.sin(wave_number * coordinate(0)) ^ 2
@@ -23,15 +23,15 @@ model manufactured_isotropic_elasticity_plane {
             * math.sin(wave_number * coordinate(1)) ^ 2
         ) = 0;
   }
-  relation balance continuous on body {
+  relation balance on body {
     -div(
       2 * mu * symmetric_part(grad(displacement))
       + lambda * isotropic_lift(div(displacement))
     ) - grad(load_potential) = 0;
   }
 
-  relation x_lower_value continuous on x_lower { trace(displacement) = 0; }
-  relation x_upper_value continuous on x_upper { trace(displacement) = 0; }
-  relation y_lower_value continuous on y_lower { trace(displacement) = 0; }
-  relation y_upper_value continuous on y_upper { trace(displacement) = 0; }
+  relation x_lower_value on x_lower { trace(displacement) = 0; }
+  relation x_upper_value on x_upper { trace(displacement) = 0; }
+  relation y_lower_value on y_lower { trace(displacement) = 0; }
+  relation y_upper_value on y_upper { trace(displacement) = 0; }
 }

@@ -521,12 +521,12 @@ fn invalid_hierarchy_is_rejected_before_any_transaction_is_exposed() {
         r#"
 connector A = scalar_physical(across = 1, through = 1);
 connector B = scalar_physical(across = 1, through = 1);
-component Left { public port p: conserving on A; relation r continuous { across(p) = 0; } }
-component Right { public port p: conserving on B; relation r continuous { across(p) = 0; } }
+component Left { public port p: conserving on A; relation r { across(p) = 0; } }
+component Right { public port p: conserving on B; relation r { across(p) = 0; } }
 model m { instance left: Left; instance right: Right; connect conserving left.p, right.p; }
 "#,
         r#"
-component C { port hidden: signal input 1; relation r continuous { hidden = 0; } }
+component C { port hidden: signal input 1; relation r { hidden = 0; } }
 model m { port source: signal output 1; instance c: C; connect signal source -> c.hidden; }
 "#,
     ];

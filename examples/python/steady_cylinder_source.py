@@ -51,12 +51,12 @@ def build_source() -> q.Source:
     stokes.relation(
         "force_definition",
         on=fluid,
-        residual=force_potential - zero_pressure,
+        right=0, left=force_potential - zero_pressure,
     )
     stokes.relation(
         "inlet_profile_definition",
         on=fluid,
-        residual=(
+        right=0, left=(
             inlet_profile
             - 4
             * inlet_speed
@@ -71,32 +71,32 @@ def build_source() -> q.Source:
     stokes.relation(
         "momentum",
         on=fluid,
-        residual=-q.div(stress) - q.grad(force_potential),
+        right=0, left=-q.div(stress) - q.grad(force_potential),
     )
     stokes.relation(
         "incompressibility",
         on=fluid,
-        residual=q.div(velocity),
+        right=0, left=q.div(velocity),
     )
     stokes.relation(
         "inlet_velocity",
         on=inlet,
-        residual=q.trace(velocity) + q.normal(q.isotropic_lift(inlet_profile)),
+        right=0, left=q.trace(velocity) + q.normal(q.isotropic_lift(inlet_profile)),
     )
     stokes.relation(
         "outlet_traction",
         on=outlet,
-        residual=q.normal(stress),
+        right=0, left=q.normal(stress),
     )
     stokes.relation(
         "wall_velocity",
         on=walls,
-        residual=q.trace(velocity),
+        right=0, left=q.trace(velocity),
     )
     stokes.relation(
         "cylinder_velocity",
         on=cylinder,
-        residual=q.trace(velocity),
+        right=0, left=q.trace(velocity),
     )
     return source
 

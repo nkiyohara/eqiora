@@ -95,7 +95,7 @@ test('canonical Python guide bodies, heading targets and local crosslinks render
       expect(await page.locator('[id]').evaluateAll((elements, id) => elements.filter((element) => element.id === id).length, target)).toBe(1);
     }
     await expect(main).toContainText('Current-source Python API.');
-    await expect(main.locator('.eq-guide-source')).toHaveText('Current-source Python API. Using the published wheel? Run and inspect. Canonical guide source.');
+    await expect(main.locator('.eq-guide-source')).toHaveText('Current-source Python API. Install this source revision, then run and inspect. Canonical guide source.');
     await expect(main.getByRole('link', { name: 'Canonical guide source' })).toHaveAttribute('href', `https://github.com/nkiyohara/eqiora/blob/${process.env.EQIORA_SITE_SOURCE_SHA}/docs/python/${name}.md`);
     expect(await main.locator('pre').count()).toBeGreaterThan(0);
   }
@@ -116,7 +116,7 @@ test('Home to released run to Guide and Learn works with keyboard and no JavaScr
   await guide.focus();
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\/guides\/run-and-inspect\/$/);
-  await expect(page.getByRole('main')).toContainText('Eqiora 0.1.0a7');
+  await expect(page.getByRole('main')).toContainText('same source revision');
   await page.getByRole('main').getByRole('link', { name: 'ODE lesson and exercises' }).click();
   await expect(page).toHaveURL(/\/learn\/mathematical-modeling\/ordinary-differential-equations\/$/);
   await page.emulateMedia({ media: 'print' });

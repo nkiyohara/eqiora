@@ -1,11 +1,12 @@
 ---
 title: Standard sources
-description: Find physical declarations distributed with Eqiora 0.1.0a7 by purpose.
+description: Find physical declarations distributed with the current Eqiora source by purpose.
 editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/standard-packages/index.mdx
 ---
 
-Browse the `.eqi` declarations distributed in the **Eqiora 0.1.0a7 source
-archive** by physical purpose:
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+
+Browse the `.eqi` declarations in the installed source checkout by physical purpose:
 
 | Purpose | Lookup |
 |---|---|
@@ -14,36 +15,34 @@ archive** by physical purpose:
 | Bind density, viscosity, velocity and pressure to an inertial Stokes law | [Inertial flow law](/reference/standard-packages/continuum/#inertial-flow-law) |
 
 Each worked example shows bindings, units and the canonical declaration, and is
-compile-checked with a7. For executed problems, see the [gallery](/gallery/).
+checked through the public compiler. For executed problems, see the [gallery](/gallery/).
 
 ## Source and installation boundary
 
-The [PyPI release](https://pypi.org/project/eqiora/0.1.0a7/#files) publishes a source
-archive alongside Python wheels. Download and extract `eqiora-0.1.0a7.tar.gz` to
-inspect its `packages/` directory. The Python wheel does not itself contain these
-eight standard-package source files. `uv add eqiora==0.1.0a7` installs the Python
-runtime; it does not install their semantic dependency closure.
+[Get started](/get-started/#install-with-uv) creates `eqiora-source` at the exact
+revision of these pages and installs it with uv. Its `packages/` directory holds
+the declarations linked below. Run the snippets from the working folder containing
+that checkout and your `.venv`.
 
-The worked examples compile unchanged released declarations locally. Sources with
-qualified names such as `mechanics.VelocityTractionBoundary` instead require their
-exact package alias and closure. a7 can compile a prepared package closure; the
-newer bundled-catalog, `open_project` and Git-fetch authoring APIs are not in this release.
+The examples below compile self-contained declarations from that source tree.
+Package-qualified imports additionally require their exact dependency closure;
+see [project packages](/guides/modeling/#resolve-and-lock-a-local-package-project).
 
 ## Browse the distributed sources
 
-The links point to the fixed release commit. Sources beyond the worked examples
+The links point to this page's exact source commit. Sources beyond the worked examples
 are listed for discovery, without implying a Python solve workflow for each.
 
 | Source module | Physical purpose |
 |---|---|
-| [Electrical.Basic](https://github.com/nkiyohara/eqiora/blob/e72f744cf6956e0e3c1f03aad65868d726f8ebbf/packages/Eqiora.Electrical.Basic/src/basic.eqi) | Electrical Pin, ideal voltage source, resistor and ground |
-| [Electrical.Circuits](https://github.com/nkiyohara/eqiora/blob/e72f744cf6956e0e3c1f03aad65868d726f8ebbf/packages/Eqiora.Electrical.Circuits/src/circuits.eqi) | A parallel DC circuit composed from Basic |
-| [Electromechanical.DcDrive](https://github.com/nkiyohara/eqiora/blob/e72f744cf6956e0e3c1f03aad65868d726f8ebbf/packages/Eqiora.Electromechanical.DcDrive/src/drive.eqi) | Controlled source, permanent-magnet motor, inertial load and speed sensor |
-| [Fluid.Incompressible](https://github.com/nkiyohara/eqiora/blob/e72f744cf6956e0e3c1f03aad65868d726f8ebbf/packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi) | Steady Stokes balance and Newtonian mechanical boundary interface |
-| [Fluid.InertialStokes](https://github.com/nkiyohara/eqiora/blob/e72f744cf6956e0e3c1f03aad65868d726f8ebbf/packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi) | Inertial Stokes balance with a force potential |
-| [Mechanics.Interfaces](https://github.com/nkiyohara/eqiora/blob/e72f744cf6956e0e3c1f03aad65868d726f8ebbf/packages/Eqiora.Mechanics.Interfaces/src/interfaces.eqi) | Velocity/traction connector, zero velocity and zero traction |
-| [Mechanics.BoundaryLoads](https://github.com/nkiyohara/eqiora/blob/e72f744cf6956e0e3c1f03aad65868d726f8ebbf/packages/Eqiora.Mechanics.BoundaryLoads/src/boundary_loads.eqi) | Pressure-derived normal traction |
-| [Solid.LinearElasticity](https://github.com/nkiyohara/eqiora/blob/e72f744cf6956e0e3c1f03aad65868d726f8ebbf/packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi) | Elastic balances, mechanical interfaces and fixed/free boundaries |
+| <ExactSourceLink kind="blob" path="packages/Eqiora.Electrical.Basic/src/basic.eqi">Electrical.Basic</ExactSourceLink> | Electrical Pin, ideal voltage source, resistor and ground |
+| <ExactSourceLink kind="blob" path="packages/Eqiora.Electrical.Circuits/src/circuits.eqi">Electrical.Circuits</ExactSourceLink> | A parallel DC circuit composed from Basic |
+| <ExactSourceLink kind="blob" path="packages/Eqiora.Electromechanical.DcDrive/src/drive.eqi">Electromechanical.DcDrive</ExactSourceLink> | Controlled source, permanent-magnet motor, inertial load and speed sensor |
+| <ExactSourceLink kind="blob" path="packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi">Fluid.Incompressible</ExactSourceLink> | Steady Stokes balance and Newtonian mechanical boundary interface |
+| <ExactSourceLink kind="blob" path="packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi">Fluid.InertialStokes</ExactSourceLink> | Inertial Stokes balance with a force potential |
+| <ExactSourceLink kind="blob" path="packages/Eqiora.Mechanics.Interfaces/src/interfaces.eqi">Mechanics.Interfaces</ExactSourceLink> | Velocity/traction connector, zero velocity and zero traction |
+| <ExactSourceLink kind="blob" path="packages/Eqiora.Mechanics.BoundaryLoads/src/boundary_loads.eqi">Mechanics.BoundaryLoads</ExactSourceLink> | Pressure-derived normal traction |
+| <ExactSourceLink kind="blob" path="packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi">Solid.LinearElasticity</ExactSourceLink> | Elastic balances, mechanical interfaces and fixed/free boundaries |
 
 The source and its package manifest own the declarations and dependencies. To
 author your own relations, use the [language reference](/reference/language/equations/).

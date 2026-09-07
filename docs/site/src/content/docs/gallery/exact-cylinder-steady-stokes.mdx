@@ -90,13 +90,13 @@ Eqiora source below, not a new formulation.
 **Eqiora source form**
 
 ```eqiora
-relation momentum continuous on body {
+relation momentum on body {
   -div(
     2 * dynamic_viscosity * symmetric_part(grad(velocity))
     - isotropic_lift(pressure)
   ) - grad(force_potential) = 0;
 }
-relation incompressibility continuous on body {
+relation incompressibility on body {
   div(velocity) = 0;
 }
 ```
@@ -144,22 +144,22 @@ cylinder use $\boldsymbol{u}=0$.
 **Eqiora source form**
 
 ```eqiora
-relation inlet_profile_definition continuous on body {
+relation inlet_profile_definition on body {
   inlet_profile
     - 4 * inlet_speed * coordinate(1) * (channel_height - coordinate(1))
       / channel_height ^ 2 = 0;
 }
-relation inlet_velocity continuous on x_lower {
+relation inlet_velocity on x_lower {
   trace(velocity) + normal(isotropic_lift(inlet_profile)) = 0;
 }
-relation outlet_traction continuous on x_upper {
+relation outlet_traction on x_upper {
   normal(
     2 * dynamic_viscosity * symmetric_part(grad(velocity))
     - isotropic_lift(pressure)
   ) = 0;
 }
-relation lower_wall continuous on y_lower { trace(velocity) = 0; }
-relation upper_wall continuous on y_upper { trace(velocity) = 0; }
+relation lower_wall on y_lower { trace(velocity) = 0; }
+relation upper_wall on y_upper { trace(velocity) = 0; }
 ```
 
 **Accepted registered-case source form for the exact-hole closure**

@@ -1,5 +1,5 @@
 public component IsotropicBalanceWithPotential2d {
-  relation balance continuous on body {
+  relation balance on body {
     -div(
       2 * mu * symmetric_part(grad(displacement))
       + lambda * isotropic_lift(div(displacement))

@@ -516,7 +516,7 @@ component BoundaryLaw {{
   public port coupled[boundary in exterior]: conserving BoundaryScalar over boundary;
   public support exterior: complete_exterior(parent = body);
   public support body: volume(ambient_dimension = 2);
-  relation natural_law[boundary in exterior] continuous on boundary {{
+  relation natural_law[boundary in exterior] on boundary {{
     flux(natural[boundary = boundary]) = 0;
   }}
   connect conserving [boundary in exterior]
@@ -543,8 +543,8 @@ component Coupler {{
   public support right_face: boundary(parent = right_body);
   public port left: conserving BoundaryScalar over left_face;
   public port right: conserving BoundaryScalar over right_face;
-  relation left_law continuous on left_face {{ trace(left) = 0; flux(left) = 0; }}
-  relation right_law continuous on right_face {{ trace(right) = 0; flux(right) = 0; }}
+  relation left_law on left_face {{ trace(left) = 0; flux(left) = 0; }}
+  relation right_law on right_face {{ trace(right) = 0; flux(right) = 0; }}
   connect conserving left, right;
 }}
 "#
@@ -583,7 +583,7 @@ component BoundaryLaw {{
   public support body: volume(ambient_dimension = 2);
   public support exterior: complete_exterior(parent = body);
   public port natural[boundary in exterior]: conserving BoundaryScalar over boundary;
-  relation law[boundary in {relation_set}] continuous on boundary {{
+  relation law[boundary in {relation_set}] on boundary {{
     flux(natural[boundary = {target}]) = 0;
   }}
 }}

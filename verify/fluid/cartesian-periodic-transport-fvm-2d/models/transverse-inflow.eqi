@@ -14,7 +14,7 @@ public component PeriodicTransportSide2d {
   public parameter diffusivity: m ^ 2 / s;
   public port transport: conserving ScalarTransportBoundary over face;
 
-  relation periodic_binding continuous on face {
+  relation periodic_binding on face {
     trace(concentration) - trace(transport) = 0;
     normal(
       concentration * grad(flow_potential)
@@ -35,10 +35,10 @@ model Main {
   parameter speed: m / s = 1;
   parameter diffusivity: m ^ 2 / s = 0.2;
   parameter inflow_concentration: K = 1;
-  relation flow_definition continuous on body {
+  relation flow_definition on body {
     flow_potential - speed * coordinate(1) = 0;
   }
-  relation transport continuous on body {
+  relation transport on body {
     derivative(concentration)
       + div(concentration * grad(flow_potential))
       - div(diffusivity * grad(concentration)) = 0;
@@ -57,10 +57,10 @@ model Main {
     field flow_potential = flow_potential,
     diffusivity = diffusivity
   );
-  relation y_lower_trace continuous on y_lower {
+  relation y_lower_trace on y_lower {
     trace(concentration) - inflow_concentration = 0;
   }
-  relation y_upper_flux continuous on y_upper {
+  relation y_upper_flux on y_upper {
     normal(diffusivity * grad(concentration)) = 0;
   }
   connect periodic x_lower_periodic.transport, x_upper_periodic.transport;

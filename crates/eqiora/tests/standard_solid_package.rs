@@ -330,16 +330,16 @@ public material composition ReferenceMaterial {{
     vector<kg / (m * s ^ 2), 2>;
   parameter displacement_scale: m = 1;
   parameter traction_scale: kg / (m * s ^ 2) = 2;
-  relation displacement_potential_definition continuous on body {
+  relation displacement_potential_definition on body {
     displacement_potential - displacement_scale * coordinate(0) = 0;
   }
-  relation boundary_displacement_definition continuous on body {
+  relation boundary_displacement_definition on body {
     boundary_displacement - grad(displacement_potential) = 0;
   }
-  relation traction_potential_definition continuous on body {
+  relation traction_potential_definition on body {
     traction_potential - traction_scale * coordinate(0) = 0;
   }
-  relation boundary_traction_definition continuous on body {
+  relation boundary_traction_definition on body {
     boundary_traction - grad(traction_potential) = 0;
   }
 "#,
@@ -377,7 +377,7 @@ public material composition ReferenceMaterial {{
   field load_potential on body as space: kg / (m * s ^ 2) = 0;
   parameter zero_load: kg / (m * s ^ 2) = 0;
 {material_parameters}
-  relation load_definition continuous on body {{
+  relation load_definition on body {{
     load_potential - zero_load = 0;
   }}
 {boundary_fields}

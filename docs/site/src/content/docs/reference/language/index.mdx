@@ -1,14 +1,13 @@
 ---
 title: Eqiora Language
-description: A lookup guide to source constructs exercised with the installed Eqiora 0.1.0a7 release.
+description: A lookup guide to the language accepted by this source revision.
 editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/language/index.mdx
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
-This reference targets **Eqiora 0.1.0a7**, installed from PyPI. Its examples were
-checked on Python 3.13.14; the release distributes wheels for Python 3.11–3.14.
-Follow [Get started](/get-started/) to use the same release.
+This reference describes the same source revision installed in
+[Get started](/get-started/). Use that checkout and Python environment with these examples.
 
 | Look up | Start here |
 |---|---|
@@ -19,7 +18,7 @@ Follow [Get started](/get-started/) to use the same release.
 | Existing sources, constitutive laws and boundary conditions | [Standard sources](/reference/standard-packages/) |
 
 Save a complete example as a UTF-8 `.eqi` file and compile it with the installed
-release:
+package:
 
 ```python
 import eqiora
@@ -32,14 +31,7 @@ that every system is well posed, or execute a solver. The
 [ODE lesson](/learn/mathematical-modeling/ordinary-differential-equations/)
 continues from a compiled Model to a Plan, initial State and Result.
 
-<Aside type="caution" title="Release syntax, not the target specification">
-  This release uses `field`, `relation name continuous` and residual `= 0`.
-  Newer `variable`/`state` declarations, `initial` blocks, bracketed quantity
-  inputs and converged signatures are not runnable a7 syntax. Do not combine
-  examples from the contributor target specification with these release pages.
-</Aside>
-
 For exact syntax and checking rules, see the
-[released language frontend](https://github.com/nkiyohara/eqiora/tree/e72f744cf6956e0e3c1f03aad65868d726f8ebbf/crates/eqiora-lang/src)
-and [released compiler](https://github.com/nkiyohara/eqiora/tree/e72f744cf6956e0e3c1f03aad65868d726f8ebbf/crates/eqiora-compiler/src).
-The [Python API reference](/reference/python/) is generated separately and may be newer.
+<ExactSourceLink kind="tree" path="crates/eqiora-lang/src">language frontend</ExactSourceLink>
+and <ExactSourceLink kind="tree" path="crates/eqiora-compiler/src">compiler</ExactSourceLink>.
+The [Python API reference](/reference/python/) describes the same documentation revision.

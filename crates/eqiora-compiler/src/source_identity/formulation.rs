@@ -64,9 +64,9 @@ mod tests {
 
     #[test]
     fn identity_is_separate_from_model_allocation_identity() {
-        let without = "component D { relation balance continuous { 1 = 0; } }";
-        let first = "component D { relation balance continuous { 1 = 0; } form primal for balance { integrate(region, dot(grad(test(u)), grad(u))) = integrate(region, test(u) * f); } }";
-        let changed = "component D { relation balance continuous { 1 = 0; } form primal for balance { integrate(region, dot(grad(test(u)), k * grad(u))) = integrate(region, test(u) * f); } }";
+        let without = "component D { relation balance { 1 = 0; } }";
+        let first = "component D { relation balance { 1 = 0; } form primal for balance { integrate(region, dot(grad(test(u)), grad(u))) = integrate(region, test(u) * f); } }";
+        let changed = "component D { relation balance { 1 = 0; } form primal for balance { integrate(region, dot(grad(test(u)), k * grad(u))) = integrate(region, test(u) * f); } }";
         let model_identity =
             |source| LocalSourceIdentity::from_document(&document(source)).unwrap();
         let form_identity = |source| {

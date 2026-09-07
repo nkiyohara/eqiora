@@ -12,7 +12,7 @@ mod cli_compile_check_home_path;
 mod cli_compile_check_trailing_bare_delimiter;
 #[path = "../src/bin/eqiora/main.rs"]
 mod cli_main;
-const ACCEPTED_LITERAL: &[u8] = b"// EQIORA_CLI_SECRET_ACCEPTED_c1479c2e\nmodel decay {\n  field x: 1 = 1;\n  parameter rate: 1 / s = 1;\n  relation flow continuous {\n    derivative(x) + rate * x = 0;\n  }\n}\n";
+const ACCEPTED_LITERAL: &[u8] = b"// EQIORA_CLI_SECRET_ACCEPTED_c1479c2e\nmodel decay {\n  field x: 1 = 1;\n  parameter rate: 1 / s = 1;\n  relation flow {\n    derivative(x) + rate * x = 0;\n  }\n}\n";
 const REJECTED_LITERAL: &[u8] = b"// EQIORA_CLI_SECRET_REJECTED_918bf4ad\n";
 
 mod full {

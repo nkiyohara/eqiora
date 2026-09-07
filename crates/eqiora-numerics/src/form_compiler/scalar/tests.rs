@@ -225,8 +225,8 @@ fn runtime_dimensional_1d_and_3d_elements_match_the_frozen_oracles() {
 #[test]
 fn ineligible_natural_boundary_has_no_semantic_derivation() {
     let source = SOURCE.replace(
-        "relation x_lower_value continuous on x_lower { trace(potential) = 0; }",
-        "relation x_lower_value continuous on x_lower { normal(grad(potential)) = 0; }",
+        "relation x_lower_value on x_lower { trace(potential) = 0; }",
+        "relation x_lower_value on x_lower { normal(grad(potential)) = 0; }",
     );
     let program = compile_program(&source);
     let domain = box_domain(&program);

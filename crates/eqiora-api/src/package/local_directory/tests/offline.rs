@@ -10,7 +10,7 @@ fn fixture(name: &str) -> (TestDirectory, PathBuf, PathBuf, PathBuf) {
     write_package(&external, "src", &sources, &[]);
     let root = author_sources(
         "org.example.Offline",
-        "import org.example.External.main as external; model Main { parameter gain: 1 = 2; relation law continuous { gain - 2 = 0; } }",
+        "import org.example.External.main as external; model Main { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
         vec![exact_dependency(&release)],
     );
     write_package(&project, "src", &root, &[(&release, "../external")]);

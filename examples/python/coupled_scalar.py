@@ -23,20 +23,20 @@ public component CoupledScalar {
   parameter length: m = 1;
   parameter reaction_scale: 1 / m ^ 2 = 1;
 
-  relation first continuous on body {
+  relation first on body {
     -div(grad(u)) + reaction_scale * (3 * u - v)
       - reaction_scale * (2 + coordinate(0) / length
         * (1 - coordinate(0) / length)) = 0;
   }
-  relation second continuous on body {
+  relation second on body {
     -div(2 * grad(v)) + reaction_scale * (-2 * u + 4 * v)
       - reaction_scale * (8 + 6 * coordinate(0) / length
         * (1 - coordinate(0) / length)) = 0;
   }
-  relation u_left continuous on left { trace(u) = 0; }
-  relation v_left continuous on left { trace(v) = 0; }
-  relation u_right continuous on right { trace(u) = 0; }
-  relation v_right continuous on right { trace(v) = 0; }
+  relation u_left on left { trace(u) = 0; }
+  relation v_left on left { trace(v) = 0; }
+  relation u_right on right { trace(u) = 0; }
+  relation v_right on right { trace(v) = 0; }
 }
 """
 

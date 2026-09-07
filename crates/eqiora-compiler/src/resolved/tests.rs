@@ -33,7 +33,7 @@ fn dependency_edge(
 const LIBRARY: &str = r#"
 public component Resistor {
   public parameter resistance: 1;
-  relation law continuous { resistance - 2 = 0; }
+  relation law { resistance - 2 = 0; }
 }
 "#;
 
@@ -223,7 +223,7 @@ model Main {
   field a on d as s: vector<1, 2>;
   field b on d as s: vector<1, 2>;
   instance load: lib.Resistor(resistance = 2);
-  relation doubled continuous on d { div(div(lib.outer(a, b))) = 0; }
+  relation doubled on d { div(div(lib.outer(a, b))) = 0; }
 }
 "#;
     let library_source = r#"
@@ -231,7 +231,7 @@ public pure operator outer(left: spatial[1], right: spatial[1]) -> spatial[2]
   = component(left, 0) * component(right, 1);
 public component Resistor {
   public parameter resistance: 1;
-  relation law continuous { resistance - 2 = 0; }
+  relation law { resistance - 2 = 0; }
 }
 "#;
     let input = ResolvedHierarchyInput::with_root_module(
@@ -268,7 +268,7 @@ fn directly_imported_public_model_is_an_executable_entry() {
                 &owner,
                 "library.entries",
                 "src/library/entries.eqi",
-                "public model Shared { parameter gain: 1 = 2; relation law continuous { gain - 2 = 0; } }",
+                "public model Shared { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
             ),
             module_unit(
                 &owner,
@@ -391,7 +391,7 @@ fn host_assigned_module_identity_requires_no_source_header() {
                     &owner,
                     "library.parts",
                     "src/library/parts.eqi",
-                    "public component Resistor { public parameter resistance: 1; relation law continuous { resistance - 2 = 0; } }",
+                    "public component Resistor { public parameter resistance: 1; relation law { resistance - 2 = 0; } }",
                 ),
             ],
             vec![],
@@ -700,7 +700,7 @@ public pure operator outer(left: spatial[1], right: spatial[1]) -> spatial[2]
                     &root,
                     "root.eqi",
                     &format!(
-                        "import operators.main as {alias_name}; model Main {{ domain d = box(0,1,0,1); representation s = continuum; field a on d as s: vector<1, 2>; field b on d as s: vector<1, 2>; relation r continuous on d {{ div(div({alias_name}.outer(a,b))) = 0; }} }}"
+                        "import operators.main as {alias_name}; model Main {{ domain d = box(0,1,0,1); representation s = continuum; field a on d as s: vector<1, 2>; field b on d as s: vector<1, 2>; relation r on d {{ div(div({alias_name}.outer(a,b))) = 0; }} }}"
                     ),
                 ),
                 unit(&operators, operator_file, dependency),
@@ -738,7 +738,7 @@ fn private_pure_operator_cannot_cross_an_exact_package_boundary() {
             unit(
                 &root,
                 "root.eqi",
-                "import operators.main as ops; model Main { domain d = box(0,1); representation s = continuum; field a on d as s: vector<1, 1>; field b on d as s: vector<1, 1>; relation r continuous on d { div(ops.outer(a,b)) = 0; } }",
+                "import operators.main as ops; model Main { domain d = box(0,1); representation s = continuum; field a on d as s: vector<1, 1>; field b on d as s: vector<1, 1>; relation r on d { div(ops.outer(a,b)) = 0; } }",
             ),
             unit(
                 &dependency,
@@ -815,12 +815,12 @@ fn package_local_names_do_not_collide_but_duplicates_and_aliases_do() {
             unit(
                 &first,
                 "first.eqi",
-                "public component C { parameter p: 1 = 1; relation law continuous { p - 1 = 0; } }",
+                "public component C { parameter p: 1 = 1; relation law { p - 1 = 0; } }",
             ),
             unit(
                 &second,
                 "second.eqi",
-                "public component C { parameter p: 1 = 2; relation law continuous { p - 2 = 0; } }",
+                "public component C { parameter p: 1 = 2; relation law { p - 2 = 0; } }",
             ),
         ],
         vec![
@@ -953,7 +953,7 @@ fn symbolic_component_interfaces_validate_without_occurrence_values() {
 public component Leaf {
   public parameter period: s;
   public parameter offset: s = period;
-  relation invariant continuous { offset - period = 0; }
+  relation invariant { offset - period = 0; }
 }
 public component Wrapper {
   public parameter period: s;

@@ -32,6 +32,7 @@ impl Binding {
 pub(super) enum DomainContract {
     Spatial {
         dimensions: Option<usize>,
+        parent: Option<String>,
     },
     ScalarPhysical {
         across_type: eqiora_core::ValueType,
@@ -96,8 +97,12 @@ pub(super) fn bind_domain(
         }),
         DomainSyntax::CartesianBox(bounds) => Ok(DomainContract::Spatial {
             dimensions: Some(bounds.len()),
+            parent: None,
         }),
-        DomainSyntax::Boundary { .. } => Ok(DomainContract::Spatial { dimensions: None }),
+        DomainSyntax::Boundary { parent, .. } => Ok(DomainContract::Spatial {
+            dimensions: None,
+            parent: Some(parent.clone()),
+        }),
         _ => Err(source_error(
             codes::LANGUAGE_LOWERING_ERROR,
             file,
@@ -118,6 +123,7 @@ pub(super) fn resolve_field_contract(
             id,
             DomainContract::Spatial {
                 dimensions: Some(dimensions),
+                ..
             },
         ) = bindings.get(name)?
         else {

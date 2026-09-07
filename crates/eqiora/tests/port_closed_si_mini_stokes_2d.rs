@@ -601,7 +601,7 @@ public component CompatibleOpenVelocityTerminal2d {
   public port mechanical:
     conserving mechanics.VelocityTractionBoundary over face;
 
-  relation transparent_carrier continuous on face {
+  relation transparent_carrier on face {
     trace(mechanical) - trace(mechanical) = 0;
     flux(mechanical) - flux(mechanical) = 0;
   }

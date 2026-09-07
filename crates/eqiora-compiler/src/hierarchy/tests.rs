@@ -12,14 +12,14 @@ fn model_let_alias_expands_without_a_kernel_entity() {
     let source = r#"
 component Law {
   public parameter phase: 1;
-  relation balance continuous { phase - 1 = 0; }
+  relation balance { phase - 1 = 0; }
 }
 model Derived {
   parameter length: m = 2;
   let wave_number: 1 / m = math.pi / length;
   let phase: 1 = wave_number * length;
   field state: 1 = 0;
-  relation balance continuous { state + phase = 0; }
+  relation balance { state + phase = 0; }
   instance law: Law(phase = phase);
 }
 "#;
@@ -51,7 +51,7 @@ model Derived {
   let wave_number: 1 / m = math.pi / length;
   let unitless: 1 = 1;
   field state: 1 / m = 0;
-  relation balance continuous { state - wave_number * unitless = 0; }
+  relation balance { state - wave_number * unitless = 0; }
 }
 "#;
     let inferred = annotated.replace("let wave_number: 1 / m", "let wave_number");
@@ -142,8 +142,8 @@ public component BoundaryLaw {
   public parameter value: 1;
   representation space = continuum;
   field state on body as space: 1 = 0;
-  relation volume_law continuous on body { state - value = 0; }
-  relation wall_law continuous on wall { trace(state) = 0; }
+  relation volume_law on body { state - value = 0; }
+  relation wall_law on wall { trace(state) = 0; }
 }
 "#;
 
@@ -509,7 +509,7 @@ component Resistor {
   public port positive: conserving on Pin;
   public port negative: conserving on Pin;
 
-  relation voltage continuous {
+  relation voltage {
     across(positive) - across(negative) - resistance * through(positive) = 0;
     through(positive) + through(negative) = 0;
   }
@@ -577,7 +577,7 @@ fn semantic_declaration_order_and_source_location_do_not_change_ids() {
 connector Pin = scalar_physical(across = kg * m ^ 2 / (s ^ 3 * A), through = A);
 component Resistor {
   public port negative: conserving on Pin;
-  relation voltage continuous {
+  relation voltage {
     across(positive) - across(negative) - resistance * through(positive) = 0;
     through(positive) + through(negative) = 0;
   }
@@ -612,7 +612,7 @@ connector Pin = scalar_physical(across = 1, through = 1);
 component Leaf {
   public port left: conserving on Pin;
   public port right: conserving on Pin;
-  relation law continuous {
+  relation law {
     across(left) - across(right) = 0;
     through(left) + through(right) = 0;
   }
@@ -643,7 +643,7 @@ fn occurrence_bound_field_is_an_exact_non_materialized_alias() {
 component Law {
   public support body: volume(ambient_dimension = 2);
   public field slot state on body as continuum: K;
-  relation balance continuous on body { state = 0; }
+  relation balance on body { state = 0; }
 }
 model Coupled {
   domain body = box(0, 1, 0, 1);
@@ -704,7 +704,7 @@ fn occurrence_bound_parameter_is_one_exact_non_materialized_identity() {
     let source = r#"
 component Law {
   public parameter coefficient: 1;
-  relation balance continuous { coefficient - 1 = 0; }
+  relation balance { coefficient - 1 = 0; }
 }
 model Coupled {
   parameter material: 1 = 2;
@@ -754,7 +754,7 @@ fn equal_valued_parameters_remain_distinct_through_arithmetic_bindings() {
     let source = r#"
 component Law {
   public parameter coefficient: 1;
-  relation balance continuous { coefficient - 1 = 0; }
+  relation balance { coefficient - 1 = 0; }
 }
 model Coupled {
   parameter first_material: 1 = 2;
@@ -807,7 +807,7 @@ model Coupled {
 fn literal_parameter_bindings_normalize_negative_zero_without_a_direction() {
     let source = |literal: &str| {
         format!(
-            "component Law {{ public parameter coefficient: 1; relation balance continuous {{ coefficient = 0; }} }} model Coupled {{ instance law: Law(coefficient = {literal}); }}"
+            "component Law {{ public parameter coefficient: 1; relation balance {{ coefficient = 0; }} }} model Coupled {{ instance law: Law(coefficient = {literal}); }}"
         )
     };
     let mut positive = crate::compile("zero.eqi", &source("0.0")).unwrap();
@@ -836,7 +836,7 @@ fn nested_field_forwarding_preserves_target_identity_and_occurrence_chain() {
 component Inner {
   public support body: volume(ambient_dimension = 2);
   public field slot state on body as continuum: K;
-  relation balance continuous on body { state = 0; }
+  relation balance on body { state = 0; }
 }
 component Outer {
   public support body: volume(ambient_dimension = 2);
@@ -898,7 +898,7 @@ fn field_binding_requires_complete_exact_contract() {
 component Law {
   public support body: volume(ambient_dimension = 2);
   public field slot state on body as continuum: vector<K, 2>;
-  relation balance continuous on body { state = 0; }
+  relation balance on body { state = 0; }
 }
 model Coupled {
   domain left = box(0, 1, 0, 1);
@@ -946,7 +946,7 @@ fn transitive_physical_fragments_emit_one_canonical_connection() {
 connector Pin = scalar_physical(across = 1, through = 1);
 component Terminal {
   public port p: conserving on Pin;
-  relation owner continuous { across(p) = 0; }
+  relation owner { across(p) = 0; }
 }
 model Network {
   instance a: Terminal;
@@ -989,7 +989,7 @@ connector Pin = scalar_physical(across = 1, through = 1);
 component ClosedLeaf {
   public port a: conserving on Pin;
   public port b: conserving on Pin;
-  relation law continuous {
+  relation law {
     across(a) + across(b) = 0;
   }
   connect conserving a, b;
@@ -1053,7 +1053,7 @@ fn ownerless_public_port_is_eliminated_without_fabricating_an_entity_alias() {
 connector Pin = scalar_physical(across = 1, through = 1);
 component Leaf {
   public port p: conserving on Pin;
-  relation owner continuous { across(p) = 0; }
+  relation owner { across(p) = 0; }
 }
 component Wrapper {
   public port p: conserving on Pin;
@@ -1142,7 +1142,7 @@ fn nested_physical_exposures_retain_distinct_occurrence_cuts() {
 connector Pin = scalar_physical(across = 1, through = 1);
 component Leaf {
   public port p: conserving on Pin;
-  relation owner continuous { across(p) = 0; }
+  relation owner { across(p) = 0; }
 }
 component Inner {
   public port p: conserving on Pin;
@@ -1226,7 +1226,7 @@ const DISTINCT_EXPOSURE_CUTS: &str = r#"
 connector Pin = scalar_physical(across = 1, through = 1);
 component Leaf {
   public port p: conserving on Pin;
-  relation owner continuous { across(p) = 0; }
+  relation owner { across(p) = 0; }
 }
 component Pair {
   public port p: conserving on Pin;
@@ -1384,8 +1384,7 @@ model m {
             .contains("does not select a public Port")
     }));
 
-    let invalid_member =
-        "component C { relation bad continuous { missing = 0; } } model m { instance c: C; }";
+    let invalid_member = "component C { relation bad { missing = 0; } } model m { instance c: C; }";
     let diagnostics = crate::compile("instance-context.eqi", invalid_member).unwrap_err();
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message().contains("`missing`") && diagnostic.source_span().is_some()
@@ -1398,7 +1397,7 @@ fn one_port_boundary_remains_valid_in_hierarchy_lowering() {
 component Empty {}
 model bounded {
   port input: signal input 1;
-  relation law continuous { input = 0; }
+  relation law { input = 0; }
   boundary input;
 }
 "#;
@@ -1478,7 +1477,7 @@ public component Side {
   public support body: volume(ambient_dimension = 2);
   public support wall: boundary(parent = body);
   public port interface: conserving MechanicalBoundary over wall;
-  relation load continuous on wall { flux(interface) = 0; }
+  relation load on wall { flux(interface) = 0; }
 }
 
 model Coupled {
@@ -1550,7 +1549,7 @@ public component Side {
   public support body: volume(ambient_dimension = 2);
   public support wall: boundary(parent = body);
   public port interface: conserving TransportBoundary over wall;
-  relation owner continuous on wall { flux(interface) = 0; }
+  relation owner on wall { flux(interface) = 0; }
 }
 
 model Periodic {
@@ -1604,7 +1603,7 @@ public component Side {
   public support body: volume(ambient_dimension = 2);
   public support wall: boundary(parent = body);
   public port interface: conserving MechanicalBoundary over wall;
-  relation load continuous on wall { flux(interface) = 0; }
+  relation load on wall { flux(interface) = 0; }
 }
 public component Wrapper {
   public support body: volume(ambient_dimension = 2);
@@ -1677,7 +1676,7 @@ public component Side {
   public support body: volume(ambient_dimension = 2);
   public support wall: boundary(parent = body);
   public port p: conserving B over wall;
-  relation owner continuous on wall { flux(p) = 0; }
+  relation owner on wall { flux(p) = 0; }
 }
 
 model M {

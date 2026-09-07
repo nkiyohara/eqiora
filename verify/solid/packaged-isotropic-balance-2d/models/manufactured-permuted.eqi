@@ -1,6 +1,6 @@
 model Main {
-  relation y_upper_value continuous on y_upper { trace(displacement) = 0; }
-  relation x_lower_value continuous on x_lower { trace(displacement) = 0; }
+  relation y_upper_value on y_upper { trace(displacement) = 0; }
+  relation x_lower_value on x_lower { trace(displacement) = 0; }
   instance balance_law: solid.IsotropicBalanceWithPotential2d(
     lambda = lambda,
     field load_potential = load_potential,
@@ -8,7 +8,7 @@ model Main {
     field displacement = displacement,
     support body = body
   );
-  relation load continuous on body {
+  relation load on body {
     load_potential
       - load_scale * (
           math.sin(wave_number * coordinate(0)) ^ 2
@@ -22,11 +22,11 @@ model Main {
   parameter lambda: kg / (m * s ^ 2) = 2;
   field load_potential on body as space: kg / (m * s ^ 2) = 0;
   domain y_upper = boundary(body, axis = 1, side = upper);
-  relation x_upper_value continuous on x_upper { trace(displacement) = 0; }
+  relation x_upper_value on x_upper { trace(displacement) = 0; }
   domain x_lower = boundary(body, axis = 0, side = lower);
   representation space = continuum;
   field displacement on body as space: vector<m, 2>;
-  relation y_lower_value continuous on y_lower { trace(displacement) = 0; }
+  relation y_lower_value on y_lower { trace(displacement) = 0; }
   domain y_lower = boundary(body, axis = 1, side = lower);
   parameter wave_number: 1 / m = 3.141592653589793;
   parameter mu: kg / (m * s ^ 2) = 3;

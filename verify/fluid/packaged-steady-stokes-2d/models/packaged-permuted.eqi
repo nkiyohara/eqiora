@@ -1,6 +1,6 @@
 model Main {
-  relation y_upper_value continuous on y_upper { trace(velocity) = 0; }
-  relation x_lower_value continuous on x_lower { trace(velocity) = 0; }
+  relation y_upper_value on y_upper { trace(velocity) = 0; }
+  relation x_lower_value on x_lower { trace(velocity) = 0; }
   instance fluid_law: fluid.SteadyStokesWithPotential2d(
     dynamic_viscosity = dynamic_viscosity,
     field force_potential = force_potential,
@@ -8,7 +8,7 @@ model Main {
     field velocity = velocity,
     support body = body
   );
-  relation force_definition continuous on body {
+  relation force_definition on body {
     force_potential
       - force_scale * (
           math.sin(wave_number * coordinate(0))
@@ -19,12 +19,12 @@ model Main {
   parameter dynamic_viscosity: kg / (m * s) = 2;
   field force_potential on body as space: kg / (m * s ^ 2) = 0;
   domain y_upper = boundary(body, axis = 1, side = upper);
-  relation x_upper_value continuous on x_upper { trace(velocity) = 0; }
+  relation x_upper_value on x_upper { trace(velocity) = 0; }
   field pressure on body as space: kg / (m * s ^ 2) = 0;
   domain x_lower = boundary(body, axis = 0, side = lower);
   representation space = continuum;
   field velocity on body as space: vector<m / s, 2>;
-  relation y_lower_value continuous on y_lower { trace(velocity) = 0; }
+  relation y_lower_value on y_lower { trace(velocity) = 0; }
   domain y_lower = boundary(body, axis = 1, side = lower);
   parameter wave_number: 1 / m = 6.283185307179586;
   domain x_upper = boundary(body, axis = 0, side = upper);

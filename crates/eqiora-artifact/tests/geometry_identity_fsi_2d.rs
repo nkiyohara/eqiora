@@ -34,7 +34,7 @@ model Main {
 
   representation scalar_space = continuum;
   field marker on left as scalar_space: 1 = 0;
-  relation retain continuous on left {
+  relation retain on left {
     marker = 0;
   }
 }

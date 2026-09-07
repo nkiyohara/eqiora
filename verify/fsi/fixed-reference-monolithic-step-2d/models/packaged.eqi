@@ -16,7 +16,7 @@ model Main {
   field fluid_pressure on fluid_domain as space: kg / (m * s ^ 2) = 0;
   field fluid_load_potential on fluid_domain as space: kg / (m * s ^ 2) = 0;
   parameter fluid_zero_pressure: kg / (m * s ^ 2) = 0;
-  relation fluid_load_definition continuous on fluid_domain {
+  relation fluid_load_definition on fluid_domain {
     fluid_load_potential - fluid_zero_pressure = 0;
   }
   instance fluid_law: inertial.InertialStokesWithPotential2d(
@@ -41,7 +41,7 @@ model Main {
   field solid_velocity on solid_domain as space: vector<m / s, 2>;
   field solid_load_potential on solid_domain as space: kg / (m * s ^ 2) = 0;
   parameter solid_zero_pressure: kg / (m * s ^ 2) = 0;
-  relation solid_load_definition continuous on solid_domain {
+  relation solid_load_definition on solid_domain {
     solid_load_potential - solid_zero_pressure = 0;
   }
   instance solid_law: solid.IsotropicElastodynamicsWithPotential2d(

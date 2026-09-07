@@ -1,6 +1,6 @@
 ---
 title: Composition
-description: Components, explicit bindings and conserving connections in Eqiora 0.1.0a7.
+description: Components, explicit bindings and conserving connections in the current Eqiora source.
 editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/language/composition.mdx
 ---
 
@@ -8,11 +8,10 @@ import { Code } from '@astrojs/starlight/components';
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 import source from './_examples/composition.eqi?raw';
 
-[Language overview](/reference/language/) · Installed release: **0.1.0a7**
+[Language overview](/reference/language/) · [Install this source revision](/get-started/#install-with-uv)
 
 A `component` is a reusable declaration. An `instance` creates one occurrence with
-explicit named bindings. In this release, `public` requirements live inside the
-component body, not in a converged parenthesized signature.
+explicit named bindings. `public` requirements live inside the component body.
 
 <Code code={source} lang="eqiora" title="composition.eqi" />
 
@@ -44,8 +43,8 @@ Complete boundary families must include the actual exterior members.
 
 A package-qualified declaration additionally requires its exact dependency closure.
 See [source files and installation](/reference/standard-packages/#source-and-installation-boundary)
-for the released workflow.
+for the source-installed workflow.
 
 <ExactSourceLink kind="blob" path="docs/site/src/content/docs/reference/language/_examples/composition.eqi">Example source</ExactSourceLink>
-· [Released hierarchy compiler](https://github.com/nkiyohara/eqiora/tree/e72f744cf6956e0e3c1f03aad65868d726f8ebbf/crates/eqiora-compiler/src/hierarchy)
+· <ExactSourceLink kind="tree" path="crates/eqiora-compiler/src/hierarchy">hierarchy compiler</ExactSourceLink>
 · Next: [Standard sources](/reference/standard-packages/)

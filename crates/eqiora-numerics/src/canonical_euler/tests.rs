@@ -20,20 +20,20 @@ model Main {
   field pressure on interval as space: kg / (m * s ^ 2) = 1[kg / (m * s ^ 2)];
   parameter gamma: 1 = 1.4;
 
-  relation velocity_definition continuous on interval {
+  relation velocity_definition on interval {
 momentum - density * velocity = 0;
   }
-  relation pressure_definition continuous on interval {
+  relation pressure_definition on interval {
 pressure - (gamma - 1) * (total_energy - 0.5 * momentum * velocity) = 0;
   }
-  relation mass continuous on interval {
+  relation mass on interval {
 derivative(density) + div(scalar_flux(momentum)) = 0;
   }
-  relation momentum_balance continuous on interval {
+  relation momentum_balance on interval {
 derivative(momentum)
   + div(scalar_flux(momentum * velocity + pressure)) = 0;
   }
-  relation energy continuous on interval {
+  relation energy on interval {
 derivative(total_energy)
   + div(scalar_flux(velocity * (total_energy + pressure))) = 0;
   }
@@ -157,19 +157,19 @@ fn rejects_wrong_closure_source_boundary_and_extra_relation() {
     assert!(try_recognize(&source_term).is_err());
 
     let boundary = SOURCE.replace(
-        "relation velocity_definition continuous on interval {",
-        "relation lower_law continuous on lower { trace(density) = 0; }\n  relation velocity_definition continuous on interval {",
+        "relation velocity_definition on interval {",
+        "relation lower_law on lower { trace(density) = 0; }\n  relation velocity_definition on interval {",
     );
     assert!(try_recognize(&boundary).is_err());
 
     let extra = SOURCE.replace(
-        "relation velocity_definition continuous on interval {",
-        "relation extra continuous on interval { density - density = 0; }\n  relation velocity_definition continuous on interval {",
+        "relation velocity_definition on interval {",
+        "relation extra on interval { density - density = 0; }\n  relation velocity_definition on interval {",
     );
     assert!(try_recognize(&extra).is_err());
 
     let missing = SOURCE.replace(
-        "  relation mass continuous on interval {\nderivative(density) + div(scalar_flux(momentum)) = 0;\n  }\n",
+        "  relation mass on interval {\nderivative(density) + div(scalar_flux(momentum)) = 0;\n  }\n",
         "",
     );
     assert!(try_recognize(&missing).is_err());

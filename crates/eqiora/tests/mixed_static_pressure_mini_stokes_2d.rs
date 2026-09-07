@@ -135,16 +135,16 @@ fn congruent_profiles_change_scaled_rhs_but_reconstruct_the_same_physics() {
 fn all_pressure_and_coordinate_varying_pressure_fail_before_local_assembly() {
     let all_pressure = DIRECT
         .replace(
-            "relation x_lower_value continuous on x_lower { trace(velocity) = 0; }",
-            "relation x_lower_value continuous on x_lower { normal(2 * dynamic_viscosity * symmetric_part(grad(velocity)) - isotropic_lift(pressure)) + normal(isotropic_lift(ambient_pressure)) = 0; }",
+            "relation x_lower_value on x_lower { trace(velocity) = 0; }",
+            "relation x_lower_value on x_lower { normal(2 * dynamic_viscosity * symmetric_part(grad(velocity)) - isotropic_lift(pressure)) + normal(isotropic_lift(ambient_pressure)) = 0; }",
         )
         .replace(
-            "relation y_lower_value continuous on y_lower { trace(velocity) = 0; }",
-            "relation y_lower_value continuous on y_lower { normal(2 * dynamic_viscosity * symmetric_part(grad(velocity)) - isotropic_lift(pressure)) + normal(isotropic_lift(ambient_pressure)) = 0; }",
+            "relation y_lower_value on y_lower { trace(velocity) = 0; }",
+            "relation y_lower_value on y_lower { normal(2 * dynamic_viscosity * symmetric_part(grad(velocity)) - isotropic_lift(pressure)) + normal(isotropic_lift(ambient_pressure)) = 0; }",
         )
         .replace(
-            "relation y_upper_value continuous on y_upper { trace(velocity) = 0; }",
-            "relation y_upper_value continuous on y_upper { normal(2 * dynamic_viscosity * symmetric_part(grad(velocity)) - isotropic_lift(pressure)) + normal(isotropic_lift(ambient_pressure)) = 0; }",
+            "relation y_upper_value on y_upper { trace(velocity) = 0; }",
+            "relation y_upper_value on y_upper { normal(2 * dynamic_viscosity * symmetric_part(grad(velocity)) - isotropic_lift(pressure)) + normal(isotropic_lift(ambient_pressure)) = 0; }",
         );
     let all_pressure = eqiora::api::ModelDocument::compile("all-pressure.eqi", &all_pressure)
         .expect("pure pressure closure is valid Model meaning");

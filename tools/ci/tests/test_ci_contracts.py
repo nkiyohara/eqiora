@@ -1067,6 +1067,28 @@ class ChangeClassificationTests(unittest.TestCase):
         self.assertTrue(evidence_projection["site"])
         self.assertFalse(evidence_projection["msrv"])
 
+    def test_executable_reference_inputs_select_the_installed_python_gate(self) -> None:
+        for path in (
+            "docs/site/src/content/docs/reference/language/equations.mdx",
+            "docs/site/src/content/docs/reference/language/_examples/clocked.eqi",
+            "docs/site/src/content/docs/reference/standard-packages/continuum.mdx",
+            "docs/site/src/content/docs/reference/standard-packages/_examples/elastic-body.eqi",
+        ):
+            with self.subTest(path=path):
+                plan = impact_plan([path])
+                self.assertEqual(
+                    plan.selections(),
+                    {surface: surface in {"python", "site"} for surface in CLASSIFIED_SURFACES},
+                )
+                self.assertEqual(plan.lane("python").owning_changed_inputs, (path,))
+
+        for path in (
+            "docs/site/src/content/docs/reference/index.mdx",
+            "docs/site/src/content/docs/reference/python/eqiora.mdx",
+        ):
+            with self.subTest(non_executable_reference=path):
+                self.assertFalse(classify([path])["python"])
+
     def test_site_input_closure_selects_only_real_artifact_inputs(self) -> None:
         relevant = (
             ".github/workflows/pages.yml",

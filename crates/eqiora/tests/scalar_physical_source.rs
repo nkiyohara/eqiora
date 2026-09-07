@@ -13,10 +13,10 @@ model physical_pair {
   port left: conserving on electrical;
   port right: conserving on electrical;
 
-  relation left_component continuous {
+  relation left_component {
     across(left) = 0;
   }
-  relation right_component continuous {
+  relation right_component {
     through(right) = 0;
   }
 

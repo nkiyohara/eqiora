@@ -125,24 +125,11 @@ class Component:
         initial: int | float | None = None,
         doc: str | None = None,
     ) -> Expression: ...
-    @overload
     def relation(
         self,
         name: str,
         *,
         on: Support,
-        residual: Expression | int | float,
-        left: None = None,
-        right: None = None,
-        doc: str | None = None,
-    ) -> Relation: ...
-    @overload
-    def relation(
-        self,
-        name: str,
-        *,
-        on: Support,
-        residual: None = None,
         left: Expression | int | float,
         right: Expression | int | float,
         doc: str | None = None,

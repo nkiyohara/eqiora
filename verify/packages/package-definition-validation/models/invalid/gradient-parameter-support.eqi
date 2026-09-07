@@ -2,5 +2,5 @@ model Valid {}
 
 model Invalid {
   parameter distance: m = 1;
-  relation invalid continuous { grad(distance) = 0; }
+  relation invalid { grad(distance) = 0; }
 }

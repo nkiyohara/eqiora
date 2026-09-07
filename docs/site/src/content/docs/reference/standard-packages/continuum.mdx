@@ -1,6 +1,6 @@
 ---
 title: Continuum laws and boundaries
-description: Released elastic balance, mechanical boundary and inertial-flow declarations with typed occurrence examples.
+description: Elastic balance, mechanical boundary and inertial-flow declarations with typed occurrence examples.
 editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/standard-packages/continuum.mdx
 ---
 
@@ -9,14 +9,14 @@ import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 import elastic from './_examples/elastic-body.eqi?raw';
 import flow from './_examples/inertial-stokes.eqi?raw';
 
-[Standard sources](/reference/standard-packages/) · Installed release: **0.1.0a7**
+[Standard sources](/reference/standard-packages/) · [Install this source revision](/get-started/#install-with-uv)
 
 These components bind existing support and Field occurrences. The examples check
 their composition; mesh and solver selection belong to the execution workflow.
 
 ## Elastic balance and boundaries
 
-Canonical owner: [Solid.LinearElasticity / linear_elasticity.eqi](https://github.com/nkiyohara/eqiora/blob/e72f744cf6956e0e3c1f03aad65868d726f8ebbf/packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi).
+Canonical owner: <ExactSourceLink kind="blob" path="packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi">Solid.LinearElasticity / linear_elasticity.eqi</ExactSourceLink>.
 The self-contained quasistatic declarations precede the dynamic additions in that file.
 
 ### `IsotropicBalanceWithPotential2d`
@@ -55,9 +55,9 @@ component. It exercises both boundary conditions without leaving a child physica
 port unconnected. The complete exterior is explicit.
 
 <details>
-<summary>Compile the example from the extracted release source</summary>
+<summary>Compile the example from the source checkout</summary>
 
-Save the code above as `elastic-body.eqi` beside the extracted source archive.
+Save the code above as `elastic-body.eqi` beside the `eqiora-source` directory.
 Select the unchanged, self-contained quasistatic prefix; the later dynamic
 declarations have an additional package dependency and are not needed here.
 
@@ -65,14 +65,14 @@ declarations have an additional package dependency and are not needed here.
 from pathlib import Path
 import eqiora
 
-path = Path("eqiora-0.1.0a7/packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi")
-released = path.read_text()
-end = released.index("public component IsotropicElastodynamicsWithPotential2d")
-source = released[:end] + "\n" + Path("elastic-body.eqi").read_text()
+path = Path("eqiora-source/packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi")
+declarations = path.read_text()
+end = declarations.index("public component IsotropicElastodynamicsWithPotential2d")
+source = declarations[:end] + "\n" + Path("elastic-body.eqi").read_text()
 model = eqiora.compile(source=source, filename="elastic-body.eqi")
 ```
 
-The prefix selection is specific to this release. For an executed structural
+The selected prefix ends before the dynamic component. For an executed structural
 example, see [Mixed-boundary elasticity](/gallery/mixed-boundary-elasticity/) and
 its stated source and environment.
 
@@ -80,7 +80,7 @@ its stated source and environment.
 
 ## Inertial flow law
 
-Canonical owner: [Fluid.InertialStokes / inertial_stokes.eqi](https://github.com/nkiyohara/eqiora/blob/e72f744cf6956e0e3c1f03aad65868d726f8ebbf/packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi).
+Canonical owner: <ExactSourceLink kind="blob" path="packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi">Fluid.InertialStokes / inertial_stokes.eqi</ExactSourceLink>.
 
 `InertialStokesWithPotential2d` requires a two-dimensional `body`, vector
 `velocity` in m/s, scalar `pressure` and `force_potential` in Pa, `density` in
@@ -91,13 +91,13 @@ unknown.
 
 <Code code={flow} lang="eqiora" title="inertial-stokes.eqi — typed law bindings only" />
 
-Append that example after the unchanged released `inertial_stokes.eqi` source:
+Append that example after the unchanged `inertial_stokes.eqi` source:
 
 ```python
 from pathlib import Path
 import eqiora
 
-path = Path("eqiora-0.1.0a7/packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi")
+path = Path("eqiora-source/packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi")
 source = path.read_text() + "\n" + Path("inertial-stokes.eqi").read_text()
 model = eqiora.compile(source=source, filename="inertial-stokes.eqi")
 ```

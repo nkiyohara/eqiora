@@ -700,7 +700,7 @@ component Wave {
   public property amplitude: Amplitude;
   field value on body as space: m ^ (-1 / 2) = 0;
   field intensity on body as space: m ^ -1 = 0;
-  relation law continuous on body { value = amplitude; intensity = square(value); }
+  relation law on body { value = amplitude; intensity = square(value); }
 }
 model Main {
   domain interval = box(0, 1);
@@ -744,7 +744,7 @@ property release ReferenceDiffusivity implements Diffusivity {
 }
 public component Diffusion {
   public property diffusivity: Diffusivity;
-  relation law continuous { diffusivity = 0; }
+  relation law { diffusivity = 0; }
 }
 model Main { instance domain: Diffusion(property diffusivity = ReferenceDiffusivity); }
 "#;
@@ -766,7 +766,7 @@ model Main { instance domain: Diffusion(property diffusivity = ReferenceDiffusiv
         let direct = r#"
 public component Diffusion {
   public parameter diffusivity: m ^ 2 / s;
-  relation law continuous { diffusivity = 0; }
+  relation law { diffusivity = 0; }
 }
 model Main { instance domain: Diffusion(diffusivity = 0.025[m ^ 2 / s]); }
 "#;
@@ -808,7 +808,7 @@ public material composition MaterialA {
 public component DiffusionLaw {
   public property conductivity: Conductivity;
   public property capacity: Capacity;
-  relation law continuous { conductivity / capacity = 0; }
+  relation law { conductivity / capacity = 0; }
 }
 model Main { instance domain: DiffusionLaw(material = MaterialA); }
 "#;
@@ -890,7 +890,7 @@ model Main {}
 property contract Diffusivity { scalar value: m ^ 2 / s; }
 component Diffusion {
   public property diffusivity: Diffusivity;
-  relation law continuous { diffusivity = 0; }
+  relation law { diffusivity = 0; }
 }
 model Main { instance domain: Diffusion; }
 "#;
@@ -918,7 +918,7 @@ material composition Duplicate {
   property value = A1;
   property value = A1;
 }
-component Law { public property value: A; relation law continuous { value = 0; } }
+component Law { public property value: A; relation law { value = 0; } }
 model Main { instance law: Law(material = Duplicate); }
 "#,
                 "duplicate material property",
@@ -932,7 +932,7 @@ property release B1 implements B {
   citation = org.example; license = spdx.CC0_1_0;
 }
 material composition Foreign { property value = B1; }
-component Law { public property value: A; relation law continuous { value = 0; } }
+component Law { public property value: A; relation law { value = 0; } }
 model Main { instance law: Law(material = Foreign); }
 "#,
                 "different nominal contract",
@@ -945,7 +945,7 @@ property release A1 implements A {
   citation = org.example; license = spdx.CC0_1_0;
 }
 material composition EmptyForLaw { property other = A1; }
-component Law { public property value: A; relation law continuous { value = 0; } }
+component Law { public property value: A; relation law { value = 0; } }
 model Main { instance law: Law(material = EmptyForLaw); }
 "#,
                 "requires property `value`",
@@ -958,7 +958,7 @@ property release A1 implements A {
   citation = org.example; license = spdx.CC0_1_0;
 }
 material composition MaterialA { property value = A1; }
-component Law { public property value: A; relation law continuous { value = 0; } }
+component Law { public property value: A; relation law { value = 0; } }
 model Main {
   instance law: Law(material = MaterialA, property value = A1);
 }

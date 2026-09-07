@@ -237,6 +237,15 @@ def impact_plan(
         if site_input_path(path):
             selected["site"] = True
             owning_inputs["site"].add(path)
+        # These displayed programs also execute in the installed Python gate.
+        if path.startswith(
+            (
+                "docs/site/src/content/docs/reference/language/",
+                "docs/site/src/content/docs/reference/standard-packages/",
+            )
+        ) and path.endswith((".mdx", ".eqi")):
+            selected["python"] = True
+            owning_inputs["python"].add(path)
 
     if unsafe_mode:
         selected["site"] = True

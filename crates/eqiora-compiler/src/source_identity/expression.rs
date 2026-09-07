@@ -104,3 +104,64 @@ pub(super) fn encode_expression(
         )),
     }
 }
+
+pub(super) fn encode_relation(
+    encoder: &mut Encoder,
+    declaration: &RelationDecl,
+    budget: &mut Budget,
+) -> Result<(), Diagnostic> {
+    if declaration.equations().len() > budget.limits.max_residuals_per_relation {
+        return Err(source_identity_error(format!(
+            "Relation `{}` has {} residuals, exceeding the {} residual limit",
+            declaration.name(),
+            declaration.equations().len(),
+            budget.limits.max_residuals_per_relation
+        )));
+    }
+    encoder.field(1, |encoder| {
+        encode_name(encoder, declaration.name(), budget)
+    })?;
+    encoder.field(2, |encoder| match declaration.activation() {
+        ActivationSyntax::Continuous => encoder.u16(1),
+        ActivationSyntax::Periodic(clock) => {
+            encoder.u16(2)?;
+            encoder.field(1, |encoder| encode_name(encoder, clock, budget))
+        }
+        _ => Err(source_identity_error(
+            "Activation syntax is newer than source identity v1",
+        )),
+    })?;
+    encoder.field(3, |encoder| {
+        encode_optional_name(encoder, declaration.domain(), budget)
+    })?;
+    encoder.field(4, |encoder| {
+        encoder.u32(as_u32(
+            declaration.equations().len(),
+            "Relation residual count",
+        )?)?;
+        for equation in declaration.equations() {
+            encoder.field(1, |encoder| {
+                encoder.field(1, |encoder| {
+                    encode_expression(encoder, equation.left(), budget, 1)
+                })?;
+                encoder.field(2, |encoder| {
+                    encode_expression(encoder, equation.right(), budget, 1)
+                })
+            })?;
+        }
+        Ok(())
+    })
+}
+
+pub(super) fn encode_relation_family(
+    encoder: &mut Encoder,
+    declaration: &RelationFamilyDecl,
+    budget: &mut Budget,
+) -> Result<(), Diagnostic> {
+    encoder.field(1, |encoder| {
+        encode_relation(encoder, declaration.relation(), budget)
+    })?;
+    encoder.field(2, |encoder| {
+        encode_boundary_family_binder(encoder, declaration.binder(), budget)
+    })
+}

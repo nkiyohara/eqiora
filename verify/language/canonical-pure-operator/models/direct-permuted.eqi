@@ -7,7 +7,7 @@ model Main {
   domain body = box(0, 1, 0, 1);
   field right on body as space: vector<1, 2>;
   field left on body as space: vector<1, 2>;
-  relation balance continuous on body {
+  relation balance on body {
     div(div(dyadic(left, right))) = 0;
   }
 }

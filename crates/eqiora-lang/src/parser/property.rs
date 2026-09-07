@@ -252,7 +252,7 @@ public material composition ReferenceMaterial {
 
 public component Diffusion {
   public property diffusivity: Diffusivity;
-  relation law continuous { diffusivity = 0; }
+  relation law { diffusivity = 0; }
 }
 
 model Main {

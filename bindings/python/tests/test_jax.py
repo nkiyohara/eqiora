@@ -33,15 +33,15 @@ public component JaxDifferentiatedPoisson {
   public parameter wave_number: 1 / m;
   public parameter source_scale: 1 / m ^ 2;
   public parameter boundary_offset: 1;
-  relation balance continuous on square {
+  relation balance on square {
     -div(diffusion * grad(potential))
       - source_scale * math.sin(wave_number * coordinate(0))
         * math.sin(wave_number * coordinate(1)) = 0;
   }
-  relation x_lower_value continuous on x_lower { trace(potential) - boundary_offset = 0; }
-  relation x_upper_value continuous on x_upper { trace(potential) - boundary_offset = 0; }
-  relation y_lower_value continuous on y_lower { trace(potential) - boundary_offset = 0; }
-  relation y_upper_value continuous on y_upper { trace(potential) - boundary_offset = 0; }
+  relation x_lower_value on x_lower { trace(potential) - boundary_offset = 0; }
+  relation x_upper_value on x_upper { trace(potential) - boundary_offset = 0; }
+  relation y_lower_value on y_lower { trace(potential) - boundary_offset = 0; }
+  relation y_upper_value on y_upper { trace(potential) - boundary_offset = 0; }
 }
 """
 

@@ -34,7 +34,7 @@ model Main {
 
   representation space = continuum;
   field solid_displacement on solid as space: vector<m, 2>;
-  relation retain continuous on solid {
+  relation retain on solid {
     div(solid_displacement) = 0;
   }
 }

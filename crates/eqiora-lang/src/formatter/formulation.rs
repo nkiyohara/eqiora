@@ -55,7 +55,7 @@ mod tests {
 
     #[test]
     fn primal_form_has_one_canonical_roundtrip() {
-        let source = "component D{public support region:volume(ambient_dimension=2);representation s=continuum;field u on region as s:1=0;relation balance continuous on region{-div(grad(u))=f;}form primal for balance{integrate(region,dot(grad(test(u)),grad(u)))=integrate(region,test(u)*f);}}";
+        let source = "component D{public support region:volume(ambient_dimension=2);representation s=continuum;field u on region as s:1=0;relation balance on region{-div(grad(u))=f;}form primal for balance{integrate(region,dot(grad(test(u)),grad(u)))=integrate(region,test(u)*f);}}";
         let first = parse("form.eqi", source).into_document().unwrap();
         let formatted = format(&first);
         let second = parse("form.eqi", &formatted).into_document().unwrap();

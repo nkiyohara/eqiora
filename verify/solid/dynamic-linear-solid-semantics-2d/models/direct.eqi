@@ -15,13 +15,13 @@ model Main {
   parameter load_gradient: kg / (m ^ 2 * s ^ 2) = 2;
   parameter load_origin: m = 1;
 
-  relation load_definition continuous on body {
+  relation load_definition on body {
     load_potential - load_gradient * (coordinate(0) - load_origin) = 0;
   }
-  relation kinematics continuous on body {
+  relation kinematics on body {
     derivative(displacement) - velocity = 0;
   }
-  relation momentum continuous on body {
+  relation momentum on body {
     density * derivative(velocity)
       - div(
         2 * mu * symmetric_part(grad(displacement))
@@ -30,8 +30,8 @@ model Main {
       - grad(load_potential) = 0;
   }
 
-  relation x_lower_velocity continuous on x_lower { trace(velocity) = 0; }
-  relation x_upper_velocity continuous on x_upper { trace(velocity) = 0; }
-  relation y_lower_velocity continuous on y_lower { trace(velocity) = 0; }
-  relation y_upper_velocity continuous on y_upper { trace(velocity) = 0; }
+  relation x_lower_velocity on x_lower { trace(velocity) = 0; }
+  relation x_upper_velocity on x_upper { trace(velocity) = 0; }
+  relation y_lower_velocity on y_lower { trace(velocity) = 0; }
+  relation y_upper_velocity on y_upper { trace(velocity) = 0; }
 }

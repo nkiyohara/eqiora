@@ -11,7 +11,7 @@ use eqiora_lang::{
 
 use crate::diagnostics::source_error;
 use crate::identity::FullElaborationIdentity;
-use crate::lower::LoweringExpression;
+use crate::lower::{LoweringEquation, LoweringExpression};
 use crate::pure_operator::is_builtin_operator;
 use eqiora_schema::kernel::pure_operator::PureOperatorDefinition;
 use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};
@@ -409,7 +409,7 @@ pub(super) fn rewrite_relation(
     file: &str,
     declaration: &RelationDecl,
     scope: &Scope,
-) -> Result<(ActivationSyntax, Option<String>, Vec<LoweringExpression>), Diagnostic> {
+) -> Result<(ActivationSyntax, Option<String>, Vec<LoweringEquation>), Diagnostic> {
     let activation = match declaration.activation() {
         ActivationSyntax::Continuous => ActivationSyntax::Continuous,
         ActivationSyntax::Periodic(clock) => {
@@ -446,20 +446,26 @@ pub(super) fn rewrite_relation(
             .map(|symbol| symbol.internal_name.clone())
         })
         .transpose()?;
-    let residuals = declaration
-        .residuals()
-        .iter()
-        .map(|expression| rewrite_expression(file, expression, scope))
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok((activation, domain, residuals))
+    let equations = rewrite_equations(file, declaration.equations(), scope, None)?;
+    Ok((activation, domain, equations))
 }
 
-pub(super) fn rewrite_expression(
+pub(super) fn rewrite_equations(
     file: &str,
-    expression: &Expr,
+    equations: &[eqiora_lang::Equation],
     scope: &Scope,
-) -> Result<LoweringExpression, Diagnostic> {
-    rewrite_expression_with_boundary_member(file, expression, scope, None)
+    active: Option<ActiveBoundaryMember<'_>>,
+) -> Result<Vec<LoweringEquation>, Diagnostic> {
+    equations
+        .iter()
+        .map(|equation| {
+            Ok(LoweringEquation::rewritten(
+                equation,
+                rewrite_expression_with_boundary_member(file, equation.left(), scope, active)?,
+                rewrite_expression_with_boundary_member(file, equation.right(), scope, active)?,
+            ))
+        })
+        .collect()
 }
 
 pub(super) fn rewrite_expression_with_boundary_member(

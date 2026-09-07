@@ -62,7 +62,7 @@ regularity and a clear orientation; it is not a change of numerical method.
 For constant-density incompressible flow, mass conservation reduces to
 
 ```eqiora
-relation incompressibility continuous on body {
+relation incompressibility on body {
   div(velocity) = 0;
 }
 ```
@@ -73,7 +73,7 @@ outflow. It does not determine the velocity by itself.
 The same standard package writes a steady momentum balance as
 
 ```eqiora
-relation momentum continuous on body {
+relation momentum on body {
   -div(
     2 * dynamic_viscosity * symmetric_part(grad(velocity))
     - isotropic_lift(pressure)
@@ -85,7 +85,7 @@ Here the divergence acts on the stress-like flux. Viscosity and pressure
 specify how that flux depends on the fields; those are constitutive ingredients
 inside the conservation statement.
 
-<ExactSourceLink path="packages/releases/Eqiora.Fluid/0.2.0/src/fluid.eqi" kind="blob">Read the standard fluid components</ExactSourceLink>.
+<ExactSourceLink path="packages/Eqiora.Fluid/src/fluid.eqi" kind="blob">Read the standard fluid components</ExactSourceLink>.
 
 ## Deliberate failure: reverse only one flux sign
 

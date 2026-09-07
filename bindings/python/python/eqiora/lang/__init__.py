@@ -205,14 +205,14 @@ class Expression:
         )
 
     def __neg__(self) -> Expression:
-        value = f"({self._text})" if self._precedence < 40 else self._text
+        value = f"({self._text})" if self._precedence < 25 else self._text
         return Expression(
             _CREATE,
             f"-{value}",
             self._owner,
             self._depth + 1,
             self._nodes + 1,
-            40,
+            25,
         )
 
 
@@ -330,7 +330,8 @@ def _number(value: object) -> str:
 def _expression(value: object) -> Expression:
     if isinstance(value, Expression):
         return value
-    return Expression(_CREATE, _number(value), None, 1, 1, 100)
+    text = _number(value)
+    return Expression(_CREATE, text, None, 1, 1, 25 if text.startswith("-") else 100)
 
 
 def quantity(value: int | float, unit: Unit) -> Expression:
@@ -338,7 +339,7 @@ def quantity(value: int | float, unit: Unit) -> Expression:
     if not isinstance(unit, Unit):
         raise TypeError("unit must be an eqiora.lang.units.Unit")
     text = f"{_number(value)} [{unit._text}]"
-    return Expression(_CREATE, text, None, 1, 1, 40 if value < 0 else 100)
+    return Expression(_CREATE, text, None, 1, 1, 25 if value < 0 else 100)
 
 
 def _owner(left: Expression, right: Expression) -> object | None:
@@ -492,10 +493,9 @@ def _comment(lines: tuple[str, ...], indent: str) -> list[str]:
     return [f"{indent}/// {line}" if line else f"{indent}///" for line in lines]
 
 
-def _relation_lines(left: Expression, right: Expression | None = None) -> list[str]:
-    right_text = "0" if right is None else right._text
+def _relation_lines(left: Expression, right: Expression) -> list[str]:
     lines = textwrap.wrap(
-        f"{left._text} = {right_text};",
+        f"{left._text} = {right._text};",
         width=88,
         initial_indent="    ",
         subsequent_indent="      ",
@@ -560,7 +560,7 @@ class Component:
             ]
         ] = []
         self._relations: list[
-            tuple[str, Support, Expression, Expression | None, tuple[str, ...]]
+            tuple[str, Support, Expression, Expression, tuple[str, ...]]
         ] = []
         self._formulations: list[
             tuple[Relation, Expression, Expression, tuple[str, ...]]
@@ -694,22 +694,11 @@ class Component:
         name: str,
         *,
         on: Support,
-        residual: Expression | int | float | None = None,
-        left: Expression | int | float | None = None,
-        right: Expression | int | float | None = None,
+        left: Expression | int | float,
+        right: Expression | int | float,
         doc: str | None = None,
     ) -> Relation:
         on = self._support(on)
-        has_residual = residual is not None
-        has_left = left is not None
-        has_right = right is not None
-        if (has_residual and (has_left or has_right)) or (
-            not has_residual and not (has_left and has_right)
-        ):
-            raise SourceError(
-                "relation requires exactly residual= or the complete left= and right= pair"
-            )
-
         def admit(value: Expression | int | float) -> Expression:
             expression = _expression(value)
             if expression._owner is None:
@@ -725,22 +714,16 @@ class Component:
                 raise SourceError("relation expressions must belong to this Source")
             return expression
 
-        if has_residual:
-            assert residual is not None
-            left_expression = admit(residual)
-            right_expression = None
-        else:
-            assert left is not None and right is not None
-            left_expression = admit(left)
-            right_expression = admit(right)
+        left_expression = admit(left)
+        right_expression = admit(right)
         admitted = self._add_name(name)
         total_nodes = (
             sum(
-                item[2]._nodes + (item[3]._nodes if item[3] is not None else 0)
+                item[2]._nodes + item[3]._nodes
                 for item in self._relations
             )
             + left_expression._nodes
-            + (right_expression._nodes if right_expression is not None else 0)
+            + right_expression._nodes
         )
         if total_nodes > _MAX_EXPRESSION_NODES:
             raise SourceError(
@@ -776,7 +759,7 @@ class Component:
             raise SourceError("the scalar-primal Source vocabulary admits one form")
         total_nodes = (
             sum(
-                item[2]._nodes + (item[3]._nodes if item[3] is not None else 0)
+                item[2]._nodes + item[3]._nodes
                 for item in self._relations
             )
             + left_expression._nodes
@@ -932,7 +915,7 @@ class Component:
             lines.append("")
         for index, (name, support, left, right, doc) in enumerate(self._relations):
             lines.extend(_comment(doc, "  "))
-            lines.append(f"  relation {name} continuous on {support._name} {{")
+            lines.append(f"  relation {name} on {support._name} {{")
             lines.extend(_relation_lines(left, right))
             lines.append("  }")
             if index + 1 != len(self._relations):

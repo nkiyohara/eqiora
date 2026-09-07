@@ -1,6 +1,6 @@
 ---
 title: Declarations
-description: The model, parameter and Field declarations accepted by Eqiora 0.1.0a7.
+description: The model, parameter and Field declarations accepted by the current Eqiora source.
 editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/language/declarations.mdx
 ---
 
@@ -8,10 +8,10 @@ import { Code } from '@astrojs/starlight/components';
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 import source from './_examples/declarations.eqi?raw';
 
-[Language overview](/reference/language/) · Installed release: **0.1.0a7**
+[Language overview](/reference/language/) · [Install this source revision](/get-started/#install-with-uv)
 
 `model Name { ... }` contains declarations and simultaneous relations. Semicolons
-end declarations; `//` introduces a comment. Names are case-sensitive.
+end declarations; `//` introduces a comment and `///` attaches documentation. Names are case-sensitive.
 
 <Code code={source} lang="eqiora" title="declarations.eqi" />
 
@@ -19,10 +19,10 @@ end declarations; `//` introduces a comment. Names are case-sensitive.
 |---|---|
 | `parameter voltage: dimension = 12;` | A fixed mathematical input of 12 coherent SI units; voltage here is measured in volts. |
 | `field current: A;` | An unknown current, not a Python variable or a command to compute it immediately. |
-| `relation ohm continuous { ... }` | An equation constraining those values; declaration order is not execution order. |
+| `relation ohm { ... }` | An equation constraining those values; declaration order is not execution order. |
 
 An algebraic Field may omit an initial value. For an evolving scalar Field, a
-literal such as `field x: 1 = 1;` supplies its initial value in this release; see
+literal such as `field x: 1 = 1;` supplies its initial value; see
 [Equations and state](/reference/language/equations/). `1` denotes a dimensionless
 type. Do not interpret an omitted initial value as a promise of zero initialization.
 
@@ -30,7 +30,7 @@ type. Do not interpret an omitted initial value as a promise of zero initializat
 
 A spatial Field also names its exact Domain and continuum Representation. In the
 [complete elastic-body example](/reference/standard-packages/continuum/#elastic-balance-and-boundaries),
-`field displacement on body as space: m shape spatial_vector;` means a vector
+`field displacement on body as space: vector<m, 2>;` means a vector
 displacement on `body`, in metres. The enclosing `domain body = box(...)` supplies
 the two-dimensional support and `representation space = continuum;` supplies the
 mathematical representation, not a mesh or finite-element choice.
@@ -39,5 +39,5 @@ Scalar and vector declarations are not interchangeable. Component support and Fi
 requirements bind existing occurrences; see [Composition](/reference/language/composition/).
 
 <ExactSourceLink kind="blob" path="docs/site/src/content/docs/reference/language/_examples/declarations.eqi">Example source</ExactSourceLink>
-· [Released declaration parser](https://github.com/nkiyohara/eqiora/blob/e72f744cf6956e0e3c1f03aad65868d726f8ebbf/crates/eqiora-lang/src/parser.rs)
+· <ExactSourceLink kind="blob" path="crates/eqiora-lang/src/parser.rs">declaration parser</ExactSourceLink>
 · Next: [Quantities and units](/reference/language/units/)

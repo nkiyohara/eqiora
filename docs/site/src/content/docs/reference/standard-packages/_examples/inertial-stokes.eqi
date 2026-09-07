@@ -3,7 +3,7 @@
 model ReferenceFlowLaw {
   domain body = box(0, 1, 0, 1);
   representation space = continuum;
-  field velocity on body as space: m / s shape spatial_vector;
+  field velocity on body as space: vector<m / s, 2>;
   field pressure on body as space: kg / (m * s ^ 2);
   field force_potential on body as space: kg / (m * s ^ 2);
   parameter density: kg / m ^ 3 = 1;

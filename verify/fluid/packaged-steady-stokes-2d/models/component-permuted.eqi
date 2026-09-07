@@ -1,8 +1,8 @@
 public component SteadyStokesWithPotential2d {
-  relation incompressibility continuous on body {
+  relation incompressibility on body {
     div(velocity) = 0;
   }
-  relation momentum continuous on body {
+  relation momentum on body {
     -div(
       2 * dynamic_viscosity * symmetric_part(grad(velocity))
       - isotropic_lift(pressure)

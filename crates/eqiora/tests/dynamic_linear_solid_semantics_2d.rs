@@ -298,7 +298,7 @@ fn dynamic_projection_normalizes_each_exact_global_residual_sign() {
 #[test]
 fn kinematic_inertia_stress_density_and_closure_near_misses_fail_closed() {
     let missing_kinematics = DIRECT.replace(
-        "  relation kinematics continuous on body {\n    derivative(displacement) - velocity = 0;\n  }\n",
+        "  relation kinematics on body {\n    derivative(displacement) - velocity = 0;\n  }\n",
         "",
     );
     assert_lowering_rejects(&missing_kinematics, "kinematic Relation");
@@ -373,7 +373,7 @@ fn kinematic_inertia_stress_density_and_closure_near_misses_fail_closed() {
 
     let extra_relation = DIRECT.replace(
         "  relation x_lower_velocity",
-        "  relation unexpected continuous on body { velocity - velocity = 0; }\n\n  relation x_lower_velocity",
+        "  relation unexpected on body { velocity - velocity = 0; }\n\n  relation x_lower_velocity",
     );
     assert_lowering_rejects(&extra_relation, "volume Relations");
 }
@@ -748,7 +748,7 @@ public component CompatibleOpenVelocityTerminal2d {
   public port mechanical:
     conserving mechanics.VelocityTractionBoundary over face;
 
-  relation transparent_carrier continuous on face {
+  relation transparent_carrier on face {
     trace(mechanical) - trace(mechanical) = 0;
     flux(mechanical) - flux(mechanical) = 0;
   }

@@ -24,13 +24,13 @@ public component ViewerPoisson {
   field potential on square as scalar_space: 1 = 0;
   public parameter diffusion: 1;
   public parameter source_scale: 1 / m ^ 2;
-  relation balance continuous on square {
+  relation balance on square {
     -div(diffusion * grad(potential)) - source_scale = 0;
   }
-  relation left_value continuous on left { trace(potential) = 0; }
-  relation right_value continuous on right { trace(potential) = 0; }
-  relation bottom_value continuous on bottom { trace(potential) = 0; }
-  relation top_value continuous on top { trace(potential) = 0; }
+  relation left_value on left { trace(potential) = 0; }
+  relation right_value on right { trace(potential) = 0; }
+  relation bottom_value on bottom { trace(potential) = 0; }
+  relation top_value on top { trace(potential) = 0; }
 }
 """
 
@@ -47,24 +47,24 @@ public component ViewerElasticity {
   public parameter stiffness: kg / (m * s ^ 2);
   public parameter lambda: kg / (m * s ^ 2);
   public parameter length_scale: m;
-  relation load continuous on square {
+  relation load on square {
     load_potential - 2 * stiffness * coordinate(0) / length_scale = 0;
   }
-  relation balance continuous on square {
+  relation balance on square {
     -div(2 * stiffness * symmetric_part(grad(displacement))
       + lambda * isotropic_lift(div(displacement)))
       - grad(load_potential) = 0;
   }
-  relation left_value continuous on left { trace(displacement) = 0; }
-  relation right_value continuous on right {
+  relation left_value on left { trace(displacement) = 0; }
+  relation right_value on right {
     normal(2 * stiffness * symmetric_part(grad(displacement))
       + lambda * isotropic_lift(div(displacement))) = 0;
   }
-  relation bottom_value continuous on bottom {
+  relation bottom_value on bottom {
     normal(2 * stiffness * symmetric_part(grad(displacement))
       + lambda * isotropic_lift(div(displacement))) = 0;
   }
-  relation top_value continuous on top {
+  relation top_value on top {
     normal(2 * stiffness * symmetric_part(grad(displacement))
       + lambda * isotropic_lift(div(displacement))) = 0;
   }

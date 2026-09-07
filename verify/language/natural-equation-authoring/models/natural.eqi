@@ -3,7 +3,7 @@ model natural_equation_oracle {
   field b: 1 = 3;
   field c: 1 = 2;
   field d: 1 = 1;
-  relation balance continuous {
+  relation balance {
     a = b;
     a - (b - c) = d;
     -a = -b;

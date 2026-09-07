@@ -110,7 +110,7 @@ fn local_project_locks_deterministically_and_reopens_offline() {
 
     let library_sources = author_sources(
         "org.example.Library",
-        "public model Shared { parameter gain: 1 = 2; relation law continuous { gain - 2 = 0; } }",
+        "public model Shared { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
         vec![],
     );
     let library_release =
@@ -235,7 +235,7 @@ fn local_project_editor_analysis_is_read_only_and_accepts_source_overrides() {
 #[test]
 fn path_loaded_and_in_memory_source_have_identical_declaration_documentation() {
     let fixture = TestDirectory::create("documentation");
-    let source = "// 🧪\r\n/// Model explanation.\r\nmodel Main {\r\n/// State explanation.\r\nfield x:1=0; relation balance continuous { x=0; }\r\n}\r\n";
+    let source = "// 🧪\r\n/// Model explanation.\r\nmodel Main {\r\n/// State explanation.\r\nfield x:1=0; relation balance { x=0; }\r\n}\r\n";
     let sources = author_sources("org.example.Documentation", source, vec![]);
     write_package(&fixture.0, "src", &sources, &[]);
     let (workspace, paths) =
@@ -423,7 +423,7 @@ fn partial_lock_write_preserves_the_accepted_project_pair() {
     let store_path = fixture.child("store");
     let sources = author_sources(
         "org.example.Root",
-        "model Main { parameter gain: 1 = 2; relation law continuous { gain - 2 = 0; } }",
+        "model Main { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
         vec![],
     );
     write_package(&fixture.0, "src", &sources, &[]);
@@ -433,7 +433,7 @@ fn partial_lock_write_preserves_the_accepted_project_pair() {
     let lock = fs::read(fixture.0.join(PROJECT_LOCK)).expect("accepted lock");
     fs::write(
         fixture.0.join("src/main.eqi"),
-        "model Main { parameter gain: 1 = 3; relation law continuous { gain - 3 = 0; } }",
+        "model Main { parameter gain: 1 = 3; relation law { gain - 3 = 0; } }",
     )
     .expect("changed source");
     let candidate = prepare_local_package_project(
@@ -488,7 +488,7 @@ fn proposed_dependency_changes_are_validated_without_publishing() {
     let library_path = fixture.child("library");
     let root = author_sources(
         "org.example.Root",
-        "model Main { parameter gain: 1 = 2; relation law continuous { gain - 2 = 0; } }",
+        "model Main { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
         vec![],
     );
     let library = author_sources("org.example.Library", "public component Shared {}", vec![]);
@@ -697,12 +697,12 @@ fn manifest_entry_selects_a_nested_module_during_offline_replay() {
     ).expect("manifest");
     fs::write(
         fixture.0.join("sources/models/selected.eqi"),
-        "model Main { parameter selected: 1 = 2; relation law continuous { selected - 2 = 0; } }",
+        "model Main { parameter selected: 1 = 2; relation law { selected - 2 = 0; } }",
     )
     .expect("selected module");
     fs::write(
         fixture.0.join("sources/main.eqi"),
-        "model Main { parameter decoy: 1 = 3; relation law continuous { decoy - 3 = 0; } }",
+        "model Main { parameter decoy: 1 = 3; relation law { decoy - 3 = 0; } }",
     )
     .expect("decoy module");
     let resolution =

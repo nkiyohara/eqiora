@@ -396,7 +396,7 @@ model Plane {
   domain body = box(-0.5, 0.5, -0.5, 0.5);
   representation scalar_space = continuum;
   field witness on body as scalar_space: 1 = 0;
-  relation retain_body continuous on body { witness = 0; }
+  relation retain_body on body { witness = 0; }
 }
 ";
     const MULTI_BODY: &str = r"
@@ -405,7 +405,7 @@ model Pair {
   domain peer = box(1.0, 2.0, -0.5, 0.5, -0.5, 0.5);
   representation scalar_space = continuum;
   field witness on body as scalar_space: 1 = 0;
-  relation retain_body continuous on body { witness = 0; }
+  relation retain_body on body { witness = 0; }
 }
 ";
 

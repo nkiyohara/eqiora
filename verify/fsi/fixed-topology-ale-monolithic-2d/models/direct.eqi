@@ -15,7 +15,7 @@ public component ZeroVelocity2d {
   public port mechanical:
     conserving VelocityTractionBoundary over face;
 
-  relation prescribed_velocity continuous on face {
+  relation prescribed_velocity on face {
     trace(mechanical) = 0;
   }
 }
@@ -30,7 +30,7 @@ public component NewtonianMechanicalInterface2d {
   public port mechanical[boundary in exterior]:
     conserving VelocityTractionBoundary over boundary;
 
-  relation boundary_interface[boundary in exterior] continuous on boundary {
+  relation boundary_interface[boundary in exterior] on boundary {
     trace(velocity)
       - trace(mechanical[boundary = boundary]) = 0;
     normal(
@@ -51,7 +51,7 @@ public component ElastodynamicMechanicalInterface2d {
   public port mechanical[boundary in exterior]:
     conserving VelocityTractionBoundary over boundary;
 
-  relation boundary_interface[boundary in exterior] continuous on boundary {
+  relation boundary_interface[boundary in exterior] on boundary {
     trace(velocity)
       - trace(mechanical[boundary = boundary]) = 0;
     normal(
@@ -82,10 +82,10 @@ model Main {
   parameter fluid_viscosity: kg / (m * s) = 0.2;
   parameter fluid_zero_pressure: kg / (m * s ^ 2) = 0;
 
-  relation fluid_load_definition continuous on fluid {
+  relation fluid_load_definition on fluid {
     fluid_load_potential - fluid_zero_pressure = 0;
   }
-  relation fluid_momentum continuous on fluid {
+  relation fluid_momentum on fluid {
     fluid_density * derivative(fluid_velocity)
       + div(fluid_density * outer_product(fluid_velocity, fluid_velocity))
       - div(
@@ -93,7 +93,7 @@ model Main {
         - isotropic_lift(fluid_pressure)
       ) - grad(fluid_load_potential) = 0;
   }
-  relation incompressibility continuous on fluid {
+  relation incompressibility on fluid {
     div(fluid_velocity) = 0;
   }
 
@@ -105,13 +105,13 @@ model Main {
   parameter solid_lambda: kg / (m * s ^ 2) = 1;
   parameter solid_zero_pressure: kg / (m * s ^ 2) = 0;
 
-  relation solid_load_definition continuous on solid {
+  relation solid_load_definition on solid {
     solid_load_potential - solid_zero_pressure = 0;
   }
-  relation solid_kinematics continuous on solid {
+  relation solid_kinematics on solid {
     derivative(solid_displacement) - solid_velocity = 0;
   }
-  relation solid_momentum continuous on solid {
+  relation solid_momentum on solid {
     solid_density * derivative(solid_velocity)
       - div(
         2 * solid_mu * symmetric_part(grad(solid_displacement))

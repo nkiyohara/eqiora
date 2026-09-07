@@ -203,14 +203,14 @@ mod tests {
             "2 [Hz ^ (-2 / 4)]",
             "-3 [kg * m / s ^ 2]",
         ] {
-            let source = format!("model M {{ relation value continuous {{ {literal} = 0; }} }}");
+            let source = format!("model M {{ relation value {{ {literal} = 0; }} }}");
             let document = parse("quantity.eqi", &source).into_document().unwrap();
             let formatted = format(&document);
             let replay = parse("formatted.eqi", &formatted).into_document().unwrap();
             assert_eq!(format(&replay), formatted);
         }
         for literal in ["1 []", "1 [m + s]", "1 [m ^ (1 / 0)]", "1 [m"] {
-            let source = format!("model M {{ relation value continuous {{ {literal} = 0; }} }}");
+            let source = format!("model M {{ relation value {{ {literal} = 0; }} }}");
             assert!(
                 parse("invalid.eqi", &source).into_document().is_err(),
                 "{source}"

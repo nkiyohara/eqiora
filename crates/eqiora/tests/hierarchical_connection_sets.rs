@@ -117,7 +117,7 @@ fn terminal_network(instances: [&str; 3], fragments: &[Vec<&str>]) -> String {
         "connector Pin = scalar_physical(across = 1, through = 1);\n\
          component Terminal {{\n\
            public port p: conserving on Pin;\n\
-           relation owner continuous {{ across(p) = 0; }}\n\
+           relation owner {{ across(p) = 0; }}\n\
          }}\n\
          model Network {{\n{instances}\n{fragments}\n}}\n"
     )
@@ -504,11 +504,11 @@ connector LeftPin = scalar_physical(across = 1, through = 1);
 connector RightPin = scalar_physical(across = 1, through = 1);
 component Left {
   public port p: conserving on LeftPin;
-  relation owner continuous { across(p) = 0; }
+  relation owner { across(p) = 0; }
 }
 component Right {
   public port p: conserving on RightPin;
-  relation owner continuous { across(p) = 0; }
+  relation owner { across(p) = 0; }
 }
 model Network {
   instance left: Left;
@@ -529,7 +529,7 @@ model SignalFanout {
   port source: signal output 1;
   port left: signal input 1;
   port right: signal input 1;
-  relation sinks continuous { left - source = 0; right - source = 0; }
+  relation sinks { left - source = 0; right - source = 0; }
   connect signal source -> left, right;
 }
 "#;

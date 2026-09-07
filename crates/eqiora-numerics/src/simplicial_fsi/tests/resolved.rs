@@ -154,7 +154,7 @@ fn assert_same_step_for_residual_reversal(component: &str, swapped_sides: bool) 
         .solve(&REFERENCE_LINEAR_SOLVER)
         .unwrap()
         .into_numerical_evidence();
-    let marker = format!("relation {component}_momentum continuous on {component} {{");
+    let marker = format!("relation {component}_momentum on {component} {{");
     assert_eq!(SOURCE.matches(&marker).count(), 1);
     let (before, residual) = SOURCE.split_once(&marker).unwrap();
     let (expression, after) = residual.split_once(" = 0;").unwrap();

@@ -7,7 +7,7 @@ public component NormalPressureTraction2d {
   public port mechanical:
     conserving mechanics.VelocityTractionBoundary over face;
 
-  relation prescribed_traction continuous on face {
+  relation prescribed_traction on face {
     flux(mechanical)
       - normal(isotropic_lift(pressure)) = 0;
   }

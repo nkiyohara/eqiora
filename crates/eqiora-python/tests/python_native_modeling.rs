@@ -205,7 +205,7 @@ spatial_model = eqiora.Model.define(
 model source_decay {
   parameter coefficient: 1 / s = 1;
   field state: 1 = 1;
-  relation balance continuous { derivative(state) + coefficient * state = 0; }
+  relation balance { derivative(state) + coefficient * state = 0; }
 }
 "#,
         )
@@ -228,7 +228,7 @@ model source_physical {
   port a: conserving on pin;
   port b: conserving on pin;
   port c: conserving on pin;
-  relation law continuous {
+  relation law {
     across(a) - across(c) = 0;
     through(b) + through(c) = 0;
   }
@@ -510,9 +510,9 @@ rejected_model = eqiora.Model.define(
 )
 "#
             ),
-            "EQ0302",
-            &["semantic", "Relation"],
-            None,
+            "EQ0603",
+            &["support_mismatch", "invalid"],
+            Some("trace/normal operator requires an AppliesOn boundary Domain"),
         )?;
 
         Ok(())

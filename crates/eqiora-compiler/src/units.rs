@@ -189,6 +189,9 @@ pub(crate) fn normalize_value(value: f64, scale: f64) -> Result<f64, &'static st
     if !normalized.is_finite() {
         return Err("normalized quantity must be finite");
     }
+    if value != 0.0 && normalized == 0.0 {
+        return Err("nonzero quantity underflows the normalized binary64 range");
+    }
     Ok(if normalized == 0.0 { 0.0 } else { normalized })
 }
 
@@ -237,14 +240,14 @@ mod tests {
 dimension Duration = s;
 component Delay {
   public parameter duration: Duration = 10 [ms];
-  relation balance continuous { duration - 0.01 [s] = 0; }
+  relation balance { duration - 0.01 [s] = 0; }
 }
 model Quantities {
   parameter duration: Duration = -10[ms];
   let ms: m = 3[m];
   let positive: Duration = 10 [ms];
   field elapsed: s = 0;
-  relation balance continuous { elapsed - positive = 0; }
+  relation balance { elapsed - positive = 0; }
   instance defaulted: Delay();
   instance bound: Delay(duration = 10 [ms]);
 }
@@ -287,7 +290,7 @@ model Quantities {
             let source = format!(
                 "component C {{
                     public parameter density: kg / m ^ 3 = {literal};
-                    relation r continuous {{ density - density = 0; }}
+                    relation r {{ density - density = 0; }}
                 }}
                 model M {{
                     parameter p: kg / m ^ 3 = {literal};
@@ -295,7 +298,7 @@ model Quantities {
                     let alias: kg / m ^ 3 = {literal};
                     instance defaulted: C();
                     instance bound: C(density = alias);
-                    relation r continuous {{ f - p = 0; }}
+                    relation r {{ f - p = 0; }}
                 }}"
             );
             let compiled = crate::compile("density.eqi", &source).unwrap();

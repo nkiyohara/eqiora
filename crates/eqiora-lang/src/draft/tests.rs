@@ -1,5 +1,9 @@
 use super::*;
 use crate::draft_spatial::DraftBoundarySide;
+use crate::{
+    ConnectionSyntax, DomainDecl, DomainSyntax, Item, PortDecl, PortSyntax, RepresentationDecl,
+    RepresentationSyntax,
+};
 
 fn voltage_dimension() -> DimExponents {
     DimExponents::from_integers([1, 2, -3, -1, 0, 0, 0]).expect("bounded dimension")
@@ -177,11 +181,17 @@ fn physical_vocabulary_projects_only_to_existing_source_ast_forms() {
     let Item::Relation(relation) = &items[4] else {
         panic!("fifth item must be a Relation");
     };
-    assert_eq!(relation.residuals().len(), 2);
-    assert!(relation.residuals().iter().any(|residual| {
-        expression_contains_call(residual, "across")
-            && expression_contains_call(residual, "through")
-    }));
+    assert_eq!(relation.equations().len(), 2);
+    assert!(
+        relation
+            .equations()
+            .iter()
+            .map(|equation| equation.left())
+            .any(|residual| {
+                expression_contains_call(residual, "across")
+                    && expression_contains_call(residual, "through")
+            })
+    );
     let Item::Connection(connection) = &items[5] else {
         panic!("sixth item must be a Connection");
     };
@@ -464,8 +474,14 @@ fn spatial_draft_projects_only_to_existing_source_ast_forms() {
         panic!("fifth item must be a Relation");
     };
     assert_eq!(relation.domain(), Some("interval"));
-    assert!(expression_contains_call(&relation.residuals()[0], "grad"));
-    assert!(expression_contains_call(&relation.residuals()[0], "div"));
+    assert!(expression_contains_call(
+        relation.equations()[0].left(),
+        "grad"
+    ));
+    assert!(expression_contains_call(
+        relation.equations()[0].left(),
+        "div"
+    ));
 }
 
 fn expression_contains_call(expression: &Expr, expected: &str) -> bool {

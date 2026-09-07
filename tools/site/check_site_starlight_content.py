@@ -23,7 +23,7 @@ MODELING_FOUNDATION_CHAPTERS = (
     ("constitutive-laws", "Constitutive laws", "Illustrative"),
     ("fields-spatial-domains", "Fields and spatial domains", "Illustrative"),
     ("models-not-simulations", "Models are not simulations", "Illustrative"),
-    ("ordinary-differential-equations", "Ordinary differential equations", "Checked"),
+    ("ordinary-differential-equations", "Ordinary differential equations", "independently derived closed form"),
     ("quantities-dimensions-units", "Quantities, dimensions, and units", "Illustrative"),
 )
 STAGES = (
@@ -321,10 +321,10 @@ def _check_case(
         report("Cylinder route omits the accepted exact Gmsh CLI 4.15.2 mesh witness")
     source_tokens = (
         (
-            "relation momentum continuous on body",
+            "relation momentum on body",
             "2 * dynamic_viscosity * symmetric_part(grad(velocity))",
             "- isotropic_lift(pressure)",
-            "relation incompressibility continuous on body",
+            "relation incompressibility on body",
             "div(velocity) = 0;",
         )
         if enhanced

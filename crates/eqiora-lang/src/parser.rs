@@ -7,6 +7,7 @@ mod compile_time;
 mod dimension;
 mod document;
 mod domain;
+mod expression;
 mod formulation;
 mod instance;
 mod operator;
@@ -127,6 +128,7 @@ pub fn parse(file: impl Into<String>, source: &str) -> ParseResult {
         file: file.clone(),
         tokens: &tokens,
         cursor: 0,
+        expression_recursion: 0,
         diagnostics: Vec::new(),
     };
     let mut document = parser.parse_document();
@@ -146,6 +148,7 @@ struct Parser<'a> {
     file: String,
     tokens: &'a [Token],
     cursor: usize,
+    expression_recursion: usize,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -1101,111 +1104,21 @@ impl Parser<'_> {
             .map(|value| if negative { -value } else { value })
     }
 
-    fn parse_expression(&mut self, minimum_binding_power: u8) -> Option<Expr> {
-        let mut left = if self.at(TokenKind::Minus) {
-            let start = self.bump().range().start();
-            let value = self.parse_expression(9)?;
-            Expr {
-                range: TextRange::new(start, value.range.end()),
-                kind: ExprKind::Unary {
-                    op: UnaryOp::Neg,
-                    value: Box::new(value),
-                },
-            }
-        } else if self.at(TokenKind::Number) {
-            self.parse_quantity_or_number()?
-        } else if self.at(TokenKind::Identifier) {
-            let token = self.bump();
-            let name = token.text().to_owned();
-            let path = if self.at(TokenKind::Dot) {
-                self.parse_name_path_from_first(token, "qualified name segment")?
-            } else {
-                NamePath::single(name, token.range())
-            };
-            if self.at(TokenKind::LeftParen) {
-                self.bump();
-                if self.at(TokenKind::RightParen) {
-                    self.error_here("operator call requires at least one argument");
-                    return None;
-                }
-                let mut arguments = vec![self.parse_expression(0)?];
-                while self.at(TokenKind::Comma) {
-                    self.bump();
-                    arguments.push(self.parse_expression(0)?);
-                }
-                let end = self
-                    .expect(TokenKind::RightParen, "`)` after operator arguments")?
-                    .range()
-                    .end();
-                Expr {
-                    kind: ExprKind::Call {
-                        callee: path.clone(),
-                        arguments,
-                    },
-                    range: TextRange::new(path.range().start(), end),
-                }
-            } else if self.at(TokenKind::LeftBracket) {
-                let selector = self.parse_boundary_port_selector()?;
-                let range = TextRange::new(path.range().start(), selector.range().end());
-                Expr {
-                    kind: ExprKind::BoundaryPortSelection {
-                        port: Box::new(path),
-                        selector: Box::new(selector),
-                    },
-                    range,
-                }
-            } else {
-                let range = path.range();
-                let kind = if path.is_qualified() {
-                    ExprKind::Path(path)
-                } else {
-                    ExprKind::Name(path.as_str().to_owned())
-                };
-                Expr { kind, range }
-            }
-        } else if self.at(TokenKind::LeftParen) {
-            let start = self.bump().range().start();
-            let mut expression = self.parse_expression(0)?;
-            let end = self
-                .expect(TokenKind::RightParen, "`)` after expression")?
-                .range()
-                .end();
-            expression.range = TextRange::new(start, end);
-            expression
-        } else {
-            self.error_here("expected expression");
-            return None;
-        };
-
-        loop {
-            let (operator, left_power, right_power) = match self.current().kind() {
-                TokenKind::Plus => (BinaryOp::Add, 1, 2),
-                TokenKind::Minus => (BinaryOp::Sub, 1, 2),
-                TokenKind::Star => (BinaryOp::Mul, 3, 4),
-                TokenKind::Slash => (BinaryOp::Div, 3, 4),
-                TokenKind::Caret => (BinaryOp::Pow, 7, 6),
-                _ => break,
-            };
-            if left_power < minimum_binding_power {
-                break;
-            }
-            self.bump();
-            let right = self.parse_expression(right_power)?;
-            let range = TextRange::new(left.range.start(), right.range.end());
-            left = Expr {
-                kind: ExprKind::Binary {
-                    op: operator,
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
-                range,
-            };
-        }
-        Some(left)
-    }
-
     fn parse_f64(&mut self, token: &Token) -> Option<f64> {
         match token.text().parse::<f64>() {
+            Ok(value)
+                if value == 0.0
+                    && token
+                        .text()
+                        .split(['e', 'E'])
+                        .next()
+                        .is_some_and(|significand| {
+                            significand.bytes().any(|byte| matches!(byte, b'1'..=b'9'))
+                        }) =>
+            {
+                self.error_token(token, "nonzero numeric literal underflows the f64 range");
+                None
+            }
             Ok(value) if value.is_finite() => Some(value),
             _ => {
                 self.error_token(token, "numeric literal must be a finite f64 value");

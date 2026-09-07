@@ -13,11 +13,11 @@ fn scalar_q1_uses_the_same_value_and_gradient_contractions() {
         parameter reaction: 1 / m ^ 2 = 3;
         parameter load: 1 / m ^ 2 = 5;
         field u on body as space: 1;
-        relation balance continuous on body { -div(2 * grad(u)) + reaction * u - load = 0; }
-        relation bc0 continuous on left { trace(u) = 0; }
-        relation bc1 continuous on right { trace(u) = 0; }
-        relation bc2 continuous on bottom { trace(u) = 0; }
-        relation bc3 continuous on top { trace(u) = 0; }
+        relation balance on body { -div(2 * grad(u)) + reaction * u - load = 0; }
+        relation bc0 on left { trace(u) = 0; }
+        relation bc1 on right { trace(u) = 0; }
+        relation bc2 on bottom { trace(u) = 0; }
+        relation bc3 on top { trace(u) = 0; }
     }";
     let (transaction, model, _) = compile("shared-q1.eqi", source)
         .unwrap()

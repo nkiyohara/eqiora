@@ -1,6 +1,0 @@
-{
-  "schema": "eqiora.verify.current-authoring-profile/v1",
-  "profile": "current",
-  "modelSchema": "eqiora.model-envelope/v9",
-  "transactionSchema": "eqiora.model-transaction-envelope/v9"
-}

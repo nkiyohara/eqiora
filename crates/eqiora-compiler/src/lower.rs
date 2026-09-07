@@ -17,7 +17,7 @@ use binding::{
 use connection::{lower_connection, prepare_flat_physical_connections};
 use declaration::{lower_clock, lower_port};
 pub(crate) use domain_contract::{LoweringDomainContract, LoweringPortContract};
-use expression::{TypedExpression, lower_relation};
+use expression::lower_relation;
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
@@ -210,6 +210,42 @@ pub(crate) struct LoweringExpression {
     range: TextRange,
 }
 
+/// Ordered equality, retained through hierarchy substitution until typed lowering.
+#[derive(Debug, Clone)]
+pub(crate) struct LoweringEquation {
+    pub(crate) left: LoweringExpression,
+    pub(crate) right: LoweringExpression,
+    pub(crate) contextual_left_zero: bool,
+    pub(crate) contextual_right_zero: bool,
+    pub(crate) literal_right_zero: bool,
+    pub(crate) range: TextRange,
+}
+
+impl LoweringEquation {
+    pub(crate) fn from_source(equation: &eqiora_lang::Equation) -> Self {
+        Self::rewritten(
+            equation,
+            LoweringExpression::from_source(equation.left()),
+            LoweringExpression::from_source(equation.right()),
+        )
+    }
+
+    pub(crate) fn rewritten(
+        equation: &eqiora_lang::Equation,
+        left: LoweringExpression,
+        right: LoweringExpression,
+    ) -> Self {
+        Self {
+            left,
+            right,
+            contextual_left_zero: equality::is_contextual_zero(equation.left()),
+            contextual_right_zero: equality::is_contextual_zero(equation.right()),
+            literal_right_zero: equality::is_literal_zero(equation.right()),
+            range: equation.range(),
+        }
+    }
+}
+
 impl PartialEq for LoweringExpression {
     fn eq(&self, other: &Self) -> bool {
         self.node == other.node
@@ -381,7 +417,7 @@ pub(crate) enum LoweringItem {
         name: String,
         activation: ActivationSyntax,
         domain: Option<String>,
-        residuals: Vec<LoweringExpression>,
+        equations: Vec<LoweringEquation>,
         range: TextRange,
     },
     Connection {
@@ -398,6 +434,7 @@ pub(crate) enum LoweringItem {
     },
 }
 
+pub(crate) mod equality;
 mod source;
 /// Identity source for one completely staged lowering.
 ///
@@ -494,10 +531,14 @@ pub(crate) fn lower_typed_model(
                     LoweringDomainContract::ExternalGeometryRegion { dimensions, .. } => {
                         Ok(DomainContract::Spatial {
                             dimensions: Some(*dimensions),
+                            parent: None,
                         })
                     }
-                    LoweringDomainContract::ExternalGeometryBoundary { .. } => {
-                        Ok(DomainContract::Spatial { dimensions: None })
+                    LoweringDomainContract::ExternalGeometryBoundary { parent, .. } => {
+                        Ok(DomainContract::Spatial {
+                            dimensions: None,
+                            parent: Some(parent.clone()),
+                        })
                     }
                     LoweringDomainContract::BoundaryPhysical(contract) => {
                         Ok(DomainContract::BoundaryPhysical(contract.clone()))
@@ -798,14 +839,14 @@ pub(crate) fn lower_typed_model(
                 name,
                 activation,
                 domain,
-                residuals,
+                equations,
                 range,
             } => lower_relation(
                 file,
                 *range,
                 activation,
                 domain.as_deref(),
-                residuals,
+                equations,
                 &bindings,
             )
             .map(|lowered| {
@@ -945,48 +986,8 @@ pub(crate) fn lower_typed_model(
     })
 }
 
-fn lowering_integer_literal(expression: &LoweringExpression) -> Option<i32> {
-    let value = match expression.node.as_ref() {
-        LoweringExpressionNode::Literal(value)
-            if value.value_type().dimension() == DimExponents::DIMENSIONLESS =>
-        {
-            value.real_scalar_value()?.value()
-        }
-        LoweringExpressionNode::Neg(value) => match value.node.as_ref() {
-            LoweringExpressionNode::Literal(value)
-                if value.value_type().dimension() == DimExponents::DIMENSIONLESS =>
-            {
-                -value.real_scalar_value()?.value()
-            }
-            _ => return None,
-        },
-        _ => return None,
-    };
-    (value.fract() == 0.0 && value >= f64::from(i32::MIN) && value <= f64::from(i32::MAX))
-        .then_some(value as i32)
-}
-
 fn normalize_zero(value: f64) -> f64 {
     if value == 0.0 { 0.0 } else { value }
-}
-
-fn instantiate_pure_dimension(
-    definition: &PureOperatorDefinition,
-    arguments: &[TypedExpression],
-) -> Option<DimExponents> {
-    if arguments.len() != definition.formals().len() {
-        return None;
-    }
-    arguments
-        .iter()
-        .zip(definition.dimension_monomial().exponents())
-        .try_fold(
-            DimExponents::DIMENSIONLESS,
-            |result, (argument, exponent)| {
-                let term = argument.dimension.pow(i32::from(*exponent), 1)?;
-                result.mul(term)
-            },
-        )
 }
 
 fn unresolved(file: &str, range: TextRange, name: &str, expected: &str) -> Diagnostic {

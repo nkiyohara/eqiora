@@ -65,29 +65,29 @@ model stokes_e1_prescribed_velocity {
   parameter U: m / s = 1;
   parameter zero_pressure: kg / (m * s ^ 2) = 0;
 
-  relation force continuous on fluid {
+  relation force on fluid {
     force_potential - zero_pressure = 0;
   }
-  relation momentum continuous on fluid {
+  relation momentum on fluid {
     -div(
       2 * mu * symmetric_part(grad(velocity))
       - isotropic_lift(pressure)
     ) - grad(force_potential) = 0;
   }
-  relation incompressibility continuous on fluid { div(velocity) = 0; }
-  relation define_chi continuous on fluid { chi - U * coordinate(0) = 0; }
+  relation incompressibility on fluid { div(velocity) = 0; }
+  relation define_chi on fluid { chi - U * coordinate(0) = 0; }
 
-  relation body_zero continuous on body_no_slip { trace(velocity) = 0; }
-  relation outer_x_minus_value continuous on outer_x_minus {
+  relation body_zero on body_no_slip { trace(velocity) = 0; }
+  relation outer_x_minus_value on outer_x_minus {
     trace(velocity) - trace(grad(chi)) = 0;
   }
-  relation outer_x_plus_value continuous on outer_x_plus {
+  relation outer_x_plus_value on outer_x_plus {
     trace(velocity) - trace(grad(chi)) = 0;
   }
-  relation outer_y_minus_value continuous on outer_y_minus {
+  relation outer_y_minus_value on outer_y_minus {
     trace(velocity) - trace(grad(chi)) = 0;
   }
-  relation outer_y_plus_value continuous on outer_y_plus {
+  relation outer_y_plus_value on outer_y_plus {
     trace(velocity) - trace(grad(chi)) = 0;
   }
 }
@@ -463,8 +463,8 @@ fn normal_only_incomplete_and_equal_value_identity_mutants_fail_closed() {
             "  field chi on fluid as space: m ^ 2 / s = 0;\n  field normal_speed on fluid as space: m / s = 0;",
         )
         .replace(
-            "  relation define_chi continuous on fluid { chi - U * coordinate(0) = 0; }",
-            "  relation define_chi continuous on fluid { chi - U * coordinate(0) = 0; }\n  relation define_normal_speed continuous on fluid { normal_speed - U = 0; }",
+            "  relation define_chi on fluid { chi - U * coordinate(0) = 0; }",
+            "  relation define_chi on fluid { chi - U * coordinate(0) = 0; }\n  relation define_normal_speed on fluid { normal_speed - U = 0; }",
         )
         .replace(
             "trace(velocity) - trace(grad(chi)) = 0;\n  }\n  relation outer_y_plus_value",
@@ -491,12 +491,12 @@ fn normal_only_incomplete_and_equal_value_identity_mutants_fail_closed() {
             "  parameter U: m / s = 1;\n  parameter U_alt: m / s = 1;",
         )
         .replace(
-            "  relation define_chi continuous on fluid { chi - U * coordinate(0) = 0; }",
-            "  relation define_chi continuous on fluid { chi - U * coordinate(0) = 0; }\n  relation define_chi_alt continuous on fluid { chi_alt - U_alt * coordinate(0) = 0; }",
+            "  relation define_chi on fluid { chi - U * coordinate(0) = 0; }",
+            "  relation define_chi on fluid { chi - U * coordinate(0) = 0; }\n  relation define_chi_alt on fluid { chi_alt - U_alt * coordinate(0) = 0; }",
         )
         .replace(
-            "relation outer_y_plus_value continuous on outer_y_plus {\n    trace(velocity) - trace(grad(chi)) = 0;",
-            "relation outer_y_plus_value continuous on outer_y_plus {\n    trace(velocity) - trace(grad(chi_alt)) = 0;",
+            "relation outer_y_plus_value on outer_y_plus {\n    trace(velocity) - trace(grad(chi)) = 0;",
+            "relation outer_y_plus_value on outer_y_plus {\n    trace(velocity) - trace(grad(chi_alt)) = 0;",
         );
     let drift = Fixture::from_source(&drift_source);
     assert_eq!(

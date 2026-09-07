@@ -8,13 +8,13 @@ model manufactured_poisson {
   parameter wave_number: 1 / m = 3.141592653589793;
   parameter source_scale: 1 / m ^ 2 = 9.869604401089358;
 
-  relation balance continuous on interval {
+  relation balance on interval {
     -div(grad(potential)) - source_scale * math.sin(wave_number * coordinate(0)) = 0;
   }
-  relation lower_value continuous on lower_end {
+  relation lower_value on lower_end {
     trace(potential) = 0;
   }
-  relation upper_value continuous on upper_end {
+  relation upper_value on upper_end {
     trace(potential) = 0;
   }
 }

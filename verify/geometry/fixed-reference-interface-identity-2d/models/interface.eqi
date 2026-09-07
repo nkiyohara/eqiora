@@ -12,7 +12,7 @@ public component InterfaceSide2d {
   public port mechanical:
     conserving MechanicalBoundary over face;
 
-  relation retain_interface_port continuous on face {
+  relation retain_interface_port on face {
     trace(mechanical) = 0;
     flux(mechanical) = 0;
   }

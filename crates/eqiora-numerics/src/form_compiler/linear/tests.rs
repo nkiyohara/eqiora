@@ -46,10 +46,7 @@ fn source(reaction: &[Vec<f64>], reverse: bool) -> String {
         source += &format!("field f{i} on body as space: 1;\n");
     }
     for &i in &order {
-        source += &format!(
-            "relation row{i} continuous on body {{ -div({} * grad(f{i}))",
-            i + 2
-        );
+        source += &format!("relation row{i} on body {{ -div({} * grad(f{i}))", i + 2);
         for (j, value) in reaction[i].iter().enumerate() {
             if *value != 0.0 {
                 source += &format!(" + ({value}) * unit * f{j}");
@@ -57,9 +54,7 @@ fn source(reaction: &[Vec<f64>], reverse: bool) -> String {
         }
         source += &format!(" - {} * unit = 0; }}\n", i + 1);
         for boundary in ["left", "right"] {
-            source += &format!(
-                "relation {boundary}{i} continuous on {boundary} {{ trace(f{i}) = 0; }}\n"
-            );
+            source += &format!("relation {boundary}{i} on {boundary} {{ trace(f{i}) = 0; }}\n");
         }
     }
     source += "}";
@@ -309,7 +304,7 @@ fn nonlinear_coefficients_and_incomplete_boundaries_reject() {
         );
     }
     assert!(
-        derive(&valid.replace("relation right0 continuous on right { trace(f0) = 0; }", ""))
+        derive(&valid.replace("relation right0 on right { trace(f0) = 0; }", ""))
             .unwrap_err()
             .message()
             .contains("coverage")
@@ -326,7 +321,7 @@ fn nonlinear_coefficients_and_incomplete_boundaries_reject() {
 #[test]
 fn coefficient_chains_bind_the_exact_parameter_point_and_spatial_flux() {
     let authored = source(&[vec![1.0]], false)
-        .replace("field f0", "field k on body as space: 1; field q on body as space: 1; parameter slope: 1 / m = 1; relation first continuous on body { k - (1 + slope * coordinate(0)) = 0; } relation second continuous on body { q - k = 0; } field f0")
+        .replace("field f0", "field k on body as space: 1; field q on body as space: 1; parameter slope: 1 / m = 1; relation first on body { k - (1 + slope * coordinate(0)) = 0; } relation second on body { q - k = 0; } field f0")
         .replace("2 * grad(f0)", "q * grad(f0)");
     let form = derive(&authored).unwrap();
     assert_eq!(form.fields().len(), 1);

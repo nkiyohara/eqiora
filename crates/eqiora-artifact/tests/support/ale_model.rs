@@ -43,7 +43,7 @@ public component Side {
   public support body: volume(ambient_dimension = DIM);
   public support face: boundary(parent = body);
   public port mechanical: conserving Mechanical over face;
-  relation retain continuous on face {
+  relation retain on face {
     trace(mechanical) = 0;
     flux(mechanical) = 0;
   }
@@ -59,8 +59,8 @@ model Main {
   field pressure on fluid as space: kg / (m * s ^ 2);
   field solid_velocity on solid as space: vector<m / s, DIM>;
   field displacement on solid as space: vector<m, DIM>;
-  relation fluid_relation continuous on fluid { fluid_velocity = 0; pressure = 0; }
-  relation solid_relation continuous on solid { solid_velocity = 0; displacement = 0; }
+  relation fluid_relation on fluid { fluid_velocity = 0; pressure = 0; }
+  relation solid_relation on solid { solid_velocity = 0; displacement = 0; }
   instance left: Side(support body = fluid, support face = fluid_face);
   instance right: Side(support body = solid, support face = solid_face);
   connect conserving left.mechanical, right.mechanical;

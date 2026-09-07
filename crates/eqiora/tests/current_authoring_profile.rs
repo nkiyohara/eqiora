@@ -7,7 +7,7 @@ use serde_json::Value;
 const SCALAR_SOURCE: &str = r#"
 model decay {
   field x: 1 = 1;
-  relation hold continuous {
+  relation hold {
     derivative(x) = 0;
   }
 }

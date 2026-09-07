@@ -46,14 +46,14 @@ public component NoSlip2d {
   public port mechanical:
     conserving mechanics.VelocityTractionBoundary over face;
 
-  relation prescribed_velocity continuous on face {
+  relation prescribed_velocity on face {
     trace(mechanical) = 0;
   }
 }
 
 public component TractionFree2d {
   // same support and port structure
-  relation prescribed_traction continuous on face {
+  relation prescribed_traction on face {
     flux(mechanical) = 0;
   }
 }
@@ -64,8 +64,8 @@ pressure. `NormalVelocityInlet2d` reads a scalar speed Field and prescribes the
 corresponding inward parent-normal velocity. The solid package uses the same
 pattern for `FixedDisplacement2d` and its own `TractionFree2d`.
 
-<ExactSourceLink path="packages/releases/Eqiora.Fluid/0.2.0/src/fluid.eqi" kind="blob">Read the fluid boundary components</ExactSourceLink> ·
-<ExactSourceLink path="packages/releases/Eqiora.Solid/0.2.0/src/solid.eqi" kind="blob">read the solid boundary components</ExactSourceLink>.
+<ExactSourceLink path="packages/Eqiora.Fluid/src/fluid.eqi" kind="blob">Read the fluid boundary components</ExactSourceLink> ·
+<ExactSourceLink path="packages/Eqiora.Solid/src/solid.eqi" kind="blob">read the solid boundary components</ExactSourceLink>.
 
 ## Interfaces exchange equal and opposite action
 
@@ -86,7 +86,7 @@ computes the trace and which computes the flux.
 The package interface components connect the interior field to a boundary port:
 
 ```eqiora
-relation boundary_interface[boundary in exterior] continuous on boundary {
+relation boundary_interface[boundary in exterior] on boundary {
   trace(velocity)
     - trace(mechanical[boundary = boundary]) = 0;
   normal(

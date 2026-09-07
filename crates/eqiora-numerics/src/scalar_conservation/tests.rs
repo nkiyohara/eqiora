@@ -17,15 +17,15 @@ model ScalarBalance {
   parameter transfer: 1 / m = 4;
   parameter imposed_flux: 1 / m = 5;
 
-  relation balance continuous on body {
+  relation balance on body {
     capacity * derivative(state)
       - div(conductivity * grad(state))
       - source_density = 0;
   }
-  relation lower_value continuous on lower_face {
+  relation lower_value on lower_face {
     trace(state) - 1 = 0;
   }
-  relation upper_robin continuous on upper_face {
+  relation upper_robin on upper_face {
     normal(conductivity * grad(state))
       + transfer * trace(state)
       - imposed_flux = 0;
@@ -49,7 +49,7 @@ public component ScalarInterface1d {
   public parameter coefficient: 1;
   public port interface: conserving ScalarBoundary over face;
 
-  relation carrier continuous on face {
+  relation carrier on face {
     trace(state) - trace(interface) = 0;
     normal(coefficient * grad(state)) - flux(interface) = 0;
   }
@@ -69,16 +69,16 @@ model CompositeBalance {
   parameter left_coefficient: 1 = 2;
   parameter right_coefficient: 1 = 7;
 
-  relation left_balance continuous on left {
+  relation left_balance on left {
     -div(left_coefficient * grad(left_state)) = 0;
   }
-  relation right_balance continuous on right {
+  relation right_balance on right {
     -div(right_coefficient * grad(right_state)) = 0;
   }
-  relation left_value continuous on left_lower {
+  relation left_value on left_lower {
     trace(left_state) = 0;
   }
-  relation right_symmetry continuous on right_upper {
+  relation right_symmetry on right_upper {
     normal(right_coefficient * grad(right_state)) = 0;
   }
   instance left_carrier: ScalarInterface1d(
@@ -384,13 +384,13 @@ fn interface_rejects_wrong_constitutive_lineage_and_incomplete_carrier() {
 #[test]
 fn rejects_incomplete_or_overlapping_boundary_meaning() {
     let missing = TRANSIENT.replace(
-        "  relation lower_value continuous on lower_face {\n    trace(state) - 1 = 0;\n  }\n",
+        "  relation lower_value on lower_face {\n    trace(state) - 1 = 0;\n  }\n",
         "",
     );
     assert!(recognize_scalar_conservation(&program(&missing)).is_err());
     let overlap = TRANSIENT.replace(
-            "  relation lower_value continuous on lower_face {",
-            "  relation duplicate_value continuous on lower_face { trace(state) = 0; }\n  relation lower_value continuous on lower_face {",
+            "  relation lower_value on lower_face {",
+            "  relation duplicate_value on lower_face { trace(state) = 0; }\n  relation lower_value on lower_face {",
         );
     assert!(recognize_scalar_conservation(&program(&overlap)).is_err());
 }
@@ -436,12 +436,12 @@ fn cartesian_regions(dimensions: &[usize]) -> String {
             }
         }
         source.push_str(&format!(
-            "  field state_{region} on body_{region} as space: 1;\n  relation balance_{region} continuous on body_{region} {{ -div(coefficient * grad(state_{region})) = 0; }}\n"
+            "  field state_{region} on body_{region} as space: 1;\n  relation balance_{region} on body_{region} {{ -div(coefficient * grad(state_{region})) = 0; }}\n"
         ));
         for axis in 0..dimensions {
             for side in ["lower", "upper"] {
                 source.push_str(&format!(
-                    "  relation closure_{region}_{axis}_{side} continuous on face_{region}_{axis}_{side} {{ trace(state_{region}) = 0; }}\n"
+                    "  relation closure_{region}_{axis}_{side} on face_{region}_{axis}_{side} {{ trace(state_{region}) = 0; }}\n"
                 ));
             }
         }

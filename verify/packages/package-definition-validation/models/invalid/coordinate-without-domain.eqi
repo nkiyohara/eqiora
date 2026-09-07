@@ -2,5 +2,5 @@ model Valid {}
 
 model Invalid {
   field position: m = 0;
-  relation invalid continuous { coordinate(0) - position = 0; }
+  relation invalid { coordinate(0) - position = 0; }
 }

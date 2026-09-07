@@ -1,6 +1,6 @@
 ---
 title: Equations and state
-description: Residual equations, scalar initial values and periodic state syntax in Eqiora 0.1.0a7.
+description: Simultaneous equations, Field initial values and periodic activation.
 editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/language/equations.mdx
 ---
 
@@ -8,18 +8,19 @@ import { Code } from '@astrojs/starlight/components';
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 import clocked from './_examples/clocked.eqi?raw';
 
-[Language overview](/reference/language/) · Installed release: **0.1.0a7**
+[Language overview](/reference/language/) · [Install this source revision](/get-started/#install-with-uv)
 
 ## Continuous equations
 
-Use `relation name continuous { residual = 0; }`. A relation may contain several
-residuals; they constrain the same Model simultaneously. In the
-[current example](/reference/language/declarations/), `voltage - resistance * current = 0`
-expresses Ohm's law. It is not a sequential assignment to `current`.
+Use `relation name { left = right; }`, optionally `on support` and
+`at activation` before the body. A relation can contain several ordered pairs of
+left and right expressions; all its equations hold simultaneously. For example,
+`voltage = resistance * current` expresses Ohm's law, not an assignment.
 
-The release requires literal zero on the right. To express `left = right`, write
-`left - right = 0`. Both terms must have compatible dimensions. A valid equation
-does not by itself establish that the selected numerical backend can solve it.
+Both sides are checked before the compiler forms a typed residual. A bare exact
+zero can take the other side's dimension after expression admission; multiplying
+an invalid expression by zero does not make it admissible. A valid equation does
+not by itself establish that a numerical backend can solve it.
 
 `derivative(x)` denotes the time derivative of a Field, dividing its dimension by
 time. Spatial operators such as `grad`, `div`, `trace` and `normal` have separate
@@ -30,13 +31,12 @@ show their existing standard declarations without selecting a discretization.
 
 The [ODE lesson](/learn/mathematical-modeling/ordinary-differential-equations/)
 uses `field x: 1 = 1;` and the residual `derivative(x) + rate * x = 0`.
-Its complete, installed-release example exercises `State.initial(plan)` and a run.
+Its complete source-installed example exercises `State.initial(plan)` and a run.
 The scalar initializer belongs to the Model; a numerical tolerance or time step
 does not change that initial condition.
 
 Use a supported accepted State for continuation rather than constructing a fresh
-initial State at every output time. This reference does not claim general DAE
-initialization, arbitrary shaped initial values or automatic state selection.
+initial State at every output time. An initial value is a mathematical input, not an implicit result of choosing a solver.
 
 ## Periodic state
 
@@ -44,10 +44,10 @@ initialization, arbitrary shaped initial values or automatic state selection.
 
 The clock specifies a period of exactly 1/10 second and a phase of zero.
 `pre(memory)` refers to the pre-tick value; `next(memory)` participates in the
-candidate update. This example checks the released clock, initial-value and
-periodic-relation syntax. It is not a Python periodic-execution recipe or a claim
-that a continuous ODE method can execute this Model.
+candidate update. `relation advance at tick` activates the equation on that clock. `pre` and `next`
+require periodic activation; `derivative` is rejected there. This compilation
+example does not select a Python periodic execution method.
 
 <ExactSourceLink kind="blob" path="docs/site/src/content/docs/reference/language/_examples/clocked.eqi">Clocked example source</ExactSourceLink>
-· [Released relation parser](https://github.com/nkiyohara/eqiora/blob/e72f744cf6956e0e3c1f03aad65868d726f8ebbf/crates/eqiora-lang/src/parser/relation.rs)
+· <ExactSourceLink kind="blob" path="crates/eqiora-lang/src/parser/relation.rs">relation parser</ExactSourceLink>
 · Next: [Composition](/reference/language/composition/)

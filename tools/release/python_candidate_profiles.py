@@ -48,9 +48,27 @@ PYTHON_TEST_FIXTURES = (
 )
 PYTHON_TEST_RESOURCES = (
     Path("crates/eqiora-api/schemas/compile-v2.schema.json"),
+    Path("docs/site/src/content/docs/reference/language/index.mdx"),
+    Path("docs/site/src/content/docs/reference/language/declarations.mdx"),
+    Path("docs/site/src/content/docs/reference/language/units.mdx"),
+    Path("docs/site/src/content/docs/reference/language/equations.mdx"),
+    Path("docs/site/src/content/docs/reference/language/composition.mdx"),
+    Path("docs/site/src/content/docs/reference/language/_examples/declarations.eqi"),
+    Path("docs/site/src/content/docs/reference/language/_examples/units.eqi"),
+    Path("docs/site/src/content/docs/reference/language/_examples/clocked.eqi"),
+    Path("docs/site/src/content/docs/reference/language/_examples/composition.eqi"),
+    Path("docs/site/src/content/docs/reference/standard-packages/index.mdx"),
+    Path("docs/site/src/content/docs/reference/standard-packages/electrical.mdx"),
+    Path("docs/site/src/content/docs/reference/standard-packages/continuum.mdx"),
+    Path("docs/site/src/content/docs/reference/standard-packages/_examples/electrical.eqi"),
+    Path("docs/site/src/content/docs/reference/standard-packages/_examples/elastic-body.eqi"),
+    Path("docs/site/src/content/docs/reference/standard-packages/_examples/inertial-stokes.eqi"),
     Path("examples/decay.eqi"),
     Path("examples/python/coupled_scalar.py"),
     Path("examples/python/textbook_decay.py"),
+    Path("packages/Eqiora.Electrical.Basic/src/basic.eqi"),
+    Path("packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi"),
+    Path("packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi"),
 )
 
 COMPLETE_PROFILE_NAMES = (

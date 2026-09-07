@@ -13,7 +13,7 @@ public component ExteriorLaw {
   public port mechanical[boundary in exterior]:
     conserving MechanicalBoundary over boundary;
 
-  relation boundary_law[boundary in exterior] continuous on boundary {
+  relation boundary_law[boundary in exterior] on boundary {
     trace(mechanical[boundary = boundary])
       - trace(mechanical[boundary = boundary]) = 0;
     flux(mechanical[boundary = boundary])

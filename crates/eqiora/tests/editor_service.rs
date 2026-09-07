@@ -2,8 +2,7 @@ use eqiora::api::{EditorPosition, EditorService, EditorSymbolKind};
 
 #[test]
 fn public_facade_analyzes_one_versioned_source_snapshot() {
-    let source =
-        "// μ\nmodel Demo { field state: 1 = 0; relation balance continuous { state = 0; } }\n";
+    let source = "// μ\nmodel Demo { field state: 1 = 0; relation balance { state = 0; } }\n";
     let service = EditorService::new("demo.eqi", 11, source);
     let snapshot = service.snapshot(11).expect("current source version");
 
@@ -12,7 +11,7 @@ fn public_facade_analyzes_one_versioned_source_snapshot() {
         "// μ\n",
         "model Demo {\n",
         "  field state: 1 = 0;\n",
-        "  relation balance continuous {\n",
+        "  relation balance {\n",
         "    state = 0;\n",
         "  }\n",
         "}\n",

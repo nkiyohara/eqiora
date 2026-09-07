@@ -59,9 +59,9 @@ const THREE: &str = "model Three {
  field b on body as space: 1;
  field c on body as space: 1;
  parameter k: 1 / m ^ 2 = 1;
- relation first continuous on body { -div(grad(a)) + k * (a - b) = 0; }
- relation second continuous on body { -div(grad(b)) + k * (b - a) + k * (b - c) = 0; }
- relation third continuous on body { -div(grad(c)) + k * (c - b) = 0; }
+ relation first on body { -div(grad(a)) + k * (a - b) = 0; }
+ relation second on body { -div(grad(b)) + k * (b - a) + k * (b - c) = 0; }
+ relation third on body { -div(grad(c)) + k * (c - b) = 0; }
 }";
 
 #[test]
@@ -133,14 +133,14 @@ fn coefficient_chains_resolve_but_cycles_and_duplicates_reject() {
  field a on body as space: 1 / m ^ 2;
  field b on body as space: 1 / m ^ 2;
  parameter p: 1 / m ^ 2 = 2;
- relation a_def continuous on body { a - b = 0; }
- relation b_def continuous on body { b - p = 0; }
- relation balance continuous on body { -div(grad(u)) - a = 0; }
+ relation a_def on body { a - b = 0; }
+ relation b_def on body { b - p = 0; }
+ relation balance on body { -div(grad(u)) - a = 0; }
 }";
     let roles = derive(source).unwrap();
     let reordered = source.replace(
-        "relation a_def continuous on body { a - b = 0; }\n relation b_def continuous on body { b - p = 0; }",
-        "relation renamed_b continuous on body { p - b = 0; }\n relation renamed_a continuous on body { b - a = 0; }",
+        "relation a_def on body { a - b = 0; }\n relation b_def on body { b - p = 0; }",
+        "relation renamed_b on body { p - b = 0; }\n relation renamed_a on body { b - a = 0; }",
     );
     assert_ne!(source, reordered);
     assert_eq!(signature(&roles), signature(&derive(&reordered).unwrap()));
@@ -161,15 +161,13 @@ fn coefficient_chains_resolve_but_cycles_and_duplicates_reject() {
     assert!(
         derive(&source.replace(
             "relation b_def",
-            "relation duplicate continuous on body { a - p = 0; }\n relation b_def"
+            "relation duplicate on body { a - p = 0; }\n relation b_def"
         ))
         .unwrap_err()
         .message()
         .contains("unambiguous definition")
     );
-    assert!(
-        derive(&source.replace("relation b_def continuous on body { b - p = 0; }", "")).is_err()
-    );
+    assert!(derive(&source.replace("relation b_def on body { b - p = 0; }", "")).is_err());
 }
 
 #[test]
@@ -220,14 +218,14 @@ fn mixed_constraint_requires_one_equation_paired_multiplier() {
  representation space = continuum;
  field u on body as space: vector<m / s, 2>;
  field p on body as space: 1 / s;
- relation balance continuous on body { -div(symmetric_part(grad(u))) + grad(p) = 0; }
- relation constraint continuous on body { div(u) = 0; }
+ relation balance on body { -div(symmetric_part(grad(u))) + grad(p) = 0; }
+ relation constraint on body { div(u) = 0; }
 }";
     let roles = derive(source).unwrap();
     assert_eq!(roles.relations.len(), 2);
     let reordered = source.replace(
-        "relation balance continuous on body { -div(symmetric_part(grad(u))) + grad(p) = 0; }\n relation constraint continuous on body { div(u) = 0; }",
-        "relation renamed_constraint continuous on body { -div(u) = 0; }\n relation renamed_balance continuous on body { -div(symmetric_part(grad(u))) + grad(p) = 0; }",
+        "relation balance on body { -div(symmetric_part(grad(u))) + grad(p) = 0; }\n relation constraint on body { div(u) = 0; }",
+        "relation renamed_constraint on body { -div(u) = 0; }\n relation renamed_balance on body { -div(symmetric_part(grad(u))) + grad(p) = 0; }",
     ).replace(" p ", " multiplier ").replace("(p)", "(multiplier)")
         .replace(" u ", " motion ").replace("(u)", "(motion)");
     assert_ne!(source, reordered);

@@ -138,20 +138,26 @@ model invalid_axis {
   domain interval = box(0, 1);
   representation space = continuum;
   field length on interval as space: m = 0;
-  relation identity continuous on interval { length - coordinate(1) = 0; }
+  relation identity on interval { length - coordinate(1) = 0; }
 }
 "#;
-    let mut compiled = compile("invalid-axis.eqi", source).expect("source shape is valid");
-    let (transaction, model_id, _) = compiled.remove(0).into_parts();
-    let mut store = InMemoryGraphStore::new();
-    store.commit(transaction).expect("transaction commits");
-    let diagnostics = KernelProgram::from_snapshot(&store.snapshot(), model_id)
+    let diagnostics = compile("invalid-axis.eqi", source)
         .expect_err("axis one is outside a one-dimensional Domain");
-
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message().contains("outside Domain dimension 1"))
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(
+        diagnostics[0].code(),
+        eqiora_core::diagnostic::codes::LANGUAGE_TYPE_ERROR
+    );
+    assert_eq!(
+        diagnostics[0].message(),
+        "coordinate axis 1 is outside Domain dimension 1"
+    );
+    let span = diagnostics[0]
+        .source_span()
+        .expect("source-local axis error");
+    assert_eq!(
+        &source[span.start as usize..span.end as usize],
+        "coordinate(1)"
     );
 }
 
@@ -162,7 +168,7 @@ model coordinate_plane {
   domain plane = box(0, 1, 0, 2);
   representation space = continuum;
   field ordinate on plane as space: m = 0;
-  relation identity continuous on plane { ordinate - coordinate(1) = 0; }
+  relation identity on plane { ordinate - coordinate(1) = 0; }
 }
 "#;
 

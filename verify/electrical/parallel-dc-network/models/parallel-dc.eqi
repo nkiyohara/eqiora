@@ -16,23 +16,23 @@ model parallel_dc_network {
   port resistor_four_negative: conserving on electrical;
   port ground_terminal: conserving on electrical;
 
-  relation voltage_source continuous {
+  relation voltage_source {
     across(source_positive) - across(source_negative) - supply_voltage = 0;
     through(source_positive) + through(source_negative) = 0;
   }
-  relation two_ohm_resistor continuous {
+  relation two_ohm_resistor {
     across(resistor_two_positive)
       - across(resistor_two_negative)
       - resistance_two * through(resistor_two_positive) = 0;
     through(resistor_two_positive) + through(resistor_two_negative) = 0;
   }
-  relation four_ohm_resistor continuous {
+  relation four_ohm_resistor {
     across(resistor_four_positive)
       - across(resistor_four_negative)
       - resistance_four * through(resistor_four_positive) = 0;
     through(resistor_four_positive) + through(resistor_four_negative) = 0;
   }
-  relation explicit_ground continuous {
+  relation explicit_ground {
     across(ground_terminal) = 0;
   }
 

@@ -2,9 +2,8 @@
 
 Acceptance requires:
 
-- one exact `Eqiora.Solid.LinearElasticity@0.2.0` release;
-- pinned semantic and source digests over verification-owned immutable package
-  bytes, with the live package required to match exactly;
+- an exact release closure prepared from the current `Eqiora.Solid.LinearElasticity`
+  and `Eqiora.Mechanics.Interfaces` sources through the ordinary package owner;
 - the unchanged closed `IsotropicBalanceWithPotential2d` contract plus one
   nominal displacement/traction Connector and one separate boundary
   Component;

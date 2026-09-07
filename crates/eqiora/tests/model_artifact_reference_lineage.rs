@@ -32,12 +32,12 @@ model scalar_physical_with_spatial_field {
   port terminal_a: conserving on electrical;
   port terminal_b: conserving on electrical;
 
-  relation balance continuous on interval {
+  relation balance on interval {
     -div(grad(potential)) = 0;
   }
-  relation lower_value continuous on lower_end { trace(potential) = 0; }
-  relation upper_value continuous on upper_end { trace(potential) = 0; }
-  relation ideal_link continuous {
+  relation lower_value on lower_end { trace(potential) = 0; }
+  relation upper_value on upper_end { trace(potential) = 0; }
+  relation ideal_link {
     across(terminal_a) - across(terminal_b) = 0;
     through(terminal_a) + through(terminal_b) = 0;
   }
@@ -60,7 +60,7 @@ public component BoundarySide {
   public support interface: boundary(parent = body);
   public port mechanical: conserving MechanicalBoundary over interface;
 
-  relation carrier continuous on interface {
+  relation carrier on interface {
     trace(mechanical) - trace(mechanical) = 0;
     flux(mechanical) - flux(mechanical) = 0;
   }
@@ -86,11 +86,11 @@ model field_boundary_with_spatial_field {
 
   connect conserving side_a.mechanical, side_b.mechanical;
 
-  relation balance continuous on area { -div(grad(potential)) = 0; }
-  relation left_value continuous on left { trace(potential) = 0; }
-  relation right_value continuous on right { trace(potential) = 0; }
-  relation bottom_value continuous on bottom { trace(potential) = 0; }
-  relation top_value continuous on top { trace(potential) = 0; }
+  relation balance on area { -div(grad(potential)) = 0; }
+  relation left_value on left { trace(potential) = 0; }
+  relation right_value on right { trace(potential) = 0; }
+  relation bottom_value on bottom { trace(potential) = 0; }
+  relation top_value on top { trace(potential) = 0; }
 }
 "#;
 

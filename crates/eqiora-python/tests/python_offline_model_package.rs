@@ -31,15 +31,15 @@ public component PoissonLaw {
   public property diffusivity: Diffusivity;
   representation space = continuum;
   field potential on region as space: 1 = 0;
-  relation balance continuous on region {
+  relation balance on region {
     -div(diffusivity * grad(potential))
       - source_scale * math.sin(wave_number * coordinate(0))
         * math.sin(wave_number * coordinate(1)) = 0;
   }
-  relation left_value continuous on left { trace(potential) = 0; }
-  relation right_value continuous on right { trace(potential) = 0; }
-  relation bottom_value continuous on bottom { trace(potential) = 0; }
-  relation top_value continuous on top { trace(potential) = 0; }
+  relation left_value on left { trace(potential) = 0; }
+  relation right_value on right { trace(potential) = 0; }
+  relation bottom_value on bottom { trace(potential) = 0; }
+  relation top_value on top { trace(potential) = 0; }
 }
 
 public component PoissonRectangle {
@@ -138,7 +138,7 @@ fn local_package_project_locks_and_compiles_a_model_through_python() -> PyResult
     let path = NormalizedRelativePath::parse("src/main.eqi").expect("source path");
     fs::write(
         package_root.join(path.as_str()),
-        "public model Main { parameter gain: 1 = 2; relation law continuous { gain - 2 = 0; } }",
+        "public model Main { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
     )
     .expect("write package source");
     fs::write(
@@ -149,7 +149,7 @@ fn local_package_project_locks_and_compiles_a_model_through_python() -> PyResult
     fs::create_dir_all(scratch.0.join("library/src")).unwrap();
     fs::write(
         scratch.0.join("library/src/main.eqi"),
-        "public model Shared { parameter gain: 1 = 2; relation law continuous { gain - 2 = 0; } }",
+        "public model Shared { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
     )
     .unwrap();
     fs::write(
@@ -242,12 +242,12 @@ potential = law.field("potential", on=region, value_type=eqiora.ValueType.real()
 law.relation(
     "balance",
     on=region,
-    residual=-q.div(diffusivity * q.grad(potential)) - source_scale,
+    right=0, left=-q.div(diffusivity * q.grad(potential)) - source_scale,
 )
-law.relation("left_value", on=left, residual=q.trace(potential))
-law.relation("right_value", on=right, residual=q.trace(potential))
-law.relation("bottom_value", on=bottom, residual=q.trace(potential))
-law.relation("top_value", on=top, residual=q.trace(potential))
+law.relation("left_value", on=left, right=0, left=q.trace(potential))
+law.relation("right_value", on=right, right=0, left=q.trace(potential))
+law.relation("bottom_value", on=bottom, right=0, left=q.trace(potential))
+law.relation("top_value", on=top, right=0, left=q.trace(potential))
 
 root = source.component("PoissonRectangle")
 root_region = root.volume("region", dimensions=2)

@@ -582,7 +582,7 @@ fn boundary_normalization_rejects_near_miss_semantics() {
         .expect("fixture ends with its Model delimiter")
         .to_owned();
     additional_direct_relation.push_str(
-        "  relation conflicting_trace continuous on x_upper {\n    trace(displacement) = 0;\n  }\n}\n",
+        "  relation conflicting_trace on x_upper {\n    trace(displacement) = 0;\n  }\n}\n",
     );
     let direct = eqiora::api::ModelDocument::compile(
         "additional-direct-relation.eqi",
@@ -608,8 +608,8 @@ fn boundary_normalization_rejects_near_miss_semantics() {
     assert!(diagnostic.message().contains("boundary side is duplicated"));
 
     let simultaneous_terminal = LIVE_PACKAGE_SOURCE.replace(
-        "  relation prescribed_traction continuous on face {\n    flux(mechanical) = 0;\n  }",
-        "  relation prescribed_traction continuous on face {\n    trace(mechanical) = 0;\n    flux(mechanical) = 0;\n  }",
+        "  relation prescribed_traction on face {\n    flux(mechanical) = 0;\n  }",
+        "  relation prescribed_traction on face {\n    trace(mechanical) = 0;\n    flux(mechanical) = 0;\n  }",
     );
     assert_ne!(simultaneous_terminal, LIVE_PACKAGE_SOURCE);
     let dependency = elasticity_package_with_source(&simultaneous_terminal);

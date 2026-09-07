@@ -1,16 +1,16 @@
 ---
 title: Quantities and units
-description: Dimension expressions and coherent SI numeric inputs in Eqiora 0.1.0a7.
+description: Dimension expressions and coherent SI numeric inputs in the current Eqiora source.
 editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/language/units.mdx
 ---
 
-import { Aside, Code } from '@astrojs/starlight/components';
+import { Code } from '@astrojs/starlight/components';
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 import source from './_examples/units.eqi?raw';
 
-[Language overview](/reference/language/) · Installed release: **0.1.0a7**
+[Language overview](/reference/language/) · [Install this source revision](/get-started/#install-with-uv)
 
-Write a physical dimension after `:`. Products, quotients and integer powers of SI
+Write a physical dimension after `:`. Products, quotients and exact rational powers of SI
 base symbols describe dimensions; numerical declaration values use the corresponding
 coherent SI units. The symbols are `kg`, `m`, `s`, `A`, `K`, `mol` and `cd`; `1` is
 dimensionless. A `dimension` alias abbreviates a dimension, not a value conversion.
@@ -18,31 +18,27 @@ dimensionless. A `dimension` alias abbreviates a dimension, not a value conversi
 <Code code={source} lang="eqiora" title="units.eqi" />
 
 Here `210e9` is 210,000,000,000 Pa, or 210 GPa. The alias `Pressure` does not rescale
-the number. To enter 10 ms in a scalar time parameter, use `parameter duration: s = 0.01;`.
-Do the input conversion explicitly; do not change the equations to compensate for
-a wrongly scaled parameter.
+the number. To enter 10 ms, write `parameter duration: s = 10 [ms];`, or use the coherent
+value `0.01`. Explicit compatible units convert to the declared dimension.
+Bare numeric declaration initializers inherit its coherent unit; arbitrary
+expressions and instance bindings do not inherit units.
 
-| Physical quantity | Dimension spelling used by this release |
+| Physical quantity | Dimension spelling |
 |---|---|
 | Pressure or stress, Pa | `kg / (m * s ^ 2)` |
 | Voltage, V | `kg * m ^ 2 / (s ^ 3 * A)` |
 | Resistance, ohm | `kg * m ^ 2 / (s ^ 3 * A ^ 2)` |
 | Dynamic viscosity, Pa·s | `kg / (m * s)` |
 
-The [released standard declarations](/reference/standard-packages/) use these dimensions.
+The [standard declarations](/reference/standard-packages/) use these dimensions.
 Case matters: `A` is electric current and `s`
 is time. Addition and subtraction require matching dimensions. The
 [declaration example](/reference/language/declarations/) keeps voltage and
 resistance distinct even though both are scalar numbers.
 
-<Aside type="caution" title="No bracketed input quantities in a7">
-  `210 [GPa]` and `10 [ms]` are not accepted a7 inputs. Convert to coherent SI
-  values before passing numbers to the Model.
-</Aside>
-
 Periodic clocks use their separate exact rational-time spelling; see
 [Equations and state](/reference/language/equations/#periodic-state).
 
 <ExactSourceLink kind="blob" path="docs/site/src/content/docs/reference/language/_examples/units.eqi">Example source</ExactSourceLink>
-· [Released dimension checker](https://github.com/nkiyohara/eqiora/blob/e72f744cf6956e0e3c1f03aad65868d726f8ebbf/crates/eqiora-compiler/src/dimensions.rs)
+· <ExactSourceLink kind="blob" path="crates/eqiora-compiler/src/dimensions.rs">dimension checker</ExactSourceLink>
 · Next: [Equations and state](/reference/language/equations/)

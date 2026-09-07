@@ -116,7 +116,7 @@ fn hierarchy_does_not_resolve_bare_sin_as_a_user_operator() {
         vec![unit(
             &root,
             "root.eqi",
-            "public pure operator sin(value: scalar) -> scalar = rational(1, 1); component C { public support body: volume(ambient_dimension = 1); representation space = continuum; field value on body as space: 1 = 0; relation law continuous on body { value - sin(0) = 0; } }",
+            "public pure operator sin(value: scalar) -> scalar = rational(1, 1); component C { public support body: volume(ambient_dimension = 1); representation space = continuum; field value on body as space: 1 = 0; relation law on body { value - sin(0) = 0; } }",
         )],
         vec![],
     );

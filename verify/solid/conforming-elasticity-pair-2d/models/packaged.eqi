@@ -19,11 +19,11 @@ model Main {
   parameter mu_right: kg / (m * s ^ 2) = 6;
   parameter length_scale: m = 1;
 
-  relation left_load continuous on left {
+  relation left_load on left {
     left_load_potential
       - 2 * mu_left * coordinate(0) / length_scale = 0;
   }
-  relation right_load continuous on right {
+  relation right_load on right {
     right_load_potential
       - mu_right * coordinate(0) / length_scale = 0;
   }

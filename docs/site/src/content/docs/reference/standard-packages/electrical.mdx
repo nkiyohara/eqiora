@@ -1,6 +1,6 @@
 ---
 title: Electrical components
-description: Released voltage-source, resistor and ground contracts with a compile-checked circuit.
+description: Voltage-source, resistor and ground contracts with a compile-checked circuit.
 editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/standard-packages/electrical.mdx
 ---
 
@@ -8,9 +8,9 @@ import { Code } from '@astrojs/starlight/components';
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 import circuit from './_examples/electrical.eqi?raw';
 
-[Standard sources](/reference/standard-packages/) · Installed release: **0.1.0a7**
+[Standard sources](/reference/standard-packages/) · [Install this source revision](/get-started/#install-with-uv)
 
-Canonical owner: [Electrical.Basic / basic.eqi](https://github.com/nkiyohara/eqiora/blob/e72f744cf6956e0e3c1f03aad65868d726f8ebbf/packages/Eqiora.Electrical.Basic/src/basic.eqi).
+Canonical owner: <ExactSourceLink kind="blob" path="packages/Eqiora.Electrical.Basic/src/basic.eqi">Electrical.Basic / basic.eqi</ExactSourceLink>.
 Its `Pin` is a scalar-physical connector: across is voltage in V, through is
 outward current in A. The declaration spells dimensions in
 [SI base units](/reference/language/units/).
@@ -32,14 +32,14 @@ voltage nodes and close current conservation; `Ground` fixes the reference.
 `supply` and `resistance` are typed parameters rather than untyped instance numbers.
 See [Composition](/reference/language/composition/) for named bindings.
 
-After [extracting the release source archive](/reference/standard-packages/#source-and-installation-boundary),
-save the example as `electrical.eqi` beside the extracted directory and compile:
+After [installing the source checkout](/reference/standard-packages/#source-and-installation-boundary),
+save the example as `electrical.eqi` beside `eqiora-source` and compile:
 
 ```python
 from pathlib import Path
 import eqiora
 
-basic = Path("eqiora-0.1.0a7/packages/Eqiora.Electrical.Basic/src/basic.eqi")
+basic = Path("eqiora-source/packages/Eqiora.Electrical.Basic/src/basic.eqi")
 source = basic.read_text() + "\n" + Path("electrical.eqi").read_text()
 model = eqiora.compile(source=source, filename="electrical.eqi")
 ```
@@ -48,5 +48,5 @@ All three definitions are exercised by this compilation. Changing a parameter's
 dimension or omitting its required binding produces a diagnostic.
 
 <ExactSourceLink kind="blob" path="docs/site/src/content/docs/reference/standard-packages/_examples/electrical.eqi">Example source</ExactSourceLink>
-· [Canonical declaration and package description](https://github.com/nkiyohara/eqiora/blob/e72f744cf6956e0e3c1f03aad65868d726f8ebbf/packages/Eqiora.Electrical.Basic/README.md)
+· <ExactSourceLink kind="blob" path="packages/Eqiora.Electrical.Basic/README.md">Canonical declaration and package description</ExactSourceLink>
 · Next: [Continuum laws and boundaries](/reference/standard-packages/continuum/)

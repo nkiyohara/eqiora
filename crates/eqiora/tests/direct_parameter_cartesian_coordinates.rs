@@ -134,27 +134,27 @@ fn declaration_permutations_preserve_structure_without_relabelling_exact_occurre
 #[test]
 fn closed_language_and_whole_model_invariants_fail_before_exposure() {
     assert_compile_rejected_with(
-        "model m { domain body = box(0, missing); relation r continuous on body { coordinate(0) - coordinate(0) = 0; } }",
+        "model m { domain body = box(0, missing); relation r on body { coordinate(0) - coordinate(0) = 0; } }",
         codes::LANGUAGE_TYPE_ERROR,
         "unresolved Cartesian coordinate Parameter `missing`",
     );
     assert_compile_rejected_with(
-        "model m { parameter extent: s = 1; domain body = box(0, extent); relation r continuous on body { coordinate(0) - coordinate(0) = 0; } }",
+        "model m { parameter extent: s = 1; domain body = box(0, extent); relation r on body { coordinate(0) - coordinate(0) = 0; } }",
         codes::LANGUAGE_TYPE_ERROR,
         "Cartesian coordinate Parameter `extent` is not a real scalar length",
     );
     assert_compile_rejected_with(
-        "model m { parameter extent: m = 1; domain body = box(0, extent + 1); relation r continuous on body { coordinate(0) - coordinate(0) = 0; } }",
+        "model m { parameter extent: m = 1; domain body = box(0, extent + 1); relation r on body { coordinate(0) - coordinate(0) = 0; } }",
         codes::SYNTAX_ERROR,
         "after Cartesian bounds",
     );
     assert_compile_rejected_with(
-        "model m { parameter extent: m = 7; domain body = box(-1, extent, extent, 6); relation r continuous on body { coordinate(0) - coordinate(0) = 0; } }",
+        "model m { parameter extent: m = 7; domain body = box(-1, extent, extent, 6); relation r on body { coordinate(0) - coordinate(0) = 0; } }",
         codes::INVALID_KERNEL_DEFINITION,
         "resolves to non-finite, equal, or reversed bounds",
     );
     assert_compile_rejected_with(
-        "model m { parameter extent: m = 1; domain a = box(0, extent); domain b = box(0, extent); relation r continuous on a { coordinate(0) - coordinate(0) = 0; } }",
+        "model m { parameter extent: m = 1; domain a = box(0, extent); domain b = box(0, extent); relation r on a { coordinate(0) - coordinate(0) = 0; } }",
         codes::INVALID_KERNEL_DEFINITION,
         "is already owned by Domain",
     );

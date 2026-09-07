@@ -67,7 +67,7 @@ Both strain measures are dimensionless. The Lamé parameters $\mu_s$ and
 $\lambda$ therefore have stress dimension. Eqiora expresses the balance as:
 
 ```eqiora
-relation balance continuous on body {
+relation balance on body {
   -div(
     2 * shear_modulus * symmetric_part(grad(displacement))
     + first_lame_parameter * isotropic_lift(div(displacement))
@@ -79,7 +79,7 @@ The plane-strain and plane-stress components derive different Lamé parameters
 from Young's modulus and Poisson's ratio. They share an equilibrium structure
 while making different kinematic assumptions.
 
-<ExactSourceLink path="packages/releases/Eqiora.Solid/0.2.0/src/solid.eqi" kind="blob">Read the standard solid components</ExactSourceLink>.
+<ExactSourceLink path="packages/Eqiora.Solid/src/solid.eqi" kind="blob">Read the standard solid components</ExactSourceLink>.
 
 ## Parameters do not validate the material model
 

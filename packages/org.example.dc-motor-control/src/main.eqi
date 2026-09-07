@@ -10,7 +10,7 @@ component SampledPController {
   field held_voltage: kg * m ^ 2 / (s ^ 3 * A) = 0;
   clock sample = periodic(period = 1 / 100, phase = 0 / 1);
 
-  relation update periodic(sample) {
+  relation update at sample {
     next(held_voltage) - gain * (setpoint - measured_speed) = 0;
     command - next(held_voltage) = 0;
   }

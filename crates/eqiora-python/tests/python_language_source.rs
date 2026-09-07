@@ -26,7 +26,7 @@ probe_component = namespace_probe.component("ScalarMath")
 probe_body = probe_component.volume("body", dimensions=1)
 probe_value = probe_component.field("value", on=probe_body, value_type=eqiora.ValueType.real(), initial=0)
 probe_component.relation(
-    "law", on=probe_body, residual=probe_value - q.math.sin(q.math.pi)
+    "law", on=probe_body, right=0, left=probe_value - q.math.sin(q.math.pi)
 )
 assert "math.sin(math.pi)" in namespace_probe.to_eqi()
 assert not hasattr(q, "sin")
@@ -63,12 +63,12 @@ def cylinder_source(*, doc="Equations-only steady incompressible flow component.
     )
 
     stokes.relation(
-        "force_definition", on=fluid, residual=force_potential - zero_pressure
+        "force_definition", on=fluid, right=0, left=force_potential - zero_pressure
     )
     stokes.relation(
         "inlet_profile_definition",
         on=fluid,
-        residual=(
+        right=0, left=(
             inlet_profile
             - 4
             * inlet_speed
@@ -84,21 +84,21 @@ def cylinder_source(*, doc="Equations-only steady incompressible flow component.
     stokes.relation(
         "momentum",
         on=fluid,
-        residual=-q.div(stress) - q.grad(force_potential),
+        right=0, left=-q.div(stress) - q.grad(force_potential),
         doc="Steady Stokes momentum balance.",
     )
-    stokes.relation("incompressibility", on=fluid, residual=q.div(velocity))
+    stokes.relation("incompressibility", on=fluid, right=0, left=q.div(velocity))
     stokes.relation(
         "inlet_velocity",
         on=inlet,
-        residual=q.trace(velocity) + q.normal(q.isotropic_lift(inlet_profile)),
+        right=0, left=q.trace(velocity) + q.normal(q.isotropic_lift(inlet_profile)),
     )
     stokes.relation(
-        "outlet_traction", on=outlet, residual=q.normal(stress)
+        "outlet_traction", on=outlet, right=0, left=q.normal(stress)
     )
-    stokes.relation("wall_velocity", on=walls, residual=q.trace(velocity))
+    stokes.relation("wall_velocity", on=walls, right=0, left=q.trace(velocity))
     stokes.relation(
-        "cylinder_velocity", on=cylinder, residual=q.trace(velocity)
+        "cylinder_velocity", on=cylinder, right=0, left=q.trace(velocity)
     )
     return source
 
@@ -107,7 +107,7 @@ first = cylinder_source()
 second = cylinder_source()
 assert first.to_eqi() == second.to_eqi()
 assert "/// Equations-only steady incompressible flow component." in first.to_eqi()
-assert "relation momentum continuous on fluid" in first.to_eqi()
+assert "relation momentum on fluid" in first.to_eqi()
 
 graph = eqiora.geometry.GeometryGraph()
 rectangle = graph.rectangle(x_bounds=(0.0, 2.2), y_bounds=(0.0, 0.41))

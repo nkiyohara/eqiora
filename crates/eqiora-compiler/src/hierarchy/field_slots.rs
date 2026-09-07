@@ -346,7 +346,7 @@ mod tests {
 component Law {{
   public support body: volume(ambient_dimension = 2);
   public field slot value on body as continuum: {slot_type};
-  relation balance continuous on body {{ value - value = 0; }}
+  relation balance on body {{ value - value = 0; }}
 }}
 model Main {{
   domain body = box(0, 1, 0, 1);

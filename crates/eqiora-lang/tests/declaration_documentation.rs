@@ -2,7 +2,7 @@ use eqiora_lang::{Item, SourceAstFactory, format, parse};
 
 #[test]
 fn declaration_documentation_formats_structurally_and_survives_document_reconstruction() {
-    let source = "/// Model summary.\nmodel M{\n/// State summary.\nfield x:1=0; // keep with x\n// balance\nrelation r continuous{x=0;}\n}\n";
+    let source = "/// Model summary.\nmodel M{\n/// State summary.\nfield x:1=0; // keep with x\n// balance\nrelation r{x=0;}\n}\n";
     let document = parse("docs.eqi", source).into_document().unwrap();
     let model = &document.models()[0];
     assert_eq!(
@@ -20,7 +20,7 @@ fn declaration_documentation_formats_structurally_and_survives_document_reconstr
     let formatted = format(&reconstructed);
     assert_eq!(
         formatted,
-        "/// Model summary.\nmodel M {\n  /// State summary.\n  field x: 1 = 0; // keep with x\n  // balance\n  relation r continuous {\n    x = 0;\n  }\n}\n"
+        "/// Model summary.\nmodel M {\n  /// State summary.\n  field x: 1 = 0; // keep with x\n  // balance\n  relation r {\n    x = 0;\n  }\n}\n"
     );
     let reparsed = parse("formatted.eqi", &formatted).into_document().unwrap();
     assert_eq!(format(&reparsed), formatted);
@@ -41,7 +41,7 @@ fn ordinary_leading_comment_and_doc_block_share_the_reconstructed_declaration() 
 
 #[test]
 fn component_signature_and_inline_equation_trivia_have_a_canonical_roundtrip() {
-    let source = "/// Library import.\nimport lib as lib;\n/// Component summary.\ncomponent C {\n/// Rate summary.\npublic parameter rate: // dimension\n1;\nfield x:1=0;\n/// Balance summary.\nrelation r continuous {x // left\n=rate // right\n;}\n}\n";
+    let source = "/// Library import.\nimport lib as lib;\n/// Component summary.\ncomponent C {\n/// Rate summary.\npublic parameter rate: // dimension\n1;\nfield x:1=0;\n/// Balance summary.\nrelation r {x // left\n=rate // right\n;}\n}\n";
     let document = parse("docs.eqi", source).into_document().unwrap();
     let formatted = format(&document);
     assert!(formatted.contains("rate: // dimension\n"));

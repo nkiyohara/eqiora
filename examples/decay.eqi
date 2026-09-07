@@ -5,7 +5,7 @@ model decay {
   parameter rate: 1 / s = 1;
 
   // Eqiora writes the evolution law as a residual equal to zero.
-  relation flow continuous {
+  relation flow {
     derivative(x) + rate * x = 0;
   }
 }
