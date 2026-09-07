@@ -125,7 +125,10 @@ impl ValueLiteral {
     }
     /// Checked exact integer negation.
     pub fn checked_neg(&self) -> Result<Self, InvalidValueLiteral> {
-        if self.value_type.is_count() || self.value_type.index_set().is_some() {
+        if self.value_type.scalar_domain() != ScalarDomain::Integer
+            || self.value_type.is_count()
+            || self.value_type.index_set().is_some()
+        {
             return Err(InvalidValueLiteral::ScalarDomain);
         }
         if self.is_zero() {
@@ -192,6 +195,11 @@ impl ValueLiteral {
         other: &Self,
         operation: fn(i64, i64) -> Option<i64>,
     ) -> Result<Self, InvalidValueLiteral> {
+        if self.value_type.scalar_domain() != ScalarDomain::Integer
+            || other.value_type.scalar_domain() != ScalarDomain::Integer
+        {
+            return Err(InvalidValueLiteral::ScalarDomain);
+        }
         if self.is_zero() && other.is_zero() {
             return Ok(self.clone());
         }

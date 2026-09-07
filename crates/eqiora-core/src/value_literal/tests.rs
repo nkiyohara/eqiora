@@ -212,6 +212,8 @@ fn exact_integer_boundaries_arithmetic_and_explicit_conversion() {
     );
     assert_eq!(real(-0.0).to_integer().unwrap(), int(0));
     assert!(real(1.0).checked_add(&int(1)).is_err());
+    assert!(real(0.0).checked_add(&real(0.0)).is_err());
+    assert!(real(0.0).checked_neg().is_err());
 }
 
 #[test]

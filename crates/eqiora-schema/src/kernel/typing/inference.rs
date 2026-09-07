@@ -52,7 +52,17 @@ pub(super) fn infer_node<I: Clone + Eq, E>(
             };
             real.complex(imag)
         }
-        ExprNode::Sample { value, .. } | ExprNode::Hold(value) | ExprNode::Neg(value) => {
+        ExprNode::Neg(value) => {
+            let Some(value) = inferred_type(inferred, *value) else {
+                return NodeInference::Unavailable;
+            };
+            if value.value_type.is_count() || value.value_type.index_set().is_some() {
+                Err(TypeViolation::ScalarDomainMismatch)
+            } else {
+                Ok(value)
+            }
+        }
+        ExprNode::Sample { value, .. } | ExprNode::Hold(value) => {
             return inferred_type(inferred, *value)
                 .map_or(NodeInference::Unavailable, NodeInference::Typed);
         }
