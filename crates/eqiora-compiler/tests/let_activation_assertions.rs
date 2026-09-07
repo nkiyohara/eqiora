@@ -1,7 +1,7 @@
 use eqiora_compiler::compile;
 
 const CLOCKS: &str =
-    "clock a=periodic(period=1/1,phase=0/1); clock b=periodic(period=1/1,phase=0/1);";
+    "clock a=periodic(1[s] / 1, phase = 0[s] / 1); clock b=periodic(1[s] / 1, phase = 0[s] / 1);";
 
 fn accepted(body: &str) {
     let source = format!("model M {{ {CLOCKS} {body} }}");

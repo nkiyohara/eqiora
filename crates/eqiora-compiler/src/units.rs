@@ -293,10 +293,17 @@ mod tests {
             "complex-units.eqi",
             "model M { parameter length: complex<m> = math.complex(0.1[nm], -0.1[nm]); relation r { length - length = 0; } }",
         ).unwrap();
-        let value = compiled[0].transaction().ops().iter().find_map(|op| match op {
-            Op::DefineKernelNode { node: KernelNode::Parameter(parameter) } => Some(parameter.value()),
-            _ => None,
-        }).unwrap();
+        let value = compiled[0]
+            .transaction()
+            .ops()
+            .iter()
+            .find_map(|op| match op {
+                Op::DefineKernelNode {
+                    node: KernelNode::Parameter(parameter),
+                } => Some(parameter.value()),
+                _ => None,
+            })
+            .unwrap();
         let (real, imaginary) = value.component(0).unwrap();
         assert_eq!(real.to_bits(), 0x3ddb_7cdf_d9d7_bdbb);
         assert_eq!(imaginary.to_bits(), 0xbddb_7cdf_d9d7_bdbb);

@@ -14,12 +14,13 @@ mod external;
 #[cfg(test)]
 mod tests;
 mod value_expression;
+use crate::units::lower_clock;
 use binding::{
     Binding, DomainContract, FieldContract, PortContract, ResolvedPortContract, bind_domain,
     bind_port, insert_binding, resolve_field_contract, resolve_port_contract,
 };
 use connection::{lower_connection, prepare_flat_physical_connections};
-use declaration::{lower_clock, lower_port};
+use declaration::lower_port;
 pub(crate) use domain_contract::{LoweringDomainContract, LoweringPortContract};
 use expression::lower_relation;
 
@@ -38,8 +39,8 @@ use eqiora_schema::kernel::scalar_connection::{
 use eqiora_schema::kernel::{
     ActivationDef, BoundaryPhysicalConnector, BoundarySide, ClockDomainDef, ConnectionDef,
     ConnectionSemantics, DomainDef, ExprDag, ExprDagBuilder, ExprId, FieldDef, KernelNode,
-    ParameterDef, PortDef, RationalTime, RelationDef, RepresentationDef, SignalDirection,
-    SymbolRef, UnaryMathFunction,
+    ParameterDef, PortDef, RelationDef, RepresentationDef, SignalDirection, SymbolRef,
+    UnaryMathFunction,
 };
 use eqiora_schema::{Model, ModelView};
 
@@ -284,8 +285,8 @@ pub(crate) enum LoweringItem {
     },
     Clock {
         name: String,
-        period: eqiora_lang::RationalSyntax,
-        phase: eqiora_lang::RationalSyntax,
+        period: eqiora_lang::Expr,
+        phase: eqiora_lang::Expr,
         range: TextRange,
     },
     Relation {
@@ -689,17 +690,18 @@ pub(crate) fn lower_typed_model(
                 let Binding::Clock(id) = bindings[name].clone() else {
                     unreachable!("first pass assigns Clock bindings");
                 };
-                lower_clock(*period, *phase)
-                    .and_then(|(period, phase)| ClockDomainDef::periodic(id, period, phase))
-                    .map(|definition| nodes.push(definition.into()))
-                    .map_err(|diagnostic| {
-                        source_error(
-                            codes::LANGUAGE_TYPE_ERROR,
-                            file,
-                            *range,
-                            diagnostic.message(),
-                        )
+                lower_clock(file, period, phase)
+                    .and_then(|(period, phase)| {
+                        ClockDomainDef::periodic(id, period, phase).map_err(|diagnostic| {
+                            source_error(
+                                codes::LANGUAGE_TYPE_ERROR,
+                                file,
+                                *range,
+                                diagnostic.message(),
+                            )
+                        })
                     })
+                    .map(|definition| nodes.push(definition.into()))
             }
             LoweringItem::Relation {
                 name,

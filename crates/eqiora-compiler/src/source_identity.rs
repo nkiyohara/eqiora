@@ -803,12 +803,10 @@ fn encode_clock(
         encode_name(encoder, declaration.name(), budget)
     })?;
     encoder.field(2, |encoder| {
-        encoder.u64(declaration.period().numerator())?;
-        encoder.u64(declaration.period().denominator())
+        encode_expression(encoder, declaration.period(), budget, 0)
     })?;
     encoder.field(3, |encoder| {
-        encoder.u64(declaration.phase().numerator())?;
-        encoder.u64(declaration.phase().denominator())
+        encode_expression(encoder, declaration.phase(), budget, 0)
     })
 }
 
@@ -1701,7 +1699,7 @@ model M {
         let base = "model m { parameter p: 1 = 2; relation r { p + 1 = 0; } }";
         let changed_value = "model m { parameter p: 1 = 3; relation r { p + 1 = 0; } }";
         let changed_operator = "model m { parameter p: 1 = 2; relation r { p - 1 = 0; } }";
-        let changed_activation = "model m { clock c = periodic(period = 1/1, phase = 0/1); parameter p: 1 = 2; relation r at c { p + 1 = 0; } }";
+        let changed_activation = "model m { clock c = periodic(1[s] / 1, phase = 0[s] / 1); parameter p: 1 = 2; relation r at c { p + 1 = 0; } }";
 
         assert_ne!(identity(base), identity(changed_value));
         assert_ne!(identity(base), identity(changed_operator));
@@ -1857,3 +1855,6 @@ model M {
         assert!(LocalSourceIdentity::from_document_with_limits(&mixed_bindings, bindings).is_err());
     }
 }
+
+#[cfg(test)]
+mod exact_clock_tests;
