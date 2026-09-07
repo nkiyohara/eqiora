@@ -39,9 +39,9 @@ impl RootExpansion<'_, '_> {
                 Item::Domain(declaration) => {
                     let identity = identities.entities[declaration.name()].clone();
                     let syntax = match declaration.syntax() {
-                        DomainSyntax::CartesianBox(bounds) => {
-                            DomainSyntax::CartesianBox(bounds.clone())
-                        }
+                        DomainSyntax::CartesianBox(bounds) => DomainSyntax::CartesianBox(
+                            super::cartesian::rewrite_coordinates(self.model.file, bounds, scope)?,
+                        ),
                         DomainSyntax::Boundary { parent, axis, side } => {
                             let parent = resolve_local_kind(
                                 self.model.file,

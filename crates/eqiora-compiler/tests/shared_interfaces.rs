@@ -319,3 +319,12 @@ fn child_signal_contracts_use_bound_parent_clock_names() {
         .replace("result at actual", "result at other");
     assert!(eqiora_compiler::compile("child.eqi", &invalid).is_err());
 }
+
+#[test]
+fn cartesian_parameter_bounds_keep_the_exact_root_parameter_dependency() {
+    let models = compile("coordinate.eqi", "model M(parameter extent:m=2[m]) {domain body=box(0,extent);variable x:1 on body;relation balance on body{x=0;}}").unwrap();
+    let model = &models[0];
+    let domain = model.symbols().get("body").unwrap();
+    let parameter = model.symbols().get("extent").unwrap();
+    assert!(model.transaction().ops().iter().any(|operation| matches!(operation, eqiora_graph::Op::Connect{from,to,edge:eqiora_graph::EdgeKind::DependsOn} if *from==domain && *to==parameter)));
+}

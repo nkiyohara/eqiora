@@ -97,3 +97,55 @@ impl RootExpansion<'_, '_> {
         Ok(())
     }
 }
+
+pub(super) fn rewrite_coordinates(
+    file: &str,
+    bounds: &[(
+        eqiora_lang::CartesianCoordinateSyntax,
+        eqiora_lang::CartesianCoordinateSyntax,
+    )],
+    scope: &Scope,
+) -> Result<
+    Vec<(
+        eqiora_lang::CartesianCoordinateSyntax,
+        eqiora_lang::CartesianCoordinateSyntax,
+    )>,
+    Diagnostic,
+> {
+    let coordinate = |value: &eqiora_lang::CartesianCoordinateSyntax| {
+        let eqiora_lang::CartesianCoordinateSyntax::Parameter { name, range } = value else {
+            return Ok(value.clone());
+        };
+        let symbol = resolve_local_kind(
+            file,
+            *range,
+            scope,
+            name,
+            |kind| matches!(kind, SymbolKind::Parameter),
+            "Cartesian coordinate Parameter",
+        )?;
+        let value_type = &scope
+            .parameter(name)
+            .expect("root Parameter has a value")
+            .value;
+        if value_type.value_type().dimension() != length_dimension()
+            || !value_type.value_type().shape().is_scalar()
+            || value_type.value_type().scalar_domain() != eqiora_core::ScalarDomain::Real
+        {
+            return Err(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                file,
+                *range,
+                format!("Cartesian coordinate Parameter `{name}` is not a real scalar length"),
+            ));
+        }
+        Ok(eqiora_lang::CartesianCoordinateSyntax::Parameter {
+            name: symbol.internal_name.clone(),
+            range: *range,
+        })
+    };
+    bounds
+        .iter()
+        .map(|(lower, upper)| Ok((coordinate(lower)?, coordinate(upper)?)))
+        .collect()
+}
