@@ -386,7 +386,8 @@ fn typed_cartesian_coordinates_require_real_scalar_lengths() {
         assert!(
             errors
                 .iter()
-                .any(|error| error.message().contains("not a real scalar length"))
+                .any(|error| error.message().contains("not a real scalar length")),
+            "{errors:?}"
         );
     }
 }
@@ -588,11 +589,14 @@ fn compiler_rejects_discrete_symbols_in_continuous_relations() {
     let source = "model m() { state x: 1; initial { x = 0; } relation r { next(x) = 0; } }";
     let diagnostics = compile("activation.eqi", source).expect_err("Next needs a tick");
 
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message()
-            .contains("eligible declared state at the exact clock")
-    }));
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message()
+                .contains("discrete state operator requires the exact clock")
+        }),
+        "{diagnostics:?}"
+    );
 }
 
 #[test]
@@ -1178,10 +1182,15 @@ model crossed_types() {
     let diagnostics = compile("crossed-types.eqi", source)
         .expect_err("equal dimensions never erase nominal Domain identity");
 
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic.source_span().is_some()
-            && diagnostic.message().contains("exact same nominal Domain")
-    }));
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.source_span().is_some()
+                && diagnostic
+                    .message()
+                    .contains("exact same nominal Connector or Domain")
+        }),
+        "{diagnostics:?}"
+    );
 }
 
 #[test]
@@ -1258,12 +1267,15 @@ model malformed() {
 "#;
     let diagnostics =
         compile("malformed.eqi", malformed).expect_err("accessor structure remains explicit");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic.source_span().is_some()
-            && diagnostic
-                .message()
-                .contains("one bare scalar physical Port name")
-    }));
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.source_span().is_some()
+                && diagnostic
+                    .message()
+                    .contains("requires one scalar physical Port selection")
+        }),
+        "{diagnostics:?}"
+    );
 
     let signal = r#"
 model signal_accessor() {
@@ -1273,10 +1285,15 @@ model signal_accessor() {
 "#;
     let diagnostics =
         compile("signal-accessor.eqi", signal).expect_err("signal Ports have no through variable");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic.source_span().is_some()
-            && diagnostic.message().contains("not a scalar physical Port")
-    }));
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.source_span().is_some()
+                && diagnostic
+                    .message()
+                    .contains("`p` is not compatible with `through(...)`")
+        }),
+        "{diagnostics:?}"
+    );
 }
 
 fn normalized_physical_semantics(model: &CompiledModel) -> Vec<String> {

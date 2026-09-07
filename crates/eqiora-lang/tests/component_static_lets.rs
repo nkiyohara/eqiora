@@ -34,6 +34,7 @@ fn one_factory_alias_declaration_can_be_owned_by_either_container() {
     let component = SourceAstFactory::component(
         VisibilitySyntax::Private,
         "C",
+        vec![],
         vec![ComponentItem::Let(alias.clone())],
         range,
     )
@@ -41,6 +42,7 @@ fn one_factory_alias_declaration_can_be_owned_by_either_container() {
     let model = SourceAstFactory::model(
         VisibilitySyntax::Private,
         "M",
+        vec![],
         vec![Item::Let(alias)],
         range,
     )

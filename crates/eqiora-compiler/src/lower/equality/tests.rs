@@ -145,7 +145,7 @@ fn full_type_support_and_activation_fail_in_the_source_owner() {
         ),
         (
             "model M() { state x: 1; initial { x = 0; } relation r { next(x) = pre(x); } }",
-            "eligible declared state at the exact clock",
+            "discrete state operator requires the exact clock",
         ),
         (
             "model M() { clock tick = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1; initial { x = 0; } relation r at tick { derivative(x) = 0; } }",
