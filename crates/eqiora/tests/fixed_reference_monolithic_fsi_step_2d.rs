@@ -223,61 +223,149 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
             ]),
         )
         .unwrap();
-    let common_document = eqiora::api::ModelDocument::compile_with_geometry(
+    let compile_parameters = &[
+        (
+            "fluid_density",
+            eqiora::language::SourceAstFactory::expression(
+                eqiora::language::ExprKind::Number(2.0),
+                eqiora::language::TextRange::new(0, 0),
+            )
+            .unwrap(),
+        ),
+        (
+            "fluid_viscosity",
+            eqiora::language::SourceAstFactory::expression(
+                eqiora::language::ExprKind::Number(0.5),
+                eqiora::language::TextRange::new(0, 0),
+            )
+            .unwrap(),
+        ),
+        (
+            "solid_density",
+            eqiora::language::SourceAstFactory::expression(
+                eqiora::language::ExprKind::Number(3.0),
+                eqiora::language::TextRange::new(0, 0),
+            )
+            .unwrap(),
+        ),
+        (
+            "solid_mu",
+            eqiora::language::SourceAstFactory::expression(
+                eqiora::language::ExprKind::Number(4.0),
+                eqiora::language::TextRange::new(0, 0),
+            )
+            .unwrap(),
+        ),
+        (
+            "solid_lambda",
+            eqiora::language::SourceAstFactory::expression(
+                eqiora::language::ExprKind::Number(2.0),
+                eqiora::language::TextRange::new(0, 0),
+            )
+            .unwrap(),
+        ),
+        (
+            "zero_pressure",
+            eqiora::language::SourceAstFactory::expression(
+                eqiora::language::ExprKind::Number(0.0),
+                eqiora::language::TextRange::new(0, 0),
+            )
+            .unwrap(),
+        ),
+    ];
+    let mut compile_bindings = vec![
+        (
+            "fluid",
+            eqiora::compiler::StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: geometry.entity_set("fluid").unwrap(),
+                parent: None,
+            },
+        ),
+        (
+            "solid",
+            eqiora::compiler::StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: geometry.entity_set("solid").unwrap(),
+                parent: None,
+            },
+        ),
+        (
+            "fluid_x_lower",
+            eqiora::compiler::StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: geometry.entity_set("fluid_x_lower").unwrap(),
+                parent: Some(geometry.entity_set("fluid").unwrap()),
+            },
+        ),
+        (
+            "fluid_x_upper",
+            eqiora::compiler::StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: geometry.entity_set("fluid_x_upper").unwrap(),
+                parent: Some(geometry.entity_set("fluid").unwrap()),
+            },
+        ),
+        (
+            "fluid_y_lower",
+            eqiora::compiler::StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: geometry.entity_set("fluid_y_lower").unwrap(),
+                parent: Some(geometry.entity_set("fluid").unwrap()),
+            },
+        ),
+        (
+            "fluid_y_upper",
+            eqiora::compiler::StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: geometry.entity_set("fluid_y_upper").unwrap(),
+                parent: Some(geometry.entity_set("fluid").unwrap()),
+            },
+        ),
+        (
+            "solid_x_lower",
+            eqiora::compiler::StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: geometry.entity_set("solid_x_lower").unwrap(),
+                parent: Some(geometry.entity_set("solid").unwrap()),
+            },
+        ),
+        (
+            "solid_x_upper",
+            eqiora::compiler::StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: geometry.entity_set("solid_x_upper").unwrap(),
+                parent: Some(geometry.entity_set("solid").unwrap()),
+            },
+        ),
+        (
+            "solid_y_lower",
+            eqiora::compiler::StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: geometry.entity_set("solid_y_lower").unwrap(),
+                parent: Some(geometry.entity_set("solid").unwrap()),
+            },
+        ),
+        (
+            "solid_y_upper",
+            eqiora::compiler::StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: geometry.entity_set("solid_y_upper").unwrap(),
+                parent: Some(geometry.entity_set("solid").unwrap()),
+            },
+        ),
+    ];
+    compile_bindings.extend(compile_parameters.iter().map(|(name, value)| {
+        (
+            *name,
+            eqiora::compiler::StaticBindingValue::Expression(value),
+        )
+    }));
+    let common_document = eqiora::api::ModelDocument::compile_selected(
         "fixed-reference-fsi.eqi",
         include_str!("../../../examples/fixed-reference-fsi.eqi"),
-        &geometry,
-        Some("FixedReferenceFsi2d"),
-        &[
-            (
-                "fluid_density",
-                eqiora::language::SourceAstFactory::expression(
-                    eqiora::language::ExprKind::Number(2.0),
-                    eqiora::language::TextRange::new(0, 0),
-                )
-                .unwrap(),
-            ),
-            (
-                "fluid_viscosity",
-                eqiora::language::SourceAstFactory::expression(
-                    eqiora::language::ExprKind::Number(0.5),
-                    eqiora::language::TextRange::new(0, 0),
-                )
-                .unwrap(),
-            ),
-            (
-                "solid_density",
-                eqiora::language::SourceAstFactory::expression(
-                    eqiora::language::ExprKind::Number(3.0),
-                    eqiora::language::TextRange::new(0, 0),
-                )
-                .unwrap(),
-            ),
-            (
-                "solid_mu",
-                eqiora::language::SourceAstFactory::expression(
-                    eqiora::language::ExprKind::Number(4.0),
-                    eqiora::language::TextRange::new(0, 0),
-                )
-                .unwrap(),
-            ),
-            (
-                "solid_lambda",
-                eqiora::language::SourceAstFactory::expression(
-                    eqiora::language::ExprKind::Number(2.0),
-                    eqiora::language::TextRange::new(0, 0),
-                )
-                .unwrap(),
-            ),
-            (
-                "zero_pressure",
-                eqiora::language::SourceAstFactory::expression(
-                    eqiora::language::ExprKind::Number(0.0),
-                    eqiora::language::TextRange::new(0, 0),
-                )
-                .unwrap(),
-            ),
-        ],
+        "FixedReferenceFsi2d",
+        &compile_bindings,
     )
     .expect("component-only FSI compiles against exact Geometry");
     let common_model = ModelEnvelope::from_program(common_document.program()).unwrap();

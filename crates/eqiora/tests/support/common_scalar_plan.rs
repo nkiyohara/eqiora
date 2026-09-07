@@ -167,45 +167,93 @@ fn document_and_plans_with_source(
             ]),
         )
         .unwrap();
-    let document = ModelDocument::compile_with_geometry(
+    let compile_parameters = &[
+        (
+            "diffusion",
+            eqiora::language::SourceAstFactory::expression(
+                eqiora::language::ExprKind::Number(1.0),
+                eqiora::language::TextRange::new(0, 0),
+            )
+            .unwrap(),
+        ),
+        (
+            "wave_number",
+            eqiora::language::SourceAstFactory::expression(
+                eqiora::language::ExprKind::Number(std::f64::consts::PI),
+                eqiora::language::TextRange::new(0, 0),
+            )
+            .unwrap(),
+        ),
+        (
+            "source_scale",
+            eqiora::language::SourceAstFactory::expression(
+                eqiora::language::ExprKind::Number(2.0 * std::f64::consts::PI.powi(2)),
+                eqiora::language::TextRange::new(0, 0),
+            )
+            .unwrap(),
+        ),
+        (
+            "boundary_offset",
+            eqiora::language::SourceAstFactory::expression(
+                eqiora::language::ExprKind::Number(0.0),
+                eqiora::language::TextRange::new(0, 0),
+            )
+            .unwrap(),
+        ),
+    ];
+    let mut compile_bindings = vec![
+        (
+            "square",
+            eqiora::compiler::StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: geometry.entity_set("square").unwrap(),
+                parent: None,
+            },
+        ),
+        (
+            "x_lower",
+            eqiora::compiler::StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: geometry.entity_set("x_lower").unwrap(),
+                parent: Some(geometry.entity_set("square").unwrap()),
+            },
+        ),
+        (
+            "x_upper",
+            eqiora::compiler::StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: geometry.entity_set("x_upper").unwrap(),
+                parent: Some(geometry.entity_set("square").unwrap()),
+            },
+        ),
+        (
+            "y_lower",
+            eqiora::compiler::StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: geometry.entity_set("y_lower").unwrap(),
+                parent: Some(geometry.entity_set("square").unwrap()),
+            },
+        ),
+        (
+            "y_upper",
+            eqiora::compiler::StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: geometry.entity_set("y_upper").unwrap(),
+                parent: Some(geometry.entity_set("square").unwrap()),
+            },
+        ),
+    ];
+    compile_bindings.extend(compile_parameters.iter().map(|(name, value)| {
+        (
+            *name,
+            eqiora::compiler::StaticBindingValue::Expression(value),
+        )
+    }));
+    let document = ModelDocument::compile_selected(
         "differentiated-poisson.eqi",
         source,
-        &geometry,
-        None,
-        &[
-            (
-                "diffusion",
-                eqiora::language::SourceAstFactory::expression(
-                    eqiora::language::ExprKind::Number(1.0),
-                    eqiora::language::TextRange::new(0, 0),
-                )
-                .unwrap(),
-            ),
-            (
-                "wave_number",
-                eqiora::language::SourceAstFactory::expression(
-                    eqiora::language::ExprKind::Number(std::f64::consts::PI),
-                    eqiora::language::TextRange::new(0, 0),
-                )
-                .unwrap(),
-            ),
-            (
-                "source_scale",
-                eqiora::language::SourceAstFactory::expression(
-                    eqiora::language::ExprKind::Number(2.0 * std::f64::consts::PI.powi(2)),
-                    eqiora::language::TextRange::new(0, 0),
-                )
-                .unwrap(),
-            ),
-            (
-                "boundary_offset",
-                eqiora::language::SourceAstFactory::expression(
-                    eqiora::language::ExprKind::Number(0.0),
-                    eqiora::language::TextRange::new(0, 0),
-                )
-                .unwrap(),
-            ),
-        ],
+        "DifferentiatedPoisson",
+        &compile_bindings,
     )
     .unwrap();
     let cells = CartesianMeshCellsV2::new([12, 12]).unwrap();

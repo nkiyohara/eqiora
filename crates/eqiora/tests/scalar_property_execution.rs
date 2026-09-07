@@ -36,12 +36,13 @@ fn typed_material_composition_runs_as_the_same_effective_multi_property_law() {
     let composed_release = release("org.example.ComposedDiffusion", &composed_source, &[]);
     let composed = compile_root_component(&composed_release, "ExecutableDiffusion", &geometry)
         .expect("material-composed Component compiles");
-    let direct = ModelDocument::compile_with_geometry(
+    let compile_parameters = parameter_expressions();
+    let compile_bindings = spatial_bindings(&geometry, &compile_parameters);
+    let direct = ModelDocument::compile_selected(
         "direct-material-law.eqi",
         &material_source(false, 2, 4, false),
-        &geometry,
-        Some("ExecutableDiffusion"),
-        &parameter_expressions(),
+        "ExecutableDiffusion",
+        &compile_bindings,
     )
     .expect("direct multi-parameter Law compiles");
 
@@ -170,12 +171,13 @@ fn one_exact_release_runs_through_two_independent_common_scalar_consumers() {
     for consumer in [Consumer::Potential, Consumer::Temperature] {
         let property = compile_property_consumer(&properties, consumer, &geometry)
             .expect("exact property-bound Component compiles against caller Geometry");
-        let direct = ModelDocument::compile_with_geometry(
+        let compile_parameters = parameter_expressions();
+        let compile_bindings = spatial_bindings(&geometry, &compile_parameters);
+        let direct = ModelDocument::compile_selected(
             "direct-scalar-consumer.eqi",
             &consumer.source(false),
-            &geometry,
-            Some(consumer.wrapper()),
-            &parameter_expressions(),
+            consumer.wrapper(),
+            &compile_bindings,
         )
         .expect("direct Parameter Component compiles against the same Geometry");
 
@@ -447,14 +449,10 @@ fn compile_property_consumer(
         .insert(properties)
         .map_err(|error| error.to_string())?;
     store.insert(&root).map_err(|error| error.to_string())?;
-    PackagedModelDocument::compile_locked_with_geometry(
-        &store,
-        &resolution,
-        consumer.wrapper(),
-        geometry,
-        &parameter_expressions(),
-    )
-    .map_err(|error| error.to_string())
+    let parameters = parameter_expressions();
+    let bindings = spatial_bindings(geometry, &parameters);
+    PackagedModelDocument::compile_selected(&store, &resolution, consumer.wrapper(), &bindings)
+        .map_err(|error| error.to_string())
 }
 
 fn compile_root_component(
@@ -466,14 +464,10 @@ fn compile_root_component(
         ResolutionRecordV1::from_exact_releases(root, &[]).map_err(|error| error.to_string())?;
     let mut store = InMemoryPackageStore::default();
     store.insert(root).map_err(|error| error.to_string())?;
-    PackagedModelDocument::compile_locked_with_geometry(
-        &store,
-        &resolution,
-        component,
-        geometry,
-        &parameter_expressions(),
-    )
-    .map_err(|error| error.to_string())
+    let parameters = parameter_expressions();
+    let bindings = spatial_bindings(geometry, &parameters);
+    PackagedModelDocument::compile_selected(&store, &resolution, component, &bindings)
+        .map_err(|error| error.to_string())
 }
 
 fn material_source(composed: bool, conductivity: u32, capacity: u32, reverse: bool) -> String {
@@ -705,6 +699,38 @@ fn assert_same_scalar_result(left: &CommonResult, right: &CommonResult) {
     assert_eq!(left.0, right.0);
     assert_eq!(left.1, right.1);
     assert_eq!(left.2, right.2);
+}
+
+fn spatial_bindings<'a>(
+    geometry: &'a CanonicalGeometryV1,
+    parameters: &'a [(&'static str, eqiora::language::Expr)],
+) -> Vec<(&'static str, eqiora::compiler::StaticBindingValue<'a>)> {
+    use eqiora::compiler::StaticBindingValue;
+    let square = geometry.entity_set("square").unwrap();
+    let mut bindings = vec![(
+        "square",
+        StaticBindingValue::GeometrySupport {
+            geometry,
+            selection: square,
+            parent: None,
+        },
+    )];
+    for name in ["x_lower", "x_upper", "y_lower", "y_upper"] {
+        bindings.push((
+            name,
+            StaticBindingValue::GeometrySupport {
+                geometry,
+                selection: geometry.entity_set(name).unwrap(),
+                parent: Some(square),
+            },
+        ));
+    }
+    bindings.extend(
+        parameters
+            .iter()
+            .map(|(name, value)| (*name, StaticBindingValue::Expression(value))),
+    );
+    bindings
 }
 
 fn parameter_expressions() -> Vec<(&'static str, eqiora::language::Expr)> {

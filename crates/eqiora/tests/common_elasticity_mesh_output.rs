@@ -91,37 +91,85 @@ fn accepted() -> Accepted {
             ]),
         )
         .unwrap();
-    let document = ModelDocument::compile_with_geometry(
+    let compile_parameters = &[
+        (
+            "mu",
+            eqiora::language::SourceAstFactory::expression(
+                eqiora::language::ExprKind::Number(3.0),
+                eqiora::language::TextRange::new(0, 0),
+            )
+            .unwrap(),
+        ),
+        (
+            "lambda",
+            eqiora::language::SourceAstFactory::expression(
+                eqiora::language::ExprKind::Number(0.0),
+                eqiora::language::TextRange::new(0, 0),
+            )
+            .unwrap(),
+        ),
+        (
+            "length_scale",
+            eqiora::language::SourceAstFactory::expression(
+                eqiora::language::ExprKind::Number(1.0),
+                eqiora::language::TextRange::new(0, 0),
+            )
+            .unwrap(),
+        ),
+    ];
+    let mut compile_bindings = vec![
+        (
+            "body",
+            eqiora::compiler::StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: geometry.entity_set("body").unwrap(),
+                parent: None,
+            },
+        ),
+        (
+            "x_lower",
+            eqiora::compiler::StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: geometry.entity_set("x_lower").unwrap(),
+                parent: Some(geometry.entity_set("body").unwrap()),
+            },
+        ),
+        (
+            "x_upper",
+            eqiora::compiler::StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: geometry.entity_set("x_upper").unwrap(),
+                parent: Some(geometry.entity_set("body").unwrap()),
+            },
+        ),
+        (
+            "y_lower",
+            eqiora::compiler::StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: geometry.entity_set("y_lower").unwrap(),
+                parent: Some(geometry.entity_set("body").unwrap()),
+            },
+        ),
+        (
+            "y_upper",
+            eqiora::compiler::StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: geometry.entity_set("y_upper").unwrap(),
+                parent: Some(geometry.entity_set("body").unwrap()),
+            },
+        ),
+    ];
+    compile_bindings.extend(compile_parameters.iter().map(|(name, value)| {
+        (
+            *name,
+            eqiora::compiler::StaticBindingValue::Expression(value),
+        )
+    }));
+    let document = ModelDocument::compile_selected(
         "mixed-boundary-elasticity.eqi",
         SOURCE,
-        &geometry,
-        None,
-        &[
-            (
-                "mu",
-                eqiora::language::SourceAstFactory::expression(
-                    eqiora::language::ExprKind::Number(3.0),
-                    eqiora::language::TextRange::new(0, 0),
-                )
-                .unwrap(),
-            ),
-            (
-                "lambda",
-                eqiora::language::SourceAstFactory::expression(
-                    eqiora::language::ExprKind::Number(0.0),
-                    eqiora::language::TextRange::new(0, 0),
-                )
-                .unwrap(),
-            ),
-            (
-                "length_scale",
-                eqiora::language::SourceAstFactory::expression(
-                    eqiora::language::ExprKind::Number(1.0),
-                    eqiora::language::TextRange::new(0, 0),
-                )
-                .unwrap(),
-            ),
-        ],
+        "MixedBoundaryElasticity2d",
+        &compile_bindings,
     )
     .unwrap();
     let cells = CartesianMeshCellsV2::new([CELLS_PER_AXIS; 2]).unwrap();
