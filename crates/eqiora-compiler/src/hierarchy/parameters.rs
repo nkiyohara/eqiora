@@ -21,11 +21,15 @@ use dependencies::{
     expression_evaluation_order,
 };
 mod model_lets;
+mod model_parameters;
 use expression_eval::{
     ExpressionContext, coerce_parameter, coerce_parameter_with_label, evaluate_initializer,
     evaluate_parameter_expression,
 };
 pub(super) use model_lets::{alias_order, resolve_component_lets, resolve_model_lets};
+pub(super) use model_parameters::{
+    resolve_model_parameters, resolve_model_parameters_symbolically,
+};
 
 #[derive(Debug, Clone)]
 pub(super) struct ResolvedParameter {
@@ -164,6 +168,7 @@ impl<'a> SymbolicParameterResolver<'a> {
         component: &'a ComponentDecl,
         instance: &InstanceDecl,
         resolve_parent: impl FnMut(&str) -> Option<SymbolicParameterValue>,
+        resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let declarations = parameter_declarations(component);
         let overrides = resolve_instance_overrides(
@@ -173,6 +178,7 @@ impl<'a> SymbolicParameterResolver<'a> {
             instance,
             &declarations,
             resolve_parent,
+            resolve_clock,
         )?;
         Ok(Self {
             declaration_file,
@@ -183,7 +189,10 @@ impl<'a> SymbolicParameterResolver<'a> {
         })
     }
 
-    fn resolve_all(mut self) -> Result<SymbolicParameterMap, Vec<Diagnostic>> {
+    fn resolve_all(
+        mut self,
+        resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
+    ) -> Result<SymbolicParameterMap, Vec<Diagnostic>> {
         let mut diagnostics = Vec::new();
         let mut defaults = BTreeMap::new();
 
@@ -296,6 +305,7 @@ impl<'a> SymbolicParameterResolver<'a> {
                 },
                 parameter.target.clone().expect("valid default target"),
                 "Parameter initializer",
+                resolve_clock,
             )
             .and_then(|evaluated| {
                 coerce_parameter_with_label(
@@ -349,6 +359,7 @@ fn resolve_instance_overrides(
     instance: &InstanceDecl,
     declarations: &BTreeMap<String, &ComponentParameterDecl>,
     mut resolve_parent: impl FnMut(&str) -> Option<SymbolicParameterValue>,
+    resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
 ) -> Result<BTreeMap<String, SymbolicParameterValue>, Vec<Diagnostic>> {
     let mut overrides = BTreeMap::new();
     let mut bound = BTreeSet::new();
@@ -420,7 +431,7 @@ fn resolve_instance_overrides(
                     )
                 })
             },
-        )
+         resolve_clock)
         .and_then(|value| coerce_parameter(binding_file, binding.range(), value, target));
         match value {
             Ok(value) => {
@@ -441,8 +452,10 @@ fn resolve_instance_overrides(
 pub(super) fn resolve_component_parameters_symbolically(
     declaration_file: &str,
     component: &ComponentDecl,
+    mut resolve_clock: impl FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
 ) -> Result<SymbolicParameterMap, Vec<Diagnostic>> {
-    SymbolicParameterResolver::component_interface(declaration_file, component).resolve_all()
+    SymbolicParameterResolver::component_interface(declaration_file, component)
+        .resolve_all(&mut resolve_clock)
 }
 
 /// Validate a nested instance against an already-resolved child interface.
@@ -458,6 +471,7 @@ pub(super) fn validate_instance_parameters_symbolically(
     instance: &InstanceDecl,
     parent_parameters: &SymbolicParameterMap,
     child_interface: &SymbolicParameterMap,
+    mut resolve_clock: impl FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
 ) -> Result<(), Vec<Diagnostic>> {
     let declarations = parameter_declarations(component);
     if declarations.len() != child_interface.len()
@@ -477,6 +491,7 @@ pub(super) fn validate_instance_parameters_symbolically(
         instance,
         &declarations,
         |name| parent_parameters.get(name).cloned(),
+        &mut resolve_clock,
     )?;
     let diagnostics = declarations
         .into_iter()
@@ -512,6 +527,7 @@ impl<'a> ParameterResolver<'a> {
         component: &'a ComponentDecl,
         instance: &InstanceDecl,
         mut resolve_parent: impl FnMut(&str) -> Option<ResolvedParameter>,
+        mut resolve_clock: impl FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
     ) -> Result<Self, Vec<Diagnostic>> {
         SymbolicParameterResolver::instance(
             declaration_file,
@@ -519,44 +535,52 @@ impl<'a> ParameterResolver<'a> {
             component,
             instance,
             |name| resolve_parent(name).map(SymbolicParameterValue::from),
+            &mut resolve_clock,
         )
         .map(|inner| Self { inner })
     }
 
     pub(super) fn resolve_all(
         self,
+        mut resolve_clock: impl FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
     ) -> Result<BTreeMap<String, ResolvedParameter>, Vec<Diagnostic>> {
-        self.inner.resolve_all().and_then(|parameters| {
-            parameters
-                .into_iter()
-                .map(|(name, parameter)| {
-                    let value = parameter.value.ok_or_else(|| {
-                        vec![hierarchy_error(format!(
-                            "concrete instance Parameter `{name}` remained symbolic"
-                        ))]
-                    })?;
-                    let expression = parameter.expression.ok_or_else(|| {
-                        vec![hierarchy_error(format!(
-                            "concrete instance Parameter `{name}` has no resolved expression"
-                        ))]
-                    })?;
-                    let lineage = parameter.lineage.ok_or_else(|| {
-                        vec![hierarchy_error(format!(
-                            "concrete instance Parameter `{name}` has no exact binding lineage"
-                        ))]
-                    })?;
-                    Ok((
-                        name,
-                        ResolvedParameter {
-                            value,
-                            expression,
-                            lineage,
-                        },
-                    ))
-                })
-                .collect()
-        })
+        self.inner
+            .resolve_all(&mut resolve_clock)
+            .and_then(concrete_parameters)
     }
+}
+
+fn concrete_parameters(
+    parameters: SymbolicParameterMap,
+) -> Result<BTreeMap<String, ResolvedParameter>, Vec<Diagnostic>> {
+    parameters
+        .into_iter()
+        .map(|(name, parameter)| {
+            let value = parameter.value.ok_or_else(|| {
+                vec![hierarchy_error(format!(
+                    "concrete instance Parameter `{name}` remained symbolic"
+                ))]
+            })?;
+            let expression = parameter.expression.ok_or_else(|| {
+                vec![hierarchy_error(format!(
+                    "concrete instance Parameter `{name}` has no resolved expression"
+                ))]
+            })?;
+            let lineage = parameter.lineage.ok_or_else(|| {
+                vec![hierarchy_error(format!(
+                    "concrete instance Parameter `{name}` has no exact binding lineage"
+                ))]
+            })?;
+            Ok((
+                name,
+                ResolvedParameter {
+                    value,
+                    expression,
+                    lineage,
+                },
+            ))
+        })
+        .collect()
 }
 
 fn combine_parameters(
@@ -817,6 +841,7 @@ pub(crate) fn closed_value(
         },
         target.clone(),
         "declared value",
+        &mut |_| None,
     )?;
     let value = coerce_parameter_with_label(
         file,
@@ -855,6 +880,7 @@ pub(in crate::hierarchy) fn static_index(
                 )
             })
         },
+        &mut |_| None,
     )?;
     value_expressions::checked_index(file, expression.range(), &evaluated)
 }

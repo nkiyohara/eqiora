@@ -52,6 +52,9 @@ pub(super) fn collect_expression_dependencies(
                 path.range(),
                 context.qualified_name_message(path),
             )),
+            // Clock identity is resolved separately during typed evaluation, never
+            // as an edge in the Parameter default dependency graph.
+            ExprKind::Call { callee, .. } if callee.as_str() == "period" => {}
             ExprKind::Call { callee, arguments } if callee.as_str() == "math.complex" => {
                 pending.extend(arguments)
             }

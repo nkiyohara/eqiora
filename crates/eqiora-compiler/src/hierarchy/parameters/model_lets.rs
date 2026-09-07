@@ -20,6 +20,7 @@ pub(in crate::hierarchy) fn resolve_model_lets(
     file: &str,
     model: &ModelDecl,
     values: &mut SymbolicParameterMap,
+    mut resolve_clock: impl FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
 ) -> Result<(), Vec<Diagnostic>> {
     resolve_lets(
         file,
@@ -28,6 +29,7 @@ pub(in crate::hierarchy) fn resolve_model_lets(
             _ => None,
         }),
         values,
+        &mut resolve_clock,
     )
 }
 
@@ -35,6 +37,7 @@ pub(in crate::hierarchy) fn resolve_component_lets(
     file: &str,
     component: &ComponentDecl,
     values: &mut SymbolicParameterMap,
+    mut resolve_clock: impl FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
 ) -> Result<(), Vec<Diagnostic>> {
     resolve_lets(
         file,
@@ -43,6 +46,7 @@ pub(in crate::hierarchy) fn resolve_component_lets(
             _ => None,
         }),
         values,
+        &mut resolve_clock,
     )
 }
 
@@ -50,6 +54,7 @@ fn resolve_lets<'a>(
     file: &str,
     declarations: impl Iterator<Item = &'a LetDecl>,
     values: &mut SymbolicParameterMap,
+    resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
 ) -> Result<(), Vec<Diagnostic>> {
     let declarations = declarations
         .map(|declaration| (declaration.name().to_owned(), declaration))
@@ -91,12 +96,14 @@ fn resolve_lets<'a>(
                 &mut resolve,
                 target.clone(),
                 "let alias",
+                resolve_clock,
             ),
             None => evaluate_parameter_expression(
                 file,
                 declaration.value(),
                 ExpressionContext::Let,
                 &mut resolve,
+                resolve_clock,
             ),
         };
         let range = declaration.range();
@@ -204,6 +211,7 @@ fn is_static_expression(expression: &eqiora_lang::Expr, values: &SymbolicParamet
                 pending.push(left);
                 pending.push(right);
             }
+            eqiora_lang::ExprKind::Call { callee, .. } if callee.as_str() == "period" => {}
             eqiora_lang::ExprKind::Call { callee, arguments }
                 if !matches!(
                     callee.as_str(),

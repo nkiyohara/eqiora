@@ -56,6 +56,7 @@ pub(super) fn evaluate_parameter_expression(
     expression: &Expr,
     context: ExpressionContext,
     resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
+    resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
 ) -> Result<EvaluatedParameter, Diagnostic> {
     if matches!(
         expression.kind(),
@@ -63,7 +64,13 @@ pub(super) fn evaluate_parameter_expression(
     ) || matches!(expression.kind(), ExprKind::Path(path) if path.as_str() == "math.i")
         || matches!(expression.kind(), ExprKind::Call { callee, .. } if callee.as_str() == "math.complex")
     {
-        return super::value_expressions::evaluate(file, expression, context, resolve);
+        return super::value_expressions::evaluate(
+            file,
+            expression,
+            context,
+            resolve,
+            resolve_clock,
+        );
     }
     let evaluated = match expression.kind() {
         ExprKind::Number(value) => EvaluatedParameter {
@@ -102,6 +109,52 @@ pub(super) fn evaluate_parameter_expression(
                 )),
                 bare_literal: false,
                 expression: Some(LoweringExpression::quantity(quantity, expression.range())),
+                lineage: Some(ParameterLineage::Constant),
+            }
+        }
+        ExprKind::Call { callee, arguments } if callee.as_str() == "period" => {
+            let [argument] = arguments.as_slice() else {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    expression.range(),
+                    "period requires exactly one declared Clock",
+                ));
+            };
+            let ExprKind::Name(name) = argument.kind() else {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    argument.range(),
+                    "period requires a direct declared Clock name",
+                ));
+            };
+            let period = resolve_clock(name).ok_or_else(|| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    argument.range(),
+                    format!("`{name}` is not a declared Clock"),
+                )
+            })?;
+            let value_type =
+                ValueType::scalar(ScalarDomain::Real, crate::dimensions::time_dimension());
+            EvaluatedParameter {
+                value: period.map(|period| {
+                    ValueLiteral::from_real(value_type.clone(), period.as_seconds_f64())
+                        .expect("bounded rational period")
+                }),
+                value_type: EvaluatedType::Known(value_type),
+                bare_literal: false,
+                expression: period.map(|period| {
+                    LoweringExpression::quantity(
+                        DynQuantity::new(
+                            period.as_seconds_f64(),
+                            crate::dimensions::time_dimension(),
+                        ),
+                        expression.range(),
+                    )
+                }),
                 lineage: Some(ParameterLineage::Constant),
             }
         }
@@ -146,7 +199,8 @@ pub(super) fn evaluate_parameter_expression(
                     "static scalar mathematics requires exactly one argument",
                 ));
             };
-            let operand = evaluate_parameter_expression(file, argument, context, resolve)?;
+            let operand =
+                evaluate_parameter_expression(file, argument, context, resolve, resolve_clock)?;
             let EvaluatedType::Known(value_type) = &operand.value_type else {
                 return Err(source_error(
                     codes::LANGUAGE_TYPE_ERROR,
@@ -234,7 +288,8 @@ pub(super) fn evaluate_parameter_expression(
             op: UnaryOp::Neg,
             value,
         } => {
-            let operand = evaluate_parameter_expression(file, value, context, resolve)?;
+            let operand =
+                evaluate_parameter_expression(file, value, context, resolve, resolve_clock)?;
             let negated = operand
                 .value
                 .map(|value| {
@@ -259,8 +314,9 @@ pub(super) fn evaluate_parameter_expression(
             }
         }
         ExprKind::Binary { op, left, right } => {
-            let left = evaluate_parameter_expression(file, left, context, resolve)?;
-            let right = evaluate_parameter_expression(file, right, context, resolve)?;
+            let left = evaluate_parameter_expression(file, left, context, resolve, resolve_clock)?;
+            let right =
+                evaluate_parameter_expression(file, right, context, resolve, resolve_clock)?;
             combine_parameters(file, expression.range(), *op, left, right)?
         }
         _ => {
@@ -282,6 +338,7 @@ pub(super) fn evaluate_initializer(
     resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
     target: ValueType,
     label: &str,
+    resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
 ) -> Result<EvaluatedParameter, Diagnostic> {
     let evaluated = if matches!(expression.kind(), ExprKind::Array(_))
         || matches!(expression.kind(), ExprKind::Call { callee, .. } if callee.as_str() == "math.complex")
@@ -292,9 +349,10 @@ pub(super) fn evaluate_initializer(
             context,
             resolve,
             Some(&target),
+            resolve_clock,
         )?
     } else {
-        evaluate_parameter_expression(file, expression, context, resolve)?
+        evaluate_parameter_expression(file, expression, context, resolve, resolve_clock)?
     };
     coerce_parameter_with_label(file, expression.range(), evaluated, target, label, true)
         .map(Into::into)
