@@ -2,9 +2,10 @@ use super::*;
 
 impl LoweringModel {
     pub(super) fn from_source(file: &str, model: &ModelDecl) -> Result<Self, Diagnostic> {
-        let items = model
-            .items()
+        let owned = crate::hierarchy::owned_model_items(model);
+        let items = owned
             .iter()
+            .chain(model.items())
             .enumerate()
             .map(|(item_index, item)| {
                 Ok(match item {

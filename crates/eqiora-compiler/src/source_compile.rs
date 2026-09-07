@@ -36,10 +36,11 @@ pub fn compile(file: &str, source: &str) -> Result<Vec<CompiledModel>, Vec<Diagn
         || !document.components().is_empty()
         || !document.pure_operators().is_empty()
         || document.models().iter().any(|model| {
-            model
-                .items()
-                .iter()
-                .any(|item| matches!(item, Item::Instance(_) | Item::Let(_)))
+            !model.signature().is_empty()
+                || model
+                    .items()
+                    .iter()
+                    .any(|item| matches!(item, Item::Instance(_) | Item::Let(_)))
         });
     if has_hierarchy {
         return crate::hierarchy::compile_hierarchy(file, source.len(), &document);

@@ -600,6 +600,37 @@ pub(super) fn rewrite_expression_with_boundary_member(
             rewrite_expression_with_boundary_member(file, right, scope, active)?,
             expression.range(),
         ),
+        ExprKind::Call { callee, arguments } if callee.as_str() == "sample" => {
+            let [value, clock] = arguments.as_slice() else {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    expression.range(),
+                    "sample requires a value and one clock name",
+                ));
+            };
+            let ExprKind::Name(clock_name) = clock.kind() else {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    clock.range(),
+                    "sample requires one clock name",
+                ));
+            };
+            let clock = resolve_local_kind(
+                file,
+                clock.range(),
+                scope,
+                clock_name,
+                |kind| matches!(kind, SymbolKind::Clock),
+                "sample clock",
+            )?;
+            LoweringExpression::sample(
+                rewrite_expression_with_boundary_member(file, value, scope, active)?,
+                clock.internal_name.clone(),
+                expression.range(),
+            )
+        }
         ExprKind::Call { callee, arguments } if is_builtin_operator(callee) => {
             let [argument] = arguments.as_slice() else {
                 return Err(source_error(

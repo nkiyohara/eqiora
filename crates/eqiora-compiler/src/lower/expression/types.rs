@@ -283,7 +283,7 @@ fn expression_type_cached(
                 "math.sin" => typing::unary_math(UnaryMathFunction::Sin, &operand),
                 "math.sqrt" => typing::unary_math(UnaryMathFunction::Sqrt, &operand),
                 "derivative" => typing::time_derivative(&operand),
-                "pre" | "next" => Ok(operand),
+                "pre" | "next" | "hold" => Ok(operand),
                 _ => {
                     return Err(source_error(
                         codes::LANGUAGE_TYPE_ERROR,
@@ -295,6 +295,7 @@ fn expression_type_cached(
             }
             .map_err(violation)
         }
+        LoweringExpressionNode::Sample { value, .. } => infer(value),
         LoweringExpressionNode::PureOperator {
             definition,
             arguments,

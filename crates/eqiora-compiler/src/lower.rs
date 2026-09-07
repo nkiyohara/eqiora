@@ -243,6 +243,10 @@ enum LoweringExpressionNode {
         callee: String,
         argument: LoweringExpression,
     },
+    Sample {
+        value: LoweringExpression,
+        clock: String,
+    },
     PureOperator {
         definition: PureOperatorDefinition,
         arguments: Vec<LoweringExpression>,

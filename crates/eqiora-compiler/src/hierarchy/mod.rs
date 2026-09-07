@@ -35,6 +35,7 @@ mod occurrence_connections;
 mod parameters;
 mod physical_closure;
 mod preflight;
+pub(crate) use preflight::owned_model_items;
 mod scope;
 mod supports;
 

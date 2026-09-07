@@ -43,7 +43,7 @@ pub(super) fn component_items(declaration: &ComponentDecl) -> std::sync::Arc<[Co
         .into()
 }
 
-pub(super) fn model_items(declaration: &ModelDecl) -> std::sync::Arc<[Item]> {
+pub(crate) fn model_items(declaration: &ModelDecl) -> std::sync::Arc<[Item]> {
     declaration
         .signature()
         .iter()

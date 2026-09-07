@@ -24,6 +24,10 @@ impl DependencyActivation {
             SymbolContract::Field(_, _, ActivationSyntax::Periodic(clock)) => {
                 Self::Clock(clock.clone())
             }
+            SymbolContract::Port(PortContract::Signal {
+                activation: ActivationSyntax::Periodic(clock),
+                ..
+            }) => Self::Clock(clock.clone()),
             SymbolContract::Field(..) | SymbolContract::Port(_) => Self::Continuous,
             SymbolContract::Alias(alias) => alias.activation.clone(),
             _ => Self::Static,
@@ -62,6 +66,13 @@ impl DependencyActivation {
                 ExprKind::Binary { left, right, .. } => {
                     pending.extend([left.as_ref(), right.as_ref()]);
                     Self::Static
+                }
+                ExprKind::Call { callee, .. } if callee.as_str() == "hold" => Self::Continuous,
+                ExprKind::Call { callee, arguments } if callee.as_str() == "sample" => {
+                    match arguments.get(1).map(Expr::kind) {
+                        Some(ExprKind::Name(clock)) => Self::Clock(clock.clone()),
+                        _ => Self::Mixed,
+                    }
                 }
                 ExprKind::Call { arguments, .. } => {
                     // Evolution operators retain their target's declared activation too.

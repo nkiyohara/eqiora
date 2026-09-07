@@ -19,6 +19,11 @@ pub(super) fn encode_instance(
         encode_type_path(encoder, declaration.definition(), budget)
     })?;
     let bindings = encode_sorted_records(declaration.bindings(), budget, |binding, budget| {
+        if let eqiora_lang::ExprKind::Call { callee, arguments } = binding.value().kind()
+            && callee.as_str() == "boundaries"
+        {
+            budget.account_boundary_set_members(arguments.len())?;
+        }
         let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
         encoder.field(1, |encoder| encode_name(encoder, binding.name(), budget))?;
         encoder.field(2, |encoder| {

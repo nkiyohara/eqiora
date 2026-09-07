@@ -1688,14 +1688,11 @@ model Use {{
             .iter()
             .find(|diagnostic| diagnostic.message().contains("different exact parent"))
             .expect("wrong-parent proof diagnostic exists");
-        let expected_range = instance(&document, "invalid")
-            .boundary_set_bindings()
-            .first()
-            .expect("set binding exists")
-            .members()
-            .last()
-            .expect("wrong member exists")
-            .range();
+        let binding = &instance(&document, "invalid").bindings()[0];
+        let eqiora_lang::ExprKind::Call { arguments, .. } = binding.value().kind() else {
+            panic!("set binding")
+        };
+        let expected_range = arguments.last().expect("wrong member exists").range();
         let span = diagnostic
             .source_span()
             .expect("proof failure retains the exact member span");

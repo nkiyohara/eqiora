@@ -167,6 +167,7 @@ fn parameter_expression_identity_matches_native_factory_and_preserves_signed_lit
         let model = SourceAstFactory::model(
             VisibilitySyntax::Private,
             "M",
+            Vec::new(),
             vec![Item::Parameter(parameter)],
             range,
         )
@@ -223,6 +224,7 @@ fn negative_dimensioned_constructor_values_match_native_and_formatted_identity()
         let model = SourceAstFactory::model(
             VisibilitySyntax::Private,
             "M",
+            Vec::new(),
             vec![Item::Parameter(parameter)],
             range,
         )

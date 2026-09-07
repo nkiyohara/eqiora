@@ -1,4 +1,5 @@
 mod interfaces;
+pub(crate) use interfaces::model_items as owned_model_items;
 use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::Diagnostic;

@@ -147,7 +147,8 @@ mod tests {
         })
         .collect();
         let component =
-            SourceAstFactory::component(VisibilitySyntax::Private, "C", aliases, range).unwrap();
+            SourceAstFactory::component(VisibilitySyntax::Private, "C", Vec::new(), aliases, range)
+                .unwrap();
         let factory = SourceAstFactory::document(vec![], vec![component], vec![]).unwrap();
         assert_eq!(
             expected,

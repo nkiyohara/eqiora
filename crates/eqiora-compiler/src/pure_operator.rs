@@ -40,6 +40,9 @@ pub(crate) fn is_builtin_operator(path: &eqiora_lang::NamePath) -> bool {
                     | "derivative"
                     | "pre"
                     | "next"
+                    | "sample"
+                    | "hold"
+                    | "period"
             ))
 }
 

@@ -20,7 +20,8 @@ impl LoweringExpression {
                     pending.push(argument);
                 }
                 LoweringExpressionNode::Neg(value)
-                | LoweringExpressionNode::Index { value, .. } => pending.push(value),
+                | LoweringExpressionNode::Index { value, .. }
+                | LoweringExpressionNode::Sample { value, .. } => pending.push(value),
                 LoweringExpressionNode::Array(elements) => pending.extend(elements),
                 LoweringExpressionNode::Complex { real, imag } => pending.extend([real, imag]),
                 LoweringExpressionNode::Binary { left, right, .. } => {
@@ -109,6 +110,20 @@ pub(super) fn from_source(expression: &Expr) -> LoweringExpression {
             left: from_source(left),
             right: from_source(right),
         },
+        ExprKind::Call { callee, arguments } if callee.as_str() == "sample" => {
+            match arguments.as_slice() {
+                [value, clock] => match clock.kind() {
+                    ExprKind::Name(clock) => LoweringExpressionNode::Sample {
+                        value: from_source(value),
+                        clock: clock.clone(),
+                    },
+                    _ => LoweringExpressionNode::InvalidValue("sample requires one clock name"),
+                },
+                _ => LoweringExpressionNode::InvalidValue(
+                    "sample requires a value and one clock name",
+                ),
+            }
+        }
         ExprKind::Call { callee, arguments }
             if (!callee.is_qualified() || crate::math::is_namespaced(callee))
                 && arguments.len() == 1 =>
@@ -181,6 +196,7 @@ pub(super) fn lower_relation(
         dependencies: BTreeSet::new(),
         ports: BTreeSet::new(),
         cache: HashMap::new(),
+        sampling: false,
         allow_discrete_symbols: discrete || initial,
         activation,
         initial,
@@ -294,7 +310,8 @@ struct ExpressionLowerer<'a> {
     builder: ExprDagBuilder,
     dependencies: BTreeSet<RawId>,
     ports: BTreeSet<RawId>,
-    cache: HashMap<usize, TypedExpression>,
+    cache: HashMap<(usize, bool), TypedExpression>,
+    sampling: bool,
     allow_discrete_symbols: bool,
     activation: &'a ActivationSyntax,
     initial: bool,
@@ -308,11 +325,45 @@ pub(super) struct TypedExpression {
 
 impl ExpressionLowerer<'_> {
     fn lower(&mut self, expression: &LoweringExpression) -> Result<TypedExpression, Diagnostic> {
-        let key = Arc::as_ptr(&expression.node) as usize;
+        let key = (Arc::as_ptr(&expression.node) as usize, self.sampling);
         if let Some(lowered) = self.cache.get(&key) {
             return Ok(*lowered);
         }
         let lowered = match expression.node.as_ref() {
+            LoweringExpressionNode::Sample { value, clock } => {
+                let Some(Binding::Clock(id)) = self.bindings.get(clock) else {
+                    return Err(unresolved(
+                        self.file,
+                        expression.range(),
+                        clock,
+                        "sample ClockDomain",
+                    ));
+                };
+                let id = *id;
+                if self.sampling
+                    || self.initial
+                    || self.activation != &ActivationSyntax::Periodic(clock.clone())
+                {
+                    return Err(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.file,
+                        expression.range(),
+                        "sample requires its exact clock's update relation",
+                    ));
+                }
+                self.sampling = true;
+                let operand = self.lower(value);
+                self.sampling = false;
+                let operand = operand?;
+                self.dependencies.insert(id.erase());
+                self.builder
+                    .sample(operand.id, id)
+                    .map(|id| TypedExpression {
+                        id,
+                        dimension: operand.dimension,
+                    })
+                    .map_err(|error| self.builder_error(expression, error))
+            }
             LoweringExpressionNode::Array(elements) => {
                 let elements = elements
                     .iter()
@@ -423,7 +474,17 @@ impl ExpressionLowerer<'_> {
             ));
         };
         let (symbol, id, dimension) = match binding {
-            Binding::Field(id, contract) => (SymbolRef::Field(id), id.erase(), contract.dimension),
+            Binding::Field(id, contract) => {
+                if self.sampling && !matches!(contract.activation, ActivationSyntax::Continuous) {
+                    return Err(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.file,
+                        expression.range(),
+                        "sample operand must be continuous",
+                    ));
+                }
+                (SymbolRef::Field(id), id.erase(), contract.dimension)
+            }
             Binding::Parameter(id, value_type) => {
                 (SymbolRef::Parameter(id), id.erase(), value_type.dimension())
             }
@@ -433,7 +494,28 @@ impl ExpressionLowerer<'_> {
                 &contract,
                 self.bindings,
             )? {
-                ResolvedPortContract::Signal { value_type, .. } => {
+                ResolvedPortContract::Signal {
+                    value_type, clock, ..
+                } => {
+                    let expected = if self.sampling {
+                        None
+                    } else {
+                        match self.activation {
+                            ActivationSyntax::Periodic(name) => match self.bindings.get(name) {
+                                Some(Binding::Clock(id)) => Some(*id),
+                                _ => None,
+                            },
+                            _ => None,
+                        }
+                    };
+                    if clock != expected {
+                        return Err(source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            self.file,
+                            expression.range(),
+                            "signal Port read requires the exact declared activation; use an explicit transition",
+                        ));
+                    }
                     self.ports.insert(id.erase());
                     (SymbolRef::Port(id), id.erase(), value_type.dimension())
                 }
@@ -607,6 +689,39 @@ impl ExpressionLowerer<'_> {
                 "Field operator argument",
             ));
         };
+        if callee == "hold" {
+            if contract.role != eqiora_lang::FieldRoleSyntax::State
+                || !matches!(contract.activation, ActivationSyntax::Periodic(_))
+            {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.file,
+                    expression.range(),
+                    "hold requires one periodic State",
+                ));
+            }
+            self.dependencies.insert(field.erase());
+            let symbol = self
+                .builder
+                .symbol(SymbolRef::Field(field))
+                .map_err(|error| self.builder_error(expression, error))?;
+            return self
+                .builder
+                .hold(symbol)
+                .map(|id| TypedExpression {
+                    id,
+                    dimension: contract.dimension,
+                })
+                .map_err(|error| self.builder_error(expression, error));
+        }
+        if self.sampling {
+            return Err(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                self.file,
+                expression.range(),
+                "sample operand cannot contain an evolution operator",
+            ));
+        }
         if matches!(callee, "derivative" | "pre" | "next") {
             let eligible = contract.role == eqiora_lang::FieldRoleSyntax::State
                 && match callee {

@@ -49,6 +49,10 @@ impl LoweringExpression {
                 callee: callee.clone(),
                 argument: argument.clone_shared(cache),
             },
+            LoweringExpressionNode::Sample { value, clock } => LoweringExpressionNode::Sample {
+                value: value.clone_shared(cache),
+                clock: clock.clone(),
+            },
             LoweringExpressionNode::PureOperator {
                 definition,
                 arguments,
