@@ -1021,13 +1021,18 @@ def test_alias_support_assertion_rejects_inference_or_context_changes(kind):
     support = region
     expression = value * 2
     geometry = rectangle_geometry()
+    entry = "InvalidSupport"
     if kind == "wrong_region":
         support = component.volume("other", dimensions=2)
-        graph = eqiora.geometry.GeometryGraph()
-        rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
-        geometry = graph.build(rectangle, named_topology={
-            "region": rectangle.region, "other": rectangle.region,
-        })
+        # All definitions must be checked, including unused Components whose
+        # abstract supports do not need bindings in the selected Geometry.
+        entry = "Selected"
+        selected = source.component(entry)
+        selected_region = selected.volume("region", dimensions=2)
+        selected_value = selected.field("value", on=selected_region,
+                                        role=eqiora.FieldRole.Variable,
+                                        value_type=eqiora.ValueType.real())
+        selected.relation("balance", on=selected_region, left=selected_value, right=0)
     elif kind == "constant":
         expression = 2
     else:
@@ -1037,4 +1042,4 @@ def test_alias_support_assertion_rejects_inference_or_context_changes(kind):
     component.let_alias("invalid", expression, on=support)
     component.relation("balance", on=region, left=value, right=0)
     with pytest.raises(eqiora.ValidationError, match="support|scope|context|trace"):
-        eqiora.compile(source=source, geometry=geometry)
+        eqiora.compile(source=source, geometry=geometry, component=entry)
