@@ -96,7 +96,7 @@ impl PackagedModelDocument {
         resolution: &ResolutionRecordV1,
         component: &str,
         geometry: &CanonicalGeometryV1,
-        parameters: &[(&str, f64)],
+        parameters: &[(&str, eqiora_lang::Expr)],
     ) -> Result<Self, PackageCompilationError> {
         let resolved = ExactResolver.resolve(resolution, store)?;
         let namespaces = compilation_namespaces(&resolved)?;

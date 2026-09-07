@@ -5,7 +5,7 @@ use eqiora_artifact::{
 };
 use eqiora_compiler::CompiledModel;
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, DynQuantity};
+use eqiora_core::{Diagnostic, ValueLiteral};
 use eqiora_geometry::{CanonicalGeometryV1, NamedEntitySet};
 use eqiora_graph::{GraphStore, InMemoryGraphStore, Revision};
 use eqiora_sem::KernelProgram;
@@ -25,7 +25,7 @@ impl ModelDocument {
         source: &str,
         geometry: &CanonicalGeometryV1,
         component: Option<&str>,
-        parameters: &[(&str, f64)],
+        parameters: &[(&str, eqiora_lang::Expr)],
     ) -> Result<Self, Vec<Diagnostic>> {
         let compiled = CompiledModel::compile_external_geometry_component(
             filename, source, geometry, component, parameters,
@@ -38,7 +38,7 @@ impl ModelDocument {
     ///
     /// Each support is `(slot, selection, parent)`. A volume has no parent; a
     /// boundary supplies `(parent slot, parent selection)`. Parameter tuples
-    /// carry explicit coherent-SI dimensions. The compiler materializes one
+    /// carry their complete checked mathematical values. The compiler materializes one
     /// ephemeral root occurrence through the ordinary hierarchy expansion and
     /// typed transaction lowerer; no compiled-package lifecycle is exposed.
     ///
@@ -57,7 +57,7 @@ impl ModelDocument {
         model: &str,
         component: &str,
         supports: &[(&str, &NamedEntitySet, Option<(&str, &NamedEntitySet)>)],
-        parameters: &[(&str, DynQuantity)],
+        parameters: &[(&str, ValueLiteral)],
     ) -> Result<Self, Vec<Diagnostic>> {
         let compiled = CompiledModel::compile_external_component(
             filename, source, model, component, geometry, supports, parameters,
@@ -442,7 +442,7 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
 
     fn compile_cylinder(
         geometry: &CanonicalGeometryV1,
-        parameters: &[(&str, DynQuantity)],
+        parameters: &[(&str, ValueLiteral)],
     ) -> ModelDocument {
         let fluid = geometry.entity_set("fluid").unwrap();
         let supports = [
