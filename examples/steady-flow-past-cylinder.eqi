@@ -1,12 +1,13 @@
 // Equations-only component for steady, incompressible flow around a cylinder.
 // The concrete channel and cylinder Geometry are authored separately in Python.
-public component SteadyFlowPastCylinder {
+public component SteadyFlowPastCylinder(
+  support fluid: volume(ambient_dimension = 2),
+  support inlet: boundary(parent = fluid),
+  support outlet: boundary(parent = fluid),
+  support walls: boundary(parent = fluid),
+  support cylinder: boundary(parent = fluid)
+) {
   // Supports name the volume and its semantic boundaries without defining their shape.
-  public support fluid: volume(ambient_dimension = 2);
-  public support inlet: boundary(parent = fluid);
-  public support outlet: boundary(parent = fluid);
-  public support walls: boundary(parent = fluid);
-  public support cylinder: boundary(parent = fluid);
 
   // Values supplied when the component is compiled into a Model.
   public parameter dynamic_viscosity: kg / (m * s);
@@ -15,13 +16,13 @@ public component SteadyFlowPastCylinder {
   public parameter channel_height: m;
 
   // Unknown continuum fields live on the fluid volume.
-  representation space = continuum;
-  field velocity on fluid as space: vector<m / s, 2>;
-  field pressure on fluid as space: kg / (m * s ^ 2) = 0;
+
+  variable velocity: vector<m / s, 2> on fluid;
+  variable pressure: kg / (m * s ^ 2) on fluid;
 
   // Auxiliary fields keep prescribed forcing and profiles explicit and unit-checked.
-  field force_potential on fluid as space: kg / (m * s ^ 2) = 0;
-  field inlet_profile on fluid as space: m / s = 0;
+  variable force_potential: kg / (m * s ^ 2) on fluid;
+  variable inlet_profile: m / s on fluid;
 
   relation force_definition on fluid {
     force_potential - zero_pressure = 0;

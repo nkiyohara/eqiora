@@ -11,15 +11,15 @@ from typing import NamedTuple
 import numpy as np
 import eqiora
 
-
 SOURCE = """
-public component CoupledScalar {
-  public support body: volume(ambient_dimension = 1);
-  public support left: boundary(parent = body);
-  public support right: boundary(parent = body);
-  representation space = continuum;
-  field u on body as space: 1;
-  field v on body as space: 1;
+public component CoupledScalar(
+  support body: volume(ambient_dimension = 1),
+  support left: boundary(parent = body),
+  support right: boundary(parent = body)
+) {
+
+  variable u: 1 on body;
+  variable v: 1 on body;
   parameter length: m = 1;
   parameter reaction_scale: 1 / m ^ 2 = 1;
 

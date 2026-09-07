@@ -1,4 +1,4 @@
-public component Resistor {
+public component Resistor() {
   public parameter resistance: 1;
 
   relation law {

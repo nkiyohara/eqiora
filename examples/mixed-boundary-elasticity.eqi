@@ -1,17 +1,18 @@
 // Equations-only component for a 2D linear-elastic body with mixed boundaries.
 // Python supplies the concrete rectangle Geometry and associates these supports with it.
-public component MixedBoundaryElasticity2d {
+public component MixedBoundaryElasticity2d(
+  support body: volume(ambient_dimension = 2),
+  support x_lower: boundary(parent = body),
+  support x_upper: boundary(parent = body),
+  support y_lower: boundary(parent = body),
+  support y_upper: boundary(parent = body)
+) {
   // Supports describe the body and boundary roles, not geometric coordinates.
-  public support body: volume(ambient_dimension = 2);
-  public support x_lower: boundary(parent = body);
-  public support x_upper: boundary(parent = body);
-  public support y_lower: boundary(parent = body);
-  public support y_upper: boundary(parent = body);
 
   // The displacement is the unknown; load_potential defines a manufactured body load.
-  representation space = continuum;
-  field displacement on body as space: vector<m, 2>;
-  field load_potential on body as space: kg / (m * s ^ 2) = 0;
+
+  variable displacement: vector<m, 2> on body;
+  variable load_potential: kg / (m * s ^ 2) on body;
 
   // Lamé parameters and the length scale are supplied during compilation.
   public parameter mu: kg / (m * s ^ 2);
