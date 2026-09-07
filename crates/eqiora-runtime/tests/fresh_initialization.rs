@@ -1,0 +1,126 @@
+use eqiora_core::entity::kinds;
+use eqiora_core::{DimExponents, DynQuantity, Id, OntologyId, ScalarDomain, ValueType};
+use eqiora_graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
+use eqiora_runtime::{CpuProgram, FirstOrderProgram};
+use eqiora_schema::kernel::{
+    ActivationDef, ExprDagBuilder, FieldDef, FieldRole, KernelNode, ParameterDef, RelationDef,
+    SymbolRef,
+};
+use eqiora_schema::{Model, ModelView};
+use eqiora_sem::{KernelProgram, ReferenceConfig};
+use eqiora_time::{InitialConditionPolicy, TimeProblem, TimeSystem};
+
+#[test]
+fn fresh_initialization_solves_values_and_derivatives_together() {
+    let (kernel, relation) = decay(Some(3.0));
+    let cpu = CpuProgram::lower(&kernel).unwrap();
+    let system = FirstOrderProgram::lower(&cpu, relation).unwrap();
+    let initial = system
+        .initialize(ReferenceConfig::new(0.0, 1.0).unwrap())
+        .unwrap();
+    // x(0)=3 and x'+2x=0 independently imply x'(0)=-6.
+    assert!((initial.state()[0] - 3.0).abs() < 1e-10);
+    assert!((initial.derivative()[0] + 6.0).abs() < 1e-10);
+}
+
+#[test]
+fn structural_lowering_and_accepted_restart_do_not_require_fresh_conditions() {
+    let (kernel, relation) = decay(None);
+    let cpu = CpuProgram::lower(&kernel).unwrap();
+    let system = FirstOrderProgram::lower(&cpu, relation).unwrap();
+    assert!(
+        system
+            .initialize(ReferenceConfig::new(0.0, 1.0).unwrap())
+            .is_err()
+    );
+    assert!(system.time_problem().is_err());
+    // This is the adapter seam: the exact State owner authenticates identity
+    // before passing an accepted coordinate vector to the time problem.
+    let restart = TimeProblem::new(
+        &system,
+        system.equation_class(),
+        InitialConditionPolicy::Provided,
+        vec![1.5],
+    )
+    .unwrap();
+    let mut rhs = [0.0];
+    system.rhs(0.5, restart.initial_state(), &mut rhs).unwrap();
+    assert_eq!(rhs, [-3.0]);
+}
+
+fn decay(initial_value: Option<f64>) -> (KernelProgram, Id<kinds::Relation>) {
+    let field = Id::<kinds::Field>::new();
+    let rate = Id::<kinds::Parameter>::new();
+    let relation = Id::<kinds::Relation>::new();
+    let activation = Id::<kinds::Activation>::new();
+    let model = OntologyId::<Model>::new();
+    let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+    let inverse_time = DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).unwrap();
+    let mut expression = ExprDagBuilder::new();
+    let value = expression.symbol(SymbolRef::Field(field)).unwrap();
+    let derivative = expression.symbol(SymbolRef::Derivative(field)).unwrap();
+    let coefficient = expression.symbol(SymbolRef::Parameter(rate)).unwrap();
+    let decay = expression.mul(coefficient, value).unwrap();
+    let residual = expression.add(derivative, decay).unwrap();
+    let mut nodes = vec![
+        KernelNode::from(FieldDef::new(field, scalar, FieldRole::State)),
+        KernelNode::from(
+            ParameterDef::new(
+                rate,
+                ValueType::scalar(ScalarDomain::Real, inverse_time),
+                2.0,
+            )
+            .unwrap(),
+        ),
+        KernelNode::from(RelationDef::new(
+            relation,
+            expression.finish([residual]).unwrap(),
+        )),
+        KernelNode::from(ActivationDef::continuous(activation)),
+    ];
+    let mut transaction = Transaction::new("fresh initialization and restart separation");
+    let mut initial_relation = None;
+    if let Some(value) = initial_value {
+        let initial = Id::<kinds::Relation>::new();
+        let mut expression = ExprDagBuilder::new();
+        let field_value = expression.symbol(SymbolRef::Field(field)).unwrap();
+        let value = expression
+            .constant(DynQuantity::new(value, DimExponents::DIMENSIONLESS))
+            .unwrap();
+        let residual = expression.sub(field_value, value).unwrap();
+        nodes.push(RelationDef::initial(initial, expression.finish([residual]).unwrap()).into());
+        initial_relation = Some(initial);
+    }
+    let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();
+    for node in nodes {
+        transaction.push(Op::DefineKernelNode { node });
+    }
+    if let Some(initial) = initial_relation {
+        transaction.push(Op::Connect {
+            from: initial.erase(),
+            to: field.erase(),
+            edge: EdgeKind::DependsOn,
+        });
+    }
+    for dependency in [field.erase(), rate.erase()] {
+        transaction.push(Op::Connect {
+            from: relation.erase(),
+            to: dependency,
+            edge: EdgeKind::DependsOn,
+        });
+    }
+    transaction.push(Op::Connect {
+        from: activation.erase(),
+        to: relation.erase(),
+        edge: EdgeKind::Activates,
+    });
+    transaction.push(Op::DefineOntologyView {
+        view: ModelView::new(model, members, []).unwrap().into(),
+    });
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    (
+        KernelProgram::from_snapshot(&store.snapshot(), model).unwrap(),
+        relation,
+    )
+}
