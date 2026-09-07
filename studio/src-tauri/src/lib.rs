@@ -860,7 +860,7 @@ mod tests {
 model decay {
   field x: 1 = 1;
   parameter rate: 1 / s = 1;
-  relation flow continuous {
+  relation flow {
     derivative(x) + rate * x = 0;
   }
 }
@@ -882,7 +882,7 @@ model decay {
     fn projection_retains_checked_field_types_without_scalar_narrowing() {
         let document = ModelDocument::compile(
             "channels.eqi",
-            "model channels { field channels: array<m, 2> = 0; relation hold continuous { channels = 0; } }",
+            "model channels { field channels: array<m, 2> = 0; relation hold { channels = 0; } }",
         )
         .unwrap();
         let projection = project_document(&document, document.digest().unwrap()).unwrap();
@@ -934,7 +934,7 @@ model decay {
     fn projection_retains_rich_types_without_presenting_them_as_real_values() {
         let document = ModelDocument::compile(
             "typed.eqi",
-            "model Typed { parameter amplitude: complex<V> = 2; field channels: array<m, 2> = 0; relation resting continuous { channels = 0; } }",
+            "model Typed { parameter amplitude: complex<V> = 2; field channels: array<m, 2> = 0; relation resting { channels = 0; } }",
         )
         .unwrap();
         let projection = project_document(&document, document.digest().unwrap()).unwrap();

@@ -349,7 +349,7 @@ mod tests {
   domain z_upper = boundary(body, axis = 2, side = upper);
   representation geometry_space = continuum;
   field marker on body as geometry_space: 1 = 0;
-  relation selected_boundary continuous on x_upper { trace(marker) = 0; }
+  relation selected_boundary on x_upper { trace(marker) = 0; }
 }"#;
 
     #[test]

@@ -1,7 +1,7 @@
 export const EXAMPLE_SOURCE = `model controlled_decay {
   field state: 1 = 1;
   parameter rate: 1 / s = 0.8;
-  relation decay continuous {
+  relation decay {
     derivative(state) + rate * state = 0;
   }
 }
@@ -18,7 +18,7 @@ export const CAD_EXAMPLE_SOURCE = `model cad_semantic_selection {
   representation geometry_space = continuum;
   field marker on body as geometry_space: 1 = 0;
 
-  relation selected_boundary continuous on x_upper {
+  relation selected_boundary on x_upper {
     trace(marker) = 0;
   }
 }
