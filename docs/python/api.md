@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 18 module summaries and all 178 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 673 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 18 module summaries and all 179 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 671 signature-only entries under documented owning types**.
 
-Inventory: 18 modules, 214 literal public spellings, 178 canonical grouped declarations, 879 visible method signatures (673 non-dunder and 206 dunder), and 74 visible class assignments.
+Inventory: 18 modules, 215 literal public spellings, 179 canonical grouped declarations, 878 visible method signatures (671 non-dunder and 207 dunder), and 76 visible class assignments.
 
 Regenerate with:
 
@@ -734,19 +734,17 @@ Authority: [`crates/eqiora-python/src/modeling.rs::PyField`](../../crates/eqiora
 ```python
 @final
 class Field:
-    def __new__(cls, name: str, *, domain: Domain | None=None, representation: Representation | None=None, value_type: ValueType | None=None, initial: float | None=None) -> Self: ...
+    def __new__(cls, name: str, *, domain: Domain | None=None, role: FieldRole, value_type: ValueType | None=None) -> Self: ...
     @property
     def name(self) -> str: ...
     @property
     def dimension(self) -> Dimension: ...
     @property
-    def initial(self) -> float | None: ...
+    def role(self) -> FieldRole: ...
     @property
     def value_type(self) -> ValueType: ...
     @property
     def domain(self) -> Domain | None: ...
-    @property
-    def representation(self) -> Representation | None: ...
     def __neg__(self) -> Expression: ...
     def __add__(self, right: _ExpressionLike, /) -> Expression: ...
     def __radd__(self, left: _ExpressionLike, /) -> Expression: ...
@@ -1220,23 +1218,37 @@ class Plan:
     def __hash__(self) -> int: ...
 ```
 
-<a id="api-eqiora-Representation"></a>
+<a id="api-eqiora-FieldRole"></a>
 
-### `eqiora.Representation`
+### `eqiora.FieldRole`
 
-Immutable continuum representation declaration.
+Author-declared evolution role independent of spatial support.
 
-Authority: [`crates/eqiora-python/src/modeling.rs::PyRepresentation`](../../crates/eqiora-python/src/modeling.rs)
+Authority: [`crates/eqiora-python/src/modeling.rs::PyFieldRole`](../../crates/eqiora-python/src/modeling.rs)
 
 ```python
 @final
-class Representation:
-    @staticmethod
-    def continuum(name: str) -> Representation: ...
-    @property
-    def name(self) -> str: ...
+class FieldRole:
+    Variable: ClassVar[FieldRole]
+    State: ClassVar[FieldRole]
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
+```
+
+<a id="api-eqiora-Initial"></a>
+
+### `eqiora.Initial`
+
+Simultaneous fresh-initialization residuals, each equal to zero.
+
+Authority: [`crates/eqiora-python/src/modeling.rs::PyInitial`](../../crates/eqiora-python/src/modeling.rs)
+
+```python
+@final
+class Initial:
+    def __new__(cls, *residuals: _ExpressionLike) -> Self: ...
+    @property
+    def residuals(self) -> list[Expression]: ...
 ```
 
 <a id="api-eqiora-Relation"></a>
@@ -2322,7 +2334,7 @@ class Component:
     def boundary(self, name: str, *, parent: Support, doc: str | None=None) -> Support: ...
     def parameter(self, name: str, *, value_type: ValueType, doc: str | None=None) -> Expression: ...
     def property(self, name: str, *, contract: PropertyContract, doc: str | None=None) -> Expression: ...
-    def field(self, name: str, *, on: Support, value_type: ValueType, initial: int | float | None=None, doc: str | None=None) -> Expression: ...
+    def field(self, name: str, *, on: Support, value_type: ValueType, role: FieldRole, doc: str | None=None) -> Expression: ...
     def relation(self, name: str, *, on: Support, left: Expression | int | float, right: Expression | int | float, doc: str | None=None) -> Relation: ...
     def primal_form(self, relation: Relation, *, left: Expression, right: Expression, doc: str | None=None) -> None: ...
     def instance(self, name: str, *, component: Component, supports: Mapping[Support, Support], parameters: Mapping[Expression, Expression | int | float], properties: Mapping[Expression, PropertyRelease] | None=None, material: MaterialComposition | None=None, doc: str | None=None) -> None: ...

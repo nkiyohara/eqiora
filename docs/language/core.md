@@ -285,7 +285,8 @@ context. For example, `voltage = 0;` uses a voltage zero. An unconstrained zero 
 real scalar zero. Contextual zero does not create a frame, support, clock, or basis conversion.
 A numeric initializer of an explicitly dimension-typed declaration uses that dimension's
 coherent unit: `parameter density: kg / m ^ 3 = 1;` needs no repeated unit. This also
-applies to a numeric parameter default, Field initializer, or type-annotated `let`.
+applies to a numeric parameter default or type-annotated `let`; it does not apply to a
+nonzero literal in an initial equation.
 Explicit input units still undergo conversion and dimension checking. This declaration-only
 rule does not assign units to arbitrary expressions or instance arguments; nonzero literals
 elsewhere remain dimensionless.

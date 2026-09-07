@@ -15,6 +15,10 @@ python -m pip install eqiora==0.1.0a1
 
 ## Build and run a model
 
+For this current-checkout example, follow the
+[source installation guide](src/content/docs/get-started/index.mdx); the pinned
+prerelease above retains its historical authoring contract.
+
 This complete example compiles an Eqiora model, resolves a typed adaptive time
 policy without inventing a Mesh, and runs the shared native lifecycle:
 
@@ -23,9 +27,10 @@ import eqiora
 
 model = eqiora.compile(source="""
 model decay {
-  field state: 1 = 1;
+  state state: 1;
+  initial { state = 1; }
   parameter rate: 1 / s = 1;
-  relation flow continuous {
+  relation flow {
     derivative(state) + rate * state = 0;
   }
 }

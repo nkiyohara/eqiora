@@ -29,8 +29,8 @@ execution order. A signal input/output port has different semantics.
 
 ## Binding existing spatial Fields
 
-A continuum component can require `public support body: volume(ambient_dimension = 2);`
-and an occurrence-bound `public field slot`. In an instance, write
+A continuum component can require `support body: volume(ambient_dimension = 2)`
+and an occurrence-bound `variable` or `state` in its signature. In an instance, write
 `support body = body` and `field displacement = displacement` explicitly.
 The [elastic-body example](/reference/standard-packages/continuum/#elastic-balance-and-boundaries)
 binds the same displacement to a balance law and its boundary interface. These
