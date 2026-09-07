@@ -184,7 +184,10 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
         producer = PRODUCER.read_text(encoding="utf-8")
 
         self.assertIn("/gallery/transient-cylinder-startup/", gallery)
-        self.assertIn("Explicitly unverified", gallery)
+        self.assertRegex(
+            gallery,
+            r"href: '/gallery/transient-cylinder-startup/'[^}]*tags: \[[^\]]*'unverified'",
+        )
         self.assertIn("<video", page)
         self.assertIn('type="video/webm"', page)
         self.assertIn('type="video/mp4"', page)
