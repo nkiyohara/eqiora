@@ -199,7 +199,8 @@ impl SampledSession {
             .filter(|tick| within_horizon(*tick, self.config.end_time))
     }
 
-    /// Accepted initialized memory or algebraic Field value.
+    /// Accepted memory or continuous algebraic value. A clocked Variable is present
+    /// only after its own accepted tick, until execution advances to another instant.
     #[must_use]
     pub fn field(&self, field: RawId) -> Option<DynQuantity> {
         let KernelNode::Field(definition) = self.program.node(field)? else {

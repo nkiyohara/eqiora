@@ -1,5 +1,7 @@
 //! Deterministic reference execution for scalar continuous/periodic models.
 
+mod clocked_variables;
+use clocked_variables::{clear_clocked_variables, is_clocked_variable};
 mod event_localization;
 mod execution_plan;
 mod initialization;
@@ -349,10 +351,11 @@ impl Interpreter {
     /// Evaluate a validated model with deterministic reference numerics.
     ///
     /// Periodic activations at the same exact rational instant are solved as
-    /// one simultaneous system. At an activation instant, `Field` and `Pre`
-    /// read the pre-activation state while `Next` values commit atomically.
-    /// Causal signal inputs alias their one output and periodic outputs hold
-    /// their value between ticks.
+    /// one simultaneous system. At an activation instant, State reads and `Pre`
+    /// use accepted memory while `Next` commits atomically. Clocked Variables
+    /// are current-tick algebraic unknowns and have no value between ticks.
+    /// Causal inputs resolve their exact directed source; continuous retention
+    /// requires an explicit Hold of initialized State memory.
     ///
     /// # Errors
     /// Returns structured diagnostics for missing initial/input values,
@@ -723,7 +726,7 @@ impl RuntimeState {
         let mut ports = BTreeMap::new();
         for node in program.nodes() {
             match node {
-                KernelNode::Field(field) => {
+                KernelNode::Field(field) if !is_clocked_variable(program, field.id().erase()) => {
                     let id = field.id().erase();
                     fields.insert(id, 0.0);
                 }
@@ -880,6 +883,7 @@ fn solve_continuous_step(
     }
     commit_solution(&variables, &solution, state);
     state.derivatives.extend(candidates.derivatives);
+    clear_clocked_variables(program, state);
     Ok(())
 }
 
@@ -924,10 +928,15 @@ fn execute_activated_relations(
     config: ReferenceConfig,
     backend: &impl ExpressionBackend,
 ) -> Result<(), Diagnostic> {
+    let mut accepted_candidate = state.clone();
+    clear_clocked_variables(program, &mut accepted_candidate);
     let mut variables = BTreeSet::new();
     for &relation in relations {
         for symbol in relation_symbols(program, relation)? {
             match symbol {
+                SymbolRef::Field(field) if is_clocked_variable(program, field.erase()) => {
+                    variables.insert(Variable::Field(field.erase()));
+                }
                 SymbolRef::Next(field) => {
                     variables.insert(Variable::NextField(field.erase()));
                 }
@@ -944,31 +953,46 @@ fn execute_activated_relations(
     let variables = variables.into_iter().collect::<Vec<_>>();
     let initial = variables
         .iter()
-        .map(|variable| variable_value(*variable, state))
+        .map(|variable| match variable {
+            Variable::Field(field) if is_clocked_variable(program, *field) => {
+                config.initial_guess()
+            }
+            _ => variable_value(*variable, &accepted_candidate),
+        })
         .collect();
-    let solution = solver::solve(
-        initial,
-        config.nonlinear_settings(),
-        execution_path(phase, time),
-        |values| {
-            let candidates = candidate_maps(&variables, values, state);
-            evaluate_relations(
-                program,
-                relations,
-                time,
-                state,
-                &candidates.fields,
-                &candidates.derivatives,
-                &candidates.next_fields,
-                &candidates.ports,
-                &candidates.physical,
-                &plan.signal_sources,
-                &[],
-                backend,
-            )
-        },
-    )?;
-    let mut accepted_candidate = state.clone();
+    let check_rank = variables.iter().any(|variable| matches!(variable, Variable::Field(field) if is_clocked_variable(program, *field)));
+    let residual = |values: &[f64]| {
+        let candidates = candidate_maps(&variables, values, &accepted_candidate);
+        evaluate_relations(
+            program,
+            relations,
+            time,
+            &accepted_candidate,
+            &candidates.fields,
+            &candidates.derivatives,
+            &candidates.next_fields,
+            &candidates.ports,
+            &candidates.physical,
+            &plan.signal_sources,
+            &[],
+            backend,
+        )
+    };
+    let solution = if check_rank {
+        solver::solve_initial(
+            initial,
+            config.nonlinear_settings(),
+            execution_path(phase, time),
+            residual,
+        )
+    } else {
+        solver::solve(
+            initial,
+            config.nonlinear_settings(),
+            execution_path(phase, time),
+            residual,
+        )
+    }?;
     commit_solution(&variables, &solution, &mut accepted_candidate);
     solve_consistency(
         program,

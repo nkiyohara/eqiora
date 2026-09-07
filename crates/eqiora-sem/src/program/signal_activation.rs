@@ -104,6 +104,15 @@ pub(super) fn validate(
                         ));
                     }
                 }
+                ExprNode::Symbol(SymbolRef::Field(field))
+                    if matches!(nodes.get(&field.erase()), Some(KernelNode::Field(definition)) if definition.role() == FieldRole::Variable)
+                        && !edge_targets(edges, field.erase(), EdgeKind::ClockedBy).is_empty() =>
+                {
+                    let field_clocks = edge_targets(edges, field.erase(), EdgeKind::ClockedBy);
+                    if sampling || relation.is_initial() || field_clocks.first().copied() != clock {
+                        diagnostics.push(kernel_error(id, "clocked Variable requires its exact periodic activation and has no initial or continuous value"));
+                    }
+                }
                 ExprNode::Symbol(
                     SymbolRef::Field(field) | SymbolRef::Pre(field) | SymbolRef::Next(field),
                 ) if sampling => {

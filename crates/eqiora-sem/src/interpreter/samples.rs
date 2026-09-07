@@ -12,10 +12,13 @@ pub(super) fn record_samples(
         let Some(KernelNode::Field(definition)) = program.node(field) else {
             continue;
         };
+        let Some(&value) = state.fields.get(&field) else {
+            continue;
+        };
         samples.push(Sample::new(
             time,
             field,
-            DynQuantity::new(state.fields[&field], definition.dimension()),
+            DynQuantity::new(value, definition.dimension()),
         ));
     }
     for (&unknown, &value) in &state.physical {
