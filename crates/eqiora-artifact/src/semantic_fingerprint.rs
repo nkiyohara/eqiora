@@ -26,9 +26,9 @@ use crate::{ArtifactDigest, invalid_artifact};
 use canonical::{Canonicalizer, Encoder};
 use projection::{ConstructionBudget, ProjectionGraph, Reference};
 
-const FINGERPRINT_DOMAIN_V8: &[u8] = b"eqiora.structural-semantic-fingerprint/v8\0";
+const FINGERPRINT_DOMAIN_V9: &[u8] = b"eqiora.structural-semantic-fingerprint/v9\0";
 const PROJECTION_MAGIC: &[u8; 8] = b"EQIORASF";
-const GENERATION_V8: u16 = 8;
+const GENERATION_V9: u16 = 9;
 
 /// Current generation of the structural semantic projection.
 ///
@@ -38,8 +38,8 @@ const GENERATION_V8: u16 = 8;
 #[non_exhaustive]
 pub enum SemanticFingerprintGeneration {
     /// Closed projection retaining complete typed literals, ordered channel operations,
-    /// Field roles, and simultaneous initial-equation ownership.
-    V8,
+    /// Field roles, simultaneous initialization, and explicit sample/hold clock transitions.
+    V9,
 }
 
 impl SemanticFingerprintGeneration {
@@ -47,19 +47,19 @@ impl SemanticFingerprintGeneration {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::V8 => "eqiora.structural-semantic-fingerprint/v8",
+            Self::V9 => "eqiora.structural-semantic-fingerprint/v9",
         }
     }
 
     const fn code(self) -> u16 {
         match self {
-            Self::V8 => GENERATION_V8,
+            Self::V9 => GENERATION_V9,
         }
     }
 
     const fn hash_domain(self) -> &'static [u8] {
         match self {
-            Self::V8 => FINGERPRINT_DOMAIN_V8,
+            Self::V9 => FINGERPRINT_DOMAIN_V9,
         }
     }
 }
@@ -202,7 +202,7 @@ impl ProjectionIdentity {
         limits: SemanticFingerprintLimits,
     ) -> Result<Self, Diagnostic> {
         validate_limits(limits)?;
-        let generation = SemanticFingerprintGeneration::V8;
+        let generation = SemanticFingerprintGeneration::V9;
         let graph = ProjectionGraph::from_program(program, limits)?;
         let canonical = Canonicalizer::new(&graph, limits).canonicalize()?;
         let mut hasher = Sha256::new();
