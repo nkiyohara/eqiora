@@ -1030,7 +1030,7 @@ model decay {
     fn numeric_editor_rejects_complex_values_without_dropping_imaginary_parts() {
         let document = ModelDocument::compile(
             "complex.eqi",
-            "model typed { parameter voltage: complex<V> = math.complex(2, 3); }",
+            "model typed { parameter voltage: complex<V> = math.complex(2, 3); variable observed: complex<V>; relation readout { observed = voltage; } }",
         )
         .unwrap();
         let target = document.aliases()["voltage"];
