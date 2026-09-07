@@ -34,13 +34,15 @@ packages = 3
 physical_ports = 8
 physical_unknowns = 16
 continuous_fields = 6
-continuous_signal_outputs = 1
-continuous_unknowns = 23
-continuous_residuals = 23
-periodic_unknowns = 2
-periodic_residuals = 2
+# The explicit hold equation owns command continuously; only held_voltage
+# participates in the periodic update system.
+continuous_signal_outputs = 2
+continuous_unknowns = 24
+continuous_residuals = 24
+periodic_unknowns = 1
+periodic_residuals = 1
 kernel_parameters = 0
-model_wire = 13
+model_wire = 14
 package_wire = 1
 
 [numerical_contract]

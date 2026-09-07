@@ -24,7 +24,7 @@ mixed_boundary_numerical_solve = false
 live_coupled_execution = false
 
 [canonical_contract]
-model_wire = 13
+model_wire = 14
 ambient_dimension = 2
 complete_exterior_members = 4
 nested_forwarding_depth = 2
