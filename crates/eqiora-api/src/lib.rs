@@ -263,7 +263,7 @@ impl ModelDocument {
         let mut store = InMemoryGraphStore::new();
         store.commit(transaction)?;
         let program = KernelProgram::from_snapshot(&store.snapshot(), model)?;
-        let mut document = Self::from_store(store, program, aliases)?;
+        let mut document = Self::from_store(store, program, aliases, Vec::new())?;
         document.authored_formulations = authored_formulations;
         Ok(document)
     }
@@ -301,23 +301,32 @@ impl ModelDocument {
         store: InMemoryGraphStore,
         program: KernelProgram,
         aliases: BTreeMap<String, RawId>,
+        geometry_authority: Vec<eqiora_geometry::CanonicalGeometryV1>,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let program = KernelProgram::from_snapshot(&store.snapshot(), program.model())?;
+        let geometries = geometry_authority.iter().collect::<Vec<_>>();
+        let program = KernelProgram::from_snapshot_with_geometry(
+            &store.snapshot(),
+            program.model(),
+            &geometries,
+        )?;
         let artifact = AcceptedModelArtifact::from_program(&program).map_err(single_diagnostic)?;
         // Reconstruct once more from the public artifact so client behavior
         // cannot accidentally depend on an in-memory compiler-only state.
         let bytes = artifact.canonical_json().map_err(single_diagnostic)?;
         let artifact = AcceptedModelArtifact::from_json(&bytes, ModelDecoderLimits::default())
             .map_err(single_diagnostic)?;
-        artifact.replay_model().map_err(single_diagnostic)?;
-        Ok(Self {
+        let document = Self {
             program,
             artifact,
             aliases,
             store,
-            geometry_authority: Vec::new(),
+            geometry_authority,
             authored_formulations: Vec::new(),
-        })
+        };
+        document
+            .replay_with_retained_geometry()
+            .map_err(single_diagnostic)?;
+        Ok(document)
     }
 
     /// Typed authored mathematics available only after fresh source compilation.

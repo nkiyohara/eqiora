@@ -272,9 +272,18 @@ impl ModelDocument {
 
         let mut store = self.store.clone();
         store.commit(replay.to_transaction().map_err(single_diagnostic)?)?;
-        let program =
-            eqiora_sem::KernelProgram::from_snapshot(&store.snapshot(), self.program.model())?;
-        ModelDocument::from_store(store, program, self.aliases.clone())
+        let geometries = self.geometry_authority.iter().collect::<Vec<_>>();
+        let program = eqiora_sem::KernelProgram::from_snapshot_with_geometry(
+            &store.snapshot(),
+            self.program.model(),
+            &geometries,
+        )?;
+        ModelDocument::from_store(
+            store,
+            program,
+            self.aliases.clone(),
+            self.geometry_authority.clone(),
+        )
     }
 
     pub(crate) fn value_edit_label(&self, target: RawId) -> String {
