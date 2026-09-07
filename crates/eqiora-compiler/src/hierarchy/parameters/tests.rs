@@ -152,10 +152,7 @@ instance missing: Child();
             "missing",
             "required Parameter `required` has no instance binding",
         ),
-        (
-            "unknown",
-            "unknown public Parameter `other` on component `Child`",
-        ),
+        ("unknown", "`other` is not a public requirement of `Child`"),
         (
             "private",
             "private Parameter `hidden` cannot be bound on instance `private`",

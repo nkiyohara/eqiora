@@ -76,7 +76,9 @@ pub(in crate::hierarchy) fn resolve_model_parameters(
 mod tests {
     use super::*;
     fn model(source: &str) -> ModelDecl {
-        let document = eqiora_lang::parse("period.eqi", source).unwrap();
+        let document = eqiora_lang::parse("period.eqi", source)
+            .into_compilation_document()
+            .unwrap();
         document.models()[0].clone()
     }
     #[test]
@@ -111,11 +113,43 @@ mod tests {
         );
     }
     #[test]
+    fn period_aliases_remain_static_and_resolve_forward_dependencies() {
+        let model = model(
+            "model M(clock tick: periodic) { let twice = 2 * dt; let dt: s = period(tick); }",
+        );
+        let mut values = BTreeMap::new();
+        resolve_model_lets("period.eqi", &model, &mut values, |name| {
+            (name == "tick").then_some(None)
+        })
+        .unwrap();
+        assert!(values["twice"].value.is_none());
+        assert_eq!(
+            values["twice"].value_type.dimension(),
+            crate::dimensions::time_dimension()
+        );
+        values.clear();
+        resolve_model_lets("period.eqi", &model, &mut values, |name| {
+            (name == "tick").then_some(Some(RationalTime::new(1, 8).unwrap()))
+        })
+        .unwrap();
+        assert_eq!(
+            values["twice"]
+                .value
+                .as_ref()
+                .unwrap()
+                .real_scalar_value()
+                .unwrap()
+                .value(),
+            0.25
+        );
+        assert!(resolve_model_lets("period.eqi", &model, &mut BTreeMap::new(), |_| None).is_err());
+    }
+    #[test]
     fn period_requires_nominal_clock_and_time_dimension() {
         for source in [
             "model M(parameter dt: s = period(missing)) {}",
             "model M(parameter dt: s = period(1)) {}",
-            "model M(parameter dt: s = period()) {}",
+            "model M(clock tick: periodic, parameter dt: s = period(tick, tick)) {}",
             "model M(clock tick: periodic, parameter dt: m = period(tick)) {}",
         ] {
             let model = model(source);
