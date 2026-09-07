@@ -173,49 +173,12 @@ impl FirstOrderProgram {
     }
 
     fn require_parameter_independent_initial_conditions(&self) -> Result<(), Diagnostic> {
-        let unsupported = || {
-            invalid_time(
-                self.relation,
-                "initial-state sensitivity requires full-rank affine conditions on state values alone",
-            )
-        };
-        let symbols = self
-            .state_fields
-            .iter()
-            .copied()
-            .map(SymbolRef::Field)
-            .collect::<Vec<_>>();
-        let mut coefficients = Vec::new();
-        let mut rows = 0;
-        for node in self.kernel.nodes() {
-            let KernelNode::Relation(relation) = node else {
-                continue;
-            };
-            if !relation.is_initial() {
-                continue;
-            }
-            let operator = ScalarOperatorIr::lower(relation.residuals())?;
-            if operator
-                .symbols()
-                .iter()
-                .any(|symbol| !symbols.contains(symbol))
-            {
-                return Err(unsupported());
-            }
-            let jacobian = operator
-                .constant_symbol_jacobian(&symbols)
-                .map_err(|_| unsupported())?;
-            coefficients.extend_from_slice(jacobian.coefficients());
-            rows += operator.residual_count();
-        }
-        if rows != symbols.len()
-            || eqiora_time::ConstantDerivativeMatrixProof::new(symbols.len(), coefficients)?
-                .exact_rank()
-                != symbols.len()
-        {
-            return Err(unsupported());
-        }
-        Ok(())
+        super::initialization::require_zero_parameter_tangent(
+            &self.kernel,
+            &self.state_fields,
+            &self.parameter_fields,
+            self.relation,
+        )
     }
 
     fn inputs(&self, time: f64, state: &[f64]) -> Vec<f64> {

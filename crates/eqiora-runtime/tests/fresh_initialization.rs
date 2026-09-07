@@ -8,7 +8,142 @@ use eqiora_schema::kernel::{
 };
 use eqiora_schema::{Model, ModelView};
 use eqiora_sem::{KernelProgram, ReferenceConfig};
-use eqiora_time::{InitialConditionPolicy, TimeProblem, TimeSystem};
+use eqiora_time::{InitialConditionPolicy, ParametricTimeSystem, TimeProblem, TimeSystem};
+
+#[test]
+fn dense_descriptor_initial_sensitivity_uses_regular_compatibility_equations() {
+    let (kernel, relation) = dense_descriptor(false);
+    let cpu = CpuProgram::lower(&kernel).unwrap();
+    let system = FirstOrderProgram::lower(&cpu, relation).unwrap();
+    let initial = system
+        .initialize(ReferenceConfig::new(0.0, 1.0).unwrap())
+        .unwrap();
+    assert_eq!(initial.state(), [1.0, 1.0]);
+    assert_eq!(initial.derivative(), [-2.0, -2.0]);
+    let mut tangent = [f64::NAN; 2];
+    system
+        .initial_parameter_jvp(0.0, &[1.0], &mut tangent)
+        .unwrap();
+    assert_eq!(tangent, [0.0, 0.0]);
+    system.forward_sensitivity_problem().unwrap();
+}
+
+#[test]
+fn parameter_dependent_initial_conditions_cannot_silently_return_zero_sensitivity() {
+    let (kernel, relation) = dense_descriptor(true);
+    let cpu = CpuProgram::lower(&kernel).unwrap();
+    let system = FirstOrderProgram::lower(&cpu, relation).unwrap();
+    let mut tangent = [0.0; 2];
+    assert!(
+        system
+            .initial_parameter_jvp(0.0, &[1.0], &mut tangent)
+            .is_err()
+    );
+    assert!(system.forward_sensitivity_problem().is_err());
+}
+
+fn dense_descriptor(parameter_initial: bool) -> (KernelProgram, Id<kinds::Relation>) {
+    let x = Id::<kinds::Field>::new();
+    let y = Id::<kinds::Field>::new();
+    let rate = Id::<kinds::Parameter>::new();
+    let relation = Id::<kinds::Relation>::new();
+    let initial = Id::<kinds::Relation>::new();
+    let activation = Id::<kinds::Activation>::new();
+    let model = OntologyId::<Model>::new();
+    let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+    let inverse_time = DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).unwrap();
+    let mut expression = ExprDagBuilder::new();
+    let dx = expression.symbol(SymbolRef::Derivative(x)).unwrap();
+    let dy = expression.symbol(SymbolRef::Derivative(y)).unwrap();
+    let xv = expression.symbol(SymbolRef::Field(x)).unwrap();
+    let yv = expression.symbol(SymbolRef::Field(y)).unwrap();
+    let p = expression.symbol(SymbolRef::Parameter(rate)).unwrap();
+    let two = expression
+        .constant(DynQuantity::new(2.0, DimExponents::DIMENSIONLESS))
+        .unwrap();
+    let twice_rate = expression.mul(two, p).unwrap();
+    let derivative_sum = expression.add(dx, dy).unwrap();
+    let rx = expression.mul(twice_rate, xv).unwrap();
+    let ry = expression.mul(twice_rate, yv).unwrap();
+    let first = expression.add(derivative_sum, rx).unwrap();
+    let second = expression.add(derivative_sum, ry).unwrap();
+    let mut condition = ExprDagBuilder::new();
+    let value = condition.symbol(SymbolRef::Field(x)).unwrap();
+    let prescribed = if parameter_initial {
+        let p = condition.symbol(SymbolRef::Parameter(rate)).unwrap();
+        let seconds = condition
+            .constant(DynQuantity::new(
+                1.0,
+                DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap(),
+            ))
+            .unwrap();
+        condition.mul(p, seconds).unwrap()
+    } else {
+        condition
+            .constant(DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))
+            .unwrap()
+    };
+    let residual = condition.sub(value, prescribed).unwrap();
+    let nodes = vec![
+        KernelNode::from(FieldDef::new(x, scalar.clone(), FieldRole::State)),
+        KernelNode::from(FieldDef::new(y, scalar, FieldRole::State)),
+        KernelNode::from(
+            ParameterDef::new(
+                rate,
+                ValueType::scalar(ScalarDomain::Real, inverse_time),
+                2.0,
+            )
+            .unwrap(),
+        ),
+        KernelNode::from(RelationDef::new(
+            relation,
+            expression.finish([first, second]).unwrap(),
+        )),
+        KernelNode::from(RelationDef::initial(
+            initial,
+            condition.finish([residual]).unwrap(),
+        )),
+        KernelNode::from(ActivationDef::continuous(activation)),
+    ];
+    let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();
+    let mut transaction = Transaction::new("descriptor initial sensitivity");
+    for node in nodes {
+        transaction.push(Op::DefineKernelNode { node });
+    }
+    for dependency in [x.erase(), y.erase(), rate.erase()] {
+        transaction.push(Op::Connect {
+            from: relation.erase(),
+            to: dependency,
+            edge: EdgeKind::DependsOn,
+        });
+    }
+    transaction.push(Op::Connect {
+        from: initial.erase(),
+        to: x.erase(),
+        edge: EdgeKind::DependsOn,
+    });
+    if parameter_initial {
+        transaction.push(Op::Connect {
+            from: initial.erase(),
+            to: rate.erase(),
+            edge: EdgeKind::DependsOn,
+        });
+    }
+    transaction.push(Op::Connect {
+        from: activation.erase(),
+        to: relation.erase(),
+        edge: EdgeKind::Activates,
+    });
+    transaction.push(Op::DefineOntologyView {
+        view: ModelView::new(model, members, []).unwrap().into(),
+    });
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    (
+        KernelProgram::from_snapshot(&store.snapshot(), model).unwrap(),
+        relation,
+    )
+}
 
 #[test]
 fn fresh_initialization_solves_values_and_derivatives_together() {
