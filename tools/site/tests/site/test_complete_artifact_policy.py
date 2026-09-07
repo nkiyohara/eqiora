@@ -715,16 +715,6 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             "accepted Eqiora source form",
         )
 
-        reject(
-            "ODE independent comparison omitted",
-            lambda artifact: _replace(
-                artifact / "learn/mathematical-modeling/ordinary-differential-equations/index.html",
-                "independently derived closed form",
-                "comparison omitted",
-            ),
-            "independently derived closed form",
-        )
-
         accepted_link = _exact_link(
             "examples/python/exact_cylinder_stokes.py",
             "Eqiora source form: canonical Python resolve/run path",

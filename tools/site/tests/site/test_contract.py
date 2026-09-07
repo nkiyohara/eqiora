@@ -112,10 +112,10 @@ class CompleteContractTests(unittest.TestCase):
                 "Learn lesson 'Models are not simulations' omits",
             ),
             (
-                "missing checked Learn lesson status",
+                "missing independent Learn lesson comparison",
                 Path("learn/mathematical-modeling/ordinary-differential-equations/index.html"),
-                "Checked",
-                "Illustrative",
+                "independently derived closed form",
+                "comparison omitted",
                 "Learn lesson 'Ordinary differential equations' omits",
             ),
             (
