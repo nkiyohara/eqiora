@@ -28,8 +28,8 @@ fn admit(source: &str) -> (KernelProgram, ModelSymbols) {
 
 const MIXED_CLOCKS: &str = r#"
 model M {
-  clock a = periodic(period = 1 / 1, phase = 1 / 1);
-  clock b = periodic(period = 1 / 1, phase = 1 / 1);
+  clock a = periodic(1[s] / 1, phase = 1[s] / 1);
+  clock b = periodic(1[s] / 1, phase = 1[s] / 1);
   state first: 1 at a;
   state second: 1 at b;
   state integral: s;
@@ -104,7 +104,7 @@ fn current_state_aliases_preserve_continuous_reads_across_distinct_equal_period_
 
 #[test]
 fn alias_hidden_evolution_operators_keep_the_exact_context_checks() {
-    let prefix = "clock a = periodic(period = 1 / 1, phase = 0 / 1); clock b = periodic(period = 1 / 1, phase = 0 / 1); state x: 1 at a;";
+    let prefix = "clock a = periodic(1[s] / 1, phase = 0[s] / 1); clock b = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1 at a;";
     for body in [
         "let old = pre(x); relation r at b { old = 0; }",
         "let old at a = pre(x); relation r at b { old = 0; }",

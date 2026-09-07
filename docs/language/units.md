@@ -100,7 +100,14 @@ ordinary numerical evaluation boundary.
 
 For independent conversions, 10 ms is 1/100 s, 1 kOhm is 1000 Ohm, 210 GPa is
 210,000,000,000 Pa, and 1 uF is 1/1,000,000 F. Exact clocks retain the 1/100-second rational;
-they do not recover it from a rounded numerical literal. Case or namespace collisions with
+they do not recover it from a rounded numerical literal. Concrete clocks use
+`periodic(10[ms], phase = 0[s])`; phase may be omitted. Exact literal arithmetic with
+`+`, `-`, `*`, and `/` admits nonterminating rational seconds such as `periodic(1[s] / 3)`.
+Every exact clock expression node has a reduced numerator magnitude and positive denominator
+bounded by `u64`; dimension arithmetic and expression nesting keep their existing bounds.
+The final period must be positive and the phase nonnegative, both dimensioned as time.
+These checks do not evaluate value references or numerical operators and never pass through
+binary64. This input boundary does not add clock-interface or multiclock scheduling semantics. Case or namespace collisions with
 ordinary values do not affect these conversions.
 
 Affine Celsius/Fahrenheit symbols are not admitted by this initial multiplicative catalog.

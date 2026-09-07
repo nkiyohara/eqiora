@@ -5,6 +5,9 @@ use eqiora_lang::{BinaryOp, Expr, ExprKind};
 
 use crate::dimensions::rational_literal;
 
+mod exact_time;
+pub(crate) use exact_time::lower_clock;
+
 pub(crate) fn parameter_literal(
     file: &str,
     declaration: &eqiora_lang::ParameterDecl,
@@ -265,6 +268,24 @@ mod tests {
             })
             .unwrap();
         assert_eq!(value.value().to_bits(), 0x3ddb_7cdf_d9d7_bdbb);
+    }
+
+    #[test]
+    fn complex_quantity_components_share_the_exact_decimal_boundary() {
+        use eqiora_graph::Op;
+        use eqiora_schema::kernel::KernelNode;
+
+        let compiled = crate::compile(
+            "complex-units.eqi",
+            "model M { parameter length: complex<m> = math.complex(0.1[nm], -0.1[nm]); relation r { length - length = 0; } }",
+        ).unwrap();
+        let value = compiled[0].transaction().ops().iter().find_map(|op| match op {
+            Op::DefineKernelNode { node: KernelNode::Parameter(parameter) } => Some(parameter.value()),
+            _ => None,
+        }).unwrap();
+        let (real, imaginary) = value.component(0).unwrap();
+        assert_eq!(real.to_bits(), 0x3ddb_7cdf_d9d7_bdbb);
+        assert_eq!(imaginary.to_bits(), 0xbddb_7cdf_d9d7_bdbb);
     }
 
     #[test]

@@ -465,7 +465,7 @@ ceiling = 47
 
 [[public_surface]]
 crate = "eqiora-lang"
-ceiling = 87
+ceiling = 86
 # #857 adds ValueTypeSyntax and its closed syntax kind. Parsed and native ASTs
 # need one range-bearing recursive constructor tree; ValueShapeSyntax still
 # serves pure-operator shape patterns and is not a substitute for that tree.

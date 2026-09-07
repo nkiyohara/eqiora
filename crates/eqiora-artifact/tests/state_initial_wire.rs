@@ -192,7 +192,7 @@ fn initial_block_keeps_independent_supports_without_spatial_execution_claim() {
 #[test]
 fn clocked_state_replay_keeps_pre_first_tick_distinct_from_first_observation() {
     let model = program(
-        "model M { clock tick=periodic(period=1/10,phase=0/1); state x:1 at tick; initial { pre(x)=3; } relation r at tick { next(x)=pre(x)+1; } }",
+        "model M { clock tick=periodic(1[s] / 10, phase = 0[s] / 1); state x:1 at tick; initial { pre(x)=3; } relation r at tick { next(x)=pre(x)+1; } }",
     );
     let replay = ModelEnvelope::from_program(&model)
         .unwrap()
