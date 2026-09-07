@@ -25,7 +25,7 @@ exact_solution = "u = -grad(q0 sin(kx)^2 sin(ky)^2 / (2 k^2 (lambda + 2 mu)))"
 
 [canonical_contract]
 spatial_dimension = 2
-model_wire = 4
+model_wire = 12
 fields = 2
 volume_relations = 2
 homogeneous_boundary_relations = 4

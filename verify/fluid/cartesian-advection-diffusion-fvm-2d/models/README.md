@@ -4,15 +4,17 @@
 compiled Semantic Models. The direct and mirrored models differ in canonical
 potential gradient and in the vertical boundary Relations; no Realization flag
 reverses the flow. The constant model differs only in its canonical
-`concentration = 1 K` initial value and is the constant-preservation oracle.
+`concentration = 1 K` initial equation and is the constant-preservation oracle.
 The zero-advection model defines a constant potential and exact zero diffusive
 flux on all sides; it proves that optional advective evidence does not narrow
 the admitted canonical transport meaning.
 
-The direct and mirrored Fields have the canonical scalar initial value `0 K`.
-The executable initializer consumes that value directly; there is no second
-callback or mesh-shaped initial-data channel. The positive-time spectral
-solution in `problem.md` starts from the same zero field and is therefore an
+The direct and mirrored Models declare the simultaneous initial equation
+`concentration = 0 K`. It defines a uniform scalar field on the declared support,
+independently of the positive-time inflow boundary. The executable initializer
+consumes that equation; this admits no scalar-to-vector or tensor broadcast,
+second callback, or mesh-shaped initial-data substitution. The positive-time
+spectral solution in `problem.md` starts from the same zero field and is therefore an
 oracle for the exact authored problem rather than a substituted Run input.
 
 The `invalid/` inputs are well-typed source-level near misses whose meaning is

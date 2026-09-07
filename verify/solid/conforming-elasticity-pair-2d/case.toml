@@ -25,7 +25,7 @@ exact_right = "u_right = (3/16 + x/2 - x^2/4, 0) for ell = 1 m"
 
 [canonical_contract]
 spatial_dimension = 2
-model_wire = 4
+model_wire = 12
 semantic_domains = 2
 interface_ports = 2
 interface_connection = "one ordinary conserving Connection"
@@ -36,10 +36,8 @@ package_dispatch = false
 
 [package]
 name = "Eqiora.Solid.LinearElasticity"
-version = "0.3.0"
-semantic_sha256 = "0c924488dbd09fe6f126a73915ac2f7fd376ffcb23b55bbbc054ef7db6470498"
-source_sha256 = "86a40f3e0a8b51bd609a66561a0ffee77b9e6cd7fd391274351d1b91773fd214"
-authority = "verify/solid/mixed-boundary-elasticity-2d/package-v0.3.0"
+version = "0.6.0"
+authority = "packages/Eqiora.Solid.LinearElasticity"
 
 [realization]
 method = "continuous-galerkin"

@@ -6,8 +6,8 @@ reference_kind = "dual-independent-analytic-and-direct-coordinate-oracle"
 capabilities = [
   "direct-parameter-cartesian-coordinate-source",
   "single-owner-resolved-cartesian-bounds",
-  "exact-model-transaction-v8",
-  "structural-semantic-fingerprint-v3",
+  "exact-model-transaction-v12",
+  "structural-semantic-fingerprint-v7",
 ]
 
 conformance_kits = ["direct-parameter-cartesian-coordinates-v1"]
@@ -24,8 +24,8 @@ root_parameter = true
 one_cartesian_domain = true
 dimensions = 3
 referenced_endpoints = 2
-exact_model_wire = "v8"
-exact_transaction_wire = "v8"
+exact_model_wire = "v12"
+exact_transaction_wire = "v12"
 immutable_second_revision_projection = true
 application_regeneration = false
 python = false

@@ -8,8 +8,9 @@
 - [RFC 0035](../../../../rfcs/0035-field-valued-boundary-interfaces.md)
   defines field-valued physical Connector meaning.
 
-The frozen `package-v0.3.0` directory is the exact source authority for this
-case. The live public package must match it byte for byte.
+The current checked-in `packages/Eqiora.Solid.LinearElasticity` package is the
+source consumed by this case. The frozen `package-v0.3.0` directory preserves
+historical bytes; current execution does not require byte equality with it.
 
 ## Independent manufactured oracle
 

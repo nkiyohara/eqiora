@@ -11,5 +11,4 @@ The evidence target constructs the smallest typed residual DAGs directly:
 
 No new source syntax is claimed. In particular, the reserved package
 `PureOperator` declaration tag is not a parser, compiler, or package-authoring
-feature in this slice. Existing Model and Transaction wire v1--v4 remain
-unchanged.
+feature in this slice. This case adds no Model or Transaction wire vocabulary.

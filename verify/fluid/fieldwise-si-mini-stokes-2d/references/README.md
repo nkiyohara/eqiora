@@ -2,11 +2,10 @@
 
 Three independent references participate in acceptance:
 
-1. The checked-in direct-flat fixture and the existing exact immutable
-   `Eqiora.Fluid.Incompressible@0.1.0` release define package-neutral canonical
-   meaning. The package is reused from
-   `verify/fluid/packaged-steady-stokes-2d/package-v0.1.0`; this case does not
-   fork or modify it.
+1. The checked-in direct-flat fixture and current component source
+   `verify/fluid/packaged-steady-stokes-2d/models/component.eqi` define
+   package-neutral canonical meaning. The test prepares an exact release from
+   that source; the adjacent historical `package-v0.1.0` remains unchanged.
 2. The analytic physical solution is `u = 0` and
    `p = q = 0.75 Pa/m * (x - 2 m)`. It fixes the zero pressure integral,
    `(6 N/m, 0)` integrated body force, and `(-6 N/m, 0)` complete-boundary

@@ -25,7 +25,7 @@ exact_solution = "u = (x - x^2 / (2 ell), 0)"
 
 [canonical_contract]
 spatial_dimension = 2
-model_wire = 4
+model_wire = 12
 boundary_inventory = "TraceZero | FluxZero | PortBinding"
 direct_and_package_inventory_equal = true
 package_dispatch = false
@@ -41,9 +41,8 @@ direct_package_coefficient_reverse_vjp_equal = true
 
 [package]
 name = "Eqiora.Solid.LinearElasticity"
-version = "0.3.0"
-semantic_sha256 = "0c924488dbd09fe6f126a73915ac2f7fd376ffcb23b55bbbc054ef7db6470498"
-source_sha256 = "86a40f3e0a8b51bd609a66561a0ffee77b9e6cd7fd391274351d1b91773fd214"
+version = "0.6.0"
+authority = "packages/Eqiora.Solid.LinearElasticity"
 semantic_terminals = ["FixedDisplacement2d", "ZeroTraction2d"]
 
 [realization]

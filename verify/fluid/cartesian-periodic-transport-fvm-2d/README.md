@@ -19,10 +19,13 @@ Two independent probes make a dormant or incorrectly oriented seam visible:
   reversing velocity changes the upwind donor without changing canonical
   connectivity.
 
+The source initial equations define uniform scalar concentration on its support.
+They do not broadcast a scalar into vector or tensor state.
+
 Constant preservation, complete facet bijection, old/new mass balance,
 exterior-flux exclusion, capability substitution, unsupported minmod, and
-non-finite/forged seam inputs are executable falsifiers. V6 wire byte/digest
-goldens and v1--v5 decoder rejection live at the artifact boundary rather than
+non-finite/forged seam inputs are executable falsifiers. Current Model/Transaction wire byte/digest
+goldens and historical decoder rejection live at the artifact boundary rather than
 being duplicated here.
 
 Run:

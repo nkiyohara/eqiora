@@ -5,11 +5,11 @@ This case verifies the first reusable solid-mechanics application of
 unchanged execution path from
 [RFC 0039](../../../rfcs/0039-canonical-isotropic-elasticity-2d.md).
 
-The verification-owned, immutable `Eqiora.Solid.LinearElasticity@0.1.0`
-release under `package-v0.1.0` exports only
+The current checked-in `Eqiora.Solid.LinearElasticity` package supplies
 `IsotropicBalanceWithPotential2d`: an exact two-dimensional volume support,
-displacement and load-potential Field slots, the two Lamé Parameters, and the
-canonical isotropic balance Relation. It owns no Domain, Field, boundary,
+displacement and load-potential variable requirements, the two Lamé Parameters,
+and the canonical isotropic balance Relation. The historical `package-v0.1.0`
+snapshot remains unchanged. This Component owns no Domain, Field, boundary,
 load definition, mesh, discretization, solver, target, or schedule. The exact
 root package owns the Cartesian body, its four sides, the two continuum
 Fields, four tunable Parameters, the manufactured load definition, and all

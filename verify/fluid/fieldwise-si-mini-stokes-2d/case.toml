@@ -15,7 +15,7 @@ capabilities = [
 [dependency]
 release = "Eqiora.Fluid.Incompressible@0.1.0"
 component = "SteadyStokesWithPotential2d"
-fixture = "../packaged-steady-stokes-2d/package-v0.1.0"
+fixture = "../packaged-steady-stokes-2d/models/component.eqi"
 resolution = "exact-offline"
 
 [problem]

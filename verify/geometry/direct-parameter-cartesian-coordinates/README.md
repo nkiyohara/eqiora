@@ -16,7 +16,7 @@ not claimed here; that is the next slice.
 
 The test also checks current Model and Transaction replay, declaration-order
 structural equivalence without relabelling exact occurrences,
-structural-fingerprint generation v4, closed source syntax, dependency
+structural-fingerprint generation v7, closed source syntax, dependency
 equality, one-Domain ownership, non-Cartesian dependency rejection, malformed
 current-artifact rejection, and rejection by the generic value-edit and direct
 Domain-edit paths. The dedicated regeneration case owns the admitted mutation.

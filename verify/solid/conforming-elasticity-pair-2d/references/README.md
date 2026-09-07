@@ -8,8 +8,9 @@
   defines the admitted canonical isotropic-elasticity subset.
 - [RFC 0035](../../../../rfcs/0035-field-valued-boundary-interfaces.md)
   defines field-valued trace/flux meaning and parent-outward orientation.
-- The immutable `Eqiora.Solid.LinearElasticity@0.3.0` source authority is
-  [`mixed-boundary-elasticity-2d/package-v0.3.0`](../../mixed-boundary-elasticity-2d/package-v0.3.0/README.md).
+- Current execution uses the checked-in
+  [`Eqiora.Solid.LinearElasticity`](../../../../packages/Eqiora.Solid.LinearElasticity/README.md)
+  package. The adjacent `package-v0.3.0` snapshot remains a historical record.
 
 ## Independent heterogeneous oracle
 

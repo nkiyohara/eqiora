@@ -16,7 +16,7 @@ interface power defect implied by those two laws. Each observation has a
 nonzero falsifier. Source variants exercise package-alias, declaration, binding, and
 connection-member invariance. Noncoincident geometry and wrong parent binding
 fail before a packaged Model is exposed. The complete accepted Model replays
-through explicit wire v3; v1 and v2 reject the same vocabulary.
+through the current explicit Model wire v12; historical Model wires reject.
 
 A second root routes each public field-valued Port through one transparent
 wrapper. The compiler eliminates those ownerless exposures, while a versioned
