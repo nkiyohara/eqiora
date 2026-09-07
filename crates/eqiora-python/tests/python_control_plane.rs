@@ -180,7 +180,7 @@ fn independent_python_control_and_direct_compilations_share_only_structure() -> 
         assert_eq!(model.schema(), "eqiora.model-envelope/v12");
         assert_eq!(
             model.transaction_schema(),
-            "eqiora.model-transaction-envelope/v11"
+            "eqiora.model-transaction-envelope/v12"
         );
         assert_eq!(model.model_id(), control_reference.model().to_string());
         assert_eq!(model.digest(), control_reference.artifact().as_str());
