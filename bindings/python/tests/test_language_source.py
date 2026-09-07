@@ -882,7 +882,7 @@ def runtime_arithmetic_alias_source(*, aliases=True):
     return source
 
 
-def runtime_heatflux_alias_source(*, aliases=True):
+def runtime_heatflux_alias_source(*, aliases=True, assert_support=False):
     source = q.Source()
     component = source.component("RuntimeHeatFlux")
     region = component.volume("region", dimensions=2)
@@ -893,7 +893,7 @@ def runtime_heatflux_alias_source(*, aliases=True):
                                 value_type=eqiora.ValueType.real())
     flux = coefficient * q.grad(potential)
     if aliases:
-        flux = component.let_alias("heatflux", flux,
+        flux = component.let_alias("heatflux", flux, on=region if assert_support else None,
                                    value_type=eqiora.ValueType.vector(
                                        eqiora.ValueType.real(eqiora.Dimension(length=-1)), 2))
     component.relation("balance", on=region, left=-q.div(flux) - forcing, right=0)
@@ -911,6 +911,9 @@ def test_runtime_alias_authoring_preserves_field_and_gradient_expressions():
     assert "-div(heatflux) - forcing = 0;" in heatflux
     assert "trace(potential) = 0;" in heatflux
     assert "let trace" not in heatflux
+    asserted = runtime_heatflux_alias_source(assert_support=True).to_eqi()
+    assert " on region = coefficient * grad(potential);" in asserted
+    assert "-div(heatflux) - forcing = 0;" in asserted
 
 
 @pytest.mark.parametrize("factory, parameters, alias_names", [
@@ -954,3 +957,84 @@ def test_transitive_runtime_alias_cannot_supply_child_parameter_binding():
                     parameters={required: transitive})
     with pytest.raises(eqiora.ValidationError, match="static|runtime|[Pp]arameter"):
         eqiora.compile(source=source, geometry=rectangle_geometry(), component="Parent")
+
+
+def test_alias_support_authoring_preserves_type_documentation_and_freeze():
+    source = q.Source()
+    component = source.component("Supported")
+    region = component.volume("region", dimensions=2)
+    value = component.field("value", on=region, role=eqiora.FieldRole.Variable,
+                            value_type=eqiora.ValueType.real())
+    kind = eqiora.ValueType.real()
+    alias = component.let_alias("local", value * 2, value_type=kind, on=region,
+                                doc="Exact nominal support.")
+    component.let_alias("untyped", alias + value, on=region)
+    text = source.to_eqi()
+    assert f"  /// Exact nominal support.\n  let local: {kind.to_eqi()} on region = value * 2;" in text
+    assert "let untyped on region = local + value;" in text
+    with pytest.raises(AttributeError):
+        alias._text = "changed"
+    with pytest.raises(q.SourceError, match="frozen"):
+        component.let_alias("late", value, on=region)
+
+
+@pytest.mark.parametrize("foreign_kind", ["sibling", "source", "invalid"])
+def test_alias_support_authoring_rejects_foreign_support_before_mutation(foreign_kind):
+    source = q.Source()
+    component = source.component("Owner")
+    region = component.volume("region", dimensions=2)
+    value = component.field("value", on=region, role=eqiora.FieldRole.Variable,
+                            value_type=eqiora.ValueType.real())
+    other_source = q.Source() if foreign_kind == "source" else source
+    other = other_source.component("Other")
+    foreign = other.volume("region", dimensions=2) if foreign_kind != "invalid" else "region"
+    with pytest.raises(q.SourceError, match="Component"):
+        component.let_alias("local", value, on=foreign)
+    component.let_alias("local", value, on=region)
+    assert source.to_eqi().count("let local on region = value;") == 1
+
+
+def test_alias_support_heatflux_compiles_like_expanded_expression(tmp_path):
+    source = runtime_heatflux_alias_source(assert_support=True)
+    parameters = {"coefficient": 2.0, "forcing": 3.0}
+    model = eqiora.compile(source=source, geometry=rectangle_geometry(), parameters=parameters)
+    path = tmp_path / "supported-heatflux.eqi"
+    source.write_eqi(path)
+    from_file = eqiora.compile(path=path, geometry=rectangle_geometry(), parameters=parameters)
+    expanded = eqiora.compile(source=runtime_heatflux_alias_source(aliases=False),
+                              geometry=rectangle_geometry(), parameters=parameters)
+    assert model.structural_fingerprint == from_file.structural_fingerprint
+    assert model.structural_fingerprint == expanded.structural_fingerprint
+    assert len(model.field_ids) == len(expanded.field_ids) == 1
+    assert len(model.parameter_ids) == len(expanded.parameter_ids) == 2
+    with pytest.raises(eqiora.EqioraError, match="Parameter"):
+        model.preview_value_edit("heatflux", 9.0)
+
+
+@pytest.mark.parametrize("kind", ["wrong_region", "constant", "boundary_trace"])
+def test_alias_support_assertion_rejects_inference_or_context_changes(kind):
+    source = q.Source()
+    component = source.component("InvalidSupport")
+    region = component.volume("region", dimensions=2)
+    value = component.field("value", on=region, role=eqiora.FieldRole.Variable,
+                            value_type=eqiora.ValueType.real())
+    support = region
+    expression = value * 2
+    geometry = rectangle_geometry()
+    if kind == "wrong_region":
+        support = component.volume("other", dimensions=2)
+        graph = eqiora.geometry.GeometryGraph()
+        rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
+        geometry = graph.build(rectangle, named_topology={
+            "region": rectangle.region, "other": rectangle.region,
+        })
+    elif kind == "constant":
+        expression = 2
+    else:
+        support = component.boundary("left", parent=region)
+        component.boundary("right", parent=region)
+        expression = q.trace(value)
+    component.let_alias("invalid", expression, on=support)
+    component.relation("balance", on=region, left=value, right=0)
+    with pytest.raises(eqiora.ValidationError, match="support|scope|context|trace"):
+        eqiora.compile(source=source, geometry=geometry)

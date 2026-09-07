@@ -115,6 +115,7 @@ class Component:
         expression: Expression | int | float,
         *,
         value_type: ValueType | None = None,
+        on: Support | None = None,
         doc: str | None = None,
     ) -> Expression: ...
     def property(

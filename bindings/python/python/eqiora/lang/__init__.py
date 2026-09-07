@@ -551,7 +551,7 @@ class Component:
         self._names: set[str] = set()
         self._supports: list[tuple[Support, str, object, tuple[str, ...]]] = []
         self._parameters: list[tuple[_Parameter, str, tuple[str, ...]]] = []
-        self._aliases: list[tuple[str, Expression, str | None, tuple[str, ...]]] = []
+        self._aliases: list[tuple[str, Expression, str | None, Support | None, tuple[str, ...]]] = []
         self._properties: list[
             tuple[_PropertyRequirement, PropertyContract, tuple[str, ...]]
         ] = []
@@ -656,19 +656,23 @@ class Component:
         expression: Expression | int | float,
         *,
         value_type: ValueType | None = None,
+        on: Support | None = None,
         doc: str | None = None,
     ) -> Expression:
         """Name a private immutable expression in this Component's lexical scope.
 
         The compiler infers type and intrinsic support; aliases add no storage.
-        Explicit on/at assertions and context-dependent coordinate, trace, or
-        normal aliases are not admitted.
+        ``on`` asserts the exact inferred support; it cannot move or broadcast
+        an expression. Clock assertions and context-dependent coordinate, trace,
+        or normal aliases are not admitted.
         """
         value = _expression(expression)
         if value._owner is not None and value._owner is not self._component_token:
             raise SourceError("alias expressions must belong to this Component")
         if value_type is not None and not isinstance(value_type, ValueType):
             raise TypeError("value_type must be an eqiora.ValueType")
+        if on is not None:
+            self._support(on)
         syntax = None if value_type is None else value_type.to_eqi()
         doc_lines = _doc(doc)
         if sum(item[1]._nodes for item in self._aliases) + value._nodes > _MAX_EXPRESSION_NODES:
@@ -676,7 +680,7 @@ class Component:
                 f"Component alias expressions exceed the {_MAX_EXPRESSION_NODES}-node limit"
             )
         admitted = self._add_name(name)
-        self._aliases.append((admitted, value, syntax, doc_lines))
+        self._aliases.append((admitted, value, syntax, on, doc_lines))
         return Expression(_CREATE, admitted, self._component_token, 1, 1, 100)
 
     def property(
@@ -930,10 +934,11 @@ class Component:
             lines.append(f"  public parameter {parameter._name}: {value_type};")
         if self._parameters and (self._aliases or self._fields or self._relations or self._instances):
             lines.append("")
-        for name, expression, value_type, doc in self._aliases:
+        for name, expression, value_type, support, doc in self._aliases:
             lines.extend(_comment(doc, "  "))
             assertion = "" if value_type is None else f": {value_type}"
-            lines.append(f"  let {name}{assertion} = {expression._text};")
+            support_assertion = "" if support is None else f" on {support._name}"
+            lines.append(f"  let {name}{assertion}{support_assertion} = {expression._text};")
         if self._aliases and (self._fields or self._relations or self._instances):
             lines.append("")
         if self._fields:
