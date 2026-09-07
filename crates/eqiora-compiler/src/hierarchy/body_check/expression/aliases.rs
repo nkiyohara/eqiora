@@ -223,7 +223,9 @@ impl ExpressionChecker<'_, '_, '_> {
                 }
                 if matches!(callee_name, "pre" | "next")
                     && (!matches!(activation, ActivationSyntax::Periodic(_))
-                        || (!self.intrinsic && !self.initial && activation != self.activation)
+                        || (!self.intrinsic
+                            && !self.initial
+                            && !self.scope.activation_matches(activation, self.activation))
                         || (!self.intrinsic && self.initial && callee_name == "next"))
                 {
                     return Err(source_error(

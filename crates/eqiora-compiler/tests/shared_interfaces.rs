@@ -270,3 +270,21 @@ fn directed_connections_retain_wrapper_endpoints_and_allow_fanout() {
     let reversed = source.replace("connect u -> inner.u;", "connect inner.u -> u;");
     assert!(eqiora_compiler::compile("relay.eqi", &reversed).is_err());
 }
+
+#[test]
+fn clocked_variables_have_tick_local_reads_without_state_privileges() {
+    let source = "component Read(clock tick:periodic,variable observed:1 at tick,output y:1 at tick) {relation copy at tick {y=observed;}} model M() {clock tick=periodic(1[s]);clock other=periodic(1[s]);variable x:1 at tick;let alias=x;relation value at tick {x=1;}instance read:Read(tick=tick,observed=x);relation inspect at tick {alias=1;}}";
+    eqiora_compiler::compile("variable.eqi", source).unwrap_or_else(|e| panic!("{e:?}"));
+    for relation in [
+        "relation inspect at other {alias=1;}",
+        "relation inspect {alias=1;}",
+        "initial {alias=1;}",
+        "relation inspect at tick {pre(alias)=1;}",
+    ] {
+        let invalid = source.replace("relation inspect at tick {alias=1;}", relation);
+        assert!(
+            eqiora_compiler::compile("variable.eqi", &invalid).is_err(),
+            "{relation}"
+        );
+    }
+}

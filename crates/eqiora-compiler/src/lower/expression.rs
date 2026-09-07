@@ -483,6 +483,17 @@ impl ExpressionLowerer<'_> {
                         "sample operand must be continuous",
                     ));
                 }
+                if contract.role == eqiora_lang::FieldRoleSyntax::Variable
+                    && matches!(contract.activation, ActivationSyntax::Periodic(_))
+                    && (self.initial || &contract.activation != self.activation)
+                {
+                    return Err(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.file,
+                        expression.range(),
+                        "clocked Variable read requires its exact declared activation",
+                    ));
+                }
                 (SymbolRef::Field(id), id.erase(), contract.dimension)
             }
             Binding::Parameter(id, value_type) => {

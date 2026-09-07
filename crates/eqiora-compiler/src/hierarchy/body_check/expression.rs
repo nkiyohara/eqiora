@@ -363,7 +363,7 @@ impl ExpressionChecker<'_, '_, '_> {
         contract: SymbolContract,
     ) -> Result<ExpressionType<String>, Diagnostic> {
         match contract {
-            SymbolContract::Field(inferred, _, activation) => {
+            SymbolContract::Field(inferred, role, activation) => {
                 if self.sampling && activation != ActivationSyntax::Continuous {
                     return Err(source_error(
                         codes::LANGUAGE_TYPE_ERROR,
@@ -371,6 +371,22 @@ impl ExpressionChecker<'_, '_, '_> {
                         expression.range(),
                         "sample operand must be continuous",
                     ));
+                }
+                if role == eqiora_lang::FieldRoleSyntax::Variable
+                    && matches!(activation, ActivationSyntax::Periodic(_))
+                {
+                    if self.intrinsic {
+                        self.contextual.push(expression.clone());
+                    } else if self.initial
+                        || !self.scope.activation_matches(&activation, self.activation)
+                    {
+                        return Err(source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            self.scope.file,
+                            expression.range(),
+                            "clocked Variable read requires its exact declared activation",
+                        ));
+                    }
                 }
                 Ok(inferred)
             }
@@ -380,7 +396,7 @@ impl ExpressionChecker<'_, '_, '_> {
                 if let PortContract::Signal { activation, .. } = &contract {
                     if self.intrinsic {
                         self.contextual.push(expression.clone());
-                    } else if activation != self.activation {
+                    } else if !self.scope.activation_matches(activation, self.activation) {
                         return Err(source_error(
                             codes::LANGUAGE_TYPE_ERROR,
                             self.scope.file,

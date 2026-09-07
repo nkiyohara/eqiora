@@ -246,6 +246,15 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
         }
     }
 
+    pub(super) fn activation_matches(
+        &self,
+        left: &eqiora_lang::ActivationSyntax,
+        right: &eqiora_lang::ActivationSyntax,
+    ) -> bool {
+        left == right
+            || matches!((left, right), (eqiora_lang::ActivationSyntax::Periodic(a), eqiora_lang::ActivationSyntax::Periodic(b)) if self.borrowed_clocks.contains(a) || self.borrowed_clocks.contains(b))
+    }
+
     pub(super) fn spatial_support(&self, name: &str) -> Option<SpatialSupport<String>> {
         match self.symbols.get(name) {
             Some(SymbolContract::Domain(contract)) => contract.spatial_support(),

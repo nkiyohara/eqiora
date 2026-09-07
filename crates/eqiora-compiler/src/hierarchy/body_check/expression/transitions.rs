@@ -47,7 +47,11 @@ impl ExpressionChecker<'_, '_, '_> {
         }
         if self.sampling
             || (!self.intrinsic
-                && (self.initial || self.activation != &ActivationSyntax::Periodic(clock.clone())))
+                && (self.initial
+                    || !self.scope.activation_matches(
+                        self.activation,
+                        &ActivationSyntax::Periodic(clock.clone()),
+                    )))
         {
             return Err(error("sample requires its exact clock's update relation"));
         }
