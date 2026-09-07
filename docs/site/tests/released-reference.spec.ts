@@ -22,7 +22,7 @@ test('Reference navigation reaches released language and physical sources', asyn
   await page.goto('/reference/standard-packages/');
   await page.locator('main').getByRole('link', { name: 'Electrical components', exact: true }).click();
   await expect(page.locator('main')).toContainText('IdealVoltageSource');
-  await expect(page.locator('main a[href*="/blob/v0.1.0a7/"]').first()).toBeVisible();
+  await expect(page.locator('main a[href*="/blob/e72f744cf6956e0e3c1f03aad65868d726f8ebbf/"]').first()).toBeVisible();
 });
 
 test('Released Reference links, source and edit destinations are present', async ({ page, baseURL }) => {

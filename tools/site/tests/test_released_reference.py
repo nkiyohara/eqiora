@@ -23,7 +23,7 @@ PAGES = sorted((REFERENCE / "language").glob("*.mdx")) + sorted(
 RAW_IMPORT = re.compile(r"import (\w+) from '([^']+\.eqi)\?raw';")
 PYTHON_BLOCK = re.compile(r"```python\n(.*?)```", re.DOTALL)
 RELEASE_SOURCE = re.compile(
-    r"https://github\.com/nkiyohara/eqiora/blob/v0\.1\.0a7/(packages/[^)#\s]+\.eqi)"
+    r"https://github\.com/nkiyohara/eqiora/blob/e72f744cf6956e0e3c1f03aad65868d726f8ebbf/(packages/[^)#\s]+\.eqi)"
 )
 
 
