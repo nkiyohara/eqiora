@@ -533,18 +533,41 @@ def test(field: object) -> Expression:
     return _unary("test", field)
 
 
-def dot(left: object, right: object) -> Expression:
+def _binary_function(name: str, left: object, right: object) -> Expression:
     left_expression = _expression(left)
     right_expression = _expression(right)
-    owner = _owner(left_expression, right_expression)
     return Expression(
         _CREATE,
-        f"dot({left_expression._text}, {right_expression._text})",
-        owner,
+        f"{name}({left_expression._text}, {right_expression._text})",
+        _owner(left_expression, right_expression),
         max(left_expression._depth, right_expression._depth) + 1,
         left_expression._nodes + right_expression._nodes + 1,
         100,
     )
+
+
+def dot(left: object, right: object) -> Expression:
+    return _binary_function("dot", left, right)
+
+
+def quotient(left: object, right: object) -> Expression:
+    """Exact integer quotient truncated toward zero; overflow and zero divisors reject."""
+    return _binary_function("quotient", left, right)
+
+
+def remainder(left: object, right: object) -> Expression:
+    """Exact integer remainder with the dividend's sign when nonzero."""
+    return _binary_function("remainder", left, right)
+
+
+def to_real(value: object) -> Expression:
+    """Explicitly convert an integer to real; binary64 rounding can lose integer precision."""
+    return _unary("to_real", value)
+
+
+def to_integer(value: object) -> Expression:
+    """Convert only an integral, finite, dimensionless real in the signed 64-bit range."""
+    return _unary("to_integer", value)
 
 
 def integrate(domain: Support, integrand: object) -> Expression:
@@ -1494,6 +1517,10 @@ __all__ = [
     "pre",
     "next",
     "quantity",
+    "quotient",
+    "remainder",
+    "to_real",
+    "to_integer",
     "symmetric_part",
     "test",
     "trace",

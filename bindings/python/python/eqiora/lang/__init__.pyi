@@ -293,6 +293,34 @@ def dot(
 
     ...
 
+def quotient(left: Expression | int, right: Expression | int) -> Expression:
+    """Return the checked integer quotient truncated toward zero.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::quotient``.
+    """
+    ...
+
+def remainder(left: Expression | int, right: Expression | int) -> Expression:
+    """Return the integer remainder with the dividend's sign.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::remainder``.
+    """
+    ...
+
+def to_real(value: Expression | int) -> Expression:
+    """Explicitly convert an integer to a real, with possible precision loss.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::to_real``.
+    """
+    ...
+
+def to_integer(value: Expression | float | int) -> Expression:
+    """Convert an integral finite dimensionless real within the signed integer range.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::to_integer``.
+    """
+    ...
+
 def integrate(
     domain: Support,
     integrand: Expression | float | int | complex,
@@ -388,6 +416,10 @@ __all__ = [
     "pre",
     "next",
     "quantity",
+    "quotient",
+    "remainder",
+    "to_real",
+    "to_integer",
     "symmetric_part",
     "test",
     "trace",

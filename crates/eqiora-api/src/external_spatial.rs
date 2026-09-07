@@ -272,15 +272,24 @@ public component SteadyFlowPastCylinder(
         let parameters = [
             (
                 "diffusion",
-                eqiora_lang::DraftExpression::constant(1.0).source_ast(),
+                eqiora_lang::DraftExpression::constant(
+                    eqiora_lang::DecimalLiteral::from_f64(1.0).unwrap(),
+                )
+                .source_ast(),
             ),
             (
                 "wave_number",
-                eqiora_lang::DraftExpression::constant(2.0).source_ast(),
+                eqiora_lang::DraftExpression::constant(
+                    eqiora_lang::DecimalLiteral::from_f64(2.0).unwrap(),
+                )
+                .source_ast(),
             ),
             (
                 "source_scale",
-                eqiora_lang::DraftExpression::constant(2.0).source_ast(),
+                eqiora_lang::DraftExpression::constant(
+                    eqiora_lang::DecimalLiteral::from_f64(2.0).unwrap(),
+                )
+                .source_ast(),
             ),
         ];
         let with_form = compile_geometry_fixture(
@@ -356,15 +365,24 @@ public component SteadyFlowPastCylinder(
             &[
                 (
                     "diffusion",
-                    eqiora_lang::DraftExpression::constant(1.0).source_ast(),
+                    eqiora_lang::DraftExpression::constant(
+                        eqiora_lang::DecimalLiteral::from_f64(1.0).unwrap(),
+                    )
+                    .source_ast(),
                 ),
                 (
                     "wave_number",
-                    eqiora_lang::DraftExpression::constant(2.0).source_ast(),
+                    eqiora_lang::DraftExpression::constant(
+                        eqiora_lang::DecimalLiteral::from_f64(2.0).unwrap(),
+                    )
+                    .source_ast(),
                 ),
                 (
                     "source_scale",
-                    eqiora_lang::DraftExpression::constant(2.0).source_ast(),
+                    eqiora_lang::DraftExpression::constant(
+                        eqiora_lang::DecimalLiteral::from_f64(2.0).unwrap(),
+                    )
+                    .source_ast(),
                 ),
             ],
         )
@@ -382,15 +400,24 @@ public component SteadyFlowPastCylinder(
         let parameters = [
             (
                 "diffusion",
-                eqiora_lang::DraftExpression::constant(1.0).source_ast(),
+                eqiora_lang::DraftExpression::constant(
+                    eqiora_lang::DecimalLiteral::from_f64(1.0).unwrap(),
+                )
+                .source_ast(),
             ),
             (
                 "wave_number",
-                eqiora_lang::DraftExpression::constant(2.0).source_ast(),
+                eqiora_lang::DraftExpression::constant(
+                    eqiora_lang::DecimalLiteral::from_f64(2.0).unwrap(),
+                )
+                .source_ast(),
             ),
             (
                 "source_scale",
-                eqiora_lang::DraftExpression::constant(2.0).source_ast(),
+                eqiora_lang::DraftExpression::constant(
+                    eqiora_lang::DecimalLiteral::from_f64(2.0).unwrap(),
+                )
+                .source_ast(),
             ),
         ];
         let invalid = [
@@ -674,7 +701,10 @@ public component SteadyFlowPastCylinder(
             "FluidBoundaryLaw",
             &[(
                 "value",
-                eqiora_lang::DraftExpression::constant(2.0).source_ast(),
+                eqiora_lang::DraftExpression::constant(
+                    eqiora_lang::DecimalLiteral::from_f64(2.0).unwrap(),
+                )
+                .source_ast(),
             )],
         )
         .expect("explicit public Component closes");
@@ -685,7 +715,10 @@ public component SteadyFlowPastCylinder(
             "FluidBoundaryLaw",
             &[(
                 "value",
-                eqiora_lang::DraftExpression::constant(2.0).source_ast(),
+                eqiora_lang::DraftExpression::constant(
+                    eqiora_lang::DecimalLiteral::from_f64(2.0).unwrap(),
+                )
+                .source_ast(),
             )],
         )
         .expect("explicit public Component closes identically");
@@ -698,7 +731,10 @@ public component SteadyFlowPastCylinder(
             "FluidBoundaryLaw",
             &[(
                 "value",
-                eqiora_lang::DraftExpression::constant(-2.0).source_ast(),
+                eqiora_lang::DraftExpression::constant(
+                    eqiora_lang::DecimalLiteral::from_f64(-2.0).unwrap(),
+                )
+                .source_ast(),
             )],
         )
         .expect("compiler checks type and finiteness, not application positivity");
@@ -719,11 +755,17 @@ public component SteadyFlowPastCylinder(
             &[
                 (
                     "value",
-                    eqiora_lang::DraftExpression::constant(2.0).source_ast(),
+                    eqiora_lang::DraftExpression::constant(
+                        eqiora_lang::DecimalLiteral::from_f64(2.0).unwrap(),
+                    )
+                    .source_ast(),
                 ),
                 (
                     "extra",
-                    eqiora_lang::DraftExpression::constant(1.0).source_ast(),
+                    eqiora_lang::DraftExpression::constant(
+                        eqiora_lang::DecimalLiteral::from_f64(1.0).unwrap(),
+                    )
+                    .source_ast(),
                 ),
             ],
         )
@@ -741,7 +783,10 @@ public component SteadyFlowPastCylinder(
             "MissingLaw",
             &[(
                 "value",
-                eqiora_lang::DraftExpression::constant(2.0).source_ast(),
+                eqiora_lang::DraftExpression::constant(
+                    eqiora_lang::DecimalLiteral::from_f64(2.0).unwrap(),
+                )
+                .source_ast(),
             )],
         )
         .unwrap_err();

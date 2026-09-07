@@ -14,7 +14,7 @@ pub(crate) use value_type::PyValueType;
 
 use pyo3::exceptions::{PyAttributeError, PyTypeError};
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyBool, PyComplex, PyModule, PyTuple};
+use pyo3::types::{PyAny, PyBool, PyComplex, PyInt, PyModule, PyTuple};
 
 use crate::diagnostic_error;
 
@@ -890,10 +890,16 @@ fn expression_from_python(value: &Bound<'_, PyAny>) -> PyResult<DraftExpression>
     if value.is_instance_of::<PyBool>() {
         return Err(expression_type_error());
     }
+    if value.is_instance_of::<PyInt>() {
+        return value_literal::expression(value);
+    }
     value
         .extract::<f64>()
-        .map(DraftExpression::constant)
         .map_err(|_| expression_type_error())
+        .and_then(|value| {
+            eqiora::language::DecimalLiteral::from_f64(value).map_err(|_| expression_type_error())
+        })
+        .map(DraftExpression::constant)
 }
 
 #[derive(Debug, Clone, Copy)]

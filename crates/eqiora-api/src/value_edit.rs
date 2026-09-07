@@ -185,6 +185,12 @@ impl ModelDocument {
         let base_revision = self.store.revision();
         let (transaction, transaction_digest) =
             self.prepare_value_transaction(target, before.clone(), after.clone(), label)?;
+        // Preview uses the same graph admission as commit, including persisted
+        // structural dependencies; no alternate edit-policy registry lives here.
+        let mut preview = self.store.clone();
+        preview
+            .commit(transaction.to_transaction()?)
+            .map_err(crate::first_diagnostic)?;
         Ok(ValueEditPlan {
             base_digest: self.digest()?,
             base_revision,

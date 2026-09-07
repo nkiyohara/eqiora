@@ -162,9 +162,12 @@ impl PySampledSession {
         }
     }
 
-    fn field(&self, name: &str) -> PyResult<Option<f64>> {
+    fn field(&self, py: Python<'_>, name: &str) -> PyResult<Option<Py<PyAny>>> {
         let id = resolve(&self.document, name, EntityKind::Field)?;
-        Ok(self.value.field(id).map(|value| value.value()))
+        self.value
+            .field(id)
+            .map(|value| value_literal::to_python(py, &value))
+            .transpose()
     }
 
     fn output(&self, py: Python<'_>, name: &str, tick_index: u64) -> PyResult<Option<Py<PyTuple>>> {

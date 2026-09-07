@@ -368,19 +368,31 @@ fn document_from_source(source: &str, entry: &str) -> ModelDocument {
     let parameters = [
         (
             "diffusion",
-            eqiora_lang::DraftExpression::constant(1.0).source_ast(),
+            eqiora_lang::DraftExpression::constant(
+                eqiora_lang::DecimalLiteral::from_f64(1.0).unwrap(),
+            )
+            .source_ast(),
         ),
         (
             "wave_number",
-            eqiora_lang::DraftExpression::constant(std::f64::consts::PI).source_ast(),
+            eqiora_lang::DraftExpression::constant(
+                eqiora_lang::DecimalLiteral::from_f64(std::f64::consts::PI).unwrap(),
+            )
+            .source_ast(),
         ),
         (
             "source_scale",
-            eqiora_lang::DraftExpression::constant(2.0 * std::f64::consts::PI.powi(2)).source_ast(),
+            eqiora_lang::DraftExpression::constant(
+                eqiora_lang::DecimalLiteral::from_f64(2.0 * std::f64::consts::PI.powi(2)).unwrap(),
+            )
+            .source_ast(),
         ),
         (
             "boundary_offset",
-            eqiora_lang::DraftExpression::constant(0.0).source_ast(),
+            eqiora_lang::DraftExpression::constant(
+                eqiora_lang::DecimalLiteral::from_f64(0.0).unwrap(),
+            )
+            .source_ast(),
         ),
     ];
     let body = geometry.entity_set("square").unwrap();

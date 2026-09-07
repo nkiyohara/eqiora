@@ -64,6 +64,12 @@ impl PyValueType {
             .map_err(|error| PyValueError::new_err(error.to_string()))
     }
 
+    /// Exact signed 64-bit, dimensionless integer type.
+    #[staticmethod]
+    fn integer() -> Self {
+        Self::scalar(ScalarDomain::Integer, None)
+    }
+
     #[staticmethod]
     #[pyo3(signature = (dimension=None))]
     fn real(dimension: Option<&PyDimension>) -> Self {
@@ -111,6 +117,7 @@ impl PyValueType {
     #[getter]
     fn scalar_domain(&self) -> &'static str {
         match self.value.scalar_domain() {
+            ScalarDomain::Integer => "integer",
             ScalarDomain::Real => "real",
             ScalarDomain::Complex => "complex",
         }
