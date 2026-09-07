@@ -106,7 +106,7 @@ def cylinder_source(*, doc="Equations-only steady incompressible flow component.
 first = cylinder_source()
 second = cylinder_source()
 assert first.to_eqi() == second.to_eqi()
-assert "// Equations-only steady incompressible flow component." in first.to_eqi()
+assert "/// Equations-only steady incompressible flow component." in first.to_eqi()
 assert "relation momentum continuous on fluid" in first.to_eqi()
 
 graph = eqiora.geometry.GeometryGraph()

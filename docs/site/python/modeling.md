@@ -40,6 +40,11 @@ vectors/tensors, and channel arrays. Spatial axes must match the exact support;
 channel axes do not become spatial vectors merely because their extents agree.
 Complex execution remains under development.
 
+`doc=` emits attached `///` documentation in the same `.eqi` source. Use a blank
+paragraph inside the Python string for further prose; the emitted block remains
+attached to its declaration. Documentation changes the source bundle, not the
+physical Model.
+
 Numeric declaration initializers inherit an explicitly declared dimension's
 coherent unit, so `parameter rate: 1 / s = 1;` needs no repeated unit on the right.
 Explicit compatible input units still convert normally; general expressions

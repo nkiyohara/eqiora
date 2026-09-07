@@ -9,7 +9,11 @@ use super::{
     format_component_item, format_component_requirements, format_expression, write_indent,
 };
 
-pub(super) fn format_component(component: &ComponentDecl, output: &mut String) {
+pub(super) fn format_component(
+    component: &ComponentDecl,
+    output: &mut crate::formatter::comments::Output,
+) {
+    output.begin(&component.comments);
     if component.visibility == VisibilitySyntax::Public {
         output.push_str("public ");
     }
@@ -22,13 +26,15 @@ pub(super) fn format_component(component: &ComponentDecl, output: &mut String) {
         format_formulation(formulation, 2, output);
     }
     output.push_str("}\n");
+    output.end();
 }
 
 pub(super) fn format_formulation(
     declaration: &FormulationDecl,
     indent: usize,
-    output: &mut String,
+    output: &mut crate::formatter::comments::Output,
 ) {
+    output.begin(&declaration.comments);
     write_indent(output, indent);
     output.push_str("form ");
     output.push_str("primal");
@@ -40,6 +46,7 @@ pub(super) fn format_formulation(
     output.push_str(";\n");
     write_indent(output, indent);
     output.push_str("}\n");
+    output.end();
 }
 
 #[cfg(test)]

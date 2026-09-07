@@ -4,8 +4,8 @@ use std::collections::HashMap;
 
 use eqiora_core::GraphPath;
 
-use super::DraftPortReference;
-use crate::ast::{Expr, ExprKind, NamePath, TextRange};
+use super::{DraftPortReference, NativeModelAst};
+use crate::ast::{Expr, ExprKind, ModelDecl, NamePath, TextRange};
 
 #[derive(Debug, Default)]
 pub(super) struct RangeAllocator {
@@ -39,5 +39,19 @@ pub(super) fn physical_accessor_ast(
             kind: ExprKind::Name(reference.name.clone()),
             range: ranges.allocate(path, paths),
         }],
+    }
+}
+
+impl NativeModelAst {
+    /// Source-shaped model consumed by the shared compiler lowerer.
+    #[must_use]
+    pub const fn model(&self) -> &ModelDecl {
+        &self.model
+    }
+
+    /// Native declaration path associated with one synthetic range.
+    #[must_use]
+    pub fn graph_path(&self, range: TextRange) -> Option<&GraphPath> {
+        self.paths.get(&range)
     }
 }

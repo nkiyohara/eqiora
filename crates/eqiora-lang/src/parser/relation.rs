@@ -71,6 +71,7 @@ impl Parser<'_> {
             .range()
             .end();
         let relation = RelationDecl {
+            comments: Default::default(),
             name,
             activation,
             domain,

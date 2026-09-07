@@ -75,6 +75,7 @@ impl Parser<'_> {
             .range()
             .end();
         Some(DomainDecl {
+            comments: Default::default(),
             name,
             syntax,
             range: TextRange::new(start, end),

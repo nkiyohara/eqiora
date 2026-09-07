@@ -233,6 +233,30 @@ fn local_project_editor_analysis_is_read_only_and_accepts_source_overrides() {
 }
 
 #[test]
+fn path_loaded_and_in_memory_source_have_identical_declaration_documentation() {
+    let fixture = TestDirectory::create("documentation");
+    let source = "// 🧪\r\n/// Model explanation.\r\nmodel Main {\r\n/// State explanation.\r\nfield x:1=0; relation balance continuous { x=0; }\r\n}\r\n";
+    let sources = author_sources("org.example.Documentation", source, vec![]);
+    write_package(&fixture.0, "src", &sources, &[]);
+    let (workspace, paths) =
+        analyze_local_package_editor_project_v1(1, &fixture.0, &BTreeMap::new()).unwrap();
+    let file = paths.keys().next().unwrap();
+    let loaded = workspace.document(file).unwrap();
+    let memory = crate::editor::EditorService::new(file, 1, source);
+    assert_eq!(loaded.symbols(), memory.current().symbols());
+    assert_eq!(loaded.formatted(), memory.current().formatted());
+    let model = &loaded.symbols()[0];
+    assert_eq!(model.doc_comment().unwrap().summary(), "Model explanation.");
+    let doc = model.children()[0].doc_comment().unwrap();
+    assert_eq!(doc.summary(), "State explanation.");
+    assert_eq!(
+        &source[doc.range().start() as usize..doc.range().end() as usize],
+        "/// State explanation.\r"
+    );
+    assert!(!fixture.0.join(PROJECT_LOCK).exists());
+}
+
+#[test]
 fn changed_local_content_generates_a_new_exact_identity() {
     let fixture = TestDirectory::create("mismatch");
     let dependency_path = fixture.child("dependency");

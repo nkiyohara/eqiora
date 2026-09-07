@@ -8,6 +8,7 @@ use super::{
 /// A named model and its declarations.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModelDecl {
+    pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) visibility: VisibilitySyntax,
     pub(crate) name: String,
     pub(crate) items: Vec<Item>,
@@ -43,6 +44,7 @@ impl ModelDecl {
 /// One explicit, side-effect-free semantic module import.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ImportDecl {
+    pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) module: NamePath,
     pub(crate) alias: String,
     pub(crate) range: TextRange,
@@ -51,7 +53,7 @@ pub(crate) struct ImportDecl {
 /// One parsed source file.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Document {
-    pub(crate) retained_source: Option<String>,
+    pub(crate) comments: super::comments::SourceComments,
     pub(crate) imports: Vec<ImportDecl>,
     pub(crate) dimensions: Vec<DimensionDecl>,
     pub(crate) property_contracts: Vec<PropertyContractDecl>,
@@ -64,14 +66,6 @@ pub struct Document {
 }
 
 impl Document {
-    pub(crate) fn retained_source(&self) -> Option<&str> {
-        self.retained_source.as_deref()
-    }
-
-    pub(crate) fn discard_retained_source(&mut self) {
-        self.retained_source = None;
-    }
-
     /// Explicit semantic imports in authored order.
     #[must_use]
     pub fn imports(&self) -> impl ExactSizeIterator<Item = (&NamePath, &str, TextRange)> {

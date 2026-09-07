@@ -152,11 +152,7 @@ impl Parser<'_> {
             && pure_operators.is_empty()
             && models.is_empty()))
         .then_some(Document {
-            retained_source: self
-                .tokens
-                .iter()
-                .any(|token| token.kind() == TokenKind::LineComment)
-                .then(|| self.tokens.iter().map(|token| token.text()).collect()),
+            comments: Default::default(),
             imports,
             dimensions,
             property_contracts,
@@ -189,6 +185,7 @@ impl Parser<'_> {
             .range()
             .end();
         Some(ModelDecl {
+            comments: Default::default(),
             visibility,
             name,
             items,
@@ -216,6 +213,7 @@ impl Parser<'_> {
             .range()
             .end();
         Some(ImportDecl {
+            comments: Default::default(),
             module,
             alias,
             range: TextRange::new(start, end),
@@ -235,6 +233,7 @@ impl Parser<'_> {
             .range()
             .end();
         Some(DimensionDecl {
+            comments: Default::default(),
             name,
             expression,
             range: TextRange::new(start, end),

@@ -3,6 +3,7 @@
 use core::fmt::Write;
 
 mod cartesian;
+mod comments;
 mod compile_time;
 mod document;
 mod formulation;
@@ -29,17 +30,16 @@ use helpers::{
 use property::{format_component_requirements, format_properties};
 use relation::{format_relation, format_relation_family};
 
-/// Format a syntax tree, canonicalizing comment-free documents and preserving commented source.
+/// Canonically format syntax and the comment trivia owned by each declaration.
 #[must_use]
 pub fn format(document: &Document) -> String {
-    if let Some(source) = document.retained_source() {
-        return source.to_owned();
-    }
-    let mut output = String::new();
+    let mut output = comments::Output::default();
+    output.begin(&document.comments);
     let mut declaration_count = document::format_header(document, &mut output);
     format_properties(document, &mut output, &mut declaration_count);
     for connector in &document.connectors {
         separate_declaration(&mut output, &mut declaration_count);
+        output.begin(&connector.comments);
         if connector.visibility == VisibilitySyntax::Public {
             output.push_str("public ");
         }
@@ -77,6 +77,7 @@ pub fn format(document: &Document) -> String {
             }
         }
         output.push_str(";\n");
+        output.end();
     }
     for operator in &document.pure_operators {
         separate_declaration(&mut output, &mut declaration_count);
@@ -88,6 +89,7 @@ pub fn format(document: &Document) -> String {
     }
     for model in &document.models {
         separate_declaration(&mut output, &mut declaration_count);
+        output.begin(&model.comments);
         if model.visibility == VisibilitySyntax::Public {
             output.push_str("public ");
         }
@@ -96,10 +98,16 @@ pub fn format(document: &Document) -> String {
             format_item(item, 2, &mut output);
         }
         output.push_str("}\n");
+        output.end();
     }
-    output
+    output.end();
+    output.finish()
 }
-fn format_pure_operator(declaration: &PureOperatorDecl, output: &mut String) {
+fn format_pure_operator(
+    declaration: &PureOperatorDecl,
+    output: &mut crate::formatter::comments::Output,
+) {
+    output.begin(&declaration.comments);
     if declaration.visibility == VisibilitySyntax::Public {
         output.push_str("public ");
     }
@@ -108,16 +116,22 @@ fn format_pure_operator(declaration: &PureOperatorDecl, output: &mut String) {
         if index != 0 {
             output.push_str(", ");
         }
+        output.begin(&formal.comments);
         write!(output, "{}: ", formal.name).expect("String write");
         format_pure_value_class(&formal.value_class, output);
+        output.end();
     }
     output.push_str(") -> ");
     format_pure_value_class(&declaration.result, output);
     output.push_str(" = ");
     format_pure_operator_expression(&declaration.body, 0, output);
     output.push_str(";\n");
+    output.end();
 }
-fn format_pure_value_class(value_class: &PureValueClassSyntax, output: &mut String) {
+fn format_pure_value_class(
+    value_class: &PureValueClassSyntax,
+    output: &mut crate::formatter::comments::Output,
+) {
     match value_class {
         PureValueClassSyntax::Scalar => output.push_str("scalar"),
         PureValueClassSyntax::Spatial { rank } => {
@@ -128,7 +142,7 @@ fn format_pure_value_class(value_class: &PureValueClassSyntax, output: &mut Stri
 fn format_pure_operator_expression(
     expression: &PureOperatorExpr,
     parent_precedence: u8,
-    output: &mut String,
+    output: &mut crate::formatter::comments::Output,
 ) {
     let precedence = pure_operator_expression_precedence(expression);
     let parenthesize = precedence < parent_precedence;
@@ -202,12 +216,20 @@ fn pure_operator_expression_precedence(expression: &PureOperatorExpr) -> u8 {
     }
 }
 
-fn separate_declaration(output: &mut String, declaration_count: &mut usize) {
+fn separate_declaration(
+    output: &mut crate::formatter::comments::Output,
+    declaration_count: &mut usize,
+) {
     output.push_str(if *declaration_count == 0 { "" } else { "\n" });
     *declaration_count += 1;
 }
 
-fn format_component_item(item: &ComponentItem, indent: usize, output: &mut String) {
+fn format_component_item(
+    item: &ComponentItem,
+    indent: usize,
+    output: &mut crate::formatter::comments::Output,
+) {
+    output.begin(item.source_comments());
     match item {
         ComponentItem::Parameter(declaration) => {
             write_indent(output, indent);
@@ -280,9 +302,11 @@ fn format_component_item(item: &ComponentItem, indent: usize, output: &mut Strin
         }
         ComponentItem::Instance(declaration) => format_instance(declaration, indent, output),
     }
+    output.end();
 }
 
-fn format_item(item: &Item, indent: usize, output: &mut String) {
+fn format_item(item: &Item, indent: usize, output: &mut crate::formatter::comments::Output) {
+    output.begin(item.source_comments());
     match item {
         Item::Domain(declaration) => {
             write_indent(output, indent);
@@ -342,12 +366,13 @@ fn format_item(item: &Item, indent: usize, output: &mut String) {
         }
         Item::Instance(declaration) => format_instance(declaration, indent, output),
     }
+    output.end();
 }
 
 fn format_representation(
     declaration: &crate::ast::RepresentationDecl,
     indent: usize,
-    output: &mut String,
+    output: &mut crate::formatter::comments::Output,
 ) {
     write_indent(output, indent);
     write!(output, "representation {} = ", declaration.name).expect("String write");
@@ -357,7 +382,11 @@ fn format_representation(
     output.push_str(";\n");
 }
 
-fn format_field(declaration: &FieldDecl, indent: usize, output: &mut String) {
+fn format_field(
+    declaration: &FieldDecl,
+    indent: usize,
+    output: &mut crate::formatter::comments::Output,
+) {
     write_indent(output, indent);
     write!(output, "field {}", declaration.name).expect("String write");
     if let (Some(domain), Some(representation)) = (&declaration.domain, &declaration.representation)
@@ -375,7 +404,7 @@ fn format_field(declaration: &FieldDecl, indent: usize, output: &mut String) {
     }
 }
 
-fn format_value_shape(shape: &ValueShapeSyntax, output: &mut String) {
+fn format_value_shape(shape: &ValueShapeSyntax, output: &mut crate::formatter::comments::Output) {
     match shape {
         ValueShapeSyntax::Scalar => output.push_str("[]"),
         ValueShapeSyntax::Exact(extents) => {
@@ -392,7 +421,7 @@ fn format_value_shape(shape: &ValueShapeSyntax, output: &mut String) {
     }
 }
 
-fn format_port_syntax(syntax: &PortSyntax, output: &mut String) {
+fn format_port_syntax(syntax: &PortSyntax, output: &mut crate::formatter::comments::Output) {
     match syntax {
         PortSyntax::Signal {
             direction: SignalDirectionSyntax::Input,
@@ -423,7 +452,7 @@ fn format_port_syntax(syntax: &PortSyntax, output: &mut String) {
 fn format_component_port_family(
     declaration: &ComponentPortFamilyDecl,
     indent: usize,
-    output: &mut String,
+    output: &mut crate::formatter::comments::Output,
 ) {
     let port = &declaration.port;
     write_indent(output, indent);
@@ -437,11 +466,18 @@ fn format_component_port_family(
     output.push_str(";\n");
 }
 
-fn format_boundary_family_binder(binder: &BoundaryFamilyBinderSyntax, output: &mut String) {
+fn format_boundary_family_binder(
+    binder: &BoundaryFamilyBinderSyntax,
+    output: &mut crate::formatter::comments::Output,
+) {
     write!(output, "[{} in {}]", binder.member, binder.set).expect("String write");
 }
 
-fn format_clock(declaration: &ClockDecl, indent: usize, output: &mut String) {
+fn format_clock(
+    declaration: &ClockDecl,
+    indent: usize,
+    output: &mut crate::formatter::comments::Output,
+) {
     write_indent(output, indent);
     writeln!(
         output,
@@ -455,7 +491,11 @@ fn format_clock(declaration: &ClockDecl, indent: usize, output: &mut String) {
     .expect("String write");
 }
 
-fn format_connection(declaration: &ConnectionDecl, indent: usize, output: &mut String) {
+fn format_connection(
+    declaration: &ConnectionDecl,
+    indent: usize,
+    output: &mut crate::formatter::comments::Output,
+) {
     write_indent(output, indent);
     match declaration.syntax {
         ConnectionSyntax::Signal => {
@@ -480,7 +520,7 @@ fn format_connection(declaration: &ConnectionDecl, indent: usize, output: &mut S
 fn format_boundary_connection(
     declaration: &BoundaryConnectionDecl,
     indent: usize,
-    output: &mut String,
+    output: &mut crate::formatter::comments::Output,
 ) {
     write_indent(output, indent);
     output.push_str(match declaration.syntax {
@@ -502,14 +542,21 @@ fn format_boundary_connection(
     output.push_str(";\n");
 }
 
-fn format_boundary_port_reference(reference: &BoundaryPortReferenceSyntax, output: &mut String) {
+fn format_boundary_port_reference(
+    reference: &BoundaryPortReferenceSyntax,
+    output: &mut crate::formatter::comments::Output,
+) {
     write!(output, "{}", reference.port).expect("String write");
     if let Some(selector) = &reference.selector {
         format_boundary_port_selector(selector, output);
     }
 }
 
-fn format_instance(declaration: &InstanceDecl, indent: usize, output: &mut String) {
+fn format_instance(
+    declaration: &InstanceDecl,
+    indent: usize,
+    output: &mut crate::formatter::comments::Output,
+) {
     write_indent(output, indent);
     write!(
         output,
@@ -524,21 +571,26 @@ fn format_instance(declaration: &InstanceDecl, indent: usize, output: &mut Strin
             if index != 0 {
                 output.push_str(", ");
             }
+            output.begin(&binding.comments);
             write!(output, "{} = ", binding.parameter).expect("String write");
             format_expression(&binding.value, 0, output);
+            output.end();
             separated = true;
         }
         for binding in &declaration.support_bindings {
             if separated {
                 output.push_str(", ");
             }
+            output.begin(&binding.comments);
             write!(output, "support {} = {}", binding.slot, binding.target).expect("String write");
+            output.end();
             separated = true;
         }
         for binding in &declaration.boundary_set_bindings {
             if separated {
                 output.push_str(", ");
             }
+            output.begin(&binding.comments);
             write!(output, "support {} = boundaries(", binding.slot).expect("String write");
             for (index, member) in binding.members.iter().enumerate() {
                 if index != 0 {
@@ -547,25 +599,30 @@ fn format_instance(declaration: &InstanceDecl, indent: usize, output: &mut Strin
                 output.push_str(&member.target);
             }
             output.push(')');
+            output.end();
             separated = true;
         }
         for (index, binding) in declaration.field_bindings.iter().enumerate() {
             if separated || index != 0 {
                 output.push_str(", ");
             }
+            output.begin(&binding.comments);
             write!(output, "field {} = {}", binding.slot, binding.target).expect("String write");
+            output.end();
             separated = true;
         }
         for binding in &declaration.property_bindings {
             if separated {
                 output.push_str(", ");
             }
+            output.begin(&binding.comments);
             write!(
                 output,
                 "property {} = {}",
                 binding.property, binding.release
             )
             .expect("String write");
+            output.end();
             separated = true;
         }
         if let Some(material) = declaration.material_binding_syntax() {
@@ -579,7 +636,11 @@ fn format_instance(declaration: &InstanceDecl, indent: usize, output: &mut Strin
     output.push_str(";\n");
 }
 
-fn format_expression(expression: &Expr, parent_precedence: u8, output: &mut String) {
+fn format_expression(
+    expression: &Expr,
+    parent_precedence: u8,
+    output: &mut crate::formatter::comments::Output,
+) {
     let precedence = expression_precedence(expression);
     let parenthesize = precedence < parent_precedence;
     if parenthesize {

@@ -10,13 +10,16 @@ impl ValueTypeSyntax {
     /// Emit this type using the canonical source constructors.
     #[must_use]
     pub fn to_source(&self) -> String {
-        let mut output = String::new();
+        let mut output = super::comments::Output::default();
         format_value_type(self, &mut output);
-        output
+        output.finish()
     }
 }
 
-pub(super) fn format_value_type(value: &ValueTypeSyntax, output: &mut String) {
+pub(super) fn format_value_type(
+    value: &ValueTypeSyntax,
+    output: &mut crate::formatter::comments::Output,
+) {
     match value.kind() {
         ValueTypeSyntaxKind::Scalar { domain, dimension } => {
             if *domain == ScalarDomain::Complex {

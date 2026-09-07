@@ -4,6 +4,7 @@ use super::{ComponentDecl, Expr, TextRange};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FormulationDecl {
+    pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) relation: String,
     pub(crate) left: Expr,
     pub(crate) right: Expr,

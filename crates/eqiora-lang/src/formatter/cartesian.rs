@@ -2,7 +2,7 @@ use crate::cartesian::CartesianCoordinateSyntax;
 
 pub(super) fn format_cartesian_coordinate(
     coordinate: &CartesianCoordinateSyntax,
-    output: &mut String,
+    output: &mut crate::formatter::comments::Output,
 ) {
     match coordinate {
         CartesianCoordinateSyntax::Fixed { value, .. } => {

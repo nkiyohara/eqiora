@@ -19,6 +19,7 @@ impl Parser<'_> {
             .range()
             .end();
         Some(ParameterDecl {
+            comments: Default::default(),
             name,
             value_type,
             value,
@@ -42,6 +43,7 @@ impl Parser<'_> {
             .range()
             .end();
         Some(LetDecl {
+            comments: Default::default(),
             name,
             value_type,
             value,

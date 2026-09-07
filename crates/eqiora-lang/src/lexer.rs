@@ -17,6 +17,8 @@ pub enum TokenKind {
     Whitespace,
     /// `//` through the end of the line.
     LineComment,
+    /// Declaration documentation beginning with exactly three slashes.
+    DocComment,
     /// `{`.
     LeftBrace,
     /// `}`.
@@ -65,7 +67,10 @@ impl TokenKind {
     /// Whether the token carries no syntax by itself.
     #[must_use]
     pub const fn is_trivia(self) -> bool {
-        matches!(self, Self::Whitespace | Self::LineComment)
+        matches!(
+            self,
+            Self::Whitespace | Self::LineComment | Self::DocComment
+        )
     }
 }
 
@@ -146,7 +151,11 @@ pub fn lex(file: impl Into<String>, source: &str) -> LexResult {
                 while offset < bytes.len() && bytes[offset] != b'\n' {
                     offset += 1;
                 }
-                TokenKind::LineComment
+                if bytes.get(start + 2) == Some(&b'/') && bytes.get(start + 3) != Some(&b'/') {
+                    TokenKind::DocComment
+                } else {
+                    TokenKind::LineComment
+                }
             }
             byte if byte.is_ascii_alphabetic() || byte == b'_' => {
                 offset += 1;

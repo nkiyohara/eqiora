@@ -45,6 +45,7 @@ impl Parser<'_> {
             .range()
             .end();
         Some(ComponentDecl {
+            comments: Default::default(),
             visibility,
             name,
             items,
@@ -83,6 +84,7 @@ impl Parser<'_> {
             .range()
             .end();
         Some(FormulationDecl {
+            comments: Default::default(),
             relation,
             left,
             right,

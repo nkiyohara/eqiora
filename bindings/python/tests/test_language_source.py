@@ -10,6 +10,17 @@ q = eqiora.lang
 u = q.units
 
 
+def test_documentation_emits_attached_paragraphs_with_utf8_byte_bound():
+    source = q.Source()
+    source.component("Documented", doc="Summary.\n\nFurther **prose**.")
+    assert "/// Summary.\n///\n/// Further **prose**.\n" in source.to_eqi()
+    bounded = q.Source()
+    bounded.component("Bounded", doc="é" * 8192)
+    assert "/// " + "é" * 8192 in bounded.to_eqi()
+    with pytest.raises(q.SourceError, match="16384-byte limit"):
+        q.Source().component("TooLong", doc="é" * 8193)
+
+
 @pytest.mark.parametrize("value, syntax", [
     (0, "0"),
     (q.quantity(2, u.one / u.m**2), "2 [(1 / (m ^ 2))]"),
@@ -147,7 +158,7 @@ def test_relation_accepts_exactly_residual_or_complete_natural_equation() -> Non
         natural.name = "other"
 
     text = source.to_eqi()
-    assert "// Natural equation." in text
+    assert "/// Natural equation." in text
     assert "div(grad(value)) = -source_scale;" in text
     assert "value = 0;" in text
 
@@ -406,7 +417,7 @@ def test_python_source_emits_and_fresh_compile_inspects_scalar_primal_form(
     source = scalar_primal_source()
     text = source.to_eqi()
     assert "form primal for balance" in text
-    assert "// Authored scalar primal form." in text
+    assert "/// Authored scalar primal form." in text
     assert text.count("math.pi") == 2
     assert text.count("math.sin") == 2
     assert not hasattr(q, "sin")
@@ -462,7 +473,7 @@ def test_source_is_deterministic_and_direct_file_compilation_has_one_identity(
     first = cylinder_source()
     second = cylinder_source()
     assert first.to_eqi() == second.to_eqi()
-    assert "// Equations-only steady incompressible flow component." in first.to_eqi()
+    assert "/// Equations-only steady incompressible flow component." in first.to_eqi()
 
     geometry = cylinder_geometry()
     direct = eqiora.compile(
@@ -502,8 +513,8 @@ def test_scalar_property_source_emits_for_the_exact_package_path(
     first.write_eqi(path)
     assert path.read_text(encoding="utf-8") == first.to_eqi()
     assert scalar_property_source(doc="Different release documentation.").to_eqi().replace(
-        "// Different release documentation.\n", ""
-    ) == first.to_eqi().replace("// Reference scalar diffusivity release.\n", "")
+        "/// Different release documentation.\n", ""
+    ) == first.to_eqi().replace("/// Reference scalar diffusivity release.\n", "")
 
 
 def test_material_composition_emits_one_ordered_typed_binding_set() -> None:

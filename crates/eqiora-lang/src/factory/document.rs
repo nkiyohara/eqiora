@@ -20,6 +20,7 @@ impl SourceAstFactory {
         range: TextRange,
     ) -> Result<ModelDecl, AstConstructionError> {
         Ok(ModelDecl {
+            comments: Default::default(),
             visibility,
             name: checked_identifier(name, "model")?,
             items,
@@ -46,6 +47,7 @@ impl SourceAstFactory {
                 .to_owned()
         });
         let import = ImportDecl {
+            comments: Default::default(),
             module,
             alias: checked_identifier(alias, "module import alias")?,
             range: checked_range(range)?,
@@ -90,7 +92,7 @@ impl SourceAstFactory {
             .map(|(name, expression, range)| Self::dimension_alias(name, expression, range))
             .collect::<Result<_, _>>()?;
         Ok(Document {
-            retained_source: None,
+            comments: Default::default(),
             imports: Vec::new(),
             dimensions,
             property_contracts: Vec::new(),
@@ -121,7 +123,7 @@ impl SourceAstFactory {
             ));
         }
         Ok(Document {
-            retained_source: None,
+            comments: Default::default(),
             imports: Vec::new(),
             dimensions: Vec::new(),
             property_contracts: Vec::new(),
@@ -154,7 +156,7 @@ impl SourceAstFactory {
             ));
         }
         Ok(Document {
-            retained_source: None,
+            comments: Default::default(),
             imports: Vec::new(),
             dimensions: Vec::new(),
             property_contracts: Vec::new(),
@@ -178,7 +180,7 @@ impl SourceAstFactory {
             ));
         }
         Ok(Document {
-            retained_source: None,
+            comments: Default::default(),
             imports: Vec::new(),
             dimensions: Vec::new(),
             property_contracts: Vec::new(),

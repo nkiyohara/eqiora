@@ -45,6 +45,7 @@ impl Parser<'_> {
                             let close =
                                 self.expect(TokenKind::RightParen, "`)` after boundary members")?;
                             boundary_set_bindings.push(BoundarySetBindingDecl {
+                                comments: Default::default(),
                                 slot,
                                 members,
                                 range: TextRange::new(binding_start, close.range().end()),
@@ -53,6 +54,7 @@ impl Parser<'_> {
                             let target =
                                 self.expect_identifier("enclosing Domain or support-slot name")?;
                             support_bindings.push(SupportBindingDecl {
+                                comments: Default::default(),
                                 slot,
                                 target: target.text().to_owned(),
                                 range: TextRange::new(binding_start, target.range().end()),
@@ -74,6 +76,7 @@ impl Parser<'_> {
                         let target =
                             self.expect_identifier("enclosing Field or Field-slot name")?;
                         field_bindings.push(FieldBindingDecl {
+                            comments: Default::default(),
                             slot,
                             target: target.text().to_owned(),
                             range: TextRange::new(binding_start, target.range().end()),
@@ -112,6 +115,7 @@ impl Parser<'_> {
                     self.expect(TokenKind::Equal, "`=` in Parameter binding")?;
                     let value = self.parse_expression(0)?;
                     bindings.push(ParameterBindingDecl {
+                        comments: Default::default(),
                         parameter,
                         range: TextRange::new(binding_start, value.range().end()),
                         value,
@@ -129,6 +133,7 @@ impl Parser<'_> {
             .range()
             .end();
         Some(InstanceDecl {
+            comments: Default::default(),
             name,
             definition,
             bindings,
