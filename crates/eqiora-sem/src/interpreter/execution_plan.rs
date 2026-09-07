@@ -189,8 +189,14 @@ impl ExecutionPlan {
                     SymbolRef::Next(field) => {
                         discrete_fields.insert(field.erase());
                     }
-                    SymbolRef::Port(port) if is_output_port(program, port.erase()) => {
-                        discrete_ports.insert(port.erase());
+                    SymbolRef::Port(port) => {
+                        let source = signal_sources
+                            .get(&port.erase())
+                            .copied()
+                            .unwrap_or_else(|| port.erase());
+                        if is_output_port(program, source) {
+                            discrete_ports.insert(source);
+                        }
                     }
                     _ => {}
                 }
@@ -268,56 +274,10 @@ impl ExecutionPlan {
 }
 
 fn signal_sources(program: &KernelProgram) -> Result<BTreeMap<RawId, RawId>, Diagnostic> {
-    let mut sources = BTreeMap::new();
-    for node in program.nodes() {
-        let KernelNode::Connection(connection) = node else {
-            continue;
-        };
-        let id = connection.id().erase();
-        match connection.semantics() {
-            ConnectionSemantics::Signal => {
-                let ports = edge_targets(program, id, eqiora_graph::EdgeKind::Connects);
-                let Some(output) = ports
-                    .iter()
-                    .find(|port| {
-                        is_output_port(program, **port) != program.boundary().contains(port)
-                    })
-                    .copied()
-                else {
-                    return Err(execution_error(
-                        "signal Connection has no validated output Port",
-                        0.0,
-                    ));
-                };
-                for input in ports.into_iter().filter(|port| *port != output) {
-                    if sources.insert(input, output).is_some() {
-                        return Err(execution_error(
-                            "signal input has more than one driver",
-                            0.0,
-                        ));
-                    }
-                }
-            }
-            ConnectionSemantics::Conserving | ConnectionSemantics::SpatialPeriodic => {}
-            _ => {
-                return Err(Diagnostic::error(
-                    codes::NOT_IMPLEMENTED,
-                    "Connection semantics are newer than this reference interpreter",
-                )
-                .with_graph_path(kernel_path(id)));
-            }
-        }
-    }
-    for input in sources.keys().copied().collect::<Vec<_>>() {
-        let mut source = sources[&input];
-        let mut seen = BTreeSet::from([input]);
-        while let Some(next) = sources.get(&source).copied() {
-            if !seen.insert(source) {
-                return Err(execution_error("signal driver cycle", 0.0));
-            }
-            source = next;
-        }
-        sources.insert(input, source);
-    }
-    Ok(sources)
+    crate::program::signal_connections::program_sources(program).map_err(|errors| {
+        errors
+            .into_iter()
+            .next()
+            .expect("failed validation has diagnostic")
+    })
 }

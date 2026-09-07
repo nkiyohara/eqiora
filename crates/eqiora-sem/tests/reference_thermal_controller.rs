@@ -287,7 +287,12 @@ fn thermal_fixture() -> ThermalFixture {
             )
             .expect("periodic clock"),
         ),
-        KernelNode::from(ConnectionDef::new(signal, ConnectionSemantics::Signal)),
+        KernelNode::from(ConnectionDef::new(
+            signal,
+            ConnectionSemantics::Signal {
+                driver: controller_output,
+            },
+        )),
     ];
 
     let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();

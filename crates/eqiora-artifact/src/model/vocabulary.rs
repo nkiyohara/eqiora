@@ -371,10 +371,10 @@ impl WireEventDirection {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub(crate) enum WireConnectionKind {
-    Signal,
+    Signal { driver: WireId },
     Conserving,
     SpatialPeriodic,
 }
@@ -382,7 +382,9 @@ pub(crate) enum WireConnectionKind {
 impl WireConnectionKind {
     pub(crate) fn encode(value: ConnectionSemantics) -> Result<Self, Diagnostic> {
         match value {
-            ConnectionSemantics::Signal => Ok(Self::Signal),
+            ConnectionSemantics::Signal { driver } => Ok(Self::Signal {
+                driver: WireId::from_raw(driver.erase()),
+            }),
             ConnectionSemantics::Conserving => Ok(Self::Conserving),
             ConnectionSemantics::SpatialPeriodic => Ok(Self::SpatialPeriodic),
             _ => Err(invalid_artifact(
@@ -391,12 +393,14 @@ impl WireConnectionKind {
         }
     }
 
-    pub(crate) const fn decode(self) -> ConnectionSemantics {
-        match self {
-            Self::Signal => ConnectionSemantics::Signal,
+    pub(crate) fn decode(&self) -> Result<ConnectionSemantics, Diagnostic> {
+        Ok(match self {
+            Self::Signal { driver } => ConnectionSemantics::Signal {
+                driver: driver.typed::<kinds::Port>()?,
+            },
             Self::Conserving => ConnectionSemantics::Conserving,
             Self::SpatialPeriodic => ConnectionSemantics::SpatialPeriodic,
-        }
+        })
     }
 }
 

@@ -499,7 +499,10 @@ fn signal_connection_supports_one_to_many_fanout() {
             expression.finish([residual]).expect("DAG"),
         )),
         KernelNode::from(ActivationDef::continuous(activation)),
-        KernelNode::from(ConnectionDef::new(connection, ConnectionSemantics::Signal)),
+        KernelNode::from(ConnectionDef::new(
+            connection,
+            ConnectionSemantics::Signal { driver: output },
+        )),
         KernelNode::from(PortDef::signal(
             output,
             SignalDirection::Output,
@@ -550,7 +553,7 @@ fn signal_connection_supports_one_to_many_fanout() {
                 input_a.erase(),
                 input_b.erase(),
             ],
-            [output.erase(), input_a.erase(), input_b.erase()],
+            [output.erase()],
         )
         .expect("ModelView")
         .into(),
@@ -561,7 +564,10 @@ fn signal_connection_supports_one_to_many_fanout() {
     let program = KernelProgram::from_snapshot(&store.snapshot(), model)
         .expect("signal fanout has one causal source");
 
-    assert_eq!(program.boundary().len(), 3);
+    assert_eq!(
+        program.boundary(),
+        &std::collections::BTreeSet::from([output.erase()])
+    );
 }
 
 #[test]
@@ -583,13 +589,13 @@ fn semantic_validation_consumes_the_shared_scalar_connection_contract() {
     );
 
     let directions = invalid_signal_connection([
-        (SignalDirection::Output, DimExponents::DIMENSIONLESS),
-        (SignalDirection::Output, DimExponents::DIMENSIONLESS),
+        (SignalDirection::Input, DimExponents::DIMENSIONLESS),
+        (SignalDirection::Input, DimExponents::DIMENSIONLESS),
     ]);
     assert!(directions.iter().any(|diagnostic| {
         diagnostic.code() == codes::INVALID_KERNEL_DEFINITION
             && diagnostic.graph_path().is_some()
-            && diagnostic.message().contains("found 2 outputs")
+            && diagnostic.message().contains("no effective driver")
     }));
 }
 
@@ -612,7 +618,12 @@ fn invalid_signal_connection(
             expression.finish([residual]).expect("DAG"),
         )),
         KernelNode::from(ActivationDef::continuous(activation)),
-        KernelNode::from(ConnectionDef::new(connection, ConnectionSemantics::Signal)),
+        KernelNode::from(ConnectionDef::new(
+            connection,
+            ConnectionSemantics::Signal {
+                driver: port_ids[0],
+            },
+        )),
         KernelNode::from(PortDef::signal(
             port_ids[0],
             ports[0].0,
@@ -682,11 +693,11 @@ fn one_port_cannot_belong_to_two_connection_nets() {
         KernelNode::from(ActivationDef::continuous(activation)),
         KernelNode::from(ConnectionDef::new(
             connection_a,
-            ConnectionSemantics::Signal,
+            ConnectionSemantics::Signal { driver: output_a },
         )),
         KernelNode::from(ConnectionDef::new(
             connection_b,
-            ConnectionSemantics::Signal,
+            ConnectionSemantics::Signal { driver: output_b },
         )),
         KernelNode::from(PortDef::signal(
             output_a,

@@ -3,6 +3,7 @@
 pub(crate) mod geometry_admission;
 mod relation_admission;
 mod signal_activation;
+pub(crate) mod signal_connections;
 mod snapshot_admission;
 use relation_admission::validate_relations;
 mod spatial_domains;
@@ -373,6 +374,9 @@ fn validate_connections(
     geometry_boundary_embeddings: &BTreeMap<RawId, GeometryBoundaryEmbedding>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if let Err(errors) = signal_connections::sources(nodes, edges, boundary) {
+        diagnostics.extend(errors);
+    }
     let mut memberships = BTreeMap::new();
     for (&id, node) in nodes {
         let KernelNode::Connection(connection) = node else {
@@ -380,9 +384,7 @@ fn validate_connections(
         };
         let ports = edge_targets(edges, id, EdgeKind::Connects);
         for &port in &ports {
-            let signal_source = connection.semantics() == ConnectionSemantics::Signal
-                && matches!(nodes.get(&port), Some(KernelNode::Port(definition)) if definition.signal_contract().is_some_and(|(direction, _)|
-                    (direction == eqiora_schema::kernel::SignalDirection::Output) != boundary.contains(&port)));
+            let signal_source = matches!(connection.semantics(), ConnectionSemantics::Signal { driver } if driver.erase() == port);
             if !signal_source && let Some(previous) = memberships.insert(port, id) {
                 diagnostics.push(kernel_error(
                     id,
@@ -467,7 +469,7 @@ fn validate_connections(
                         diagnostics.push(spatial_periodic_connection_error(id, violation));
                     }
                 }
-                ConnectionSemantics::Signal => diagnostics.push(kernel_error(
+                ConnectionSemantics::Signal { .. } => diagnostics.push(kernel_error(
                     id,
                     "boundary-physical Ports require conserving or spatial-periodic Connection semantics",
                 )),
@@ -480,7 +482,7 @@ fn validate_connections(
         }
 
         let kind = match connection.semantics() {
-            ConnectionSemantics::Signal => ScalarConnectionKind::Signal,
+            ConnectionSemantics::Signal { .. } => ScalarConnectionKind::Signal,
             ConnectionSemantics::Conserving => ScalarConnectionKind::Conserving,
             ConnectionSemantics::SpatialPeriodic => {
                 diagnostics.push(kernel_error(
@@ -501,16 +503,13 @@ fn validate_connections(
             .iter()
             .map(|port| {
                 let mut contract = semantic_scalar_port_contract(port)?;
-                if boundary.contains(&port.id().erase())
+                if let ConnectionSemantics::Signal { driver } = connection.semantics()
                     && let ScalarPortContract::Signal { direction, .. } = &mut contract
                 {
-                    *direction = match *direction {
-                        eqiora_schema::kernel::SignalDirection::Input => {
-                            eqiora_schema::kernel::SignalDirection::Output
-                        }
-                        eqiora_schema::kernel::SignalDirection::Output => {
-                            eqiora_schema::kernel::SignalDirection::Input
-                        }
+                    *direction = if port.id() == driver {
+                        eqiora_schema::kernel::SignalDirection::Output
+                    } else {
+                        eqiora_schema::kernel::SignalDirection::Input
                     };
                 }
                 Some(contract)

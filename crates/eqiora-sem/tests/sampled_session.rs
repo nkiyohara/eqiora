@@ -130,14 +130,25 @@ fn fixture(period: u64, phase: u64, reverse: bool, failure: Failure) -> Fixture 
             nodes.push(PortDef::signal(port, direction, ty(dimension)).into());
             connect(&mut t, port.erase(), clock.erase(), EdgeKind::ClockedBy);
         }
-        for (source, sink) in [
-            (inputs[usize::from(i == 2)], child_in),
-            (child_out, outputs[i]),
+        // Preserve each wrapper endpoint while forwarding both input and output.
+        for (source, sink, direction, dimension) in [
+            (
+                inputs[usize::from(i == 2)],
+                child_in,
+                SignalDirection::Input,
+                if i == 2 { rate } else { voltage() },
+            ),
+            (child_out, outputs[i], SignalDirection::Output, voltage()),
         ] {
-            let c = Id::<kinds::Connection>::new();
-            nodes.push(ConnectionDef::new(c, ConnectionSemantics::Signal).into());
-            connect(&mut t, c.erase(), source.erase(), EdgeKind::Connects);
-            connect(&mut t, c.erase(), sink.erase(), EdgeKind::Connects);
+            let relay = Id::<kinds::Port>::new();
+            nodes.push(PortDef::signal(relay, direction, ty(dimension)).into());
+            connect(&mut t, relay.erase(), clock.erase(), EdgeKind::ClockedBy);
+            for (driver, sink) in [(source, relay), (relay, sink)] {
+                let c = Id::<kinds::Connection>::new();
+                nodes.push(ConnectionDef::new(c, ConnectionSemantics::Signal { driver }).into());
+                connect(&mut t, c.erase(), driver.erase(), EdgeKind::Connects);
+                connect(&mut t, c.erase(), sink.erase(), EdgeKind::Connects);
+            }
         }
         let mut d = ExprDagBuilder::new();
         let x = d.symbol(SymbolRef::Field(fields[i])).unwrap();
@@ -418,7 +429,11 @@ fn forwarding_with_periods(
             ),
             PortDef::signal(inputs[i], SignalDirection::Input, value_type()).into(),
             PortDef::signal(outputs[i], SignalDirection::Output, value_type()).into(),
-            ConnectionDef::new(connection, ConnectionSemantics::Signal).into(),
+            ConnectionDef::new(
+                connection,
+                ConnectionSemantics::Signal { driver: inputs[i] },
+            )
+            .into(),
         ];
         for node in nodes {
             members.push(node.id());
@@ -439,7 +454,11 @@ fn forwarding_with_periods(
         let connection = Id::<kinds::Connection>::new();
         members.push(connection.erase());
         t.push(Op::DefineKernelNode {
-            node: ConnectionDef::new(connection, ConnectionSemantics::Signal).into(),
+            node: ConnectionDef::new(
+                connection,
+                ConnectionSemantics::Signal { driver: inputs[0] },
+            )
+            .into(),
         });
         edges.extend([
             (connection.erase(), inputs[0].erase(), EdgeKind::Connects),

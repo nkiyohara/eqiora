@@ -343,7 +343,15 @@ fn encode_node(
         KernelNode::Connection(connection) => {
             encoder.u8(8)?;
             match connection.semantics() {
-                ConnectionSemantics::Signal => encoder.u8(1)?,
+                ConnectionSemantics::Signal { driver } => {
+                    encoder.u8(1)?;
+                    push_reference(
+                        references,
+                        nominal_label(4),
+                        lookup(ids, driver.erase(), "signal Connection driver Port")?,
+                        budget,
+                    )?;
+                }
                 ConnectionSemantics::Conserving => encoder.u8(2)?,
                 ConnectionSemantics::SpatialPeriodic => encoder.u8(3)?,
                 _ => return Err(newer_vocabulary("Connection semantics")),
