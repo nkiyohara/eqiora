@@ -16,10 +16,11 @@ const TIME: DimExponents =
     DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension");
 
 #[test]
-fn block_identity_preserves_complete_field_types_without_admitting_complex_execution() {
+fn block_identity_preserves_complete_field_types_without_admitting_nonreal_execution() {
     let mut system = minimal(MinimalIds::new(), false);
     let real = ValueType::scalar(ScalarDomain::Real, LENGTH);
     let complex = ValueType::scalar(ScalarDomain::Complex, LENGTH);
+    let integer = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
     let vector = ValueType::shaped(
         ScalarDomain::Real,
         LENGTH,
@@ -39,7 +40,15 @@ fn block_identity_preserves_complete_field_types_without_admitting_complex_execu
     assert_eq!(vector.shape(), channels.shape());
     assert_eq!(tensor.shape(), vector_channels.shape());
     assert_eq!(tensor.frame(), vector_channels.frame());
-    let types = [real, complex, vector, channels, tensor, vector_channels];
+    let types = [
+        real,
+        complex,
+        integer,
+        vector,
+        channels,
+        tensor,
+        vector_channels,
+    ];
     let mut identities = std::collections::HashSet::new();
     for value_type in types {
         system.fields[0] = FieldBlock::discrete(
@@ -47,13 +56,13 @@ fn block_identity_preserves_complete_field_types_without_admitting_complex_execu
             system.fields[0].field,
             system.fields[0].space.unwrap(),
             value_type.clone(),
-            DynQuantity::new(1.0, LENGTH),
+            DynQuantity::new(1.0, value_type.dimension()),
             FieldBlockRole::Algebraic,
         )
         .unwrap();
         assert_eq!(system.fields[0].value_type, value_type);
         assert!(identities.insert(system.compute_identity().0));
-        if value_type.scalar_domain() == ScalarDomain::Complex {
+        if value_type.scalar_domain() != ScalarDomain::Real {
             let error = system.validate().unwrap_err();
             assert_eq!(error.code(), codes::INVALID_REALIZATION);
             assert_eq!(
