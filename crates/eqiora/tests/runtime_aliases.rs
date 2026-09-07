@@ -229,12 +229,13 @@ fn runtime_heat_flux_alias_preserves_bounded_spatial_execution_and_parameter_cha
             "  let heat_flux = diffusion * grad(potential);\n  relation balance on square {",
         )
         .replace("-div(diffusion * grad(potential))", "-div(heat_flux)");
+    let asserted = aliased.replace("let heat_flux =", "let heat_flux on square =");
     for policy in [
         CommonSpatialPolicy::Q1,
         CommonSpatialPolicy::CellCenteredTpfa,
     ] {
         let mut explicit_output = None;
-        for source in [COMPONENT, aliased.as_str()] {
+        for source in [COMPONENT, aliased.as_str(), asserted.as_str()] {
             let (document, plan) = document_and_plan_with_source(policy, source);
             assert_eq!(
                 document
