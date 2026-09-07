@@ -321,7 +321,7 @@ model Main {
     );
     let binding = first.property_bindings().next().unwrap();
     assert_eq!(binding.0, None);
-    assert_eq!(binding.5, 0.025);
+    assert_eq!(binding.5.real_scalar_value().unwrap().value(), 0.025);
     assert_eq!(binding.4, "diffusivity");
     assert_eq!(binding.6, "unconditional");
     assert_eq!(binding.7, "org.example.measurement");
@@ -364,7 +364,10 @@ public component SpatialLaw(support fluid: volume(ambient_dimension = 2)) {
         &resolution,
         "SpatialLaw",
         &geometry,
-        &[("forcing", 2.0)],
+        &[(
+            "forcing",
+            eqiora_lang::DraftExpression::constant(2.0).source_ast(),
+        )],
     )
     .expect("Geometry-bound package compilation");
 
@@ -388,7 +391,10 @@ public component SpatialLaw(support fluid: volume(ambient_dimension = 2)) {
         &resolution,
         "SpatialLaw",
         &foreign,
-        &[("forcing", 2.0)],
+        &[(
+            "forcing",
+            eqiora_lang::DraftExpression::constant(2.0).source_ast(),
+        )],
     )
     .expect_err("support names cannot fall back to matching bounds");
     assert!(format!("{error:?}").contains("fluid"), "{error:?}");
@@ -409,7 +415,10 @@ public component SpatialLaw(support fluid: volume(ambient_dimension = 2)) {
         &duplicated_resolution,
         "SpatialLaw",
         &geometry,
-        &[("forcing", 2.0)],
+        &[(
+            "forcing",
+            eqiora_lang::DraftExpression::constant(2.0).source_ast(),
+        )],
     )
     .expect_err("package-authored root Geometry cannot coexist with caller Geometry");
     assert!(

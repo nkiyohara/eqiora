@@ -171,13 +171,13 @@ structure such as `q.grad` and `q.div`, while scalar functions and constants
 live under `q.math`. They are not Python numerical operations, and the native
 compiler remains the authority for their typing and value semantics.
 
-The same Source owner can emit the bounded scalar property declarations used by
+The same Source owner can emit the bounded constant property declarations used by
 an exact Model Package:
 
 ```python
 source = q.Source()
-contract = source.scalar_property_contract("Diffusivity", unit=u.one)
-release = source.scalar_property_release(
+contract = source.property_contract("Diffusivity", value_type=eqiora.ValueType.real())
+release = source.property_release(
     "ReferenceDiffusivity",
     implements=contract,
     value=25,
@@ -956,7 +956,7 @@ assert same.revision == child.revision
 ```
 
 The canonical bytes still expose the persisted
-`eqiora.model-envelope/v12` schema, but callers do not select that suffix.
+`eqiora.model-envelope/v13` schema, but callers do not select that suffix.
 `.eqi` remains source text; `.eqmodel` is the canonical compiled Model artifact.
 Only the current schema is accepted; decoding never sniffs, retries, or silently
 migrates an older artifact.

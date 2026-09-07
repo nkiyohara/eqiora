@@ -474,7 +474,7 @@ mod tests {
     use super::ModelDocument;
     use eqiora_artifact::ReplayableCanonicalModelArtifact;
     use eqiora_compiler::{CompilationNamespaceId, ResolvedHierarchyInput, ResolvedSourceUnit};
-    use eqiora_core::{DimExponents, EntityKind};
+    use eqiora_core::{DimExponents, EntityKind, RawId, ValueLiteral};
     use eqiora_lang::{DraftExpression, DraftField, DraftParameter, DraftRelation, ModelDraft};
 
     const SOURCE: &str = r#"
@@ -649,11 +649,14 @@ public component Resistor() {
         );
         let rate = DraftParameter::new(
             "rate",
-            eqiora_core::ValueType::scalar(
-                eqiora_core::ScalarDomain::Real,
-                DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),
-            ),
-            1.0,
+            ValueLiteral::from_real(
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),
+                ),
+                1.0,
+            )
+            .unwrap(),
         );
         let flow = DraftRelation::continuous(
             "flow",
@@ -730,7 +733,7 @@ model pure_relation {
         let bytes = current.canonical_json().unwrap();
         let json = String::from_utf8_lossy(&bytes);
         assert!(json.contains("pure-operator-application"));
-        assert!(json.contains("eqiora.model-envelope/v12"));
+        assert!(json.contains("eqiora.model-envelope/v13"));
         let replay = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(replay.canonical_json().unwrap(), bytes);
         assert_eq!(replay.digest().unwrap(), current.digest().unwrap());
@@ -744,6 +747,19 @@ model pure_relation {
         assert!(diagnostics[0].code().0.starts_with("EQ"));
     }
 
+    fn scalar_edit_value(document: &ModelDocument, target: RawId, value: f64) -> ValueLiteral {
+        ValueLiteral::from_real(
+            document
+                .program()
+                .typed_value(target)
+                .unwrap()
+                .value_type()
+                .clone(),
+            value,
+        )
+        .unwrap()
+    }
+
     #[test]
     fn value_edit_retains_current_transaction_and_artifact_lineage() {
         let document = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
@@ -751,18 +767,23 @@ model pure_relation {
         let rate = document.aliases()["rate"];
         let relation = document.aliases()["flow"];
 
-        let plan = document.preview_value_edit(rate, 2.0).unwrap();
+        let plan = document
+            .preview_value_edit(rate, scalar_edit_value(&document, rate, 2.0))
+            .unwrap();
         assert_eq!(plan.base_digest(), base_digest);
         assert_eq!(plan.base_revision().0, 1);
         assert_eq!(plan.target(), rate);
-        assert_eq!(plan.before().value(), 1.0);
-        assert_eq!(plan.after().value(), 2.0);
-        assert_eq!(plan.before().dim(), plan.after().dim());
+        assert_eq!(plan.before().real_scalar_value().unwrap().value(), 1.0);
+        assert_eq!(plan.after().real_scalar_value().unwrap().value(), 2.0);
+        assert_eq!(
+            plan.before().value_type().dimension(),
+            plan.after().value_type().dimension()
+        );
         assert!(plan.key().starts_with("eqiora.value-edit-plan/v1:"));
         assert!(
             String::from_utf8(plan.transaction_json().unwrap())
                 .unwrap()
-                .contains("eqiora.model-transaction-envelope/v12")
+                .contains("eqiora.model-transaction-envelope/v13")
         );
 
         let result = document.commit_value_edit(plan.clone()).unwrap();
@@ -788,7 +809,9 @@ model pure_relation {
 
         let child_bytes = result.document().canonical_json().unwrap();
         let replayed_child = ModelDocument::replay(&child_bytes).unwrap();
-        let grandchild_plan = replayed_child.preview_value_edit(rate, 3.0).unwrap();
+        let grandchild_plan = replayed_child
+            .preview_value_edit(rate, scalar_edit_value(&replayed_child, rate, 3.0))
+            .unwrap();
         let grandchild = replayed_child.commit_value_edit(grandchild_plan).unwrap();
         assert_eq!(grandchild.result_revision().0, 3);
         assert_eq!(
@@ -803,20 +826,28 @@ model pure_relation {
             "EQ0106"
         );
         assert_eq!(
-            document.preview_value_edit(rate, 1.0).unwrap_err().code().0,
-            "EQ0105"
-        );
-        assert_eq!(
             document
-                .preview_value_edit(rate, f64::NAN)
+                .preview_value_edit(rate, scalar_edit_value(&document, rate, 1.0))
                 .unwrap_err()
                 .code()
                 .0,
             "EQ0105"
         );
+        assert!(
+            ValueLiteral::from_real(
+                document
+                    .program()
+                    .typed_value(rate)
+                    .unwrap()
+                    .value_type()
+                    .clone(),
+                f64::NAN
+            )
+            .is_err()
+        );
         assert_eq!(
             document
-                .preview_value_edit(relation, 2.0)
+                .preview_value_edit(relation, scalar_edit_value(&document, rate, 2.0))
                 .unwrap_err()
                 .code()
                 .0,
@@ -832,15 +863,25 @@ model pure_relation {
         let rate = base.aliases()["rate"];
 
         let left = base
-            .commit_value_edit(base.preview_value_edit(rate, 2.0).unwrap())
+            .commit_value_edit(
+                base.preview_value_edit(rate, scalar_edit_value(&base, rate, 2.0))
+                    .unwrap(),
+            )
             .unwrap()
             .into_document();
         let right = base
-            .commit_value_edit(base.preview_value_edit(rate, 3.0).unwrap())
+            .commit_value_edit(
+                base.preview_value_edit(rate, scalar_edit_value(&base, rate, 3.0))
+                    .unwrap(),
+            )
             .unwrap()
             .into_document();
-        let left_plan = left.preview_value_edit(probe, 4.0).unwrap();
-        let right_plan = right.preview_value_edit(probe, 4.0).unwrap();
+        let left_plan = left
+            .preview_value_edit(probe, scalar_edit_value(&left, probe, 4.0))
+            .unwrap();
+        let right_plan = right
+            .preview_value_edit(probe, scalar_edit_value(&right, probe, 4.0))
+            .unwrap();
 
         assert_eq!(left_plan.base_revision(), right_plan.base_revision());
         assert_eq!(

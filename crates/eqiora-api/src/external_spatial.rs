@@ -119,7 +119,7 @@ mod tests {
     use std::collections::{BTreeMap, BTreeSet};
 
     use super::*;
-    use eqiora_core::DimExponents;
+    use eqiora_core::{DimExponents, DynQuantity};
     use eqiora_geometry::{
         EDGE_DIMENSION, FACE_DIMENSION, GeometryGraph, PlanarFace, PlanarRegion,
     };
@@ -249,9 +249,18 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
     fn fresh_geometry_compile_retains_typed_form_without_changing_model_artifact() {
         let geometry = fixture_geometry();
         let parameters = [
-            ("diffusion", 1.0),
-            ("wave_number", 2.0),
-            ("source_scale", 2.0),
+            (
+                "diffusion",
+                eqiora_lang::DraftExpression::constant(1.0).source_ast(),
+            ),
+            (
+                "wave_number",
+                eqiora_lang::DraftExpression::constant(2.0).source_ast(),
+            ),
+            (
+                "source_scale",
+                eqiora_lang::DraftExpression::constant(2.0).source_ast(),
+            ),
         ];
         let with_form = ModelDocument::compile_with_geometry(
             "scalar-primal.eqi",
@@ -324,9 +333,18 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
             &geometry,
             None,
             &[
-                ("diffusion", 1.0),
-                ("wave_number", 2.0),
-                ("source_scale", 2.0),
+                (
+                    "diffusion",
+                    eqiora_lang::DraftExpression::constant(1.0).source_ast(),
+                ),
+                (
+                    "wave_number",
+                    eqiora_lang::DraftExpression::constant(2.0).source_ast(),
+                ),
+                (
+                    "source_scale",
+                    eqiora_lang::DraftExpression::constant(2.0).source_ast(),
+                ),
             ],
         )
         .unwrap_err();
@@ -341,9 +359,18 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
     fn scalar_primal_form_role_contraction_and_operator_errors_fail_closed() {
         let geometry = fixture_geometry();
         let parameters = [
-            ("diffusion", 1.0),
-            ("wave_number", 2.0),
-            ("source_scale", 2.0),
+            (
+                "diffusion",
+                eqiora_lang::DraftExpression::constant(1.0).source_ast(),
+            ),
+            (
+                "wave_number",
+                eqiora_lang::DraftExpression::constant(2.0).source_ast(),
+            ),
+            (
+                "source_scale",
+                eqiora_lang::DraftExpression::constant(2.0).source_ast(),
+            ),
         ];
         let invalid = [
             (
@@ -405,7 +432,7 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
         );
     }
 
-    fn cylinder_parameters() -> [(&'static str, DynQuantity); 4] {
+    fn cylinder_parameters() -> [(&'static str, ValueLiteral); 4] {
         [
             (
                 "dynamic_viscosity",
@@ -438,6 +465,7 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
                 ),
             ),
         ]
+        .map(|(name, value)| (name, ValueLiteral::try_from(value).unwrap()))
     }
 
     fn compile_cylinder(
@@ -511,7 +539,7 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
             let Some(KernelNode::Parameter(definition)) = document.program().node(parameter) else {
                 panic!("`{name}` does not resolve to a Parameter")
             };
-            assert_eq!(definition.real_scalar_value(), Some(expected));
+            assert_eq!(definition.value(), &expected);
             parameter_ids.insert(parameter);
         }
         assert_eq!(parameter_ids.len(), 4);
@@ -540,7 +568,8 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
         let reordered = compile_cylinder(&geometry, &reordered_parameters);
         assert!(document.structurally_equivalent(&reordered).unwrap());
         let mut changed_parameters = cylinder_parameters();
-        changed_parameters[0].1 = DynQuantity::new(2.0e-3, changed_parameters[0].1.dim());
+        changed_parameters[0].1 =
+            ValueLiteral::from_real(changed_parameters[0].1.value_type().clone(), 2.0e-3).unwrap();
         let changed = compile_cylinder(&geometry, &changed_parameters);
         assert!(!document.structurally_equivalent(&changed).unwrap());
 
@@ -598,7 +627,10 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
             "BoundFluid",
             "FluidBoundaryLaw",
             &supports,
-            &[("value", DynQuantity::new(2.0, DimExponents::DIMENSIONLESS))],
+            &[(
+                "value",
+                ValueLiteral::try_from(DynQuantity::new(2.0, DimExponents::DIMENSIONLESS)).unwrap(),
+            )],
         )
         .expect("external occurrence reaches common Model admission");
 
@@ -621,7 +653,10 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
             SOURCE,
             &geometry,
             None,
-            &[("value", 2.0)],
+            &[(
+                "value",
+                eqiora_lang::DraftExpression::constant(2.0).source_ast(),
+            )],
         )
         .expect("sole public Component closes automatically");
         let explicit = ModelDocument::compile_with_geometry(
@@ -629,7 +664,10 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
             SOURCE,
             &geometry,
             Some("FluidBoundaryLaw"),
-            &[("value", 2.0)],
+            &[(
+                "value",
+                eqiora_lang::DraftExpression::constant(2.0).source_ast(),
+            )],
         )
         .expect("explicit public Component closes identically");
         assert_eq!(automatic.digest().unwrap(), explicit.digest().unwrap());
@@ -639,7 +677,10 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
             SOURCE,
             &geometry,
             None,
-            &[("value", -2.0)],
+            &[(
+                "value",
+                eqiora_lang::DraftExpression::constant(-2.0).source_ast(),
+            )],
         )
         .expect("compiler checks type and finiteness, not application positivity");
 
@@ -656,7 +697,16 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
             SOURCE,
             &geometry,
             None,
-            &[("value", 2.0), ("extra", 1.0)],
+            &[
+                (
+                    "value",
+                    eqiora_lang::DraftExpression::constant(2.0).source_ast(),
+                ),
+                (
+                    "extra",
+                    eqiora_lang::DraftExpression::constant(1.0).source_ast(),
+                ),
+            ],
         )
         .unwrap_err();
         assert!(extra.iter().any(|error| error.message().contains("extra")));
@@ -670,7 +720,10 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
             &ambiguous,
             &geometry,
             None,
-            &[("value", 2.0)],
+            &[(
+                "value",
+                eqiora_lang::DraftExpression::constant(2.0).source_ast(),
+            )],
         )
         .unwrap_err();
         assert!(

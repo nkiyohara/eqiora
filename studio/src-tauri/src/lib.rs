@@ -19,7 +19,7 @@ use eqiora::kernel::{
     ActivationKind, ClockKind, ConnectionSemantics, DomainKind, KernelNode, PortPayload,
     RepresentationKind, SignalDirection,
 };
-use eqiora::{Diagnostic, RawId, Severity};
+use eqiora::{Diagnostic, RawId, Severity, ValueLiteral};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
@@ -200,11 +200,23 @@ struct ValueEditResultDto {
     evidence: ValueEditEvidenceDto,
 }
 
-impl From<&ValueEditPlan> for ValueEditPlanDto {
-    fn from(plan: &ValueEditPlan) -> Self {
-        let before = plan.before();
-        let after = plan.after();
-        Self {
+impl TryFrom<&ValueEditPlan> for ValueEditPlanDto {
+    type Error = DiagnosticDto;
+
+    fn try_from(plan: &ValueEditPlan) -> Result<Self, Self::Error> {
+        let before = plan.before().real_scalar_value().ok_or_else(|| {
+            studio_error(
+                "ST0002",
+                "Studio numeric controls require a real scalar Parameter",
+            )
+        })?;
+        let after = plan.after().real_scalar_value().ok_or_else(|| {
+            studio_error(
+                "ST0002",
+                "Studio numeric controls require a real scalar Parameter",
+            )
+        })?;
+        Ok(Self {
             protocol: PROTOCOL,
             key: plan.key(),
             base_digest: plan.base_digest().to_owned(),
@@ -219,7 +231,7 @@ impl From<&ValueEditPlan> for ValueEditPlanDto {
                 dimension: after.dim().to_string(),
             },
             transaction_digest: plan.transaction_digest().to_owned(),
-        }
+        })
     }
 }
 
@@ -387,6 +399,28 @@ async fn save_cad_authored_python(
     }
 }
 
+fn scalar_value_edit_plan(
+    document: &ModelDocument,
+    target: RawId,
+    value: f64,
+) -> Result<ValueEditPlan, DiagnosticDto> {
+    let current = document
+        .program()
+        .typed_value(target)
+        .filter(|value| value.real_scalar_value().is_some())
+        .ok_or_else(|| {
+            studio_error(
+                "ST0002",
+                "Studio numeric controls require a real scalar Parameter",
+            )
+        })?;
+    let replacement = ValueLiteral::from_real(current.value_type().clone(), value)
+        .map_err(|error| studio_error("ST0002", &error.to_string()))?;
+    document
+        .preview_value_edit(target, replacement)
+        .map_err(Into::into)
+}
+
 #[tauri::command]
 fn preview_value_edit(
     request: ValueEditPreviewRequest,
@@ -408,8 +442,11 @@ fn preview_value_edit(
         Ok(target) => target,
         Err(diagnostic) => return BridgeEnvelope::failure(vec![*diagnostic]),
     };
-    match document.preview_value_edit(target, request.value) {
-        Ok(plan) => BridgeEnvelope::success((&plan).into()),
+    match scalar_value_edit_plan(&document, target, request.value) {
+        Ok(plan) => match ValueEditPlanDto::try_from(&plan) {
+            Ok(dto) => BridgeEnvelope::success(dto),
+            Err(diagnostic) => BridgeEnvelope::failure(vec![diagnostic]),
+        },
         Err(diagnostic) => BridgeEnvelope::failure(vec![diagnostic.into()]),
     }
 }
@@ -441,7 +478,7 @@ fn commit_value_edit(
         Ok(target) => target,
         Err(diagnostic) => return BridgeEnvelope::failure(vec![*diagnostic]),
     };
-    let plan = match document.preview_value_edit(target, request.value) {
+    let plan = match scalar_value_edit_plan(&document, target, request.value) {
         Ok(plan) => plan,
         Err(diagnostic) => return BridgeEnvelope::failure(vec![diagnostic.into()]),
     };
@@ -459,7 +496,10 @@ fn commit_value_edit(
     };
     let result_digest = result.result_digest().to_owned();
     let evidence = ValueEditEvidenceDto {
-        plan: result.plan().into(),
+        plan: match ValueEditPlanDto::try_from(result.plan()) {
+            Ok(dto) => dto,
+            Err(diagnostic) => return BridgeEnvelope::failure(vec![diagnostic]),
+        },
         result_digest: result_digest.clone(),
         result_revision: result.result_revision().0,
     };
@@ -987,11 +1027,38 @@ model decay {
     }
 
     #[test]
+    fn numeric_editor_rejects_complex_values_without_dropping_imaginary_parts() {
+        let document = ModelDocument::compile(
+            "complex.eqi",
+            "model typed { parameter voltage: complex<V> = math.complex(2, 3); }",
+        )
+        .unwrap();
+        let target = document.aliases()["voltage"];
+        assert!(super::scalar_value_edit_plan(&document, target, 4.0).is_err());
+        let replacement = eqiora::ValueLiteral::new(
+            document
+                .program()
+                .typed_value(target)
+                .unwrap()
+                .value_type()
+                .clone(),
+            [(2.0, 5.0)],
+        )
+        .unwrap();
+        let plan = document.preview_value_edit(target, replacement).unwrap();
+        assert!(ValueEditPlanDto::try_from(&plan).is_err());
+        assert_eq!(
+            document.program().typed_value(target).unwrap().component(0),
+            Some((2.0, 3.0))
+        );
+    }
+
+    #[test]
     fn value_edit_projection_retains_transaction_identity_and_revision_lineage() {
         let document = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
         let rate = document.aliases()["rate"];
-        let plan = document.preview_value_edit(rate, 2.0).unwrap();
-        let dto = ValueEditPlanDto::from(&plan);
+        let plan = super::scalar_value_edit_plan(&document, rate, 2.0).unwrap();
+        let dto = ValueEditPlanDto::try_from(&plan).unwrap();
 
         assert_eq!(dto.key, plan.key());
         assert_eq!(dto.base_digest, document.digest().unwrap());

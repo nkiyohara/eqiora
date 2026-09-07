@@ -13,8 +13,8 @@ use expression::validate_expression;
 mod operator;
 mod property;
 mod relation;
-mod value_type;
 pub(crate) mod value_literal;
+mod value_type;
 
 use crate::ast::{
     ActivationSyntax, BoundaryConnectionDecl, BoundaryDecl, BoundaryFamilyBinderSyntax,

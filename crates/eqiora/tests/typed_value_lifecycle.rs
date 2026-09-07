@@ -1,6 +1,6 @@
 use eqiora::api::ModelDocument;
-use eqiora::{DimExponents, ScalarDomain, ValueLiteral, ValueType};
 use eqiora::kernel::KernelNode;
+use eqiora::{DimExponents, ScalarDomain, ValueLiteral, ValueType};
 
 const SOURCE: &str = r#"
 model TypedValues {
