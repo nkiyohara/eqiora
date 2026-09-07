@@ -361,7 +361,7 @@ fn required_ticks(
 
 // Compare n/d <= significand * 2^exponent without rounding either operand.
 // Configuration admission guarantees a finite, non-negative binary64 horizon.
-fn within_horizon(tick: RationalTime, horizon: f64) -> bool {
+pub(super) fn within_horizon(tick: RationalTime, horizon: f64) -> bool {
     debug_assert!(horizon.is_finite() && horizon >= 0.0);
     if tick.is_zero() {
         return true;

@@ -194,3 +194,62 @@ fn equal_periods_do_not_substitute_for_exact_state_clock_ownership() {
             .any(|error| error.message().contains("exact Relation ClockDomain"))
     );
 }
+
+#[test]
+fn reference_run_excludes_an_exact_tick_that_rounds_down_to_the_horizon() {
+    let field = Id::<kinds::Field>::new();
+    let relation = Id::<kinds::Relation>::new();
+    let activation = Id::<kinds::Activation>::new();
+    let clock = Id::<kinds::ClockDomain>::new();
+    let model = OntologyId::<Model>::new();
+    let mut dag = ExprDagBuilder::new();
+    let pre = dag.symbol(SymbolRef::Pre(field)).unwrap();
+    let next = dag.symbol(SymbolRef::Next(field)).unwrap();
+    let one = dag
+        .constant(DynQuantity::new(1., DimExponents::DIMENSIONLESS))
+        .unwrap();
+    let increment = dag.add(pre, one).unwrap();
+    let residual = dag.sub(next, increment).unwrap();
+    let nodes = [
+        KernelNode::from(FieldDef::new(
+            field,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
+            eqiora_schema::kernel::FieldRole::State,
+        )),
+        initial(field, DynQuantity::new(0., DimExponents::DIMENSIONLESS)),
+        RelationDef::new(relation, dag.finish([residual]).unwrap()).into(),
+        ActivationDef::periodic(activation).into(),
+        ClockDomainDef::periodic(
+            clock,
+            RationalTime::new((1_u64 << 53) + 1, 1_u64 << 53).unwrap(),
+            RationalTime::ZERO,
+        )
+        .unwrap()
+        .into(),
+    ];
+    let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();
+    let mut transaction = Transaction::new("exact closed periodic horizon");
+    define_all(&mut transaction, nodes);
+    for (from, to, edge) in [
+        (relation.erase(), field.erase(), EdgeKind::DependsOn),
+        (activation.erase(), relation.erase(), EdgeKind::Activates),
+        (activation.erase(), clock.erase(), EdgeKind::ClockedBy),
+        (field.erase(), clock.erase(), EdgeKind::ClockedBy),
+    ] {
+        transaction.push(Op::Connect { from, to, edge });
+    }
+    transaction.push(Op::DefineOntologyView {
+        view: ModelView::new(model, members, []).unwrap().into(),
+    });
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    let trajectory = Interpreter::new()
+        .run(&program, ReferenceConfig::new(1., 1.).unwrap())
+        .unwrap();
+    // Only tick zero lies in [0, 1]; the next exact tick is 1 + 2^-53.
+    assert_eq!(trajectory.last_value(field.erase()).unwrap().value(), 1.);
+}

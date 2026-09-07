@@ -486,7 +486,7 @@ impl Interpreter {
                 unconstrained_target = config.end_time;
             }
             let next_tick = plan.next_tick().filter(|tick| {
-                tick.as_seconds_f64() <= config.end_time
+                sampled::within_horizon(*tick, config.end_time)
                     && tick.as_seconds_f64() <= unconstrained_target + time_tolerance
             });
             let hits_tick = next_tick.is_some();
