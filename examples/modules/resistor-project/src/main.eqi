@@ -1,5 +1,5 @@
 import org.example.resistor_project.library.resistor as circuit;
 
-model Main {
+model Main() {
   instance load: circuit.Resistor(resistance = 2);
 }
