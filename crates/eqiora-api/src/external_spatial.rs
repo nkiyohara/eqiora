@@ -30,10 +30,10 @@ impl ModelDocument {
     ) -> Result<Self, Vec<Diagnostic>> {
         let mut geometries = Vec::new();
         for (_, binding) in bindings {
-            if let StaticBindingValue::GeometrySupport { geometry, .. } = binding {
-                if !geometries.contains(geometry) {
-                    geometries.push(*geometry);
-                }
+            if let StaticBindingValue::GeometrySupport { geometry, .. } = binding
+                && !geometries.contains(geometry)
+            {
+                geometries.push(*geometry);
             }
         }
         Self::accept_compiled_with_geometry(compiled, &geometries)
