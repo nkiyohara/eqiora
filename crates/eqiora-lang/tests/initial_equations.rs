@@ -11,7 +11,8 @@ fn native_initial_equations_share_source_ast_without_field_literals() {
         ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
         FieldRoleSyntax::State,
     );
-    let condition = state.expression() - DraftExpression::constant(1.0);
+    let condition = state.expression()
+        - DraftExpression::constant(eqiora_lang::DecimalLiteral::parse("1.0").unwrap());
     let draft = ModelDraft::new(
         "Decay",
         [state.into(), DraftDeclaration::Initial(vec![condition])],
@@ -44,8 +45,11 @@ fn native_initial_conditions_reject_empty_nonfinite_and_foreign_symbols() {
     let foreign = DraftField::new("x", value_type, FieldRoleSyntax::State);
     for (residuals, expected) in [
         (vec![], "at least one residual"),
-        (vec![DraftExpression::constant(f64::NAN)], "non-finite"),
-        (vec![DraftExpression::constant(f64::INFINITY)], "non-finite"),
+        (vec![DraftExpression::complex(f64::NAN, 0.0)], "non-finite"),
+        (
+            vec![DraftExpression::complex(f64::INFINITY, 0.0)],
+            "non-finite",
+        ),
         (vec![foreign.expression()], "foreign or omitted Field"),
     ] {
         let diagnostics = ModelDraft::new(
@@ -116,7 +120,11 @@ fn scalar_field_absence_roundtrips_through_source() {
 #[test]
 fn factory_constructs_an_uninitialized_scalar_field() {
     let range = TextRange::new(0, 0);
-    let dimension = SourceAstFactory::expression(ExprKind::Number(1.0), range).expect("dimension");
+    let dimension = SourceAstFactory::expression(
+        ExprKind::Number(eqiora_lang::DecimalLiteral::parse("1.0").expect("exact literal")),
+        range,
+    )
+    .expect("dimension");
     let value_type = SourceAstFactory::value_type(
         eqiora_lang::ValueTypeSyntaxKind::Scalar {
             domain: eqiora_core::ScalarDomain::Real,

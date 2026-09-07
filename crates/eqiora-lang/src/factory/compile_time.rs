@@ -112,7 +112,11 @@ mod tests {
     #[test]
     fn checked_factory_retains_optional_let_dimension_assertions() {
         let range = TextRange::new(0, 1);
-        let value = SourceAstFactory::expression(ExprKind::Number(1.0), range).expect("value");
+        let value = SourceAstFactory::expression(
+            ExprKind::Number(crate::DecimalLiteral::parse("1.0").expect("exact literal")),
+            range,
+        )
+        .expect("value");
         let dimension =
             SourceAstFactory::expression(ExprKind::Name("m".to_owned()), range).expect("dimension");
 

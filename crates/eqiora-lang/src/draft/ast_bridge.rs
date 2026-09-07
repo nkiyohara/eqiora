@@ -115,7 +115,9 @@ impl super::ModelDraft {
                             Equation {
                                 left,
                                 right: Expr {
-                                    kind: ExprKind::Number(0.0),
+                                    kind: ExprKind::Number(
+                                        crate::DecimalLiteral::parse("0.0").expect("exact literal"),
+                                    ),
                                     range,
                                 },
                                 range,
@@ -134,7 +136,9 @@ impl super::ModelDraft {
                             Equation {
                                 left,
                                 right: Expr {
-                                    kind: ExprKind::Number(0.0),
+                                    kind: ExprKind::Number(
+                                        crate::DecimalLiteral::parse("0.0").expect("exact literal"),
+                                    ),
                                     range,
                                 },
                                 range,

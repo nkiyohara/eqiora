@@ -3,7 +3,7 @@ use eqiora_lang::{ActivationSyntax, BinaryOp, Expr, ExprKind, Item, format, pars
 fn arithmetic_tree(expression: &Expr) -> String {
     match expression.kind() {
         ExprKind::Name(name) => name.clone(),
-        ExprKind::Number(value) => value.to_string(),
+        ExprKind::Number(value) => value.canonical_text(),
         ExprKind::Unary { value, .. } => format!("neg({})", arithmetic_tree(value)),
         ExprKind::Binary {
             op: BinaryOp::Pow,

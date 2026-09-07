@@ -2,7 +2,7 @@
 
 use super::{
     AstConstructionError, Expr, ExprKind, checked_range, validate_boundary_port_selector,
-    validate_finite, validate_identifier, validate_name_path,
+    validate_identifier, validate_name_path,
 };
 
 pub(super) fn validate_expression(expression: &Expr) -> Result<(), AstConstructionError> {
@@ -17,7 +17,7 @@ fn validate_expression_depth(expression: &Expr, depth: usize) -> Result<(), AstC
     }
     checked_range(expression.range())?;
     match expression.kind() {
-        ExprKind::Number(value) => validate_finite(*value, "expression literal"),
+        ExprKind::Number(_) => Ok(()),
         ExprKind::Quantity { unit, .. } => validate_expression_depth(unit, depth + 1),
         ExprKind::Name(name) => validate_identifier(name, "expression name"),
         ExprKind::Path(path) => validate_name_path(path),

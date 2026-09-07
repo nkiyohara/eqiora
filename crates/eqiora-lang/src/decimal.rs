@@ -85,6 +85,51 @@ impl DecimalLiteral {
         Self::parse(&format!("{value:e}"))
     }
 
+    /// Project this exact decimal into the real scalar domain once.
+    ///
+    /// # Errors
+    /// Rejects overflow to a non-finite binary64 value.
+    pub fn to_f64(&self) -> Result<f64, AstConstructionError> {
+        let value = self.canonical_text().parse::<f64>().map_err(|_| {
+            AstConstructionError::new("decimal literal cannot be represented as a real scalar")
+        })?;
+        if !value.is_finite() {
+            return Err(AstConstructionError::new(
+                "real literal exceeds the finite binary64 range",
+            ));
+        }
+        Ok(value)
+    }
+
+    /// Read an integral decimal exactly within the signed 64-bit domain.
+    ///
+    /// # Errors
+    /// Rejects fractional values and signed integer overflow without rounding.
+    pub fn to_i64(&self) -> Result<i64, AstConstructionError> {
+        let invalid = || {
+            AstConstructionError::new(
+                "integer literal must be integral and within the signed i64 range",
+            )
+        };
+        if self.is_zero() {
+            return Ok(0);
+        }
+        if self.exponent10 < 0 || self.exponent10 > 18 || self.coefficient.len() > 19 {
+            return Err(invalid());
+        }
+        let magnitude = self
+            .coefficient
+            .parse::<u64>()
+            .map_err(|_| invalid())?
+            .checked_mul(10_u64.pow(self.exponent10 as u32))
+            .ok_or_else(invalid)?;
+        if self.negative && magnitude == (1_u64 << 63) {
+            return Ok(i64::MIN);
+        }
+        let value = i64::try_from(magnitude).map_err(|_| invalid())?;
+        Ok(if self.negative { -value } else { value })
+    }
+
     /// Unsigned digits, with no leading or trailing zeros except the unique zero `0`.
     #[must_use]
     pub fn coefficient(&self) -> &str {
@@ -144,5 +189,51 @@ impl DecimalLiteral {
             let (integer, fraction) = self.coefficient.split_at(position as usize);
             format!("{sign}{integer}.{fraction}")
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DecimalLiteral;
+
+    #[test]
+    fn signed_integer_projection_preserves_adjacent_large_values_and_minimum() {
+        for expected in [
+            i64::MIN,
+            -9007199254740993,
+            0,
+            9007199254740993,
+            9007199254740994,
+            i64::MAX,
+        ] {
+            let literal = DecimalLiteral::parse(&expected.to_string()).unwrap();
+            assert_eq!(literal.to_i64().unwrap(), expected);
+        }
+        for text in [
+            "9223372036854775808",
+            "-9223372036854775809",
+            "1.5",
+            "1e9223372036854775807",
+            "1e-9223372036854775807",
+        ] {
+            assert!(
+                DecimalLiteral::parse(text).unwrap().to_i64().is_err(),
+                "{text}"
+            );
+        }
+        assert_eq!(
+            DecimalLiteral::parse("1000e-3").unwrap().to_i64().unwrap(),
+            1
+        );
+    }
+
+    #[test]
+    fn real_projection_is_explicit_and_rejects_nonfinite_overflow() {
+        let literal = DecimalLiteral::parse("9007199254740993").unwrap();
+        assert_eq!(literal.to_f64().unwrap(), 9007199254740992.0);
+        assert_eq!(literal.to_i64().unwrap(), 9007199254740993);
+        assert!(DecimalLiteral::parse("1e400").unwrap().to_f64().is_err());
+        assert!(DecimalLiteral::from_f64(f64::NAN).is_err());
+        assert!(DecimalLiteral::from_f64(f64::INFINITY).is_err());
     }
 }

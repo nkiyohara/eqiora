@@ -15,7 +15,10 @@ impl SourceAstFactory {
         checked_range(range)?;
         crate::ValueTypeSyntax::from_checked(value.value_type())?;
         if value.is_zero() && !value.value_type().shape().is_scalar() {
-            return Self::expression(ExprKind::Number(0.0), range);
+            return Self::expression(
+                ExprKind::Number(crate::DecimalLiteral::parse("0.0").expect("exact literal")),
+                range,
+            );
         }
         if value.value_type().frame() != ValueFrame::Invariant {
             return Err(AstConstructionError::new(
@@ -37,7 +40,10 @@ impl SourceAstFactory {
             *offset += 1;
             let scalar = |number| Expr {
                 kind: if value.value_type().dimension() == DimExponents::DIMENSIONLESS {
-                    ExprKind::Number(number)
+                    ExprKind::Number(
+                        crate::DecimalLiteral::from_f64(number)
+                            .expect("finite ValueLiteral component"),
+                    )
                 } else {
                     ExprKind::Quantity {
                         value: crate::DecimalLiteral::from_f64(number)
@@ -87,7 +93,10 @@ pub(crate) fn dimension_expression(
                 base
             } else {
                 let numerator = Expr {
-                    kind: ExprKind::Number(f64::from(numerator)),
+                    kind: ExprKind::Number(
+                        crate::DecimalLiteral::parse(&numerator.to_string())
+                            .expect("bounded dimension numerator"),
+                    ),
                     range: range(),
                 };
                 let exponent = if denominator == 1 {
@@ -98,7 +107,10 @@ pub(crate) fn dimension_expression(
                             op: BinaryOp::Div,
                             left: Box::new(numerator),
                             right: Box::new(Expr {
-                                kind: ExprKind::Number(f64::from(denominator)),
+                                kind: ExprKind::Number(
+                                    crate::DecimalLiteral::parse(&denominator.to_string())
+                                        .expect("bounded dimension denominator"),
+                                ),
                                 range: range(),
                             }),
                         },
@@ -120,7 +132,7 @@ pub(crate) fn dimension_expression(
 
     let Some(first) = factors.next() else {
         return Expr {
-            kind: ExprKind::Number(1.0),
+            kind: ExprKind::Number(crate::DecimalLiteral::parse("1.0").expect("exact literal")),
             range: range(),
         };
     };
@@ -181,7 +193,7 @@ mod tests {
             SourceAstFactory::value_literal(&zero, TextRange::new(0, 1))
                 .unwrap()
                 .kind(),
-            ExprKind::Number(0.0)
+            ExprKind::Number(number) if number.is_zero()
         ));
         let value = ValueLiteral::new(vector, [(1.0, 0.0), (2.0, 0.0)]).unwrap();
         assert!(

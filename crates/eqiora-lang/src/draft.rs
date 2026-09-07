@@ -771,7 +771,7 @@ pub struct DraftExpression {
 impl DraftExpression {
     /// Dimensionless numeric literal.
     #[must_use]
-    pub const fn constant(value: f64) -> Self {
+    pub const fn constant(value: crate::DecimalLiteral) -> Self {
         Self {
             kind: DraftExpressionKind::Constant(value),
         }
@@ -903,7 +903,7 @@ impl DraftExpression {
 
     fn contains_invalid_literal(&self) -> bool {
         match &self.kind {
-            DraftExpressionKind::Constant(value) => !value.is_finite(),
+            DraftExpressionKind::Constant(_) => false,
             DraftExpressionKind::Complex(real, imaginary) => {
                 !real.is_finite() || !imaginary.is_finite()
             }
@@ -954,7 +954,7 @@ impl_binary_expression_operator!(Div, div, BinaryOp::Div);
 
 #[derive(Debug, Clone)]
 enum DraftExpressionKind {
-    Constant(f64),
+    Constant(crate::DecimalLiteral),
     Complex(f64, f64),
     Array(Vec<DraftExpression>),
     Index {

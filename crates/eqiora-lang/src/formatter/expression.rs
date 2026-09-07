@@ -1,6 +1,6 @@
 //! Canonical expression rendering with explicit precedence and quantity islands.
 
-use super::{format_boundary_port_selector, format_number};
+use super::format_boundary_port_selector;
 use crate::ast::{BinaryOp, Expr, ExprKind, UnaryOp};
 use core::fmt::Write;
 
@@ -15,7 +15,7 @@ pub(super) fn format_expression(
         output.push('(');
     }
     match &expression.kind {
-        ExprKind::Number(value) => output.push_str(&format_number(*value)),
+        ExprKind::Number(value) => output.push_str(&value.canonical_text()),
         ExprKind::Quantity { value, unit } => {
             output.push_str(&value.canonical_text());
             output.push_str(" [");
@@ -104,7 +104,7 @@ fn expression_precedence(expression: &Expr) -> u8 {
         ExprKind::Unary { .. } => 6,
         // Native source factories may store a negative literal directly rather
         // than as Unary(Neg). Its printed sign still needs a grouped power base.
-        ExprKind::Number(value) if *value < 0.0 => 6,
+        ExprKind::Number(value) if value.is_negative() => 6,
         ExprKind::Quantity { value, .. } if value.is_negative() => 6,
         ExprKind::Number(_)
         | ExprKind::Quantity { .. }

@@ -68,12 +68,14 @@ fn bare_clock_leaves_are_exact_but_ordinary_numbers_are_unchanged() {
         panic!("division")
     };
     assert!(
-        matches!(right.kind(), ExprKind::Quantity { value, unit } if value.coefficient() == "18446744073709551615" && value.exponent10() == 0 && matches!(unit.kind(), ExprKind::Number(1.0)))
+        matches!(right.kind(), ExprKind::Quantity { value, unit } if value.coefficient() == "18446744073709551615" && value.exponent10() == 0 && matches!(unit.kind(), ExprKind::Number(literal) if literal.to_i64().ok() == Some(1)))
     );
     let Item::Let(alias) = &document.models()[0].items()[1] else {
         panic!("let")
     };
-    assert!(matches!(alias.value().kind(), ExprKind::Number(2.0)));
+    assert!(
+        matches!(alias.value().kind(), ExprKind::Number(literal) if literal.to_i64().ok() == Some(2))
+    );
     let failed = eqiora_lang::parse(
         "recover.eqi",
         "model M() { clock c = periodic(1 + ); let ordinary = 2; }",
@@ -89,7 +91,9 @@ fn bare_clock_leaves_are_exact_but_ordinary_numbers_are_unchanged() {
             }
         })
         .unwrap();
-    assert!(matches!(alias.value().kind(), ExprKind::Number(2.0)));
+    assert!(
+        matches!(alias.value().kind(), ExprKind::Number(literal) if literal.to_i64().ok() == Some(2))
+    );
 }
 
 #[test]

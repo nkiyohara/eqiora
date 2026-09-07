@@ -21,7 +21,7 @@ impl DraftExpression {
         paths: &mut HashMap<TextRange, GraphPath>,
     ) -> Expr {
         let kind = match &self.kind {
-            DraftExpressionKind::Constant(value) => ExprKind::Number(*value),
+            DraftExpressionKind::Constant(value) => ExprKind::Number(value.clone()),
             DraftExpressionKind::Complex(real, imaginary) => ExprKind::Call {
                 callee: NamePath::from_parsed_segments(
                     vec!["math".to_owned(), "complex".to_owned()],
@@ -30,7 +30,10 @@ impl DraftExpression {
                 arguments: [*real, *imaginary]
                     .into_iter()
                     .map(|number| Expr {
-                        kind: ExprKind::Number(number),
+                        kind: ExprKind::Number(
+                            crate::DecimalLiteral::from_f64(number)
+                                .expect("validated native literal"),
+                        ),
                         range: ranges.allocate(path, paths),
                     })
                     .collect(),
@@ -44,7 +47,9 @@ impl DraftExpression {
             DraftExpressionKind::Index { value, index } => ExprKind::Index {
                 value: Box::new(value.ast(path, ranges, paths)),
                 index: Box::new(Expr {
-                    kind: ExprKind::Number(f64::from(*index)),
+                    kind: ExprKind::Number(
+                        crate::DecimalLiteral::parse(&index.to_string()).expect("u32 index"),
+                    ),
                     range: ranges.allocate(path, paths),
                 }),
             },

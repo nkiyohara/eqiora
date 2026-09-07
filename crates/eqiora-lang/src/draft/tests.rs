@@ -61,8 +61,10 @@ fn typed_dimensions_and_expression_references_become_source_ast() {
         )
         .unwrap(),
     );
-    let initial =
-        DraftDeclaration::Initial(vec![state.expression() - DraftExpression::constant(1.0)]);
+    let initial = DraftDeclaration::Initial(vec![
+        state.expression()
+            - DraftExpression::constant(crate::DecimalLiteral::parse("1.0").unwrap()),
+    ]);
     let residual = DraftExpression::derivative(&state) + rate.expression() * state.expression();
     let draft = ModelDraft::new(
         "decay",
@@ -105,7 +107,7 @@ fn native_draft_rejects_names_and_numbers_source_could_not_express() {
     );
     let relation = DraftRelation::continuous(
         "flow",
-        [field.expression() + DraftExpression::constant(f64::NAN)],
+        [field.expression() + DraftExpression::complex(f64::NAN, 0.0)],
     );
 
     let diagnostics = ModelDraft::new(
@@ -113,7 +115,7 @@ fn native_draft_rejects_names_and_numbers_source_could_not_express() {
         [
             field.into(),
             relation.into(),
-            DraftDeclaration::Initial(vec![DraftExpression::constant(f64::INFINITY)]),
+            DraftDeclaration::Initial(vec![DraftExpression::complex(f64::INFINITY, 0.0)]),
         ],
     )
     .unwrap_err();

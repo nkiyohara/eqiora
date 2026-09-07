@@ -18,14 +18,22 @@ impl Parser<'_> {
                     kind: ExprKind::Quantity {
                         value,
                         unit: Box::new(Expr {
-                            kind: ExprKind::Number(1.0),
+                            kind: ExprKind::Number(
+                                crate::DecimalLiteral::parse("1.0").expect("exact literal"),
+                            ),
                             range: token.range(),
                         }),
                     },
                     range: token.range(),
                 });
             }
-            let value = self.parse_f64(&token)?;
+            let value = match crate::DecimalLiteral::parse(token.text()) {
+                Ok(value) => value,
+                Err(error) => {
+                    self.error_token(&token, error.message());
+                    return None;
+                }
+            };
             return Some(Expr {
                 kind: ExprKind::Number(value),
                 range: token.range(),
@@ -103,7 +111,9 @@ impl Parser<'_> {
             TokenKind::Number if self.current().text() == "1" => {
                 let token = self.bump();
                 Expr {
-                    kind: ExprKind::Number(1.0),
+                    kind: ExprKind::Number(
+                        crate::DecimalLiteral::parse("1.0").expect("exact literal"),
+                    ),
                     range: token.range(),
                 }
             }
@@ -165,7 +175,10 @@ impl Parser<'_> {
             return None;
         };
         let number = Expr {
-            kind: ExprKind::Number(f64::from(value)),
+            kind: ExprKind::Number(
+                crate::DecimalLiteral::parse(&value.to_string())
+                    .expect("bounded dimension integer"),
+            ),
             range: token.range(),
         };
         Some(if negative {

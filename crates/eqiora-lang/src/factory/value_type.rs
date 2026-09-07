@@ -109,7 +109,11 @@ mod tests {
     #[test]
     fn native_array_nesting_stops_at_the_source_depth_limit() {
         let range = TextRange::new(0, 0);
-        let dimension = SourceAstFactory::expression(ExprKind::Number(1.0), range).unwrap();
+        let dimension = SourceAstFactory::expression(
+            ExprKind::Number(crate::DecimalLiteral::parse("1.0").expect("exact literal")),
+            range,
+        )
+        .unwrap();
         let mut value = ValueTypeSyntax::real(dimension);
         for _ in 0..255 {
             value = SourceAstFactory::value_type(
@@ -163,7 +167,11 @@ mod tests {
         let parameter = SourceAstFactory::parameter(
             "channels",
             array,
-            SourceAstFactory::expression(ExprKind::Number(0.0), range).unwrap(),
+            SourceAstFactory::expression(
+                ExprKind::Number(crate::DecimalLiteral::parse("0.0").expect("exact literal")),
+                range,
+            )
+            .unwrap(),
             range,
         )
         .unwrap();

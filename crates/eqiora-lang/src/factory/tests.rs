@@ -12,7 +12,11 @@ fn range(start: u32, end: u32) -> TextRange {
 }
 
 fn dimension() -> Expr {
-    SourceAstFactory::expression(ExprKind::Number(1.0), range(0, 0)).expect("dimension")
+    SourceAstFactory::expression(
+        ExprKind::Number(crate::DecimalLiteral::parse("1.0").expect("exact literal")),
+        range(0, 0),
+    )
+    .expect("dimension")
 }
 
 fn path(segments: &[&str]) -> NamePath {
@@ -47,7 +51,11 @@ fn owned_flat_model_formats_and_parses_identically() {
     let parameter = SourceAstFactory::parameter(
         "gain",
         crate::ValueTypeSyntax::real(dimension()),
-        SourceAstFactory::expression(ExprKind::Number(2.0), range(0, 0)).unwrap(),
+        SourceAstFactory::expression(
+            ExprKind::Number(crate::DecimalLiteral::parse("2.0").expect("exact literal")),
+            range(0, 0),
+        )
+        .unwrap(),
         range(0, 0),
     )
     .expect("Parameter");
@@ -97,7 +105,11 @@ fn owned_flat_model_formats_and_parses_identically() {
         vec![
             SourceAstFactory::equation(
                 residual,
-                SourceAstFactory::expression(ExprKind::Number(0.0), range(0, 0)).unwrap(),
+                SourceAstFactory::expression(
+                    ExprKind::Number(crate::DecimalLiteral::parse("0.0").expect("exact literal")),
+                    range(0, 0),
+                )
+                .unwrap(),
                 range(0, 0),
             )
             .unwrap(),
@@ -113,7 +125,11 @@ fn owned_flat_model_formats_and_parses_identically() {
     .expect("Connection");
     let binding = SourceAstFactory::named_binding(
         "gain",
-        SourceAstFactory::expression(ExprKind::Number(3.0), range(0, 0)).expect("binding value"),
+        SourceAstFactory::expression(
+            ExprKind::Number(crate::DecimalLiteral::parse("3.0").expect("exact literal")),
+            range(0, 0),
+        )
+        .expect("binding value"),
         range(0, 0),
     )
     .expect("binding");
@@ -589,7 +605,11 @@ fn factory_constructs_complete_exterior_families_and_roundtrips() {
         vec![
             SourceAstFactory::equation(
                 residual,
-                SourceAstFactory::expression(ExprKind::Number(0.0), range(0, 0)).unwrap(),
+                SourceAstFactory::expression(
+                    ExprKind::Number(crate::DecimalLiteral::parse("0.0").expect("exact literal")),
+                    range(0, 0),
+                )
+                .unwrap(),
                 range(0, 0),
             )
             .unwrap(),
@@ -697,7 +717,13 @@ fn construction_rejects_unrepresentable_source_shapes() {
         )
         .is_err()
     );
-    assert!(SourceAstFactory::expression(ExprKind::Number(1.0), range(2, 1)).is_err());
+    assert!(
+        SourceAstFactory::expression(
+            ExprKind::Number(crate::DecimalLiteral::parse("1.0").expect("exact literal")),
+            range(2, 1)
+        )
+        .is_err()
+    );
     assert!(
         SourceAstFactory::support_slot(
             VisibilitySyntax::Public,

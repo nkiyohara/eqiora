@@ -42,7 +42,7 @@ impl Expr {
         rewrite: &mut impl FnMut(&NamePath) -> Option<NamePath>,
     ) -> Self {
         let kind = match &self.kind {
-            ExprKind::Number(value) => ExprKind::Number(*value),
+            ExprKind::Number(value) => ExprKind::Number(value.clone()),
             ExprKind::Quantity { value, unit } => ExprKind::Quantity {
                 value: value.clone(),
                 unit: unit.clone(),
@@ -111,8 +111,8 @@ fn expression_name(path: NamePath) -> ExprKind {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ExprKind {
-    /// Floating-point literal.
-    Number(f64),
+    /// Exact decimal literal, interpreted in its required value-domain context.
+    Number(crate::DecimalLiteral),
     /// Numeric literal with an explicit input-unit expression.
     Quantity {
         /// Exact decimal value before unit conversion.
