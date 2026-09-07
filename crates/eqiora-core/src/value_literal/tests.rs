@@ -34,7 +34,7 @@ fn complex_and_spatial_channel_values_retain_every_ordered_component() {
     assert_eq!(value.value_type(), &ty);
     assert_eq!(value.component_count(), 6);
     assert_eq!(value.components().collect::<Vec<_>>(), expected);
-    assert_eq!(value.components().rev().next(), Some((11.0, 12.0)));
+    assert_eq!(value.components().next_back(), Some((11.0, 12.0)));
     assert_eq!(value.component(6), None);
     assert_eq!(value.real_scalar_value(), None);
     assert!(!value.is_zero());
