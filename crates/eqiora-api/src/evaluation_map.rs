@@ -10,6 +10,11 @@ use crate::{
     DifferentiableProgramIdentity,
 };
 
+mod axes;
+mod products;
+
+pub use products::{EvaluationMapJvp, EvaluationMapProducts, EvaluationMapVjp};
+
 /// An admitted ordered collection of complete inputs for one immutable program.
 ///
 /// Request position identifies an occurrence. Equal points remain separate

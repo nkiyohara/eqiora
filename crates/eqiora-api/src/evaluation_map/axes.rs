@@ -1,33 +1,32 @@
-//! Executable indexing reference for docs/evaluation/independent-map-axes.md.
-//!
-//! Test-only: this neither evaluates a Program nor introduces an installed map API.
-//! The numerical specimen is an ordinary affine function in the tests; these
-//! helpers only admit shapes and project indices, borrowing mathematical types.
+//! Private dense-axis admission and indexing, shared by native mapped products
+//! and the independent affine reference. This module never evaluates a Program.
 
 use eqiora_core::ValueType;
 
 #[derive(Clone, Copy)]
-struct Limits {
-    rank: usize,
-    values: usize,
-    bytes: usize,
+pub(super) struct Limits {
+    pub(super) rank: usize,
+    pub(super) values: usize,
+    pub(super) bytes: usize,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-enum Error {
+pub(super) enum Error {
     Rank,
     Axis,
+    #[cfg(test)]
     Extent,
     Shape,
     Bounds,
     Overflow,
     Resource,
+    #[cfg(test)]
     Signature,
 }
 
 type Admission<T> = Result<T, Error>;
 
-fn product(extents: &[usize]) -> Admission<usize> {
+pub(super) fn product(extents: &[usize]) -> Admission<usize> {
     // Check the nonzero factors even for an empty map: zero must not hide an
     // unrepresentable logical stride in another axis.
     let nonzero = extents.iter().try_fold(1usize, |size, &extent| {
@@ -48,6 +47,7 @@ fn budget(values: usize, limits: Limits) -> Admission<()> {
 
 /// Positions always refer to the complete buffer, not to a progressively
 /// shortened shape. One position per nesting level; None shares that leaf.
+#[cfg(test)]
 fn infer_extents(
     requested: &[Option<usize>],
     inputs: &[(&[usize], &[Option<usize>])],
@@ -86,16 +86,16 @@ fn infer_extents(
 /// does not add component axes to it. Field support and discrete associations
 /// require their existing Plan/Result owner, outside this indexing reference.
 #[derive(Debug)]
-struct Layout<'a> {
+pub(super) struct Layout<'a> {
     value_type: &'a ValueType,
     extents: &'a [usize],
     axes: &'a [Option<usize>],
-    shape: Vec<usize>,
+    pub(super) shape: Vec<usize>,
     elements: usize,
 }
 
 impl<'a> Layout<'a> {
-    fn new(
+    pub(super) fn new(
         value_type: &'a ValueType,
         extents: &'a [usize],
         axes: &'a [Option<usize>],
@@ -134,14 +134,14 @@ impl<'a> Layout<'a> {
         })
     }
 
-    fn admit_buffer(&self, shape: &[usize], length: usize) -> Admission<()> {
+    pub(super) fn admit_buffer(&self, shape: &[usize], length: usize) -> Admission<()> {
         if shape != self.shape || length != self.elements {
             return Err(Error::Shape);
         }
         Ok(())
     }
 
-    fn offset(&self, occurrence: &[usize], component: &[usize]) -> Admission<usize> {
+    pub(super) fn offset(&self, occurrence: &[usize], component: &[usize]) -> Admission<usize> {
         if occurrence.len() != self.extents.len()
             || component.len() != self.value_type.shape().rank()
         {
@@ -171,6 +171,7 @@ impl<'a> Layout<'a> {
             })
     }
 
+    #[cfg(test)]
     fn select<'b, T>(
         &self,
         values: &'b [T],
@@ -190,6 +191,7 @@ fn axes_index(axes: &[Option<usize>], axis: usize) -> Option<usize> {
 
 /// Dense outputs retain every map level, even when all members have equal
 /// numerical values. Reject a missing level instead of treating it as shared.
+#[cfg(test)]
 fn output_elements(layouts: &[Layout<'_>], limits: Limits) -> Admission<usize> {
     let elements = layouts.iter().try_fold(0usize, |total, layout| {
         if layout.axes.iter().any(Option::is_none) {
@@ -201,6 +203,7 @@ fn output_elements(layouts: &[Layout<'_>], limits: Limits) -> Admission<usize> {
     Ok(elements)
 }
 
+#[cfg(test)]
 fn require_signature(
     expected: &crate::DifferentiableProgramIdentity,
     actual: &crate::DifferentiableProgramIdentity,
@@ -211,5 +214,6 @@ fn require_signature(
     Ok(())
 }
 
+#[cfg(test)]
 #[path = "axes_reference_tests.rs"]
 mod tests;

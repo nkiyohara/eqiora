@@ -3,6 +3,7 @@ use eqiora_numerics::CommonSpatialPolicy;
 use eqiora_realization::RealizationRevision;
 
 use super::*;
+use crate::evaluation_map::tests::{fixture, program_for};
 
 const LIMITS: Limits = Limits {
     rank: 8,
@@ -232,8 +233,8 @@ fn shape_axis_extent_and_resource_failures_reject_before_buffer_allocation() {
 
 #[test]
 fn occurrences_sample_ids_points_and_accepted_lineage_remain_distinct() {
-    let (document, program) = super::super::fixture();
-    let foreign = super::super::program_for(
+    let (document, program) = fixture();
+    let foreign = program_for(
         &document,
         CommonSpatialPolicy::Q1,
         RealizationRevision::new(22),
