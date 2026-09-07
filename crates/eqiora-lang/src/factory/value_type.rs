@@ -94,12 +94,12 @@ mod tests {
         assert_eq!(declaration.value_type().to_source(), "array<complex<1>, 3>");
         let document = parse(
             "component.eqi",
-            "component C() { public parameter channels: array<complex<1>, 3>; }",
+            "component C(parameter channels: array<complex<1>, 3>) {}",
         )
         .into_document()
         .unwrap();
         let source = format(&document);
-        assert!(source.contains("parameter channels: array<complex<1>, 3>;"));
+        assert!(source.contains("parameter channels: array<complex<1>, 3>"));
         assert_eq!(
             format(&parse("reparsed.eqi", &source).into_document().unwrap()),
             source

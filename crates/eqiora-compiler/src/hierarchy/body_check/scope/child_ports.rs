@@ -27,12 +27,11 @@ impl DefinitionScope<'_, '_> {
             ..
         } = &mut contract
         {
-            if let Some(current) = support {
-                if let Some(bound) =
+            if let Some(current) = support
+                && let Some(bound) =
                     target(current.domain()).and_then(|name| self.spatial_support(name))
-                {
-                    *current = bound;
-                }
+            {
+                *current = bound;
             }
             if let eqiora_lang::ActivationSyntax::Periodic(clock) = activation {
                 *clock = target(clock)

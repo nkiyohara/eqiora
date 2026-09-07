@@ -105,7 +105,7 @@ mod tests {
 
         assert_eq!(
             format(&document),
-            "dimension Length = m;\n\nmodel M {\n  variable x: Length;\n}\n"
+            "dimension Length = m;\n\nmodel M() {\n  variable x: Length;\n}\n"
         );
     }
 

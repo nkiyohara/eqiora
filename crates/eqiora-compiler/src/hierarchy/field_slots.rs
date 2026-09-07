@@ -482,7 +482,7 @@ component Law(variable value: {slot_type} on body, support body: volume(ambient_
 model Main() {{
   domain body = box(0, 1, 0, 1);
   variable value: {field_type} on body;
-  instance law: Law(support body = body, field value = value);
+  instance law: Law(body = body, value = value);
 }}
 "#
             )
@@ -576,7 +576,7 @@ component Law(variable displacement: vector<m, 2> on body, support body: volume(
 model Use() {
   domain body = box(0, 1, 0, 1);
   variable displacement: vector<m, 2> on body;
-  instance law: Law(support body = body, field displacement = displacement);
+  instance law: Law(body = body, displacement = displacement);
 }
 "#,
         );

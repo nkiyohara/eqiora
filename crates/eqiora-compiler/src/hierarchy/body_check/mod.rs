@@ -332,27 +332,27 @@ public connector BoundaryScalar = field_physical(
   frame = invariant,
   pairing = euclidean_boundary_duality
 );
-component BoundaryLaw(support body: volume(ambient_dimension = 1), support exterior: complete_exterior(parent = body)) {
+component BoundaryLaw(support body: volume(ambient_dimension = 1), support exterior: complete_exterior(parent = body), port boundary[side in exterior]: conserving BoundaryScalar over side) {
 
 
-  public port boundary[side in exterior]: conserving BoundaryScalar over side;
+  
 }
-component BoundaryTerminal(support body: volume(ambient_dimension = 1), support face: boundary(parent = body)) {
+component BoundaryTerminal(support body: volume(ambient_dimension = 1), support face: boundary(parent = body), port boundary: conserving BoundaryScalar over face) {
 
 
-  public port boundary: conserving BoundaryScalar over face;
+  
 }
 model M() {
   domain body = box(0, 1);
   domain lower = boundary(body, axis = 0, side = lower);
   domain upper = boundary(body, axis = 0, side = upper);
   instance law: BoundaryLaw(
-    support body = body,
-    support exterior = boundaries(lower, upper)
+    body = body,
+    exterior = boundaries(lower, upper)
   );
   instance environment: BoundaryTerminal(
-    support body = body,
-    support face = lower
+    body = body,
+    face = lower
   );
   connect conserving law.boundary[side = lower], environment.boundary;
 }

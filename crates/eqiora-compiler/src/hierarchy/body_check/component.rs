@@ -325,30 +325,30 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
             }
         }
         for item in self.definition.declaration.items() {
-            if let ComponentItem::Instance(instance) = item {
-                if let Ok(child) = self.scope.elaborator.resolve_component(
+            if let ComponentItem::Instance(instance) = item
+                && let Ok(child) = self.scope.elaborator.resolve_component(
                     &self.definition.namespace,
                     instance.definition(),
                     self.definition.file,
                     instance.range(),
-                ) {
-                    self.proof.children.insert(
-                        instance.name().to_owned(),
-                        ChildInstanceProof {
-                            definition: DefinitionKey {
-                                namespace: child.namespace.clone(),
-                                name: child.declaration.name().to_owned(),
-                            },
-                            range: instance.range(),
+                )
+            {
+                self.proof.children.insert(
+                    instance.name().to_owned(),
+                    ChildInstanceProof {
+                        definition: DefinitionKey {
+                            namespace: child.namespace.clone(),
+                            name: child.declaration.name().to_owned(),
                         },
-                    );
-                    self.scope
-                        .children
-                        .insert(instance.name().to_owned(), child);
-                    self.scope
-                        .child_instances
-                        .insert(instance.name().to_owned(), instance);
-                }
+                        range: instance.range(),
+                    },
+                );
+                self.scope
+                    .children
+                    .insert(instance.name().to_owned(), child);
+                self.scope
+                    .child_instances
+                    .insert(instance.name().to_owned(), instance);
             }
         }
     }
@@ -546,9 +546,9 @@ public connector BoundaryScalar = field_physical(
     fn complete_exterior_family_is_checked_once_with_a_synthetic_member_identity() {
         let source = format!(
             r#"{SCALAR_CONNECTOR}
-component BoundaryLaw(support exterior: complete_exterior(parent = body), support body: volume(ambient_dimension = 2)) {{
-  public port natural[boundary in exterior]: conserving BoundaryScalar over boundary;
-  public port coupled[boundary in exterior]: conserving BoundaryScalar over boundary;
+component BoundaryLaw(support exterior: complete_exterior(parent = body), support body: volume(ambient_dimension = 2), port natural[boundary in exterior]: conserving BoundaryScalar over boundary, port coupled[boundary in exterior]: conserving BoundaryScalar over boundary) {{
+  
+  
 
 
   relation natural_law[boundary in exterior] on boundary {{
@@ -571,13 +571,13 @@ component BoundaryLaw(support exterior: complete_exterior(parent = body), suppor
     fn binderless_exact_boundary_connection_retains_its_component_class() {
         let source = format!(
             r#"{SCALAR_CONNECTOR}
-component Coupler(support left_body: volume(ambient_dimension = 2), support left_face: boundary(parent = left_body), support right_body: volume(ambient_dimension = 2), support right_face: boundary(parent = right_body)) {{
+component Coupler(support left_body: volume(ambient_dimension = 2), support left_face: boundary(parent = left_body), support right_body: volume(ambient_dimension = 2), support right_face: boundary(parent = right_body), port left: conserving BoundaryScalar over left_face, port right: conserving BoundaryScalar over right_face) {{
 
 
 
 
-  public port left: conserving BoundaryScalar over left_face;
-  public port right: conserving BoundaryScalar over right_face;
+  
+  
   relation left_law on left_face {{ trace(left) = 0; flux(left) = 0; }}
   relation right_law on right_face {{ trace(right) = 0; flux(right) = 0; }}
   connect conserving left, right;
@@ -614,10 +614,10 @@ component Coupler(support left_body: volume(ambient_dimension = 2), support left
             };
             let source = format!(
                 r#"{SCALAR_CONNECTOR}
-component BoundaryLaw(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body)) {{
+component BoundaryLaw(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body), port natural[boundary in exterior]: conserving BoundaryScalar over boundary) {{
 
 
-  public port natural[boundary in exterior]: conserving BoundaryScalar over boundary;
+  
   relation law[boundary in {relation_set}] on boundary {{
     flux(natural[boundary = {target}]) = 0;
   }}
@@ -651,11 +651,11 @@ public connector B = field_physical(
   frame = invariant,
   pairing = euclidean_boundary_duality
 );
-component InvalidConnection(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body)) {
+component InvalidConnection(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body), port left[boundary in exterior]: conserving A over boundary, port right[boundary in exterior]: conserving B over boundary) {
 
 
-  public port left[boundary in exterior]: conserving A over boundary;
-  public port right[boundary in exterior]: conserving B over boundary;
+  
+  
   connect conserving [boundary in exterior]
     left[boundary = boundary], right[boundary = boundary];
 }
@@ -673,21 +673,21 @@ component InvalidConnection(support body: volume(ambient_dimension = 2), support
     fn child_port_family_requires_explicit_complete_exterior_forwarding() {
         let prefix = format!(
             r#"{SCALAR_CONNECTOR}
-component Leaf(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body)) {{
+component Leaf(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body), port mechanical[side in exterior]: conserving BoundaryScalar over side) {{
 
 
-  public port mechanical[side in exterior]: conserving BoundaryScalar over side;
+  
 }}
 "#
         );
         let parent = |forwarding: &str| {
             format!(
                 r#"{prefix}
-component Parent(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body)) {{
+component Parent(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body), port mechanical[boundary in exterior]: conserving BoundaryScalar over boundary) {{
 
 
-  public port mechanical[boundary in exterior]: conserving BoundaryScalar over boundary;
-  instance child: Leaf(support body = body{forwarding});
+  
+  instance child: Leaf(body = body{forwarding});
   connect conserving [boundary in exterior]
     child.mechanical[side = boundary], mechanical[boundary = boundary];
 }}
@@ -695,7 +695,7 @@ component Parent(support body: volume(ambient_dimension = 2), support exterior: 
             )
         };
 
-        validate_component(&parent(", support exterior = exterior"), "Parent")
+        validate_component(&parent(", exterior = exterior"), "Parent")
             .expect("child family is mapped through one explicit set forwarding");
         let diagnostics = validate_component(&parent(""), "Parent")
             .expect_err("a child family cannot capture an unrelated active binder");

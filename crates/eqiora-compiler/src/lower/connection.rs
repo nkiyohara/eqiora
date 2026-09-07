@@ -201,14 +201,14 @@ pub(super) fn lower_connection(
         .enumerate()
         .map(|(index, definition)| {
             let mut contract = resolved_scalar_port_contract(definition);
-            if kind == ScalarConnectionKind::Signal {
-                if let ScalarPortContract::Signal { direction, .. } = &mut contract {
-                    *direction = if index == 0 {
-                        SignalDirection::Output
-                    } else {
-                        SignalDirection::Input
-                    };
-                }
+            if kind == ScalarConnectionKind::Signal
+                && let ScalarPortContract::Signal { direction, .. } = &mut contract
+            {
+                *direction = if index == 0 {
+                    SignalDirection::Output
+                } else {
+                    SignalDirection::Input
+                };
             }
             contract
         })
@@ -221,12 +221,11 @@ pub(super) fn lower_connection(
             lower_connection_violation_message(violation),
         )
     })?;
-    if let Some(ResolvedPortContract::Signal { support, clock, .. }) = definitions.first() {
-        if definitions.iter().skip(1).any(|contract| !matches!(contract, ResolvedPortContract::Signal { support: candidate_support, clock: candidate_clock, .. } if candidate_support == support && candidate_clock == clock)) {
+    if let Some(ResolvedPortContract::Signal { support, clock, .. }) = definitions.first()
+        && definitions.iter().skip(1).any(|contract| !matches!(contract, ResolvedPortContract::Signal { support: candidate_support, clock: candidate_clock, .. } if candidate_support == support && candidate_clock == clock)) {
             return Err(source_error(codes::LANGUAGE_TYPE_ERROR, file, range,
                 "signal Connection requires exact matching support and clock activation"));
         }
-    }
     connected_ports.extend(members);
     Ok((ConnectionDef::new(id, semantics), ports))
 }

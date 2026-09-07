@@ -99,17 +99,17 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                 ) {
                     Ok(fields) => {
                         for item in signature {
-                            if let eqiora_lang::SignatureItem::Field(field) = item {
-                                if let Some(contract) = fields.field(field.name()) {
-                                    self.scope.symbols.insert(
-                                        field.name().to_owned(),
-                                        SymbolContract::Field(
-                                            contract.value().clone(),
-                                            field.role(),
-                                            field.activation().clone(),
-                                        ),
-                                    );
-                                }
+                            if let eqiora_lang::SignatureItem::Field(field) = item
+                                && let Some(contract) = fields.field(field.name())
+                            {
+                                self.scope.symbols.insert(
+                                    field.name().to_owned(),
+                                    SymbolContract::Field(
+                                        contract.value().clone(),
+                                        field.role(),
+                                        field.activation().clone(),
+                                    ),
+                                );
                             }
                         }
                     }
@@ -146,30 +146,30 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
         }
 
         for item in self.definition.declaration.items() {
-            if let Item::Instance(instance) = item {
-                if let Ok(child) = self.scope.elaborator.resolve_component(
+            if let Item::Instance(instance) = item
+                && let Ok(child) = self.scope.elaborator.resolve_component(
                     &self.scope.namespace,
                     instance.definition(),
                     self.scope.file,
                     instance.range(),
-                ) {
-                    self.proof.children.insert(
-                        instance.name().to_owned(),
-                        ChildInstanceProof {
-                            definition: DefinitionKey {
-                                namespace: child.namespace.clone(),
-                                name: child.declaration.name().to_owned(),
-                            },
-                            range: instance.range(),
+                )
+            {
+                self.proof.children.insert(
+                    instance.name().to_owned(),
+                    ChildInstanceProof {
+                        definition: DefinitionKey {
+                            namespace: child.namespace.clone(),
+                            name: child.declaration.name().to_owned(),
                         },
-                    );
-                    self.scope
-                        .children
-                        .insert(instance.name().to_owned(), child);
-                    self.scope
-                        .child_instances
-                        .insert(instance.name().to_owned(), instance);
-                }
+                        range: instance.range(),
+                    },
+                );
+                self.scope
+                    .children
+                    .insert(instance.name().to_owned(), child);
+                self.scope
+                    .child_instances
+                    .insert(instance.name().to_owned(), instance);
             }
         }
         for item in self.definition.owned_items() {

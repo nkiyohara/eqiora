@@ -1287,11 +1287,11 @@ model M() { parameter p: 1 = 1; }
         let first = r#"
 connector Pin = scalar_physical(across = 1, through = A);
 connector Heat = scalar_physical(across = K, through = kg * m ^ 2 / (s ^ 3 * K));
-component Pair() {
-  public parameter resistance: 1 = 2;
-  public parameter scale: 1 = 3;
-  public port positive: conserving on Pin;
-  public port negative: conserving on Pin;
+component Pair(parameter resistance: 1 = 2, parameter scale: 1 = 3, port positive: conserving on Pin, port negative: conserving on Pin) {
+  
+  
+  
+  
   instance inner: Library.Resistor(resistance = resistance, scale = scale);
   relation law { across(positive) - across(negative) = 0; }
   connect conserving positive, inner.positive, negative;
@@ -1301,7 +1301,6 @@ model circuit() {
   instance right: Pair(scale = 4, resistance = 5);
   instance left: Pair(resistance = 2, scale = 3);
   connect conserving left.positive, right.negative, right.positive;
-  boundary right.positive, left.negative;
 }
 model auxiliary() {}
 "#;
@@ -1309,18 +1308,17 @@ model auxiliary() {}
 connector Heat = scalar_physical(across = K, through = kg * m ^ 2 / (s ^ 3 * K));
 connector Pin = scalar_physical(across = 1, through = A);
 component Empty() {}
-component Pair() {
+component Pair(port negative: conserving on Pin, port positive: conserving on Pin, parameter scale: 1 = 3, parameter resistance: 1 = 2) {
   connect conserving negative, positive, inner.positive;
   relation law { across(positive) - across(negative) = 0; }
   instance inner: Library.Resistor(scale = scale, resistance = resistance);
-  public port negative: conserving on Pin;
-  public port positive: conserving on Pin;
-  public parameter scale: 1 = 3;
-  public parameter resistance: 1 = 2;
+  
+  
+  
+  
 }
 model auxiliary() {}
 model circuit() {
-  boundary left.negative, right.positive;
   connect conserving right.positive, left.positive, right.negative;
   instance left: Pair(scale = 3, resistance = 2);
   instance right: Pair(resistance = 5, scale = 4);
@@ -1341,7 +1339,7 @@ model M() {
   domain volume = box(0, 1, 0, 1);
   domain left = boundary(volume, axis = 0, side = lower);
   domain right = boundary(volume, axis = 0, side = upper);
-  instance c: C(support body = volume, support wall = left);
+  instance c: C(body = volume, wall = left);
 }
 "#;
         let permuted = r#"
@@ -1350,13 +1348,13 @@ component C(support wall: boundary(parent = body), support body: volume(ambient_
 
 }
 model M() {
-  instance c: C(support wall = left, support body = volume);
+  instance c: C(wall = left, body = volume);
   domain right = boundary(volume, axis = 0, side = upper);
   domain left = boundary(volume, axis = 0, side = lower);
   domain volume = box(0, 1, 0, 1);
 }
 "#;
-        let rebound = permuted.replace("support wall = left", "support wall = right");
+        let rebound = permuted.replace("wall = left", "wall = right");
 
         assert_eq!(identity(body_first), identity(permuted));
         assert_ne!(identity(body_first), identity(&rebound));
@@ -1376,9 +1374,9 @@ model M() {
   variable potential: K on body; initial { potential = 0; }
   variable other: K on body; initial { other = 0; }
   instance law: Law(
-    support body = body,
-    field displacement = displacement,
-    field potential = potential
+    body = body,
+    displacement = displacement,
+    potential = potential
   );
 }
 "#;
@@ -1390,9 +1388,9 @@ component Law(variable potential: K on body, variable displacement: vector<m, 2>
 }
 model M() {
   instance law: Law(
-    field potential = potential,
-    field displacement = displacement,
-    support body = body
+    potential = potential,
+    displacement = displacement,
+    body = body
   );
   variable other: K on body; initial { other = 0; }
   variable potential: K on body; initial { potential = 0; }
@@ -1400,7 +1398,7 @@ model M() {
   domain body = box(0, 1, 0, 1);
 }
 "#;
-        let rebound = permuted.replace("field potential = potential", "field potential = other");
+        let rebound = permuted.replace("potential = potential", "potential = other");
 
         assert_eq!(identity(slot_first), identity(permuted));
         assert_ne!(identity(slot_first), identity(&rebound));
@@ -1416,11 +1414,11 @@ public connector MechanicalBoundary = field_physical(
   frame = spatial,
   pairing = euclidean_boundary_duality
 );
-public component SurfaceLaw(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body)) {
+public component SurfaceLaw(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body), port mechanical[boundary in exterior]:
+    conserving MechanicalBoundary over boundary) {
 
 
-  public port mechanical[boundary in exterior]:
-    conserving MechanicalBoundary over boundary;
+  
   relation carrier[boundary in exterior] on boundary {
     trace(mechanical[boundary = boundary])
       - trace(mechanical[boundary = boundary]) = 0;
@@ -1433,8 +1431,8 @@ model M() {
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
   instance surface: SurfaceLaw(
-    support body = body,
-    support exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
+    body = body,
+    exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
   );
   connect conserving
     surface.mechanical[boundary = x_lower],
@@ -1474,8 +1472,8 @@ model M() {
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
   instance surface: SurfaceLaw(
-    support body = body,
-    support exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
+    body = body,
+    exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
   );
 }
 "#,
@@ -1497,15 +1495,15 @@ model M() {
     fn parameter_support_and_field_bindings_share_one_limit() {
         let document = document(
             r#"
-component Law(variable state: 1 on body, support body: volume(ambient_dimension = 1)) {
-  public parameter gain: 1;
+component Law(variable state: 1 on body, support body: volume(ambient_dimension = 1), parameter gain: 1) {
+  
 
 
 }
 model M() {
   domain body = box(0, 1);
   variable state: 1 on body; initial { state = 0; }
-  instance law: Law(gain = 1, support body = body, field state = state);
+  instance law: Law(gain = 1, body = body, state = state);
 }
 "#,
         );
@@ -1515,7 +1513,7 @@ model M() {
         };
         let error = LocalSourceIdentity::from_document_with_limits(&document, limits)
             .expect_err("all three binding families share one checked budget");
-        assert!(error.message().contains("3 bindings"));
+        assert!(error.message().contains("binding count exceeds"));
     }
 
     #[test]
@@ -1662,11 +1660,15 @@ model M() {
 
     #[test]
     fn interface_visibility_defaults_ports_bindings_and_domains_are_semantic() {
-        let public_default = "component C() { public parameter p: 1 = 2; public port s: signal input 1; } model m() { instance x: C(p = 2); }";
-        let private_default = "component C() { parameter p: 1 = 2; public port s: signal input 1; } model m() { instance x: C(p = 2); }";
-        let required = "component C() { public parameter p: 1; public port s: signal input 1; } model m() { instance x: C(p = 2); }";
-        let output_port = "component C() { public parameter p: 1 = 2; public port s: signal output 1; } model m() { instance x: C(p = 2); }";
-        let changed_binding = "component C() { public parameter p: 1 = 2; public port s: signal input 1; } model m() { instance x: C(p = 3); }";
+        let public_default =
+            "component C(parameter p: 1 = 2, input s: 1) {   } model m() { instance x: C(p = 2); }";
+        let private_default =
+            "component C(input s: 1) { parameter p: 1 = 2;  } model m() { instance x: C(p = 2); }";
+        let required =
+            "component C(parameter p: 1, input s: 1) {   } model m() { instance x: C(p = 2); }";
+        let output_port = "component C(parameter p: 1 = 2, output s: 1) {   } model m() { instance x: C(p = 2); }";
+        let changed_binding =
+            "component C(parameter p: 1 = 2, input s: 1) {   } model m() { instance x: C(p = 3); }";
         assert_ne!(identity(public_default), identity(private_default));
         assert_ne!(identity(public_default), identity(required));
         assert_ne!(identity(public_default), identity(output_port));
@@ -1787,8 +1789,8 @@ model M() {
         );
 
         let mixed_bindings = document(
-            "component C(support d: volume(ambient_dimension = 1)) { public parameter p: 1;  } \
-             model M() { domain d = box(0, 1); instance c: C(p = 1, support d = d); }",
+            "component C(support d: volume(ambient_dimension = 1), parameter p: 1) {   } \
+             model M() { domain d = box(0, 1); instance c: C(p = 1, d = d); }",
         );
         let bindings = LocalSourceIdentityLimits {
             max_bindings_per_instance: 1,

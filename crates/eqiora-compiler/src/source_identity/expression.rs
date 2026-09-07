@@ -129,6 +129,9 @@ pub(super) fn encode_expression(
                 encode_expression(&mut argument_encoder, argument, budget, child_depth)?;
                 encoded.push(argument_encoder.finish()?);
             }
+            if callee.as_str() == "boundaries" {
+                encoded.sort_unstable();
+            }
             let materialized = encoded.iter().try_fold(0_usize, |total, value| {
                 total.checked_add(value.len()).ok_or_else(|| {
                     source_identity_error("call argument encoding bytes overflow usize")

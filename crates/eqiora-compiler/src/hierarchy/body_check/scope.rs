@@ -524,15 +524,15 @@ pub(super) fn component_port_contract(
             domain,
             activation,
         } => {
-            if let eqiora_lang::ActivationSyntax::Periodic(clock) = activation {
-                if crate::hierarchy::clocks::component(file, owner.declaration, clock).is_none() {
-                    return Err(vec![unresolved(
-                        file,
-                        declaration.range(),
-                        clock,
-                        "signal clock activation",
-                    )]);
-                }
+            if let eqiora_lang::ActivationSyntax::Periodic(clock) = activation
+                && crate::hierarchy::clocks::component(file, owner.declaration, clock).is_none()
+            {
+                return Err(vec![unresolved(
+                    file,
+                    declaration.range(),
+                    clock,
+                    "signal clock activation",
+                )]);
             }
             let interface =
                 super::super::supports::component_support_interface(file, owner.declaration)?;
@@ -1064,13 +1064,12 @@ pub(super) fn validate_connection(
         let mut contract = scope.resolve_port(path)?;
         if declaration.syntax() == ConnectionSyntax::Signal
             && scope.exposed_signals.contains(path.as_str())
+            && let PortContract::Signal { direction, .. } = &mut contract
         {
-            if let PortContract::Signal { direction, .. } = &mut contract {
-                *direction = match direction {
-                    SignalDirectionSyntax::Input => SignalDirectionSyntax::Output,
-                    SignalDirectionSyntax::Output => SignalDirectionSyntax::Input,
-                };
-            }
+            *direction = match direction {
+                SignalDirectionSyntax::Input => SignalDirectionSyntax::Output,
+                SignalDirectionSyntax::Output => SignalDirectionSyntax::Input,
+            };
         }
         contracts.push(contract);
     }

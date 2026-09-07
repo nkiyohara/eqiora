@@ -213,13 +213,13 @@ mod tests {
     fn source_names_do_not_enter_definition_identity() {
         let left = parse(
             "left.eqi",
-            "public pure operator dyadic(a: spatial[1], b: spatial[1]) -> spatial[2] = component(a, 0) * component(b, 1);\nmodel M {}\n",
+            "public pure operator dyadic(a: spatial[1], b: spatial[1]) -> spatial[2] = component(a, 0) * component(b, 1);\nmodel M() {}\n",
         )
         .into_document()
         .expect("source");
         let right = parse(
             "right.eqi",
-            "public pure operator outer(x: spatial[1], y: spatial[1]) -> spatial[2] = component(x, 0) * component(y, 1);\nmodel M {}\n",
+            "public pure operator outer(x: spatial[1], y: spatial[1]) -> spatial[2] = component(x, 0) * component(y, 1);\nmodel M() {}\n",
         )
         .into_document()
         .expect("source");

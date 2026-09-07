@@ -398,9 +398,9 @@ dimension Speed = m / s;
 dimension Momentum = N * s;
 
 connector Motion = scalar_physical(across = Speed, through = Momentum);
-component Law() {
-  public parameter target: Speed;
-  public port input: signal input Speed;
+component Law(parameter target: Speed, input input: Speed) {
+  
+  
   relation balance { input - target = 0; }
 }
 model Example() {
@@ -524,11 +524,11 @@ property release Reference implements Diffusivity {
   citation = org.example.measurement;
   license = spdx.CC0_1_0;
 }
-public component Diffusion() {
-  public property diffusivity: Diffusivity;
+public component Diffusion(property diffusivity: Diffusivity) {
+  
   relation law { diffusivity = 0; }
 }
-model Main() { instance domain: Diffusion(property diffusivity = Reference); }
+model Main() { instance domain: Diffusion(diffusivity = Reference); }
 "#;
         let input = crate::ResolvedHierarchyInput::new(
             namespace.clone(),

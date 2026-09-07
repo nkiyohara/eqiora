@@ -249,7 +249,7 @@ mod tests {
 
     #[test]
     fn parser_and_formatter_retain_explicit_import_prefix() {
-        let source = "import org.example.geometry.channel;\nimport org.example.materials.water as fluid;\nmodel Main {}";
+        let source = "import org.example.geometry.channel;\nimport org.example.materials.water as fluid;\nmodel Main() {}";
         let document = parse("main.eqi", source)
             .into_document()
             .expect("module imports parse");

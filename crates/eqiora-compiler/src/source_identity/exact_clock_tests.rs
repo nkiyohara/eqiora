@@ -12,9 +12,12 @@ fn clock_expression_identity_preserves_exact_authored_values() {
     let original = identity("model M() { clock c=periodic(10[ms]); }");
     assert_eq!(
         original,
-        identity("// formatting\nmodel M { clock c = periodic(1e1[ms], phase=0[s]); }")
+        identity("// formatting\nmodel M() { clock c = periodic(1e1[ms], phase=0[s]); }")
     );
-    assert_ne!(original, identity("model M() { clock c=periodic(11[ms]); }"));
+    assert_ne!(
+        original,
+        identity("model M() { clock c=periodic(11[ms]); }")
+    );
     assert_ne!(
         original,
         identity("model M() { clock c=periodic(10[ms], phase=1[ms]); }")

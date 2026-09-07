@@ -1484,12 +1484,12 @@ model Use() {
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
   instance explicit: BoundaryFamily(
-    support body = body,
-    support exterior = boundaries(y_upper, x_lower, y_lower, x_upper)
+    body = body,
+    exterior = boundaries(y_upper, x_lower, y_lower, x_upper)
   );
   instance forwarded: BoundaryFamily(
-    support body = body,
-    support exterior = enclosing_exterior
+    body = body,
+    exterior = enclosing_exterior
   );
 }
 "#;
@@ -1502,12 +1502,12 @@ model Use() {{
   domain fluid = box(0, 1, 0, 1);
   domain wall = boundary(fluid, axis = 0, side = lower);
   instance forward: BoundaryState(
-    support body = fluid,
-    support interface = wall
+    body = fluid,
+    interface = wall
   );
   instance reverse: BoundaryState(
-    support interface = wall,
-    support body = fluid
+    interface = wall,
+    body = fluid
   );
 }}
 "#
@@ -1683,8 +1683,8 @@ model Use() {{
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain other_upper = boundary(other, axis = 1, side = upper);
   instance invalid: BoundaryFamily(
-    support body = body,
-    support exterior = boundaries(x_lower, x_upper, y_lower, other_upper)
+    body = body,
+    exterior = boundaries(x_lower, x_upper, y_lower, other_upper)
   );
 }}
 "#
@@ -1698,7 +1698,11 @@ model Use() {{
             .iter()
             .find(|diagnostic| diagnostic.message().contains("different exact parent"))
             .expect("wrong-parent proof diagnostic exists");
-        let binding = &instance(&document, "invalid").bindings()[0];
+        let binding = instance(&document, "invalid")
+            .bindings()
+            .iter()
+            .find(|binding| binding.name() == "exterior")
+            .unwrap();
         let eqiora_lang::ExprKind::Call { arguments, .. } = binding.value().kind() else {
             panic!("set binding")
         };
@@ -1717,17 +1721,17 @@ model Use() {{
         let cases = [
             (
                 "missing",
-                "support body = fluid",
+                "body = fluid",
                 "has no binding for required support slot `interface`",
             ),
             (
                 "unknown",
-                "support body = fluid, support interface = wall, support ghost = wall",
-                "unknown support slot `ghost`",
+                "body = fluid, interface = wall, ghost = wall",
+                "`ghost` is not a public requirement",
             ),
             (
                 "duplicate",
-                "support body = fluid, support body = fluid, support interface = wall",
+                "body = fluid, body = fluid, interface = wall",
                 "duplicate binding for support slot `body`",
             ),
         ];
@@ -1746,14 +1750,22 @@ model Use() {{
             let component = component(&document, "BoundaryState");
             let interface = interface(&document, "BoundaryState");
             let supports = spatial_supports(&document);
-            let diagnostics = resolve_instance_supports(
-                "supports.eqi",
-                component,
-                &interface,
-                instance(&document, "probe"),
-                |target| supports.get(target).cloned(),
-            )
-            .expect_err(name);
+            let diagnostics = if name == "unknown" {
+                super::super::named_bindings::validate_names(
+                    "supports.eqi",
+                    component,
+                    instance(&document, "probe"),
+                )
+            } else {
+                resolve_instance_supports(
+                    "supports.eqi",
+                    component,
+                    &interface,
+                    instance(&document, "probe"),
+                    |target| supports.get(target).cloned(),
+                )
+                .expect_err(name)
+            };
 
             assert!(
                 diagnostics
@@ -1783,12 +1795,12 @@ model Use() {{
         let cases = [
             (
                 "volume bound to boundary",
-                "support body = wall, support interface = wall",
+                "body = wall, interface = wall",
                 "support slot `body` requires volume support, found boundary",
             ),
             (
                 "boundary bound to volume",
-                "support body = fluid, support interface = fluid",
+                "body = fluid, interface = fluid",
                 "support slot `interface` requires boundary support, found volume",
             ),
         ];
@@ -1831,12 +1843,12 @@ model Use() {{
         let cases = [
             (
                 "volume dimension",
-                "support body = line, support interface = wall",
+                "body = line, interface = wall",
                 "volume support slot `body` requires ambient dimension 2",
             ),
             (
                 "boundary dimension",
-                "support body = fluid, support interface = point",
+                "body = fluid, interface = point",
                 "boundary support slot `interface` requires ambient dimension 2",
             ),
         ];
@@ -1886,8 +1898,8 @@ model Use() {{
   domain other = box(0, 1, 0, 1);
   domain other_wall = boundary(other, axis = 0, side = lower);
   instance probe: BoundaryState(
-    support body = fluid,
-    support interface = other_wall
+    body = fluid,
+    interface = other_wall
   );
 }}
 "#

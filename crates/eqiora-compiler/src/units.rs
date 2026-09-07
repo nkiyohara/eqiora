@@ -366,8 +366,8 @@ mod tests {
 
         let source = r#"
 dimension Duration = s;
-component Delay() {
-  public parameter duration: Duration = 10 [ms];
+component Delay(parameter duration: Duration = 10 [ms]) {
+  
   relation balance { duration - 0.01 [s] = 0; }
 }
 model Quantities() {
@@ -421,8 +421,8 @@ model Quantities() {
                 literal
             };
             let source = format!(
-                "component C() {{
-                    public parameter density: kg / m ^ 3 = {literal};
+                "component C(parameter density: kg / m ^ 3 = {literal}) {{
+                    
                     relation r {{ density - density = 0; }}
                 }}
                 model M() {{
