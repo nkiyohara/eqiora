@@ -2,6 +2,7 @@
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, Span};
 
+mod clock;
 mod comments;
 mod compile_time;
 mod component;
@@ -20,7 +21,7 @@ mod value_type;
 use crate::ast::{
     BinaryOp, BoundaryConnectionDecl, BoundaryDecl, BoundaryFamilyBinderSyntax,
     BoundaryPairingSyntax, BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax,
-    BoundarySetBindingDecl, BoundarySetMemberSyntax, BoundarySideSyntax, ClockDecl, ComponentItem,
+    BoundarySetBindingDecl, BoundarySetMemberSyntax, BoundarySideSyntax, ComponentItem,
     ComponentParameterDecl, ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl,
     ConnectionSyntax, ConnectorDecl, ConnectorQuantitySyntax, ConnectorSyntax, Document,
     DomainDecl, DomainSyntax, ExactIntegerSyntax, Expr, ExprKind, FieldBindingDecl, FieldDecl,
@@ -690,48 +691,6 @@ impl Parser<'_> {
         Some(PortSyntax::Signal {
             direction,
             value_type: self.parse_value_type()?,
-        })
-    }
-
-    fn parse_clock(&mut self) -> Option<ClockDecl> {
-        let start = self.expect_keyword("clock")?.range().start();
-        let name = self
-            .expect_identifier("ClockDomain name")?
-            .text()
-            .to_owned();
-        self.expect(TokenKind::Equal, "`=` before ClockDomain definition")?;
-        self.expect_keyword("periodic")?;
-        self.expect(TokenKind::LeftParen, "`(` after `periodic`")?;
-        let period = self.parse_exact_expression()?;
-        let phase = if self.at(TokenKind::Comma) {
-            self.bump();
-            self.expect_keyword("phase")?;
-            self.expect(TokenKind::Equal, "`=` after `phase`")?;
-            self.parse_exact_expression()?
-        } else {
-            let range = self.current().range();
-            Expr {
-                kind: ExprKind::Quantity {
-                    value: crate::DecimalLiteral::parse("0").expect("exact zero"),
-                    unit: Box::new(Expr {
-                        kind: ExprKind::Name("s".into()),
-                        range,
-                    }),
-                },
-                range,
-            }
-        };
-        self.expect(TokenKind::RightParen, "`)` after periodic clock")?;
-        let end = self
-            .expect(TokenKind::Semicolon, "`;` after ClockDomain")?
-            .range()
-            .end();
-        Some(ClockDecl {
-            comments: Default::default(),
-            name,
-            period,
-            phase,
-            range: TextRange::new(start, end),
         })
     }
 
