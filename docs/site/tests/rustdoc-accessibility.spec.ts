@@ -23,9 +23,11 @@ const PRESENTATION_OK = {
   pointerEvents: 0,
 };
 const SUMMARY_OK = { tag: 0, parent: 0, name: 0, tabIndex: 0, forbidden: 0, open: 0 };
+// Rustdoc 1.97.1: with_context adds one open method block and four signature
+// anchors (the method, AsRef, str and Diagnostic).
 const REAL_PROJECTION = {
-  details: 107, open: 82, sections: 106, nested: 0,
-  sources: 321, groups: 106, links: 321,
+  details: 108, open: 83, sections: 107, nested: 0,
+  sources: 325, groups: 107, links: 325,
 };
 
 async function seriousViolations(page: Page) {
@@ -332,7 +334,7 @@ test('Diagnostic reference supports projection, search, themes, keyboard control
   const toggleAll = page.locator('#toggle-all-docs');
   await expect(toggleAll).toBeVisible();
   await toggleAll.click();
-  expect(await page.locator('details.toggle[open]').count()).toBeLessThan(107);
+  expect(await page.locator('details.toggle[open]').count()).toBeLessThan(REAL_PROJECTION.details);
   await toggleAll.click({ modifiers: ['Shift'] });
   expect(await page.locator('details.toggle[open]').count()).toBeGreaterThan(0);
 

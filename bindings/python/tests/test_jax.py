@@ -261,9 +261,9 @@ def test_jitted_primal_gradient_and_jvp_use_typed_custom_calls(method) -> None:
     primal_ir = str(jitted_solve.lower(parameters).compiler_ir())
     gradient_ir = str(jax.jit(jax.grad(objective)).lower(parameters).compiler_ir())
     jvp_ir = str(jax.jit(apply_jvp).lower(parameters, tangent).compiler_ir())
-    assert "eqiora_differentiable_primal_v1" in primal_ir
-    assert "eqiora_differentiable_vjp_v1" in gradient_ir
-    assert "eqiora_differentiable_jvp_v1" in jvp_ir
+    assert "eqiora_differentiable_primal_v2" in primal_ir
+    assert "eqiora_differentiable_vjp_v2" in gradient_ir
+    assert "eqiora_differentiable_jvp_v2" in jvp_ir
     for lowered in (primal_ir, gradient_ir, jvp_ir):
         assert "stablehlo.custom_call" in lowered
         assert "xla_python_cpu_callback" not in lowered
@@ -399,6 +399,11 @@ def test_one_host_cpu_ordinal_is_preserved_without_transfer() -> None:
         rtol=0.0,
         atol=0.0,
     )
+    batch = jax.device_put(jnp.stack((parameters, parameters)), device)
+    mapped = jax.jit(jax.vmap(solve))(batch)
+    mapped.block_until_ready()
+    assert mapped.devices() == {device}
+    np.testing.assert_array_equal(np.asarray(mapped), np.stack((np.asarray(eager),) * 2))
 
 
 def test_unsupported_transformations_fail_explicitly() -> None:
@@ -409,24 +414,23 @@ def test_unsupported_transformations_fail_explicitly() -> None:
     tangent = jnp.array([0.3, -0.2, 0.4], dtype=jnp.float64)
     batch = jnp.stack((parameters, parameters))
 
-    with pytest.raises(NotImplementedError, match="vmap"):
-        jax.vmap(solve)(batch)
-
     def gradient(values):
         return jax.grad(lambda point: jnp.sum(solve(point)))(values)
 
-    with pytest.raises(NotImplementedError):
-        jax.vmap(gradient)(batch)
+    with pytest.raises(NotImplementedError, match="first-order|higher-order"):
+        jax.jacfwd(gradient)(parameters)
 
     def forward(values):
         return jax.jvp(solve, (values,), (tangent,))[1]
 
-    with pytest.raises(NotImplementedError):
-        jax.vmap(forward)(batch)
+    with pytest.raises(NotImplementedError, match="first-order|higher-order"):
+        jax.jvp(forward, (parameters,), (tangent,))
     with pytest.raises(NotImplementedError):
         jax.linearize(solve, parameters)
     with pytest.raises(NotImplementedError, match="pmap"):
         jax.pmap(solve)(batch)
+    with pytest.raises(NotImplementedError, match="named axes|collectives"):
+        jax.vmap(lambda point: jax.lax.psum(solve(point), "samples"), axis_name="samples")(batch)
 
 
 def test_registration_identity_is_deterministic_and_deduplicated() -> None:
@@ -499,6 +503,15 @@ int main(void) {
   printf("metadata_extension_size=%zu\n", sizeof(XLA_FFI_Metadata_Extension));
   printf("api_error_create_offset=%zu\n",
          offsetof(XLA_FFI_Api, XLA_FFI_Error_Create));
+  printf("api_error_destroy_offset=%zu\n",
+         offsetof(XLA_FFI_Api, XLA_FFI_Error_Destroy));
+  printf("api_device_ordinal_offset=%zu\n",
+         offsetof(XLA_FFI_Api, XLA_FFI_DeviceOrdinal_Get));
+  printf("api_device_ordinal_required_size=%zu\n", (size_t)XLA_FFI_Api_STRUCT_SIZE);
+  printf("device_ordinal_args_size=%zu\n", sizeof(XLA_FFI_DeviceOrdinal_Get_Args));
+  printf("device_ordinal_args_required_size=%zu\n",
+         (size_t)XLA_FFI_DeviceOrdinal_Get_Args_STRUCT_SIZE);
+  printf("error_destroy_args_size=%zu\n", sizeof(XLA_FFI_Error_Destroy_Args));
   return 0;
 }
 """,
@@ -540,3 +553,188 @@ def test_supported_versions_and_evidence_interpreter_are_exact() -> None:
         assert jaxlib.__version__ == expected
     if expected_python := os.environ.get("EQIORA_TEST_PYTHON_VERSION"):
         assert f"{sys.version_info.major}.{sys.version_info.minor}" == expected_python
+
+
+def assert_product(actual, expected) -> None:
+    # Reuse the already admitted pointwise product precision, not fitted draws.
+    np.testing.assert_allclose(np.asarray(actual), np.asarray(expected), rtol=2.0e-11, atol=2.0e-12)
+
+
+@pytest.mark.parametrize("method", [eqiora.fem.Q1(), eqiora.fvm.CellCenteredTpfa()])
+def test_nested_maps_and_first_order_products_preserve_every_occurrence(method) -> None:
+    program = differentiable_program(method)
+    solve = eqjax.bind(program)
+    points = np.array([[[3.0, 2.0, 0.1], [1.0, 1.0, -0.2], [3.0, 2.0, 0.1]],
+                       [[2.0, 0.5, 0.3], [3.0, 2.0, 0.1], [1.0, 1.0, -0.2]]])
+    accepted = program.map(points).execute()
+    reference = accepted.primal()
+    individually_accepted = [program.evaluate(point) for point in points.reshape(-1, 3)]
+    np.testing.assert_array_equal(reference.reshape(-1, *solve.output_shape),
+                                  [member.primal().output.numpy() for member in individually_accepted])
+    for index, point in enumerate(points.reshape(-1, 3)):
+        np.testing.assert_array_equal(accepted[index].point.numpy(), point)
+    mapped = jax.vmap(jax.vmap(solve))
+    values = jnp.asarray(points)
+    for operation in [mapped, jax.jit(mapped)]:
+        np.testing.assert_array_equal(np.asarray(operation(values)), reference)
+    directions = np.arange(points.size, dtype=np.float64).reshape(points.shape) / 8 - 1
+    expected_jvp = accepted.jvp(directions).tangent
+    for operation in [lambda p, t: jax.jvp(mapped, (p,), (t,)),
+                      jax.jit(lambda p, t: jax.jvp(mapped, (p,), (t,)))]:
+        primal, tangent = operation(values, jnp.asarray(directions))
+        np.testing.assert_array_equal(np.asarray(primal), reference)
+        assert_product(tangent, expected_jvp)
+    cotangents = np.linspace(-0.5, 1.0, reference.size).reshape(reference.shape)
+    expected_vjp = accepted.vjp(cotangents).mapped_cotangents
+    reverse = lambda p, c: jax.vjp(mapped, p)[1](c)[0]
+    assert_product(reverse(values, jnp.asarray(cotangents)), expected_vjp)
+    assert_product(jax.jit(reverse)(values, jnp.asarray(cotangents)), expected_vjp)
+    gradients = jax.vmap(jax.vmap(jax.grad(lambda p, c: jnp.vdot(solve(p), c))))
+    assert_product(gradients(values, jnp.asarray(cotangents)), expected_vjp)
+    assert_product(jax.jit(gradients)(values, jnp.asarray(cotangents)), expected_vjp)
+    # Both input axes are non-leading; the inner output axis is placed last.
+    permuted = jax.vmap(jax.vmap(solve, in_axes=1, out_axes=-1), in_axes=1, out_axes=0)
+    assert_product(jax.jit(permuted)(jnp.transpose(values, (2, 0, 1))),
+                   np.moveaxis(reference, 1, -1))
+    flat = values.reshape(-1, 3)
+    shared_direction = jnp.array([0.5, -0.25, 0.125])
+    forward = jax.vmap(lambda p, t: jax.jvp(solve, (p,), (t,))[1],
+                       in_axes=(1, None), out_axes=1)
+    expected = program.map(np.asarray(flat)).execute().jvp(
+        np.broadcast_to(np.asarray(shared_direction), flat.shape).copy()).tangent
+    assert_product(jax.jit(forward)(flat.T, shared_direction), expected.T)
+    reverse_nonleading = jax.vmap(lambda p, c: jax.vjp(solve, p)[1](c)[0],
+                                  in_axes=(1, 1), out_axes=-1)
+    assert_product(jax.jit(reverse_nonleading)(flat.T, jnp.asarray(cotangents.reshape(-1, solve.output_shape[0]).T)),
+                   expected_vjp.reshape(-1, 3).T)
+
+
+@pytest.mark.parametrize("method", [eqiora.fem.Q1(), eqiora.fvm.CellCenteredTpfa()])
+def test_shared_input_gradients_have_the_independent_sum_and_mean(method) -> None:
+    program = differentiable_program(method)
+    solve = eqjax.bind(program)
+    sources = jnp.array([[2.0, 3.0, 2.0], [1.0, 4.0, 1.0]])
+    offsets = jnp.array([-0.1, 0.2])
+    # Linearity of the admitted elliptic operator gives u(s,k,b)=s*q/k+b.
+    # q is the separately accepted unit-source response, not a batched gradient.
+    q = program.evaluate(np.array([1.0, 1.0, 0.0])).primal().output.numpy()
+    q_mean = float(np.mean(q))
+
+    def losses(diffusion, boundary, source):
+        return jax.vmap(lambda b, row: jax.vmap(
+            lambda s: jnp.mean(solve(jnp.stack((s, diffusion, b)))))(row))(boundary, source)
+
+    # k is shared across both axes; b is shared only within each row. The
+    # native global-shared partition cannot be substituted for this association.
+    total = lambda k, b, s: jnp.sum(losses(k, b, s))
+    average = lambda k, b, s: jnp.mean(losses(k, b, s))
+    expected_k = -13.0 * q_mean / 4.0  # sum(s)=13, k=2
+    expected_b = np.array([3.0, 3.0])
+    expected_s = np.full((2, 3), q_mean / 2.0)
+    for operation in [total, average]:
+        scale = 1.0 if operation is total else 1.0 / 6.0
+        for differentiated in [jax.grad(operation, argnums=(0, 1, 2)),
+                               jax.jit(jax.grad(operation, argnums=(0, 1, 2)))]:
+            dk, db, ds = differentiated(jnp.array(2.0), offsets, sources)
+            assert_product(dk, scale * expected_k)
+            assert_product(db, scale * expected_b)
+            assert_product(ds, scale * expected_s)
+    expected_value = 13.0 * q_mean / 2.0 + 3 * (-0.1 + 0.2)
+    assert_product(total(jnp.array(2.0), offsets, sources), expected_value)
+
+
+@pytest.mark.parametrize("method", [eqiora.fem.Q1(), eqiora.fvm.CellCenteredTpfa()])
+def test_basis_batches_reuse_points_and_distinguish_seed_axes(method) -> None:
+    program = differentiable_program(method)
+    solve = eqjax.bind(program)
+    point = jnp.array([3.0, 2.0, 0.1])
+    accepted = program.evaluate(np.asarray(point))
+    basis = jnp.eye(3, dtype=jnp.float64)
+    expected = np.array([accepted.jvp(row).tangent.numpy() for row in np.asarray(basis)]).T
+    for jacobian in [jax.jacfwd(solve), jax.jacrev(solve)]:
+        assert_product(jacobian(point), expected)
+        assert_product(jax.jit(jacobian)(point), expected)
+    apply = lambda tangent: jax.jvp(solve, (point,), (tangent,))
+    primal, products = jax.jit(jax.vmap(apply, out_axes=(None, 0)))(basis)
+    assert_product(primal, accepted.primal().output.numpy())
+    assert_product(products, expected.T)
+    nested_basis = jnp.stack((basis, 2 * basis))
+    nested = jax.vmap(jax.vmap(lambda tangent: apply(tangent)[1]))
+    assert_product(jax.jit(nested)(nested_basis), np.stack((expected.T, 2 * expected.T)))
+    points = jnp.stack((point, point.at[0].set(1.0)))
+    mapped = jax.vmap(solve)
+    expected_full = np.zeros((2, solve.output_shape[0], 2, 3))
+    for index, values in enumerate(np.asarray(points)):
+        evaluation = program.evaluate(values)
+        expected_full[index, :, index, :] = np.array([
+            evaluation.jvp(row).tangent.numpy() for row in np.asarray(basis)]).T
+    assert_product(jax.jit(jax.jacfwd(mapped))(points), expected_full)
+    assert_product(jax.jit(jax.jacrev(mapped))(points), expected_full)
+    diagonal = np.stack((expected_full[0, :, 0, :], expected_full[1, :, 1, :]))
+    # Reverse transform order uses point-major p,s rather than seed-major s,p.
+    assert_product(jax.jit(jax.vmap(jax.jacfwd(solve)))(points), diagonal)
+    assert_product(jax.jit(jax.vmap(jax.jacrev(solve)))(points), diagonal)
+    lowered = str(jax.jit(jax.jacfwd(solve)).lower(point).compiler_ir())
+    assert 'batch = "s3"' in lowered
+    assert "tensor<3xf64>, tensor<3x3xf64>" in lowered
+
+
+def test_empty_singleton_batches_and_failed_dense_operations() -> None:
+    program = differentiable_program(eqiora.fem.Q1())
+    solve = eqjax.bind(program)
+    mapped = jax.vmap(solve)
+    for points in [jnp.empty((0, 3)), jnp.array([[1.0, 2.0, 0.0]])]:
+        expected = program.map(np.asarray(points)).execute()
+        assert_product(jax.jit(mapped)(points), expected.primal())
+        assert_product(jax.jvp(mapped, (points,), (jnp.zeros_like(points),))[1],
+                       np.zeros((len(points), *solve.output_shape)))
+        assert_product(jax.vjp(mapped, points)[1](jnp.zeros((len(points), *solve.output_shape)))[0],
+                       np.zeros(points.shape))
+    points = jnp.empty((2, 0, 3))
+    assert jax.jit(jax.vmap(mapped))(points).shape == (2, 0, *solve.output_shape)
+    point = jnp.array([1.0, 2.0, 0.0])
+    empty_seed = jax.jit(jax.vmap(lambda t: jax.jvp(solve, (point,), (t,))[1]))
+    assert empty_seed(jnp.empty((0, 3))).shape == (0, *solve.output_shape)
+    failed = jnp.array([[1.0, 2.0, 0.0], [1.0, -1.0, 0.0], [3.0, 2.0, 0.0]])
+    for operation in [mapped, jax.grad(lambda p: jnp.sum(mapped(p)))]:
+        with pytest.raises(jax.errors.JaxRuntimeError, match="occurrence 1 failed"):
+            jax.jit(operation)(failed).block_until_ready()
+    valid = failed.at[1, 1].set(2.0)
+    directions = jnp.zeros_like(valid).at[1].set(jnp.array([sys.float_info.max, 0.0, sys.float_info.max]))
+    cotangents = jnp.zeros((3, *solve.output_shape)).at[1].set(sys.float_info.max)
+    forward = jax.jit(lambda p, t: jax.jvp(mapped, (p,), (t,))[1])
+    reverse = jax.jit(lambda p, c: jax.vjp(mapped, p)[1](c)[0])
+    for operation, direction, role in [(forward, directions, "JVP"), (reverse, cotangents, "VJP")]:
+        with pytest.raises(jax.errors.JaxRuntimeError, match=f"mapped {role} point occurrence 1.*seed occurrence 0"):
+            operation(valid, direction).block_until_ready()
+
+
+def test_static_lowering_does_not_unroll_points_or_inspect_numeric_values() -> None:
+    solve = eqjax.bind(differentiable_program(eqiora.fem.Q1()))
+    mapped = jax.vmap(solve)
+    primitive_counts = []
+    for count in [1, 3, 7]:
+        abstract = jax.ShapeDtypeStruct((count, 3), jnp.float64)
+        assert jax.eval_shape(mapped, abstract).shape == (count, *solve.output_shape)
+        primitive_counts.append(len(jax.make_jaxpr(mapped)(abstract).jaxpr.eqns))
+        lowered = str(jax.jit(mapped).lower(abstract).compiler_ir())
+        assert lowered.count("stablehlo.custom_call") == 1
+        assert "eqiora_differentiable_primal_v2" in lowered
+        for forbidden in ["callback", "stablehlo.while", "all_gather", "all_reduce"]:
+            assert forbidden not in lowered
+    assert primitive_counts == [1, 1, 1]
+    traces = []
+    def traced(points):
+        traces.append(True)
+        return mapped(points)
+    compiled = jax.jit(traced)
+    compiled(jnp.array([[1.0, 2.0, 0.0], [3.0, 1.0, 0.2]])).block_until_ready()
+    compiled(jnp.array([[3.0, 1.0, 0.2], [1.0, 2.0, 0.0]])).block_until_ready()
+    assert len(traces) == 1
+    with pytest.raises(ValueError, match="bound|limit|addressable"):
+        jax.eval_shape(mapped, jax.ShapeDtypeStruct((sys.maxsize, 3), jnp.float64))
+    too_deep = solve
+    for _ in range(33):
+        too_deep = jax.vmap(too_deep)
+    with pytest.raises(ValueError, match="32|rank"):
+        jax.eval_shape(too_deep, jax.ShapeDtypeStruct((*([1] * 33), 3), jnp.float64))

@@ -238,10 +238,16 @@ impl<'a> EvaluationMapProducts<'a> {
                     row(shared, seed, self.shared.len()),
                     row(mapped, position, self.mapped.len()),
                 );
-                let product = evaluation.jvp(&tangent)?;
-                validate_evidence(evaluation, product.evidence(), DifferentiationMode::Jvp)?;
-                finite(product.output())?;
-                finite(product.tangent())?;
+                let product = (|| {
+                    let product = evaluation.jvp(&tangent)?;
+                    validate_evidence(evaluation, product.evidence(), DifferentiationMode::Jvp)?;
+                    finite(product.output())?;
+                    finite(product.tangent())?;
+                    Ok(product)
+                })().map_err(|error: Diagnostic| error.with_context(format!(
+                    "mapped JVP point occurrence {point} {:?}, seed occurrence {seed} {:?}, grid offset {position}",
+                    coordinates(point, &self.point_shape), coordinates(seed, &self.seed_shape)
+                )))?;
                 products[position] = Some(product);
             }
         }
@@ -273,17 +279,21 @@ impl<'a> EvaluationMapProducts<'a> {
         for (point, evaluation) in self.map.members().iter().enumerate() {
             for seed in 0..self.seeds {
                 let position = self.position(point, seed)?;
-                let product = evaluation.vjp(row(cotangents, position, width))?;
-                validate_evidence(evaluation, product.evidence(), DifferentiationMode::Vjp)?;
-                finite(product.output())?;
-                finite(product.input_cotangent())?;
-                accumulate(
-                    product.input_cotangent(),
-                    &self.shared,
-                    &self.mapped,
-                    row_mut(&mut shared, seed, self.shared.len()),
-                    row_mut(&mut mapped, position, self.mapped.len()),
-                )?;
+                let product = (|| {
+                    let product = evaluation.vjp(row(cotangents, position, width))?;
+                    validate_evidence(evaluation, product.evidence(), DifferentiationMode::Vjp)?;
+                    finite(product.output())?;
+                    finite(product.input_cotangent())?;
+                    accumulate(
+                        product.input_cotangent(), &self.shared, &self.mapped,
+                        row_mut(&mut shared, seed, self.shared.len()),
+                        row_mut(&mut mapped, position, self.mapped.len()),
+                    )?;
+                    Ok(product)
+                })().map_err(|error: Diagnostic| error.with_context(format!(
+                    "mapped VJP point occurrence {point} {:?}, seed occurrence {seed} {:?}, grid offset {position}",
+                    coordinates(point, &self.point_shape), coordinates(seed, &self.seed_shape)
+                )))?;
                 products[position] = Some(product);
             }
         }

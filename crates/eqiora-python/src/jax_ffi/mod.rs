@@ -6,6 +6,7 @@
 
 #[allow(unsafe_code)]
 mod abi;
+mod batch;
 mod kernel;
 
 use std::sync::Arc;
@@ -15,9 +16,9 @@ use eqiora::api::DifferentiableProgram;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule};
 
-pub(super) const PRIMAL_TARGET: &str = "eqiora_differentiable_primal_v1";
-pub(super) const JVP_TARGET: &str = "eqiora_differentiable_jvp_v1";
-pub(super) const VJP_TARGET: &str = "eqiora_differentiable_vjp_v1";
+pub(super) const PRIMAL_TARGET: &str = "eqiora_differentiable_primal_v2";
+pub(super) const JVP_TARGET: &str = "eqiora_differentiable_jvp_v2";
+pub(super) const VJP_TARGET: &str = "eqiora_differentiable_vjp_v2";
 
 pub(crate) fn register_program(program: Arc<DifferentiableProgram>) -> Result<String, Diagnostic> {
     kernel::register_program(program)

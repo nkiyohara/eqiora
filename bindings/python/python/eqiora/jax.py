@@ -7,6 +7,7 @@ host callback participates in a declared path.
 
 from __future__ import annotations
 
+import math
 import sys
 from types import MappingProxyType
 from typing import Any
@@ -21,7 +22,11 @@ if sys.version_info < (3, 12):  # pragma: no cover - JAX cannot be installed
 
 try:
     import jax
+    import jax.numpy as jnp
     import jaxlib
+    # AxisData uses this version-local sentinel; its old jax.core export was
+    # removed in the exact 0.11.0 release. Do not guess anonymity from its type.
+    from jax._src.core import no_axis_name
     from jax.experimental.hijax import VJPHiPrimitive
 except ImportError as error:  # pragma: no cover - depends on optional install
     raise ImportError(
@@ -30,7 +35,8 @@ except ImportError as error:  # pragma: no cover - depends on optional install
 
 
 _SUPPORTED_VERSION = "0.11.0"
-_INTERFACE_VERSION = 1
+_INTERFACE_VERSION = 2
+_NUMERICAL_BYTES_LIMIT = 67_108_864
 
 if (
     jax.__version__ != _SUPPORTED_VERSION
@@ -51,14 +57,21 @@ for _target_name in sorted(_TARGET_CAPSULES):
         api_version=1,
     )
 
-_PRIMAL_TARGET = "eqiora_differentiable_primal_v1"
-_JVP_TARGET = "eqiora_differentiable_jvp_v1"
-_VJP_TARGET = "eqiora_differentiable_vjp_v1"
+_PRIMAL_TARGET = "eqiora_differentiable_primal_v2"
+_JVP_TARGET = "eqiora_differentiable_jvp_v2"
+_VJP_TARGET = "eqiora_differentiable_vjp_v2"
 
 
-def _validate_aval(aval: Any, size: int, *, role: str) -> None:
-    if tuple(aval.shape) != (size,):
-        raise ValueError(f"{role} must have exact static shape ({size},)")
+def _validate_aval(aval: Any, shape: tuple[int, ...], *, role: str) -> None:
+    if tuple(aval.shape) != shape:
+        raise ValueError(f"{role} must have exact static shape {shape}")
+    if any(type(extent) is not int or extent < 0 for extent in shape):
+        raise ValueError(f"{role} requires nonnegative static integer dimensions")
+    # Check nonzero dimensions as well: an empty axis cannot hide bad strides.
+    if math.prod(max(extent, 1) for extent in shape) > sys.maxsize // 8:
+        raise ValueError(f"{role} shape/byte product is not addressable")
+    if math.prod(shape) * 8 > _NUMERICAL_BYTES_LIMIT:
+        raise ValueError(f"{role} exceeds the JAX numerical buffer limit")
     if np.dtype(aval.dtype) != np.dtype(np.float64):
         raise TypeError(f"{role} must have dtype float64")
     if getattr(aval, "weak_type", False):
@@ -91,7 +104,7 @@ def _static_params(
     program_key: str,
     input_size: int,
     output_size: int,
-) -> dict[str, int | str]:
+) -> dict[str, Any]:
     return {
         "program_key": program_key,
         "input_size": input_size,
@@ -99,6 +112,8 @@ def _static_params(
         "dtype": "float64",
         "device": "host-cpu",
         "interface_version": _INTERFACE_VERSION,
+        "grid_shape": (),
+        "point_axes": (),
     }
 
 
@@ -107,10 +122,19 @@ def _ffi_call(
     outputs: Any,
     *inputs: Any,
     program_key: str,
+    grid_shape: tuple[int, ...],
+    point_axes: tuple[int, ...],
 ) -> Any:
-    input_layouts = [(0,)] * len(inputs)
+    # FFI layouts use major-to-minor order; all buffers are dense row-major.
+    input_layouts = [tuple(range(value.ndim)) for value in inputs]
     output_layouts = (
-        [(0,)] * len(outputs) if isinstance(outputs, tuple) else (0,)
+        [tuple(range(len(aval.shape))) for aval in outputs]
+        if isinstance(outputs, tuple)
+        else tuple(range(len(outputs.shape)))
+    )
+    batch = ",".join(
+        f"{'p' if axis in point_axes else 's'}{extent}"
+        for axis, extent in enumerate(grid_shape)
     )
     try:
         return jax.ffi.ffi_call(
@@ -121,7 +145,7 @@ def _ffi_call(
             output_layouts=output_layouts,
             input_output_aliases={},
             custom_call_api_version=4,
-        )(*inputs, program_key=program_key)
+        )(*inputs, program_key=program_key, batch=batch)
     except ValueError as error:
         message = str(error)
         if any(
@@ -138,77 +162,123 @@ def _ffi_call(
         raise
 
 
-class _NoBatching:
+class _Batching:
+    """One static axis projection, not a numerical or per-point executor."""
+
+    def _initialize(self, input_aval, output_aval, params):
+        self.params = params
+        grid = params["grid_shape"]
+        axes = params["point_axes"]
+        if len(grid) > 32 or axes != tuple(sorted(set(axes))):
+            raise ValueError("Eqiora JAX point/seed axes exceed the admitted rank")
+        if any(axis < 0 or axis >= len(grid) for axis in axes):
+            raise ValueError("Eqiora JAX point axis is out of bounds")
+        point_shape = tuple(grid[axis] for axis in axes)
+        _validate_aval(
+            input_aval, (*point_shape, params["input_size"]), role="parameters"
+        )
+        _validate_aval(
+            output_aval, (*point_shape, params["output_size"]), role="output"
+        )
+        self.point_output_aval = output_aval
+
+    def _grid_aval(self, aval, width):
+        result = aval.update(shape=(*self.params["grid_shape"], width))
+        _validate_aval(result, result.shape, role="derivative grid")
+        return result
+
     def batch(self, axis_data, args, dims):
-        del axis_data, args, dims
+        if (axis_data.name is not no_axis_name or axis_data.spmd_name
+                or axis_data.explicit_mesh_axis):
+            raise NotImplementedError(
+                "Eqiora JAX named axes, collectives and sharding are not supported"
+            )
+        size = axis_data.size
+        if type(size) is not int or size < 0 or len(self.grid_shape) >= 32:
+            raise ValueError(
+                "Eqiora JAX batching requires at most 32 bounded static axes"
+            )
+        parameter_axis = dims[0]
+        parameters = (args[0] if parameter_axis is None
+                      else jnp.moveaxis(args[0], parameter_axis, 0))
+        shifted = tuple(axis + 1 for axis in self.point_axes)
+        params = dict(
+            self.params, grid_shape=(size, *self.grid_shape),
+            point_axes=shifted if parameter_axis is None else (0, *shifted),
+        )
+        input_aval = jax.typeof(parameters)
+        output_aval = self.point_output_aval.update(
+            shape=(*input_aval.shape[:-1], self.output_size)
+        )
+        operation = type(self)(input_aval, output_aval, params)
+        arguments = [parameters]
+        for value, axis in zip(args[1:], dims[1:], strict=True):
+            arguments.append(jnp.broadcast_to(value, (size, *value.shape))
+                             if axis is None else jnp.moveaxis(value, axis, 0))
+        output_dims = ((None if parameter_axis is None else 0, 0)
+                       if isinstance(self, _JvpCall) else 0)
+        return operation(*arguments), output_dims
+
+    def _expand(self, target, *inputs):
+        return _ffi_call(
+            target, self.out_aval, *inputs, program_key=self.program_key,
+            grid_shape=self.grid_shape, point_axes=self.point_axes,
+        )
+
+    def jvp(self, primals, tangents):
         raise NotImplementedError(
-            "Eqiora JAX vmap and batched differentiation are not supported"
+            "Eqiora JAX supports first-order products only, not derivatives of products"
+        )
+
+    def vjp_fwd(self, nonzero_inputs, *args):
+        raise NotImplementedError(
+            "Eqiora JAX supports first-order products only, not derivatives of products"
+        )
+
+    def lin(self, nonzero_inputs, *args):
+        raise NotImplementedError(
+            "Eqiora JAX linearize and higher-order derivatives are not supported"
         )
 
 
-class _PrimalCall(_NoBatching, VJPHiPrimitive):
+class _PrimalCall(_Batching, VJPHiPrimitive):
     def __init__(self, input_aval, output_aval, params) -> None:
-        _validate_aval(input_aval, params["input_size"], role="parameters")
-        _validate_aval(output_aval, params["output_size"], role="output")
+        self._initialize(input_aval, output_aval, params)
         self.in_avals = (input_aval,)
         self.out_aval = output_aval
-        self.params = params
         super().__init__()
 
     def expand(self, parameters):
-        return _ffi_call(
-            _PRIMAL_TARGET,
-            self.out_aval,
-            parameters,
-            program_key=self.program_key,
-        )
+        return self._expand(_PRIMAL_TARGET, parameters)
 
 
-class _JvpCall(_NoBatching, VJPHiPrimitive):
+class _JvpCall(_Batching, VJPHiPrimitive):
     def __init__(self, input_aval, output_aval, params) -> None:
-        _validate_aval(input_aval, params["input_size"], role="parameters")
-        _validate_aval(output_aval, params["output_size"], role="output")
-        self.in_avals = (input_aval, input_aval)
-        self.out_aval = (output_aval, output_aval)
-        self.params = params
+        self._initialize(input_aval, output_aval, params)
+        self.in_avals = (input_aval, self._grid_aval(input_aval, params["input_size"]))
+        self.out_aval = (output_aval, self._grid_aval(output_aval, params["output_size"]))
         super().__init__()
 
     def expand(self, parameters, tangent):
-        return _ffi_call(
-            _JVP_TARGET,
-            self.out_aval,
-            parameters,
-            tangent,
-            program_key=self.program_key,
-        )
+        return self._expand(_JVP_TARGET, parameters, tangent)
 
 
-class _VjpCall(_NoBatching, VJPHiPrimitive):
+class _VjpCall(_Batching, VJPHiPrimitive):
     def __init__(self, input_aval, output_aval, params) -> None:
-        _validate_aval(input_aval, params["input_size"], role="parameters")
-        _validate_aval(output_aval, params["output_size"], role="cotangent")
-        self.in_avals = (input_aval, output_aval)
-        self.out_aval = input_aval
-        self.params = params
+        self._initialize(input_aval, output_aval, params)
+        self.in_avals = (input_aval, self._grid_aval(output_aval, params["output_size"]))
+        self.out_aval = self._grid_aval(input_aval, params["input_size"])
         super().__init__()
 
     def expand(self, parameters, cotangent):
-        return _ffi_call(
-            _VJP_TARGET,
-            self.out_aval,
-            parameters,
-            cotangent,
-            program_key=self.program_key,
-        )
+        return self._expand(_VJP_TARGET, parameters, cotangent)
 
 
-class _Solve(_NoBatching, VJPHiPrimitive):
+class _Solve(_Batching, VJPHiPrimitive):
     def __init__(self, input_aval, output_aval, params) -> None:
-        _validate_aval(input_aval, params["input_size"], role="parameters")
-        _validate_aval(output_aval, params["output_size"], role="output")
+        self._initialize(input_aval, output_aval, params)
         self.in_avals = (input_aval,)
         self.out_aval = output_aval
-        self.params = params
         super().__init__()
 
     def expand(self, parameters):
@@ -246,7 +316,13 @@ class _Solve(_NoBatching, VJPHiPrimitive):
 
 
 class JaxProgram:
-    """Process-local JAX view of one immutable Eqiora program."""
+    """Process-local JAX view with native first-order ``vmap`` composition.
+
+    Map complete float64 Parameter points on one CPU device. Nested point and
+    derivative-seed axes are static and bounded to 32. Each FFI buffer is at
+    most 64 MiB; native maps and products separately retain their 64 MiB
+    numerical-storage admission limits. These are not peak-memory limits.
+    """
 
     __slots__ = (
         "__weakref__",
@@ -299,7 +375,7 @@ class JaxProgram:
     def __call__(self, parameters):
         _validate_concrete_device(parameters, role="parameters")
         input_aval = jax.typeof(parameters)
-        _validate_aval(input_aval, self._input_size, role="parameters")
+        _validate_aval(input_aval, (self._input_size,), role="parameters")
         output_aval = input_aval.update(
             shape=(self._output_size,),
             weak_type=False,

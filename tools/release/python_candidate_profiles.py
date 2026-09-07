@@ -47,7 +47,9 @@ PYTHON_TEST_FIXTURES = (
     ),
 )
 PYTHON_TEST_RESOURCES = (
+    Path("crates/eqiora-api/schemas/compile-v2.schema.json"),
     Path("examples/decay.eqi"),
+    Path("examples/python/coupled_scalar.py"),
     Path("examples/python/textbook_decay.py"),
 )
 
