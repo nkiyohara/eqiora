@@ -169,7 +169,7 @@ fn offline_agent_proposal_uses_the_ordinary_exact_edit_and_execution_path() {
     assert!(
         String::from_utf8(agent_plan.transaction_json().unwrap())
             .unwrap()
-            .contains("eqiora.model-transaction-envelope/v11")
+            .contains("eqiora.model-transaction-envelope/v12")
     );
     assert_eq!(base.canonical_json().unwrap(), base_bytes);
     assert_eq!(base.digest().unwrap(), base_digest);
@@ -246,7 +246,11 @@ fn independent_evidence_rejects_a_valid_but_scientifically_wrong_proposal() {
 
 #[test]
 fn stale_foreign_forged_and_unsupported_inputs_fail_closed() {
-    let base = compile_base();
+    // This unused Parameter retains the same old value on both distinct bases,
+    // isolating the artifact-identity check from the transaction payload.
+    let source = SOURCE.replace("model poisson {", "model poisson { parameter probe: 1 = 0;");
+    let base = ModelDocument::compile("poisson.eqi", &source).unwrap();
+    let probe = base.aliases()["probe"];
     let objective = objective();
     let target = base.aliases()[&objective.target_alias];
     let field = base.aliases()["potential"];
@@ -270,8 +274,8 @@ fn stale_foreign_forged_and_unsupported_inputs_fail_closed() {
     let right = base
         .commit_value_edit(base.preview_value_edit(target, 3.0).unwrap())
         .unwrap();
-    let left_plan = left.document().preview_value_edit(field, 1.0).unwrap();
-    let right_plan = right.document().preview_value_edit(field, 1.0).unwrap();
+    let left_plan = left.document().preview_value_edit(probe, 1.0).unwrap();
+    let right_plan = right.document().preview_value_edit(probe, 1.0).unwrap();
     assert_eq!(left_plan.base_revision(), right_plan.base_revision());
     assert_eq!(
         left_plan.transaction_digest(),
@@ -296,6 +300,10 @@ fn stale_foreign_forged_and_unsupported_inputs_fail_closed() {
         base.preview_value_edit(target, f64::NAN)
             .unwrap_err()
             .code(),
+        codes::INVALID_OPERATION
+    );
+    assert_eq!(
+        base.preview_value_edit(field, 1.0).unwrap_err().code(),
         codes::INVALID_OPERATION
     );
     assert_eq!(
