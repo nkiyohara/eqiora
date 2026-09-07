@@ -328,3 +328,20 @@ fn cartesian_parameter_bounds_keep_the_exact_root_parameter_dependency() {
     let parameter = model.symbols().get("extent").unwrap();
     assert!(model.transaction().ops().iter().any(|operation| matches!(operation, eqiora_graph::Op::Connect{from,to,edge:eqiora_graph::EdgeKind::DependsOn} if *from==domain && *to==parameter)));
 }
+
+#[test]
+fn ordinary_model_selection_cannot_discard_authored_component_forms() {
+    let source = "component C() {relation balance {1=0;} form primal for balance {integrate(region,test(value))=integrate(region,test(value));}} model M() {variable x:1;relation balance{x=0;}}";
+    for errors in [
+        compile("form.eqi", source).unwrap_err(),
+        eqiora_compiler::CompiledModel::compile_selected("form.eqi", source, "M", &[]).unwrap_err(),
+    ] {
+        assert!(
+            errors.iter().any(|error| error.source_span().is_some()
+                && error
+                    .message()
+                    .contains("require fresh external-Geometry component compilation")),
+            "{errors:?}"
+        );
+    }
+}

@@ -271,6 +271,14 @@ impl<'a> Elaborator<'a> {
     }
 
     pub(super) fn entry_model(&self, path: &str) -> Result<ModelDefinition<'a>, String> {
+        self.find_entry_model(path)?
+            .ok_or_else(|| format!("unresolved entry Model `{path}`"))
+    }
+
+    pub(super) fn find_entry_model(
+        &self,
+        path: &str,
+    ) -> Result<Option<ModelDefinition<'a>>, String> {
         let (namespace, name, imported) = match path.split_once('.') {
             None if !path.is_empty() => (self.root_namespace.clone(), path, false),
             Some((alias, name)) if !alias.is_empty() && !name.is_empty() && !name.contains('.') => {
@@ -288,19 +296,21 @@ impl<'a> Elaborator<'a> {
                 ));
             }
         };
-        let definition = self
+        let Some(definition) = self
             .models
             .get(&DefinitionKey {
                 namespace,
                 name: name.to_owned(),
             })
             .cloned()
-            .ok_or_else(|| format!("unresolved entry Model `{path}`"))?;
+        else {
+            return Ok(None);
+        };
         if imported && definition.declaration.visibility() != eqiora_lang::VisibilitySyntax::Public
         {
             return Err(format!("private Model `{path}` cannot be imported"));
         }
-        Ok(definition)
+        Ok(Some(definition))
     }
 
     pub(super) fn connectors(

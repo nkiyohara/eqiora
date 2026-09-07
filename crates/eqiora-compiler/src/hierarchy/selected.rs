@@ -154,7 +154,26 @@ fn compile(
     hierarchy: &PropertyScope<'_>,
 ) -> Result<CompiledModel, Vec<Diagnostic>> {
     let limits = elaborator.limits;
-    if let Ok(model) = elaborator.entry_model(entry) {
+    if let Some(model) = elaborator
+        .find_entry_model(entry)
+        .map_err(|message| vec![hierarchy_error(message)])?
+    {
+        if let Some((_, component)) = elaborator
+            .components()
+            .find(|(_, component)| component.formulations().len() != 0)
+        {
+            let range = component
+                .formulations()
+                .next()
+                .expect("nonempty authored forms")
+                .3;
+            return Err(vec![source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                component.file,
+                range,
+                "authored Component formulations require fresh external-Geometry component compilation",
+            )]);
+        }
         let signature = authored_signature(hierarchy, &model.namespace, model.name(), true)
             .unwrap_or_else(|| model.signature());
         let prepared = prepare(
