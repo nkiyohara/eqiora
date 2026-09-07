@@ -9,18 +9,18 @@ component Leaf(
 component Inner(
   port p: conserving on Pin
 ) {
-  instance leaf: Leaf;
+  instance leaf: Leaf();
   connect conserving p, leaf.p;
 }
 
 component BrokenOuter(
   port p: conserving on Pin
 ) {
-  instance inner: Inner;
+  instance inner: Inner();
 }
 
 model Network() {
-  instance left: BrokenOuter;
-  instance right: Leaf;
+  instance left: BrokenOuter();
+  instance right: Leaf();
   connect conserving left.p, right.p;
 }

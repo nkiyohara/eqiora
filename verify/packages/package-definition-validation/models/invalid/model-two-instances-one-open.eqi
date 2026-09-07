@@ -7,8 +7,8 @@ component OpenPair(
 }
 
 model Main() {
-  instance closed: OpenPair;
-  instance open: OpenPair;
+  instance closed: OpenPair();
+  instance open: OpenPair();
   relation closed_owner {
     across(closed.a) + across(closed.b) = 0;
   }

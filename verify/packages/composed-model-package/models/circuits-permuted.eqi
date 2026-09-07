@@ -3,7 +3,7 @@ public component ParallelDc(
   parameter supply_voltage: kg * m ^ 2 / (s ^ 3 * A),
   parameter resistance_two: kg * m ^ 2 / (s ^ 3 * A ^ 2)
 ) {
-  instance ground: basic.Ground;
+  instance ground: basic.Ground();
   instance resistor_four: basic.Resistor(resistance = resistance_four);
   instance source: basic.IdealVoltageSource(voltage = supply_voltage);
   instance resistor_two: basic.Resistor(resistance = resistance_two);

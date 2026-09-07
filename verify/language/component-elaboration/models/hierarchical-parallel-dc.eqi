@@ -41,7 +41,7 @@ component ParallelDc(
   instance source: VoltageSource(voltage = supply_voltage);
   instance resistor_two: Resistor(resistance = resistance_two);
   instance resistor_four: Resistor(resistance = resistance_four);
-  instance ground: Ground;
+  instance ground: Ground();
 
   connect conserving source.positive, resistor_two.positive, resistor_four.positive;
   connect conserving source.negative, resistor_two.negative, resistor_four.negative, ground.terminal;

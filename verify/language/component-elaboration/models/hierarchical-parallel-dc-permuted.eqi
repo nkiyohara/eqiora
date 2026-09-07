@@ -38,7 +38,7 @@ component ParallelDc(
   parameter supply_voltage: kg * m ^ 2 / (s ^ 3 * A),
   parameter resistance_two: kg * m ^ 2 / (s ^ 3 * A ^ 2)
 ) {
-  instance ground: Ground;
+  instance ground: Ground();
   instance resistor_four: Resistor(resistance = resistance_four);
   instance source: VoltageSource(voltage = supply_voltage);
   instance resistor_two: Resistor(resistance = resistance_two);

@@ -11,7 +11,7 @@ component ClosedLeaf(
 }
 
 component BrokenParent() {
-  instance leaf: ClosedLeaf;
+  instance leaf: ClosedLeaf();
   connect conserving leaf.a, leaf.b;
 }
 

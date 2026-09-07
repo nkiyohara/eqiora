@@ -6,5 +6,5 @@ component OpenTerminal(
 }
 
 model Main() {
-  instance open: OpenTerminal;
+  instance open: OpenTerminal();
 }

@@ -7,7 +7,7 @@ component Leaf(
 }
 
 component ClosedPair() {
-  instance leaf: Leaf;
+  instance leaf: Leaf();
   relation law {
     across(leaf.left) + across(leaf.right) = 0;
   }
@@ -15,5 +15,5 @@ component ClosedPair() {
 }
 
 model Main() {
-  instance pair: ClosedPair;
+  instance pair: ClosedPair();
 }

@@ -512,12 +512,12 @@ fn hierarchy_and_explicit_flat_source_have_identical_normalized_semantics() {
 #[test]
 fn invalid_hierarchy_is_rejected_before_any_transaction_is_exposed() {
     let cases = [
-        "component C(\n  parameter p: 1\n) { } model m() { instance c: C; }",
+        "component C(\n  parameter p: 1\n) { } model m() { instance c: C(); }",
         "component C(\n  parameter p: 1 = 1\n) { } model m() { instance c: C(q = 2); }",
         "component C() { parameter p: 1 = 1; } model m() { instance c: C(p = 2); }",
         "component C(\n  parameter p: m = 1\n) { } model m() { parameter q: s = 2; instance c: C(p = q); }",
         "component C(\n  parameter p: 1 = 1\n) { } model m() { instance c: C(p = 2, p = 3); }",
-        "component A() { instance b: B; } component B() { instance a: A; } model m() { instance a: A; }",
+        "component A() { instance b: B(); } component B() { instance a: A(); } model m() { instance a: A(); }",
         r#"
 connector A = scalar_physical(across = 1, through = 1);
 connector B = scalar_physical(across = 1, through = 1);
@@ -527,11 +527,11 @@ component Left(
 component Right(
   port p: conserving on B
 ) { relation r { across(p) = 0; } }
-model m() { instance left: Left; instance right: Right; connect conserving left.p, right.p; }
+model m() { instance left: Left(); instance right: Right(); connect conserving left.p, right.p; }
 "#,
         r#"
 component C() { port hidden: signal input 1; relation r { hidden = 0; } }
-model m() { port source: signal output 1; instance c: C; connect source -> c.hidden; }
+model m() { port source: signal output 1; instance c: C(); connect source -> c.hidden; }
 "#,
     ];
     for source in cases {

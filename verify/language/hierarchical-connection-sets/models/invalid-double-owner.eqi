@@ -10,4 +10,4 @@ component Broken(
   connect conserving p, q;
 }
 
-model Network() { instance broken: Broken; }
+model Network() { instance broken: Broken(); }

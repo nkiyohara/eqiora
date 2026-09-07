@@ -9,19 +9,19 @@ component Leaf(
 component Inner(
   port p: conserving on Pin
 ) {
-  instance leaf: Leaf;
+  instance leaf: Leaf();
   connect conserving p, leaf.p;
 }
 
 component Outer(
   port p: conserving on Pin
 ) {
-  instance inner: Inner;
+  instance inner: Inner();
   connect conserving p, inner.p;
 }
 
 model Network() {
-  instance left: Outer;
-  instance right: Leaf;
+  instance left: Outer();
+  instance right: Leaf();
   connect conserving left.p, right.p;
 }

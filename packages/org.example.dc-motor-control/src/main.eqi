@@ -24,7 +24,7 @@ component SampledPController(
 }
 
 model Main() {
-  instance source: drive.ControlledVoltageSource;
+  instance source: drive.ControlledVoltageSource();
   instance motor: drive.PermanentMagnetDcMotor(
     resistance = 2[kg * m ^ 2 / (s ^ 3 * A ^ 2)],
     inductance = 0.5[kg * m ^ 2 / (s ^ 2 * A ^ 2)],
@@ -34,8 +34,8 @@ model Main() {
     inertia = 0.05[kg * m ^ 2],
     damping = 0.1[kg * m ^ 2 / s]
   );
-  instance sensor: drive.SpeedSensor;
-  instance ground: electrical.Ground;
+  instance sensor: drive.SpeedSensor();
+  instance ground: electrical.Ground();
   instance controller: SampledPController(
     setpoint = 10[1 / s],
     gain = 1[kg * m ^ 2 / (s ^ 2 * A)]

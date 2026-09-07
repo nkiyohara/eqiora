@@ -98,7 +98,7 @@ fn canonical_program(compiled: CompiledModel) -> Vec<u8> {
 fn terminal_network(instances: [&str; 3], fragments: &[Vec<&str>]) -> String {
     let instances = instances
         .into_iter()
-        .map(|name| format!("  instance {name}: Terminal;"))
+        .map(|name| format!("  instance {name}: Terminal();"))
         .collect::<Vec<_>>()
         .join("\n");
     let fragments = fragments
@@ -512,8 +512,8 @@ component Right(
   relation owner { across(p) = 0; }
 }
 model Network() {
-  instance left: Left;
-  instance right: Right;
+  instance left: Left();
+  instance right: Right();
   connect conserving left.p, right.p;
 }
 "#;

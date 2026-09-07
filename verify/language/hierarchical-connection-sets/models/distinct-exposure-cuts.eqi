@@ -10,14 +10,14 @@ component Pair(
   port p: conserving on Pin,
   port q: conserving on Pin
 ) {
-  instance left: Leaf;
-  instance right: Leaf;
+  instance left: Leaf();
+  instance right: Leaf();
   connect conserving p, left.p;
   connect conserving q, right.p;
 }
 
 model Network() {
-  instance pair: Pair;
-  instance outside: Leaf;
+  instance pair: Pair();
+  instance outside: Leaf();
   connect conserving pair.p, pair.q, outside.p;
 }

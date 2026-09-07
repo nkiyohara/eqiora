@@ -4,7 +4,7 @@ public component Child(
 }
 
 public component Parent() {
-  instance child: Child;
+  instance child: Child();
 }
 
 model Empty() {}

@@ -598,8 +598,8 @@ component OtherAnchor(
     let nominal_mismatch = ROOT_SOURCE
         .replacen("\n\n", &format!("\n\n{same_dimension_connector}\n"), 1)
         .replace(
-            "  instance ground: electrical.Ground;",
-            "  instance ground: electrical.Ground;\n  instance other: OtherAnchor;",
+            "  instance ground: electrical.Ground();",
+            "  instance ground: electrical.Ground();\n  instance other: OtherAnchor();",
         )
         .replace(
             "connect conserving motor.shaft, load.shaft, sensor.shaft;",
@@ -981,16 +981,16 @@ fn exact_packages_execute_and_accept_one_sampled_acausal_drive() {
 
     let permuted_root_source = ROOT_SOURCE
         .replace(
-            "  instance source: drive.ControlledVoltageSource;",
-            "  instance __permutation_slot: drive.ControlledVoltageSource;",
+            "  instance source: drive.ControlledVoltageSource();",
+            "  instance __permutation_slot: drive.ControlledVoltageSource();",
         )
         .replace(
-            "  instance sensor: drive.SpeedSensor;",
-            "  instance source: drive.ControlledVoltageSource;",
+            "  instance sensor: drive.SpeedSensor();",
+            "  instance source: drive.ControlledVoltageSource();",
         )
         .replace(
-            "  instance __permutation_slot: drive.ControlledVoltageSource;",
-            "  instance sensor: drive.SpeedSensor;",
+            "  instance __permutation_slot: drive.ControlledVoltageSource();",
+            "  instance sensor: drive.SpeedSensor();",
         );
     let permuted_root = packaged_model_with_root(&permuted_root_source);
     assert_eq!(fixture.root_semantic, permuted_root.root_semantic);

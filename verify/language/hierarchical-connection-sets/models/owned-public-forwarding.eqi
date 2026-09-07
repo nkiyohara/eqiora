@@ -9,13 +9,13 @@ component Leaf(
 component OwnedWrapper(
   port p: conserving on Pin
 ) {
-  instance leaf: Leaf;
+  instance leaf: Leaf();
   relation public_owner { across(p) = 0; }
   connect conserving p, leaf.p;
 }
 
 model Network() {
-  instance left: OwnedWrapper;
-  instance right: Leaf;
+  instance left: OwnedWrapper();
+  instance right: Leaf();
   connect conserving left.p, right.p;
 }

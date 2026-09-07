@@ -7,9 +7,9 @@ component Terminal(
 }
 
 model Network() {
-  instance a: Terminal;
-  instance b: Terminal;
-  instance c: Terminal;
+  instance a: Terminal();
+  instance b: Terminal();
+  instance c: Terminal();
   connect conserving a.p, b.p;
   connect conserving b.p, c.p;
 }

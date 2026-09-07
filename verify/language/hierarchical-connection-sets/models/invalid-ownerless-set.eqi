@@ -5,7 +5,7 @@ component OpenTerminal(
 ) { }
 
 model Network() {
-  instance left: OpenTerminal;
-  instance right: OpenTerminal;
+  instance left: OpenTerminal();
+  instance right: OpenTerminal();
   connect conserving left.p, right.p;
 }
