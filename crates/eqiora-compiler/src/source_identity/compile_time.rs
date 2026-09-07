@@ -17,9 +17,27 @@ pub(super) fn encode_parameter(
             encoder.field(3, |encoder| encoder.f64(*value))?;
             encoder.field(4, |encoder| encode_expression(encoder, unit, budget, 1))
         }
-        _ => Err(source_identity_error(
-            "parameter value must be a numeric or quantity literal",
-        )),
+        ExprKind::Unary {
+            op: UnaryOp::Neg,
+            value,
+        } if matches!(
+            value.kind(),
+            ExprKind::Number(_) | ExprKind::Quantity { .. }
+        ) =>
+        {
+            // Parameter syntax previously stored a single leading minus in its literal.
+            match value.kind() {
+                ExprKind::Number(value) => encoder.field(3, |encoder| encoder.f64(-value)),
+                ExprKind::Quantity { value, unit } => {
+                    encoder.field(3, |encoder| encoder.f64(-value))?;
+                    encoder.field(4, |encoder| encode_expression(encoder, unit, budget, 1))
+                }
+                _ => unreachable!("literal guard"),
+            }
+        }
+        _ => encoder.field(5, |encoder| {
+            encode_expression(encoder, declaration.value(), budget, 1)
+        }),
     }
 }
 

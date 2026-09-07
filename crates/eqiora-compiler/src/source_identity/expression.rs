@@ -19,6 +19,29 @@ pub(super) fn encode_expression(
                 encode_expression(encoder, unit, budget, next_depth(depth)?)
             })
         }
+        ExprKind::Array(elements) => {
+            encoder.u16(10)?;
+            let child_depth = next_depth(depth)?;
+            let mut encoded = Vec::with_capacity(elements.len());
+            for element in elements {
+                let mut element_encoder = Encoder::new(budget.limits.max_canonical_bytes);
+                encode_expression(&mut element_encoder, element, budget, child_depth)?;
+                let bytes = element_encoder.finish()?;
+                budget.account_materialized_bytes(bytes.len())?;
+                encoded.push(bytes);
+            }
+            encoder.field(1, |encoder| encoder.records(&encoded))
+        }
+        ExprKind::Index { value, index } => {
+            encoder.u16(11)?;
+            let child_depth = next_depth(depth)?;
+            encoder.field(1, |encoder| {
+                encode_expression(encoder, value, budget, child_depth)
+            })?;
+            encoder.field(2, |encoder| {
+                encode_expression(encoder, index, budget, child_depth)
+            })
+        }
         ExprKind::Name(name) => {
             encoder.u16(2)?;
             encoder.field(1, |encoder| encode_name(encoder, name, budget))

@@ -699,6 +699,30 @@ fn format_expression(
             output.push_str(symbol);
             format_expression(right, right_precedence, output);
         }
+        ExprKind::Array(elements) => {
+            output.push('[');
+            for (index, element) in elements.iter().enumerate() {
+                if index != 0 {
+                    output.push_str(", ");
+                }
+                format_expression(element, 0, output);
+            }
+            output.push(']');
+        }
+        ExprKind::Index { value, index } => {
+            // A bare number followed by `[` is always a quantity island.
+            let group_number = matches!(value.kind(), ExprKind::Number(_));
+            if group_number {
+                output.push('(');
+            }
+            format_expression(value, 11, output);
+            if group_number {
+                output.push(')');
+            }
+            output.push('[');
+            format_expression(index, 0, output);
+            output.push(']');
+        }
         ExprKind::Call { callee, arguments } => {
             write!(output, "{callee}").expect("String write");
             output.push('(');
@@ -738,7 +762,9 @@ fn expression_precedence(expression: &Expr) -> u8 {
         | ExprKind::Name(_)
         | ExprKind::Path(_)
         | ExprKind::BoundaryPortSelection { .. }
-        | ExprKind::Call { .. } => 11,
+        | ExprKind::Call { .. }
+        | ExprKind::Array(_)
+        | ExprKind::Index { .. } => 11,
     }
 }
 

@@ -42,14 +42,6 @@ impl SourceAstFactory {
         range: TextRange,
     ) -> Result<ParameterDecl, AstConstructionError> {
         validate_expression(&value)?;
-        if !matches!(
-            value.kind(),
-            crate::ExprKind::Number(_) | crate::ExprKind::Quantity { .. }
-        ) {
-            return Err(AstConstructionError::new(
-                "Parameter value must be a numeric quantity literal",
-            ));
-        }
         Ok(ParameterDecl {
             comments: Default::default(),
             name: checked_identifier(name, "Parameter")?,

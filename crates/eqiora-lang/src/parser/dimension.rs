@@ -3,27 +3,6 @@ use crate::ast::{BinaryOp, Expr, ExprKind, TextRange, UnaryOp};
 use crate::lexer::TokenKind;
 
 impl Parser<'_> {
-    pub(super) fn parse_signed_quantity_literal(&mut self) -> Option<Expr> {
-        let start = self.current().range().start();
-        let negative = self.at(TokenKind::Minus);
-        if negative {
-            self.bump();
-        }
-        if !self.at(TokenKind::Number) {
-            self.error_here("expected numeric quantity literal");
-            return None;
-        }
-        let mut expression = self.parse_quantity_or_number()?;
-        if negative {
-            match &mut expression.kind {
-                ExprKind::Number(value) | ExprKind::Quantity { value, .. } => *value = -*value,
-                _ => unreachable!("numeric parser returns a literal"),
-            }
-        }
-        expression.range = TextRange::new(start, expression.range.end());
-        Some(expression)
-    }
-
     pub(super) fn parse_quantity_or_number(&mut self) -> Option<Expr> {
         let token = self.bump();
         let value = self.parse_f64(&token)?;
