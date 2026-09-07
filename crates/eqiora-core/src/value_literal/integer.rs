@@ -18,6 +18,7 @@ impl ValueLiteral {
         let mut values = Vec::new();
         for index in 0..count {
             let value = input.next().ok_or(InvalidValueLiteral::ComponentCount)?;
+            check_range(&value_type, value)?;
             if !values.is_empty() || value != 0 {
                 values
                     .try_reserve(index + 1 - values.len())
@@ -80,15 +81,35 @@ impl ValueLiteral {
     /// Extract only an exact invariant dimensionless integer scalar.
     #[must_use]
     pub fn integer_scalar_value(&self) -> Option<i64> {
-        self.value_type
-            .shape()
-            .is_scalar()
-            .then(|| self.integer_component(0))
-            .flatten()
+        if !self.value_type.shape().is_scalar() || self.value_type.index_set().is_some() {
+            return None;
+        }
+        self.integer_component(0)
+    }
+
+    /// Explicitly forget a checked index's nominal set, retaining its exact ordinal.
+    pub fn ordinal(&self) -> Result<Self, InvalidValueLiteral> {
+        if self.value_type.index_set().is_none() {
+            return Err(InvalidValueLiteral::ScalarDomain);
+        }
+        Self::from_integer(
+            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+            self.integer_component(0)
+                .ok_or(InvalidValueLiteral::ScalarDomain)?,
+        )
     }
 
     /// Checked exact integer addition, with equal complete types and no broadcasting.
     pub fn checked_add(&self, other: &Self) -> Result<Self, InvalidValueLiteral> {
+        if self.value_type.is_count() {
+            if other.value_type.is_count()
+                || self.value_type.finite_space() != other.value_type.finite_space()
+                || self.value_type.shape() != other.value_type.shape()
+            {
+                return Err(InvalidValueLiteral::ScalarDomain);
+            }
+            return self.integer_results(other, i64::checked_add);
+        }
         self.integer_binary(other, i64::checked_add)
     }
     /// Checked exact integer subtraction.
@@ -97,10 +118,19 @@ impl ValueLiteral {
     }
     /// Checked exact integer multiplication.
     pub fn checked_mul(&self, other: &Self) -> Result<Self, InvalidValueLiteral> {
+        if self.value_type.finite_space().is_some() {
+            return Err(InvalidValueLiteral::ScalarDomain);
+        }
         self.integer_binary(other, i64::checked_mul)
     }
     /// Checked exact integer negation.
     pub fn checked_neg(&self) -> Result<Self, InvalidValueLiteral> {
+        if self.value_type.is_count() || self.value_type.index_set().is_some() {
+            return Err(InvalidValueLiteral::ScalarDomain);
+        }
+        if self.is_zero() {
+            return Ok(self.clone());
+        }
         let values = self
             .integer_components()
             .ok_or(InvalidValueLiteral::ScalarDomain)?
@@ -149,8 +179,21 @@ impl ValueLiteral {
         other: &Self,
         operation: fn(i64, i64) -> Option<i64>,
     ) -> Result<Self, InvalidValueLiteral> {
-        if self.value_type != other.value_type {
+        if self.value_type.is_count()
+            || self.value_type.index_set().is_some()
+            || self.value_type != other.value_type
+        {
             return Err(InvalidValueLiteral::ScalarDomain);
+        }
+        self.integer_results(other, operation)
+    }
+    fn integer_results(
+        &self,
+        other: &Self,
+        operation: fn(i64, i64) -> Option<i64>,
+    ) -> Result<Self, InvalidValueLiteral> {
+        if self.is_zero() && other.is_zero() {
+            return Ok(self.clone());
         }
         let left = self
             .integer_components()
@@ -185,6 +228,17 @@ fn check_integer_type(value_type: &ValueType) -> Result<(), InvalidValueLiteral>
         || value_type.frame() != ValueFrame::Invariant
     {
         return Err(InvalidValueLiteral::ScalarDomain);
+    }
+    Ok(())
+}
+
+fn check_range(value_type: &ValueType, value: i64) -> Result<(), InvalidValueLiteral> {
+    if (value_type.is_count() && value < 0)
+        || value_type
+            .index_extent()
+            .is_some_and(|extent| value < 0 || value >= i64::from(extent))
+    {
+        return Err(InvalidValueLiteral::NominalRange);
     }
     Ok(())
 }

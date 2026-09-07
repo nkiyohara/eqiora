@@ -3,6 +3,10 @@
 mod boundary_physical;
 mod definition;
 mod expression;
+mod finite_space;
+pub use finite_space::FiniteSpaceDef;
+mod index_set;
+pub use index_set::IndexSetDef;
 pub mod physical_closure;
 pub mod pure_operator;
 pub mod scalar_connection;

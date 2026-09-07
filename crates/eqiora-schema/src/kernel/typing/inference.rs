@@ -60,7 +60,11 @@ pub(super) fn infer_node<I: Clone + Eq, E>(
             let Some((left, right)) = inferred_binary(inferred, *left, *right) else {
                 return NodeInference::Unavailable;
             };
-            additive(&left, &right)
+            if matches!(node, ExprNode::Add(_, _)) {
+                left.sum(right)
+            } else {
+                additive(&left, &right)
+            }
         }
         ExprNode::Mul(left, right) => {
             let Some((left, right)) = inferred_binary(inferred, *left, *right) else {
@@ -79,6 +83,12 @@ pub(super) fn infer_node<I: Clone + Eq, E>(
                 return NodeInference::Unavailable;
             };
             left.integer_quotient(right)
+        }
+        ExprNode::Ordinal(value) => {
+            let Some(value) = inferred_type(inferred, *value) else {
+                return NodeInference::Unavailable;
+            };
+            value.ordinal()
         }
         ExprNode::ToReal(value) | ExprNode::ToInteger(value) => {
             let Some(value) = inferred_type(inferred, *value) else {

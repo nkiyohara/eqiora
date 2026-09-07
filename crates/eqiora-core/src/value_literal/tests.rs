@@ -240,3 +240,52 @@ fn integer_arrays_keep_order_cardinality_and_compact_zero() {
     assert!(matches!(zero.payload, super::Payload::Zero));
     assert_eq!(zero.integer_component(u32::MAX as usize - 1), Some(0));
 }
+
+#[test]
+fn nominal_counts_and_indexes_do_not_inherit_integer_coercions() {
+    use crate::{Id, entity::kinds};
+    let species = Id::<kinds::FiniteSpace>::new();
+    let foreign = Id::<kinds::FiniteSpace>::new();
+    let counts_type = ValueType::counts(species, 2).unwrap();
+    let changes_type = ValueType::coordinates(species, 2).unwrap();
+    let counts = ValueLiteral::integer(counts_type.clone(), [2, 9_007_199_254_740_993]).unwrap();
+    let changes = ValueLiteral::integer(changes_type.clone(), [-1, 1]).unwrap();
+    let updated = counts.checked_add(&changes).unwrap();
+    assert_eq!(
+        updated.integer_components().unwrap().collect::<Vec<_>>(),
+        [1, 9_007_199_254_740_994]
+    );
+    assert_eq!(updated.value_type(), &counts_type);
+    assert!(ValueLiteral::integer(counts_type.clone(), [-1, 0]).is_err());
+    assert!(
+        counts
+            .checked_add(&ValueLiteral::integer(changes_type, [-3, 0]).unwrap())
+            .is_err()
+    );
+    assert!(
+        counts
+            .checked_add(
+                &ValueLiteral::integer(ValueType::coordinates(foreign, 2).unwrap(), [-1, 1])
+                    .unwrap()
+            )
+            .is_err()
+    );
+    assert!(counts.checked_add(&counts).is_err());
+    assert!(changes.checked_add(&counts).is_err());
+    assert!(counts.checked_neg().is_err());
+    assert!(counts.checked_sub(&counts).is_err());
+    assert!(counts.checked_mul(&counts).is_err());
+    assert!(counts_type.array(2).is_err());
+    let set = Id::<kinds::IndexSet>::new();
+    let index_type = ValueType::index(set, 3).unwrap();
+    let index = ValueLiteral::from_integer(index_type.clone(), 2).unwrap();
+    assert!(index.integer_scalar_value().is_none());
+    assert_eq!(index.ordinal().unwrap().integer_scalar_value(), Some(2));
+    assert!(index.to_real().is_err());
+    assert!(index.checked_add(&index).is_err());
+    assert!(index.checked_neg().is_err());
+    assert!(ValueLiteral::from_integer(index_type.clone(), 3).is_err());
+    assert!(ValueLiteral::from_integer(index_type, -1).is_err());
+    assert_ne!(index.value_type(), &ValueType::index(Id::new(), 3).unwrap());
+    assert!(ValueType::index(set, 0).is_err());
+}

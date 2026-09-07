@@ -123,6 +123,8 @@ pub enum ExprNode {
     Quotient(ExprId, ExprId),
     /// Exact integer remainder with the dividend sign.
     Remainder(ExprId, ExprId),
+    /// Explicit projection of a nominal index to its exact integer ordinal.
+    Ordinal(ExprId),
     /// Explicit integer scalar to real conversion.
     ToReal(ExprId),
     /// Checked integral real scalar to integer conversion.
@@ -161,6 +163,7 @@ impl ExprNode {
         match self {
             Self::Array { elements } => elements.iter().copied().try_for_each(visit),
             Self::Sample { value, .. }
+            | Self::Ordinal(value)
             | Self::ToReal(value)
             | Self::ToInteger(value)
             | Self::Hold(value)
@@ -373,6 +376,10 @@ impl ExprDagBuilder {
     /// Checked integer remainder.
     pub fn remainder(&mut self, left: ExprId, right: ExprId) -> Result<ExprId, Diagnostic> {
         self.push(ExprNode::Remainder(left, right))
+    }
+    /// Explicit nominal index ordinal projection.
+    pub fn ordinal(&mut self, value: ExprId) -> Result<ExprId, Diagnostic> {
+        self.push(ExprNode::Ordinal(value))
     }
     /// Explicit integer-to-real conversion.
     pub fn to_real(&mut self, value: ExprId) -> Result<ExprId, Diagnostic> {

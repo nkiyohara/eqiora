@@ -480,6 +480,13 @@ pub fn multiply<I: Clone + Eq>(
     left: &ExpressionType<I>,
     right: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
+    if left.value_type.index_set().is_some()
+        || right.value_type.index_set().is_some()
+        || left.value_type.finite_space().is_some()
+        || right.value_type.finite_space().is_some()
+    {
+        return Err(TypeViolation::ScalarDomainMismatch);
+    }
     if left.value_type.scalar_domain() == eqiora_core::ScalarDomain::Integer
         && left.value_type != right.value_type
     {

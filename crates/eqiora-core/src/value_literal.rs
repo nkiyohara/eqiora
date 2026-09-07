@@ -176,6 +176,8 @@ impl TryFrom<DynQuantity> for ValueLiteral {
 pub enum InvalidValueLiteral {
     /// The requested scalar domain, dimension or shape is not admitted.
     ScalarDomain,
+    /// A count is negative or a nominal index is outside its exact bound.
+    NominalRange,
     /// Exact integer arithmetic overflowed.
     IntegerOverflow,
     /// An integer quotient or remainder has a zero divisor.
@@ -200,6 +202,7 @@ impl core::fmt::Display for InvalidValueLiteral {
             Self::ScalarDomain => {
                 "operation requires the exact admitted scalar domain, dimension and shape"
             }
+            Self::NominalRange => "count or index is outside its exact nonnegative range",
             Self::IntegerOverflow => "exact integer arithmetic overflow",
             Self::ZeroDivisor => "integer divisor must be nonzero",
             Self::IntegerConversion => {
