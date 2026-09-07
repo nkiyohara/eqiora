@@ -1,6 +1,7 @@
 use crate::lower::LoweringExpression;
 
 use super::Scope;
+use crate::hierarchy::body_check::DependencyActivation;
 use crate::hierarchy::parameters::{
     ParameterLineage, ResolvedParameter, SymbolicParameterMap, SymbolicParameterValue,
 };
@@ -8,7 +9,10 @@ use crate::hierarchy::parameters::{
 #[derive(Debug, Clone)]
 pub(super) enum ScopedValue {
     Static(ResolvedParameter),
-    Runtime(LoweringExpression),
+    Runtime {
+        expression: LoweringExpression,
+        activation: DependencyActivation,
+    },
 }
 
 impl Scope {
@@ -21,7 +25,7 @@ impl Scope {
             .insert(name, ScopedValue::Static(parameter))
             .and_then(|value| match value {
                 ScopedValue::Static(value) => Some(value),
-                ScopedValue::Runtime(_) => None,
+                ScopedValue::Runtime { .. } => None,
             })
     }
 
@@ -55,18 +59,35 @@ impl Scope {
     pub(in crate::hierarchy) fn value_expression(&self, name: &str) -> Option<LoweringExpression> {
         match self.values.get(name)? {
             ScopedValue::Static(_) => Some(self.parameter_expression(name)),
-            ScopedValue::Runtime(expression) => Some(expression.clone()),
+            ScopedValue::Runtime { expression, .. } => Some(expression.clone()),
         }
+    }
+
+    pub(in crate::hierarchy) fn value_activation(
+        &self,
+        name: &str,
+    ) -> Option<DependencyActivation> {
+        self.values.get(name).map(|value| match value {
+            ScopedValue::Static(_) => DependencyActivation::Static,
+            ScopedValue::Runtime { activation, .. } => activation.clone(),
+        })
     }
 
     pub(in crate::hierarchy) fn insert_runtime_let(
         &mut self,
         name: String,
         expression: LoweringExpression,
+        activation: DependencyActivation,
     ) -> Result<(), &'static str> {
         if self
             .values
-            .insert(name, ScopedValue::Runtime(expression))
+            .insert(
+                name,
+                ScopedValue::Runtime {
+                    expression,
+                    activation,
+                },
+            )
             .is_some()
         {
             Err("runtime let alias collides with a scoped value")

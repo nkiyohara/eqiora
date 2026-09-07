@@ -161,6 +161,9 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                 }
                 SignatureItem::Clock(declaration) => {
                     self.scope
+                        .borrowed_clocks
+                        .insert(declaration.name().to_owned());
+                    self.scope
                         .symbols
                         .insert(declaration.name().to_owned(), SymbolContract::Clock);
                 }
@@ -499,8 +502,13 @@ mod tests {
                 (definition.declaration.name() == name).then(|| definition.clone())
             })
             .expect("selected Component exists");
-        let compile_time_values =
-            resolve_component_parameters_symbolically(definition.file, definition.declaration, |name|crate::hierarchy::clocks::component(definition.file,definition.declaration,name))?;
+        let compile_time_values = resolve_component_parameters_symbolically(
+            definition.file,
+            definition.declaration,
+            |name| {
+                crate::hierarchy::clocks::component(definition.file, definition.declaration, name)
+            },
+        )?;
         let supports = component_support_interface(definition.file, definition.declaration)?;
         let fields = component_field_interface(definition.file, definition.declaration, &supports)?;
         validate(

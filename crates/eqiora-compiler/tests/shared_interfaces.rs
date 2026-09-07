@@ -179,3 +179,52 @@ fn selected_property_values_require_the_exact_release_owner() {
         }
     }
 }
+
+#[test]
+fn borrowed_alias_clocks_are_checked_at_the_exact_occurrence() {
+    use eqiora_compiler::{CompiledModel, StaticBindingValue};
+    use eqiora_schema::kernel::{ClockDomainDef, RationalTime};
+    let clock = || {
+        ClockDomainDef::periodic(
+            eqiora_core::Id::new(),
+            RationalTime::new(1, 4).unwrap(),
+            RationalTime::ZERO,
+        )
+        .unwrap()
+    };
+    let shared = clock();
+    let distinct = clock();
+    for container in ["model M", "public component M"] {
+        for expression in ["memory", "memory + other", "forward"] {
+            let source = format!(
+                "{container}(clock first:periodic,clock second:periodic) {{state memory:1 at first;state other:1 at second;variable observed:1 at first;initial {{pre(memory)=1;pre(other)=2;}}relation hold1 at first {{next(memory)=pre(memory);observed=current;}}relation hold2 at second {{next(other)=pre(other);}} let current at second={expression};let forward=memory;}}"
+            );
+            CompiledModel::compile_selected(
+                "clock.eqi",
+                &source,
+                "M",
+                &[
+                    ("first", StaticBindingValue::Clock(&shared)),
+                    ("second", StaticBindingValue::Clock(&shared)),
+                ],
+            )
+            .unwrap_or_else(|e| panic!("{e:?}"));
+            let errors = CompiledModel::compile_selected(
+                "clock.eqi",
+                &source,
+                "M",
+                &[
+                    ("first", StaticBindingValue::Clock(&shared)),
+                    ("second", StaticBindingValue::Clock(&distinct)),
+                ],
+            )
+            .unwrap_err();
+            assert!(
+                errors.iter().any(|error| error
+                    .message()
+                    .contains("exact occurrence dependency clock")),
+                "{errors:?}"
+            );
+        }
+    }
+}

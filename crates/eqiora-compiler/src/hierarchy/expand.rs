@@ -425,7 +425,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             internal_name: internal_name(registration.identity.full),
             display_name: registration.display_name.clone(),
             full_identity: registration.identity.full,
-            kind: SymbolKind::Port,
+            kind: SymbolKind::Port(eqiora_lang::ActivationSyntax::Continuous),
         };
         scope.insert_port_family_member(
             registration.file,
@@ -647,7 +647,9 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     .or_else(|| super::clocks::model(model.file, model.declaration, name))
             })
             .map_err(|mut errors| errors.remove(0))?;
-        for item in model.owned_items() {
+        let mut owned_items = model.owned_items().collect::<Vec<_>>();
+        owned_items.sort_by_key(|item| !matches!(item, Item::Clock(_)));
+        for item in owned_items {
             let (name, kind, symbol_kind, parameter_value, range) = match item {
                 Item::Domain(value) => (
                     value.name(),
@@ -676,7 +678,12 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 Item::Port(value) => (
                     value.name(),
                     EntityKind::Port,
-                    SymbolKind::Port,
+                    SymbolKind::Port(super::scope::port_activation(
+                        model.file,
+                        value.syntax(),
+                        value.range(),
+                        scope,
+                    )?),
                     None,
                     value.range(),
                 ),
@@ -1156,7 +1163,15 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         display_child(&display_prefix, declaration.name()),
                         declaration.name(),
                         &identity,
-                        SymbolKind::Port,
+                        SymbolKind::Port(
+                            super::scope::port_activation(
+                                component.file,
+                                declaration.syntax(),
+                                declaration.range(),
+                                &scope,
+                            )
+                            .map_err(one_diagnostic)?,
+                        ),
                         &mut scope,
                     )
                     .map_err(one_diagnostic)?;
@@ -1240,7 +1255,16 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         .and_then(|domain| scope.spatial_support(domain).cloned());
                     scope.field_evolution.insert(
                         declaration.name().to_owned(),
-                        (declaration.role(), declaration.activation().clone()),
+                        (
+                            declaration.role(),
+                            super::scope::rewrite_activation(
+                                component.file,
+                                declaration.activation(),
+                                declaration.range(),
+                                &scope,
+                            )
+                            .map_err(one_diagnostic)?,
+                        ),
                     );
                     let field_type = field_expression_type(component.file, declaration, support)
                         .map_err(one_diagnostic)?;

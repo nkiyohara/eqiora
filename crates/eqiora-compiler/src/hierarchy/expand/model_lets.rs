@@ -79,6 +79,19 @@ impl RootExpansion<'_, '_> {
             if scope.parameter(declaration.name()).is_some() {
                 continue;
             }
+            let activation = scope.alias_activation(declaration.value());
+            if let Some(clock) = declaration.activation() {
+                let exact = scope.symbol(clock).map(|symbol| &symbol.internal_name);
+                if !matches!((&activation, exact), (crate::hierarchy::body_check::DependencyActivation::Clock(actual), Some(expected)) if actual == expected)
+                {
+                    return Err(vec![crate::diagnostics::source_error(
+                        eqiora_core::diagnostic::codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        declaration.range(),
+                        "let alias activation assertion does not match its exact occurrence dependency clock",
+                    )]);
+                }
+            }
             let expression = crate::hierarchy::scope::rewrite_expression_with_boundary_member(
                 file,
                 declaration.value(),
@@ -87,7 +100,7 @@ impl RootExpansion<'_, '_> {
             )
             .map_err(|error| vec![error])?;
             scope
-                .insert_runtime_let(declaration.name().to_owned(), expression)
+                .insert_runtime_let(declaration.name().to_owned(), expression, activation)
                 .map_err(|message| vec![hierarchy_error(message)])?;
         }
         Ok(())

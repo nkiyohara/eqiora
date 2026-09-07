@@ -20,6 +20,7 @@ use super::supports::SupportInterface;
 
 mod component;
 mod expression;
+pub(super) use expression::DependencyActivation;
 mod model;
 mod scope;
 pub(super) use scope::{field_expression_type, resolve_value_shape};

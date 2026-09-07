@@ -20,6 +20,8 @@ use super::flat::SourceLocation;
 
 use super::supports::ResolvedBoundarySet;
 
+mod activation;
+pub(super) use activation::port_activation;
 mod external;
 mod lets;
 
@@ -36,14 +38,14 @@ pub(super) enum SymbolKind {
     Domain,
     Field,
     Parameter,
-    Port,
+    Port(ActivationSyntax),
     Clock(eqiora_schema::kernel::RationalTime),
     Relation,
 }
 
 impl FlatSymbol {
     fn is_port(&self) -> bool {
-        matches!(self.kind, SymbolKind::Port)
+        matches!(self.kind, SymbolKind::Port(_))
     }
 }
 

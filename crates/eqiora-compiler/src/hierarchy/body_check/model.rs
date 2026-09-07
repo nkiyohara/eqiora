@@ -121,6 +121,7 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
         for item in signature {
             match item {
                 eqiora_lang::SignatureItem::Clock(value) => {
+                    self.scope.borrowed_clocks.insert(value.name().to_owned());
                     self.scope
                         .symbols
                         .insert(value.name().to_owned(), SymbolContract::Clock);

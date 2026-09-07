@@ -1,7 +1,7 @@
 //! Intrinsic alias types and shared, use-context evolution obligations.
 
 mod activation;
-use activation::DependencyActivation;
+pub(in crate::hierarchy) use activation::DependencyActivation;
 
 use super::*;
 use std::collections::BTreeSet;

@@ -1,5 +1,6 @@
 mod aliases;
 mod transitions;
+pub(in crate::hierarchy) use aliases::DependencyActivation;
 pub(super) use aliases::{AliasContract, validate_aliases};
 
 use eqiora_core::diagnostic::codes;

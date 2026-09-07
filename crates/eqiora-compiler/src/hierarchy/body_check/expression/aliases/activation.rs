@@ -3,10 +3,11 @@
 use super::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum DependencyActivation {
+pub(in crate::hierarchy) enum DependencyActivation {
     Static,
     Continuous,
     Clock(String),
+    Clocks(BTreeSet<String>),
     Mixed,
 }
 
@@ -15,6 +16,16 @@ impl DependencyActivation {
         match (self, other) {
             (Self::Static, value) | (value, Self::Static) => value,
             (left, right) if left == right => left,
+            (Self::Clock(left), Self::Clock(right)) => Self::Clocks(BTreeSet::from([left, right])),
+            (Self::Clocks(mut clocks), Self::Clock(clock))
+            | (Self::Clock(clock), Self::Clocks(mut clocks)) => {
+                clocks.insert(clock);
+                Self::Clocks(clocks)
+            }
+            (Self::Clocks(mut left), Self::Clocks(right)) => {
+                left.extend(right);
+                Self::Clocks(left)
+            }
             _ => Self::Mixed,
         }
     }
@@ -35,21 +46,28 @@ impl DependencyActivation {
     }
 
     pub(super) fn infer(scope: &DefinitionScope<'_, '_>, expression: &Expr) -> Self {
+        Self::infer_with(
+            expression,
+            |expression| match expression.kind() {
+                ExprKind::Name(name) => scope.symbols.get(name).map(Self::symbol),
+                ExprKind::Path(path) => scope.resolve_symbol(path).ok().as_ref().map(Self::symbol),
+                _ => None,
+            },
+            |clock| clock.to_owned(),
+        )
+    }
+
+    pub(in crate::hierarchy) fn infer_with(
+        expression: &Expr,
+        mut symbol: impl FnMut(&Expr) -> Option<Self>,
+        mut clock: impl FnMut(&str) -> String,
+    ) -> Self {
         let mut profile = Self::Static;
         let mut pending = vec![expression];
         while let Some(expression) = pending.pop() {
             let contribution = match expression.kind() {
                 ExprKind::Name(name) if name == "time" => Self::Continuous,
-                ExprKind::Name(name) => scope
-                    .symbols
-                    .get(name)
-                    .map(Self::symbol)
-                    .unwrap_or(Self::Static),
-                ExprKind::Path(path) => scope
-                    .resolve_symbol(path)
-                    .as_ref()
-                    .map(Self::symbol)
-                    .unwrap_or(Self::Static),
+                ExprKind::Name(_) | ExprKind::Path(_) => symbol(expression).unwrap_or(Self::Static),
                 ExprKind::BoundaryPortSelection { .. } => Self::Continuous,
                 ExprKind::Array(elements) => {
                     pending.extend(elements);
@@ -70,7 +88,7 @@ impl DependencyActivation {
                 ExprKind::Call { callee, .. } if callee.as_str() == "hold" => Self::Continuous,
                 ExprKind::Call { callee, arguments } if callee.as_str() == "sample" => {
                     match arguments.get(1).map(Expr::kind) {
-                        Some(ExprKind::Name(clock)) => Self::Clock(clock.clone()),
+                        Some(ExprKind::Name(name)) => Self::Clock(clock(name)),
                         _ => Self::Mixed,
                     }
                 }
@@ -102,7 +120,19 @@ impl DependencyActivation {
                 "let alias clock activation",
             ));
         }
-        if self != &Self::Clock(clock.to_owned()) {
+        let deferred = match self {
+            Self::Clock(dependency) => {
+                scope.borrowed_clocks.contains(dependency) || scope.borrowed_clocks.contains(clock)
+            }
+            Self::Clocks(dependencies) => {
+                dependencies
+                    .iter()
+                    .all(|name| scope.borrowed_clocks.contains(name))
+                    && scope.borrowed_clocks.contains(clock)
+            }
+            _ => false,
+        };
+        if self != &Self::Clock(clock.to_owned()) && !deferred {
             return Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 scope.file,
