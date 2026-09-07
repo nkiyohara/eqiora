@@ -63,6 +63,20 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
         self.bind_non_boundary_interfaces();
         self.bind_boundaries();
         self.bind_fields_and_ports();
+        if let Err(errors) = super::expression::validate_aliases(
+            &mut self.scope,
+            self.definition
+                .declaration
+                .items()
+                .iter()
+                .filter_map(|item| match item {
+                    Item::Let(d) => Some(d),
+                    _ => None,
+                }),
+            self.compile_time_values,
+        ) {
+            self.diagnostics.extend(errors);
+        }
         self.validate_declarations();
     }
 
@@ -112,26 +126,20 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                         SymbolContract::Parameter(ExpressionType::new(value_type, None)),
                     ))
                 }),
-                Item::Let(declaration) => self
-                    .compile_time_values
-                    .get(declaration.name())
-                    .map(|value| {
-                        Some((
-                            declaration.name(),
-                            SymbolContract::Parameter(ExpressionType::new(
-                                value.value_type.clone(),
-                                None,
-                            )),
-                        ))
-                    })
-                    .ok_or_else(|| {
-                        source_error(
-                            codes::LANGUAGE_TYPE_ERROR,
-                            self.scope.file,
-                            declaration.range(),
-                            format!("unresolved let alias `{}`", declaration.name()),
-                        )
-                    }),
+                Item::Let(declaration) => {
+                    Ok(self
+                        .compile_time_values
+                        .get(declaration.name())
+                        .map(|value| {
+                            (
+                                declaration.name(),
+                                SymbolContract::Parameter(ExpressionType::new(
+                                    value.value_type.clone(),
+                                    None,
+                                )),
+                            )
+                        }))
+                }
                 Item::Clock(declaration) => Ok(Some((declaration.name(), SymbolContract::Clock))),
                 Item::Relation(declaration) => {
                     Ok(Some((declaration.name(), SymbolContract::Relation)))

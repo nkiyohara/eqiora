@@ -23,7 +23,7 @@ mod model_lets;
 use expression_eval::{
     ExpressionContext, coerce_parameter, coerce_parameter_with_label, evaluate_parameter_expression,
 };
-pub(super) use model_lets::{resolve_component_lets, resolve_model_lets};
+pub(super) use model_lets::{alias_order, resolve_component_lets, resolve_model_lets};
 
 #[derive(Debug, Clone)]
 pub(super) struct ResolvedParameter {

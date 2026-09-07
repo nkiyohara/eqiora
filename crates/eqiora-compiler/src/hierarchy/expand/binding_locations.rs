@@ -121,3 +121,42 @@ pub(super) fn normalize_binding_locations(bindings: &mut Vec<SourceLocation>) {
     });
     bindings.dedup_by(|left, right| left.file == right.file && left.range == right.range);
 }
+
+pub(super) fn compare_physical_connection_origins(
+    left: &PhysicalConnectionOrigin,
+    right: &PhysicalConnectionOrigin,
+) -> core::cmp::Ordering {
+    left.declaration_path
+        .cmp(&right.declaration_path)
+        .then_with(|| {
+            left.source
+                .definition
+                .file
+                .cmp(&right.source.definition.file)
+        })
+        .then_with(|| {
+            left.source
+                .definition
+                .range
+                .start()
+                .cmp(&right.source.definition.range.start())
+        })
+        .then_with(|| {
+            left.source
+                .definition
+                .range
+                .end()
+                .cmp(&right.source.definition.range.end())
+        })
+}
+
+pub(super) fn boundary_family_bindings(
+    base: &[SourceLocation],
+    file: &str,
+    member_range: eqiora_lang::TextRange,
+) -> Vec<SourceLocation> {
+    let mut bindings = base.to_vec();
+    bindings.push(SourceLocation::new(file, member_range));
+    normalize_binding_locations(&mut bindings);
+    bindings
+}

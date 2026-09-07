@@ -175,3 +175,26 @@ fn unused_component_aliases_consume_the_existing_symbolic_term_budget() {
             .any(|e| e.message().contains("2 symbolic Parameter term limit"))
     );
 }
+
+#[test]
+fn runtime_alias_terms_are_counted_before_effect_classification() {
+    let source = "component C() { state x:1; let a=x; let b=a; let c=b; } model M {}";
+    let document = eqiora_lang::parse("runtime-budget.eqi", source)
+        .into_document()
+        .unwrap();
+    let errors = crate::hierarchy::compile_hierarchy_with_limits(
+        "runtime-budget.eqi",
+        source.len(),
+        &document,
+        crate::hierarchy::HierarchyLimits {
+            max_parameter_terms: 2,
+            ..Default::default()
+        },
+    )
+    .unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.message().contains("2 symbolic Parameter term limit"))
+    );
+}

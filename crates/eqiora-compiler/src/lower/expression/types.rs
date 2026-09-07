@@ -57,9 +57,23 @@ pub(super) fn expression_type(
     bindings: &BTreeMap<String, Binding>,
     support: Option<&SpatialSupport<RawId>>,
 ) -> Result<ExpressionType<RawId>, Diagnostic> {
-    let infer = |operand| expression_type(file, operand, bindings, support);
+    expression_type_cached(file, expression, bindings, support, &mut HashMap::new())
+}
+
+fn expression_type_cached(
+    file: &str,
+    expression: &LoweringExpression,
+    bindings: &BTreeMap<String, Binding>,
+    support: Option<&SpatialSupport<RawId>>,
+    cache: &mut HashMap<usize, ExpressionType<RawId>>,
+) -> Result<ExpressionType<RawId>, Diagnostic> {
+    let key = Arc::as_ptr(&expression.node) as usize;
+    if let Some(inferred) = cache.get(&key) {
+        return Ok(inferred.clone());
+    }
+    let mut infer = |operand| expression_type_cached(file, operand, bindings, support, cache);
     let violation = |error| spatial_type_error(file, expression, error);
-    match expression.node.as_ref() {
+    let inferred = match expression.node.as_ref() {
         LoweringExpressionNode::Literal(value) => {
             Ok(ExpressionType::new(value.value_type().clone(), None))
         }
@@ -294,5 +308,7 @@ pub(super) fn expression_type(
             expression.range(),
             "expression syntax is newer than this compiler",
         )),
-    }
+    }?;
+    cache.insert(key, inferred.clone());
+    Ok(inferred)
 }

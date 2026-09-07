@@ -17,7 +17,7 @@ use eqiora_schema::kernel::pure_operator::PureOperatorDefinition;
 use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};
 
 use super::flat::SourceLocation;
-use super::parameters::ResolvedParameter;
+
 use super::supports::ResolvedBoundarySet;
 
 mod external;
@@ -98,7 +98,7 @@ pub(super) struct Scope {
     spatial_supports: BTreeMap<String, SpatialSupport<FullElaborationIdentity>>,
     pub(super) field_evolution: BTreeMap<String, (eqiora_lang::FieldRoleSyntax, ActivationSyntax)>,
     field_types: BTreeMap<String, ExpressionType<FullElaborationIdentity>>,
-    parameters: BTreeMap<String, ResolvedParameter>,
+    values: BTreeMap<String, lets::ScopedValue>,
     pure_operators: BTreeMap<String, PureOperatorDefinition>,
     occurrence_bindings: Vec<SourceLocation>,
     forwarded_parameter_resolution_bindings: Vec<SourceLocation>,
@@ -493,8 +493,10 @@ pub(super) fn rewrite_expression_with_boundary_member(
         ExprKind::Name(name) if name == "time" => {
             LoweringExpression::name(name.clone(), expression.range())
         }
-        ExprKind::Name(name) if scope.parameter(name).is_some() => scope.parameter_expression(name),
         ExprKind::Name(name) => {
+            if let Some(value) = scope.value_expression(name) {
+                return Ok(value);
+            }
             let path = NamePath::from_segments([name.clone()], expression.range()).map_err(
                 |ast_error| {
                     source_error(

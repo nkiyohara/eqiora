@@ -92,7 +92,6 @@ fn unused_components_still_reject_invalid_static_aliases() {
         "let a = b; let b = a;",
         "let a = a;",
         "let a = missing;",
-        "state x: 1; let a = x;",
         "let a = derivative(x);",
         "let a: m = 1[s];",
         "public parameter p: 1; let p = 2;",

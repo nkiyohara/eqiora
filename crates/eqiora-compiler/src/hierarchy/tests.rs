@@ -104,7 +104,7 @@ fn model_let_alias_rejects_cycles_unknown_names_and_dimension_mismatches() {
         (
             "unknown",
             "model M { let first: 1 = missing; }",
-            "unknown Parameter or let alias `missing`",
+            "unresolved expression symbol `missing`",
         ),
         (
             "dimension",

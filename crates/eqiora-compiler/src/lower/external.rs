@@ -6,13 +6,21 @@ use super::{LoweringExpression, LoweringExpressionNode};
 
 impl LoweringExpression {
     pub(crate) fn detached_clone(&self) -> Self {
+        self.clone_shared(&mut std::collections::HashMap::new())
+    }
+
+    fn clone_shared(&self, cache: &mut std::collections::HashMap<usize, Self>) -> Self {
+        let key = Arc::as_ptr(&self.node) as usize;
+        if let Some(value) = cache.get(&key) {
+            return value.clone();
+        }
         let node = match self.node.as_ref() {
             LoweringExpressionNode::Literal(value) => {
                 LoweringExpressionNode::Literal(value.clone())
             }
             LoweringExpressionNode::Name(name) => LoweringExpressionNode::Name(name.clone()),
             LoweringExpressionNode::Neg(value) => {
-                LoweringExpressionNode::Neg(value.detached_clone())
+                LoweringExpressionNode::Neg(value.clone_shared(cache))
             }
             LoweringExpressionNode::Binary {
                 operator,
@@ -20,12 +28,12 @@ impl LoweringExpression {
                 right,
             } => LoweringExpressionNode::Binary {
                 operator: *operator,
-                left: left.detached_clone(),
-                right: right.detached_clone(),
+                left: left.clone_shared(cache),
+                right: right.clone_shared(cache),
             },
             LoweringExpressionNode::Call { callee, argument } => LoweringExpressionNode::Call {
                 callee: callee.clone(),
-                argument: argument.detached_clone(),
+                argument: argument.clone_shared(cache),
             },
             LoweringExpressionNode::PureOperator {
                 definition,
@@ -34,7 +42,7 @@ impl LoweringExpression {
                 definition: definition.clone(),
                 arguments: arguments
                     .iter()
-                    .map(LoweringExpression::detached_clone)
+                    .map(|argument| argument.clone_shared(cache))
                     .collect(),
             },
             LoweringExpressionNode::UnknownMath(path) => {
@@ -45,9 +53,11 @@ impl LoweringExpression {
             }
             LoweringExpressionNode::Unsupported => LoweringExpressionNode::Unsupported,
         };
-        Self {
+        let value = Self {
             node: Arc::new(node),
             range: self.range,
-        }
+        };
+        cache.insert(key, value.clone());
+        value
     }
 }

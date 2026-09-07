@@ -59,7 +59,8 @@ use super::supports::{
     component_support_interface, resolve_instance_support_bindings,
 };
 use binding_locations::{
-    boundary_set_forwarding_locations, field_forwarding_locations, instance_binding_locations,
+    boundary_family_bindings, boundary_set_forwarding_locations,
+    compare_physical_connection_origins, field_forwarding_locations, instance_binding_locations,
     normalize_binding_locations, parameter_forwarding_locations,
 };
 use names::{boundary_family_display, child_instance_path, display_child, internal_name};
@@ -785,6 +786,20 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 )));
             }
         }
+        self.allocate_runtime_lets(
+            scope,
+            self.model.file,
+            model.items().iter().filter_map(|item| match item {
+                Item::Let(d) => Some(d),
+                _ => None,
+            }),
+        )
+        .map_err(|errors| {
+            errors
+                .into_iter()
+                .next()
+                .expect("runtime alias failure has a diagnostic")
+        })?;
         for item in model.items() {
             let Item::Port(declaration) = item else {
                 continue;
@@ -1436,6 +1451,15 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
 
         self.allocate_component_lets(&mut scope, &component)
             .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
+        self.allocate_runtime_lets(
+            &mut scope,
+            component.file,
+            component.items().iter().filter_map(|item| match item {
+                ComponentItem::Let(d) => Some(d),
+                _ => None,
+            }),
+        )
+        .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
 
         for item in component.items() {
             if let ComponentItem::Instance(child) = item {
@@ -2629,45 +2653,6 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         });
         Ok(())
     }
-}
-
-fn compare_physical_connection_origins(
-    left: &PhysicalConnectionOrigin,
-    right: &PhysicalConnectionOrigin,
-) -> core::cmp::Ordering {
-    left.declaration_path
-        .cmp(&right.declaration_path)
-        .then_with(|| {
-            left.source
-                .definition
-                .file
-                .cmp(&right.source.definition.file)
-        })
-        .then_with(|| {
-            left.source
-                .definition
-                .range
-                .start()
-                .cmp(&right.source.definition.range.start())
-        })
-        .then_with(|| {
-            left.source
-                .definition
-                .range
-                .end()
-                .cmp(&right.source.definition.range.end())
-        })
-}
-
-fn boundary_family_bindings(
-    base: &[SourceLocation],
-    file: &str,
-    member_range: eqiora_lang::TextRange,
-) -> Vec<SourceLocation> {
-    let mut bindings = base.to_vec();
-    bindings.push(SourceLocation::new(file, member_range));
-    normalize_binding_locations(&mut bindings);
-    bindings
 }
 
 fn definition_path(

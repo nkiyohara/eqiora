@@ -23,9 +23,9 @@ impl RootExpansion<'_, '_> {
             let Item::Let(declaration) = item else {
                 continue;
             };
-            let value = values
-                .remove(declaration.name())
-                .ok_or_else(|| hierarchy_error("resolved let alias is missing"))?;
+            let Some(value) = values.remove(declaration.name()) else {
+                continue;
+            };
             scope
                 .insert_let(declaration.name().to_owned(), value)
                 .map_err(hierarchy_error)?;
@@ -50,11 +50,38 @@ impl RootExpansion<'_, '_> {
             let eqiora_lang::ComponentItem::Let(declaration) = item else {
                 continue;
             };
-            let value = values
-                .remove(declaration.name())
-                .ok_or_else(|| vec![hierarchy_error("resolved component let alias is missing")])?;
+            let Some(value) = values.remove(declaration.name()) else {
+                continue;
+            };
             scope
                 .insert_let(declaration.name().to_owned(), value)
+                .map_err(|message| vec![hierarchy_error(message)])?;
+        }
+        Ok(())
+    }
+}
+
+impl RootExpansion<'_, '_> {
+    pub(super) fn allocate_runtime_lets<'d>(
+        &self,
+        scope: &mut Scope,
+        file: &str,
+        declarations: impl Iterator<Item = &'d eqiora_lang::LetDecl>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let order = crate::hierarchy::parameters::alias_order(file, declarations)?;
+        for declaration in order {
+            if scope.parameter(declaration.name()).is_some() {
+                continue;
+            }
+            let expression = crate::hierarchy::scope::rewrite_expression_with_boundary_member(
+                file,
+                declaration.value(),
+                scope,
+                None,
+            )
+            .map_err(|error| vec![error])?;
+            scope
+                .insert_runtime_let(declaration.name().to_owned(), expression)
                 .map_err(|message| vec![hierarchy_error(message)])?;
         }
         Ok(())
