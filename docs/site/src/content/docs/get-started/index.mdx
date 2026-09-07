@@ -4,29 +4,40 @@ description: Install Eqiora with uv, run a small decay model, and predict what c
 ---
 
 import { Code } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 import modelSource from '../../../../../../examples/decay.eqi?raw';
 import modelDownload from '../../../../../../examples/decay.eqi?url&no-inline';
 import programSource from '../../../../../../examples/python/textbook_decay.py?raw';
 import programDownload from '../../../../../../examples/python/textbook_decay.py?url&no-inline';
 
 Run a small model, then change it and see the difference. You need two files and
-a Python environment—not a repository checkout, mesh generator or editor extension.
+a Python environment. Install the same source revision as this page so the parser
+and downloaded model agree; no mesh generator or editor extension is needed.
 
 ## Install with uv
 
-This example uses the published **Eqiora 0.1.0a7** release on **Linux x86-64**
-with ordinary-GIL **CPython 3.13**. Its manylinux wheel requires glibc 2.17 or
-newer. macOS, Windows and free-threaded Python are not supported by this release.
+These commands use **Linux x86-64** and ordinary-GIL **CPython 3.13**.
+Install Git, [Rust stable with Cargo](https://rustup.rs/), and a C compiler/linker
+before building the Python package from source. On Ubuntu, `build-essential`
+provides the compiler and linker.
 
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/) if you do
 not have it, then open a terminal in a new working folder:
 
-```bash
-mkdir first-eqiora-model
+export const installCommands = `mkdir first-eqiora-model
 cd first-eqiora-model
+git init eqiora-source
+git -C eqiora-source remote add origin https://github.com/nkiyohara/eqiora.git
+git -C eqiora-source fetch --depth 1 origin ${process.env.EQIORA_SITE_SOURCE_SHA}
+git -C eqiora-source checkout --detach FETCH_HEAD
 uv venv --python 3.13
-uv pip install --python .venv/bin/python 'eqiora==0.1.0a7'
-```
+uv pip install --python .venv/bin/python ./eqiora-source`;
+
+<Code code={installCommands} lang="bash" title="Install the page's source revision" />
+
+<ExactSourceLink path="examples/decay.eqi" kind="blob">The checked-out revision</ExactSourceLink>
+owns both the installed package and the model shown below. Building takes longer
+than installing a prebuilt wheel. Keep `eqiora-source` for the Reference examples.
 
 Keep the following files in this folder, beside `.venv`. No shell activation is
 needed: each run below explicitly selects that environment.
@@ -52,7 +63,7 @@ this complete source into a file named `decay.eqi`:
 
 The `.eqi` file describes the model. `field x` carries its initial value,
 `parameter rate` has inverse-second units, and the `relation` states an equation
-as a residual equal to zero. The numerical method does not belong in this file.
+with two ordered sides of an equality. The numerical method does not belong in this file.
 
 ## Save the run script
 
@@ -102,17 +113,18 @@ the [ODE lesson](/learn/mathematical-modeling/ordinary-differential-equations/).
 
 - **`uv: command not found`:** install uv using its linked instructions, reopen
   the terminal and check `uv --version`.
-- **No compatible distribution:** check the Linux x86-64/glibc requirements
-  above. Use CPython 3.13, not a free-threaded build.
+- **Source build fails:** check `cargo --version` and `cc --version`, then repeat
+  the uv install command. Use CPython 3.13 and the checked-out source revision.
 - **Wrong Python or missing `eqiora`:** run
   `uv run --no-project --python .venv/bin/python python -c "import eqiora; print(eqiora.__version__)"`.
-  It should print `0.1.0a7`. Use the same folder and environment for installation
-  and execution; do not substitute an unrelated system Python.
+  A version number alone does not identify a source build. Check
+  `git -C eqiora-source rev-parse HEAD` against the revision in the install command,
+  then reinstall from that checkout. Use the same folder and environment for each run.
 - **Model file not found:** keep `decay.eqi` beside `run.py` and run from their
   folder, or pass its path: `python run.py path/to/decay.eqi` inside the selected
   environment.
 - **A source diagnostic:** misspelling `rate` as `missing_rate` in the relation
-  produces `EQ0603: unresolved expression symbol` in this release. Correct the
+  produces `EQ0603: unresolved expression symbol`. Correct the
   name to match the declaration. Changing the rate's unit to `m` instead produces
   an addition/subtraction dimension mismatch: the two terms must both have
   inverse-time units.
@@ -120,7 +132,7 @@ the [ODE lesson](/learn/mathematical-modeling/ordinary-differential-equations/).
 ## Where next?
 
 - **Learn:** [derive this ODE and try the exercises](/learn/mathematical-modeling/ordinary-differential-equations/).
-- **Guides:** [run a model and inspect its result](/guides/run-and-inspect/) with the same installed release.
+- **Guides:** [run a model and inspect its result](/guides/run-and-inspect/) with the same installed source build.
 - **Gallery:** [explore complete simulation investigations](/gallery/).
 - **Reference:** [look up the public interfaces](/reference/).
 

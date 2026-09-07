@@ -259,13 +259,13 @@ def _case_body() -> str:
         "#L45-L57",
     )
 
-    source_form = """<p><strong>Eqiora source form</strong></p><pre>relation momentum continuous on body {
+    source_form = """<p><strong>Eqiora source form</strong></p><pre>relation momentum on body {
   -div(
     2 * dynamic_viscosity * symmetric_part(grad(velocity))
     - isotropic_lift(pressure)
   ) - grad(force_potential) = 0;
 }
-relation incompressibility continuous on body {
+relation incompressibility on body {
   div(velocity) = 0;
 }</pre>"""
     stage_bodies = (

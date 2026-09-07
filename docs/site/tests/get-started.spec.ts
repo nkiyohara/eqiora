@@ -17,7 +17,13 @@ for (const width of [1280, 320]) {
     await page.goto('/get-started/');
     await expect(page.getByRole('heading', { level: 1, name: 'Get started' })).toBeVisible();
     const main = page.getByRole('main');
-    await expect(main).toContainText("eqiora==0.1.0a7");
+    await expect(main).toContainText("uv pip install --python .venv/bin/python ./eqiora-source");
+    const revisionLink = main.getByRole('link', { name: 'The checked-out revision', exact: true });
+    const sourceHref = await revisionLink.getAttribute('href');
+    const sourceSha = sourceHref?.match(/\/blob\/([0-9a-f]{40})\//)?.[1];
+    expect(sourceSha).toBeTruthy();
+    await expect(main).toContainText(`git -C eqiora-source fetch --depth 1 origin ${sourceSha}`);
+    await expect(main).toContainText('git -C eqiora-source checkout --detach FETCH_HEAD');
     await expect(main).toContainText('uv run --no-project --python .venv/bin/python python run.py');
     await expect(main).toContainText('0.3678794412');
     await expect(main).toContainText('0.1353352833');

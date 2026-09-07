@@ -116,7 +116,7 @@ test('Home to released run to Guide and Learn works with keyboard and no JavaScr
   await guide.focus();
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\/guides\/run-and-inspect\/$/);
-  await expect(page.getByRole('main')).toContainText('Eqiora 0.1.0a7');
+  await expect(page.getByRole('main')).toContainText('same source revision');
   await page.getByRole('main').getByRole('link', { name: 'ODE lesson and exercises' }).click();
   await expect(page).toHaveURL(/\/learn\/mathematical-modeling\/ordinary-differential-equations\/$/);
   await page.emulateMedia({ media: 'print' });

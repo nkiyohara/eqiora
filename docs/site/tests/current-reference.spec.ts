@@ -13,24 +13,25 @@ const pages = [
   '/reference/standard-packages/continuum/',
 ];
 
-test('Reference navigation reaches released language and physical sources', async ({ page }) => {
+test('Reference navigation reaches language and physical sources', async ({ page }) => {
   await page.goto('/reference/');
-  await page.locator('main').getByRole('link', { name: /Released syntax Eqiora Language/ }).click();
+  await page.locator('main').getByRole('link', { name: /Language syntax Eqiora Language/ }).click();
   await expect(page).toHaveURL(/\/reference\/language\/$/);
   await page.locator('main').getByRole('link', { name: 'Declarations', exact: true }).click();
   await expect(page.locator('main')).toContainText('field current: A;');
   await page.goto('/reference/standard-packages/');
   await page.locator('main').getByRole('link', { name: 'Electrical components', exact: true }).click();
   await expect(page.locator('main')).toContainText('IdealVoltageSource');
-  await expect(page.locator('main a[href*="/blob/e72f744cf6956e0e3c1f03aad65868d726f8ebbf/"]').first()).toBeVisible();
+  await expect(page.locator('main a[href*="/blob/"]').first()).toBeVisible();
 });
 
-test('Released Reference links, source and edit destinations are present', async ({ page, baseURL }) => {
+test('Current Reference links, source and edit destinations are present', async ({ page, baseURL }) => {
   expect(baseURL).toBeTruthy();
   for (const route of pages) {
     const response = await page.goto(route);
     expect(response?.ok(), route).toBe(true);
-    await expect(page.locator('main')).toContainText('0.1.0a7');
+    await expect(page.locator('main')).not.toContainText('0.1.0a7');
+    await expect(page.locator('main a[href*="/nkiyohara/eqiora/"]').first()).toHaveAttribute('href', /\/(?:blob|tree)\/[0-9a-f]{40}\//);
     await assertNoSeriousAxeViolations(page);
     await expect(page.getByRole('link', { name: /Edit page/i })).toHaveAttribute(
       'href', /github\.com\/nkiyohara\/eqiora\/edit\/main\/docs\/site\/src\/content\/docs\/reference\//,
@@ -70,7 +71,7 @@ for (const width of [390, 1440]) {
   }
 }
 
-test('Released Reference is discoverable through the site search', async ({ page }) => {
+test('Current Reference is discoverable through the site search', async ({ page }) => {
   await page.goto('/reference/');
   await page.getByRole('button', { name: /search/i }).click();
   const dialog = page.getByRole('dialog', { name: 'Search' });

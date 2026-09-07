@@ -2,7 +2,7 @@
 title: 4. Ordinary differential equations
 sidebar:
   order: 4
-description: Derive, run, and interpret one bounded first-order initial-value problem through the installed Eqiora release.
+description: Derive, run, and interpret one bounded first-order initial-value problem through the installed Eqiora source build.
 ---
 
 import { Aside, Code } from '@astrojs/starlight/components';
@@ -11,11 +11,9 @@ import modelSource from '../../../../../../../examples/decay.eqi?raw';
 import programSource from '../../../../../../../examples/python/textbook_decay.py?raw';
 
 <Aside type="note" title="Chapter status">
-  **Checked · executable from the installed release.** The bounded scalar decay
-  example uses published Eqiora **0.1.0a7** and is compared with
-  its independently stated closed form in a focused product test. It is not
-  registered evidence and makes no general accuracy, convergence, stiffness,
-  or performance claim.
+  This scalar decay example uses the source revision installed in
+  [Get started](/get-started/). A focused product test compares its three
+  observations with the independently derived closed form below.
 </Aside>
 
 ## State makes history matter
@@ -73,9 +71,9 @@ The initial value and rate belong to the Model. The adaptive method, its
 tolerances, the final time, and requested observations belong to the
 Realization or Run.
 
-## Execute from the installed release
+## Execute the model
 
-Follow [Get started](/get-started/) to install the release and download the same
+Follow [Get started](/get-started/) to install the source build and download the same
 `decay.eqi` and `run.py` used here. Set `rate` to 1, then run from their folder:
 
 ```console
@@ -110,7 +108,7 @@ computed values; the model, realization, execution, and test are investigated.
 Change the residual to:
 
 ```eqiora
-relation flow continuous {
+relation flow {
   derivative(x) - rate * x = 0;
 }
 ```

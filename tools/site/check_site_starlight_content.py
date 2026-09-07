@@ -321,10 +321,10 @@ def _check_case(
         report("Cylinder route omits the accepted exact Gmsh CLI 4.15.2 mesh witness")
     source_tokens = (
         (
-            "relation momentum continuous on body",
+            "relation momentum on body",
             "2 * dynamic_viscosity * symmetric_part(grad(velocity))",
             "- isotropic_lift(pressure)",
-            "relation incompressibility continuous on body",
+            "relation incompressibility on body",
             "div(velocity) = 0;",
         )
         if enhanced

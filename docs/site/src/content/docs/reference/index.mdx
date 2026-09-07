@@ -1,6 +1,6 @@
 ---
 title: Reference
-description: Released Eqiora language and standard sources, alongside exact-commit API references.
+description: Eqiora language and standard sources, alongside exact-commit API references.
 editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/index.mdx
 ---
 
@@ -8,9 +8,8 @@ import { Aside, CardGrid } from '@astrojs/starlight/components';
 import ReferenceCard from '@components/site/ReferenceCard.astro';
 
 Look up a declaration, find a physical building block, or inspect an API signature.
-The language and standard-source pages name the installed release they exercise.
-The generated API and protocol pages describe their labelled documentation commit;
-they may include features newer than that release.
+The language, standard-source and generated API pages describe the same exact
+source revision. Install it through Get started before running their examples.
 
 <Aside type="note" title="Choose a reference">
   Start with [Get started](/get-started/) for installation and a first run.
@@ -24,13 +23,13 @@ they may include features newer than that release.
   <ReferenceCard
     href="/reference/language/"
     title="Eqiora Language"
-    description="Declarations, SI quantities, residual equations, initialization and component bindings checked with a named installed release."
-    badge="Released syntax"
+    description="Declarations, SI quantities, residual equations, initialization and component bindings using the source-installed package."
+    badge="Language syntax"
   />
   <ReferenceCard
     href="/reference/standard-packages/"
     title="Standard sources"
-    description="Find electrical components, continuum laws and boundary conditions by physical purpose, with their canonical released source."
+    description="Find electrical components, continuum laws and boundary conditions by physical purpose, with their canonical source."
     badge="Physical building blocks"
   />
 </CardGrid>

@@ -176,19 +176,8 @@ CURRENT_VERSION = re.compile(
     r"(?<![A-Za-z0-9_.-])(?:\d+\.\d+\.\d+-alpha\.\d+|\d+\.\d+\.\d+a\d+)(?![A-Za-z0-9_.-])"
 )
 CURRENT_VERSION_SOURCE_EXCEPTIONS = {
-    "docs/site/src/content/docs/guides/run-and-inspect.mdx",
-    "docs/site/src/content/docs/get-started/index.mdx",
-    "docs/site/src/content/docs/reference/language/index.mdx",
-    "docs/site/src/content/docs/reference/language/declarations.mdx",
-    "docs/site/src/content/docs/reference/language/units.mdx",
-    "docs/site/src/content/docs/reference/language/equations.mdx",
-    "docs/site/src/content/docs/reference/language/composition.mdx",
-    "docs/site/src/content/docs/reference/standard-packages/index.mdx",
-    "docs/site/src/content/docs/reference/standard-packages/electrical.mdx",
-    "docs/site/src/content/docs/reference/standard-packages/continuum.mdx",
     "docs/site/src/content/docs/reference/cli/index.mdx",
     "docs/site/src/content/docs/reference/mcp/index.mdx",
-    "docs/site/src/content/docs/learn/mathematical-modeling/ordinary-differential-equations.mdx",
 }
 
 
