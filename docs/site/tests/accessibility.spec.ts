@@ -426,10 +426,13 @@ test('tables reflow and remain accessible across widths and forced colours', asy
     expect(external).toEqual([]);
     expect(work).toEqual({
       cells: 6,
-      routes: 36,
-      dynamicProjections: 36,
-      conditionAxeCalls: 36,
-      conditionAxeRuleApplications: 60,
+      // Each declared route runs in six cells; two cells apply three Axe
+      // rules and the remaining four apply one. Derive from the route owner,
+      // not observed work, so newly documented tables retain full coverage.
+      routes: TABLE_ROUTES.length * 6,
+      dynamicProjections: TABLE_ROUTES.length * 6,
+      conditionAxeCalls: TABLE_ROUTES.length * 6,
+      conditionAxeRuleApplications: TABLE_ROUTES.length * (2 * 3 + 4),
       contexts: 1,
       pages: 1,
     });
