@@ -1,45 +1,42 @@
-# Bounded Parameter study composition
+# Ordered independent evaluation maps
 
-This case freezes one composition oracle over the accepted two-dimensional
-generated-Cartesian Poisson differentiable program. The study retains the
-finite-element program with ordered inputs `source_scale`, `diffusion`, and
-`boundary_offset`; varies only `diffusion`; and canonicalizes the deliberately
-permuted caller values `1.25, 0.75, 1.0` into `0.75, 1.0, 1.25`.
+This existing case now owns the current ordered map contract. Its historical case ID is
+retained; sorted single-Parameter studies are no longer an active API or acceptance claim.
 
-The positive oracle executes the existing `DifferentiableProgram` separately
-at all three canonical complete points before executing the study. It compares
-every member's exact program identity, ordered Parameter IDs, point bits,
-complete Field coefficient bits, state-system and accepted-output
-fingerprints, solve report, and exposed primal evidence with the corresponding
-separate accepted evaluation. No coefficient, scientific digest, expected
-value, or tolerance is added here.
+The primary Rust integration test evaluates the same complete points outside the map, then
+checks every mapped occurrence against those ordinary accepted evaluations. Both Q1 and TPFA
+run with ordered inputs `[source_scale, diffusion, boundary_offset]` and points
+`p1=[2,0.75,0.5]`, `p2=[3,1.25,-0.25]`. The request `[p2,p1,p2]` must preserve all three
+positions; `[p1,p2,p2]` must produce that different order. No default anchor is requested.
 
-Planning tests freeze exact-bit duplicate rejection, the 2--64 point bound,
-the mandatory default anchor, selected-Parameter ownership, finiteness, plan
-equality, and signed-zero ordering. Public execution tests freeze failure
-atomicity and cancellation immediately before the first point and between
-accepted points. The required companion case
-[`differentiation.bounded-parameter-study-private`](../bounded-parameter-study-private/README.md)
-injects evaluators and member vectors to reject parallel or repeated calls,
-foreign members, missing, duplicate, inserted, reordered, or substituted
-members, and continuation after a failure.
+The reference is composition, not another scalar solver: exact point and Field bits, program
+identity, accepted operator/output fingerprints and exposed evidence match separate evaluations.
+Retained primal/JVP/VJP actions survive other points and repeated `p0=[1,1,0]` evaluations.
+There are no new scientific expected coefficients, digests, or tolerances.
+Pointwise numerical truth remains with
+[`differentiation.spatial-poisson-fem-fvm`](../spatial-poisson-fem-fvm/README.md).
 
-The first slice does not claim Python exposure, general batching, parallel or
-remote scheduling, alternate bases, several varying Parameters, caching or
-solver reuse, derivatives across the study axis, optimization, UQ,
-persistence, or a general Study abstraction. The complete executable boundary
-and falsifiers are recorded in [`case.toml`](case.toml).
+Success requires one complete collection. Numerical failure and boundary cancellation preserve
+the individually accepted prefix, identify the terminal occurrence, and leave later positions
+not started. Empty maps finish without evaluation or cancellation polling. Singleton maps,
+structural rejection, exact byte-limit admission and cancellation precedence are exercised.
 
-Run the composed evidence with:
+The required [private companion](../bounded-parameter-study-private/README.md) tests constructor
+and evaluator substitution, membership, call count/order, and terminal-state falsifiers.
+Both cases are required for this composition claim.
 
-```console
-cargo test --locked -p eqiora --test bounded_parameter_study
-cargo run --locked -p eqiora-verify -- run \
+The intentional migration removes the former two-to-sixty-four/default-anchor/unique-order
+oracle and its obsolete precommitment claims. Expectations now come from the current
+[axis contract](../../../docs/evaluation/independent-map-axes.md) and ordinary independent
+point evaluations, not observed map output. Published historical artifacts are unchanged.
+
+```bash
+mise run affected -- \
   --case differentiation.bounded-parameter-study \
   --case differentiation.bounded-parameter-study-private
 ```
 
-At the preimplementation base revision, the production module and public
-registrations intentionally do not exist, so both Rust authorities are
-expected not to compile or resolve. They must pass after composition without
-changing either oracle.
+This does not verify Python/JAX adapters, derivatives across the map axis, threading, caching,
+stochastic paths, persistence, or peak process memory. The byte estimate bounds additional
+retained numerical storage; deployment metadata, allocator overhead and solver scratch are
+outside that estimate.

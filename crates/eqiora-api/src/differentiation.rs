@@ -20,6 +20,8 @@ use eqiora_solver::{
 
 use crate::ModelDocument;
 
+mod map_admission;
+
 /// Exact canonical Parameter selected from one immutable Model artifact.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModelParameterRef {
