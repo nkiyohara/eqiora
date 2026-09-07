@@ -107,6 +107,12 @@ block attached to its declaration. Documentation is bounded to 16,384 UTF-8 byte
 `write_eqi(path)` uses same-directory staging and atomic replacement, so an I/O
 failure does not publish a partly written source file.
 
+A Source can contain multiple Components within its existing declaration bound.
+Use `parent.instance(...)` to bind a child's requirements explicitly, and select the
+entry with `eqiora.compile(source=source, component="Parent", ...)` when the source
+contains multiple public Components. A Source containing property contracts still
+requires the exact Model Package compilation path described below.
+
 `component.let_alias(name, expression)` declares a private static expression alias.
 Its type is inferred, or asserted with `value_type=`. Aliases can use the component's
 Parameters and other static aliases, including as nested-instance argument expressions;

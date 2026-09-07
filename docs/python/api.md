@@ -2424,7 +2424,7 @@ class Relation:
 
 ### `eqiora.lang.Source`
 
-Own one baseline or scalar-property draft and freeze it on emission.
+Own a bounded Component hierarchy and freeze it on emission.
 
 Authority: [`bindings/python/python/eqiora/lang/__init__.py::Source`](../../bindings/python/python/eqiora/lang/__init__.py)
 

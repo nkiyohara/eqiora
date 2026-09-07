@@ -124,38 +124,6 @@ impl SourceAstFactory {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::{format, parse};
-
-    use super::*;
-
-    #[test]
-    fn constructs_primal_form_without_model_item_coercion() {
-        let parsed = parse(
-            "form.eqi",
-            "component C() { relation balance { 1 = 0; } form primal for balance { integrate(region, test(value)) = integrate(region, test(value)); } }",
-        )
-        .into_document()
-        .unwrap();
-        let source = &parsed.components()[0];
-        let (_, left, right, range) = source.formulations().next().unwrap();
-        let component = SourceAstFactory::component_with_primal_form(
-            VisibilitySyntax::Private,
-            "C",
-            source.items().to_vec(),
-            "balance",
-            (left.clone(), right.clone(), range),
-            source.range(),
-        )
-        .unwrap();
-        let document = SourceAstFactory::document(Vec::new(), vec![component], Vec::new()).unwrap();
-
-        assert_eq!(document.components()[0].formulations().len(), 1);
-        assert!(format(&document).contains("form primal for balance"));
-    }
-}
-
 fn validate_component_item(item: &ComponentItem) -> Result<(), AstConstructionError> {
     let range = match item {
         ComponentItem::Let(declaration) => declaration.range(),
@@ -190,4 +158,36 @@ fn validate_component_item(item: &ComponentItem) -> Result<(), AstConstructionEr
         ComponentItem::Instance(declaration) => declaration.range(),
     };
     checked_range(range).map(|_| ())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{format, parse};
+
+    use super::*;
+
+    #[test]
+    fn constructs_primal_form_without_model_item_coercion() {
+        let parsed = parse(
+            "form.eqi",
+            "component C() { relation balance { 1 = 0; } form primal for balance { integrate(region, test(value)) = integrate(region, test(value)); } }",
+        )
+        .into_document()
+        .unwrap();
+        let source = &parsed.components()[0];
+        let (_, left, right, range) = source.formulations().next().unwrap();
+        let component = SourceAstFactory::component_with_primal_form(
+            VisibilitySyntax::Private,
+            "C",
+            source.items().to_vec(),
+            "balance",
+            (left.clone(), right.clone(), range),
+            source.range(),
+        )
+        .unwrap();
+        let document = SourceAstFactory::document(Vec::new(), vec![component], Vec::new()).unwrap();
+
+        assert_eq!(document.components()[0].formulations().len(), 1);
+        assert!(format(&document).contains("form primal for balance"));
+    }
 }
