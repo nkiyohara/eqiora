@@ -131,7 +131,7 @@ impl FieldDef {
     }
 }
 
-/// Typed Parameter definition initialized by a real literal.
+/// Typed Parameter definition initialized by a complete mathematical value.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParameterDef {
     id: Id<kinds::Parameter>,
@@ -139,20 +139,10 @@ pub struct ParameterDef {
 }
 
 impl ParameterDef {
-    /// Define a typed Parameter. Zero adopts the complete declared type.
-    ///
-    /// # Errors
-    /// Rejects non-finite literals and nonzero scalar literals for shaped values.
-    pub fn new(
-        id: Id<kinds::Parameter>,
-        value_type: ValueType,
-        literal: f64,
-    ) -> Result<Self, Diagnostic> {
-        let value = ValueLiteral::new(value_type, literal).map_err(|error| {
-            Diagnostic::error(codes::INVALID_KERNEL_DEFINITION, error.to_string())
-                .with_graph_path(kernel_path(id.erase()))
-        })?;
-        Ok(Self { id, value })
+    /// Define a Parameter from an already validated complete value.
+    #[must_use]
+    pub const fn new(id: Id<kinds::Parameter>, value: ValueLiteral) -> Self {
+        Self { id, value }
     }
 
     /// Typed Parameter ID.
@@ -167,10 +157,10 @@ impl ParameterDef {
         self.value.value_type()
     }
 
-    /// Real literal embedded into the declared domain, or contextual shaped zero.
+    /// Complete value, including every real and imaginary component.
     #[must_use]
-    pub const fn literal(&self) -> f64 {
-        self.value.literal()
+    pub const fn value(&self) -> &ValueLiteral {
+        &self.value
     }
 
     /// Extract a value only when its mathematical type is a real scalar.
