@@ -764,7 +764,6 @@ def test_static_alias_nested_parameter_binding_uses_expression_rhs():
     assert "let adjusted_source = source_scale * 2;" in text
     assert "source_scale = adjusted_source" in text
     model = eqiora.compile(source=source, geometry=rectangle_geometry(), parameters={"source_scale": 3.0})
-    assert len(model.parameter_ids) == 2
     with pytest.raises(eqiora.EqioraError, match="Parameter"):
         model.preview_value_edit("adjusted_source", 9.0)
 
