@@ -1035,7 +1035,11 @@ fn exact_packages_execute_and_accept_one_sampled_acausal_drive() {
         "source import aliases and source-unit insertion order are not model meaning"
     );
 
-    let changed_clock_source = ROOT_SOURCE.replacen("period = 1 / 100", "period = 1 / 50", 1);
+    let changed_clock_source = ROOT_SOURCE.replacen("periodic(1[s] / 100", "periodic(1[s] / 50", 1);
+    assert_ne!(
+        changed_clock_source, ROOT_SOURCE,
+        "clock mutant must change the authored period"
+    );
     let changed_clock = packaged_model_with_root(&changed_clock_source);
     assert_ne!(
         packaged.model().digest().expect("model digest"),
