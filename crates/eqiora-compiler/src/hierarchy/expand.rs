@@ -665,7 +665,10 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 Item::Clock(value) => (
                     value.name(),
                     EntityKind::ClockDomain,
-                    SymbolKind::Clock,
+                    SymbolKind::Clock(
+                        crate::units::lower_clock(self.model.file, value.period(), value.phase())?
+                            .0,
+                    ),
                     None,
                     value.range(),
                 ),
@@ -974,7 +977,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             |name| {
                 parent_scope
                     .symbol(name)
-                    .filter(|symbol| matches!(symbol.kind, SymbolKind::Clock))
+                    .filter(|symbol| matches!(symbol.kind, SymbolKind::Clock(_)))
                     .map(|symbol| symbol.internal_name.clone())
             },
         )
@@ -1005,7 +1008,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             |name| {
                 parent_scope
                     .symbol(name)
-                    .filter(|symbol| matches!(symbol.kind, SymbolKind::Clock))
+                    .filter(|symbol| matches!(symbol.kind, SymbolKind::Clock(_)))
                     .map(|symbol| symbol.internal_name.clone())
             },
             |slot| scope.spatial_support(slot).cloned(),
@@ -1268,7 +1271,15 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         display_child(&display_prefix, declaration.name()),
                         declaration.name(),
                         &identity,
-                        SymbolKind::Clock,
+                        SymbolKind::Clock(
+                            crate::units::lower_clock(
+                                component.file,
+                                declaration.period(),
+                                declaration.phase(),
+                            )
+                            .map_err(one_diagnostic)?
+                            .0,
+                        ),
                         &mut scope,
                     )
                     .map_err(one_diagnostic)?;

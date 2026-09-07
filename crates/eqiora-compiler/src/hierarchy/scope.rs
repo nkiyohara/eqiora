@@ -37,7 +37,7 @@ pub(super) enum SymbolKind {
     Field,
     Parameter,
     Port,
-    Clock,
+    Clock(eqiora_schema::kernel::RationalTime),
     Relation,
 }
 
@@ -362,7 +362,7 @@ pub(super) fn rewrite_activation(
             range,
             scope,
             name,
-            |kind| matches!(kind, SymbolKind::Clock),
+            |kind| matches!(kind, SymbolKind::Clock(_)),
             "Field ClockDomain",
         )
         .map(|symbol| ActivationSyntax::Periodic(symbol.internal_name.clone())),
@@ -447,7 +447,7 @@ pub(super) fn rewrite_relation(
                 declaration.range(),
                 scope,
                 clock,
-                |kind| matches!(kind, SymbolKind::Clock),
+                |kind| matches!(kind, SymbolKind::Clock(_)),
                 "periodic ClockDomain",
             )?;
             ActivationSyntax::Periodic(clock.internal_name.clone())
@@ -600,6 +600,39 @@ pub(super) fn rewrite_expression_with_boundary_member(
             rewrite_expression_with_boundary_member(file, right, scope, active)?,
             expression.range(),
         ),
+        ExprKind::Call { callee, arguments } if callee.as_str() == "period" => {
+            let [argument] = arguments.as_slice() else {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    expression.range(),
+                    "period requires one clock name",
+                ));
+            };
+            let ExprKind::Name(name) = argument.kind() else {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    argument.range(),
+                    "period requires one clock name",
+                ));
+            };
+            let clock = resolve_local_kind(
+                file,
+                argument.range(),
+                scope,
+                name,
+                |kind| matches!(kind, SymbolKind::Clock(_)),
+                "period clock",
+            )?;
+            let SymbolKind::Clock(period) = clock.kind else {
+                unreachable!("checked clock")
+            };
+            LoweringExpression::quantity(
+                DynQuantity::new(period.as_seconds_f64(), crate::dimensions::time_dimension()),
+                expression.range(),
+            )
+        }
         ExprKind::Call { callee, arguments } if callee.as_str() == "sample" => {
             let [value, clock] = arguments.as_slice() else {
                 return Err(source_error(
@@ -622,7 +655,7 @@ pub(super) fn rewrite_expression_with_boundary_member(
                 clock.range(),
                 scope,
                 clock_name,
-                |kind| matches!(kind, SymbolKind::Clock),
+                |kind| matches!(kind, SymbolKind::Clock(_)),
                 "sample clock",
             )?;
             LoweringExpression::sample(

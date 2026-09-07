@@ -427,6 +427,29 @@ impl ExpressionChecker<'_, '_, '_> {
         arguments: &[Expr],
     ) -> Result<ExpressionType<String>, Diagnostic> {
         let callee_name = callee.as_str();
+        if callee_name == "period" {
+            let [argument] = arguments else {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.scope.file,
+                    expression.range(),
+                    "period requires one clock name",
+                ));
+            };
+            if !matches!(argument.kind(),ExprKind::Name(name) if matches!(self.scope.symbols.get(name),Some(SymbolContract::Clock)))
+            {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.scope.file,
+                    argument.range(),
+                    "period requires one declared periodic clock",
+                ));
+            }
+            return Ok(ExpressionType::new(
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, time_dimension()),
+                None,
+            ));
+        }
         if matches!(callee_name, "sample" | "hold") {
             return self.check_transition(expression, callee_name, arguments);
         }

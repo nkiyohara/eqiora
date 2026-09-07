@@ -173,7 +173,7 @@ pub(super) fn lower_relation(
         }
     }
     if let ActivationSyntax::Periodic(clock) = activation {
-        if !matches!(bindings.get(clock), Some(Binding::Clock(_))) {
+        if !matches!(bindings.get(clock), Some(Binding::Clock(_, _))) {
             return Err(unresolved(file, range, clock, "periodic ClockDomain"));
         }
     } else if !matches!(activation, ActivationSyntax::Continuous) {
@@ -331,7 +331,7 @@ impl ExpressionLowerer<'_> {
         }
         let lowered = match expression.node.as_ref() {
             LoweringExpressionNode::Sample { value, clock } => {
-                let Some(Binding::Clock(id)) = self.bindings.get(clock) else {
+                let Some(Binding::Clock(id, _)) = self.bindings.get(clock) else {
                     return Err(unresolved(
                         self.file,
                         expression.range(),
@@ -502,7 +502,7 @@ impl ExpressionLowerer<'_> {
                     } else {
                         match self.activation {
                             ActivationSyntax::Periodic(name) => match self.bindings.get(name) {
-                                Some(Binding::Clock(id)) => Some(*id),
+                                Some(Binding::Clock(id, _)) => Some(*id),
                                 _ => None,
                             },
                             _ => None,
@@ -542,7 +542,7 @@ impl ExpressionLowerer<'_> {
             },
             Binding::Domain(_, _)
             | Binding::Representation(_)
-            | Binding::Clock(_)
+            | Binding::Clock(_, _)
             | Binding::Relation { .. } => {
                 return Err(source_error(
                     codes::LANGUAGE_TYPE_ERROR,
@@ -565,6 +565,35 @@ impl ExpressionLowerer<'_> {
         callee: &str,
         argument: &LoweringExpression,
     ) -> Result<TypedExpression, Diagnostic> {
+        if callee == "period" {
+            let LoweringExpressionNode::Name(name) = argument.node.as_ref() else {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.file,
+                    argument.range(),
+                    "period requires one clock name",
+                ));
+            };
+            let Some(Binding::Clock(_, period)) = self.bindings.get(name) else {
+                return Err(unresolved(
+                    self.file,
+                    argument.range(),
+                    name,
+                    "period ClockDomain",
+                ));
+            };
+            let dimension = crate::dimensions::time_dimension();
+            let literal = eqiora_core::ValueLiteral::from_real(
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension),
+                period.as_seconds_f64(),
+            )
+            .expect("bounded positive period");
+            return self
+                .builder
+                .constant(literal)
+                .map(|id| TypedExpression { id, dimension })
+                .map_err(|error| self.builder_error(expression, error));
+        }
         if callee == "sin" {
             return Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,

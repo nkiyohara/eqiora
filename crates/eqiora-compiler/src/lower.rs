@@ -516,14 +516,22 @@ pub(crate) fn lower_typed_model(
                     Err(diagnostic) => diagnostics.push(diagnostic),
                 }
             }
-            LoweringItem::Clock { name, range, .. } => insert_binding(
-                file,
-                &mut bindings,
+            LoweringItem::Clock {
                 name,
-                Binding::Clock(identities.clock(name)),
-                *range,
-                &mut diagnostics,
-            ),
+                period,
+                phase,
+                range,
+            } => match crate::units::lower_clock(file, period, phase) {
+                Ok((period, _)) => insert_binding(
+                    file,
+                    &mut bindings,
+                    name,
+                    Binding::Clock(identities.clock(name), period),
+                    *range,
+                    &mut diagnostics,
+                ),
+                Err(error) => diagnostics.push(error),
+            },
             LoweringItem::Relation { name, range, .. } => {
                 let (relation, activation) = identities.relation(name);
                 insert_binding(
@@ -606,7 +614,7 @@ pub(crate) fn lower_typed_model(
                     .and_then(|definition| {
                         nodes.push(definition.into());
                         if let ActivationSyntax::Periodic(clock) = activation {
-                            let Some(Binding::Clock(clock)) = bindings.get(clock) else { return Err(unresolved(file, *range, clock, "Field ClockDomain")); };
+                            let Some(Binding::Clock(clock, _)) = bindings.get(clock) else { return Err(unresolved(file, *range, clock, "Field ClockDomain")); };
                             edges.push((id.erase(), clock.erase(), EdgeKind::ClockedBy));
                         }
                         match (domain.as_deref(), representation.as_deref()) {
@@ -698,7 +706,7 @@ pub(crate) fn lower_typed_model(
                 phase,
                 range,
             } => {
-                let Binding::Clock(id) = bindings[name].clone() else {
+                let Binding::Clock(id, _) = bindings[name].clone() else {
                     unreachable!("first pass assigns Clock bindings");
                 };
                 lower_clock(file, period, phase)
@@ -770,7 +778,7 @@ pub(crate) fn lower_typed_model(
                     edges.push((relation.erase(), domain.erase(), EdgeKind::AppliesOn));
                 }
                 if let ActivationSyntax::Periodic(clock_name) = activation {
-                    let Binding::Clock(clock) = bindings[clock_name].clone() else {
+                    let Binding::Clock(clock, _) = bindings[clock_name].clone() else {
                         unreachable!("periodic clock was resolved while lowering");
                     };
                     edges.push((activation_id.erase(), clock.erase(), EdgeKind::ClockedBy));

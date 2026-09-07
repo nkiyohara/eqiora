@@ -27,9 +27,25 @@ fn signature_endpoints_can_reference_a_private_owned_clock() {
 
 #[test]
 fn transitions_reject_wrong_clocks_and_alias_hidden_crossings() {
-    for equation in ["next(memory)=u", "next(memory)=sample(u,other)", "next(memory)=alias", "next(memory)=sample(memory,tick)"] {
-        let source = format!("model M(input u:1) {{ clock tick=periodic(1[s]); clock other=periodic(1[s]); state memory:1 at tick; let alias=u; initial {{memory=0;}} relation update at tick {{{equation};}} }}");
-        assert!(compile("crossing.eqi",&source).is_err(),"{source}");
+    for equation in [
+        "next(memory)=u",
+        "next(memory)=sample(u,other)",
+        "next(memory)=alias",
+        "next(memory)=sample(memory,tick)",
+    ] {
+        let source = format!(
+            "model M(input u:1) {{ clock tick=periodic(1[s]); clock other=periodic(1[s]); state memory:1 at tick; let alias=u; initial {{memory=0;}} relation update at tick {{{equation};}} }}"
+        );
+        assert!(compile("crossing.eqi", &source).is_err(), "{source}");
     }
-    accepted("model M(input u:1) { clock tick=periodic(1[s]); state memory:1 at tick; let alias=sample(u,tick); initial {memory=0;} relation update at tick {next(memory)=alias;} }");
+    accepted(
+        "model M(input u:1) { clock tick=periodic(1[s]); state memory:1 at tick; let alias=sample(u,tick); initial {memory=0;} relation update at tick {next(memory)=alias;} }",
+    );
+}
+
+#[test]
+fn borrowed_clock_period_projects_time_without_an_extra_parameter() {
+    accepted(
+        "component Driver(clock tick:periodic, output y:1/s at tick) {relation drive at tick {y=1[1/s];}} component Acc(clock tick:periodic, input u:1/s at tick, output y:1 at tick) { state memory:1 at tick; initial {memory=0;} relation update at tick {y=pre(memory); next(memory)=pre(memory)+period(tick)*u;} } model M() { clock tick=periodic(0.25[s]); instance driver:Driver(tick=tick); instance acc:Acc(tick=tick); connect driver.y -> acc.u; } ",
+    );
 }

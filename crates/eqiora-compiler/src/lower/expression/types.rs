@@ -272,6 +272,24 @@ fn expression_type_cached(
                     "time operator requires one Field name",
                 ));
             }
+            if callee == "period" {
+                if !matches!(argument.node.as_ref(),LoweringExpressionNode::Name(name) if matches!(bindings.get(name),Some(Binding::Clock(..))))
+                {
+                    return Err(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        argument.range(),
+                        "period requires one clock name",
+                    ));
+                }
+                return Ok(ExpressionType::new(
+                    eqiora_core::ValueType::scalar(
+                        eqiora_core::ScalarDomain::Real,
+                        crate::dimensions::time_dimension(),
+                    ),
+                    None,
+                ));
+            }
             let operand = infer(argument)?;
             match callee.as_str() {
                 "grad" => typing::gradient(&operand),

@@ -907,7 +907,7 @@ property contract Diffusivity(): m ^ 2 / s { derivatives value_only; }
 component Diffusion(property diffusivity: Diffusivity) {
   relation law { diffusivity = 0; }
 }
-model Main() { instance domain: Diffusion; }
+model Main() { instance domain: Diffusion(); }
 "#;
         let diagnostics = analyze_resolved_hierarchy(ResolvedHierarchyInput::new(
             root.clone(),

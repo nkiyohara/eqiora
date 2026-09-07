@@ -7,7 +7,7 @@ pub(super) enum Binding {
     Field(Id<kinds::Field>, FieldContract),
     Parameter(Id<kinds::Parameter>, eqiora_core::ValueType),
     Port(Id<kinds::Port>, PortContract),
-    Clock(Id<kinds::ClockDomain>),
+    Clock(Id<kinds::ClockDomain>, eqiora_schema::kernel::RationalTime),
     Relation {
         relation: Id<kinds::Relation>,
         activation: Id<kinds::Activation>,
@@ -22,7 +22,7 @@ impl Binding {
             Self::Field(id, _) => id.erase(),
             Self::Parameter(id, _) => id.erase(),
             Self::Port(id, _) => id.erase(),
-            Self::Clock(id) => id.erase(),
+            Self::Clock(id, _) => id.erase(),
             Self::Relation { relation, .. } => relation.erase(),
         }
     }
@@ -213,7 +213,7 @@ pub(super) fn resolve_port_contract(
             let clock = match activation {
                 ActivationSyntax::Continuous => None,
                 ActivationSyntax::Periodic(name) => match bindings.get(name) {
-                    Some(Binding::Clock(id)) => Some(*id),
+                    Some(Binding::Clock(id, _)) => Some(*id),
                     _ => return Err(unresolved(file, range, name, "signal clock")),
                 },
                 _ => {
