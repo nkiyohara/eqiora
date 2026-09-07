@@ -8,19 +8,16 @@ impl Parser<'_> {
             self.error_here(
                 "public requirements belong in the signature; body declarations are private",
             );
-            return None;
+            self.bump();
+            self.parse_private_component_item()?;
+            return Some(ParsedComponentItem::Discarded);
         }
-        let public = false;
-        let start = if public {
-            self.bump().range().start()
-        } else {
-            self.current().range().start()
-        };
-        let visibility = if public {
-            VisibilitySyntax::Public
-        } else {
-            VisibilitySyntax::Private
-        };
+        self.parse_private_component_item()
+    }
+
+    fn parse_private_component_item(&mut self) -> Option<ParsedComponentItem> {
+        let start = self.current().range().start();
+        let visibility = VisibilitySyntax::Private;
 
         if self.at_keyword("parameter") {
             return self
@@ -39,28 +36,6 @@ impl Parser<'_> {
                     }))
                 });
         }
-        if public {
-            let token = self.current().clone();
-            self.error_token(
-                &token,
-                "only `parameter` and `port` body declarations may be public; support and unknown requirements belong in the signature",
-            );
-            if self.at_keyword("variable") || self.at_keyword("state") {
-                self.parse_field(true)?;
-            } else if self.at_keyword("clock") {
-                self.parse_clock()?;
-            } else if self.at_keyword("relation") {
-                self.parse_component_relation()?;
-            } else if self.at_keyword("connect") {
-                self.parse_connection(true)?;
-            } else if self.at_keyword("instance") {
-                self.parse_instance()?;
-            } else {
-                return None;
-            }
-            return Some(ParsedComponentItem::Discarded);
-        }
-
         let item = if self.at_keyword("let") {
             self.parse_let().map(ComponentItem::Let)
         } else if self.at_keyword("variable") || self.at_keyword("state") {
