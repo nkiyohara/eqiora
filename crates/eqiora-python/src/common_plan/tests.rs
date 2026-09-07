@@ -160,7 +160,8 @@ fn scalar_document_from_source(
                 DimExponents::from_integers([0, -2, 0, 0, 0, 0, 0]).expect("bounded dimension"),
             ),
         ),
-    ];
+    ]
+    .map(|(name, value)| (name, eqiora::ValueLiteral::try_from(value).unwrap()));
     ModelDocument::compile_external_component(
         "python-common-plan.eqi",
         component,
@@ -231,7 +232,8 @@ fn stokes_document_with_speed(geometry: &CanonicalGeometryV1, inlet_speed: f64) 
                 DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
             ),
         ),
-    ];
+    ]
+    .map(|(name, value)| (name, eqiora::ValueLiteral::try_from(value).unwrap()));
     ModelDocument::compile_external_component(
         "steady-flow-past-cylinder.eqi",
         STOKES_COMPONENT,
@@ -312,7 +314,8 @@ fn transient_cylinder_document_with_speed(
                 DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
             ),
         ),
-    ];
+    ]
+    .map(|(name, value)| (name, eqiora::ValueLiteral::try_from(value).unwrap()));
     ModelDocument::compile_external_component(
         "transient-flow-past-cylinder.eqi",
         TRANSIENT_CYLINDER_COMPONENT,
