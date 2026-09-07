@@ -1,0 +1,148 @@
+//! Exact bounded source decimals, before unit conversion or numerical rounding.
+
+use crate::AstConstructionError;
+
+/// An exact signed decimal coefficient times a power of ten.
+///
+/// Inputs use the decimal token grammar, optionally signed, and at most 256 bytes.
+/// Exponents and their normalization must fit `i64`; no floating conversion occurs.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DecimalLiteral {
+    coefficient: String,
+    exponent10: i64,
+    negative: bool,
+}
+
+impl DecimalLiteral {
+    /// Check and normalize one exact decimal spelling.
+    ///
+    /// # Errors
+    /// Rejects malformed decimal syntax, tokens over 256 bytes, and exponent overflow.
+    pub fn parse(text: &str) -> Result<Self, AstConstructionError> {
+        let invalid = || AstConstructionError::new("invalid exact decimal literal");
+        if text.len() > 256 {
+            return Err(AstConstructionError::new(
+                "decimal token exceeds the 256-byte limit",
+            ));
+        }
+        let negative = text.starts_with('-');
+        let unsigned = text.strip_prefix(['-', '+']).unwrap_or(text);
+        let (mantissa, exponent) = unsigned.split_once(['e', 'E']).unwrap_or((unsigned, "0"));
+        let exponent_digits = exponent.strip_prefix(['-', '+']).unwrap_or(exponent);
+        if exponent_digits.is_empty() || !exponent_digits.bytes().all(|byte| byte.is_ascii_digit())
+        {
+            return Err(invalid());
+        }
+        let exponent10 = exponent.parse::<i64>().map_err(|_| {
+            AstConstructionError::new("decimal exponent exceeds the i64 resource bound")
+        })?;
+        let (integer, fraction) = mantissa
+            .split_once('.')
+            .map_or((mantissa, None), |(integer, fraction)| {
+                (integer, Some(fraction))
+            });
+        if integer.is_empty()
+            || !integer.bytes().all(|byte| byte.is_ascii_digit())
+            || fraction.is_some_and(|digits| {
+                digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit())
+            })
+        {
+            return Err(invalid());
+        }
+        let digits = format!("{integer}{}", fraction.unwrap_or(""));
+        let significant = digits.trim_start_matches('0');
+        if significant.is_empty() {
+            return Ok(Self {
+                coefficient: "0".into(),
+                exponent10: 0,
+                negative: false,
+            });
+        }
+        let coefficient = significant.trim_end_matches('0');
+        let adjustment = i64::try_from(significant.len() - coefficient.len())
+            .expect("bounded token")
+            - i64::try_from(fraction.map_or(0, str::len)).expect("bounded token");
+        let exponent10 = exponent10.checked_add(adjustment).ok_or_else(|| {
+            AstConstructionError::new("normalized decimal exponent exceeds the i64 resource bound")
+        })?;
+        Ok(Self {
+            coefficient: coefficient.into(),
+            exponent10,
+            negative,
+        })
+    }
+
+    /// Project a finite native binary64 value through its shortest scientific decimal.
+    ///
+    /// # Errors
+    /// Rejects non-finite input. Representable subnormals are retained.
+    pub fn from_f64(value: f64) -> Result<Self, AstConstructionError> {
+        if !value.is_finite() {
+            return Err(AstConstructionError::new(
+                "native decimal value must be finite",
+            ));
+        }
+        Self::parse(&format!("{value:e}"))
+    }
+
+    /// Unsigned digits, with no leading or trailing zeros except the unique zero `0`.
+    #[must_use]
+    pub fn coefficient(&self) -> &str {
+        &self.coefficient
+    }
+
+    /// Exact decimal power multiplying the coefficient.
+    #[must_use]
+    pub const fn exponent10(&self) -> i64 {
+        self.exponent10
+    }
+
+    /// Whether the exact value is zero, independently of binary64 range.
+    #[must_use]
+    pub fn is_zero(&self) -> bool {
+        self.coefficient == "0"
+    }
+
+    /// Whether the exact value is negative; canonical zero has no negative sign.
+    #[must_use]
+    pub const fn is_negative(&self) -> bool {
+        self.negative
+    }
+
+    /// Canonical exact text, without expansion of enormous decimal exponents.
+    #[must_use]
+    pub fn canonical_text(&self) -> String {
+        let sign = if self.negative { "-" } else { "" };
+        let scientific = if self.exponent10 == 0 {
+            format!("{sign}{}", self.coefficient)
+        } else {
+            format!("{sign}{}e{}", self.coefficient, self.exponent10)
+        };
+        let position = self.coefficient.len() as i128 + i128::from(self.exponent10);
+        let plain_len = if position <= 0 {
+            2 - position + self.coefficient.len() as i128
+        } else {
+            position.max(self.coefficient.len() as i128)
+                + i128::from(position < self.coefficient.len() as i128)
+        } + sign.len() as i128;
+        if plain_len > 256 || (plain_len > 32 && scientific.len() <= 256) {
+            return scientific;
+        }
+        if position <= 0 {
+            format!(
+                "{sign}0.{}{}",
+                "0".repeat((-position) as usize),
+                self.coefficient
+            )
+        } else if position >= self.coefficient.len() as i128 {
+            format!(
+                "{sign}{}{}",
+                self.coefficient,
+                "0".repeat((position - self.coefficient.len() as i128) as usize)
+            )
+        } else {
+            let (integer, fraction) = self.coefficient.split_at(position as usize);
+            format!("{sign}{integer}.{fraction}")
+        }
+    }
+}

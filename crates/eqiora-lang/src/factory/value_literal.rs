@@ -40,7 +40,8 @@ impl SourceAstFactory {
                     ExprKind::Number(number)
                 } else {
                     ExprKind::Quantity {
-                        value: number,
+                        value: crate::DecimalLiteral::from_f64(number)
+                            .expect("checked finite value component"),
                         unit: Box::new(dimension_expression(
                             value.value_type().dimension(),
                             || range,
@@ -160,7 +161,7 @@ mod tests {
                 let ExprKind::Quantity { value, unit } = argument.kind() else {
                     panic!("coherent quantity")
                 };
-                assert_eq!(*value, expected);
+                assert_eq!(*value, crate::DecimalLiteral::from_f64(expected).unwrap());
                 assert!(matches!(unit.kind(), ExprKind::Name(name) if name == "m"));
             }
         }

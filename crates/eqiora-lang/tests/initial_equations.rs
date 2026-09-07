@@ -87,10 +87,8 @@ fn initial_equation_units_and_sign_roundtrip_without_erasure() {
     else {
         panic!("equation expressions preserve unary negation");
     };
-    assert!(
-        matches!(value.kind(), ExprKind::Quantity { value: 2500.0, unit }
-        if matches!(unit.kind(), ExprKind::Name(name) if name == "mm"))
-    );
+    assert!(matches!(value.kind(), ExprKind::Quantity { value, unit }
+        if value.canonical_text() == "2500" && matches!(unit.kind(), ExprKind::Name(name) if name == "mm")));
     let formatted = format(&document);
     assert!(formatted.contains("= -2500 [mm];"));
     let reparsed = parse("formatted.eqi", &formatted).into_document().unwrap();

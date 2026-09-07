@@ -9,6 +9,7 @@
 mod ast;
 mod ast_property;
 mod cartesian;
+mod decimal;
 mod draft;
 mod draft_spatial;
 mod factory;
@@ -32,11 +33,12 @@ pub use ast::{
     ValueTypeSyntax, ValueTypeSyntaxKind, VisibilitySyntax,
 };
 pub use cartesian::CartesianCoordinateSyntax;
+pub use decimal::DecimalLiteral;
 pub use draft::{
     DraftConservingConnection, DraftConservingPort, DraftDeclaration, DraftExpression, DraftField,
     DraftParameter, DraftPhysicalDomain, DraftRelation, ModelDraft, NativeModelAst,
 };
-pub use draft_spatial::{DraftBoundarySide, DraftSpatialDomain};
+pub use draft_spatial::DraftSpatialDomain;
 pub use factory::{AstConstructionError, SourceAstFactory};
 pub use formatter::format;
 pub use lexer::{LexResult, Token, TokenKind, lex};

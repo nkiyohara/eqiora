@@ -612,7 +612,7 @@ fn shaped_initial_equations_remain_explicit_for_shared_type_validation() {
     };
     assert!(matches!(
         initial.equations()[0].right().kind(),
-        ExprKind::Quantity { value: 1.0, .. }
+        ExprKind::Quantity { value, .. } if value.canonical_text() == "1"
     ));
 }
 

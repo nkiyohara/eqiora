@@ -44,7 +44,7 @@ impl Expr {
         let kind = match &self.kind {
             ExprKind::Number(value) => ExprKind::Number(*value),
             ExprKind::Quantity { value, unit } => ExprKind::Quantity {
-                value: *value,
+                value: value.clone(),
                 unit: unit.clone(),
             },
             ExprKind::Name(name) => {
@@ -115,8 +115,8 @@ pub enum ExprKind {
     Number(f64),
     /// Numeric literal with an explicit input-unit expression.
     Quantity {
-        /// Numeric value before unit conversion.
-        value: f64,
+        /// Exact decimal value before unit conversion.
+        value: crate::DecimalLiteral,
         /// Unit-catalog expression, independent of value names and dimension aliases.
         unit: Box<Expr>,
     },

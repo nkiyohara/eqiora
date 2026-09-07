@@ -21,24 +21,6 @@ fn fixed_cartesian_syntax(bounds: &[(f64, f64)]) -> DomainSyntax {
     )
 }
 
-/// Lower or upper oriented side of a Cartesian Domain.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum DraftBoundarySide {
-    /// Lower coordinate side.
-    Lower,
-    /// Upper coordinate side.
-    Upper,
-}
-
-impl From<DraftBoundarySide> for BoundarySideSyntax {
-    fn from(value: DraftBoundarySide) -> Self {
-        match value {
-            DraftBoundarySide::Lower => Self::Lower,
-            DraftBoundarySide::Upper => Self::Upper,
-        }
-    }
-}
-
 /// Immutable draft-local Cartesian volume or oriented boundary Domain.
 ///
 /// Domain references retain this handle's opaque identity until the closed
@@ -64,7 +46,7 @@ pub(crate) enum DraftSpatialDomainKind {
     Boundary {
         parent: DraftSpatialDomain,
         axis: usize,
-        side: DraftBoundarySide,
+        side: BoundarySideSyntax,
     },
 }
 
@@ -75,7 +57,7 @@ impl DraftSpatialDomain {
             DraftSpatialDomainKind::Boundary { parent, axis, side } => DomainSyntax::Boundary {
                 parent: parent.name().to_owned(),
                 axis: *axis,
-                side: (*side).into(),
+                side: *side,
             },
         }
     }
@@ -108,7 +90,7 @@ impl DraftSpatialDomain {
         name: impl Into<String>,
         parent: &Self,
         axis: usize,
-        side: DraftBoundarySide,
+        side: BoundarySideSyntax,
     ) -> Self {
         Self {
             inner: Arc::new(DraftSpatialDomainData {
@@ -158,7 +140,7 @@ impl DraftSpatialDomain {
 
     /// Oriented parent side when this is a boundary Domain.
     #[must_use]
-    pub fn boundary_side(&self) -> Option<DraftBoundarySide> {
+    pub fn boundary_side(&self) -> Option<BoundarySideSyntax> {
         match &self.inner.kind {
             DraftSpatialDomainKind::CartesianBox { .. } => None,
             DraftSpatialDomainKind::Boundary { side, .. } => Some(*side),
