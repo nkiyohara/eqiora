@@ -9,6 +9,7 @@ mod cad;
 pub mod control;
 mod differentiation;
 pub mod editor;
+mod evaluation_map;
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
 mod external_data;
 mod external_spatial;
@@ -16,7 +17,6 @@ mod geometry_edit;
 mod ml_dataset;
 pub mod package;
 mod parameter_regeneration;
-mod parameter_study;
 mod remeshing_trajectory;
 mod run_request;
 mod value_edit;
@@ -24,16 +24,15 @@ mod value_edit;
 pub use cad::*;
 pub use differentiation::*;
 pub use eqiora_artifact::{SemanticFingerprintGeneration, StructuralSemanticFingerprint};
+pub use evaluation_map::{
+    CompleteEvaluationMap, EvaluationMapOccurrence, EvaluationMapPlan, EvaluationMapTerminalReport,
+};
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
 pub use external_data::*;
 pub use geometry_edit::{CartesianDomainEditPlan, CartesianDomainEditResult};
 pub use ml_dataset::*;
 pub use parameter_regeneration::{
     ParameterGeometryRegenerationPlan, ParameterGeometryRegenerationResult,
-};
-pub use parameter_study::{
-    CompleteParameterStudy, ParameterStudyPlan, ParameterStudyPointKey,
-    ParameterStudyTerminalReport,
 };
 pub use remeshing_trajectory::RemeshingTrajectoryReplayInputV1;
 #[cfg(feature = "hdf5")]

@@ -1,9 +1,9 @@
 # Independent evaluation axes
 
-This contract and executable indexing reference specifies independent maps.
-It does not expose an installed map or make another numerical
-profile executable. The reference is private, native, and test-only, beside the existing
-Study owner in [`axes_reference.rs`](../../crates/eqiora-api/src/parameter_study/axes_reference.rs).
+This contract specifies independent maps. A native ordered map now executes complete input
+points through the existing Q1/TPFA differentiable programs. General nested-axis adapters
+remain specified by the private native indexing reference beside the map owner in
+[`axes_reference.rs`](../../crates/eqiora-api/src/evaluation_map/axes_reference.rs).
 It admits and indexes dense buffers without an evaluator, callback registry, or solver.
 
 ## Existing authorities
@@ -101,10 +101,49 @@ product, ordering, duplicates and accidental sharing. Non-leading component axes
 axes, static empty outputs, shape/axis/extent errors, aggregate budgets, metadata preservation,
 sample association and foreign program signatures have separate focused tests.
 
-Run the repository-owned gate with `mise run fast`; the new reference is included in the
-`eqiora-api` unit tests. This introduces no registered evidence or scientific verification.
-The current sorted, unique, default-anchored `ParameterStudyPlan` still implements its existing
-narrow behavior: it is not an implementation of this map contract. Its replacement with ordered
-accepted evaluations requires an atomic consumer and evidence migration in a subsequent slice.
-Map AD, frontend adapters, stochastic execution, threading and persistence remain subsequent
+The indexing reference remains in `eqiora-api` unit tests. Native `EvaluationMapPlan` accepts
+one shared `Arc<DifferentiableProgram>`, a request-ordered slice of complete input slices and
+an explicit retained-numerical-byte limit. Its `execute` returns either `CompleteEvaluationMap`
+or `EvaluationMapTerminalReport`. `members()` and `evaluation(index)` on a complete result
+preserve every position. A report's `occurrence(index)` distinguishes accepted, failed,
+cancelled and not-started positions; its accepted prefix remains individually inspectable.
+Cancellation is polled only before/between members. Empty completion never polls, final
+completion wins, and a numerical failure inside evaluation precedes a newly raised cancellation.
+
+For an already compiled program with three selected inputs in the declared order:
+
+```rust
+use std::sync::Arc;
+use eqiora::api::EvaluationMapPlan;
+
+let program = Arc::new(program);
+let p1 = [2.0, 0.75, 0.5];
+let p2 = [3.0, 1.25, -0.25];
+let plan = EvaluationMapPlan::new(program, &[&p2, &p1, &p2], 64 * 1024 * 1024)?;
+match plan.execute() {
+    Ok(complete) => assert_eq!(complete.members().len(), 3),
+    Err(report) => eprintln!("Stopped at {}: {:?}", report.stopped_index(), report.diagnostics()),
+}
+```
+
+The native storage estimate includes complete point/member records, state/RHS vectors, a
+conservative dense upper bound on CSR nonzeros, output and residual Parameter Jacobians, and
+output-state associations. It checks products before copying input points or reserving output
+members. It excludes the already shared Program, deployment metadata, allocator overhead,
+diagnostics and transient solver workspace; it is not a peak-process-memory bound. The
+existing accepted Program owns the fixed state/output dimensions; no default sparsity count
+is assumed to remain unchanged at a new point.
+
+The old single-Parameter sorted/unique/default-anchored Study API has been removed. Its two
+registered composition cases are migrated in place to ordered complete points and partial
+accepted-member inspection, using unchanged independent pointwise evaluation as the reference:
+
+```bash
+mise run affected -- \
+  --case differentiation.bounded-parameter-study \
+  --case differentiation.bounded-parameter-study-private
+```
+
+This native map consumes explicit complete points; installed nested-axis adapters, map AD,
+Python/JAX frontends, stochastic execution, threading and persistence remain subsequent
 capabilities. No new source-language executor or source syntax is introduced here.

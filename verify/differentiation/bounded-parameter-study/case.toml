@@ -1,96 +1,76 @@
 id = "differentiation.bounded-parameter-study"
 status = "implemented"
-scope = "one-host-serial-fem-program-one-diffusion-coordinate-two-to-sixty-four-point-complete-study"
+scope = "ordered-host-serial-q1-and-tpfa-maps-of-complete-parameter-points"
 reference_kind = "separately-executed-accepted-evaluations"
 
 capabilities = [
-  "exact-program-bound-parameter-study-plan",
-  "binary64-total-ordered-point-keys",
-  "caller-order-independent-plan-equality",
-  "bounded-two-to-sixty-four-point-inventory",
-  "default-point-anchored-single-coordinate-replacement",
-  "host-serial-sequential-point-execution",
-  "accepted-evaluation-member-retention",
-  "complete-membership-construction",
-  "all-or-nothing-study-publication",
-  "between-point-cooperative-cancellation",
-  "typed-point-failure-terminal-report",
+  "exact-program-bound-ordered-evaluation-map",
+  "complete-multiple-parameter-points",
+  "positional-duplicates-and-permutations",
+  "explicit-retained-numerical-storage-admission",
+  "empty-and-singleton-collections",
+  "point-local-primal-and-linearization-retention",
+  "complete-versus-indexed-terminal-publication",
+  "independently-inspectable-accepted-prefix",
+  "between-occurrence-cooperative-cancellation",
 ]
 
 [problem]
 source_case = "differentiation.spatial-poisson-fem-fvm"
-method = "continuous-q1-galerkin"
+methods = ["continuous-q1-galerkin", "cell-centered-tpfa"]
 spatial_dimension = 2
 scalar = "native-f64"
 execution = "host-serial"
 program_inputs = ["source_scale", "diffusion", "boundary_offset"]
-varying_parameter = "diffusion"
-base_point = [19.739208802178716, 1.0, 0.0]
-caller_values = [1.25, 0.75, 1.0]
-canonical_values = [0.75, 1.0, 1.25]
+p0 = [1.0, 1.0, 0.0]
+p1 = [2.0, 0.75, 0.5]
+p2 = [3.0, 1.25, -0.25]
+request_order = ["p2", "p1", "p2"]
+permuted_order = ["p1", "p2", "p2"]
 
 [oracle]
 pointwise_owner = "differentiation.spatial-poisson-fem-fvm"
-member_reference = "three separate DifferentiableProgram::evaluate calls made outside the study layer at the exact canonical complete points"
-member_observation = "program identity, ordered input IDs, point value bits, complete Field coefficient bits, state-system fingerprint, accepted solver-output fingerprint, solve report, and full exposed primal evidence"
-aggregate_observation = "the complete study retains exactly one separately accepted evaluation for each canonical key, in canonical order"
-terminal_observation = "failure and cancellation expose only the plan, canonical completed-key prefix, optional failed key, diagnostics, and cancellation flag"
+member_reference = "ordinary DifferentiableProgram::evaluate calls outside the map, at each complete requested point, separately for Q1 and TPFA"
+member_observation = "exact program identity, ordered Parameter IDs, point and Field coefficient bits, state/accepted-output fingerprints, solver report, and full exposed primal evidence"
+aggregate_observation = "one accepted member at every requested position, with duplicates and caller order preserved"
+terminal_observation = "accepted prefix remains inspectable; exact failed/cancelled position and later not-started positions cannot be a complete collection"
+derivative_observation = "JVP and VJP computed before other evaluations equal actions from the retained original and mapped repeated members afterwards"
 fixed_scientific_values = false
 new_field_digest = false
 new_tolerance = false
 
 [acceptance]
-caller_permutations_have_equal_plans = true
-point_keys_use_parameter_and_value_bits = true
-signed_zero_keys_are_distinct = true
-point_order_uses_total_cmp = true
 planning_performs_no_numerical_evaluation = true
 execution_uses_only_the_retained_program = true
-complete_members_are_canonical_and_exact = true
-failure_is_atomic = true
-cancellation_is_observed_before_or_between_points = true
+multiple_coordinates_vary = true
+request_order_and_duplicates_preserved = true
+no_default_anchor_required = true
+empty_and_singleton_admitted = true
+structural_errors_precede_execution = true
+accepted_partial_members_remain_inspectable = true
+partial_collection_is_never_complete = true
+original_numerical_diagnostics_retained = true
 completion_wins_after_final_member = true
-terminal_reports_expose_no_partial_evaluations = true
 
 [falsifiers]
-caller_permutation = "changes plan equality, execution order, or member order"
-duplicate_bits = "an exact-bit duplicate is silently removed or executed"
-missing_anchor = "an inventory without the default-point bits is admitted"
-point_bound = "one or 65 values are admitted"
-foreign_parameter = "a Parameter outside the retained program input coordinates is admitted"
-non_finite = "NaN or infinity reaches execution"
-signed_zero = "negative and positive zero collapse to one key or compare equal"
-replacement = "replacing one value leaves plan equality or membership unchanged"
+sorting = "permuting the caller request leaves its member order unchanged"
+deduplication = "two declared equal points lose one requested occurrence"
+partial_publication = "a failed/cancelled collection is exposed as complete"
+retargeting = "another evaluation changes an earlier point's primal/JVP/VJP"
+failure_identity = "the failed index or original diagnostic is replaced"
+structural_admission = "wrong arity, nonfinite input, or insufficient retained numerical budget is admitted"
 
 [claim_boundary]
-varying_parameters = 1
-minimum_points = 2
-maximum_points = 64
-reference_points = 3
-caller_selected_base_point = false
-default_point_anchor_required = true
-general_fem_or_fvm_execution = false
-registered_execution_method = "continuous-q1-galerkin"
-fvm_identity_separation_only = true
-partial_accepted_result = false
-python_study_api = false
+registered_execution_methods = ["continuous-q1-galerkin", "cell-centered-tpfa"]
+partial_accepted_members = true
+python_map_api = false
 parallel_or_threaded = false
 cuda = false
 mpi = false
-remote_or_framework_batched = false
-factorization_or_preconditioner_reuse = false
 cache = false
-derivative_across_study_axis = false
-doe_optimization_uq_or_adaptive_sampling = false
+derivative_across_map_axis = false
 persistence_or_wire = false
-scheduler_or_workflow_dag = false
-
-[precommitment]
-precommitted = true
-authored_before_implementation_by_a_nonimplementing_agent = true
-base_revision = "181949f113dde780787388e154b2b92069b76755"
-oracle_owner = "this manifest, its READMEs, and crates/eqiora/tests/bounded_parameter_study.rs own the public authority; differentiation.bounded-parameter-study-private owns the required private composition falsifiers"
-expected_predecessor_result = "the public production module is absent, so the frozen Rust oracle does not compile until the implementation and integrator registrations are composed"
+peak_process_memory_bound = false
 
 [evidence]
 package = "eqiora"
