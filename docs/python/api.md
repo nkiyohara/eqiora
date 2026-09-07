@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 18 module summaries and all 179 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 672 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 18 module summaries and all 182 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 674 signature-only entries under documented owning types**.
 
-Inventory: 18 modules, 215 literal public spellings, 179 canonical grouped declarations, 879 visible method signatures (672 non-dunder and 207 dunder), and 76 visible class assignments.
+Inventory: 18 modules, 218 literal public spellings, 182 canonical grouped declarations, 881 visible method signatures (674 non-dunder and 207 dunder), and 76 visible class assignments.
 
 Regenerate with:
 
@@ -2319,6 +2319,20 @@ Module authority: [`bindings/python/python/eqiora/lang/__init__.py`](../../bindi
 
 Shipped stub: [`bindings/python/python/eqiora/lang/__init__.pyi`](../../bindings/python/python/eqiora/lang/__init__.pyi)
 
+<a id="api-eqiora-lang-Clock"></a>
+
+### `eqiora.lang.Clock`
+
+Identify one nominal periodic clock in its exact Component.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::Clock`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+@final
+class Clock:
+    ...
+```
+
 <a id="api-eqiora-lang-Component"></a>
 
 ### `eqiora.lang.Component`
@@ -2330,13 +2344,15 @@ Authority: [`bindings/python/python/eqiora/lang/__init__.py::Component`](../../b
 ```python
 @final
 class Component:
+    def clock(self, name: str, *, period_s: Fraction | int, phase_s: Fraction | int=0, doc: str | None=None) -> Clock: ...
+    def initial(self, *residuals: Expression | int | float, doc: str | None=None) -> None: ...
     def volume(self, name: str, *, dimensions: int, doc: str | None=None) -> Support: ...
     def boundary(self, name: str, *, parent: Support, doc: str | None=None) -> Support: ...
     def parameter(self, name: str, *, value_type: ValueType, doc: str | None=None) -> Expression: ...
-    def let_alias(self, name: str, expression: Expression | int | float, *, value_type: ValueType | None=None, on: Support | None=None, doc: str | None=None) -> Expression: ...
+    def let_alias(self, name: str, expression: Expression | int | float, *, value_type: ValueType | None=None, on: Support | None=None, at: Clock | None=None, doc: str | None=None) -> Expression: ...
     def property(self, name: str, *, contract: PropertyContract, doc: str | None=None) -> Expression: ...
-    def field(self, name: str, *, on: Support, value_type: ValueType, role: FieldRole, doc: str | None=None) -> Expression: ...
-    def relation(self, name: str, *, on: Support, left: Expression | int | float, right: Expression | int | float, doc: str | None=None) -> Relation: ...
+    def field(self, name: str, *, on: Support, value_type: ValueType, role: FieldRole, at: Clock | None=None, doc: str | None=None) -> Expression: ...
+    def relation(self, name: str, *, on: Support, left: Expression | int | float, right: Expression | int | float, at: Clock | None=None, doc: str | None=None) -> Relation: ...
     def primal_form(self, relation: Relation, *, left: Expression, right: Expression, doc: str | None=None) -> None: ...
     def instance(self, name: str, *, component: Component, supports: Mapping[Support, Support], parameters: Mapping[Expression, Expression | int | float], properties: Mapping[Expression, PropertyRelease] | None=None, material: MaterialComposition | None=None, doc: str | None=None) -> None: ...
 ```
@@ -2562,6 +2578,30 @@ Authority: [`bindings/python/python/eqiora/lang/__init__.py::normal`](../../bind
 
 ```python
 def normal(value: Expression) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-pre"></a>
+
+### `eqiora.lang.pre`
+
+Read a State's pre-tick value; compiler checks clock and context.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::pre`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def pre(value: Expression) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-next"></a>
+
+### `eqiora.lang.next`
+
+Name a State's next-tick value; compiler checks clock and context.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::next`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def next(value: Expression) -> Expression: ...
 ```
 
 <a id="api-eqiora-lang-quantity"></a>
