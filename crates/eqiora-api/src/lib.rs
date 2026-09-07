@@ -669,7 +669,13 @@ public component Resistor() {
         let bytes = native.canonical_json().unwrap();
         let reconstructed = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(reconstructed.canonical_json().unwrap(), bytes);
-        assert_eq!(native.aliases().len(), 3);
+        for (name, kind) in [
+            ("x", EntityKind::Field),
+            ("rate", EntityKind::Parameter),
+            ("flow", EntityKind::Relation),
+        ] {
+            assert_eq!(native.aliases()[name].kind(), kind);
+        }
 
         let source = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
         assert_ne!(native.digest().unwrap(), source.digest().unwrap());
@@ -724,7 +730,7 @@ model pure_relation {
         let bytes = current.canonical_json().unwrap();
         let json = String::from_utf8_lossy(&bytes);
         assert!(json.contains("pure-operator-application"));
-        assert!(json.contains("eqiora.model-envelope/v11"));
+        assert!(json.contains("eqiora.model-envelope/v12"));
         let replay = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(replay.canonical_json().unwrap(), bytes);
         assert_eq!(replay.digest().unwrap(), current.digest().unwrap());
@@ -756,7 +762,7 @@ model pure_relation {
         assert!(
             String::from_utf8(plan.transaction_json().unwrap())
                 .unwrap()
-                .contains("eqiora.model-transaction-envelope/v11")
+                .contains("eqiora.model-transaction-envelope/v12")
         );
 
         let result = document.commit_value_edit(plan.clone()).unwrap();
@@ -822,7 +828,6 @@ model pure_relation {
     fn value_edit_identity_includes_the_exact_base_artifact() {
         let base = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
         let rate = base.aliases()["rate"];
-        let state = base.aliases()["x"];
 
         let left = base
             .commit_value_edit(base.preview_value_edit(rate, 2.0).unwrap())
@@ -832,8 +837,8 @@ model pure_relation {
             .commit_value_edit(base.preview_value_edit(rate, 3.0).unwrap())
             .unwrap()
             .into_document();
-        let left_plan = left.preview_value_edit(state, 2.0).unwrap();
-        let right_plan = right.preview_value_edit(state, 2.0).unwrap();
+        let left_plan = left.preview_value_edit(rate, 4.0).unwrap();
+        let right_plan = right.preview_value_edit(rate, 4.0).unwrap();
 
         assert_eq!(left_plan.base_revision(), right_plan.base_revision());
         assert_eq!(

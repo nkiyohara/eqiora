@@ -235,7 +235,7 @@ fn local_project_editor_analysis_is_read_only_and_accepts_source_overrides() {
 #[test]
 fn path_loaded_and_in_memory_source_have_identical_declaration_documentation() {
     let fixture = TestDirectory::create("documentation");
-    let source = "// 🧪\r\n/// Model explanation.\r\nmodel Main {\r\n/// State explanation.\r\nfield x:1=0; relation balance { x=0; }\r\n}\r\n";
+    let source = "// 🧪\r\n/// Model explanation.\r\nmodel Main {\r\n/// State explanation.\r\nvariable x:1; relation balance { x=0; }\r\n}\r\n";
     let sources = author_sources("org.example.Documentation", source, vec![]);
     write_package(&fixture.0, "src", &sources, &[]);
     let (workspace, paths) =

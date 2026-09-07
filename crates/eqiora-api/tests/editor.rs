@@ -104,7 +104,7 @@ fn documentation_uses_exact_resolved_files_after_a_declaration_is_renamed() {
         let main = format!(
             "import docs.left as left;\nimport docs.right as right;\nmodel Main {{ instance a: left.{left_name}(); instance b: right.Part(); }}\n"
         );
-        let left = format!("// 🧪\n/// Left declaration.\npublic component {left_name} {{}}\n");
+        let left = format!("// 🧪\n/// Left declaration.\npublic component {left_name}() {{}}\n");
         let right = "/// Right declaration.\npublic component Part() {}\n";
         let input = ResolvedHierarchyInput::new(
             owner.clone(),
@@ -146,7 +146,7 @@ fn documentation_uses_exact_resolved_files_after_a_declaration_is_renamed() {
 
 #[test]
 fn recovered_signature_symbols_keep_only_their_own_documentation() {
-    let source = "/// Component summary.\ncomponent C {\n/// Gain summary.\npublic parameter gain:1;\n/// Broken summary.\nfield ;\nfield retained:1=0;\n}\n";
+    let source = "/// Component summary.\ncomponent C() {\n/// Gain summary.\npublic parameter gain:1;\n/// Broken summary.\nfield ;\nvariable retained:1;\n}\n";
     let service = EditorService::new("docs.eqi", 1, source);
     let snapshot = service.current();
     assert!(!snapshot.diagnostics().is_empty());
