@@ -194,7 +194,7 @@ fn borrowed_clocks_and_states_forward_exact_targets() {
         1
     );
     let wrong = source
-        .replace("tick = c, field", "tick = other, field")
+        .replace("tick = c, value", "tick = other, value")
         .replace(
             "state x: 1 at c;",
             "clock other = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1 at c;",
@@ -315,6 +315,7 @@ fn source_and_factory_retain_volume_only_field_support() {
     let rebuilt = SourceAstFactory::model(
         VisibilitySyntax::Private,
         model.name(),
+        model.signature().to_vec(),
         items,
         model.range(),
     )
