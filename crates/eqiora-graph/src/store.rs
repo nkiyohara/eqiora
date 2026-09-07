@@ -430,6 +430,22 @@ fn define_kernel_node(state: &mut State, definition: KernelNode) -> Result<(), D
 }
 
 fn set_value(state: &mut State, target: RawId, value: ValueLiteral) -> Result<(), Diagnostic> {
+    if state
+        .nodes
+        .get(&target)
+        .and_then(|node| node.value.as_ref())
+        != Some(&value)
+        && state.edges.iter().any(|edge| {
+            edge.kind == EdgeKind::DependsOn
+                && edge.to == target
+                && edge.from.kind() == EntityKind::IndexSet
+        })
+    {
+        return Err(Diagnostic::error(codes::INVALID_OPERATION,
+            "value edit would change a Parameter that determines an IndexSet; recompile the structural definition")
+            .with_graph_path(path_for(target)));
+    }
+
     let Some(node) = state.nodes.get_mut(&target) else {
         return Err(not_found(target));
     };

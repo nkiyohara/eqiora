@@ -69,7 +69,7 @@ impl EdgeKind {
             Self::DependsOn => {
                 (matches!(from, K::Relation)
                     && matches!(to, K::Field | K::Parameter | K::Port | K::ClockDomain))
-                    || (matches!(from, K::Domain) && matches!(to, K::Parameter))
+                    || (matches!(from, K::Domain | K::IndexSet) && matches!(to, K::Parameter))
             }
             Self::HasPort => matches!(from, K::Relation) && matches!(to, K::Port),
             Self::Activates => matches!(from, K::Activation) && matches!(to, K::Relation),
