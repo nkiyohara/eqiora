@@ -127,8 +127,8 @@ fn assert_stub_compile_contract(py: Python<'_>) -> PyResult<()> {
             "source".to_owned(),
             "filename".to_owned(),
             "geometry".to_owned(),
-            "parameters".to_owned(),
-            "component".to_owned(),
+            "bindings".to_owned(),
+            "entry".to_owned(),
         ]
     );
     assert!(arguments.getattr("vararg")?.is_none());
@@ -158,12 +158,12 @@ fn argument_names(arguments: &Bound<'_, PyAny>) -> PyResult<Vec<String>> {
 }
 
 #[test]
-fn independent_python_control_and_direct_compilations_share_only_structure() -> PyResult<()> {
+fn independent_python_control_and_direct_compilations_share_canonical_identity() -> PyResult<()> {
     Python::initialize();
     Python::attach(|py| {
         let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
         let module = native.bind(py);
-        let filename = "three-independent-occurrences.eqi";
+        let filename = "three-canonical-routes.eqi";
 
         let kwargs = PyDict::new(py);
         kwargs.set_item("filename", filename)?;
@@ -203,8 +203,15 @@ fn independent_python_control_and_direct_compilations_share_only_structure() -> 
             control_reference.artifact().to_string(),
             direct_reference.artifact().to_string(),
         ];
-        assert_pairwise_distinct(&ids);
-        assert_pairwise_distinct(&digests);
+        assert_eq!(ids[0], ids[1]);
+        assert_eq!(ids[1], ids[2]);
+        assert_eq!(digests[0], digests[1]);
+        assert_eq!(digests[1], digests[2]);
+        let changed_source =
+            SOURCE.replace("parameter rate: 1 / s = 1;", "parameter rate: 1 / s = 2;");
+        assert_ne!(changed_source, SOURCE);
+        let changed = ModelDocument::compile(filename, &changed_source).unwrap();
+        assert_ne!(changed.digest().unwrap(), direct.digest().unwrap());
 
         let python_fingerprint = python.getattr("structural_fingerprint")?;
         let python_fingerprint = (
@@ -671,12 +678,6 @@ fn collect_rust_sources(directory: &Path, output: &mut Vec<std::path::PathBuf>) 
             output.push(path);
         }
     }
-}
-
-fn assert_pairwise_distinct<T: std::fmt::Debug + PartialEq>(values: &[T; 3]) {
-    assert_ne!(&values[0], &values[1]);
-    assert_ne!(&values[0], &values[2]);
-    assert_ne!(&values[1], &values[2]);
 }
 
 fn model_bytes(model: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {

@@ -1338,6 +1338,11 @@ def test_clock_domain_identity_is_nominal_and_exact():
     assert first.phase_s == Fraction(1, 7)
     assert first != second
     assert first.id != second.id
+    clocks = {first: "first", second: "second"}
+    assert clocks[first] == "first"
+    assert len(clocks) == 2
+    assert first.id in repr(first)
+    assert "period_s=Fraction(1, 3)" in repr(first)
     for invalid in (True, 0.1, -1, 0):
         with pytest.raises((TypeError, ValueError, OverflowError)):
             eqiora.ClockDomain(period_s=invalid)

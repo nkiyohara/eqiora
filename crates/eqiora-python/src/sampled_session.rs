@@ -10,6 +10,7 @@ use pyo3::types::{PyDict, PyList, PyTuple};
 
 use crate::{diagnostic_error, modeling::value_literal};
 
+/// Mutable reference execution session bound to one exact compiled Model.
 #[pyclass(
     name = "SampledSession",
     module = "eqiora._eqiora",
@@ -20,6 +21,7 @@ pub(crate) struct PySampledSession {
     value: SampledSession,
 }
 
+/// Immutable in-memory snapshot resumable only against its exact compiled Model.
 #[pyclass(
     name = "SampledCheckpoint",
     module = "eqiora._eqiora",
@@ -28,6 +30,21 @@ pub(crate) struct PySampledSession {
 )]
 pub(crate) struct PySampledCheckpoint {
     value: SampledSession,
+}
+
+fn session_repr(name: &str, value: &SampledSession) -> String {
+    let next = value.next_tick().map_or_else(
+        || "None".to_owned(),
+        |time| format!("Fraction({}, {})", time.numerator(), time.denominator()),
+    );
+    format!("{name}(next_tick={next})")
+}
+
+#[pymethods]
+impl PySampledCheckpoint {
+    fn __repr__(&self) -> String {
+        session_repr("SampledCheckpoint", &self.value)
+    }
 }
 
 fn resolve(document: &ModelDocument, name: &str, kind: EntityKind) -> PyResult<RawId> {
@@ -116,6 +133,10 @@ pub(crate) fn resume(
 
 #[pymethods]
 impl PySampledSession {
+    fn __repr__(&self) -> String {
+        session_repr("SampledSession", &self.value)
+    }
+
     fn advance_ticks(&mut self, py: Python<'_>, count: usize) -> PyResult<usize> {
         py.detach(|| self.value.advance_ticks(count))
             .map_err(|diagnostics| diagnostic_error(py, &diagnostics))

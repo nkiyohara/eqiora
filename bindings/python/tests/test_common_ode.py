@@ -86,7 +86,7 @@ def test_model_first_no_mesh_decay_owns_exact_lineage_and_adaptive_series() -> N
         result.series("x")  # type: ignore[arg-type]
 
 
-def test_replay_and_fresh_compile_use_the_same_resolver_without_fixed_identity() -> None:
+def test_replay_and_fresh_compile_share_canonical_identity_and_track_source_changes() -> None:
     first = eqiora.compile(source=DECAY)
     replayed = eqiora.Model.from_bytes(first.to_bytes())
     second = eqiora.compile(source=DECAY)
@@ -97,7 +97,16 @@ def test_replay_and_fresh_compile_use_the_same_resolver_without_fixed_identity()
     assert replayed_plan.identity == first_plan.identity
     assert replayed_plan.model_digest == replayed.digest == first.digest
     assert second_plan.model_digest == second.digest
-    assert second_plan.model_digest != first_plan.model_digest
+    assert second_plan.model_digest == first_plan.model_digest
+    assert second_plan.identity == first_plan.identity
+
+    changed_source = DECAY.replace("parameter rate: 1 / s = 1;", "parameter rate: 1 / s = 2;")
+    assert changed_source != DECAY
+    changed = eqiora.compile(source=changed_source)
+    changed_plan, _ = resolve_decay(changed)
+    assert changed_plan.model_digest == changed.digest
+    assert changed_plan.model_digest != first_plan.model_digest
+    assert changed_plan.identity != first_plan.identity
 
 
 def test_output_cadence_changes_results_without_changing_model_identity() -> None:

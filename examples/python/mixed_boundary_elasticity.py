@@ -26,7 +26,15 @@ def solve() -> tuple[eqiora.Plan, eqiora.Result]:
     model = eqiora.compile(
         path=files(eqiora).joinpath("examples", "mixed-boundary-elasticity.eqi"),
         geometry=geometry,
-        parameters={"mu": 3.0, "lambda": 0.0, "length_scale": 1.0},
+        entry="MixedBoundaryElasticity2d",
+        bindings={
+            "body": geometry.selection("body"),
+            **{
+                side: (geometry.selection(side), geometry.selection("body"))
+                for side in ("x_lower", "x_upper", "y_lower", "y_upper")
+            },
+            "mu": 3.0, "lambda": 0.0, "length_scale": 1.0,
+        },
     )
     plan = eqiora.resolve(
         model,

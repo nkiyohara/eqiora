@@ -2,7 +2,7 @@
 
 This case exercises the private PyO3 module as an in-process Python client and
 then crosses back through the public Rust facade. Python keeps the exact
-`compile(source, *, filename="<memory>")` call shape, performs its bounded
+`compile(*, path=None, source=None, filename=None, geometry=None, bindings=None, entry=None)` call shape, performs its bounded
 filename/source admission locally, releases the GIL, and invokes the existing
 `ModelDocument::compile` operation exactly once without importing or
 constructing a control DTO. A source-compiled current `Model` must replay
@@ -24,11 +24,11 @@ compilation. Control diagnostic-count, diagnostic-member, encoded-response,
 and overflow-substitution policies are deliberately not copied into Python.
 
 Accepted frozen source compiled independently through Python, control-v2, and
-direct Rust has pairwise-distinct Model occurrence IDs and artifact digests,
-while all three generation-v8 structural fingerprints agree. Rejected source
-has the same normalized ordinary diagnostics through all three paths. Identity
-or digest equality is required only for a response and document from the same
-invocation, never across independent compilations.
+direct Rust has equal canonical Model IDs and artifact digests, while all
+three generation-v9 structural fingerprints agree. Changing a Parameter value
+changes the artifact digest; equality is not a fixed identity shared by arbitrary
+source. Rejected source has the same normalized ordinary diagnostics through all
+three paths.
 
 The same opaque `Model` previews one exact-base scalar value edit and commits
 it atomically into a new immutable child. The base remains byte-for-byte
@@ -47,9 +47,8 @@ control-plane use independent of optional data and framework adapters.
 
 Historical v1--v7 bytes and caller-selected codecs are outside the Python
 surface; the canonical-identity case owns their negative corpus. This evidence
-does not claim independent compilations have equal IDs or digests, nor does it
-claim control-envelope overflow parity. Native
-modeling vocabulary belongs to
+does not claim control-envelope overflow parity. Native ModelDraft occurrence
+identity and modeling vocabulary belong to
 `language.native-modeling` and its Python-specific follow-up. Async execution,
 cancellation, progress, array exchange, DLPack, and framework integration are
 also outside this case.

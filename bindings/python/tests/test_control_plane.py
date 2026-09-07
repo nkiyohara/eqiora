@@ -68,8 +68,8 @@ def test_compile_contract_is_claim_local_at_runtime_and_in_the_stub() -> None:
         "source",
         "filename",
         "geometry",
-        "parameters",
-        "component",
+        "bindings",
+        "entry",
     ]
     assert declaration.args.vararg is None
     assert declaration.args.kwarg is None

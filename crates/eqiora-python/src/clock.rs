@@ -1,10 +1,14 @@
 //! Exact nominal static clock contracts at the Python boundary.
 
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
 use eqiora::kernel::{ClockDomainDef, ClockKind, RationalTime};
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyInt};
 
+/// Immutable nominal periodic clock with exact rational seconds.
 #[pyclass(
     name = "ClockDomain",
     module = "eqiora._eqiora",
@@ -45,6 +49,26 @@ impl PyClockDomain {
             value: ClockDomainDef::periodic(eqiora::Id::new(), period_s, phase_s)
                 .map_err(|error| PyValueError::new_err(error.to_string()))?,
         })
+    }
+
+    fn __repr__(&self) -> String {
+        let ClockKind::Periodic { period, phase } = self.value.kind() else {
+            unreachable!()
+        };
+        format!(
+            "ClockDomain(id={:?}, period_s=Fraction({}, {}), phase_s=Fraction({}, {}))",
+            self.value.id().to_string(),
+            period.numerator(),
+            period.denominator(),
+            phase.numerator(),
+            phase.denominator(),
+        )
+    }
+
+    fn __hash__(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        self.value.id().hash(&mut hasher);
+        hasher.finish()
     }
 
     #[getter]

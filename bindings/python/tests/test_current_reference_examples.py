@@ -59,6 +59,6 @@ def test_reference_rejects_wrong_units_and_missing_required_binding():
 
 def test_reference_accepts_compatible_explicit_input_units():
     declaration = (REFERENCE / "language/_examples/declarations.eqi").read_text()
-    explicit = declaration.replace("= 12;", "= 12 [V];")
+    explicit = declaration.replace("= 12,", "= 12 [V],")
     assert explicit != declaration
     assert isinstance(eqiora.compile(source=explicit, filename="input-units.eqi"), eqiora.Model)
