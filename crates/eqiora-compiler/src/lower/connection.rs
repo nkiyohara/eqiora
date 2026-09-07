@@ -170,7 +170,21 @@ pub(super) fn lower_connection(
         ));
     }
     let (kind, semantics) = match syntax {
-        ConnectionSyntax::Signal => (ScalarConnectionKind::Signal, ConnectionSemantics::Signal),
+        ConnectionSyntax::Signal => {
+            let Some(Binding::Port(driver, _)) = names.first().and_then(|name| bindings.get(name))
+            else {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    range,
+                    "signal Connection requires an explicit source Port",
+                ));
+            };
+            (
+                ScalarConnectionKind::Signal,
+                ConnectionSemantics::Signal { driver: *driver },
+            )
+        }
         ConnectionSyntax::Conserving => (
             ScalarConnectionKind::Conserving,
             ConnectionSemantics::Conserving,
