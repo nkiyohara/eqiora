@@ -8,6 +8,7 @@ import starlight from '@astrojs/starlight';
 import { defineConfig } from 'astro/config';
 
 import { katexMathPlugin } from './src/plugins/katex.ts';
+import { canonicalGuideLinks } from './src/plugins/canonical-guide-links.ts';
 
 const SOURCE_SHA = /^[0-9a-f]{40}$/;
 
@@ -64,21 +65,22 @@ if (process.env.EQIORA_SITE_BUILD_PROFILE === 'complete') {
     'src/content/docs/reference/cli/index.mdx',
     'src/content/docs/reference/control-v2/index.mdx',
     'src/content/docs/reference/mcp/index.mdx',
-    'src/content/docs/textbooks/index.mdx',
-    'src/content/docs/textbooks/mathematical-modeling.mdx',
-    'src/content/docs/textbooks/mathematical-modeling/algebraic-relations-networks.mdx',
-    'src/content/docs/textbooks/mathematical-modeling/boundary-interface-conditions.mdx',
-    'src/content/docs/textbooks/mathematical-modeling/conservation-laws.mdx',
-    'src/content/docs/textbooks/mathematical-modeling/constitutive-laws.mdx',
-    'src/content/docs/textbooks/mathematical-modeling/fields-spatial-domains.mdx',
-    'src/content/docs/textbooks/mathematical-modeling/models-not-simulations.mdx',
-    'src/content/docs/textbooks/mathematical-modeling/ordinary-differential-equations.mdx',
-    'src/content/docs/textbooks/mathematical-modeling/quantities-dimensions-units.mdx',
-    'src/content/docs/textbooks/numerical-simulation.mdx',
-    'src/content/docs/textbooks/fluid-mechanics-cfd.mdx',
-    'src/content/docs/textbooks/structural-mechanics-fem.mdx',
-    'src/content/docs/textbooks/heat-mass-transfer.mdx',
-    'src/content/docs/textbooks/circuits-dynamics-hybrid.mdx',
+    'src/content/docs/learn/index.mdx',
+    'src/content/docs/learn/mathematical-modeling/index.mdx',
+    'src/content/docs/learn/mathematical-modeling/algebraic-relations-networks.mdx',
+    'src/content/docs/learn/mathematical-modeling/boundary-interface-conditions.mdx',
+    'src/content/docs/learn/mathematical-modeling/conservation-laws.mdx',
+    'src/content/docs/learn/mathematical-modeling/constitutive-laws.mdx',
+    'src/content/docs/learn/mathematical-modeling/fields-spatial-domains.mdx',
+    'src/content/docs/learn/mathematical-modeling/models-not-simulations.mdx',
+    'src/content/docs/learn/mathematical-modeling/ordinary-differential-equations.mdx',
+    'src/content/docs/learn/mathematical-modeling/quantities-dimensions-units.mdx',
+    'src/content/docs/guides/index.mdx',
+    'src/content/docs/guides/run-and-inspect.mdx',
+    'src/content/docs/guides/how-eqiora-fits-together.mdx',
+    'src/content/docs/guides/modeling.mdx',
+    'src/content/docs/guides/execution-and-arrays.mdx',
+    'src/content/docs/guides/differentiation.mdx',
     'src/styles/site/tokens.css',
     'src/styles/site/layout.css',
     'src/styles/site/components.css',
@@ -103,12 +105,14 @@ export default defineConfig({
   markdown: {
     processor: satteri({
       features: { math: true },
-      mdastPlugins: [katexMathPlugin],
+      mdastPlugins: [katexMathPlugin, canonicalGuideLinks],
     }),
   },
   integrations: [
     starlight({
       title: 'Eqiora',
+      routeMiddleware: './src/route-data.ts',
+      editLink: { baseUrl: 'https://github.com/nkiyohara/eqiora/edit/main/' },
       description: 'Meaning-first scientific modeling and execution.',
       logo: {
         src: './src/assets/brand/eqiora-mark.svg',
@@ -124,10 +128,26 @@ export default defineConfig({
         },
       ],
       sidebar: [
-        { label: 'Get started', link: '/get-started/' },
-        { label: 'Textbooks', link: '/textbooks/' },
-        { label: 'Gallery', link: '/gallery/' },
-        { label: 'Reference', link: '/reference/' },
+        { label: 'Learn', items: [
+          { label: 'Browse topics', link: '/learn/' },
+          { label: 'Mathematical modeling', items: [{ autogenerate: { directory: 'learn/mathematical-modeling' } }] },
+        ] },
+        { label: 'Guides', items: [
+          { label: 'Choose a task', link: '/guides/' },
+          { label: 'Run and inspect', link: '/guides/run-and-inspect/' },
+          { label: 'How Eqiora fits together', link: '/guides/how-eqiora-fits-together/' },
+          { label: 'Modeling and realization', link: '/guides/modeling/' },
+          { label: 'Execution, diagnostics, arrays', link: '/guides/execution-and-arrays/' },
+          { label: 'Differentiation', link: '/guides/differentiation/' },
+        ] },
+        { label: 'Gallery', items: [
+          { label: 'Investigations', link: '/gallery/' },
+          { label: 'Steady cylinder flow', link: '/gallery/exact-cylinder-steady-stokes/' },
+          { label: 'Mixed-boundary elasticity', link: '/gallery/mixed-boundary-elasticity/' },
+          { label: 'Transient cylinder startup', link: '/gallery/transient-cylinder-startup/' },
+        ] },
+        { label: 'Reference', items: [
+        { label: 'Find a definition', link: '/reference/' },
         {
           label: 'Language',
           items: [
@@ -146,6 +166,16 @@ export default defineConfig({
             { label: 'Continuum laws and boundaries', link: '/reference/standard-packages/continuum/' },
           ],
         },
+        { label: 'Python API', link: '/reference/python/' },
+        { label: 'Rust API', link: '/reference/rust/' },
+        { label: 'CLI', link: '/reference/cli/' },
+        { label: 'Control v2', link: '/reference/control-v2/' },
+        { label: 'MCP', link: '/reference/mcp/' },
+        ] },
+        { label: 'Contributing', items: [
+          { label: 'Contribute a change', link: '/contributing/' },
+          { label: 'Architecture', link: '/contributing/architecture/' },
+        ] },
       ],
       head: [
         { tag: 'meta', attrs: { property: 'og:type', content: 'website' } },
@@ -170,6 +200,7 @@ export default defineConfig({
         '/src/styles/site/components.css',
       ],
       components: {
+        PageTitle: './src/components/site/PageTitle.astro',
         Header: './src/components/site/Header.astro',
         Footer: './src/components/site/Footer.astro',
         Search: './src/components/site/Search.astro',

@@ -9,7 +9,7 @@ import ReleaseIdentity from './ReleaseIdentity.astro';
       <p class="eq-eyebrow">Open-source computational physics</p>
       <p class="eq-lead">Eqiora helps researchers and engineers turn mathematical models into simulations, with the physics, numerical choices, and results kept explicit.</p>
       <div class="eq-actions">
-        <a class="eq-button eq-button--primary" href="/get-started/">Start with an example <span aria-hidden="true">↗</span></a>
+        <a class="eq-button eq-button--primary" href="/get-started/">Get started <span aria-hidden="true">↗</span></a>
         <a class="eq-button" href="/gallery/">Explore simulations <span aria-hidden="true">→</span></a>
       </div>
       <p class="eq-alpha">Alpha <ReleaseIdentity /> · Actively developed. <a href="/capabilities/">See what works today.</a></p>
@@ -31,8 +31,15 @@ import ReleaseIdentity from './ReleaseIdentity.astro';
   </section>
 
   <section class="eq-walkthrough" aria-labelledby="walkthrough-title">
+    <p class="eq-eyebrow">One equation, one prediction</p>
+    <h2 id="walkthrough-title">Run it. Change it. Understand it.</h2>
+    <p>For <code>dx/dt + kx = 0</code> with <code>x(0) = 1</code> and a decay rate of one per second, the model predicts <code>x(1) = exp(-1) ≈ 0.367879</code>. Install Eqiora, run the model, then double the rate and test your next prediction.</p>
+    <a class="eq-text-link" href="/get-started/">Get started <span aria-hidden="true">→</span></a>
+  </section>
+
+  <section class="eq-walkthrough" aria-labelledby="flow-title">
     <p class="eq-eyebrow">Featured walkthrough</p>
-    <h2 id="walkthrough-title">Follow a flow simulation, end to end.</h2>
+    <h2 id="flow-title">Follow a flow simulation, end to end.</h2>
     <p>Follow the exact-cylinder steady-Stokes example from a Python model and named boundaries to a static pressure plot. Read the source, the numerical setup, and the result together.</p>
     <a class="eq-text-link" href="/gallery/exact-cylinder-steady-stokes/">Explore the flow example <span aria-hidden="true">→</span></a>
   </section>
@@ -41,7 +48,9 @@ import ReleaseIdentity from './ReleaseIdentity.astro';
     <div class="eq-section-heading"><p class="eq-eyebrow">Go further</p><h2 id="paths-title">Find your next step.</h2></div>
     <div class="eq-path-grid">
       <a href="/get-started/"><h3>Get started <span aria-hidden="true">↗</span></h3><p>Install with uv, run a small model, and change one parameter.</p></a>
-      <a href="/textbooks/"><h3>Learn the foundations <span aria-hidden="true">↗</span></h3><p>Explore the guide to mathematics, physics, and numerical methods.</p></a>
+      <a href="/learn/"><h3>Learn <span aria-hidden="true">↗</span></h3><p>Work through derivations, physical examples, and exercises.</p></a>
+      <a href="/guides/"><h3>Guides <span aria-hidden="true">↗</span></h3><p>Author a model, choose numerics, inspect results, or diagnose a failure.</p></a>
+      <a href="/gallery/"><h3>Gallery <span aria-hidden="true">↗</span></h3><p>Follow a complete investigation from physical setup to result.</p></a>
       <a href="/reference/"><h3>Browse the reference <span aria-hidden="true">↗</span></h3><p>Find Python and Rust APIs, command-line tools, and protocols.</p></a>
       <a href="/capabilities/"><h3>Check capabilities <span aria-hidden="true">↗</span></h3><p>See implemented features, tested examples, and current limitations.</p></a>
     </div>

@@ -1,5 +1,7 @@
 ---
 title: 5. Fields and spatial domains
+sidebar:
+  order: 5
 description: Place scalar and vector quantities on explicit supports, then read gradient, divergence, trace, and normal operators by their physical roles.
 ---
 
@@ -88,6 +90,28 @@ trace of the interior velocity with a prescribed zero velocity.
 
 <ExactSourceLink path="examples/steady-flow-past-cylinder.eqi" kind="blob">Read the complete steady-flow model</ExactSourceLink>.
 
+## A spatial equation with a known solution
+
+For a scalar field on the unit square, a useful checking problem is
+
+$$
+-\operatorname{div}(\operatorname{grad} u)
+=2\pi^2\sin(\pi x)\sin(\pi y),
+\qquad u=0\text{ on all four sides}.
+$$
+
+The source is chosen so the solution is known:
+$u(x,y)=\sin(\pi x)\sin(\pi y)$. This is a scalar Poisson problem, not
+the cylinder-flow model above. Knowing the answer in advance lets a numerical
+comparison measure error instead of relying on a plausible-looking picture.
+
+The <ExactSourceLink path="packages/org.example.poisson" kind="tree">Poisson verification package</ExactSourceLink>
+contains its Eqiora declarations, and the
+<ExactSourceLink path="verify/numerics/compiled-cartesian-poisson-q1-2d/README.md" kind="blob">registered Poisson case</ExactSourceLink>
+describes the numerical comparison. For a complete public spatial workflow,
+follow the [cylinder Gallery case](/gallery/exact-cylinder-steady-stokes/),
+whose equations and execution both refer to the same flow problem.
+
 ## Deliberate failure: divergence of a scalar
 
 Replace the incompressibility relation with `div(pressure) = 0`. Pressure is a
@@ -106,6 +130,6 @@ cannot make the expression meaningful.
 4. Add a named `symmetry` boundary to the support declarations. What physical
    relation would still need to be supplied before the name has meaning?
 
-[Previous: Ordinary differential equations](/textbooks/mathematical-modeling/ordinary-differential-equations/) ·
-[Back to the series map](/textbooks/mathematical-modeling/) ·
-[Next: Conservation laws](/textbooks/mathematical-modeling/conservation-laws/)
+[Previous: Ordinary differential equations](/learn/mathematical-modeling/ordinary-differential-equations/) ·
+[Back to the series map](/learn/mathematical-modeling/) ·
+[Next: Conservation laws](/learn/mathematical-modeling/conservation-laws/)

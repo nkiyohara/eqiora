@@ -266,7 +266,7 @@ test('00D exact real Rustdoc Diagnostic ordinary chunk is complete and green', a
   test.setTimeout(300_000);
   const plan = createOrdinaryRoutePlan();
   expect(assertOrdinaryRoutePlan(plan)).toEqual([...SITE_ROUTES]);
-  expect(ROUTES).toHaveLength(59);
+  expect(ROUTES).toHaveLength(61);
   const context = await browser.newContext({
     baseURL: BASE_URL,
     locale: 'en-GB',
@@ -298,9 +298,9 @@ test('01 honest 320px O-1 through O-4 composition and retained interaction contr
   await assertNoPageOverflow(page);
   await assertMinimumTargetSizes(page.getByRole('banner').getByRole('link'));
   await assertMinimumTargetSizes(page.getByRole('banner').getByRole('button'));
-  await assertMinimumTargetSizes(page.getByRole('link', { name: 'Start with an example', exact: true }));
+  await assertMinimumTargetSizes(page.locator('.eq-actions').getByRole('link', { name: 'Get started', exact: true }));
   await assertMinimumTargetSizes(page.getByRole('link', { name: 'Explore simulations', exact: true }));
-  await assertKeyboardFocusVisible(page, page.getByRole('link', { name: 'Start with an example', exact: true }));
+  await assertKeyboardFocusVisible(page, page.locator('.eq-actions').getByRole('link', { name: 'Get started', exact: true }));
 
   await navigateSitePage(page, '/gallery/exact-cylinder-steady-stokes/');
   await assertHonest320Reflow(page);
@@ -362,10 +362,10 @@ test('table structure is complete across current site routes', async () => {
     directTotal += observation.counts.direct;
     componentTotal += expected.component;
   }
-  expect(tableTotal).toBe(14);
+  expect(tableTotal).toBe(17);
   expect(directTotal).toBe(tableTotal - 1);
   expect(componentTotal).toBe(1);
-  expect(invariantRoutes).toBe(11);
+  expect(invariantRoutes).toBe(14);
   await navigateSitePage(page, '/reference/python/eqiora/');
   await expect(page.locator('main table')).toHaveCount(0);
 
@@ -465,7 +465,7 @@ test('03 forced colours retain core content and exact non-table accessibility bo
     }
   }
   await navigateSitePage(page, '/');
-  await assertKeyboardFocusVisible(page, page.getByRole('link', { name: 'Start with an example', exact: true }));
+  await assertKeyboardFocusVisible(page, page.locator('.eq-actions').getByRole('link', { name: 'Get started', exact: true }));
   expect(external).toEqual([]);
   await context.close();
 });

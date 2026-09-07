@@ -12,12 +12,15 @@ import StarlightSearch from '@astrojs/starlight/components/Search.astro';
 
   const contentTypeFor = (value) => {
     const path = new URL(value, window.location.origin).pathname;
-    if (path.startsWith('/textbooks/')) return 'Textbook index or lesson';
+    if (path.startsWith('/learn/')) return 'Learn';
+    if (path.startsWith('/guides/')) return 'Guide';
     if (path.startsWith('/gallery/')) return 'Gallery';
-    if (path.startsWith('/reference/') || path.startsWith('/api/')) return 'API reference';
+    if (path.startsWith('/reference/')) return 'Reference';
+    if (path.startsWith('/get-started/')) return 'Get started';
+    if (path.startsWith('/contributing/')) return 'Contributing';
     if (path.startsWith('/capabilities/')) return 'Capability summary';
     if (path.startsWith('/evidence/')) return 'Verification guide';
-    return 'Docs';
+    return 'Eqiora';
   };
 
   const labelSearchResults = () => {

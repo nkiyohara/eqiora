@@ -1,0 +1,26 @@
+---
+import StarlightPageTitle from '@astrojs/starlight/components/PageTitle.astro';
+
+const route = Astro.locals.starlightRoute;
+const group = route.sidebar[0];
+const ancestors = [];
+if (group?.type === 'group') {
+  const section = Astro.url.pathname.split('/')[1];
+  if (Astro.url.pathname !== `/${section}/`) ancestors.push({ href: `/${section}/`, label: group.label });
+  if (Astro.url.pathname.startsWith('/learn/mathematical-modeling/') && Astro.url.pathname !== '/learn/mathematical-modeling/') {
+    ancestors.push({ href: '/learn/mathematical-modeling/', label: 'Mathematical modeling' });
+  }
+}
+---
+
+{Astro.url.pathname !== '/' && <nav aria-label="Breadcrumb" class="eq-breadcrumb print:hidden">
+  <a href="/">Home</a>
+  {ancestors.map(({ href, label }) => <><span aria-hidden="true">/</span><a href={href}>{label}</a></>)}
+  <span aria-hidden="true">/</span><span aria-current="page">{route.entry.data.title}</span>
+</nav>}
+<StarlightPageTitle {...Astro.props} />
+
+<style>
+  .eq-breadcrumb { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .5rem; font-size: var(--eq-text-small); color: var(--eq-color-text-muted); margin-bottom: .75rem; }
+  .eq-breadcrumb a { display: inline-flex; align-items: center; min-height: var(--eq-target-min); }
+</style>

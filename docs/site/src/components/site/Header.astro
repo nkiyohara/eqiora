@@ -12,12 +12,13 @@ const shouldRenderSearch =
 <div class="eq-header">
   <div class="eq-header__title"><SiteTitle /></div>
   <nav class="eq-primary-nav" aria-label="Primary">
-    <a href="/get-started/">Get started</a>
-    <a href="/textbooks/">Textbooks</a>
+    <a href="/learn/">Learn</a>
+    <a href="/guides/">Guides</a>
     <a href="/gallery/">Gallery</a>
     <a href="/reference/">Reference</a>
   </nav>
   <div class="eq-header__tools print:hidden">
+    <a class="eq-get-started" href="/get-started/">Get started</a>
     {shouldRenderSearch && <Search />}
     <span class="sl-hidden md:sl-flex"><ThemeSelect /></span>
     <LanguageSelect />
@@ -70,8 +71,22 @@ const shouldRenderSearch =
       gap: 0.5rem;
       align-items: center;
     }
+    .eq-get-started { display: inline-flex; align-items: center; min-height: var(--eq-target-min); padding-inline: .625rem; border: 1px solid var(--eq-color-border-strong); border-radius: var(--eq-radius-control); color: var(--eq-color-text); font-size: var(--eq-text-small); font-weight: 650; text-decoration: none; white-space: nowrap; }
+    .eq-get-started:hover { text-decoration: underline; }
     @media (max-width: 49.999rem) {
       :global(:root) { --sl-nav-height: 7rem; }
+    }
+    @media (max-width: 24.999rem) {
+      :global(:root) { --sl-nav-height: 10rem; }
+      :global([data-has-sidebar]) :global(header.header) { padding-inline-end: var(--sl-nav-pad-x); }
+      .eq-header { grid-template-areas: 'title tools' 'nav nav' 'start start'; gap: 0 .5rem; }
+      .eq-header__tools { display: contents; }
+      .eq-get-started { grid-area: start; justify-self: start; }
+      .eq-header__tools :global(site-search button[data-open-modal]) { grid-area: tools; }
+      :global([data-has-sidebar]) .eq-header__tools :global(site-search button[data-open-modal]) { margin-inline-end: calc(var(--sl-menu-button-size) + .5rem); }
+      :global(starlight-menu-button button) { top: var(--sl-nav-pad-y); }
+      .eq-primary-nav { justify-content: space-between; overflow: visible; }
+      .eq-primary-nav a { padding-inline: .25rem; }
     }
     @media (min-width: 50rem) {
       .eq-header {
@@ -81,11 +96,6 @@ const shouldRenderSearch =
       }
       .eq-primary-nav { justify-content: center; }
       .eq-primary-nav a { min-height: var(--eq-target-min); }
-      :global([data-has-sidebar]) .eq-header {
-        grid-template-columns: minmax(0, 1fr) auto;
-        grid-template-areas: 'title tools';
-      }
-      :global([data-has-sidebar]) .eq-primary-nav { display: none; }
     }
   }
 </style>

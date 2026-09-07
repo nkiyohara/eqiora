@@ -73,21 +73,21 @@ CASE_EVIDENCE_PATHS = _content.CASE_EVIDENCE_PATHS
 SITE_ORIGIN = "https://eqiora.org"
 STARLIGHT_ROUTES = {
     "/": "index.html",
-    "/api/": "api/index.html",
-    "/architecture/": "architecture/index.html",
+    "/contributing/architecture/": "contributing/architecture/index.html",
     "/capabilities/": "capabilities/index.html",
-    "/concepts/": "concepts/index.html",
+    "/guides/how-eqiora-fits-together/": "guides/how-eqiora-fits-together/index.html",
     "/contributing/": "contributing/index.html",
     "/evidence/": "evidence/index.html",
-    "/examples/": "examples/index.html",
     "/gallery/": "gallery/index.html",
     "/gallery/exact-cylinder-steady-stokes/": "gallery/exact-cylinder-steady-stokes/index.html",
     "/gallery/mixed-boundary-elasticity/": "gallery/mixed-boundary-elasticity/index.html",
+    "/gallery/transient-cylinder-startup/": "gallery/transient-cylinder-startup/index.html",
     "/get-started/": "get-started/index.html",
-    "/python/": "python/index.html",
-    "/python/differentiation/": "python/differentiation/index.html",
-    "/python/execution-and-arrays/": "python/execution-and-arrays/index.html",
-    "/python/modeling/": "python/modeling/index.html",
+    "/guides/": "guides/index.html",
+    "/guides/run-and-inspect/": "guides/run-and-inspect/index.html",
+    "/guides/differentiation/": "guides/differentiation/index.html",
+    "/guides/execution-and-arrays/": "guides/execution-and-arrays/index.html",
+    "/guides/modeling/": "guides/modeling/index.html",
     "/reference/": "reference/index.html",
     "/reference/language/": "reference/language/index.html",
     "/reference/language/composition/": "reference/language/composition/index.html",
@@ -103,6 +103,13 @@ STARLIGHT_ROUTES = {
     "/reference/python/": "reference/python/index.html",
     "/reference/python/diff/": "reference/python/diff/index.html",
     "/reference/python/eqiora/": "reference/python/eqiora/index.html",
+    "/reference/python/fem/": "reference/python/fem/index.html",
+    "/reference/python/formulation/": "reference/python/formulation/index.html",
+    "/reference/python/fvm/": "reference/python/fvm/index.html",
+    "/reference/python/lang/": "reference/python/lang/index.html",
+    "/reference/python/solve/": "reference/python/solve/index.html",
+    "/reference/python/time/": "reference/python/time/index.html",
+    "/reference/python/viewer/": "reference/python/viewer/index.html",
     "/reference/python/fluid/": "reference/python/fluid/index.html",
     "/reference/python/fsi/": "reference/python/fsi/index.html",
     "/reference/python/geometry/": "reference/python/geometry/index.html",
@@ -114,17 +121,16 @@ STARLIGHT_ROUTES = {
     "/reference/python/trajectory/": "reference/python/trajectory/index.html",
     "/reference/rust/": "reference/rust/index.html",
     "/release-notes/": "release-notes/index.html",
-    "/textbooks/": "textbooks/index.html",
-    "/textbooks/circuits-dynamics-hybrid/": "textbooks/circuits-dynamics-hybrid/index.html",
-    "/textbooks/fluid-mechanics-cfd/": "textbooks/fluid-mechanics-cfd/index.html",
-    "/textbooks/heat-mass-transfer/": "textbooks/heat-mass-transfer/index.html",
-    "/textbooks/mathematical-modeling/": "textbooks/mathematical-modeling/index.html",
-    "/textbooks/mathematical-modeling/algebraic-relations-networks/": "textbooks/mathematical-modeling/algebraic-relations-networks/index.html",
-    "/textbooks/mathematical-modeling/models-not-simulations/": "textbooks/mathematical-modeling/models-not-simulations/index.html",
-    "/textbooks/mathematical-modeling/ordinary-differential-equations/": "textbooks/mathematical-modeling/ordinary-differential-equations/index.html",
-    "/textbooks/mathematical-modeling/quantities-dimensions-units/": "textbooks/mathematical-modeling/quantities-dimensions-units/index.html",
-    "/textbooks/numerical-simulation/": "textbooks/numerical-simulation/index.html",
-    "/textbooks/structural-mechanics-fem/": "textbooks/structural-mechanics-fem/index.html",
+    "/learn/": "learn/index.html",
+    "/learn/mathematical-modeling/": "learn/mathematical-modeling/index.html",
+    "/learn/mathematical-modeling/algebraic-relations-networks/": "learn/mathematical-modeling/algebraic-relations-networks/index.html",
+    "/learn/mathematical-modeling/boundary-interface-conditions/": "learn/mathematical-modeling/boundary-interface-conditions/index.html",
+    "/learn/mathematical-modeling/conservation-laws/": "learn/mathematical-modeling/conservation-laws/index.html",
+    "/learn/mathematical-modeling/constitutive-laws/": "learn/mathematical-modeling/constitutive-laws/index.html",
+    "/learn/mathematical-modeling/fields-spatial-domains/": "learn/mathematical-modeling/fields-spatial-domains/index.html",
+    "/learn/mathematical-modeling/models-not-simulations/": "learn/mathematical-modeling/models-not-simulations/index.html",
+    "/learn/mathematical-modeling/ordinary-differential-equations/": "learn/mathematical-modeling/ordinary-differential-equations/index.html",
+    "/learn/mathematical-modeling/quantities-dimensions-units/": "learn/mathematical-modeling/quantities-dimensions-units/index.html",
     "/404.html": "404.html",
 }
 
@@ -316,6 +322,9 @@ def check_starlight(
         path = artifact / relative
         if path not in inspections:
             errors.append(f"missing required Starlight route {route}: {relative}")
+    for displaced in ("api", "examples", "textbooks", "python", "concepts", "architecture"):
+        if any(path.is_relative_to(artifact / displaced) for path in inspections):
+            errors.append(f"displaced reader route remains published: /{displaced}/")
     case = inspections.get(artifact / "gallery/exact-cylinder-steady-stokes/index.html")
     if case and "<form" in case[0].casefold():
         errors.append(

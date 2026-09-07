@@ -41,7 +41,7 @@ for (const width of [1280, 320]) {
     }
     expect(reachedDownload).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
-    for (const href of ['/python/modeling/', '/gallery/', '/reference/']) {
+    for (const href of ['/guides/run-and-inspect/', '/gallery/', '/reference/']) {
       await expect(main.locator(`a[href="${href}"]`)).toHaveCount(1);
     }
     await page.emulateMedia({ media: 'print' });

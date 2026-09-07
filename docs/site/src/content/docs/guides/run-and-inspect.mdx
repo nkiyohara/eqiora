@@ -1,0 +1,57 @@
+---
+title: Run a model and inspect its result
+description: Continue the installed Eqiora decay example without a checkout; separate model edits, numerical choices, and output interpretation.
+---
+
+This guide continues [Get started](/get-started/) with the same published
+**Eqiora 0.1.0a7**, `decay.eqi`, `run.py` and uv environment. If those files are
+not ready, follow that page's installation and downloads first. No checkout or
+additional dependency is needed.
+
+## Follow the script
+
+The maintained script on Get started has four responsibilities:
+
+1. `eqiora.compile(path=...)` reads the equations and returns a Model.
+2. `eqiora.resolve(...)` chooses the time method independently of the model.
+3. `eqiora.State.initial(...)` and `eqiora.run(...)` start from the declared
+   initial value and request observations.
+4. `result.series(...)` selects the time and value arrays for the model's `x` field.
+
+See [How Eqiora fits together](/guides/how-eqiora-fits-together/) for the larger picture.
+
+## Read the output before plotting
+
+In the folder containing the two files, run the same command:
+
+```bash
+uv run --no-project --python .venv/bin/python python run.py
+```
+
+The script prints three observations. Times are in seconds; `x` is
+dimensionless. With rate 1, the last value is about 0.367879 at one second.
+That agrees with $x(t)=\exp(-t)$, rather than merely looking plausible on a plot.
+The script prints to the terminal and does not write a result file.
+
+## Change one thing
+
+Use [Get started's rate edit](/get-started/#change-the-model) to double the rate
+while leaving the script and numerical method unchanged. Predict
+$x(1)=\exp(-2)\approx0.135335$, then rerun the same command.
+
+Restore the rate to 1 before following the
+[ODE lesson and exercises](/learn/mathematical-modeling/ordinary-differential-equations/).
+Its derivation explains why the result changes and what the model assumes.
+
+## Diagnose a failed run
+
+Check the [installation and source-diagnostic checklist](/get-started/#if-something-goes-wrong)
+first. A missing file, unresolved symbol and inconsistent unit are different
+problems; changing a solver setting does not repair the latter two.
+
+## Move to a spatial problem
+
+Choose a complete [Gallery case](/gallery/) and keep its model, geometry,
+boundary names and numerical setup together. The
+[current-source modeling guide](/guides/modeling/) gives the detailed Python
+operations; check its API availability before using it with an older wheel.

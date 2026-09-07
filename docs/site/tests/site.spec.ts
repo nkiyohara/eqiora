@@ -36,7 +36,7 @@ test('required routes, semantic stages, controls, and 404 are real static surfac
 
   await page.goto('/');
   await expect(page.getByRole('banner').getByRole('link', { name: 'Eqiora', exact: true })).toHaveAttribute('href', '/');
-  await expect(page.getByRole('link', { name: 'Start with an example', exact: true })).toHaveAttribute('href', '/get-started/');
+  await expect(page.locator('.eq-actions').getByRole('link', { name: 'Get started', exact: true })).toHaveAttribute('href', '/get-started/');
   await expect(page.getByRole('link', { name: 'Explore simulations', exact: true })).toHaveAttribute('href', '/gallery/');
   await expect(page.getByRole('img', { name: /Steady Stokes pressure around a cylinder/i })).toBeVisible();
   await assertAccessibleTooltip(
