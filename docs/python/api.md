@@ -4353,7 +4353,7 @@ Shipped stub: [`bindings/python/python/eqiora/jax.pyi`](../../bindings/python/py
 
 ### `eqiora.jax.JaxProgram`
 
-Process-local JAX view of one immutable Eqiora program.
+Process-local JAX view with native first-order `vmap` composition.
 
 Authority: [`bindings/python/python/eqiora/jax.py::JaxProgram`](../../bindings/python/python/eqiora/jax.py)
 
