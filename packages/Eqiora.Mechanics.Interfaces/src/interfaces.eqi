@@ -6,9 +6,10 @@ public connector VelocityTractionBoundary = field_physical(
   pairing = euclidean_boundary_duality
 );
 
-public component ZeroVelocity2d {
-  public support body: volume(ambient_dimension = 2);
-  public support face: boundary(parent = body);
+public component ZeroVelocity2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+) {
   public port mechanical:
     conserving VelocityTractionBoundary over face;
 
@@ -17,9 +18,10 @@ public component ZeroVelocity2d {
   }
 }
 
-public component ZeroTraction2d {
-  public support body: volume(ambient_dimension = 2);
-  public support face: boundary(parent = body);
+public component ZeroTraction2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+) {
   public port mechanical:
     conserving VelocityTractionBoundary over face;
 
@@ -28,9 +30,10 @@ public component ZeroTraction2d {
   }
 }
 
-public component ZeroVelocity3d {
-  public support body: volume(ambient_dimension = 3);
-  public support face: boundary(parent = body);
+public component ZeroVelocity3d(
+  support body: volume(ambient_dimension = 3),
+  support face: boundary(parent = body),
+) {
   public port mechanical:
     conserving VelocityTractionBoundary over face;
 
@@ -39,9 +42,10 @@ public component ZeroVelocity3d {
   }
 }
 
-public component ZeroTraction3d {
-  public support body: volume(ambient_dimension = 3);
-  public support face: boundary(parent = body);
+public component ZeroTraction3d(
+  support body: volume(ambient_dimension = 3),
+  support face: boundary(parent = body),
+) {
   public port mechanical:
     conserving VelocityTractionBoundary over face;
 

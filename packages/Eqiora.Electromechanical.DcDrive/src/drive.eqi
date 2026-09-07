@@ -5,12 +5,12 @@ public connector RotationalFlange = scalar_physical(
   through = kg * m ^ 2 / s ^ 2
 );
 
-public component ControlledVoltageSource {
+public component ControlledVoltageSource() {
   public port positive: conserving on electrical.Pin;
   public port negative: conserving on electrical.Pin;
   public port command: signal input kg * m ^ 2 / (s ^ 3 * A);
 
-  field applied_voltage: kg * m ^ 2 / (s ^ 3 * A) = 0;
+  variable applied_voltage: kg * m ^ 2 / (s ^ 3 * A);
 
   relation law {
     applied_voltage - command = 0;
@@ -19,7 +19,7 @@ public component ControlledVoltageSource {
   }
 }
 
-public component PermanentMagnetDcMotor {
+public component PermanentMagnetDcMotor() {
   public parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2);
   public parameter inductance: kg * m ^ 2 / (s ^ 2 * A ^ 2);
   public parameter motor_constant: kg * m ^ 2 / (s ^ 2 * A);
@@ -27,9 +27,13 @@ public component PermanentMagnetDcMotor {
   public port negative: conserving on electrical.Pin;
   public port shaft: conserving on RotationalFlange;
 
-  field current: A = 0;
-  field speed: 1 / s = 0;
-  field electromagnetic_torque: kg * m ^ 2 / s ^ 2 = 0;
+  state current: A;
+  variable speed: 1 / s;
+  variable electromagnetic_torque: kg * m ^ 2 / s ^ 2;
+
+  initial {
+    current = 0;
+  }
 
   relation coupled_law {
     across(positive) - across(negative)
@@ -44,13 +48,17 @@ public component PermanentMagnetDcMotor {
   }
 }
 
-public component InertialLoad {
+public component InertialLoad() {
   public parameter inertia: kg * m ^ 2;
   public parameter damping: kg * m ^ 2 / s;
   public port shaft: conserving on RotationalFlange;
 
-  field speed: 1 / s = 0;
-  field reaction_torque: kg * m ^ 2 / s ^ 2 = 0;
+  state speed: 1 / s;
+  variable reaction_torque: kg * m ^ 2 / s ^ 2;
+
+  initial {
+    speed = 0;
+  }
 
   relation dynamics {
     across(shaft) - speed = 0;
@@ -59,7 +67,7 @@ public component InertialLoad {
   }
 }
 
-public component SpeedSensor {
+public component SpeedSensor() {
   public port shaft: conserving on RotationalFlange;
   public port speed: signal output 1 / s;
 
