@@ -1,10 +1,12 @@
-public component Child() {
-  public parameter period: s;
+public component Child(
+  parameter period: s
+) {
 }
 
-public component Parent() {
-  public parameter length: m;
+public component Parent(
+  parameter length: m
+) {
   instance child: Child(period = length);
 }
 
-model Empty {}
+model Empty() {}

@@ -4,7 +4,7 @@ public component ExteriorContract3d(
 ) {
 }
 
-model Main {
+model Main() {
   domain body = box(0, 1, 0, 1);
   domain x_lower = boundary(body, axis = 0, side = lower);
   domain x_upper = boundary(body, axis = 0, side = upper);
@@ -12,7 +12,7 @@ model Main {
   domain y_upper = boundary(body, axis = 1, side = upper);
 
   instance wrong_dimension: ExteriorContract3d(
-    support body = body,
-    support exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
+    body = body,
+    exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
   );
 }

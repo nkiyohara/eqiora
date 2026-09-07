@@ -3,7 +3,7 @@ use eqiora::kernel::KernelNode;
 use eqiora::{DimExponents, ScalarDomain, ValueLiteral, ValueType};
 
 const SOURCE: &str = r#"
-model TypedValues {
+model TypedValues() {
   parameter voltage: complex<V> = math.complex(2, 3);
   parameter channels: array<complex<V>, 2> = [math.complex(5, 7), math.complex(11, 13)];
   variable observed: complex<V>;

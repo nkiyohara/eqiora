@@ -1,4 +1,4 @@
-model param_box_3d {
+model param_box_3d() {
   domain body = box(-1, extent, extent, 6, 0.5, 5.5);
   relation retain on body {
     coordinate(0) - coordinate(0) = 0;

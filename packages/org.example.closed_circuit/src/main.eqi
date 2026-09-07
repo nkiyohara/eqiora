@@ -1,6 +1,6 @@
 import Eqiora.Electrical.Circuits.circuits as circuits;
 
-model Main {
+model Main() {
   instance circuit: circuits.ParallelDc(
     supply_voltage = 12[kg * m ^ 2 / (s ^ 3 * A)],
     resistance_two = 2[kg * m ^ 2 / (s ^ 3 * A ^ 2)],

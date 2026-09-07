@@ -1,8 +1,9 @@
 connector Pin = scalar_physical(across = 1, through = 1);
 
-component Leaf() {
-  public port left: conserving on Pin;
-  public port right: conserving on Pin;
+component Leaf(
+  port left: conserving on Pin,
+  port right: conserving on Pin
+) {
 }
 
 component ClosedPair() {
@@ -13,6 +14,6 @@ component ClosedPair() {
   connect conserving leaf.left, leaf.right;
 }
 
-model Main {
+model Main() {
   instance pair: ClosedPair;
 }

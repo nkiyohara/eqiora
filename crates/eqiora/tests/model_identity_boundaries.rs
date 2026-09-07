@@ -1,7 +1,7 @@
 use eqiora::api::ModelDocument;
 
 const SOURCE: &str = r#"
-model Decay {
+model Decay() {
   state x: 1; initial { x = 1; }
   parameter rate: 1 / s = 2;
   relation law {

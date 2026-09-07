@@ -77,7 +77,7 @@ fn root_sources(
             .expect("component package identity"),
     );
     let source =
-        format!("import Eqiora.Verify.FieldBoundary.model as {dependency_alias};\n{source}");
+        format!("import Eqiora.Verify.FieldBoundary.model as() {dependency_alias};\n{source}");
     sources(manifest(ROOT_PACKAGE, vec![dependency]), &source)
 }
 

@@ -3,41 +3,41 @@ connector Pin = scalar_physical(
   through = A
 );
 
-component Ground() {
+component Ground(
+  port terminal: conserving on Pin
+) {
   relation law {
     across(terminal) = 0;
   }
-
-  public port terminal: conserving on Pin;
 }
 
-component Resistor() {
-  public port negative: conserving on Pin;
-  public port positive: conserving on Pin;
-  public parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2);
-
+component Resistor(
+  port negative: conserving on Pin,
+  port positive: conserving on Pin,
+  parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2)
+) {
   relation law {
     across(positive) - across(negative) - resistance * through(positive) = 0;
     through(positive) + through(negative) = 0;
   }
 }
 
-component VoltageSource() {
-  public port negative: conserving on Pin;
-  public parameter voltage: kg * m ^ 2 / (s ^ 3 * A);
-  public port positive: conserving on Pin;
-
+component VoltageSource(
+  port negative: conserving on Pin,
+  parameter voltage: kg * m ^ 2 / (s ^ 3 * A),
+  port positive: conserving on Pin
+) {
   relation law {
     across(positive) - across(negative) - voltage = 0;
     through(positive) + through(negative) = 0;
   }
 }
 
-component ParallelDc() {
-  public parameter resistance_four: kg * m ^ 2 / (s ^ 3 * A ^ 2);
-  public parameter supply_voltage: kg * m ^ 2 / (s ^ 3 * A);
-  public parameter resistance_two: kg * m ^ 2 / (s ^ 3 * A ^ 2);
-
+component ParallelDc(
+  parameter resistance_four: kg * m ^ 2 / (s ^ 3 * A ^ 2),
+  parameter supply_voltage: kg * m ^ 2 / (s ^ 3 * A),
+  parameter resistance_two: kg * m ^ 2 / (s ^ 3 * A ^ 2)
+) {
   instance ground: Ground;
   instance resistor_four: Resistor(resistance = resistance_four);
   instance source: VoltageSource(voltage = supply_voltage);
@@ -47,7 +47,7 @@ component ParallelDc() {
   connect conserving resistor_four.positive, resistor_two.positive, source.positive;
 }
 
-model component_elaboration {
+model component_elaboration() {
   parameter resistance_four: kg * m ^ 2 / (s ^ 3 * A ^ 2) = 4;
   parameter supply_voltage: kg * m ^ 2 / (s ^ 3 * A) = 12;
   parameter resistance_two: kg * m ^ 2 / (s ^ 3 * A ^ 2) = 2;

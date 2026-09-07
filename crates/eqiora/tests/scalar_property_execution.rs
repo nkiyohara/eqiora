@@ -49,8 +49,8 @@ fn typed_material_composition_runs_as_the_same_effective_multi_property_law() {
     assert_eq!(bindings.len(), 2);
     assert!(bindings.iter().all(|binding| binding.0.is_some()));
     let direct_property_source = composed_source.replace(
-        "material = ReferenceMaterial",
-        "property conductivity = ConductivityValue, property capacity = CapacityValue",
+        "conductivity = ReferenceMaterial.conductivity, capacity = ReferenceMaterial.capacity",
+        "conductivity = ConductivityValue, capacity = CapacityValue",
     );
     let direct_property_release = release(
         "org.example.ComposedDiffusion",
@@ -136,12 +136,13 @@ public material composition MaterialA {
     let consumer = release(
         "org.example.MaterialConsumer",
         r#"
-public component Law() {
-  public property conductivity: props.Conductivity;
-  public property capacity: props.Capacity;
+public component Law(
+  property conductivity: props.Conductivity,
+  property capacity: props.Capacity
+) {
   relation law { conductivity / capacity = 0; }
 }
-public model Main { instance law: Law(material = props.MaterialA); }
+public model Main() { instance law: Law(conductivity = props.MaterialA.conductivity, capacity = props.MaterialA.capacity); }
 "#,
         &[("props", &properties)],
     );
@@ -328,18 +329,12 @@ impl Consumer {
 
     fn source(self, property: bool) -> String {
         let coefficient_declaration = if property {
-            format!(
-                "  public property {}: props.Diffusivity;",
-                self.requirement()
-            )
+            format!("  property {}: props.Diffusivity,", self.requirement())
         } else {
-            format!("  public parameter {}: 1;", self.requirement())
+            format!("  parameter {}: 1,", self.requirement())
         };
         let coefficient_binding = if property {
-            format!(
-                "property {} = props.ReferenceDiffusivity",
-                self.requirement()
-            )
+            format!("{} = props.ReferenceDiffusivity", self.requirement())
         } else {
             format!("{} = {NORMALIZED_DIFFUSIVITY}", self.requirement())
         };
@@ -351,13 +346,12 @@ public component {core}(
   support x_upper: boundary(parent = square),
   support y_lower: boundary(parent = square),
   support y_upper: boundary(parent = square),
-) {{
-
-  variable {field}: 1 on square;
 {coefficient_declaration}
-  public parameter wave_number: 1 / m;
-  public parameter source_scale: 1 / m ^ 2;
-  public parameter boundary_offset: 1;
+  parameter wave_number: 1 / m,
+  parameter source_scale: 1 / m ^ 2,
+  parameter boundary_offset: 1
+) {{
+  variable {field}: 1 on square;
   relation balance on square {{
     -div({coefficient} * grad({field}))
       - source_scale * math.sin(wave_number * coordinate(0))
@@ -375,16 +369,16 @@ public component {wrapper}(
   support x_upper: boundary(parent = square),
   support y_lower: boundary(parent = square),
   support y_upper: boundary(parent = square),
+  parameter wave_number: 1 / m,
+  parameter source_scale: 1 / m ^ 2,
+  parameter boundary_offset: 1
 ) {{
-  public parameter wave_number: 1 / m;
-  public parameter source_scale: 1 / m ^ 2;
-  public parameter boundary_offset: 1;
   instance equation: {core}(
-    support square = square,
-    support x_lower = x_lower,
-    support x_upper = x_upper,
-    support y_lower = y_lower,
-    support y_upper = y_upper,
+    square = square,
+    x_lower = x_lower,
+    x_upper = x_upper,
+    y_lower = y_lower,
+    y_upper = y_upper,
     {coefficient_binding},
     wave_number = wave_number,
     source_scale = source_scale,
@@ -484,12 +478,13 @@ fn compile_root_component(
 
 fn material_source(composed: bool, conductivity: u32, capacity: u32, reverse: bool) -> String {
     let coefficient_declarations = if composed {
-        "  public property conductivity: Conductivity;\n  public property capacity: Capacity;"
+        "  property conductivity: Conductivity,\n  property capacity: Capacity,"
     } else {
-        "  public parameter conductivity: 1;\n  public parameter capacity: 1;"
+        "  parameter conductivity: 1,\n  parameter capacity: 1,"
     };
     let coefficient_bindings = if composed {
-        "material = ReferenceMaterial".to_owned()
+        "conductivity = ReferenceMaterial.conductivity, capacity = ReferenceMaterial.capacity"
+            .to_owned()
     } else {
         format!("conductivity = {conductivity}, capacity = {capacity}")
     };
@@ -526,13 +521,12 @@ public component DiffusionLaw(
   support x_upper: boundary(parent = square),
   support y_lower: boundary(parent = square),
   support y_upper: boundary(parent = square),
-) {{
-
-  variable potential: 1 on square;
+  parameter wave_number: 1 / m,
+  parameter source_scale: 1 / m ^ 2,
+  parameter boundary_offset: 1,
 {coefficient_declarations}
-  public parameter wave_number: 1 / m;
-  public parameter source_scale: 1 / m ^ 2;
-  public parameter boundary_offset: 1;
+) {{
+  variable potential: 1 on square;
   relation balance on square {{
     -div((conductivity / capacity) * grad(potential))
       - source_scale * math.sin(wave_number * coordinate(0))
@@ -550,16 +544,16 @@ public component ExecutableDiffusion(
   support x_upper: boundary(parent = square),
   support y_lower: boundary(parent = square),
   support y_upper: boundary(parent = square),
+  parameter wave_number: 1 / m,
+  parameter source_scale: 1 / m ^ 2,
+  parameter boundary_offset: 1
 ) {{
-  public parameter wave_number: 1 / m;
-  public parameter source_scale: 1 / m ^ 2;
-  public parameter boundary_offset: 1;
   instance equation: DiffusionLaw(
-    support square = square,
-    support x_lower = x_lower,
-    support x_upper = x_upper,
-    support y_lower = y_lower,
-    support y_upper = y_upper,
+    square = square,
+    x_lower = x_lower,
+    x_upper = x_upper,
+    y_lower = y_lower,
+    y_upper = y_upper,
     {coefficient_bindings},
     wave_number = wave_number,
     source_scale = source_scale,

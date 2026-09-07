@@ -132,17 +132,17 @@ fn over_depth_source() -> String {
     let mut source = String::new();
     for index in 0..COMPONENTS {
         if index + 1 == COMPONENTS {
-            writeln!(source, "component C{index:02}() {{}}").expect("write fixture");
+            writeln!(source, "component C() {index:02}() {{}}").expect("write fixture");
         } else {
             writeln!(
                 source,
-                "component C{index:02}() {{ instance child: C{:02}; }}",
+                "component C() {index:02}() {{ instance child: C{:02}; }}",
                 index + 1
             )
             .expect("write fixture");
         }
     }
-    source.push_str("model Empty {}\n");
+    source.push_str("model Empty() {}\n");
     source
 }
 

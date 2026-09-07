@@ -9,9 +9,8 @@ public connector MechanicalBoundary = field_physical(
 public component ExteriorLaw(
   support body: volume(ambient_dimension = 2),
   support exterior: complete_exterior(parent = body),
+  port mechanical[boundary in exterior]: conserving MechanicalBoundary over boundary
 ) {
-  public port mechanical[boundary in exterior]:
-    conserving MechanicalBoundary over boundary;
   relation boundary_law[boundary in exterior] on boundary {
     trace(mechanical[boundary = boundary])
       - trace(mechanical[boundary = boundary]) = 0;
@@ -20,14 +19,14 @@ public component ExteriorLaw(
   }
 }
 
-model Main {
+model Main() {
   domain body = box(0, 1, 0, 1);
   domain x_lower = boundary(body, axis = 0, side = lower);
   domain x_upper = boundary(body, axis = 0, side = upper);
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
   instance solid: ExteriorLaw(
-    support body = body,
-    support exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
+    body = body,
+    exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
   );
 }

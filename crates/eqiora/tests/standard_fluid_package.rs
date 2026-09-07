@@ -328,26 +328,26 @@ impl Drop for Scratch {
 fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
     let governing = if curated {
         r#"  instance governing: fluid.SteadyStokes2d(
-    support body = body,
-    support exterior = boundaries(x_lower, x_upper, y_lower, y_upper),
-    field velocity = velocity,
-    field pressure = pressure,
-    field force_potential = force_potential,
+    body = body,
+    exterior = boundaries(x_lower, x_upper, y_lower, y_upper),
+    velocity = velocity,
+    pressure = pressure,
+    force_potential = force_potential,
     dynamic_viscosity = dynamic_viscosity
   );"#
     } else {
         r#"  instance balance: fluid.SteadyNewtonianBalance2d(
-    support body = body,
-    field velocity = velocity,
-    field pressure = pressure,
-    field force_potential = force_potential,
+    body = body,
+    velocity = velocity,
+    pressure = pressure,
+    force_potential = force_potential,
     dynamic_viscosity = dynamic_viscosity
   );
   instance interface: fluid.VelocityTractionInterface2d(
-    support body = body,
-    support exterior = boundaries(x_lower, x_upper, y_lower, y_upper),
-    field velocity = velocity,
-    field pressure = pressure,
+    body = body,
+    exterior = boundaries(x_lower, x_upper, y_lower, y_upper),
+    velocity = velocity,
+    pressure = pressure,
     dynamic_viscosity = dynamic_viscosity
   );"#
     };
@@ -355,7 +355,7 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
     let (inlet_field, inlet_instance) = match inlet {
         Inlet::NoSlip => (
             "",
-            "  instance x_lower_condition: fluid.NoSlip2d(\n    support body = body, support face = x_lower\n  );",
+            "  instance x_lower_condition: fluid.NoSlip2d(\n    body = body, face = x_lower\n  );",
         ),
         Inlet::NormalVelocity => (
             r#"  variable inlet_speed: m / s on body;
@@ -365,9 +365,9 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
   }
 "#,
             r#"  instance x_lower_condition: fluid.NormalVelocityInlet2d(
-    support body = body,
-    support face = x_lower,
-    field speed = inlet_speed
+    body = body,
+    face = x_lower,
+    speed = inlet_speed
   );"#,
         ),
         Inlet::PrescribedVelocity => (
@@ -382,20 +382,20 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
   }
 "#,
             r#"  instance x_lower_condition: fluid.PrescribedVelocity2d(
-    support body = body,
-    support face = x_lower,
-    field velocity = inlet_velocity
+    body = body,
+    face = x_lower,
+    velocity = inlet_velocity
   );"#,
         ),
     };
     let (outlet_field, outlet_instance) = match outlet {
         Outlet::NoSlip => (
             "",
-            "  instance x_upper_condition: fluid.NoSlip2d(\n    support body = body, support face = x_upper\n  );",
+            "  instance x_upper_condition: fluid.NoSlip2d(\n    body = body, face = x_upper\n  );",
         ),
         Outlet::TractionFree => (
             "",
-            "  instance x_upper_condition: fluid.TractionFree2d(\n    support body = body, support face = x_upper\n  );",
+            "  instance x_upper_condition: fluid.TractionFree2d(\n    body = body, face = x_upper\n  );",
         ),
         Outlet::NormalPressure => (
             r#"  variable exterior_pressure: kg / (m * s ^ 2) on body;
@@ -405,9 +405,9 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
   }
 "#,
             r#"  instance x_upper_condition: fluid.NormalPressureOutlet2d(
-    support body = body,
-    support face = x_upper,
-    field exterior_pressure = exterior_pressure
+    body = body,
+    face = x_upper,
+    exterior_pressure = exterior_pressure
   );"#,
         ),
         Outlet::PrescribedTraction => (
@@ -422,14 +422,14 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
   }
 "#,
             r#"  instance x_upper_condition: fluid.PrescribedTraction2d(
-    support body = body,
-    support face = x_upper,
-    field traction = outlet_traction
+    body = body,
+    face = x_upper,
+    traction = outlet_traction
   );"#,
         ),
     };
     format!(
-        r#"model Main {{
+        r#"model Main() {{
   domain body = box(0, 4, 0, 2);
   domain x_lower = boundary(body, axis = 0, side = lower);
   domain x_upper = boundary(body, axis = 0, side = upper);
@@ -448,10 +448,10 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
 {inlet_instance}
 {outlet_instance}
   instance y_lower_condition: fluid.NoSlip2d(
-    support body = body, support face = y_lower
+    body = body, face = y_lower
   );
   instance y_upper_condition: fluid.NoSlip2d(
-    support body = body, support face = y_upper
+    body = body, face = y_upper
   );
 
   connect conserving {interface}.mechanical[boundary = x_lower],

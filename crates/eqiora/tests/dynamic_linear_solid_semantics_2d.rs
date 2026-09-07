@@ -349,8 +349,8 @@ fn kinematic_inertia_stress_density_and_closure_near_misses_fail_closed() {
     assert_lowering_rejects(&negative_bulk_2d, "lambda + 2 mu / D > 0");
 
     let retired_representation = DIRECT.replace(
-        "model Main {",
-        "model Main { representation separate = continuum;",
+        "model Main() {",
+        "model Main() { representation separate = continuum;",
     );
     assert!(
         eqiora::language::parse("retired.eqi", &retired_representation)
@@ -383,8 +383,8 @@ fn nominal_connector_and_boundary_coefficients_cannot_be_substituted() {
     let solid = public_solid_release(&mechanics);
 
     let wrong_coefficients = PACKAGED.replace(
-        "field velocity = velocity,\n    mu = 3[kg / (m * s ^ 2)],\n    lambda = 4[kg / (m * s ^ 2)]\n  );\n\n  instance x_lower_zero",
-        "field velocity = velocity,\n    mu = 9[kg / (m * s ^ 2)],\n    lambda = 4[kg / (m * s ^ 2)]\n  );\n\n  instance x_lower_zero",
+        "velocity = velocity,\n    mu = 3[kg / (m * s ^ 2)],\n    lambda = 4[kg / (m * s ^ 2)]\n  );\n\n  instance x_lower_zero",
+        "velocity = velocity,\n    mu = 9[kg / (m * s ^ 2)],\n    lambda = 4[kg / (m * s ^ 2)]\n  );\n\n  instance x_lower_zero",
     );
     let mismatched = compile_root(
         &solid,
@@ -744,9 +744,8 @@ fn transparent_open_terminal_source(source: &str) -> String {
 public component CompatibleOpenVelocityTerminal2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
+  port mechanical: conserving mechanics.VelocityTractionBoundary over face
 ) {
-  public port mechanical:
-    conserving mechanics.VelocityTractionBoundary over face;
 
   relation transparent_carrier on face {
     trace(mechanical) - trace(mechanical) = 0;

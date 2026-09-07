@@ -1,6 +1,6 @@
-model Valid {}
+model Valid() {}
 
-model Invalid {
+model Invalid() {
   domain line = box(0, 1);
   domain endpoint = boundary(line, axis = 0, side = lower);
   domain nested = boundary(endpoint, axis = 0, side = lower);

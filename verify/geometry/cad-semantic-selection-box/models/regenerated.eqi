@@ -9,17 +9,15 @@ public connector MechanicalBoundary3d = field_physical(
 public component LoadedFace3d(
   support body: volume(ambient_dimension = 3),
   support face: boundary(parent = body),
+  port mechanical: conserving MechanicalBoundary3d over face
 ) {
-  public port mechanical:
-    conserving MechanicalBoundary3d over face;
-
   relation boundary_law on face {
     trace(mechanical) = 0;
     flux(mechanical) = 0;
   }
 }
 
-model Main {
+model Main() {
   domain body = box(-0.6, 0.6, -0.4, 0.4, -0.5, 0.5);
   domain x_lower = boundary(body, axis = 0, side = lower);
   domain x_upper = boundary(body, axis = 0, side = upper);
@@ -29,12 +27,12 @@ model Main {
   domain z_upper = boundary(body, axis = 2, side = upper);
 
   instance loaded: LoadedFace3d(
-    support body = body,
-    support face = x_upper
+    body = body,
+    face = x_upper
   );
   instance reaction: LoadedFace3d(
-    support body = body,
-    support face = x_upper
+    body = body,
+    face = x_upper
   );
 
   connect conserving loaded.mechanical, reaction.mechanical;

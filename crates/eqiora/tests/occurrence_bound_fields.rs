@@ -39,9 +39,9 @@ public component FieldLawWrapper(
 ) {
 
   instance inner: FieldLaw(
-    support body = body,
-    field scalar_state = scalar_state,
-    field displacement = displacement
+    body = body,
+    scalar_state = scalar_state,
+    displacement = displacement
   );
 }
 "#;
@@ -53,9 +53,9 @@ public component FieldLawWrapper(
 ) {
 
   instance inner: FieldLaw(
-    field displacement = displacement,
-    field scalar_state = scalar_state,
-    support body = body
+    displacement = displacement,
+    scalar_state = scalar_state,
+    body = body
   );
 }
 
@@ -166,7 +166,7 @@ fn source_identity(source: &str) -> LocalSourceIdentity {
     let identity = LocalSourceIdentity::from_document(&document).expect("bounded source identity");
     assert_eq!(
         identity.namespace().unwrap().segments()[0],
-        "local-source-v5"
+        "local-source-v6"
     );
     identity
 }
@@ -225,13 +225,13 @@ fn root_source(alias: &str, permuted: bool) -> String {
     if permuted {
         format!(
             r#"
-import Eqiora.Verify.OccurrenceBoundFields.model as {alias};
+import Eqiora.Verify.OccurrenceBoundFields.model as() {alias};
 
-model Main {{
+model Main() {{
   instance law: {alias}.FieldLawWrapper(
-    field displacement = displacement,
-    field scalar_state = scalar_state,
-    support body = body
+    displacement = displacement,
+    scalar_state = scalar_state,
+    body = body
   );
   variable displacement: vector<m, 2> on body;
   variable scalar_state: 1 on body;
@@ -243,17 +243,17 @@ model Main {{
     } else {
         format!(
             r#"
-import Eqiora.Verify.OccurrenceBoundFields.model as {alias};
+import Eqiora.Verify.OccurrenceBoundFields.model as() {alias};
 
-model Main {{
+model Main() {{
   domain body = box(0, 1, 0, 1);
 
   variable scalar_state: 1 on body;
   variable displacement: vector<m, 2> on body;
   instance law: {alias}.FieldLawWrapper(
-    support body = body,
-    field scalar_state = scalar_state,
-    field displacement = displacement
+    body = body,
+    scalar_state = scalar_state,
+    displacement = displacement
   );
 }}
 "#
@@ -340,9 +340,9 @@ fn nested_slots_disappear_into_exact_field_and_support_identity() {
             "two levels each contribute three bindings"
         );
         for expected in [
-            "support body = body",
-            "field scalar_state = scalar_state",
-            "field displacement = displacement",
+            "body = body",
+            "scalar_state = scalar_state",
+            "displacement = displacement",
         ] {
             assert_eq!(
                 bindings
@@ -405,15 +405,15 @@ component C(
 ) {
   relation identity on body { state - state = 0; }
 }
-model M {
+model M() {
   domain body = box(0, 1, 0, 1);
 
   variable first: 1 on body;
   variable second: 1 on body;
-  instance law: C(support body = body, field state = first);
+  instance law: C(body = body, state = first);
 }
 "#;
-    let second = first.replace("field state = first", "field state = second");
+    let second = first.replace("state = first", "state = second");
     assert_ne!(source_identity(first), source_identity(&second));
 
     for (name, source, selected, rejected) in [
@@ -447,12 +447,12 @@ component FieldLaw(
         (
             "missing",
             r#"
-model M {
+model M() {
   domain body = box(0, 1, 0, 1);
 
   variable scalar_state: 1 on body;
   variable displacement: vector<m, 2> on body;
-  instance law: FieldLaw(support body = body, field displacement = displacement);
+  instance law: FieldLaw(body = body, displacement = displacement);
 }
 "#,
             &["has no binding for required Field slot", "scalar_state"][..],
@@ -460,16 +460,16 @@ model M {
         (
             "duplicate",
             r#"
-model M {
+model M() {
   domain body = box(0, 1, 0, 1);
 
   variable scalar_state: 1 on body;
   variable displacement: vector<m, 2> on body;
   instance law: FieldLaw(
-    support body = body,
-    field scalar_state = scalar_state,
-    field scalar_state = scalar_state,
-    field displacement = displacement
+    body = body,
+    scalar_state = scalar_state,
+    scalar_state = scalar_state,
+    displacement = displacement
   );
 }
 "#,
@@ -478,16 +478,16 @@ model M {
         (
             "unknown",
             r#"
-model M {
+model M() {
   domain body = box(0, 1, 0, 1);
 
   variable scalar_state: 1 on body;
   variable displacement: vector<m, 2> on body;
   instance law: FieldLaw(
-    support body = body,
-    field scalar_state = scalar_state,
-    field displacement = displacement,
-    field ghost = scalar_state
+    body = body,
+    scalar_state = scalar_state,
+    displacement = displacement,
+    ghost = scalar_state
   );
 }
 "#,
@@ -496,15 +496,15 @@ model M {
         (
             "wrong-kind",
             r#"
-model M {
+model M() {
   domain body = box(0, 1, 0, 1);
 
   parameter gain: 1 = 0;
   variable displacement: vector<m, 2> on body;
   instance law: FieldLaw(
-    support body = body,
-    field scalar_state = gain,
-    field displacement = displacement
+    body = body,
+    scalar_state = gain,
+    displacement = displacement
   );
 }
 "#,
@@ -513,15 +513,15 @@ model M {
         (
             "dimension",
             r#"
-model M {
+model M() {
   domain body = box(0, 1, 0, 1);
 
   variable scalar_state: m on body;
   variable displacement: vector<m, 2> on body;
   instance law: FieldLaw(
-    support body = body,
-    field scalar_state = scalar_state,
-    field displacement = displacement
+    body = body,
+    scalar_state = scalar_state,
+    displacement = displacement
   );
 }
 "#,
@@ -530,15 +530,15 @@ model M {
         (
             "shape",
             r#"
-model M {
+model M() {
   domain body = box(0, 1, 0, 1);
 
   variable scalar_state: 1 on body;
   variable displacement: m on body;
   instance law: FieldLaw(
-    support body = body,
-    field scalar_state = scalar_state,
-    field displacement = displacement
+    body = body,
+    scalar_state = scalar_state,
+    displacement = displacement
   );
 }
 "#,
@@ -547,15 +547,15 @@ model M {
         (
             "frame",
             r#"
-model M {
+model M() {
   domain body = box(0, 1, 0, 1);
 
   variable scalar_state: 1 on body;
   variable displacement: array<m, 2> on body;
   instance law: FieldLaw(
-    support body = body,
-    field scalar_state = scalar_state,
-    field displacement = displacement
+    body = body,
+    scalar_state = scalar_state,
+    displacement = displacement
   );
 }
 "#,
@@ -564,16 +564,16 @@ model M {
         (
             "exact-support",
             r#"
-model M {
+model M() {
   domain body = box(0, 1, 0, 1);
   domain other = box(0, 1, 0, 1);
 
   variable scalar_state: 1 on other;
   variable displacement: vector<m, 2> on other;
   instance law: FieldLaw(
-    support body = body,
-    field scalar_state = scalar_state,
-    field displacement = displacement
+    body = body,
+    scalar_state = scalar_state,
+    displacement = displacement
   );
 }
 "#,
@@ -597,7 +597,7 @@ component C(
 ) {
   public field slot state on body as discrete: 1;
 }
-model M {}
+model M() {}
 "#,
         &["support and unknown requirements belong in the signature"],
     );
@@ -605,15 +605,15 @@ model M {}
         "ambient-dimension",
         &format!(
             r#"{component}
-model M {{
+model M() {{
   domain line = box(0, 1);
 
   variable scalar_state: 1 on line;
   variable displacement: vector<m, 1> on line;
   instance law: FieldLaw(
-    support body = line,
-    field scalar_state = scalar_state,
-    field displacement = displacement
+    body = line,
+    scalar_state = scalar_state,
+    displacement = displacement
   );
 }}
 "#
@@ -628,15 +628,15 @@ fn parameter_support_and_field_bindings_share_one_bounded_identity_budget() {
 component C(
   support body: volume(ambient_dimension = 2),
   variable state: 1 on body,
+  parameter gain: 1
 ) {
-  public parameter gain: 1;
   relation identity on body { gain * state - state = 0; }
 }
-model M {
+model M() {
   domain body = box(0, 1, 0, 1);
 
   variable state: 1 on body;
-  instance law: C(gain = 1, support body = body, field state = state);
+  instance law: C(gain = 1, body = body, state = state);
 }
 "#;
     let document = eqiora::language::parse("binding-budget.eqi", source)
@@ -749,7 +749,7 @@ fn exact_packages_normalize_alias_declaration_binding_and_file_order() {
 fn invalid_exact_package_binding_never_exposes_a_packaged_model() {
     let components = component_release(COMPONENT_PACKAGE, false);
     let alias = "laws";
-    let invalid = root_source(alias, false).replace("    field scalar_state = scalar_state,\n", "");
+    let invalid = root_source(alias, false).replace("    scalar_state = scalar_state,\n", "");
     let dependency = PackageDependencyV1::new(
         components
             .package_identity()

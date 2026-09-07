@@ -179,8 +179,8 @@ fn wrong_newtonian_stress_and_nominal_connector_near_misses_fail_closed() {
             "  parameter dynamic_viscosity: kg / (m * s) = 6;\n  parameter boundary_dynamic_viscosity: kg / (m * s) = 6;",
         )
         .replace(
-            "instance boundary: fluid.NewtonianMechanicalInterface2d(\n    support body = body,\n    support exterior = boundaries(x_lower, x_upper, y_lower, y_upper),\n    field velocity = velocity,\n    field pressure = pressure,\n    dynamic_viscosity = dynamic_viscosity",
-            "instance boundary: fluid.NewtonianMechanicalInterface2d(\n    support body = body,\n    support exterior = boundaries(x_lower, x_upper, y_lower, y_upper),\n    field velocity = velocity,\n    field pressure = pressure,\n    dynamic_viscosity = boundary_dynamic_viscosity",
+            "instance boundary: fluid.NewtonianMechanicalInterface2d(\n    body = body,\n    exterior = boundaries(x_lower, x_upper, y_lower, y_upper),\n    velocity = velocity,\n    pressure = pressure,\n    dynamic_viscosity = dynamic_viscosity",
+            "instance boundary: fluid.NewtonianMechanicalInterface2d(\n    body = body,\n    exterior = boundaries(x_lower, x_upper, y_lower, y_upper),\n    velocity = velocity,\n    pressure = pressure,\n    dynamic_viscosity = boundary_dynamic_viscosity",
         );
     assert_ne!(independent_equal_coefficient, PACKAGED);
     let independent = compile_root(
@@ -202,7 +202,7 @@ fn wrong_newtonian_stress_and_nominal_connector_near_misses_fail_closed() {
         .split_once("public component NewtonianMechanicalInterface2d")
         .expect("public fluid source owns a separate boundary Component");
     let wrong_stress_source = format!(
-        "{volume_source}public component NewtonianMechanicalInterface2d{}",
+        "{volume_source}public component NewtonianMechanicalInterface2d() {}",
         boundary_source.replace("- isotropic_lift(pressure)", "+ isotropic_lift(pressure)")
     );
     let wrong_stress_fluid = inline_fluid_release(&mechanics, &wrong_stress_source);
@@ -598,9 +598,8 @@ fn transparent_open_terminal_source(source: &str) -> String {
 public component CompatibleOpenVelocityTerminal2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
+  port mechanical: conserving mechanics.VelocityTractionBoundary over face
 ) {
-  public port mechanical:
-    conserving mechanics.VelocityTractionBoundary over face;
 
   relation transparent_carrier on face {
     trace(mechanical) - trace(mechanical) = 0;

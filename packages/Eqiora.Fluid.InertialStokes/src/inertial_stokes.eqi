@@ -3,10 +3,9 @@ public component InertialStokesWithPotential2d(
   state velocity: vector<m / s, 2> on body,
   variable pressure: kg / (m * s ^ 2) on body,
   variable force_potential: kg / (m * s ^ 2) on body,
+  parameter density: kg / m ^ 3,
+  parameter dynamic_viscosity: kg / (m * s)
 ) {
-  public parameter density: kg / m ^ 3;
-  public parameter dynamic_viscosity: kg / (m * s);
-
   relation momentum on body {
     density * derivative(velocity)
       - div(

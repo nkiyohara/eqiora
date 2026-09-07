@@ -9,17 +9,15 @@ public connector MechanicalBoundary = field_physical(
 public component InterfaceSide2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
+  port mechanical: conserving MechanicalBoundary over face
 ) {
-  public port mechanical:
-    conserving MechanicalBoundary over face;
-
   relation retain_interface_port on face {
     trace(mechanical) = 0;
     flux(mechanical) = 0;
   }
 }
 
-model Main {
+model Main() {
   domain fluid = box(0, 1, 0, 1);
   domain fluid_x_lower = boundary(fluid, axis = 0, side = lower);
   domain fluid_x_upper = boundary(fluid, axis = 0, side = upper);
@@ -33,12 +31,12 @@ model Main {
   domain solid_y_upper = boundary(solid, axis = 1, side = upper);
 
   instance fluid_side: InterfaceSide2d(
-    support body = fluid,
-    support face = fluid_x_upper
+    body = fluid,
+    face = fluid_x_upper
   );
   instance solid_side: InterfaceSide2d(
-    support body = solid,
-    support face = solid_x_lower
+    body = solid,
+    face = solid_x_lower
   );
 
   connect conserving fluid_side.mechanical, solid_side.mechanical;

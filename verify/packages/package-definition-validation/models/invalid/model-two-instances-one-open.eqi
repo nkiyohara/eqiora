@@ -1,11 +1,12 @@
 connector Pin = scalar_physical(across = 1, through = 1);
 
-component OpenPair() {
-  public port a: conserving on Pin;
-  public port b: conserving on Pin;
+component OpenPair(
+  port a: conserving on Pin,
+  port b: conserving on Pin
+) {
 }
 
-model Main {
+model Main() {
   instance closed: OpenPair;
   instance open: OpenPair;
   relation closed_owner {

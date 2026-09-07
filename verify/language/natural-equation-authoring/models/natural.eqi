@@ -1,4 +1,4 @@
-model natural_equation_oracle {
+model natural_equation_oracle() {
   variable a: 1;
   variable b: 1;
   variable c: 1;

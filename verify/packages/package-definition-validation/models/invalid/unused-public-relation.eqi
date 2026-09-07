@@ -4,4 +4,4 @@ public component Broken() {
   relation invalid { distance + elapsed = 0; }
 }
 
-model Empty {}
+model Empty() {}

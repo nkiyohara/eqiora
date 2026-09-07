@@ -10,9 +10,8 @@ public component SteadyStokesWithPotential2d(
   variable velocity: vector<m / s, 2> on body,
   variable pressure: kg / (m * s ^ 2) on body,
   variable force_potential: kg / (m * s ^ 2) on body,
+  parameter dynamic_viscosity: kg / (m * s)
 ) {
-  public parameter dynamic_viscosity: kg / (m * s);
-
   relation momentum on body {
     -div(
       2 * dynamic_viscosity * symmetric_part(grad(velocity))
@@ -29,12 +28,9 @@ public component NewtonianMechanicalInterface2d(
   support exterior: complete_exterior(parent = body),
   variable velocity: vector<m / s, 2> on body,
   variable pressure: kg / (m * s ^ 2) on body,
+  parameter dynamic_viscosity: kg / (m * s),
+  port mechanical[boundary in exterior]: conserving mechanics.VelocityTractionBoundary over boundary
 ) {
-  public parameter dynamic_viscosity: kg / (m * s);
-
-  public port mechanical[boundary in exterior]:
-    conserving mechanics.VelocityTractionBoundary over boundary;
-
   relation boundary_interface[boundary in exterior] on boundary {
     trace(velocity)
       - trace(mechanical[boundary = boundary]) = 0;
@@ -50,10 +46,9 @@ public component ConservativeNavierStokesWithPotential3d(
   state velocity: vector<m / s, 3> on body,
   variable pressure: kg / (m * s ^ 2) on body,
   variable force_potential: kg / (m * s ^ 2) on body,
+  parameter density: kg / m ^ 3,
+  parameter dynamic_viscosity: kg / (m * s)
 ) {
-  public parameter density: kg / m ^ 3;
-  public parameter dynamic_viscosity: kg / (m * s);
-
   relation momentum on body {
     density * derivative(velocity)
       + div(density * outer_product(velocity, velocity))
@@ -73,12 +68,9 @@ public component NewtonianMechanicalInterface3d(
   support exterior: complete_exterior(parent = body),
   variable velocity: vector<m / s, 3> on body,
   variable pressure: kg / (m * s ^ 2) on body,
+  parameter dynamic_viscosity: kg / (m * s),
+  port mechanical[boundary in exterior]: conserving mechanics.VelocityTractionBoundary over boundary
 ) {
-  public parameter dynamic_viscosity: kg / (m * s);
-
-  public port mechanical[boundary in exterior]:
-    conserving mechanics.VelocityTractionBoundary over boundary;
-
   relation boundary_interface[boundary in exterior] on boundary {
     trace(velocity)
       - trace(mechanical[boundary = boundary]) = 0;

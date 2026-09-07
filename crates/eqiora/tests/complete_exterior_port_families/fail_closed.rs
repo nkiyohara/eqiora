@@ -195,12 +195,12 @@ public component ExteriorContract(
 
 }}
 
-model Main {{
+model Main() {{
   domain body = box(0, 1, 0, 1);
   domain x_lower = boundary(body, axis = 0, side = lower);
   instance oversized: ExteriorContract(
-    support body = body,
-    support exterior = boundaries({members})
+    body = body,
+    exterior = boundaries({members})
   );
 }}
 "#
@@ -241,10 +241,10 @@ public connector BoundaryScalar = field_physical(
 public component OverflowingFamily(
   support body: volume(ambient_dimension = {overflowing_dimension}),
   support exterior: complete_exterior(parent = body),
+  port boundary[member in exterior]: conserving BoundaryScalar over member
 ) {{
-  public port boundary[member in exterior]: conserving BoundaryScalar over member;
 }}
-model Main {{}}
+model Main() {{}}
 "#
     );
 

@@ -1,4 +1,4 @@
-model parallel_dc_network {
+model parallel_dc_network() {
   domain electrical = scalar_physical(
     across = kg * m ^ 2 / (s ^ 3 * A),
     through = A

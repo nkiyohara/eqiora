@@ -5,7 +5,7 @@ use eqiora::kernel::{DomainKind, ExprNode, KernelNode, PortPayload, SymbolRef};
 use eqiora::sem::KernelProgram;
 
 const SOURCE: &str = r#"
-model physical_pair {
+model physical_pair() {
   domain electrical = scalar_physical(
     across = kg * m ^ 2 / (s ^ 3 * A),
     through = A

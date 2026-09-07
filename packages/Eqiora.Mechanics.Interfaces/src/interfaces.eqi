@@ -9,10 +9,8 @@ public connector VelocityTractionBoundary = field_physical(
 public component ZeroVelocity2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
+  port mechanical: conserving VelocityTractionBoundary over face
 ) {
-  public port mechanical:
-    conserving VelocityTractionBoundary over face;
-
   relation prescribed_velocity on face {
     trace(mechanical) = 0;
   }
@@ -21,10 +19,8 @@ public component ZeroVelocity2d(
 public component ZeroTraction2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
+  port mechanical: conserving VelocityTractionBoundary over face
 ) {
-  public port mechanical:
-    conserving VelocityTractionBoundary over face;
-
   relation prescribed_traction on face {
     flux(mechanical) = 0;
   }
@@ -33,10 +29,8 @@ public component ZeroTraction2d(
 public component ZeroVelocity3d(
   support body: volume(ambient_dimension = 3),
   support face: boundary(parent = body),
+  port mechanical: conserving VelocityTractionBoundary over face
 ) {
-  public port mechanical:
-    conserving VelocityTractionBoundary over face;
-
   relation prescribed_velocity on face {
     trace(mechanical) = 0;
   }
@@ -45,10 +39,8 @@ public component ZeroVelocity3d(
 public component ZeroTraction3d(
   support body: volume(ambient_dimension = 3),
   support face: boundary(parent = body),
+  port mechanical: conserving VelocityTractionBoundary over face
 ) {
-  public port mechanical:
-    conserving VelocityTractionBoundary over face;
-
   relation prescribed_traction on face {
     flux(mechanical) = 0;
   }

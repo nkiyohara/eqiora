@@ -507,7 +507,7 @@ fn root_cannot_escape_its_direct_typed_component_contract() {
 
     let transitive_alias = replace_model_source(
         &root_sources,
-        "import Eqiora.Electrical.Basic.basic as basic; model Main { instance forbidden: basic.Resistor(resistance = 2); }",
+        "import Eqiora.Electrical.Basic.basic as basic; model Main() { instance forbidden: basic.Resistor(resistance = 2); }",
     );
     let transitive_alias_error =
         prepare_package_release_v1(transitive_alias, &[basic.clone(), circuits.clone()])
@@ -552,7 +552,7 @@ fn root_cannot_escape_its_direct_typed_component_contract() {
         r#"
 import Eqiora.Electrical.Circuits.circuits as circuits;
 
-model Main {
+model Main() {
   parameter duration: s = 1;
   instance circuit: circuits.ParallelDc(
     supply_voltage = duration,

@@ -1,4 +1,4 @@
-model Main {
+model Main() {
   domain fluid_domain = box(0, 1, 0, 1);
   domain fluid_x_lower = boundary(fluid_domain, axis = 0, side = lower);
   domain fluid_x_upper = boundary(fluid_domain, axis = 0, side = upper);
@@ -19,20 +19,20 @@ model Main {
     fluid_load_potential - fluid_zero_pressure = 0;
   }
   instance fluid_law: inertial.InertialStokesWithPotential2d(
-    support body = fluid_domain,
-    field velocity = fluid_velocity,
-    field pressure = fluid_pressure,
-    field force_potential = fluid_load_potential,
+    body = fluid_domain,
+    velocity = fluid_velocity,
+    pressure = fluid_pressure,
+    force_potential = fluid_load_potential,
     density = 2[kg / m^3],
     dynamic_viscosity = 0.5[kg / (m * s)]
   );
   instance fluid_boundary: fluid.NewtonianMechanicalInterface2d(
-    support body = fluid_domain,
-    support exterior = boundaries(
+    body = fluid_domain,
+    exterior = boundaries(
       fluid_x_lower, fluid_x_upper, fluid_y_lower, fluid_y_upper
     ),
-    field velocity = fluid_velocity,
-    field pressure = fluid_pressure,
+    velocity = fluid_velocity,
+    pressure = fluid_pressure,
     dynamic_viscosity = 0.5[kg / (m * s)]
   );
 
@@ -44,42 +44,42 @@ model Main {
     solid_load_potential - solid_zero_pressure = 0;
   }
   instance solid_law: solid.IsotropicElastodynamicsWithPotential2d(
-    support body = solid_domain,
-    field displacement = solid_displacement,
-    field velocity = solid_velocity,
-    field load_potential = solid_load_potential,
+    body = solid_domain,
+    displacement = solid_displacement,
+    velocity = solid_velocity,
+    load_potential = solid_load_potential,
     density = 3[kg / m^3],
     mu = 4[Pa],
     lambda = 2[Pa]
   );
   instance solid_boundary: solid.ElastodynamicMechanicalInterface2d(
-    support body = solid_domain,
-    support exterior = boundaries(
+    body = solid_domain,
+    exterior = boundaries(
       solid_x_lower, solid_x_upper, solid_y_lower, solid_y_upper
     ),
-    field displacement = solid_displacement,
-    field velocity = solid_velocity,
+    displacement = solid_displacement,
+    velocity = solid_velocity,
     mu = 4[Pa],
     lambda = 2[Pa]
   );
 
   instance fluid_x_lower_zero: mechanics.ZeroVelocity2d(
-    support body = fluid_domain, support face = fluid_x_lower
+    body = fluid_domain, face = fluid_x_lower
   );
   instance fluid_y_lower_zero: mechanics.ZeroVelocity2d(
-    support body = fluid_domain, support face = fluid_y_lower
+    body = fluid_domain, face = fluid_y_lower
   );
   instance fluid_y_upper_zero: mechanics.ZeroVelocity2d(
-    support body = fluid_domain, support face = fluid_y_upper
+    body = fluid_domain, face = fluid_y_upper
   );
   instance solid_x_upper_zero: mechanics.ZeroVelocity2d(
-    support body = solid_domain, support face = solid_x_upper
+    body = solid_domain, face = solid_x_upper
   );
   instance solid_y_lower_zero: mechanics.ZeroVelocity2d(
-    support body = solid_domain, support face = solid_y_lower
+    body = solid_domain, face = solid_y_lower
   );
   instance solid_y_upper_zero: mechanics.ZeroVelocity2d(
-    support body = solid_domain, support face = solid_y_upper
+    body = solid_domain, face = solid_y_upper
   );
 
   connect conserving

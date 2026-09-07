@@ -20,7 +20,7 @@ const PHYSICAL: &str =
 #[test]
 fn rational_dimension_meaning_survives_canonical_model_replay() {
     let source =
-        "model Wave { parameter amplitude: m ^ (-1 / 2) = 1; relation r { amplitude = 0; } }";
+        "model Wave() { parameter amplitude: m ^ (-1 / 2) = 1; relation r { amplitude = 0; } }";
     let model = ModelDocument::compile("wave.eqi", source).unwrap();
     let equivalent =
         ModelDocument::compile("equal.eqi", &source.replace("-1 / 2", "-2 / 4")).unwrap();
@@ -34,19 +34,19 @@ fn rational_dimension_meaning_survives_canonical_model_replay() {
     assert!(model.structurally_equivalent(&replay).unwrap());
     let current_schema = String::from_utf8(bytes).unwrap();
     let old_schema =
-        current_schema.replace("eqiora.model-envelope/v13", "eqiora.model-envelope/v10");
+        current_schema.replace("eqiora.model-envelope/v14", "eqiora.model-envelope/v10");
     assert_ne!(old_schema, current_schema);
     assert!(ModelDocument::replay(old_schema.as_bytes()).is_err());
     assert_eq!(
         model.structural_fingerprint().unwrap().generation(),
-        SemanticFingerprintGeneration::V8
+        SemanticFingerprintGeneration::V9
     );
 }
 
 #[test]
 fn rational_physical_relations_typecheck_and_replay_together() {
     let source = r#"
-model RationalQuantities {
+model RationalQuantities() {
   parameter amplitude: m ^ (-1 / 2) = 1;
   parameter width: m = 1;
   parameter area: m ^ 2 = 4;
@@ -89,18 +89,18 @@ model RationalQuantities {
 fn current_generation_is_independent_of_coordinate_vocabulary() {
     let fixed = ModelDocument::compile(
         "fixed.eqi",
-        "model m { parameter length: m = 1; domain body = box(0, 1); relation r on body { coordinate(0) - coordinate(0) = 0; } }",
+        "model m() { parameter length: m = 1; domain body = box(0, 1); relation r on body { coordinate(0) - coordinate(0) = 0; } }",
     )
     .unwrap();
     let referenced = ModelDocument::compile(
         "referenced.eqi",
-        "model m { parameter length: m = 1; domain body = box(0, length); relation r on body { coordinate(0) - coordinate(0) = 0; } }",
+        "model m() { parameter length: m = 1; domain body = box(0, length); relation r on body { coordinate(0) - coordinate(0) = 0; } }",
     )
     .unwrap();
     for model in [&fixed, &referenced] {
         assert_eq!(
             model.structural_fingerprint().unwrap().generation(),
-            SemanticFingerprintGeneration::V8
+            SemanticFingerprintGeneration::V9
         );
     }
     // Equal endpoint values do not erase the nominal Parameter dependency.
@@ -112,7 +112,7 @@ fn source_native_codec_and_allocation_routes_share_only_structural_identity() {
     let source = ModelDocument::compile("decay.eqi", DECAY).unwrap();
     let independently_compiled = ModelDocument::compile(
         "renamed.eqi",
-        "model renamed { parameter r: 1/s=1; state state: 1; initial { state = 1; } relation balance { derivative(state)+r*state=0; } }",
+        "model renamed() { parameter r: 1/s=1; state state: 1; initial { state = 1; } relation balance { derivative(state)+r*state=0; } }",
     )
     .unwrap();
     let native = ModelDocument::define(&native_decay(false)).unwrap();
@@ -130,7 +130,7 @@ fn source_native_codec_and_allocation_routes_share_only_structural_identity() {
         );
     }
     let fingerprint = source.structural_fingerprint().unwrap();
-    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V8);
+    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V9);
     assert_eq!(fingerprint.digest().len(), 64);
 
     let replay = eqiora::api::ModelDocument::replay(&source.canonical_json().unwrap()).unwrap();
@@ -201,17 +201,17 @@ fn nominal_identity_graph_wiring_values_and_operators_remain_meaning() {
 fn mathematical_signed_zero_is_normalized_without_weakening_other_values() {
     let positive = ModelDocument::compile(
         "positive.eqi",
-        "model zero { parameter p: 1 = 0.0; relation r { p = 0; } }",
+        "model zero() { parameter p: 1 = 0.0; relation r { p = 0; } }",
     )
     .unwrap();
     let negative = ModelDocument::compile(
         "negative.eqi",
-        "model zero { parameter p: 1 = -0.0; relation r { p = 0; } }",
+        "model zero() { parameter p: 1 = -0.0; relation r { p = 0; } }",
     )
     .unwrap();
     let nonzero = ModelDocument::compile(
         "nonzero.eqi",
-        "model zero { parameter p: 1 = 0.0000000000000001; relation r { p = 0; } }",
+        "model zero() { parameter p: 1 = 0.0000000000000001; relation r { p = 0; } }",
     )
     .unwrap();
     assert!(positive.structurally_equivalent(&negative).unwrap());
@@ -222,24 +222,24 @@ fn mathematical_signed_zero_is_normalized_without_weakening_other_values() {
 fn semantic_types_support_and_model_time_are_fingerprint_meaning() {
     let scalar = ModelDocument::compile(
         "scalar.eqi",
-        "model m { variable value: 1; relation r { value = 0; } }",
+        "model m() { variable value: 1; relation r { value = 0; } }",
     )
     .unwrap();
     let dimensioned = ModelDocument::compile(
         "dimensioned.eqi",
-        "model m { variable value: m; relation r { value = 0; } }",
+        "model m() { variable value: m; relation r { value = 0; } }",
     )
     .unwrap();
     assert!(!scalar.structurally_equivalent(&dimensioned).unwrap());
 
     let scalar_spatial = ModelDocument::compile(
         "scalar-spatial.eqi",
-        "model m { domain body = box(0, 1, 0, 1); variable value: m on body; relation r on body { value = 0; } }",
+        "model m() { domain body = box(0, 1, 0, 1); variable value: m on body; relation r on body { value = 0; } }",
     )
     .unwrap();
     let vector_spatial = ModelDocument::compile(
         "vector-spatial.eqi",
-        "model m { domain body = box(0, 1, 0, 1); variable value: vector<m, 2> on body; relation r on body { value = 0; } }",
+        "model m() { domain body = box(0, 1, 0, 1); variable value: vector<m, 2> on body; relation r on body { value = 0; } }",
     )
     .unwrap();
     assert!(
@@ -250,24 +250,24 @@ fn semantic_types_support_and_model_time_are_fingerprint_meaning() {
 
     let support_a = ModelDocument::compile(
         "support-a.eqi",
-        "model m { domain a = box(0, 1); domain b = box(0, 2); variable value: 1 on a; relation r on a { value = 0; } }",
+        "model m() { domain a = box(0, 1); domain b = box(0, 2); variable value: 1 on a; relation r on a { value = 0; } }",
     )
     .unwrap();
     let support_b = ModelDocument::compile(
         "support-b.eqi",
-        "model m { domain a = box(0, 1); domain b = box(0, 2); variable value: 1 on b; relation r on b { value = 0; } }",
+        "model m() { domain a = box(0, 1); domain b = box(0, 2); variable value: 1 on b; relation r on b { value = 0; } }",
     )
     .unwrap();
     assert!(!support_a.structurally_equivalent(&support_b).unwrap());
 
     let slow_clock = ModelDocument::compile(
         "slow.eqi",
-        "model m { state x: 1 at tick; initial { x = 0; } clock tick = periodic(1[s] / 10, phase = 0[s] / 1); relation update at tick { next(x) - x = 0; } }",
+        "model m() { state x: 1 at tick; initial { x = 0; } clock tick = periodic(1[s] / 10, phase = 0[s] / 1); relation update at tick { next(x) - x = 0; } }",
     )
     .unwrap();
     let fast_clock = ModelDocument::compile(
         "fast.eqi",
-        "model m { state x: 1 at tick; initial { x = 0; } clock tick = periodic(1[s] / 20, phase = 0[s] / 1); relation update at tick { next(x) - x = 0; } }",
+        "model m() { state x: 1 at tick; initial { x = 0; } clock tick = periodic(1[s] / 20, phase = 0[s] / 1); relation update at tick { next(x) - x = 0; } }",
     )
     .unwrap();
     assert!(!slow_clock.structurally_equivalent(&fast_clock).unwrap());
@@ -291,7 +291,7 @@ fn expression_allocation_and_model_boundary_have_exact_public_projection_semanti
 
 #[test]
 fn pathological_default_projection_fails_without_a_partial_identity() {
-    let mut source = String::from("model symmetric {");
+    let mut source = String::from("model symmetric() {");
     for index in 0..258 {
         source.push_str(&format!(" parameter p{index}: 1 = 1;"));
     }
@@ -406,7 +406,7 @@ fn physical_domain_aliasing(shared: bool) -> ModelDocument {
     let second_support = if shared { "first" } else { "second" };
     let source = format!(
         r#"
-model network {{
+model network() {{
   domain first = scalar_physical(across = 1, through = 1);
   domain second = scalar_physical(across = 1, through = 1);
   port a1: conserving on first;

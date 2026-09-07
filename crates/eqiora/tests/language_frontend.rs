@@ -2,12 +2,12 @@ use eqiora::language::{format, parse};
 
 #[test]
 fn public_facade_parses_and_formats_eqiora_source() {
-    let source = "model decay{state x: 1; initial { x = 1; }relation ode{derivative(x)+x=0;}}";
+    let source = "model decay() {state x: 1; initial { x = 1; }relation ode{derivative(x)+x=0;}}";
     let document = parse("decay.eqi", source)
         .into_document()
         .expect("valid source");
     let formatted = format(&document);
 
-    assert!(formatted.starts_with("model decay {\n"));
+    assert!(formatted.starts_with("model decay() {\n"));
     assert!(formatted.contains("derivative(x) + x = 0;"));
 }

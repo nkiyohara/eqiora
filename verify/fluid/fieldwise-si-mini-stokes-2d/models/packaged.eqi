@@ -1,4 +1,4 @@
-model Main {
+model Main() {
   domain body = box(0, 4, 0, 2);
   domain x_lower = boundary(body, axis = 0, side = lower);
   domain x_upper = boundary(body, axis = 0, side = upper);
@@ -16,10 +16,10 @@ model Main {
       - force_gradient * (coordinate(0) - pressure_zero_coordinate) = 0;
   }
   instance fluid_law: fluid.SteadyStokesWithPotential2d(
-    support body = body,
-    field velocity = velocity,
-    field pressure = pressure,
-    field force_potential = force_potential,
+    body = body,
+    velocity = velocity,
+    pressure = pressure,
+    force_potential = force_potential,
     dynamic_viscosity = 6[kg / (m * s)]
   );
 

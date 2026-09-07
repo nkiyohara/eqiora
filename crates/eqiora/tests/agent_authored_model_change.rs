@@ -178,7 +178,7 @@ fn offline_agent_proposal_uses_the_ordinary_exact_edit_and_execution_path() {
     assert!(
         String::from_utf8(agent_plan.transaction_json().unwrap())
             .unwrap()
-            .contains("eqiora.model-transaction-envelope/v13")
+            .contains("eqiora.model-transaction-envelope/v14")
     );
     assert_eq!(base.canonical_json().unwrap(), base_bytes);
     assert_eq!(base.digest().unwrap(), base_digest);
@@ -260,7 +260,10 @@ fn independent_evidence_rejects_a_valid_but_scientifically_wrong_proposal() {
 fn stale_foreign_forged_and_unsupported_inputs_fail_closed() {
     // This unused Parameter retains the same old value on both distinct bases,
     // isolating the artifact-identity check from the transaction payload.
-    let source = SOURCE.replace("model poisson {", "model poisson { parameter probe: 1 = 0;");
+    let source = SOURCE.replace(
+        "model poisson() {",
+        "model poisson() { parameter probe: 1 = 0;",
+    );
     let base = ModelDocument::compile("poisson.eqi", &source).unwrap();
     let probe = base.aliases()["probe"];
     let objective = objective();

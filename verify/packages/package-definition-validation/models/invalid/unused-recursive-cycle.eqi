@@ -6,4 +6,4 @@ public component B() {
   instance a: A;
 }
 
-model Empty {}
+model Empty() {}

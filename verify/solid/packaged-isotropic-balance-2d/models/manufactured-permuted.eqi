@@ -1,12 +1,12 @@
-model Main {
+model Main() {
   relation y_upper_value on y_upper { trace(displacement) = 0; }
   relation x_lower_value on x_lower { trace(displacement) = 0; }
   instance balance_law: solid.IsotropicBalanceWithPotential2d(
     lambda = lambda,
-    field load_potential = load_potential,
+    load_potential = load_potential,
     mu = mu,
-    field displacement = displacement,
-    support body = body
+    displacement = displacement,
+    body = body
   );
   relation load on body {
     load_potential

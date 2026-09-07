@@ -589,8 +589,9 @@ connector OtherFlange = scalar_physical(
   through = kg * m ^ 2 / s ^ 2
 );
 
-component OtherAnchor() {
-  public port shaft: conserving on OtherFlange;
+component OtherAnchor(
+  port shaft: conserving on OtherFlange
+) {
   relation law { through(shaft) = 0; }
 }
 "#;
@@ -613,7 +614,7 @@ component OtherAnchor() {
     );
 
     let causal_as_conserving = ROOT_SOURCE.replace(
-        "connect signal controller.command -> source.command;",
+        "connect controller.command -> source.command;",
         "connect conserving controller.command, source.command;",
     );
     let diagnostics = invalid_root_diagnostics(&causal_as_conserving);
@@ -626,7 +627,7 @@ component OtherAnchor() {
 
     let conserving_as_causal = ROOT_SOURCE.replace(
         "connect conserving source.positive, motor.positive;",
-        "connect signal source.positive -> motor.positive;",
+        "connect source.positive -> motor.positive;",
     );
     let diagnostics = invalid_root_diagnostics(&conserving_as_causal);
     assert!(

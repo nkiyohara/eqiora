@@ -521,7 +521,7 @@ fn live_multiport_binding_is_retained_then_rejected_by_the_q1_realization() {
     let source = PACKAGED_SOURCE
         .replace(
             "  instance y_lower_free: solid.ZeroTraction2d(",
-            "  instance x_upper_free_peer: solid.ZeroTraction2d(\n    support body = body,\n    support face = x_upper\n  );\n  instance y_lower_free: solid.ZeroTraction2d(",
+            "  instance x_upper_free_peer: solid.ZeroTraction2d(\n    body = body,\n    face = x_upper\n  );\n  instance y_lower_free: solid.ZeroTraction2d(",
         )
         .replace(
             "connect conserving boundary_law.mechanical[boundary = x_upper], x_upper_free.mechanical;",
@@ -558,8 +558,8 @@ fn boundary_normalization_rejects_near_miss_semantics() {
             "  parameter mu: kg / (m * s ^ 2) = 3;\n  parameter boundary_mu: kg / (m * s ^ 2) = 3;",
         )
         .replace(
-            "instance boundary_law: solid.IsotropicMechanicalInterface2d(\n    support body = body,\n    support exterior = boundaries(x_lower, x_upper, y_lower, y_upper),\n    field displacement = displacement,\n    mu = mu,",
-            "instance boundary_law: solid.IsotropicMechanicalInterface2d(\n    support body = body,\n    support exterior = boundaries(x_lower, x_upper, y_lower, y_upper),\n    field displacement = displacement,\n    mu = boundary_mu,",
+            "instance boundary_law: solid.IsotropicMechanicalInterface2d(\n    body = body,\n    exterior = boundaries(x_lower, x_upper, y_lower, y_upper),\n    displacement = displacement,\n    mu = mu,",
+            "instance boundary_law: solid.IsotropicMechanicalInterface2d(\n    body = body,\n    exterior = boundaries(x_lower, x_upper, y_lower, y_upper),\n    displacement = displacement,\n    mu = boundary_mu,",
         );
     assert_ne!(independent_equal_coefficient, PACKAGED_SOURCE);
     let packaged = compile_packaged(&dependency, &independent_equal_coefficient);
@@ -568,8 +568,8 @@ fn boundary_normalization_rejects_near_miss_semantics() {
     assert!(diagnostic.message().contains("stress coefficients differ"));
 
     let mismatched_stress = PACKAGED_SOURCE.replace(
-        "instance boundary_law: solid.IsotropicMechanicalInterface2d(\n    support body = body,\n    support exterior = boundaries(x_lower, x_upper, y_lower, y_upper),\n    field displacement = displacement,\n    mu = mu,",
-        "instance boundary_law: solid.IsotropicMechanicalInterface2d(\n    support body = body,\n    support exterior = boundaries(x_lower, x_upper, y_lower, y_upper),\n    field displacement = displacement,\n    mu = 4[kg / (m * s ^ 2)],",
+        "instance boundary_law: solid.IsotropicMechanicalInterface2d(\n    body = body,\n    exterior = boundaries(x_lower, x_upper, y_lower, y_upper),\n    displacement = displacement,\n    mu = mu,",
+        "instance boundary_law: solid.IsotropicMechanicalInterface2d(\n    body = body,\n    exterior = boundaries(x_lower, x_upper, y_lower, y_upper),\n    displacement = displacement,\n    mu = 4[kg / (m * s ^ 2)],",
     );
     assert_ne!(mismatched_stress, PACKAGED_SOURCE);
     let packaged = compile_packaged(&dependency, &mismatched_stress);

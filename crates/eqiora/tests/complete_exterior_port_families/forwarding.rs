@@ -26,13 +26,12 @@ public connector MechanicalBoundary = field_physical(
 public component ExteriorWrapper(
   support exterior: complete_exterior(parent = body),
   support body: volume(ambient_dimension = 2),
+  port mechanical[boundary in exterior]: conserving MechanicalBoundary over boundary
 ) {
-  public port mechanical[boundary in exterior]:
-    conserving MechanicalBoundary over boundary;
 
   instance child: ExteriorLaw(
-    support exterior = exterior,
-    support body = body
+    exterior = exterior,
+    body = body
   );
 
   connect conserving [boundary in exterior]
@@ -43,8 +42,8 @@ public component ExteriorWrapper(
 public component BoundaryTerminal(
   support face: boundary(parent = body),
   support body: volume(ambient_dimension = 2),
+  port mechanical: conserving MechanicalBoundary over face
 ) {
-  public port mechanical: conserving MechanicalBoundary over face;
 
   relation terminal_law on face {
     trace(mechanical) - trace(mechanical) = 0;
@@ -55,6 +54,7 @@ public component BoundaryTerminal(
 public component ExteriorLaw(
   support exterior: complete_exterior(parent = body),
   support body: volume(ambient_dimension = 2),
+  port mechanical[boundary in exterior]: conserving MechanicalBoundary over boundary
 ) {
   relation boundary_law[boundary in exterior] on boundary {
     trace(mechanical[boundary = boundary])
@@ -63,12 +63,9 @@ public component ExteriorLaw(
       - flux(mechanical[boundary = boundary]) = 0;
   }
 
-  public port mechanical[boundary in exterior]:
-    conserving MechanicalBoundary over boundary;
-
 }
 
-model Main {
+model Main() {
   domain body = box(0, 1, 0, 1);
   domain y_upper = boundary(body, axis = 1, side = upper);
   domain y_lower = boundary(body, axis = 1, side = lower);
@@ -76,24 +73,24 @@ model Main {
   domain x_lower = boundary(body, axis = 0, side = lower);
 
   instance wrapped: ExteriorWrapper(
-    support exterior = boundaries(x_upper, y_lower, x_lower, y_upper),
-    support body = body
+    exterior = boundaries(x_upper, y_lower, x_lower, y_upper),
+    body = body
   );
   instance y_upper_terminal: BoundaryTerminal(
-    support face = y_upper,
-    support body = body
+    face = y_upper,
+    body = body
   );
   instance y_lower_terminal: BoundaryTerminal(
-    support face = y_lower,
-    support body = body
+    face = y_lower,
+    body = body
   );
   instance x_upper_terminal: BoundaryTerminal(
-    support face = x_upper,
-    support body = body
+    face = x_upper,
+    body = body
   );
   instance x_lower_terminal: BoundaryTerminal(
-    support face = x_lower,
-    support body = body
+    face = x_lower,
+    body = body
   );
 
   connect conserving y_upper_terminal.mechanical,
@@ -190,14 +187,16 @@ fn complete_exterior_forwards_through_wrapper_pointwise_to_exact_root_selectors(
             .unwrap_or_else(|| panic!("retained exact child provenance `{child_name}`"));
         assert!(child_provenance.origins().iter().any(|origin| {
             source_text(FORWARDED, origin.definition_span())
-                .contains("public port mechanical[boundary in exterior]")
+                .contains("port mechanical[boundary in exterior]")
                 && source_text(FORWARDED, origin.instance_span()).contains("instance child")
-                && origin.binding_spans().iter().any(|span| {
-                    source_text(FORWARDED, span).contains("support exterior = exterior")
-                })
-                && origin.binding_spans().iter().any(|span| {
-                    source_text(FORWARDED, span).contains("support exterior = boundaries")
-                })
+                && origin
+                    .binding_spans()
+                    .iter()
+                    .any(|span| source_text(FORWARDED, span).contains("exterior = exterior"))
+                && origin
+                    .binding_spans()
+                    .iter()
+                    .any(|span| source_text(FORWARDED, span).contains("exterior = boundaries"))
                 && origin
                     .binding_spans()
                     .iter()
@@ -209,11 +208,12 @@ fn complete_exterior_forwards_through_wrapper_pointwise_to_exact_root_selectors(
             .unwrap_or_else(|| panic!("eliminated exact wrapper provenance `{wrapper_name}`"));
         assert!(projection_provenance.origins().iter().any(|origin| {
             source_text(FORWARDED, origin.definition_span())
-                .contains("public port mechanical[boundary in exterior]")
+                .contains("port mechanical[boundary in exterior]")
                 && source_text(FORWARDED, origin.instance_span()).contains("instance wrapped")
-                && origin.binding_spans().iter().any(|span| {
-                    source_text(FORWARDED, span).contains("support exterior = boundaries")
-                })
+                && origin
+                    .binding_spans()
+                    .iter()
+                    .any(|span| source_text(FORWARDED, span).contains("exterior = boundaries"))
         }));
     }
 
@@ -240,12 +240,14 @@ fn complete_exterior_forwards_through_wrapper_pointwise_to_exact_root_selectors(
         assert!(relation_provenance.origins().iter().any(|origin| {
             source_text(FORWARDED, origin.definition_span())
                 .contains("relation boundary_law[boundary in exterior]")
-                && origin.binding_spans().iter().any(|span| {
-                    source_text(FORWARDED, span).contains("support exterior = exterior")
-                })
-                && origin.binding_spans().iter().any(|span| {
-                    source_text(FORWARDED, span).contains("support exterior = boundaries")
-                })
+                && origin
+                    .binding_spans()
+                    .iter()
+                    .any(|span| source_text(FORWARDED, span).contains("exterior = exterior"))
+                && origin
+                    .binding_spans()
+                    .iter()
+                    .any(|span| source_text(FORWARDED, span).contains("exterior = boundaries"))
         }));
     }
 

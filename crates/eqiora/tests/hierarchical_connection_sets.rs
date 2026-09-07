@@ -115,11 +115,10 @@ fn terminal_network(instances: [&str; 3], fragments: &[Vec<&str>]) -> String {
         .join("\n");
     format!(
         "connector Pin = scalar_physical(across = 1, through = 1);\n\
-         component Terminal() {{\n\
-           public port p: conserving on Pin;\n\
+         component Terminal(port p: conserving on Pin) {{\n\
            relation owner {{ across(p) = 0; }}\n\
          }}\n\
-         model Network {{\n{instances}\n{fragments}\n}}\n"
+         model Network() {{\n{instances}\n{fragments}\n}}\n"
     )
 }
 
@@ -502,15 +501,17 @@ fn nominal_physical_types_and_signal_connections_never_enter_the_union() {
     let nominal_mismatch = r#"
 connector LeftPin = scalar_physical(across = 1, through = 1);
 connector RightPin = scalar_physical(across = 1, through = 1);
-component Left() {
-  public port p: conserving on LeftPin;
+component Left(
+  port p: conserving on LeftPin
+) {
   relation owner { across(p) = 0; }
 }
-component Right() {
-  public port p: conserving on RightPin;
+component Right(
+  port p: conserving on RightPin
+) {
   relation owner { across(p) = 0; }
 }
-model Network {
+model Network() {
   instance left: Left;
   instance right: Right;
   connect conserving left.p, right.p;
@@ -525,12 +526,12 @@ model Network {
     );
 
     let signal = r#"
-model SignalFanout {
+model SignalFanout() {
   port source: signal output 1;
   port left: signal input 1;
   port right: signal input 1;
   relation sinks { left - source = 0; right - source = 0; }
-  connect signal source -> left, right;
+  connect source -> left, right;
 }
 "#;
     let compiled = compile_one("signal-fanout.eqi", signal);

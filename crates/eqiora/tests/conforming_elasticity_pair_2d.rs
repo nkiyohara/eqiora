@@ -499,7 +499,7 @@ fn direct_and_packaged_pairs_share_one_monolithic_q1_system_and_interface_oracle
 fn pair_rejects_same_side_and_non_binary_interface_connections() {
     let same_side = DIRECT_SOURCE
         .replace("domain right = box(0.5, 1, 0, 1);", "domain right = box(0, 0.5, 0, 1);")
-        .replace("support face = right_x_upper", "support face = right_x_lower")
+        .replace("face = right_x_upper", "face = right_x_lower")
         .replace(
             "right_boundary.mechanical[boundary = right_x_upper],\n    right_x_upper_free.mechanical;",
             "right_boundary.mechanical[boundary = right_x_lower],\n    right_x_upper_free.mechanical;",
@@ -518,7 +518,7 @@ fn pair_rejects_same_side_and_non_binary_interface_connections() {
     let three_port = DIRECT_SOURCE
         .replace(
             "  connect conserving left_boundary.mechanical[boundary = left_x_lower],",
-            "  instance interface_terminal: ZeroTraction2d(\n    support body = right,\n    support face = right_x_lower\n  );\n\n  connect conserving left_boundary.mechanical[boundary = left_x_lower],",
+            "  instance interface_terminal: ZeroTraction2d(\n    body = right,\n    face = right_x_lower\n  );\n\n  connect conserving left_boundary.mechanical[boundary = left_x_lower],",
         )
         .replace(
             "connect conserving left_boundary.mechanical[boundary = left_x_upper],\n    right_boundary.mechanical[boundary = right_x_lower];",
@@ -572,7 +572,7 @@ fn additional_live_port_relation_fails_before_pair_realization() {
     let source = DIRECT_SOURCE
         .replace(
             "  connect conserving left_boundary.mechanical[boundary = left_x_lower],",
-            "  instance interface_terminal: ZeroTraction2d(\n    support body = right,\n    support face = right_x_lower\n  );\n\n  connect conserving left_boundary.mechanical[boundary = left_x_lower],",
+            "  instance interface_terminal: ZeroTraction2d(\n    body = right,\n    face = right_x_lower\n  );\n\n  connect conserving left_boundary.mechanical[boundary = left_x_lower],",
         )
         .replace(
             "connect conserving left_boundary.mechanical[boundary = left_x_upper],\n    right_boundary.mechanical[boundary = right_x_lower];",
@@ -591,9 +591,9 @@ fn additional_live_port_relation_fails_before_pair_realization() {
 #[test]
 fn constrained_interface_endpoint_is_not_mislabeled_as_coupling_equilibrium() {
     let source = DIRECT_SOURCE
-        .replace("support face = left_x_lower", "support face = swap_face")
-        .replace("support face = left_y_lower", "support face = left_x_lower")
-        .replace("support face = swap_face", "support face = left_y_lower")
+        .replace("face = left_x_lower", "face = swap_face")
+        .replace("face = left_y_lower", "face = left_x_lower")
+        .replace("face = swap_face", "face = left_y_lower")
         .replace(
             "connect conserving left_boundary.mechanical[boundary = left_x_lower],\n    fixed.mechanical;",
             "connect conserving left_boundary.mechanical[boundary = left_x_lower],\n    left_y_lower_free.mechanical;",

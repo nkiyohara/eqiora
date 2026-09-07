@@ -4,7 +4,7 @@ public component ExteriorContract(
 ) {
 }
 
-model Main {
+model Main() {
   domain body = box(0, 1, 0, 1);
   domain x_lower = boundary(body, axis = 0, side = lower);
   domain edge = boundary(x_lower, axis = 0, side = lower);
@@ -12,7 +12,7 @@ model Main {
   domain y_lower = boundary(body, axis = 1, side = lower);
 
   instance contains_edge: ExteriorContract(
-    support body = body,
-    support exterior = boundaries(x_lower, x_upper, y_lower, edge)
+    body = body,
+    exterior = boundaries(x_lower, x_upper, y_lower, edge)
   );
 }

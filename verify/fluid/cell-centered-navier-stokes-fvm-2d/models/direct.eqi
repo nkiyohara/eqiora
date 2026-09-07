@@ -1,7 +1,7 @@
 public pure operator outer_product(left: spatial[1], right: spatial[1]) -> spatial[2]
   = component(left, 0) * component(right, 1);
 
-model Main {
+model Main() {
   domain body = box(0, 1, 0, 1);
   domain x_lower = boundary(body, axis = 0, side = lower);
   domain x_upper = boundary(body, axis = 0, side = upper);

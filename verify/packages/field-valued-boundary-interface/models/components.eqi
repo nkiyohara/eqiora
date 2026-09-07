@@ -9,9 +9,8 @@ public connector MechanicalBoundary = field_physical(
 public component BoundarySide(
   support body: volume(ambient_dimension = 2),
   support interface: boundary(parent = body),
+  port mechanical: conserving MechanicalBoundary over interface
 ) {
-  public port mechanical: conserving MechanicalBoundary over interface;
-
   relation carrier on interface {
     trace(mechanical) - trace(mechanical) = 0;
     flux(mechanical) - flux(mechanical) = 0;
@@ -21,12 +20,11 @@ public component BoundarySide(
 public component BoundaryWrapper(
   support body: volume(ambient_dimension = 2),
   support interface: boundary(parent = body),
+  port mechanical: conserving MechanicalBoundary over interface
 ) {
-  public port mechanical: conserving MechanicalBoundary over interface;
-
   instance side: BoundarySide(
-    support body = body,
-    support interface = interface
+    body = body,
+    interface = interface
   );
 
   connect conserving mechanical, side.mechanical;

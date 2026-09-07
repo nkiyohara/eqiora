@@ -885,8 +885,8 @@ fn canonical_stokes_recognizer_rejects_semantic_near_misses() {
 
     let distinct_support = DIRECT
         .replace(
-            "model Main {",
-            "model Main { domain peer = box(0, 1, 0, 1);",
+            "model Main() {",
+            "model Main() { domain peer = box(0, 1, 0, 1);",
         )
         .replace(
             "variable pressure: kg / (m * s ^ 2) on body;",
@@ -895,10 +895,7 @@ fn canonical_stokes_recognizer_rejects_semantic_near_misses() {
     assert_model_or_lowering_rejects(&distinct_support);
 
     let component = component_release();
-    let misbound = PACKAGED.replace(
-        "field pressure = pressure,",
-        "field pressure = force_potential,",
-    );
+    let misbound = PACKAGED.replace("pressure = pressure,", "pressure = force_potential,");
     let root = root_release(&component, "fluid", &misbound, false);
     let (packaged, _) = compile_locked(&component, &root);
     let diagnostic = lower_steady_incompressible_stokes_cartesian_2d(packaged.model().program())

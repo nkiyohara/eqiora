@@ -4,10 +4,10 @@ public component ExteriorContract(
 ) {
 }
 
-model Main {
+model Main() {
   domain body = box(0, 1, 0, 1);
   instance empty: ExteriorContract(
-    support body = body,
-    support exterior = boundaries()
+    body = body,
+    exterior = boundaries()
   );
 }

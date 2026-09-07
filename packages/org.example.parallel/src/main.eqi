@@ -1,6 +1,6 @@
 import Eqiora.Electrical.Basic.basic as electrical;
 
-model Main {
+model Main() {
   instance source: electrical.IdealVoltageSource(voltage = 12[kg * m ^ 2 / (s ^ 3 * A)]);
   instance resistor_two: electrical.Resistor(resistance = 2[kg * m ^ 2 / (s ^ 3 * A ^ 2)]);
   instance resistor_four: electrical.Resistor(resistance = 4[kg * m ^ 2 / (s ^ 3 * A ^ 2)]);

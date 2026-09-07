@@ -12,7 +12,7 @@ mod cli_compile_check_home_path;
 mod cli_compile_check_trailing_bare_delimiter;
 #[path = "../src/bin/eqiora/main.rs"]
 mod cli_main;
-const ACCEPTED_LITERAL: &[u8] = b"// EQIORA_CLI_SECRET_ACCEPTED_c1479c2e\nmodel decay {\n  state x: 1;\n  initial { x = 1; }\n  parameter rate: 1 / s = 1;\n  relation flow {\n    derivative(x) + rate * x = 0;\n  }\n}\n";
+const ACCEPTED_LITERAL: &[u8] = b"// EQIORA_CLI_SECRET_ACCEPTED_c1479c2e\nmodel decay() {\n  state x: 1;\n  initial { x = 1; }\n  parameter rate: 1 / s = 1;\n  relation flow {\n    derivative(x) + rate * x = 0;\n  }\n}\n";
 const REJECTED_LITERAL: &[u8] = b"// EQIORA_CLI_SECRET_REJECTED_918bf4ad\n";
 
 mod full {
@@ -340,7 +340,7 @@ mod full {
         ];
         assert_eq!(
             fingerprints[0].generation(),
-            SemanticFingerprintGeneration::V8
+            SemanticFingerprintGeneration::V9
         );
         assert_eq!(fingerprints[0], fingerprints[1]);
         assert_eq!(fingerprints[0], fingerprints[2]);

@@ -93,7 +93,7 @@ fn exact_package_compilation_and_model_replay_retain_identity() {
 
 #[test]
 fn rational_package_dimensions_keep_model_meaning_separate_from_package_structure() {
-    let source = "public model Main { parameter amplitude: m ^ (-1 / 2) = 1; relation r { amplitude = 0; } }";
+    let source = "public model Main() { parameter amplitude: m ^ (-1 / 2) = 1; relation r { amplitude = 0; } }";
     let release = package_release(source, README, false);
     let equivalent = package_release(&source.replace("-1 / 2", "-2 / 4"), README, false);
     let changed = package_release(&source.replace("-1 / 2", "-1 / 3"), README, false);

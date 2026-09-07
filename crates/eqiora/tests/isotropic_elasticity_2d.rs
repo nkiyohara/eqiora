@@ -300,8 +300,8 @@ fn canonical_lowering_fails_closed_at_physical_identity_and_model_boundaries() {
     assert_lowering_rejects(&wrong_dimensions);
 
     let retired_representation = MANUFACTURED.replace(
-        "model manufactured_isotropic_elasticity_plane {",
-        "model manufactured_isotropic_elasticity_plane { representation separate = continuum;",
+        "model manufactured_isotropic_elasticity_plane() {",
+        "model manufactured_isotropic_elasticity_plane() { representation separate = continuum;",
     );
     assert!(
         eqiora::language::parse("retired.eqi", &retired_representation)
@@ -317,8 +317,8 @@ fn canonical_lowering_fails_closed_at_physical_identity_and_model_boundaries() {
 
     let periodic_load = MANUFACTURED
         .replace(
-            "model manufactured_isotropic_elasticity_plane {",
-            "model manufactured_isotropic_elasticity_plane { clock tick = periodic(1[s] / 1, phase = 0[s] / 1);",
+            "model manufactured_isotropic_elasticity_plane() {",
+            "model manufactured_isotropic_elasticity_plane() { clock tick = periodic(1[s] / 1, phase = 0[s] / 1);",
         )
         .replace(
             "relation load on body",

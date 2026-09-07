@@ -17,19 +17,18 @@ public connector TerminalBoundary = field_physical(
 public component ExteriorLaw(
   support body: volume(ambient_dimension = 2),
   support exterior: complete_exterior(parent = body),
+  port mechanical[boundary in exterior]: conserving SolidBoundary over boundary
 ) {
-  public port mechanical[boundary in exterior]:
-    conserving SolidBoundary over boundary;
 }
 
 public component BoundaryTerminal(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
+  port mechanical: conserving TerminalBoundary over face
 ) {
-  public port mechanical: conserving TerminalBoundary over face;
 }
 
-model Main {
+model Main() {
   domain body = box(0, 1, 0, 1);
   domain x_lower = boundary(body, axis = 0, side = lower);
   domain x_upper = boundary(body, axis = 0, side = upper);
@@ -37,12 +36,12 @@ model Main {
   domain y_upper = boundary(body, axis = 1, side = upper);
 
   instance solid: ExteriorLaw(
-    support body = body,
-    support exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
+    body = body,
+    exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
   );
   instance terminal: BoundaryTerminal(
-    support body = body,
-    support face = x_lower
+    body = body,
+    face = x_lower
   );
   connect conserving solid.mechanical[boundary = x_lower], terminal.mechanical;
 }

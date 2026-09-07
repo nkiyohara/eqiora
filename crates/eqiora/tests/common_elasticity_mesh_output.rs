@@ -21,13 +21,13 @@ const SOURCE: &str = r#"public component MixedBoundaryElasticity2d(
   support x_upper: boundary(parent = body),
   support y_lower: boundary(parent = body),
   support y_upper: boundary(parent = body),
+  parameter mu: kg / (m * s ^ 2),
+  parameter lambda: kg / (m * s ^ 2),
+  parameter length_scale: m
 ) {
 
   variable displacement: vector<m, 2> on body;
   variable load_potential: kg / (m * s ^ 2) on body;
-  public parameter mu: kg / (m * s ^ 2);
-  public parameter lambda: kg / (m * s ^ 2);
-  public parameter length_scale: m;
   relation load on body {
     load_potential - 2 * mu * coordinate(0) / length_scale = 0;
   }

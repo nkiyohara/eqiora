@@ -1,4 +1,4 @@
-model Main {
+model Main() {
   domain body = box(0, 1, 0, 1);
   variable left: vector<1, 2> on body;
   variable right: vector<1, 2> on body;

@@ -8,16 +8,16 @@ component BoundaryState(
   relation interface_law on interface { trace(state) = 0; }
 }
 
-model Coupled {
+model Coupled() {
   domain fluid = box(0, 1, 0, 1);
   domain left = boundary(fluid, axis = 0, side = lower);
   domain right = boundary(fluid, axis = 0, side = upper);
   instance left_state: BoundaryState(
-    support body = fluid,
-    support interface = left
+    body = fluid,
+    interface = left
   );
   instance right_state: BoundaryState(
-    support body = fluid,
-    support interface = right
+    body = fluid,
+    interface = right
   );
 }

@@ -1,17 +1,19 @@
 connector Pin = scalar_physical(across = 1, through = 1);
 
-component Leaf() {
-  public port p: conserving on Pin;
+component Leaf(
+  port p: conserving on Pin
+) {
   relation owner { across(p) = 0; }
 }
 
-component Wrapper() {
-  public port p: conserving on Pin;
+component Wrapper(
+  port p: conserving on Pin
+) {
   instance leaf: Leaf;
   connect conserving p, leaf.p;
 }
 
-model Network {
+model Network() {
   instance left: Wrapper;
   instance right: Leaf;
   connect conserving left.p, right.p;

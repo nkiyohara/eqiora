@@ -45,7 +45,7 @@ fn cli_git_package_locks_fetches_and_compiles_offline() {
     );
     write(
         repo.join("src/main.eqi"),
-        "public model Shared { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
+        "public model Shared() { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
     );
     for args in [
         vec!["init", "--initial-branch=main"],
@@ -82,7 +82,7 @@ fn cli_git_package_locks_fetches_and_compiles_offline() {
     );
     write(
         project.join("src/main.eqi"),
-        "import org.example.Git.main as library; model Main {}",
+        "import org.example.Git.main as library; model Main() {}",
     );
     let add = Command::new(env!("CARGO_BIN_EXE_eqiora"))
         .args(["package", "add"])
@@ -141,7 +141,7 @@ fn cli_bundled_vendor_fetch_update_and_offline_check_share_project_owner() {
     );
     write(
         project.join("src/main.eqi"),
-        "model Main { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
+        "model Main() { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
     );
     let run = |operation: &str, store: &Path, extra: &[&str]| {
         Command::new(env!("CARGO_BIN_EXE_eqiora"))
@@ -158,7 +158,7 @@ fn cli_bundled_vendor_fetch_update_and_offline_check_share_project_owner() {
         external.join("eqiora.toml"),
         "[package]\nname = \"org.example.External\"\nversion = \"1.0.0\"\nentry = \"main\"\n",
     );
-    write(external.join("src/main.eqi"), "public model Shared {}");
+    write(external.join("src/main.eqi"), "public model Shared() {}");
     assert!(
         run(
             "add",
@@ -214,10 +214,10 @@ fn cli_bundled_vendor_fetch_update_and_offline_check_share_project_owner() {
         external.join("eqiora.toml"),
         "[package]\nname = \"org.example.External\"\nversion = \"1.0.0\"\nentry = \"main\"\n",
     );
-    write(external.join("src/main.eqi"), "public model Shared {}");
+    write(external.join("src/main.eqi"), "public model Shared() {}");
     write(
         project.join("src/main.eqi"),
-        "model Main { parameter gain: 1 = 3; relation law { gain - 3 = 0; } }",
+        "model Main() { parameter gain: 1 = 3; relation law { gain - 3 = 0; } }",
     );
     assert!(
         !run("check", &vendor, &["--entry-model", "Main"])
@@ -253,7 +253,7 @@ fn cli_locks_and_checks_the_same_local_package_project_offline() {
     );
     write(
         project.join("src/main.eqi"),
-        "import org.example.Library.main as library; model Local {}",
+        "import org.example.Library.main as library; model Local() {}",
     );
     write(
         dependency.join("eqiora.toml"),
@@ -261,7 +261,7 @@ fn cli_locks_and_checks_the_same_local_package_project_offline() {
     );
     write(
         dependency.join("src/main.eqi"),
-        "public model Shared { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
+        "public model Shared() { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
     );
 
     let lock = Command::new(env!("CARGO_BIN_EXE_eqiora"))

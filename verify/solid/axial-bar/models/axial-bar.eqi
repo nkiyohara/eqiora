@@ -1,4 +1,4 @@
-model axial_bar {
+model axial_bar() {
   domain bar = box(0, 2);
   domain fixed_end = boundary(bar, axis = 0, side = lower);
   domain loaded_end = boundary(bar, axis = 0, side = upper);

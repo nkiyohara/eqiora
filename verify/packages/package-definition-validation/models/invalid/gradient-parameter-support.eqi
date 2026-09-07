@@ -1,6 +1,6 @@
-model Valid {}
+model Valid() {}
 
-model Invalid {
+model Invalid() {
   parameter distance: m = 1;
   relation invalid { grad(distance) = 0; }
 }

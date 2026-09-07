@@ -1,11 +1,12 @@
 connector Pin = scalar_physical(across = 1, through = 1);
 
-component Terminal() {
-  public port p: conserving on Pin;
+component Terminal(
+  port p: conserving on Pin
+) {
   relation owner { across(p) = 0; }
 }
 
-model Network {
+model Network() {
   instance a: Terminal;
   instance b: Terminal;
   instance c: Terminal;
