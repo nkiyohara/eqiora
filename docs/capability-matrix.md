@@ -597,7 +597,7 @@ below.
 | Multidisciplinary optimization | ⬜ | ⬜ | ⬜ | ⬜ | Coupled derivatives, consistency, and workflow orchestration remain |
 | Global optimization | ⬜ | ⬜ | ⬜ | ⬜ | Evolutionary, Bayesian, surrogate, and budget policies remain |
 | Parameter estimation/calibration | ⬜ | ⬜ | ⬜ | ⬜ | Observation operators, likelihoods, priors, and identifiability remain |
-| Design of experiments | ⬜ | ⬜ | ⬜ | ⬜ | Sampling plans, execution, aggregation, and provenance remain |
+| Design of experiments | ⬜ | ⬜ | ⬜ | ⬜ | Experimental-design policies, aggregation, and statistical accounting remain |
 | Uncertainty propagation | ⬜ | ⬜ | ⬜ | ⬜ | Monte Carlo, polynomial chaos, sparse grids, and error accounting remain |
 | Reliability analysis | ⬜ | ⬜ | ⬜ | ⬜ | FORM/SORM, rare events, and confidence evidence remain |
 | Sensitivity ranking | ⬜ | ⬜ | ⬜ | ⬜ | Local/global measures and uncertainty-aware reporting remain |
@@ -625,7 +625,8 @@ below.
 | Frequency-domain study | ⬜ | ⬜ | ⬜ | ⬜ | Complex operators, sweeps, ports/sources, and postprocessing remain |
 | Continuation study | ⬜ | ⬜ | ⬜ | ⬜ | Adaptive load/parameter continuation and branch tracking remain |
 | Parametric sweep | ⬜ | ⬜ | ⬜ | ⬜ | Cartesian/custom designs, cached execution, aggregation, and failed-point policy remain |
-| Design-of-experiments study | ⬜ | ⬜ | ⬜ | ⬜ | Reproducible sampling and analysis remain |
+| Stable real Parameter sampling | ✅ | ✅ | ⬜ | ⬜ | Versioned SHA-256 uniform finite-grid inputs for an accepted Program retain full client sample/channel identities, explicit common-random-number coupling, and occurrence association. Ordinary tests cover replay, permutations, chunks, workers, and typed client evaluation; [stable sampling](evaluation/stable-sampling.md). |
+| Design-of-experiments study | ⬜ | ⬜ | ⬜ | ⬜ | Experimental-design policies, aggregation, and statistical accounting remain |
 | Optimization study | 🟨 | 🟨 | ✅ | ⬜ | One shape consumer exists; reusable variables/objectives/constraints/algorithms remain |
 | Calibration study | ⬜ | ⬜ | ⬜ | ⬜ | Measurements, likelihood, regularization, identifiability, and posterior artifacts remain |
 | Uncertainty study | ⬜ | ⬜ | ⬜ | ⬜ | Random variables, correlations, samplers, estimators, and confidence reporting remain |
