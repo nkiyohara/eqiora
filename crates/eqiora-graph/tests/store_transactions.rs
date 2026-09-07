@@ -6,7 +6,8 @@ use eqiora_graph::{
     EdgeKind, GraphStore, InMemoryGraphStore, Op, Precondition, Revision, Transaction,
 };
 use eqiora_schema::kernel::{
-    ExprDagBuilder, FieldDef, KernelNode, ParameterDef, PortDef, RelationDef, SignalDirection,
+    ExprDagBuilder, FieldDef, FieldRole, KernelNode, ParameterDef, PortDef, RelationDef,
+    SignalDirection,
 };
 use eqiora_schema::{Model, ModelView};
 
@@ -26,18 +27,22 @@ fn zero_relation(id: Id<kinds::Relation>) -> RelationDef {
 
 #[test]
 fn commit_is_atomic_and_records_provenance() {
-    let field = Id::<kinds::Field>::new();
+    let parameter = Id::<kinds::Parameter>::new();
     let mut transaction = Transaction::new("add inlet velocity");
     transaction
-        .push(define(FieldDef::new(
-            field,
-            eqiora_core::ValueType::scalar(
-                eqiora_core::ScalarDomain::Real,
-                dim::VelocityDim::EXPONENTS,
-            ),
-        )))
+        .push(define(
+            ParameterDef::new(
+                parameter,
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    dim::VelocityDim::EXPONENTS,
+                ),
+                0.0,
+            )
+            .unwrap(),
+        ))
         .push(Op::SetValue {
-            target: field.erase(),
+            target: parameter.erase(),
             value: DynQuantity::new(12.0, dim::VelocityDim::EXPONENTS),
         });
 
@@ -48,7 +53,9 @@ fn commit_is_atomic_and_records_provenance() {
     assert_eq!(committed.revision, Revision(1));
     assert_eq!(snapshot.revision(), Revision(1));
     assert_eq!(
-        snapshot.node(field.erase()).and_then(|node| node.value()),
+        snapshot
+            .node(parameter.erase())
+            .and_then(|node| node.value()),
         Some(DynQuantity::new(12.0, dim::VelocityDim::EXPONENTS))
     );
     assert!(snapshot.node(committed.transaction.erase()).is_some());
@@ -68,6 +75,7 @@ fn failed_operation_rolls_back_the_whole_transaction() {
                 eqiora_core::ScalarDomain::Real,
                 dim::VelocityDim::EXPONENTS,
             ),
+            FieldRole::Variable,
         )))
         .push(Op::SetValue {
             target: domain.erase(),
@@ -215,30 +223,37 @@ fn dimension_change_is_rejected() {
 }
 
 #[test]
-fn scalar_set_value_cannot_initialize_a_shaped_field() {
-    let field = Id::<kinds::Field>::new();
-    let definition = FieldDef::new(
-        field,
-        eqiora_core::ValueType::shaped(
-            eqiora_core::ScalarDomain::Real,
-            dim::VelocityDim::EXPONENTS,
-            ValueShape::new([2]).unwrap(),
-            ValueFrame::SpatialCartesian,
-        )
-        .unwrap(),
+fn set_value_cannot_initialize_scalar_or_shaped_unknowns() {
+    let scalar = eqiora_core::ValueType::scalar(
+        eqiora_core::ScalarDomain::Real,
+        dim::VelocityDim::EXPONENTS,
     );
-    let mut transaction = Transaction::new("reject scalar shaped-field value");
-    transaction.push(define(definition)).push(Op::SetValue {
-        target: field.erase(),
-        value: DynQuantity::new(1.0, dim::VelocityDim::EXPONENTS),
-    });
-
-    let mut store = InMemoryGraphStore::new();
-    let diagnostics = store
-        .commit(transaction)
-        .expect_err("shaped Field needs a future shaped-value contract");
-    assert_eq!(diagnostics[0].code().0, "EQ0105");
-    assert_eq!(store.revision(), Revision(0));
+    let shaped = eqiora_core::ValueType::shaped(
+        eqiora_core::ScalarDomain::Real,
+        dim::VelocityDim::EXPONENTS,
+        ValueShape::new([2]).unwrap(),
+        ValueFrame::SpatialCartesian,
+    )
+    .unwrap();
+    for value_type in [scalar, shaped] {
+        for role in [FieldRole::Variable, FieldRole::State] {
+            let field = Id::<kinds::Field>::new();
+            let definition = FieldDef::new(field, value_type.clone(), role);
+            let mut transaction = Transaction::new("reject unknown value mutation");
+            transaction.push(define(definition)).push(Op::SetValue {
+                target: field.erase(),
+                value: DynQuantity::new(1.0, dim::VelocityDim::EXPONENTS),
+            });
+            let mut store = InMemoryGraphStore::new();
+            let diagnostics = store
+                .commit(transaction)
+                .expect_err("SetValue belongs only to Parameters");
+            assert_eq!(diagnostics[0].code().0, "EQ0105");
+            assert_eq!(store.revision(), Revision(0));
+            assert!(store.snapshot().node(field.erase()).is_none());
+            assert!(store.snapshot().commits().is_empty());
+        }
+    }
 }
 
 #[test]
@@ -257,6 +272,7 @@ fn graph_boundaries_are_checked_by_edge_kind() {
                 eqiora_core::ScalarDomain::Real,
                 dim::LengthDim::EXPONENTS,
             ),
+            FieldRole::Variable,
         )))
         .push(Op::Connect {
             from: space.erase(),
