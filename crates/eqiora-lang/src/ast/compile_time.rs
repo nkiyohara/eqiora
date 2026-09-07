@@ -3,6 +3,7 @@ use super::{Expr, TextRange, ValueTypeSyntax};
 /// Compilation-unit structural dimension alias.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct DimensionDecl {
+    pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) name: String,
     pub(crate) expression: Expr,
     pub(crate) range: TextRange,
@@ -31,6 +32,7 @@ impl DimensionDecl {
 /// Parameter source declaration.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParameterDecl {
+    pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) name: String,
     pub(crate) value_type: ValueTypeSyntax,
     pub(crate) value: Expr,
@@ -72,6 +74,7 @@ impl ParameterDecl {
 /// Model-local compile-time expression alias with an optional mathematical type assertion.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LetDecl {
+    pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) name: String,
     pub(crate) value_type: Option<ValueTypeSyntax>,
     pub(crate) value: Expr,

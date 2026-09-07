@@ -8,7 +8,16 @@ fn public_facade_analyzes_one_versioned_source_snapshot() {
     let snapshot = service.snapshot(11).expect("current source version");
 
     assert!(snapshot.diagnostics().is_empty());
-    assert_eq!(snapshot.formatted(), Some(source));
+    let formatted = concat!(
+        "// μ\n",
+        "model Demo {\n",
+        "  field state: 1 = 0;\n",
+        "  relation balance continuous {\n",
+        "    state = 0;\n",
+        "  }\n",
+        "}\n",
+    );
+    assert_eq!(snapshot.formatted(), Some(formatted));
     assert_eq!(snapshot.symbols()[0].kind(), EditorSymbolKind::Model);
     assert_eq!(snapshot.symbols()[0].name(), "Demo");
     assert_eq!(snapshot.symbols()[0].children().len(), 2);

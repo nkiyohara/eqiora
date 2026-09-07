@@ -2,7 +2,7 @@
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_lang::{ComponentItem, Document, Item, TextRange, format, parse};
+use eqiora_lang::{ComponentItem, DocComment, Document, Item, TextRange, format, parse};
 
 mod workspace;
 
@@ -90,6 +90,7 @@ pub struct EditorSymbol {
     name: String,
     range: TextRange,
     children: Vec<Self>,
+    doc_comment: Option<DocComment>,
 }
 
 impl EditorSymbol {
@@ -99,6 +100,7 @@ impl EditorSymbol {
             name: name.into(),
             range,
             children: Vec::new(),
+            doc_comment: None,
         }
     }
 
@@ -114,6 +116,7 @@ impl EditorSymbol {
             name: name.into(),
             range,
             children,
+            doc_comment: None,
         }
     }
 
@@ -139,6 +142,12 @@ impl EditorSymbol {
     #[must_use]
     pub fn children(&self) -> &[Self] {
         &self.children
+    }
+
+    /// Source documentation attached to this exact recovered declaration.
+    #[must_use]
+    pub const fn doc_comment(&self) -> Option<&DocComment> {
+        self.doc_comment.as_ref()
     }
 }
 
@@ -481,6 +490,16 @@ fn document_symbols(document: &Document) -> Vec<EditorSymbol> {
         )
     }));
     symbols.sort_by_key(|symbol| (symbol.range.start(), symbol.range.end()));
+    fn attach(
+        symbols: &mut [EditorSymbol],
+        documentation: &std::collections::HashMap<TextRange, &DocComment>,
+    ) {
+        for symbol in symbols {
+            symbol.doc_comment = documentation.get(&symbol.range).map(|doc| (*doc).clone());
+            attach(&mut symbol.children, documentation);
+        }
+    }
+    attach(&mut symbols, &document.doc_comments().collect());
     symbols
 }
 

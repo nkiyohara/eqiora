@@ -25,6 +25,7 @@ impl SourceAstFactory {
     ) -> Result<DimensionDecl, AstConstructionError> {
         validate_expression(&expression)?;
         Ok(DimensionDecl {
+            comments: Default::default(),
             name: checked_identifier(name, "dimension alias")?,
             expression,
             range: checked_range(range)?,
@@ -51,6 +52,7 @@ impl SourceAstFactory {
             ));
         }
         Ok(ParameterDecl {
+            comments: Default::default(),
             name: checked_identifier(name, "Parameter")?,
             value_type,
             value,
@@ -70,6 +72,7 @@ impl SourceAstFactory {
     ) -> Result<Item, AstConstructionError> {
         validate_expression(&value)?;
         Ok(Item::Let(LetDecl {
+            comments: Default::default(),
             name: checked_identifier(name, "let alias")?,
             value_type,
             value,

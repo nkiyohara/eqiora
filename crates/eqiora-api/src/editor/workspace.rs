@@ -9,7 +9,7 @@ use eqiora_compiler::{
     preflight_resolved_hierarchy,
 };
 use eqiora_core::Diagnostic;
-use eqiora_lang::{TextRange, Token, TokenKind, lex};
+use eqiora_lang::{DocComment, ParseResult, TextRange, TokenKind, parse};
 
 use super::{EditorPosition, EditorSnapshot, EditorSymbolKind, stale_version};
 
@@ -22,6 +22,7 @@ pub struct EditorDefinition {
     file: String,
     range: TextRange,
     name_range: Option<TextRange>,
+    doc_comment: Option<DocComment>,
 }
 
 /// One compiler-resolved source reference and its canonical definition.
@@ -88,6 +89,12 @@ impl EditorDefinition {
     #[must_use]
     pub const fn name_range(&self) -> Option<TextRange> {
         self.name_range
+    }
+
+    /// Source documentation selected by the resolved definition's file and range.
+    #[must_use]
+    pub const fn doc_comment(&self) -> Option<&DocComment> {
+        self.doc_comment.as_ref()
     }
 }
 
@@ -319,10 +326,22 @@ impl EditorWorkspaceSnapshot {
             .iter()
             .zip(&resolved_sources)
             .map(|((_file, source), resolved_file)| {
-                (
-                    (*resolved_file).to_owned(),
-                    lex(*resolved_file, source).tokens().to_vec(),
-                )
+                ((*resolved_file).to_owned(), parse(*resolved_file, source))
+            })
+            .collect::<BTreeMap<_, _>>();
+
+        let documentation_by_file = tokens_by_file
+            .iter()
+            .map(|(file, parsed)| {
+                let comments = parsed
+                    .document()
+                    .map(|document| {
+                        document
+                            .doc_comments()
+                            .collect::<std::collections::HashMap<_, _>>()
+                    })
+                    .unwrap_or_default();
+                (file.as_str(), comments)
             })
             .collect::<BTreeMap<_, _>>();
 
@@ -341,6 +360,10 @@ impl EditorWorkspaceSnapshot {
                         range,
                         identity.path(),
                     ),
+                    doc_comment: documentation_by_file
+                        .get(resolved_file)
+                        .and_then(|comments| comments.get(&range))
+                        .map(|doc| (*doc).clone()),
                 })
             })
             .collect::<Vec<_>>();
@@ -362,6 +385,10 @@ impl EditorWorkspaceSnapshot {
                             definition_range,
                             target.path(),
                         ),
+                        doc_comment: documentation_by_file
+                            .get(definition_file)
+                            .and_then(|comments| comments.get(&definition_range))
+                            .map(|doc| (*doc).clone()),
                     },
                 })
             })
@@ -518,13 +545,13 @@ impl EditorWorkspaceSnapshot {
 }
 
 fn declaration_name_range(
-    tokens: &BTreeMap<String, Vec<Token>>,
+    tokens: &BTreeMap<String, ParseResult>,
     file: &str,
     declaration: TextRange,
     path: &str,
 ) -> Option<TextRange> {
     let name = path.rsplit('.').next()?;
-    tokens.get(file)?.iter().find_map(|token| {
+    tokens.get(file)?.tokens().iter().find_map(|token| {
         (token.kind() == TokenKind::Identifier
             && token.text() == name
             && declaration.start() <= token.range().start()

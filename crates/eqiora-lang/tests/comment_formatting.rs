@@ -1,4 +1,4 @@
-use eqiora_lang::{format, parse};
+use eqiora_lang::{TokenKind, format, lex, parse};
 
 const COMMENTED_EXAMPLES: &[(&str, &str)] = &[
     (
@@ -21,13 +21,23 @@ const COMMENTED_EXAMPLES: &[(&str, &str)] = &[
 ];
 
 #[test]
-fn formatting_preserves_all_commented_examples_byte_for_byte() {
+fn formatting_canonicalizes_examples_without_losing_authored_comments() {
     for (filename, source) in COMMENTED_EXAMPLES {
         let document = parse(*filename, source)
             .into_document()
             .expect("commented example parses");
         let formatted = format(&document);
-        assert_eq!(&formatted, source, "{filename}");
+        let comments = |text: &str| {
+            lex(*filename, text)
+                .tokens()
+                .iter()
+                .filter(|token| {
+                    matches!(token.kind(), TokenKind::LineComment | TokenKind::DocComment)
+                })
+                .map(|token| token.text().to_owned())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(comments(&formatted), comments(source), "{filename}");
 
         let reparsed = parse(*filename, &formatted)
             .into_document()

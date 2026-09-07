@@ -71,6 +71,54 @@ fn caller_geometry(volume: &str) -> CanonicalGeometryV1 {
 }
 
 #[test]
+fn declaration_prose_changes_package_source_but_not_physical_structure() {
+    let source = "/// First explanation.\nmodel Main { field x:1=0; relation balance continuous { x=0; } }\n";
+    let changed = source.replace("First explanation.", "Different explanation.");
+    let first = release("org.example.Documented", source, &[]);
+    let second = release("org.example.Documented", &changed, &[]);
+    assert_ne!(
+        first.source_digest().unwrap(),
+        second.source_digest().unwrap()
+    );
+    assert_ne!(
+        first.canonical_json().unwrap(),
+        second.canonical_json().unwrap()
+    );
+    let compile = |release: &PackageReleaseV1| {
+        let mut store = InMemoryPackageStore::default();
+        store.insert(release).unwrap();
+        let resolution = ResolutionRecordV1::from_exact_releases(release, &[]).unwrap();
+        PackagedModelDocument::compile_locked(&store, &resolution, "Main").unwrap()
+    };
+    let first_model = compile(&first);
+    let second_model = compile(&second);
+    assert_eq!(
+        first_model.model().structural_fingerprint().unwrap(),
+        second_model.model().structural_fingerprint().unwrap()
+    );
+    assert_eq!(
+        first_model.model().digest().unwrap(),
+        second_model.model().digest().unwrap()
+    );
+    let first_doc = eqiora_lang::parse("src/main.eqi", source)
+        .into_document()
+        .unwrap();
+    let second_doc = eqiora_lang::parse("src/main.eqi", &changed)
+        .into_document()
+        .unwrap();
+    assert_ne!(
+        first_doc
+            .doc_comment(first_doc.models()[0].range())
+            .unwrap()
+            .text(),
+        second_doc
+            .doc_comment(second_doc.models()[0].range())
+            .unwrap()
+            .text()
+    );
+}
+
+#[test]
 fn locked_source_bundle_reconstructs_path_derived_module_graph() {
     let main_path = NormalizedRelativePath::parse("src/main.eqi").expect("main path");
     let library_path =

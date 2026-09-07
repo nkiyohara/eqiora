@@ -23,6 +23,7 @@ impl SourceAstFactory {
             validate_component_item(item)?;
         }
         Ok(ComponentDecl {
+            comments: Default::default(),
             visibility,
             name: checked_identifier(name, "component")?,
             items,
@@ -54,10 +55,12 @@ impl SourceAstFactory {
         let formulation_range = checked_range(formulation_range)?;
         let range = checked_range(range)?;
         Ok(ComponentDecl {
+            comments: Default::default(),
             visibility,
             name: checked_identifier(name, "component")?,
             items,
             formulations: vec![FormulationDecl {
+                comments: Default::default(),
                 relation,
                 left,
                 right,

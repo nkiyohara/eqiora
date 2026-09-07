@@ -96,7 +96,9 @@ Relations accept either `residual=` or a complete `left=` and `right=` pair.
 The latter emits the ordinary Eqiora equation `left = right;`; Python `==` is
 not overloaded. The Source draft owns exact supports and expressions, rejects
 foreign handles and resource-limit violations, and freezes on its first emission or compile.
-It emits ordinary readable UTF-8 `.eqi`; `doc=` values become `//` comments.
+It emits ordinary readable UTF-8 `.eqi`; `doc=` values become attached `///`
+documentation. A blank paragraph is emitted as an empty `///` line, keeping the
+block attached to its declaration. Documentation is bounded to 16,384 UTF-8 bytes.
 `write_eqi(path)` uses same-directory staging and atomic replacement, so an I/O
 failure does not publish a partly written source file.
 
@@ -104,8 +106,9 @@ Source values do not type-check or lower equations in Python. Direct compile
 materializes `source.to_eqi()` and enters the same Rust parser, type checker,
 lowerer, Geometry/support binder, and compiler used by a file path. Consequently,
 direct and emitted-file compilation with identical bindings have the same Model
-meaning and identity, while comments affect source presentation but not semantic
-identity. Compiler failures retain the existing structured diagnostics.
+meaning and identity. Prose changes affect source bytes and package source-bundle
+identity, not the physical Model. Compiler failures retain the existing structured
+diagnostics.
 `q.math.pi` is one immutable, ownerless Source expression that emits exactly
 `math.pi`; `q.math.sin(expression)` emits the matching compiler-owned scalar
 operation. Composing either with a Source-owned expression adopts that Source's

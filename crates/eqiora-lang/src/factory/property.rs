@@ -15,7 +15,6 @@ impl SourceAstFactory {
         release_values: &BTreeMap<String, Expr>,
         material_values: &BTreeMap<String, Vec<(String, Expr)>>,
     ) -> Result<(), AstConstructionError> {
-        document.discard_retained_source();
         for component in &mut document.components {
             for requirement in &component.property_requirements {
                 let dimension = contract_dimensions
@@ -29,6 +28,7 @@ impl SourceAstFactory {
                 component
                     .items
                     .push(ComponentItem::Parameter(ComponentParameterDecl {
+                        comments: Default::default(),
                         visibility: VisibilitySyntax::Public,
                         name: requirement.name.clone(),
                         value_type: crate::ValueTypeSyntax::real(dimension.clone()),
@@ -96,6 +96,7 @@ fn elaborate_instance_properties(
             })?;
         super::validate_expression(value)?;
         instance.bindings.push(ParameterBindingDecl {
+            comments: Default::default(),
             parameter: binding.property.clone(),
             value: value.clone(),
             range: binding.range,
@@ -108,6 +109,7 @@ fn elaborate_instance_properties(
         for (property, value) in values {
             super::validate_expression(value)?;
             instance.bindings.push(ParameterBindingDecl {
+                comments: Default::default(),
                 parameter: property.clone(),
                 value: value.clone(),
                 range: instance.range,

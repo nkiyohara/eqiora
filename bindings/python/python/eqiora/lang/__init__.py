@@ -489,7 +489,7 @@ def _doc(value: object | None) -> tuple[str, ...]:
 
 
 def _comment(lines: tuple[str, ...], indent: str) -> list[str]:
-    return [f"{indent}// {line}" if line else f"{indent}//" for line in lines]
+    return [f"{indent}/// {line}" if line else f"{indent}///" for line in lines]
 
 
 def _relation_lines(left: Expression, right: Expression | None = None) -> list[str]:

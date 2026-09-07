@@ -49,6 +49,38 @@ resolution as other packages.
 The parser retains source ranges and invalid fragments. Compilation publishes no partial
 Model when a source, type, or binding error remains.
 
+### Declaration documentation
+
+Place a contiguous block of `///` lines immediately before a declaration or
+signature entry. The first nonempty paragraph is its hover summary. Keep blank
+paragraphs inside the block with an empty `///` line:
+
+```eqiora
+/// A decay component.
+///
+/// The rate is supplied by each instance.
+```
+
+The declaration follows the final comment line directly. An ordinary `//` line
+remains a comment rather than declaration documentation.
+
+A blank source line between the block and declaration leaves the documentation
+unattached. A `///` after code is a trailing comment; a standalone block on the next
+line starts fresh. `////` is an ordinary line comment. Documentation at the end of
+a scope, or before syntax discarded during error recovery, remains unattached.
+
+Documentation prose is limited to 16,384 UTF-8 bytes. Hover renders paragraphs and
+emphasis; links, HTML, lists and code fences are displayed literally. Source ranges
+refer to the original UTF-8 file, including the comment markers. Formatting a cloned
+syntax node retains that provenance; parse the generated source for its new ranges.
+
+Canonical formatting normalizes code while preserving comments with their owning
+declarations and syntax gaps. Native document reconstruction retains comments on
+the reused declarations. Detached documentation stays in its enclosing scope and
+is separated from following declarations so recovery cannot attach it accidentally.
+Editor symbols expose documentation for declarations and signature entries;
+reference hover follows the existing compiler-resolved top-level declaration identity.
+
 ## Declaration heads
 
 The shared order is:

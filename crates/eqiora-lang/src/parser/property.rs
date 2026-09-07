@@ -86,6 +86,7 @@ impl Parser<'_> {
             .range()
             .end();
         Some(PropertyContractDecl {
+            comments: Default::default(),
             visibility,
             name,
             dimension,
@@ -133,6 +134,7 @@ impl Parser<'_> {
             .range()
             .end();
         Some(PropertyReleaseDecl {
+            comments: Default::default(),
             visibility,
             name,
             contract,
@@ -166,6 +168,7 @@ impl Parser<'_> {
             .range()
             .end();
         Some(ComponentPropertyDecl {
+            comments: Default::default(),
             name,
             contract,
             range: TextRange::new(start, end),
@@ -182,6 +185,7 @@ impl Parser<'_> {
         let release = self.parse_name_path("property release name")?;
         let end = release.range().end();
         Some(PropertyBindingDecl {
+            comments: Default::default(),
             property,
             release,
             range: TextRange::new(start, end),
@@ -217,6 +221,7 @@ impl Parser<'_> {
             .range()
             .end();
         Some(MaterialCompositionDecl {
+            comments: Default::default(),
             visibility,
             name,
             properties,

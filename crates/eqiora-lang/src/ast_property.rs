@@ -4,6 +4,7 @@ use crate::ast::{
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct PropertyContractDecl {
+    pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) visibility: VisibilitySyntax,
     pub(crate) name: String,
     pub(crate) dimension: Expr,
@@ -12,6 +13,7 @@ pub(crate) struct PropertyContractDecl {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct PropertyReleaseDecl {
+    pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) visibility: VisibilitySyntax,
     pub(crate) name: String,
     pub(crate) contract: NamePath,
@@ -25,6 +27,7 @@ pub(crate) struct PropertyReleaseDecl {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct MaterialCompositionDecl {
+    pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) visibility: VisibilitySyntax,
     pub(crate) name: String,
     pub(crate) properties: Vec<PropertyBindingDecl>,
@@ -33,6 +36,7 @@ pub(crate) struct MaterialCompositionDecl {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ComponentPropertyDecl {
+    pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) name: String,
     pub(crate) contract: NamePath,
     pub(crate) range: TextRange,
@@ -40,6 +44,7 @@ pub(crate) struct ComponentPropertyDecl {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PropertyBindingDecl {
+    pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) property: String,
     pub(crate) release: NamePath,
     pub(crate) range: TextRange,
@@ -126,7 +131,7 @@ impl Document {
                     declaration.name.clone(),
                     declaration.visibility,
                     Self {
-                        retained_source: None,
+                        comments: Default::default(),
                         imports: Vec::new(),
                         dimensions: self.dimensions.clone(),
                         property_contracts: vec![declaration.clone()],
@@ -145,7 +150,7 @@ impl Document {
                 declaration.name.clone(),
                 declaration.visibility,
                 Self {
-                    retained_source: None,
+                    comments: Default::default(),
                     imports: Vec::new(),
                     dimensions: self.dimensions.clone(),
                     property_contracts: Vec::new(),
@@ -163,7 +168,7 @@ impl Document {
                 declaration.name.clone(),
                 declaration.visibility,
                 Self {
-                    retained_source: None,
+                    comments: Default::default(),
                     imports: Vec::new(),
                     dimensions: self.dimensions.clone(),
                     property_contracts: Vec::new(),

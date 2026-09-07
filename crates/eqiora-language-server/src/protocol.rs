@@ -935,26 +935,41 @@ fn hover(params: HoverParams, state: &ServerState) -> Result<Option<Hover>, Stri
     let Some((definition, source)) = workspace.hover_at_position(file, position) else {
         return Ok(None);
     };
+    let documentation = definition.doc_comment().map(|doc| doc.markdown());
     Ok(Some(Hover {
         contents: HoverContents::Markup(MarkupContent {
             kind: MarkupKind::Markdown,
-            value: markdown_hover(definition.kind(), definition.path(), source),
+            value: markdown_hover(
+                definition.kind(),
+                definition.path(),
+                source,
+                documentation.as_deref(),
+            ),
         }),
         range: None,
     }))
 }
 
-fn markdown_hover(kind: EditorSymbolKind, path: &str, source: &str) -> String {
+fn markdown_hover(
+    kind: EditorSymbolKind,
+    path: &str,
+    source: &str,
+    documentation: Option<&str>,
+) -> String {
     let longest_run = source
         .split(|character| character != '`')
         .map(str::len)
         .max()
         .unwrap_or_default();
     let fence = "`".repeat(longest_run.saturating_add(1).max(3));
-    format!(
+    let detail = format!(
         "**{}** `{path}`\n\n{fence}eqiora\n{source}\n{fence}",
         symbol_label(kind)
-    )
+    );
+    match documentation {
+        Some(prose) => format!("{prose}\n\n{detail}"),
+        None => detail,
+    }
 }
 
 fn publish_diagnostics(

@@ -8,7 +8,11 @@ use crate::ast::{
 
 use super::{format_boundary_family_binder, format_expression, write_indent};
 
-pub(super) fn format_relation(declaration: &RelationDecl, indent: usize, output: &mut String) {
+pub(super) fn format_relation(
+    declaration: &RelationDecl,
+    indent: usize,
+    output: &mut crate::formatter::comments::Output,
+) {
     write_indent(output, indent);
     write!(output, "relation {} ", declaration.name).expect("String write");
     match &declaration.activation {
@@ -29,7 +33,7 @@ pub(super) fn format_relation(declaration: &RelationDecl, indent: usize, output:
 pub(super) fn format_relation_family(
     declaration: &RelationFamilyDecl,
     indent: usize,
-    output: &mut String,
+    output: &mut crate::formatter::comments::Output,
 ) {
     let relation = &declaration.relation;
     write_indent(output, indent);
@@ -45,7 +49,11 @@ pub(super) fn format_relation_family(
     output.push_str("}\n");
 }
 
-fn format_residuals(residuals: &[Expr], indent: usize, output: &mut String) {
+fn format_residuals(
+    residuals: &[Expr],
+    indent: usize,
+    output: &mut crate::formatter::comments::Output,
+) {
     for residual in residuals {
         write_indent(output, indent + 2);
         format_residual(residual, output);
@@ -53,7 +61,7 @@ fn format_residuals(residuals: &[Expr], indent: usize, output: &mut String) {
     }
 }
 
-fn format_residual(residual: &Expr, output: &mut String) {
+fn format_residual(residual: &Expr, output: &mut crate::formatter::comments::Output) {
     let ExprKind::Binary {
         op: BinaryOp::Sub,
         left,

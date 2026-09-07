@@ -225,7 +225,7 @@ fn stdio_session_syncs_diagnostics_and_serves_editor_requests() {
 fn stdio_workspace_resolves_open_modules_and_tracks_unsaved_changes() {
     let main = "// 🧪\nimport editor.workspace.library as lib;\nmodel Main { instance load: lib.Resistor(); }\n";
     let library = "public component Resistor {}\n";
-    let changed_library = "public component Resistor {\n  // unsaved workspace edit\n}\n";
+    let changed_library = "/// **Updated summary**\n///\n/// [run](command:delete) <script> ```\npublic component Resistor {\n  // unsaved workspace edit\n}\n";
     let main_uri = "file:///workspace/main.eqi";
     let library_uri = "file:///workspace/library.eqi";
     let mut child = Command::new(SERVER)
@@ -291,6 +291,10 @@ fn stdio_workspace_resolves_open_modules_and_tracks_unsaved_changes() {
         .expect("workspace Markdown hover");
     assert!(hover.contains("**Component** `library.Resistor`"));
     assert!(hover.contains("// unsaved workspace edit"));
+    assert!(hover.starts_with(
+        "**Updated summary**\n\n\\[run\\](command&#58;delete) \\<script\\> \\`\\`\\`"
+    ));
+    assert!(!hover.contains("[run](command:delete)"));
     assert_eq!(response(&messages, 4)["result"]["uri"], library_uri);
     assert!(response(&messages, 5)["result"].is_null());
 }

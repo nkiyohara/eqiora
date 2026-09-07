@@ -400,11 +400,13 @@ impl ModelDraft {
             let range = ranges.allocate(&path, &mut paths);
             let item = match declaration {
                 DraftDeclaration::SpatialDomain(domain) => Item::Domain(DomainDecl {
+                    comments: Default::default(),
                     name: domain.name().to_owned(),
                     syntax: domain.syntax(),
                     range,
                 }),
                 DraftDeclaration::PhysicalDomain(domain) => Item::Domain(DomainDecl {
+                    comments: Default::default(),
                     name: domain.name.clone(),
                     syntax: DomainSyntax::ScalarPhysical {
                         across_type: value_type::project(
@@ -424,12 +426,14 @@ impl ModelDraft {
                 }),
                 DraftDeclaration::Representation(representation) => {
                     Item::Representation(RepresentationDecl {
+                        comments: Default::default(),
                         name: representation.name.clone(),
                         syntax: RepresentationSyntax::Continuum,
                         range,
                     })
                 }
                 DraftDeclaration::Field(field) => Item::Field(FieldDecl {
+                    comments: Default::default(),
                     name: field.name.clone(),
                     domain: field
                         .spatial_scope
@@ -452,6 +456,7 @@ impl ModelDraft {
                     range,
                 }),
                 DraftDeclaration::Parameter(parameter) => Item::Parameter(ParameterDecl {
+                    comments: Default::default(),
                     name: parameter.name.clone(),
                     value_type: value_type::project(
                         &parameter.value_type,
@@ -466,6 +471,7 @@ impl ModelDraft {
                     range,
                 }),
                 DraftDeclaration::ConservingPort(port) => Item::Port(PortDecl {
+                    comments: Default::default(),
                     name: port.name.clone(),
                     syntax: PortSyntax::ScalarPhysical {
                         domain: port.domain.name.clone(),
@@ -473,6 +479,7 @@ impl ModelDraft {
                     range,
                 }),
                 DraftDeclaration::Relation(relation) => Item::Relation(RelationDecl {
+                    comments: Default::default(),
                     name: relation.name.clone(),
                     activation: ActivationSyntax::Continuous,
                     domain: relation
@@ -488,6 +495,7 @@ impl ModelDraft {
                 }),
                 DraftDeclaration::ConservingConnection(connection) => {
                     Item::Connection(ConnectionDecl {
+                        comments: Default::default(),
                         syntax: ConnectionSyntax::Conserving,
                         ports: connection
                             .ports
@@ -505,6 +513,7 @@ impl ModelDraft {
         let range = ranges.allocate(&model_path, &mut paths);
         NativeModelAst {
             model: ModelDecl {
+                comments: Default::default(),
                 visibility: VisibilitySyntax::Private,
                 name: self.name.clone(),
                 items,
@@ -1221,20 +1230,6 @@ impl DraftSymbolKind {
 pub struct NativeModelAst {
     model: ModelDecl,
     paths: HashMap<TextRange, GraphPath>,
-}
-
-impl NativeModelAst {
-    /// Source-shaped model consumed by the shared compiler lowerer.
-    #[must_use]
-    pub const fn model(&self) -> &ModelDecl {
-        &self.model
-    }
-
-    /// Native declaration path associated with one synthetic range.
-    #[must_use]
-    pub fn graph_path(&self, range: TextRange) -> Option<&GraphPath> {
-        self.paths.get(&range)
-    }
 }
 
 mod ast_bridge;

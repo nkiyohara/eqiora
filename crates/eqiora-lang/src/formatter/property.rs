@@ -3,13 +3,22 @@ use core::fmt::Write;
 use super::{format_expression, separate_declaration};
 use crate::ast::{ComponentDecl, Document, VisibilitySyntax};
 
-pub(super) fn format_properties(document: &Document, output: &mut String, count: &mut usize) {
+pub(super) fn format_properties(
+    document: &Document,
+    output: &mut crate::formatter::comments::Output,
+    count: &mut usize,
+) {
     for dimension in &document.dimensions {
         separate_declaration(output, count);
         super::compile_time::format_dimension(dimension, output);
     }
-    for (visibility, name, dimension, _) in document.property_contract_syntax() {
+    for (declaration, (visibility, name, dimension, _)) in document
+        .property_contracts
+        .iter()
+        .zip(document.property_contract_syntax())
+    {
         separate_declaration(output, count);
+        output.begin(&declaration.comments);
         if visibility == VisibilitySyntax::Public {
             output.push_str("public ");
         }
@@ -17,11 +26,18 @@ pub(super) fn format_properties(document: &Document, output: &mut String, count:
         output.push_str("  scalar value: ");
         format_expression(dimension, 0, output);
         output.push_str(";\n}\n");
+        output.end();
     }
-    for (visibility, name, contract, value, source_dimension, scale, citation, license, _) in
-        document.property_release_syntax()
+    for (
+        declaration,
+        (visibility, name, contract, value, source_dimension, scale, citation, license, _),
+    ) in document
+        .property_releases
+        .iter()
+        .zip(document.property_release_syntax())
     {
         separate_declaration(output, count);
+        output.begin(&declaration.comments);
         if visibility == VisibilitySyntax::Public {
             output.push_str("public ");
         }
@@ -37,22 +53,40 @@ pub(super) fn format_properties(document: &Document, output: &mut String, count:
             ";\n  validity = unconditional;\n  citation = {citation};\n  license = {license};\n}}\n"
         )
         .expect("String write");
+        output.end();
     }
-    for (visibility, name, properties, _) in document.material_composition_syntax() {
+    for (declaration, (visibility, name, properties, _)) in document
+        .material_compositions
+        .iter()
+        .zip(document.material_composition_syntax())
+    {
         separate_declaration(output, count);
+        output.begin(&declaration.comments);
         if visibility == VisibilitySyntax::Public {
             output.push_str("public ");
         }
         writeln!(output, "material composition {name} {{").expect("String write");
-        for (property, release, _) in properties {
+        for (binding, (property, release, _)) in declaration.properties.iter().zip(properties) {
+            output.begin(&binding.comments);
             writeln!(output, "  property {property} = {release};").expect("String write");
+            output.end();
         }
         output.push_str("}\n");
+        output.end();
     }
 }
 
-pub(super) fn format_component_requirements(component: &ComponentDecl, output: &mut String) {
-    for (name, contract, _) in component.property_requirement_syntax() {
+pub(super) fn format_component_requirements(
+    component: &ComponentDecl,
+    output: &mut crate::formatter::comments::Output,
+) {
+    for (declaration, (name, contract, _)) in component
+        .property_requirements
+        .iter()
+        .zip(component.property_requirement_syntax())
+    {
+        output.begin(&declaration.comments);
         writeln!(output, "  public property {name}: {contract};").expect("String write");
+        output.end();
     }
 }

@@ -5,7 +5,7 @@ implementation. It does not implement a second model semantics.
 
 ## Read in this order
 
-1. [Modeling and realization](modeling.md) explains immutable declarations,
+1. [Modeling and realization](../../python/modeling.md) explains immutable declarations,
    spatial support, revisions, and the bounded scalar-elliptic path.
 2. [Execution, diagnostics, and arrays](execution-and-arrays.md) explains
    synchronous and awaitable runs, cancellation, NumPy, and DLPack.

@@ -28,7 +28,14 @@ model Demo {
 
     assert_eq!(snapshot, repeated.current());
     assert!(snapshot.diagnostics().is_empty());
-    assert_eq!(snapshot.formatted(), Some(source));
+    let formatted = snapshot.formatted().expect("canonical commented source");
+    assert!(formatted.starts_with("// authored note\ndimension Scalar = 1;\n\n"));
+    assert_eq!(
+        EditorService::new("formatted.eqi", 7, formatted)
+            .current()
+            .formatted(),
+        Some(formatted)
+    );
     assert_eq!(
         snapshot
             .symbols()
@@ -88,6 +95,79 @@ model Demo {
     assert!(!recovering.current().diagnostics().is_empty());
     assert!(recovering.current().formatted().is_none());
     assert_eq!(recovering.current().symbols()[0].name(), "M");
+}
+
+#[test]
+fn documentation_uses_exact_resolved_files_after_a_declaration_is_renamed() {
+    for left_name in ["Part", "Renamed"] {
+        let owner = CompilationNamespaceId::new(["docs"]).unwrap();
+        let main = format!(
+            "import docs.left as left;\nimport docs.right as right;\nmodel Main {{ instance a: left.{left_name}(); instance b: right.Part(); }}\n"
+        );
+        let left = format!("// 🧪\n/// Left declaration.\npublic component {left_name} {{}}\n");
+        let right = "/// Right declaration.\npublic component Part {}\n";
+        let input = ResolvedHierarchyInput::new(
+            owner.clone(),
+            vec![
+                ResolvedSourceUnit::new(owner.clone(), "src/main.eqi", &main).unwrap(),
+                ResolvedSourceUnit::new(owner.clone(), "src/left.eqi", &left).unwrap(),
+                ResolvedSourceUnit::new(owner, "src/right.eqi", right).unwrap(),
+            ],
+            vec![],
+        );
+        let workspace = EditorWorkspaceSnapshot::analyze_modules(1, input);
+        assert!(
+            workspace.diagnostics().is_empty(),
+            "{:?}",
+            workspace.diagnostics()
+        );
+        for (reference, summary) in [
+            (format!("left.{left_name}"), "Left declaration."),
+            ("right.Part".to_owned(), "Right declaration."),
+        ] {
+            let file = workspace
+                .files()
+                .find(|file| file.ends_with(":src/main.eqi"))
+                .unwrap();
+            let offset = main.find(&reference).unwrap() as u32 + 1;
+            let (definition, _) = workspace.hover(file, offset).unwrap();
+            assert_eq!(definition.doc_comment().unwrap().summary(), summary);
+            let symbol = workspace
+                .document(definition.file())
+                .unwrap()
+                .symbols()
+                .iter()
+                .find(|symbol| symbol.range() == definition.range())
+                .unwrap();
+            assert_eq!(symbol.doc_comment(), definition.doc_comment());
+        }
+    }
+}
+
+#[test]
+fn recovered_signature_symbols_keep_only_their_own_documentation() {
+    let source = "/// Component summary.\ncomponent C {\n/// Gain summary.\npublic parameter gain:1;\n/// Broken summary.\nfield ;\nfield retained:1=0;\n}\n";
+    let service = EditorService::new("docs.eqi", 1, source);
+    let snapshot = service.current();
+    assert!(!snapshot.diagnostics().is_empty());
+    assert!(snapshot.formatted().is_none());
+    let component = &snapshot.symbols()[0];
+    assert_eq!(
+        component.doc_comment().unwrap().summary(),
+        "Component summary."
+    );
+    let gain = component
+        .children()
+        .iter()
+        .find(|symbol| symbol.name() == "gain")
+        .unwrap();
+    assert_eq!(gain.doc_comment().unwrap().summary(), "Gain summary.");
+    let retained = component
+        .children()
+        .iter()
+        .find(|symbol| symbol.name() == "retained")
+        .unwrap();
+    assert!(retained.doc_comment().is_none());
 }
 
 #[test]

@@ -13,7 +13,6 @@ impl SourceAstFactory {
         document: &mut Document,
         mut rewrite: impl FnMut(&Expr) -> Expr,
     ) {
-        document.discard_retained_source();
         for declaration in &mut document.property_contracts {
             declaration.dimension = rewrite(&declaration.dimension);
         }
