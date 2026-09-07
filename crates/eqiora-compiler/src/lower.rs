@@ -973,9 +973,30 @@ pub(crate) fn lower_typed_model(
     }
     transaction.push(Op::DefineOntologyView { view: view.into() });
 
-    let symbols = bindings
-        .into_iter()
-        .map(|(name, binding)| (name, binding.primary_id()))
+    // Lowering bindings also own synthesized continuum representations and
+    // unnamed initial Relations. Export only authored declaration names; the
+    // synthesized nodes remain members of the unchanged Kernel transaction.
+    let symbols = model
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            LoweringItem::Domain { name, .. }
+            | LoweringItem::Field { name, .. }
+            | LoweringItem::Parameter { name, .. }
+            | LoweringItem::Port { name, .. }
+            | LoweringItem::Clock { name, .. }
+            | LoweringItem::Relation {
+                name,
+                initial: false,
+                ..
+            } => Some(name),
+            LoweringItem::Representation { .. }
+            | LoweringItem::Relation { initial: true, .. }
+            | LoweringItem::Connection { .. }
+            | LoweringItem::Boundary { .. }
+            | LoweringItem::Unsupported { .. } => None,
+        })
+        .map(|name| (name.clone(), bindings[name].primary_id()))
         .collect();
     Ok(CompiledModel {
         model: model_id,

@@ -2,6 +2,78 @@ use eqiora_compiler::compile;
 use eqiora_graph::Op;
 use eqiora_schema::kernel::{FieldRole, KernelNode};
 
+#[test]
+fn flat_source_symbols_exclude_synthesized_owners_but_keep_kernel_nodes() {
+    let source = "model M { domain body = box(0,1); state x: 1 on body; initial { x = 1; } relation law on body { derivative(x) = 0; } }";
+    let document = eqiora_lang::parse("symbols.eqi", source)
+        .into_document()
+        .unwrap();
+    let compiled = eqiora_compiler::lower_model("symbols.eqi", &document.models()[0]).unwrap();
+    assert_eq!(
+        compiled
+            .symbols()
+            .iter()
+            .map(|(name, _)| name)
+            .collect::<Vec<_>>(),
+        ["body", "law", "x"]
+    );
+    let nodes = compiled
+        .transaction()
+        .ops()
+        .iter()
+        .filter_map(|op| match op {
+            Op::DefineKernelNode { node } => Some(node),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        nodes
+            .iter()
+            .filter(|node| matches!(node, KernelNode::Representation(_)))
+            .count(),
+        1
+    );
+    assert_eq!(
+        nodes
+            .iter()
+            .filter(|node| matches!(node, KernelNode::Relation(relation) if relation.is_initial()))
+            .count(),
+        1
+    );
+    for (_, id) in compiled.symbols().iter() {
+        assert!(nodes.iter().any(|node| node.id() == id));
+    }
+}
+
+#[test]
+fn native_symbols_exclude_unnamed_initial_relations() {
+    use eqiora_core::{DimExponents, ScalarDomain, ValueType};
+    use eqiora_lang::{DraftDeclaration, DraftExpression, DraftField, FieldRoleSyntax, ModelDraft};
+    let state = DraftField::new(
+        "x",
+        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+        FieldRoleSyntax::State,
+    );
+    let condition = state.expression() - DraftExpression::constant(1.0);
+    let draft = ModelDraft::new(
+        "M",
+        [state.into(), DraftDeclaration::Initial(vec![condition])],
+    )
+    .unwrap();
+    let compiled = eqiora_compiler::lower_draft(&draft).unwrap();
+    assert_eq!(
+        compiled
+            .symbols()
+            .iter()
+            .map(|(name, _)| name)
+            .collect::<Vec<_>>(),
+        ["x"]
+    );
+    assert!(compiled.transaction().ops().iter().any(|op| matches!(op,
+        Op::DefineKernelNode { node: KernelNode::Relation(relation) } if relation.is_initial()
+    )));
+}
+
 fn nodes(source: &str) -> Vec<KernelNode> {
     compile("state.eqi", source).unwrap_or_else(|errors| panic!("{errors:?}\n{source}"))[0]
         .transaction()
