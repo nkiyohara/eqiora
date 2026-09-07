@@ -16,7 +16,6 @@ import jax.numpy as jnp
 import jaxlib
 
 import eqiora
-from _signature_bindings import support_bindings
 import eqiora.jax as eqjax
 from eqiora import _eqiora
 
@@ -86,7 +85,22 @@ def differentiable_program(
         eqiora.meshing.CartesianMesher(cells=(4, 4)),
     )
     mesh = eqiora.meshing.generate(mesh_plan)
-    model = eqiora.compile(source=POISSON, geometry=geometry, entry='JaxDifferentiatedPoisson', bindings={**support_bindings(geometry, ['square'], [('x_lower', 'square'), ('x_upper', 'square'), ('y_lower', 'square'), ('y_upper', 'square')]), **{'diffusion': 1.0, 'wave_number': np.pi, 'source_scale': 2.0 * np.pi ** 2, 'boundary_offset': 0.0}})
+    model = eqiora.compile(
+        source=POISSON,
+        geometry=geometry,
+        entry='JaxDifferentiatedPoisson',
+        bindings={
+            'square': geometry.selection('square'),
+            'x_lower': (geometry.selection('x_lower'), geometry.selection('square')),
+            'x_upper': (geometry.selection('x_upper'), geometry.selection('square')),
+            'y_lower': (geometry.selection('y_lower'), geometry.selection('square')),
+            'y_upper': (geometry.selection('y_upper'), geometry.selection('square')),
+            'diffusion': 1.0,
+            'wave_number': np.pi,
+            'source_scale': 2.0 * np.pi ** 2,
+            'boundary_offset': 0.0,
+        },
+    )
     spatial = (
         eqiora.fem.Q1()
         if method == eqiora.fem.Q1()
@@ -420,8 +434,10 @@ def test_unsupported_transformations_fail_explicitly() -> None:
         jax.jvp(forward, (parameters,), (tangent,))
     with pytest.raises(NotImplementedError):
         jax.linearize(solve, parameters)
+    # Reach Eqiora's unsupported-pmap gate with a valid local device axis.
+    device_batch = jnp.stack([parameters] * jax.local_device_count())
     with pytest.raises(NotImplementedError, match="pmap"):
-        jax.pmap(solve)(batch)
+        jax.pmap(solve)(device_batch)
     with pytest.raises(NotImplementedError, match="named axes|collectives"):
         jax.vmap(lambda point: jax.lax.psum(solve(point), "samples"), axis_name="samples")(batch)
 
