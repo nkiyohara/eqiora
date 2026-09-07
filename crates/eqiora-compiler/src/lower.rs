@@ -12,9 +12,9 @@ mod domain_contract;
 mod expression;
 mod external;
 #[cfg(test)]
-mod tests;
-#[cfg(test)]
 mod model_tests;
+#[cfg(test)]
+mod tests;
 mod value_expression;
 use crate::units::lower_clock;
 use binding::{

@@ -454,10 +454,7 @@ fn geometry_identity_falsifiers_fail_closed() {
         first["facet_indices"].as_array_mut().unwrap().pop();
     });
 
-    let same_side_model = MODEL.replace(
-        "face = solid_x_lower",
-        "face = solid_x_upper",
-    );
+    let same_side_model = MODEL.replace("face = solid_x_lower", "face = solid_x_upper");
     assert!(
         compile("same-side-interface.eqi", &same_side_model).is_err(),
         "equal-facing or noncoincident Connection sides must fail before Model exposure"

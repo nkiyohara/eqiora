@@ -418,7 +418,8 @@ fn program(source: &str) -> KernelProgram {
 }
 
 fn cartesian_regions(dimensions: &[usize]) -> String {
-    let mut source = String::from("model CartesianScalar() {\n  \n  parameter coefficient: 1 = 2;\n");
+    let mut source =
+        String::from("model CartesianScalar() {\n  \n  parameter coefficient: 1 = 2;\n");
     for (region, dimensions) in dimensions.iter().copied().enumerate() {
         let bounds = (0..dimensions)
             .flat_map(|_| ["0", "1"])

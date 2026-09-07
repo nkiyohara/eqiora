@@ -1,4 +1,3 @@
-
 use super::*;
 use eqiora_lang::{BoundarySideSyntax, Document};
 
