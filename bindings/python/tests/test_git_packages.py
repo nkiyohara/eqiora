@@ -4,6 +4,8 @@ import json
 import shutil
 import subprocess
 import sys
+import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -11,6 +13,13 @@ import pytest
 import eqiora
 
 pytestmark = pytest.mark.skipif(sys.platform != "linux", reason="Git acquisition uses Linux containment")
+
+
+@pytest.fixture
+def git_scratch(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    with tempfile.TemporaryDirectory(prefix="eqiora-git-test-", dir=Path.home()) as directory:
+        monkeypatch.setenv("TMPDIR", directory)
+        yield
 
 
 def git(repo: Path, *args: str) -> str:
@@ -22,7 +31,7 @@ def git(repo: Path, *args: str) -> str:
     ).strip()
 
 
-def test_git_project_pins_branch_and_reopens_without_repository(tmp_path: Path) -> None:
+def test_git_project_pins_branch_and_reopens_without_repository(tmp_path: Path, git_scratch: None) -> None:
     repo = tmp_path / "repository"
     (repo / "src").mkdir(parents=True)
     (repo / "eqiora.toml").write_text('[package]\nname="org.example.Git"\nversion="1.0.0"\nentry="main"\n')
