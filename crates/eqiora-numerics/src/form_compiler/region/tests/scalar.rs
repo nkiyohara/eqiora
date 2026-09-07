@@ -3,7 +3,7 @@ use eqiora_meshing::QuadratureRule;
 
 #[test]
 fn scalar_q1_uses_the_same_value_and_gradient_contractions() {
-    let source = "model Scalar {
+    let source = "model Scalar() {
         domain body = box(0, 2, 0, 3);
         domain left = boundary(body, axis = 0, side = lower);
         domain right = boundary(body, axis = 0, side = upper);

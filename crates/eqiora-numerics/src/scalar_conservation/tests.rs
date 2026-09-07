@@ -4,7 +4,7 @@ use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use super::*;
 
 const TRANSIENT: &str = r#"
-model ScalarBalance {
+model ScalarBalance() {
   domain body = box(0, 1);
   domain lower_face = boundary(body, axis = 0, side = lower);
   domain upper_face = boundary(body, axis = 0, side = upper);
@@ -44,10 +44,10 @@ public connector ScalarBoundary = field_physical(
 public component ScalarInterface1d(
   support body: volume(ambient_dimension = 1),
   support face: boundary(parent = body),
-  variable state: 1 on body
+  variable state: 1 on body,
+  parameter coefficient: 1,
+  port interface: conserving ScalarBoundary over face
 ) {
-  public parameter coefficient: 1;
-  public port interface: conserving ScalarBoundary over face;
 
   relation carrier on face {
     trace(state) - trace(interface) = 0;
@@ -55,7 +55,7 @@ public component ScalarInterface1d(
   }
 }
 
-model CompositeBalance {
+model CompositeBalance() {
   domain left = box(0, 0.5);
   domain left_lower = boundary(left, axis = 0, side = lower);
   domain left_upper = boundary(left, axis = 0, side = upper);
@@ -81,15 +81,15 @@ model CompositeBalance {
     normal(right_coefficient * grad(right_state)) = 0;
   }
   instance left_carrier: ScalarInterface1d(
-    support body = left,
-    support face = left_upper,
-    field state = left_state,
+    body = left,
+    face = left_upper,
+    state = left_state,
     coefficient = left_coefficient
   );
   instance right_carrier: ScalarInterface1d(
-    support body = right,
-    support face = right_lower,
-    field state = right_state,
+    body = right,
+    face = right_lower,
+    state = right_state,
     coefficient = right_coefficient
   );
 
@@ -418,7 +418,7 @@ fn program(source: &str) -> KernelProgram {
 }
 
 fn cartesian_regions(dimensions: &[usize]) -> String {
-    let mut source = String::from("model CartesianScalar {\n  \n  parameter coefficient: 1 = 2;\n");
+    let mut source = String::from("model CartesianScalar() {\n  \n  parameter coefficient: 1 = 2;\n");
     for (region, dimensions) in dimensions.iter().copied().enumerate() {
         let bounds = (0..dimensions)
             .flat_map(|_| ["0", "1"])

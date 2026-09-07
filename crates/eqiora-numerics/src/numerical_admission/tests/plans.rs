@@ -4,9 +4,9 @@ const POISSON_INTERVAL: &str = r#"
 public component PoissonInterval(
   support body: volume(ambient_dimension = 1),
   support left: boundary(parent = body),
-  support right: boundary(parent = body)
+  support right: boundary(parent = body),
+  parameter source_scale: 1 / m ^ 2
 ) {
-  public parameter source_scale: 1 / m ^ 2;
   variable potential: 1 on body;
   relation balance on body {
     -div(grad(potential)) - source_scale = 0;
@@ -24,9 +24,9 @@ public component PoissonBox(
   support y_lower: boundary(parent = body),
   support y_upper: boundary(parent = body),
   support z_lower: boundary(parent = body),
-  support z_upper: boundary(parent = body)
+  support z_upper: boundary(parent = body),
+  parameter source_scale: 1 / m ^ 2
 ) {
-  public parameter source_scale: 1 / m ^ 2;
   variable potential: 1 on body;
   relation balance on body {
     -div(grad(potential)) - source_scale = 0;
@@ -792,9 +792,9 @@ fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_field_results(
             "public component Coupled(
   support body: volume(ambient_dimension = 1),
   support left: boundary(parent = body),
-  support right: boundary(parent = body)
+  support right: boundary(parent = body),
+  parameter source_scale: 1 / m ^ 2
 ) {
-  public parameter source_scale: 1 / m ^ 2;
   \n",
         );
         for row in 0..count {

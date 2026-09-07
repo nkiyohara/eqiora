@@ -20,10 +20,10 @@ public component PoissonRectangle(
   support left: boundary(parent = region),
   support right: boundary(parent = region),
   support bottom: boundary(parent = region),
-  support top: boundary(parent = region)
+  support top: boundary(parent = region),
+  parameter wave_number: 1 / m,
+  parameter source_scale: 1 / m ^ 2
 ) {
-  public parameter wave_number: 1 / m;
-  public parameter source_scale: 1 / m ^ 2;
   variable potential: 1 on region;
   relation balance on region {
     -div(grad(potential))
@@ -45,11 +45,11 @@ public component MixedBoundaryElasticity(
   support left: boundary(parent = region),
   support right: boundary(parent = region),
   support bottom: boundary(parent = region),
-  support top: boundary(parent = region)
+  support top: boundary(parent = region),
+  parameter mu: kg / (m * s ^ 2),
+  parameter lambda: kg / (m * s ^ 2),
+  parameter length_scale: m
 ) {
-  public parameter mu: kg / (m * s ^ 2);
-  public parameter lambda: kg / (m * s ^ 2);
-  public parameter length_scale: m;
   variable displacement: vector<m, 2> on region;
   variable load_potential: kg / (m * s ^ 2) on region;
   relation load on region {

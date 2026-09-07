@@ -152,7 +152,7 @@ fn dim(exponents: [i32; 7]) -> DimExponents {
 }
 
 fn program(regions: usize, reversed: bool) -> (KernelProgram, BTreeMap<RawId, usize>) {
-    let mut source = String::from("model Regions {\n");
+    let mut source = String::from("model Regions() {\n");
     let order = if reversed {
         (0..regions).rev().collect::<Vec<_>>()
     } else {

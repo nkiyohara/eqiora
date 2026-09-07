@@ -48,7 +48,7 @@ const PRESSURE: DimExponents =
     DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
 
 const SOURCE: &str = r#"
-model stokes_e1_prescribed_velocity {
+model stokes_e1_prescribed_velocity() {
   domain fluid = box(-10, 10, -10, 10);
   domain body_no_slip = boundary(fluid, axis = 0, side = lower);
   domain outer_x_minus = boundary(fluid, axis = 0, side = lower);

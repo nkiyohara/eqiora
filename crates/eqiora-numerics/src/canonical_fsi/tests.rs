@@ -22,11 +22,10 @@ public component NewtonianInterface2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
   variable velocity: vector<m / s, 2> on body,
-  variable pressure: kg / (m * s ^ 2) on body
+  variable pressure: kg / (m * s ^ 2) on body,
+  parameter dynamic_viscosity: kg / (m * s),
+  port mechanical: conserving VelocityTractionBoundary over face
 ) {
-  public parameter dynamic_viscosity: kg / (m * s);
-  public port mechanical:
-    conserving VelocityTractionBoundary over face;
 
   relation interface on face {
     trace(velocity) - trace(mechanical) = 0;
@@ -41,12 +40,11 @@ public component ElasticInterface2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
   variable displacement: vector<m, 2> on body,
-  variable velocity: vector<m / s, 2> on body
+  variable velocity: vector<m / s, 2> on body,
+  parameter mu: kg / (m * s ^ 2),
+  parameter lambda: kg / (m * s ^ 2),
+  port mechanical: conserving VelocityTractionBoundary over face
 ) {
-  public parameter mu: kg / (m * s ^ 2);
-  public parameter lambda: kg / (m * s ^ 2);
-  public port mechanical:
-    conserving VelocityTractionBoundary over face;
 
   relation interface on face {
     trace(velocity) - trace(mechanical) = 0;
@@ -57,7 +55,7 @@ public component ElasticInterface2d(
   }
 }
 
-model Main {
+model Main() {
   domain fluid = box(0, 1, 0, 1);
   domain fluid_x_lower = boundary(fluid, axis = 0, side = lower);
   domain fluid_x_upper = boundary(fluid, axis = 0, side = upper);
@@ -116,17 +114,17 @@ model Main {
   relation solid_y_upper_zero on solid_y_upper { trace(solid_velocity) = 0; }
 
   instance fluid_interface: NewtonianInterface2d(
-    support body = fluid,
-    support face = fluid_x_upper,
-    field velocity = fluid_velocity,
-    field pressure = pressure,
+    body = fluid,
+    face = fluid_x_upper,
+    velocity = fluid_velocity,
+    pressure = pressure,
     dynamic_viscosity = viscosity
   );
   instance solid_interface: ElasticInterface2d(
-    support body = solid,
-    support face = solid_x_lower,
-    field displacement = displacement,
-    field velocity = solid_velocity,
+    body = solid,
+    face = solid_x_lower,
+    displacement = displacement,
+    velocity = solid_velocity,
     mu = mu,
     lambda = lambda
   );

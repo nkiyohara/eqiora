@@ -52,7 +52,7 @@ fn derive(source: &str) -> Result<EquationRoles, Diagnostic> {
     )
 }
 
-const THREE: &str = "model Three {
+const THREE: &str = "model Three() {
  domain body = box(0, 1, 0, 1);
 
  variable a: 1 on body;
@@ -126,7 +126,7 @@ fn ambiguous_principal_selection_rejects() {
 
 #[test]
 fn coefficient_chains_resolve_but_cycles_and_duplicates_reject() {
-    let source = "model Coefficients {
+    let source = "model Coefficients() {
  domain body = box(0, 1, 0, 1);
 
  variable u: 1 on body;
@@ -213,7 +213,7 @@ fn existing_fsi_equations_derive_coefficients_kinematics_and_mixed_trials() {
 
 #[test]
 fn mixed_constraint_requires_one_equation_paired_multiplier() {
-    let source = "model Mixed {
+    let source = "model Mixed() {
  domain body = box(0, 1, 0, 1);
 
  variable u: vector<m / s, 2> on body;

@@ -583,7 +583,7 @@ mod tests {
     use super::*;
 
     const DECAY: &str = r#"
-model decay {
+model decay() {
   state x: 1;
   initial { x = 1; }
   parameter rate: 1 / s = 1;

@@ -16,7 +16,7 @@ use crate::form_compiler::vocabulary::{
 };
 
 const SOURCE: &str = r#"
-model steady_stokes {
+model steady_stokes() {
   domain fluid = box(0, 2, -1, 1);
   domain x_lower = boundary(fluid, axis = 0, side = lower);
   domain x_upper = boundary(fluid, axis = 0, side = upper);
@@ -61,11 +61,10 @@ public component NewtonianBoundary2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
   variable velocity: vector<m / s, 2> on body,
-  variable pressure: kg / (m * s ^ 2) on body
+  variable pressure: kg / (m * s ^ 2) on body,
+  parameter dynamic_viscosity: kg / (m * s),
+  port mechanical: conserving VelocityTractionBoundary over face
 ) {
-  public parameter dynamic_viscosity: kg / (m * s);
-  public port mechanical:
-    conserving VelocityTractionBoundary over face;
 
   relation interface on face {
     trace(velocity) - trace(mechanical) = 0;
@@ -79,11 +78,9 @@ public component NewtonianBoundary2d(
 public component NormalPressureTraction2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
-  variable pressure: kg / (m * s ^ 2) on body
+  variable pressure: kg / (m * s ^ 2) on body,
+  port mechanical: conserving VelocityTractionBoundary over face
 ) {
-
-  public port mechanical:
-    conserving VelocityTractionBoundary over face;
 
   relation prescribed_traction on face {
     flux(mechanical) - normal(isotropic_lift(pressure)) = 0;
@@ -95,7 +92,7 @@ const TRANSIENT_NAVIER_STOKES_SOURCE: &str = r#"
 public pure operator outer_product(left: spatial[1], right: spatial[1]) -> spatial[2]
   = component(left, 0) * component(right, 1);
 
-model transient_navier_stokes {
+model transient_navier_stokes() {
   domain fluid = box(0, 2, -1, 1);
   domain x_lower = boundary(fluid, axis = 0, side = lower);
   domain x_upper = boundary(fluid, axis = 0, side = upper);
@@ -248,16 +245,16 @@ fn source_with_normal_pressure(operator: char) -> String {
 fn port_closed_normal_pressure_source(terminal_operator: char) -> String {
     let direct = source_with_normal_pressure('+');
     let instances = r#"instance fluid_boundary: NewtonianBoundary2d(
-    support body = fluid,
-    support face = x_upper,
-    field velocity = velocity,
-    field pressure = pressure,
+    body = fluid,
+    face = x_upper,
+    velocity = velocity,
+    pressure = pressure,
     dynamic_viscosity = mu
   );
   instance ambient_boundary: NormalPressureTraction2d(
-    support body = fluid,
-    support face = x_upper,
-    field pressure = ambient_pressure
+    body = fluid,
+    face = x_upper,
+    pressure = ambient_pressure
   );
   connect conserving fluid_boundary.mechanical, ambient_boundary.mechanical;"#;
     format!(

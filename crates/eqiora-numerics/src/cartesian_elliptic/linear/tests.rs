@@ -35,7 +35,7 @@ fn authored(reaction: &[Vec<f64>], reverse: bool) -> (String, Vec<String>) {
         order.reverse();
     }
     let mut source = String::from(
-        "model Coupled { domain body = box(0, 1); domain left = boundary(body, axis = 0, side = lower); domain right = boundary(body, axis = 0, side = upper); parameter inverse_area: 1 / m ^ 2 = 1;\n",
+        "model Coupled() { domain body = box(0, 1); domain left = boundary(body, axis = 0, side = lower); domain right = boundary(body, axis = 0, side = upper); parameter inverse_area: 1 / m ^ 2 = 1;\n",
     );
     for &row in &order {
         source += &format!("variable {}: 1 on body;\n", names[row]);

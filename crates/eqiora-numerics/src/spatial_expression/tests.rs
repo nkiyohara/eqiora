@@ -6,7 +6,7 @@ use eqiora_schema::kernel::KernelNode;
 #[test]
 fn source_square_root_halves_dimensions_and_checks_value_and_derivative_domains() {
     let source = r#"
-model Root {
+model Root() {
   domain interval = box(0, 1);
 
   parameter area: m ^ 2 = 4000000 [mm ^ 2];
@@ -100,7 +100,7 @@ fn constant_tape_retains_coordinate_dimension() {
 #[test]
 fn lowers_both_axes_from_one_canonical_plane_relation() {
     let source = r#"
-model plane_source {
+model plane_source() {
   domain plane = box(0, 2, 0, 3);
 
   variable u: m on plane;
@@ -142,7 +142,7 @@ u - (coordinate(0) + coordinate(1)) = 0;
 #[test]
 fn retains_parameter_identity_and_evaluates_analytic_jvp() {
     let source = r#"
-model parameterized_source {
+model parameterized_source() {
   domain interval = box(0, 2);
 
   variable u: m ^ 2 on interval;
