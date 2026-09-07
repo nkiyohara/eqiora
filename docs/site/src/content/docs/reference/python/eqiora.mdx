@@ -15,7 +15,7 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/__init__.pyi" kind="blob">bindings/python/python/eqiora/__init__.pyi</ExactSourceLink>
 
-This module publishes **94** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **95** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
 <a id="api-eqiora-__version__"></a>
 
@@ -1795,6 +1795,18 @@ Authority: <ExactSourceLink path="crates/eqiora-python/src/package.rs" kind="blo
 
 ```python
 def add_bundled_dependency(project_root: str | PathLike[str], store_root: str | PathLike[str], name: str, *, version: str) -> bytes: ...
+```
+
+<a id="api-eqiora-add_git_dependency"></a>
+
+## `add_git_dependency`
+
+Add an immutable Git package through the shared native project transaction.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/package.rs" kind="blob">crates/eqiora-python/src/package.rs::add_git_dependency</ExactSourceLink>
+
+```python
+def add_git_dependency(project_root: str | PathLike[str], store_root: str | PathLike[str], name: str, *, version: str, repository: str, revision: str) -> bytes: ...
 ```
 
 <a id="api-eqiora-fetch_project"></a>

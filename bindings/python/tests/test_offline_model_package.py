@@ -146,6 +146,7 @@ EXPECTED_EQIORA_ALL = [
     "time",
     "trajectory",
     "add_bundled_dependency",
+    "add_git_dependency",
     "fetch_project",
     "open_project",
     "update_project",

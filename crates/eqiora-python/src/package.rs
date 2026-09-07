@@ -96,6 +96,12 @@ fn remove_local_dependency(
 }
 
 enum LocalDependencyEdit {
+    Git {
+        name: String,
+        version: String,
+        repository: String,
+        revision: String,
+    },
     Lock,
     Fetch,
     Open,
@@ -110,6 +116,31 @@ enum LocalDependencyEdit {
         path: String,
     },
     Remove(String),
+}
+
+/// Add a contained exact Git source through the shared native project transaction.
+#[pyfunction]
+#[pyo3(signature = (project_root, store_root, name, *, version, repository, revision))]
+fn add_git_dependency(
+    py: Python<'_>,
+    project_root: &Bound<'_, PyAny>,
+    store_root: &Bound<'_, PyAny>,
+    name: String,
+    version: String,
+    repository: String,
+    revision: String,
+) -> PyResult<Py<PyBytes>> {
+    update_local_project(
+        py,
+        project_root,
+        store_root,
+        LocalDependencyEdit::Git {
+            name,
+            version,
+            repository,
+            revision,
+        },
+    )
 }
 
 /// Add an explicitly requested exact bundled package through the native project transaction.
@@ -188,6 +219,19 @@ fn update_local_project(
         let store_root = unicode_path(py, store_root)?;
         let resolution = py
             .detach(move || match edit {
+                LocalDependencyEdit::Git {
+                    name,
+                    version,
+                    repository,
+                    revision,
+                } => PackagedModelDocument::add_git_package_dependency_v1(
+                    project_root,
+                    store_root,
+                    &name,
+                    &version,
+                    &repository,
+                    &revision,
+                ),
                 LocalDependencyEdit::Lock => {
                     PackagedModelDocument::resolve_local_package_project_v1(
                         project_root,
@@ -611,6 +655,7 @@ fn compatibility_failure(message: impl Into<String>) -> CompilePackageFailure {
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(add_bundled_dependency, module)?)?;
+    module.add_function(wrap_pyfunction!(add_git_dependency, module)?)?;
     module.add_function(wrap_pyfunction!(fetch_project, module)?)?;
     module.add_function(wrap_pyfunction!(open_project, module)?)?;
     module.add_function(wrap_pyfunction!(vendor_project, module)?)?;

@@ -712,6 +712,7 @@ dependencies = [
  "eqiora-sem",
  "eqiora-solver",
  "eqiora-time",
+ "rustix",
  "serde",
  "serde_json",
  "sha2",

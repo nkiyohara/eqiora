@@ -22,13 +22,14 @@ impl PackagedModelDocument {
                     version: version.to_owned(),
                     path: None,
                     bundled: true,
+                    git: None,
                 },
             );
             Ok(true)
         })
     }
 
-    /// Fetch the existing exact lock from explicitly declared local/bundled sources.
+    /// Fetch the existing exact lock from explicitly declared local, bundled or Git sources.
     /// Neither authored requests nor the accepted lock are changed.
     ///
     /// # Errors
@@ -45,7 +46,11 @@ impl PackagedModelDocument {
         let prepared = prepare_local_package_project(
             project,
             &project_path,
-            LocalProjectOverrides::default(),
+            LocalProjectOverrides {
+                allow_git: true,
+                locked_git: Some(lock.git.clone()),
+                ..Default::default()
+            },
         )?;
         let dependencies = prepared
             .root
@@ -55,14 +60,20 @@ impl PackagedModelDocument {
             .collect::<Vec<_>>();
         let actual =
             ResolutionRecordV1::from_exact_releases(&prepared.root.release, &dependencies)?;
-        require_lock(&lock, &actual)?;
+        require_lock(&lock.resolution, &actual)?;
+        let actual_lock = lock::ProjectLock::new(actual, prepared.git)?;
+        if actual_lock.bytes()? != lock.bytes()? {
+            return Err(git::error(
+                "Git selections differ from accepted project lock",
+            ));
+        }
         install(
             &store_root.into(),
             dependencies
                 .iter()
                 .chain(std::iter::once(&prepared.root.release)),
         )?;
-        Ok(lock)
+        Ok(lock.resolution)
     }
 
     /// Validate the authored root and all accepted package bytes in one explicit offline store.
@@ -108,7 +119,7 @@ fn open(
     let store = DirectoryPackageStore::open_ambient(&store_path)
         .map_err(|error| PackagePreparationError::LocalDirectoryGraph(error.to_string()))?;
     let graph = ExactResolver
-        .resolve(&lock, &store)
+        .resolve(&lock.resolution, &store)
         .map_err(PackagePreparationError::Resolution)?;
     let dependencies = graph
         .packages()
@@ -117,6 +128,7 @@ fn open(
         .collect::<Vec<_>>();
     let mut overrides = LocalProjectOverrides {
         offline: true,
+        locked_git: Some(lock.git.clone()),
         ..Default::default()
     };
     retain_releases(&mut overrides.prepared, &dependencies)?;
@@ -128,8 +140,8 @@ fn open(
         .cloned()
         .collect::<Vec<_>>();
     let actual = ResolutionRecordV1::from_exact_releases(&prepared.root.release, &dependencies)?;
-    require_lock(&lock, &actual)?;
-    Ok((lock, graph))
+    require_lock(&lock.resolution, &actual)?;
+    Ok((lock.resolution, graph))
 }
 
 fn require_lock(

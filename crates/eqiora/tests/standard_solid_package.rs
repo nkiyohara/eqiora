@@ -154,13 +154,9 @@ entry = "solid"
     let resolution =
         PackagedModelDocument::resolve_local_package_project_v1(&scratch.0, &store_path)
             .expect("resolve standard package project");
-    let lock_bytes = fs::read(scratch.0.join("eqiora.lock")).expect("read exact lock");
-    assert_eq!(
-        lock_bytes,
-        resolution.canonical_json().expect("canonical resolution")
-    );
-
-    let reopened = ResolutionRecordV1::from_json(&lock_bytes).expect("reopen exact lock");
+    let reopened = PackagedModelDocument::open_local_package_project_v1(&scratch.0, &store_path)
+        .expect("reopen exact project lock");
+    assert_eq!(reopened, resolution);
     let store = DirectoryPackageStore::open_ambient(store_path).expect("open offline store");
     let document = PackagedModelDocument::compile_locked(&store, &reopened, "Main")
         .expect("compile from exact offline store");

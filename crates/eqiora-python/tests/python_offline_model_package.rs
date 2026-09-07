@@ -170,11 +170,12 @@ fn local_package_project_locks_and_compiles_a_model_through_python() -> PyResult
                 r#"
 resolution = eqiora.resolve_local_project(project, store)
 assert type(resolution) is bytes
-assert open(project + "/eqiora.lock", "rb").read() == resolution
+assert eqiora.open_project(project, store) == resolution
 model = eqiora.compile_package(store, resolution, entry_model="Main")
 assert model.package_compilation_digest is not None
 assert len(model.parameter_ids) == 1
 before_manifest = open(project + "/eqiora.toml", "rb").read()
+before_lock = open(project + "/eqiora.lock", "rb").read()
 try:
     eqiora.add_local_dependency(project, store, "org.example.Library", version="2.0.0", path="../library")
 except eqiora.CompatibilityError:
@@ -182,10 +183,11 @@ except eqiora.CompatibilityError:
 else:
     raise AssertionError("wrong exact version accepted")
 assert open(project + "/eqiora.toml", "rb").read() == before_manifest
-assert open(project + "/eqiora.lock", "rb").read() == resolution
+assert open(project + "/eqiora.lock", "rb").read() == before_lock
+assert eqiora.open_project(project, store) == resolution
 added = eqiora.add_local_dependency(project, store, "org.example.Library", version="1.0.0", path="../library")
 assert added != resolution
-assert open(project + "/eqiora.lock", "rb").read() == added
+assert eqiora.open_project(project, store) == added
 eqiora.compile_package(store, added, entry_model="Main")
 from pathlib import Path
 source_path = Path(project) / "root/src/main.eqi"
@@ -196,7 +198,7 @@ eqiora.compile_package(store, imported, entry_model="library.Shared")
 source_path.write_text(original_source)
 removed = eqiora.remove_local_dependency(project, store, "org.example.Library")
 assert removed == resolution
-assert open(project + "/eqiora.lock", "rb").read() == removed
+assert eqiora.open_project(project, store) == removed
 "#
             ),
             None,

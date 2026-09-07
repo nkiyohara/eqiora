@@ -156,7 +156,9 @@ fn missing_or_modified_vendor_entries_fail_without_overwrite() {
     );
     assert_eq!(fs::read(&entry).unwrap(), b"modified");
     assert_eq!(
-        read_project_lock(&open_project_root(&project).unwrap()).unwrap(),
+        read_project_lock(&open_project_root(&project).unwrap())
+            .unwrap()
+            .resolution,
         lock
     );
     fs::write(entry, accepted).unwrap();

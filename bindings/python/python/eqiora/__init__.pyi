@@ -1384,6 +1384,13 @@ def add_bundled_dependency(
     """
     ...
 
+def add_git_dependency(project_root: str | PathLike[str], store_root: str | PathLike[str], name: str, *, version: str, repository: str, revision: str) -> bytes:
+    """Add an immutable Git package through the shared native project transaction.
+
+    Authority: ``crates/eqiora-python/src/package.rs::add_git_dependency``.
+    """
+    ...
+
 def fetch_project(project_root: str | PathLike[str], store_root: str | PathLike[str]) -> bytes:
     """Materialize the accepted lock from explicit sources without updating it.
 
@@ -1621,6 +1628,7 @@ __all__ = [
     "time",
     "trajectory",
     "add_bundled_dependency",
+    "add_git_dependency",
     "fetch_project",
     "open_project",
     "update_project",

@@ -1,5 +1,7 @@
 //! Exact local-directory package resolution and store preparation.
 
+mod git;
+mod lock;
 mod offline;
 mod transaction;
 
@@ -57,6 +59,7 @@ struct PreparedLocalProject {
     root: PreparedLocalPackage,
     packages: BTreeMap<PackageKey, LocalPackageSource>,
     prepared: BTreeMap<PackageKey, PreparedLocalPackage>,
+    git: Vec<lock::GitPin>,
 }
 
 #[derive(Default)]
@@ -65,6 +68,12 @@ struct LocalProjectOverrides {
     sources: BTreeMap<PathBuf, String>,
     offline: bool,
     prepared: BTreeMap<PackageKey, PreparedLocalPackage>,
+    allow_git: bool,
+    confined: bool,
+    git: Vec<lock::GitPin>,
+    locked_git: Option<Vec<lock::GitPin>>,
+    git_stack: BTreeSet<String>,
+    git_count: std::sync::Arc<std::sync::atomic::AtomicUsize>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -93,6 +102,8 @@ struct LocalProjectDependency {
     path: Option<String>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     bundled: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    git: Option<git::GitSource>,
 }
 
 fn default_source_root() -> String {
@@ -121,6 +132,7 @@ impl PackagedModelDocument {
                     version: version.to_owned(),
                     path: Some(path.to_owned()),
                     bundled: false,
+                    git: None,
                 },
             );
             Ok(true)
@@ -152,7 +164,7 @@ impl PackagedModelDocument {
     /// `eqiora.toml` owns the root package name, exact version, source root, entry module, and
     /// direct local dependencies. Dependency manifests use the same format. Resolution discovers
     /// bounded `.eqi` inventories, generates closed package manifests, validates the exact graph,
-    /// and atomically replaces `eqiora.lock` with canonical [`ResolutionRecordV1`] bytes.
+    /// and atomically replaces `eqiora.lock` with the current project provenance envelope.
     ///
     /// # Errors
     ///
@@ -207,6 +219,7 @@ fn update_local_package_project(
         LocalProjectOverrides {
             manifest: Some(candidate),
             sources: BTreeMap::new(),
+            allow_git: true,
             ..Default::default()
         },
     )?;
@@ -236,8 +249,8 @@ fn update_local_package_project(
                     source,
                 })?;
     }
-    transaction::commit(&prepared.project, &manifest, &resolution.canonical_json()?)
-        .map_err(transaction_error)?;
+    let lock = lock::ProjectLock::new(resolution.clone(), prepared.git)?;
+    transaction::commit(&prepared.project, &manifest, &lock.bytes()?).map_err(transaction_error)?;
     Ok(resolution)
 }
 
@@ -359,6 +372,7 @@ fn prepare_local_package_project(
         root: root_package,
         packages,
         prepared,
+        git: overrides.git,
     })
 }
 
@@ -502,12 +516,85 @@ fn load_local_package(
     for (declared_name, dependency) in manifest.dependencies {
         let dependency_name = QualifiedName::parse(&declared_name)?;
         let dependency_version = ExactVersion::parse(&dependency.version)?;
-        if dependency.path.is_some() == dependency.bundled {
+        if usize::from(dependency.path.is_some())
+            + usize::from(dependency.bundled)
+            + usize::from(dependency.git.is_some())
+            != 1
+        {
             return Err(PackagePreparationError::LocalDirectoryGraph(format!(
-                "dependency `{declared_name}` requires exactly one explicit path or bundled source"
+                "dependency `{declared_name}` requires exactly one explicit path, bundled or Git source"
             )));
         }
         let expected = (dependency_name.clone(), dependency_version);
+        if let Some(source) = &dependency.git {
+            source.validate()?;
+            if overrides.confined && !source.repository.starts_with("https://") {
+                return Err(git::error(
+                    "fetched packages cannot authorize ambient local Git repositories",
+                ));
+            }
+            let pin = overrides
+                .locked_git
+                .as_ref()
+                .and_then(|pins| {
+                    pins.iter().find(|pin| {
+                        pin.declaring == key.0
+                            && pin.declaring_version == key.1
+                            && pin.dependency == expected.0
+                            && pin.version == expected.1
+                            && pin.request == source.rev
+                    })
+                })
+                .cloned();
+            if overrides.locked_git.is_some() && pin.is_none() {
+                return Err(git::error("Git request differs from accepted project lock"));
+            }
+            if !overrides.offline {
+                if !overrides.allow_git {
+                    return Err(git::error(
+                        "Git source requires explicit package fetch or update",
+                    ));
+                }
+                let (prepared, commit) = git::prepare(
+                    source,
+                    pin.as_ref().map(|pin| pin.commit.as_str()),
+                    &project_path.join(&relative_path),
+                    overrides,
+                )?;
+                if prepared.root.release.manifest().name() != &expected.0
+                    || prepared.root.release.manifest().version() != &expected.1
+                {
+                    return Err(git::error(
+                        "Git package differs from requested exact name/version",
+                    ));
+                }
+                let mut releases = prepared
+                    .root
+                    .dependencies
+                    .values()
+                    .cloned()
+                    .collect::<Vec<_>>();
+                releases.push(prepared.root.release);
+                for release in &releases {
+                    let identity = release.package_identity()?;
+                    if packages.contains_key(&(identity.name.clone(), identity.version.clone())) {
+                        return Err(git::error("package has conflicting local and Git sources"));
+                    }
+                }
+                offline::retain_releases(&mut overrides.prepared, &releases)?;
+                overrides.git.extend(prepared.git);
+                overrides.git.push(lock::GitPin {
+                    declaring: key.0.clone(),
+                    declaring_version: key.1.clone(),
+                    dependency: expected.0.clone(),
+                    version: expected.1.clone(),
+                    request: source.rev.clone(),
+                    commit,
+                });
+                dependencies.insert(dependency_name, expected);
+                continue;
+            }
+        }
         if overrides.offline {
             if let Some(path) = &dependency.path {
                 resolve_dependency_path(&relative_path, path)?;
@@ -540,6 +627,9 @@ fn load_local_package(
             &relative_path,
             dependency.path.as_deref().expect("validated path source"),
         )?;
+        if overrides.confined && dependency_path.starts_with("..") {
+            return Err(git::error("Git dependency path escapes fetched repository"));
+        }
         let actual = load_local_package(
             project,
             project_path,
@@ -709,25 +799,17 @@ fn read_project_manifest(project: &Dir) -> Result<LocalProjectManifest, PackageP
             "{PROJECT_MANIFEST} is not UTF-8: {error}"
         ))
     })?;
-    toml::from_str(text).map_err(|error| {
-        PackagePreparationError::LocalDirectoryGraph(format!(
-            "cannot decode {PROJECT_MANIFEST}: {error}"
-        ))
+    toml::from_str(text).map_err(|_| {
+        PackagePreparationError::LocalDirectoryGraph(format!("cannot decode {PROJECT_MANIFEST}"))
     })
 }
 
-fn read_project_lock(project: &Dir) -> Result<ResolutionRecordV1, PackagePreparationError> {
+fn read_project_lock(project: &Dir) -> Result<lock::ProjectLock, PackagePreparationError> {
     let _guard = transaction::read_guard(project)
         .map_err(|error| PackagePreparationError::LocalDirectoryGraph(error.to_string()))?;
     let bytes = transaction::accepted_lock(project)
         .map_err(|error| PackagePreparationError::LocalDirectoryGraph(error.to_string()))?;
-    let resolution = ResolutionRecordV1::from_json(&bytes)?;
-    if resolution.canonical_json()? != bytes {
-        return Err(PackagePreparationError::LocalDirectoryGraph(format!(
-            "{PROJECT_LOCK} is not canonical"
-        )));
-    }
-    Ok(resolution)
+    lock::ProjectLock::decode(&bytes)
 }
 
 fn prepare_local_package(

@@ -31,6 +31,102 @@ fn write(path: impl AsRef<Path>, contents: &str) {
     fs::write(path, contents).expect("write fixture file");
 }
 
+#[cfg(target_os = "linux")]
+#[test]
+fn cli_git_package_locks_fetches_and_compiles_offline() {
+    let fixture = TestDirectory::create();
+    let repo = fixture.0.join("repository");
+    let project = fixture.0.join("project");
+    let store = fixture.0.join("store");
+    fs::create_dir(&store).unwrap();
+    write(
+        repo.join("eqiora.toml"),
+        "[package]\nname=\"org.example.Git\"\nversion=\"1.0.0\"\nentry=\"main\"\n",
+    );
+    write(
+        repo.join("src/main.eqi"),
+        "public model Shared { parameter gain: 1 = 2; relation law continuous { gain - 2 = 0; } }",
+    );
+    for args in [
+        vec!["init", "--initial-branch=main"],
+        vec!["add", "."],
+        vec!["commit", "-m", "first"],
+    ] {
+        assert!(
+            Command::new("/usr/bin/git")
+                .args([
+                    "-c",
+                    "user.name=Fixture",
+                    "-c",
+                    "user.email=fixture@example.invalid",
+                    "-c",
+                    "core.hooksPath=/dev/null",
+                    "-c",
+                    "commit.gpgsign=false"
+                ])
+                .args(args)
+                .current_dir(&repo)
+                .env_clear()
+                .env("HOME", &repo)
+                .env("PATH", "/usr/bin:/bin")
+                .env("GIT_CONFIG_NOSYSTEM", "1")
+                .output()
+                .unwrap()
+                .status
+                .success()
+        );
+    }
+    write(
+        project.join("eqiora.toml"),
+        "[package]\nname=\"org.example.Root\"\nversion=\"1.0.0\"\nentry=\"main\"\n",
+    );
+    write(
+        project.join("src/main.eqi"),
+        "import org.example.Git.main as library; model Main {}",
+    );
+    let add = Command::new(env!("CARGO_BIN_EXE_eqiora"))
+        .args(["package", "add"])
+        .arg(&project)
+        .args(["org.example.Git", "--version", "1.0.0", "--git"])
+        .arg(&repo)
+        .args(["--rev", "refs/heads/main", "--store"])
+        .arg(&store)
+        .output()
+        .unwrap();
+    assert!(
+        add.status.success(),
+        "{}",
+        String::from_utf8_lossy(&add.stderr)
+    );
+    let lock = fs::read(project.join("eqiora.lock")).unwrap();
+    let fetch = Command::new(env!("CARGO_BIN_EXE_eqiora"))
+        .args(["package", "fetch"])
+        .arg(&project)
+        .arg("--store")
+        .arg(&store)
+        .output()
+        .unwrap();
+    assert!(
+        fetch.status.success(),
+        "{}",
+        String::from_utf8_lossy(&fetch.stderr)
+    );
+    fs::remove_dir_all(repo).unwrap();
+    let check = Command::new(env!("CARGO_BIN_EXE_eqiora"))
+        .args(["package", "check"])
+        .arg(&project)
+        .args(["--entry-model", "library.Shared", "--store"])
+        .arg(&store)
+        .output()
+        .unwrap();
+    assert!(
+        check.status.success(),
+        "{}",
+        String::from_utf8_lossy(&check.stderr)
+    );
+    assert_eq!(fs::read(project.join("eqiora.lock")).unwrap(), lock);
+}
+
 #[test]
 fn cli_bundled_vendor_fetch_update_and_offline_check_share_project_owner() {
     let fixture = TestDirectory::create();

@@ -228,8 +228,8 @@ package directory. Package names, not local aliases, authorize imports.
 manifest retains this selection for offline compilation. `entry_model` selects
 a Model in that module or through one of its explicit imports.
 
-Python resolves that project into the store and atomically writes the canonical
-resolution to `eqiora.lock`:
+Python resolves that project into the store and atomically writes its current
+project lock to `eqiora.lock`:
 
 ```python
 from pathlib import Path
@@ -239,7 +239,7 @@ import eqiora
 store_root = Path("package-store")
 store_root.mkdir()
 resolution = eqiora.resolve_local_project(".", store_root)
-assert Path("eqiora.lock").read_bytes() == resolution
+assert eqiora.open_project(".", store_root) == resolution
 
 model = eqiora.compile_package(
     store_root,
@@ -261,6 +261,44 @@ The CLI uses the same operations: `package add --bundled`, `package fetch`,
 `package update`, `package vendor --destination`, and `package check`, each with
 the project path and `--store`.
 
+### Explicit Git sources
+
+On Linux, add a public HTTPS repository or an explicit absolute/`./`/`../` local
+repository path through the same project owner:
+
+```python
+resolution = eqiora.add_git_dependency(
+    ".", "package-store", "org.example.Materials", version="1.0.0",
+    repository="https://example.org/materials.git", revision="refs/heads/main",
+)
+```
+
+The CLI equivalent is `eqiora package add . org.example.Materials --version 1.0.0
+--git https://example.org/materials.git --rev refs/heads/main --store package-store`.
+Revisions are lowercase full 40-digit commit IDs or explicit `refs/heads/...` /
+`refs/tags/...` names. Arbitrary revision expressions are rejected.
+
+`eqiora.lock` is a project envelope containing the exact semantic resolution and
+immutable Git commit selections. API return bytes remain the semantic resolution
+accepted by `compile_package`; they are not the entire project lock. `fetch_project`
+retains the accepted commit even if its branch moves. `update_project` explicitly
+resolves the authored request again. `open_project`, compile and run never invoke Git.
+
+Git acquisition requires `/usr/bin/git`, `/usr/bin/prlimit` and home-backed `TMPDIR`.
+Each acquisition has a 90-second deadline; Git runs with 1 GiB address space,
+64 MiB per-file storage, 60 CPU seconds, 64 open descriptors and bounded output.
+Admission limits are 64 MiB stored inventory / 10,000 entries, 4,096 source files,
+32 directory levels, 8 MiB per expanded blob and 32 MiB total source bytes.
+One project acquires at most 16 repositories with nesting depth 8.
+
+There is no checkout, hook/filter execution or submodule acquisition. Local repository
+configuration and object alternates are not accepted. Git tree symlinks, gitlinks,
+path escapes and conflicting paths fail before publication. Fetched package-local
+dependencies stay inside the fetched tree; fetched packages cannot select ambient
+local Git repositories. HTTPS is unauthenticated, with redirects and credential
+helpers disabled; userinfo, query strings and fragments are rejected. Unsupported
+containment environments fail instead of running an uncontained fetch.
+
 The shared Rust owner opens manifest-relative paths without following symbolic
 links, discovers bounded `.eqi` inventories, generates each closed package
 manifest, prepares the exact graph leaf-first, and publishes the lock only
@@ -271,7 +309,7 @@ source bundle; it is never compiled as model source.
 Use `eqiora.add_local_dependency(project_root, store_root, name, version="1.0.0",
 path="packages/library")` to add or replace a direct dependency, and
 `eqiora.remove_local_dependency(project_root, store_root, name)` to remove it.
-Both return the new lock bytes. The complete candidate is validated before the
+Both return the new semantic resolution bytes. The complete candidate is validated before the
 manifest and lock are published; a failed update preserves the accepted pair.
 Remove source imports before removing a dependency they require.
 

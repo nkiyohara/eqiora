@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+import json
 from pathlib import Path
 
 import pytest
@@ -78,7 +79,7 @@ def test_bundled_project_moves_with_one_offline_closure(tmp_path: Path) -> None:
     assert eqiora.open_project(moved, moved / "vendor") == resolution
     replay = eqiora.compile_package(moved / "vendor", resolution, entry_model="Main")
     assert replay.revision.number == original.revision.number == 1
-    assert (moved / "eqiora.lock").read_bytes() == resolution
+    assert json.loads((moved / "eqiora.lock").read_bytes())["resolution"] == json.loads(resolution)
 
 
 def test_fetch_and_update_are_explicit_and_failed_add_is_atomic(tmp_path: Path) -> None:
@@ -92,7 +93,7 @@ def test_fetch_and_update_are_explicit_and_failed_add_is_atomic(tmp_path: Path) 
             application, store, "Eqiora.Fluid.Incompressible", version="99.0.0"
         )
     assert (application / "eqiora.toml").read_bytes() == manifest
-    assert (application / "eqiora.lock").read_bytes() == resolution
+    assert json.loads((application / "eqiora.lock").read_bytes())["resolution"] == json.loads(resolution)
     second = tmp_path / "second"
     second.mkdir()
     assert eqiora.fetch_project(application, second) == resolution
