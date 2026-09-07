@@ -263,18 +263,18 @@ mod tests {
         )
         .expect("manifest");
         let first = SemanticContentV1::new(vec![
-            declaration("B", "component B {}"),
-            declaration("A", "component A {}"),
+            declaration("B", "component B() {}"),
+            declaration("A", "component A() {}"),
         ])
         .expect("content");
         let second = SemanticContentV1::new(vec![
-            declaration("A", "component A {}"),
-            declaration("B", "component B {}"),
+            declaration("A", "component A() {}"),
+            declaration("B", "component B() {}"),
         ])
         .expect("content");
         let changed = SemanticContentV1::new(vec![
-            declaration("A", "component A { parameter x; }"),
-            declaration("B", "component B {}"),
+            declaration("A", "component A(parameter x: 1) {}"),
+            declaration("B", "component B() {}"),
         ])
         .expect("content");
         assert_eq!(first.canonical_json(), second.canonical_json());
@@ -306,7 +306,7 @@ mod tests {
             .expect("manifest")
         };
         let content =
-            SemanticContentV1::new(vec![declaration("Main", "model Main {}")]).expect("content");
+            SemanticContentV1::new(vec![declaration("Main", "model Main() {}")]).expect("content");
         let first = manifest(target.clone());
 
         let changed_target = ModelPackageIdentityV1::new(
