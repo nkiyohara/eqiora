@@ -312,18 +312,27 @@ class Domain:
     def __hash__(self) -> int: ...
 
 @final
-class Representation:
-    """Immutable continuum representation declaration.
+class FieldRole:
+    """Author-declared evolution role independent of spatial support.
 
-    Authority: ``crates/eqiora-python/src/modeling.rs::PyRepresentation``.
+    Authority: ``crates/eqiora-python/src/modeling.rs::PyFieldRole``.
     """
 
-    @staticmethod
-    def continuum(name: str) -> Representation: ...
-    @property
-    def name(self) -> str: ...
+    Variable: ClassVar[FieldRole]
+    State: ClassVar[FieldRole]
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
+
+@final
+class Initial:
+    """Simultaneous fresh-initialization residuals, each equal to zero.
+
+    Authority: ``crates/eqiora-python/src/modeling.rs::PyInitial``.
+    """
+
+    def __new__(cls, *residuals: _ExpressionLike) -> Self: ...
+    @property
+    def residuals(self) -> list[Expression]: ...
 
 @final
 class Expression:
@@ -355,22 +364,19 @@ class Field:
         name: str,
         *,
         domain: Domain | None = None,
-        representation: Representation | None = None,
+        role: FieldRole,
         value_type: ValueType | None = None,
-        initial: float | None = None,
     ) -> Self: ...
     @property
     def name(self) -> str: ...
     @property
     def dimension(self) -> Dimension: ...
     @property
-    def initial(self) -> float | None: ...
+    def role(self) -> FieldRole: ...
     @property
     def value_type(self) -> ValueType: ...
     @property
     def domain(self) -> Domain | None: ...
-    @property
-    def representation(self) -> Representation | None: ...
     def __neg__(self) -> Expression: ...
     def __add__(self, right: _ExpressionLike, /) -> Expression: ...
     def __radd__(self, left: _ExpressionLike, /) -> Expression: ...
@@ -1435,7 +1441,7 @@ class Run(Generic[_RunResultT]):
 
 _ModelDeclaration = (
     Domain
-    | Representation
+    | Initial
     | Field
     | Parameter
     | PhysicalDomain
@@ -1737,7 +1743,8 @@ __all__ = [
     "PhysicalDomain",
     "PropertyBinding",
     "Plan",
-    "Representation",
+    "FieldRole",
+    "Initial",
     "Relation",
     "Result",
     "Revision",

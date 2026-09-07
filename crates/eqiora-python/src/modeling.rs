@@ -5,7 +5,7 @@ use eqiora::api::ModelDocument;
 use eqiora::language::{
     DraftBoundarySide, DraftConservingConnection, DraftConservingPort, DraftDeclaration,
     DraftExpression, DraftField, DraftParameter, DraftPhysicalDomain, DraftRelation,
-    DraftRepresentation, DraftSpatialDomain, ModelDraft,
+    DraftSpatialDomain, FieldRoleSyntax, ModelDraft,
 };
 pub(crate) mod dimension;
 mod value_type;
@@ -143,37 +143,66 @@ impl PyDomain {
     }
 }
 
-/// Immutable continuum Representation declaration.
+/// Author-declared evolution role independent of spatial support.
 #[pyclass(
-    name = "Representation",
+    name = "FieldRole",
     module = "eqiora._eqiora",
     frozen,
     eq,
     hash,
+    from_py_object
+)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum PyFieldRole {
+    Variable,
+    State,
+}
+
+impl From<PyFieldRole> for FieldRoleSyntax {
+    fn from(role: PyFieldRole) -> Self {
+        match role {
+            PyFieldRole::Variable => Self::Variable,
+            PyFieldRole::State => Self::State,
+        }
+    }
+}
+
+/// Simultaneous fresh-initialization residuals, each equal to zero.
+#[pyclass(
+    name = "Initial",
+    module = "eqiora._eqiora",
+    frozen,
     skip_from_py_object
 )]
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct PyRepresentation {
-    value: DraftRepresentation,
+#[derive(Debug, Clone)]
+pub(crate) struct PyInitial {
+    residuals: Vec<DraftExpression>,
 }
 
 #[pymethods]
-impl PyRepresentation {
-    /// Construct one continuous pre-discretization Representation.
-    #[staticmethod]
-    fn continuum(name: String) -> Self {
-        Self {
-            value: DraftRepresentation::continuum(name),
-        }
+impl PyInitial {
+    #[new]
+    #[pyo3(signature = (*residuals))]
+    fn new(residuals: &Bound<'_, PyTuple>) -> PyResult<Self> {
+        Ok(Self {
+            residuals: residuals
+                .iter()
+                .map(|value| expression_from_python(&value))
+                .collect::<PyResult<_>>()?,
+        })
     }
 
     #[getter]
-    fn name(&self) -> &str {
-        self.value.name()
+    fn residuals(&self) -> Vec<PyExpression> {
+        self.residuals
+            .iter()
+            .cloned()
+            .map(PyExpression::new)
+            .collect()
     }
 
     fn __repr__(&self) -> String {
-        format!("Representation.continuum({:?})", self.name())
+        format!("Initial(residuals={})", self.residuals.len())
     }
 }
 
@@ -187,34 +216,22 @@ pub(crate) struct PyField {
 #[pymethods]
 impl PyField {
     #[new]
-    #[pyo3(signature = (name, *, domain=None, representation=None, value_type=None, initial=None))]
+    #[pyo3(signature = (name, *, role, domain=None, value_type=None))]
     fn new(
         name: String,
+        role: PyFieldRole,
         domain: Option<&PyDomain>,
-        representation: Option<&PyRepresentation>,
         value_type: Option<&PyValueType>,
-        initial: Option<f64>,
-    ) -> PyResult<Self> {
+    ) -> Self {
         let value_type = value_type.map_or_else(
             || eqiora::ValueType::scalar(eqiora::ScalarDomain::Real, DimExponents::DIMENSIONLESS),
             |value| value.value.clone(),
         );
-        let value = match (domain, representation) {
-            (None, None) => DraftField::new(name, value_type, initial),
-            (Some(domain), Some(representation)) => DraftField::spatial(
-                name,
-                &domain.value,
-                &representation.value,
-                value_type,
-                initial,
-            ),
-            _ => {
-                return Err(PyTypeError::new_err(
-                    "a spatial Field requires both domain= and representation=",
-                ));
-            }
+        let value = match domain {
+            None => DraftField::new(name, value_type, role.into()),
+            Some(domain) => DraftField::spatial(name, &domain.value, value_type, role.into()),
         };
-        Ok(Self { value })
+        Self { value }
     }
 
     #[getter]
@@ -230,8 +247,11 @@ impl PyField {
     }
 
     #[getter]
-    const fn initial(&self) -> Option<f64> {
-        self.value.initial()
+    const fn role(&self) -> PyFieldRole {
+        match self.value.role() {
+            FieldRoleSyntax::Variable => PyFieldRole::Variable,
+            FieldRoleSyntax::State => PyFieldRole::State,
+        }
     }
 
     #[getter]
@@ -246,15 +266,6 @@ impl PyField {
         self.value.domain().map(|domain| PyDomain {
             value: domain.clone(),
         })
-    }
-
-    #[getter]
-    fn representation(&self) -> Option<PyRepresentation> {
-        self.value
-            .representation()
-            .map(|representation| PyRepresentation {
-                value: representation.clone(),
-            })
     }
 
     fn __neg__(&self) -> PyExpression {
@@ -298,25 +309,13 @@ impl PyField {
     }
 
     fn __repr__(&self) -> String {
-        let initial = self
-            .initial()
-            .map_or_else(|| "None".to_owned(), |value| format!("{value:?}"));
-        match (self.value.domain(), self.value.representation()) {
-            (Some(domain), Some(representation)) => format!(
-                "Field({:?}, domain={:?}, representation={:?}, value_type={:?}, initial={})",
-                self.name(),
-                domain.name(),
-                representation.name(),
-                self.value.value_type(),
-                initial
-            ),
-            _ => format!(
-                "Field({:?}, value_type={:?}, initial={})",
-                self.name(),
-                self.value.value_type(),
-                initial
-            ),
-        }
+        format!(
+            "Field({:?}, role=FieldRole.{:?}, domain={:?}, value_type={:?})",
+            self.name(),
+            self.role(),
+            self.value.domain().map(DraftSpatialDomain::name),
+            self.value.value_type()
+        )
     }
 }
 
@@ -794,7 +793,8 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyValueType>()?;
     module.add_class::<PyBoundarySide>()?;
     module.add_class::<PyDomain>()?;
-    module.add_class::<PyRepresentation>()?;
+    module.add_class::<PyFieldRole>()?;
+    module.add_class::<PyInitial>()?;
     module.add_class::<PyField>()?;
     module.add_class::<PyParameter>()?;
     module.add_class::<PyPhysicalDomain>()?;
@@ -816,8 +816,8 @@ fn declaration_from_python(value: &Bound<'_, PyAny>) -> PyResult<DraftDeclaratio
     if let Ok(domain) = value.extract::<PyRef<'_, PyDomain>>() {
         return Ok(domain.value.clone().into());
     }
-    if let Ok(representation) = value.extract::<PyRef<'_, PyRepresentation>>() {
-        return Ok(representation.value.clone().into());
+    if let Ok(initial) = value.extract::<PyRef<'_, PyInitial>>() {
+        return Ok(DraftDeclaration::Initial(initial.residuals.clone()));
     }
     if let Ok(field) = value.extract::<PyRef<'_, PyField>>() {
         return Ok(field.value.clone().into());
