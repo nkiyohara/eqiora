@@ -153,7 +153,7 @@ ABSENT_REFERENCES = (
 )
 
 NAVIGATION = (
-    '<nav class="sidebar"><a href="/get-started/">Docs</a>'
+    '<nav class="sidebar"><a href="/get-started/">Get started</a>'
     '<a href="/textbooks/">Textbooks</a><a href="/gallery/">Gallery</a>'
     '<a href="/reference/">Reference</a><a href="/capabilities/">Capabilities</a>'
     '<a href="/release-notes/">Releases</a>'

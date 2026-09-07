@@ -241,7 +241,7 @@ def _check_home(
     if f"Alpha {expected_python_version}" not in home.visible_text:
         report("/: current alpha release must be visible")
     start = home.visible_text.find("Featured walkthrough")
-    end = home.visible_text.find("Docs", start + 1)
+    end = home.visible_text.find("Get started", start + 1)
     featured = home.visible_text[start:end].casefold()
     for widening in (
         "flagship",
@@ -483,7 +483,7 @@ def check_starlight_content(
     if home:
         anchors = home.anchors
         destinations = (
-            ("/get-started/", "Docs"),
+            ("/get-started/", "Get started"),
             ("/textbooks/", "Textbooks"),
             ("/gallery/", "Gallery"),
             ("/reference/", "Reference"),
