@@ -19,7 +19,15 @@ geometry = graph.build(
 model = eqiora.compile(
     path=component_source,
     geometry=geometry,
-    parameters={...},
+    entry="MixedBoundaryElasticity2d",
+    bindings={
+        "body": geometry.selection("body"),
+        **{
+            side: (geometry.selection(side), geometry.selection("body"))
+            for side in ("x_lower", "x_upper", "y_lower", "y_upper")
+        },
+        "mu": 3.0, "lambda": 0.0, "length_scale": 1.0,
+    },
 )
 mesh_provider = eqiora.meshing.CartesianMesher(cells=(16, 16))
 mesh_plan = eqiora.meshing.resolve(geometry, mesh_provider)
