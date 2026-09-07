@@ -70,7 +70,7 @@ fn native_initial_conditions_reject_empty_nonfinite_and_foreign_symbols() {
 
 #[test]
 fn initial_equation_units_and_sign_roundtrip_without_erasure() {
-    let source = "model M { state distance: complex<m>; initial { distance = -2500[mm]; } }";
+    let source = "model M() { state distance: complex<m>; initial { distance = -2500[mm]; } }";
     let document = parse("field-unit.eqi", source).into_document().unwrap();
     let Item::Initial(group) = &document.models()[0].items()[1] else {
         panic!("expected initial equations");
@@ -99,7 +99,7 @@ fn initial_equation_units_and_sign_roundtrip_without_erasure() {
 fn scalar_field_absence_roundtrips_through_source() {
     let document = parse(
         "uninitialized-field.eqi",
-        "model M { variable pressure: Pa; }",
+        "model M() { variable pressure: Pa; }",
     )
     .into_document()
     .expect("uninitialized scalar Field parses");
@@ -109,7 +109,7 @@ fn scalar_field_absence_roundtrips_through_source() {
     assert_eq!(field.role(), FieldRoleSyntax::Variable);
 
     let formatted = format(&document);
-    assert_eq!(formatted, "model M {\n  variable pressure: Pa;\n}\n");
+    assert_eq!(formatted, "model M() {\n  variable pressure: Pa;\n}\n");
     assert!(parse("formatted.eqi", &formatted).into_document().is_ok());
 }
 
@@ -137,6 +137,7 @@ fn factory_constructs_an_uninitialized_scalar_field() {
     let model = SourceAstFactory::model(
         eqiora_lang::VisibilitySyntax::Private,
         "flow",
+        vec![],
         vec![Item::Field(field)],
         range,
     )
@@ -145,6 +146,6 @@ fn factory_constructs_an_uninitialized_scalar_field() {
         SourceAstFactory::document(Vec::new(), Vec::new(), vec![model]).expect("document");
 
     let source = format(&document);
-    assert_eq!(source, "model flow {\n  variable pressure: 1;\n}\n");
+    assert_eq!(source, "model flow() {\n  variable pressure: 1;\n}\n");
     assert!(parse("factory-field.eqi", &source).into_document().is_ok());
 }

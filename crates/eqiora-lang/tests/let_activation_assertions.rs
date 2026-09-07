@@ -2,7 +2,7 @@ use eqiora_lang::{ComponentItem, Item};
 
 #[test]
 fn named_activation_is_optional_and_round_trips_with_both_containers() {
-    for container in ["model M", "component C()"] {
+    for container in ["model M()", "component C()"] {
         for annotation in ["", ": m"] {
             for support in ["", " on body"] {
                 for activation in ["", " at sample"] {
@@ -49,7 +49,7 @@ fn named_activation_is_optional_and_round_trips_with_both_containers() {
 
 #[test]
 fn activation_assertions_reject_duplicate_reordered_or_missing_clauses() {
-    for container in ["model M", "component C()"] {
+    for container in ["model M()", "component C()"] {
         for head in [
             "let q at sample at other",
             "let q at sample on body",

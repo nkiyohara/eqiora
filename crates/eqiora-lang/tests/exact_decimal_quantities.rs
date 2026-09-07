@@ -61,7 +61,7 @@ fn quantity_parser_defers_numeric_range_admission_and_preserves_exact_text() {
         "0.1[nm]",
         "0.100000000000000001[m]",
     ] {
-        let source = format!("model M {{ let value = {literal}; }}");
+        let source = format!("model M() {{ let value = {literal}; }}");
         let document = eqiora_lang::parse("quantity.eqi", &source)
             .into_document()
             .unwrap();
@@ -94,9 +94,12 @@ fn quantity_parser_defers_numeric_range_admission_and_preserves_exact_text() {
     }
     for literal in ["1e-400", "1e400", "1e-400[2]"] {
         assert!(
-            eqiora_lang::parse("invalid.eqi", &format!("model M {{ let x = {literal}; }}"))
-                .into_document()
-                .is_err()
+            eqiora_lang::parse(
+                "invalid.eqi",
+                &format!("model M() {{ let x = {literal}; }}")
+            )
+            .into_document()
+            .is_err()
         );
     }
 }

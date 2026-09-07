@@ -2,7 +2,7 @@ use eqiora_lang::{Item, SourceAstFactory, format, parse};
 
 #[test]
 fn declaration_documentation_formats_structurally_and_survives_document_reconstruction() {
-    let source = "/// Model summary.\nmodel M{\n/// Variable summary.\nvariable x:1; // keep with x\n// balance\nrelation r{x=0;}\n}\n";
+    let source = "/// Model summary.\nmodel M() {\n/// Variable summary.\nvariable x:1; // keep with x\n// balance\nrelation r{x=0;}\n}\n";
     let document = parse("docs.eqi", source).into_document().unwrap();
     let model = &document.models()[0];
     assert_eq!(
@@ -20,7 +20,7 @@ fn declaration_documentation_formats_structurally_and_survives_document_reconstr
     let formatted = format(&reconstructed);
     assert_eq!(
         formatted,
-        "/// Model summary.\nmodel M {\n  /// Variable summary.\n  variable x: 1; // keep with x\n  // balance\n  relation r {\n    x = 0;\n  }\n}\n"
+        "/// Model summary.\nmodel M() {\n  /// Variable summary.\n  variable x: 1; // keep with x\n  // balance\n  relation r {\n    x = 0;\n  }\n}\n"
     );
     let reparsed = parse("formatted.eqi", &formatted).into_document().unwrap();
     assert_eq!(format(&reparsed), formatted);
@@ -28,11 +28,11 @@ fn declaration_documentation_formats_structurally_and_survives_document_reconstr
 
 #[test]
 fn ordinary_leading_comment_and_doc_block_share_the_reconstructed_declaration() {
-    let source = "// motivation\n/// Summary.\nmodel M {}\n";
+    let source = "// motivation\n/// Summary.\nmodel M() {}\n";
     let document = parse("docs.eqi", source).into_document().unwrap();
     let rebuilt = SourceAstFactory::flat_document(document.models().to_vec()).unwrap();
     let formatted = format(&rebuilt);
-    assert_eq!(formatted, "// motivation\n/// Summary.\nmodel M {\n}\n");
+    assert_eq!(formatted, "// motivation\n/// Summary.\nmodel M() {\n}\n");
     assert_eq!(
         format(&parse("formatted.eqi", &formatted).into_document().unwrap()),
         formatted
@@ -41,7 +41,7 @@ fn ordinary_leading_comment_and_doc_block_share_the_reconstructed_declaration() 
 
 #[test]
 fn component_body_and_inline_equation_trivia_have_a_canonical_roundtrip() {
-    let source = "/// Library import.\nimport lib as lib;\n/// Component summary.\ncomponent C() {\n/// Rate summary.\npublic parameter rate: // dimension\n1;\nvariable x:1;\n/// Balance summary.\nrelation r {x // left\n=rate // right\n;}\n}\n";
+    let source = "/// Library import.\nimport lib as lib;\n/// Component summary.\ncomponent C(\n/// Rate summary.\nparameter rate: // dimension\n1\n) {\nvariable x:1;\n/// Balance summary.\nrelation r {x // left\n=rate // right\n;}\n}\n";
     let document = parse("docs.eqi", source).into_document().unwrap();
     let formatted = format(&document);
     assert!(formatted.contains("rate: // dimension\n"));
@@ -50,7 +50,7 @@ fn component_body_and_inline_equation_trivia_have_a_canonical_roundtrip() {
     let reparsed = parse("formatted.eqi", &formatted).into_document().unwrap();
     assert_eq!(format(&reparsed), formatted);
     let component = &reparsed.components()[0];
-    let eqiora_lang::ComponentItem::Parameter(parameter) = &component.items()[0] else {
+    let eqiora_lang::SignatureItem::Parameter(parameter) = &component.signature()[0] else {
         panic!("Parameter")
     };
     assert_eq!(
@@ -61,7 +61,7 @@ fn component_body_and_inline_equation_trivia_have_a_canonical_roundtrip() {
 
 #[test]
 fn blank_line_and_trailing_documentation_do_not_attach() {
-    let source = "/// detached\n\nmodel M {\n  variable x: 1; /// trailing\n  variable y: 1;\n  /// dangling\n}\n";
+    let source = "/// detached\n\nmodel M() {\n  variable x: 1; /// trailing\n  variable y: 1;\n  /// dangling\n}\n";
     let document = parse("docs.eqi", source).into_document().unwrap();
     let model = &document.models()[0];
     assert!(document.doc_comment(model.range()).is_none());
@@ -82,7 +82,7 @@ fn blank_line_and_trailing_documentation_do_not_attach() {
 
 #[test]
 fn trailing_block_does_not_capture_next_standalone_documentation() {
-    let source = "model M {\nvariable a:1; /// trailing a\n/// docs for b\nvariable b:1;\n}\n";
+    let source = "model M() {\nvariable a:1; /// trailing a\n/// docs for b\nvariable b:1;\n}\n";
     let document = parse("docs.eqi", source).into_document().unwrap();
     let Item::Field(field) = &document.models()[0].items()[1] else {
         panic!("Field")
@@ -105,7 +105,7 @@ fn trailing_block_does_not_capture_next_standalone_documentation() {
 
 #[test]
 fn utf8_crlf_documentation_ranges_slice_the_exact_original_block() {
-    let source = "// 🧪\r\n/// 温度。\r\n/// Further prose.\r\nmodel M {}\r\n";
+    let source = "// 🧪\r\n/// 温度。\r\n/// Further prose.\r\nmodel M() {}\r\n";
     let document = parse("温度.eqi", source).into_document().unwrap();
     let doc = document.doc_comment(document.models()[0].range()).unwrap();
     assert_eq!(
@@ -122,13 +122,14 @@ fn utf8_crlf_documentation_ranges_slice_the_exact_original_block() {
 
 #[test]
 fn repeated_sibling_syntax_carries_only_its_own_docs_when_rebuilt_or_removed() {
-    let source = "model M {\n/// docs a\nvariable a:1; // tail a\n/// docs b\nvariable b:1; // tail b\n/// docs c\nvariable c:1; // tail c\n}\n";
+    let source = "model M() {\n/// docs a\nvariable a:1; // tail a\n/// docs b\nvariable b:1; // tail b\n/// docs c\nvariable c:1; // tail c\n}\n";
     let document = parse("docs.eqi", source).into_document().unwrap();
     let model = &document.models()[0];
     for order in [vec![2, 0, 1], vec![2, 0], vec![1]] {
         let rewritten = SourceAstFactory::model(
             model.visibility(),
             model.name(),
+            model.signature().to_vec(),
             order
                 .iter()
                 .map(|index| model.items()[*index].clone())
@@ -158,7 +159,7 @@ fn repeated_sibling_syntax_carries_only_its_own_docs_when_rebuilt_or_removed() {
 
 #[test]
 fn recovery_does_not_attach_displaced_docs_to_a_surviving_declaration() {
-    let source = "model M {\n/// docs for broken\nvariable ;\nvariable retained:1;\n}\n";
+    let source = "model M() {\n/// docs for broken\nvariable ;\nvariable retained:1;\n}\n";
     let parsed = parse("incomplete.eqi", source);
     assert!(!parsed.diagnostics().is_empty());
     let document = parsed.document().unwrap();

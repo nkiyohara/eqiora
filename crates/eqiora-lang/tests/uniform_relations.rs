@@ -24,7 +24,7 @@ fn unary_minus_and_right_associative_power_keep_the_authored_arithmetic() {
         ("x^y^z", "pow(x,pow(y,z))"),
         ("-x^-2", "neg(pow(x,neg(2)))"),
     ] {
-        let source = format!("model M {{ relation r {{ {expression} = 0; }} }}");
+        let source = format!("model M() {{ relation r {{ {expression} = 0; }} }}");
         let document = parse("precedence.eqi", &source).into_document().unwrap();
         let Item::Relation(relation) = &document.models()[0].items()[0] else {
             panic!("relation")
@@ -47,7 +47,7 @@ fn unary_minus_and_right_associative_power_keep_the_authored_arithmetic() {
 #[test]
 fn every_equality_keeps_both_sides_and_utf8_ranges_without_zero_escape() {
     for right in ["0", "(0)", "-0", "(-0)", "-(-0)", "y", "y - z", "0 * y"] {
-        let source = format!("// α\r\nmodel M {{ relation balance {{ x = {right}; }} }}");
+        let source = format!("// α\r\nmodel M() {{ relation balance {{ x = {right}; }} }}");
         let document = parse("ordered.eqi", &source).into_document().unwrap();
         let Item::Relation(relation) = &document.models()[0].items()[0] else {
             panic!("relation")
@@ -77,7 +77,7 @@ fn support_and_activation_are_independent_optional_header_axes() {
         ("relation r at tick", None, Some("tick")),
         ("relation r on body at tick", Some("body"), Some("tick")),
     ] {
-        let source = format!("model M {{ {header} {{ x = y; }} }}");
+        let source = format!("model M() {{ {header} {{ x = y; }} }}");
         let document = parse("headers.eqi", &source).into_document().unwrap();
         let Item::Relation(relation) = &document.models()[0].items()[0] else {
             panic!("relation")
@@ -101,7 +101,7 @@ fn support_and_activation_are_independent_optional_header_axes() {
         assert!(
             parse(
                 "retired.eqi",
-                &format!("model M {{ {header} {{ x = y; }} }}")
+                &format!("model M() {{ {header} {{ x = y; }} }}")
             )
             .into_document()
             .is_err(),
@@ -109,7 +109,7 @@ fn support_and_activation_are_independent_optional_header_axes() {
         );
     }
     assert!(
-        parse("empty.eqi", "model M { relation empty {} }")
+        parse("empty.eqi", "model M() { relation empty {} }")
             .into_document()
             .is_err()
     );
@@ -121,7 +121,7 @@ fn numeric_admission_distinguishes_exact_zero_from_nonzero_underflow() {
         assert!(
             parse(
                 "number.eqi",
-                &format!("model M {{ relation r {{ x = {value}; }} }}")
+                &format!("model M() {{ relation r {{ x = {value}; }} }}")
             )
             .into_document()
             .is_ok(),
@@ -131,7 +131,7 @@ fn numeric_admission_distinguishes_exact_zero_from_nonzero_underflow() {
     for value in ["1e-324", "-1e-324", "(1e-324)", "1e999"] {
         let parsed = parse(
             "number.eqi",
-            &format!("model M {{ relation r {{ x = {value}; }} }}"),
+            &format!("model M() {{ relation r {{ x = {value}; }} }}"),
         );
         assert!(!parsed.diagnostics().is_empty(), "{value}");
     }
@@ -153,7 +153,7 @@ fn expression_recursion_and_constructed_depth_are_bounded_before_allocation() {
         additive(257),
         format!("{}x{}", "f(".repeat(256), ")".repeat(256)),
     ] {
-        let source = format!("model M {{ relation r {{ {expression} = 0; }} }}");
+        let source = format!("model M() {{ relation r {{ {expression} = 0; }} }}");
         let parsed = parse("bounded.eqi", &source);
         assert!(
             parsed
@@ -163,7 +163,7 @@ fn expression_recursion_and_constructed_depth_are_bounded_before_allocation() {
             "{expression}"
         );
     }
-    let source = format!("model M {{ relation r {{ {} = 0; }} }}", additive(256));
+    let source = format!("model M() {{ relation r {{ {} = 0; }} }}", additive(256));
     let document = parse("limit.eqi", &source).into_document().unwrap();
     let formatted = format(&document);
     let reparsed = parse("limit.eqi", &formatted).into_document().unwrap();
