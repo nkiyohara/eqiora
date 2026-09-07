@@ -19,7 +19,7 @@ import {
   studioCompileRequest,
 } from "./control-protocol";
 
-const REQUEST = studioCompileRequest("studio.compile:7", "model.eqi", "model empty {}\n");
+const REQUEST = studioCompileRequest("studio.compile:7", "model.eqi", "model empty() {}\n");
 const ACCEPTED = {
   protocol: CONTROL_PROTOCOL_V2,
   command: COMPILE_COMMAND_V1,

@@ -902,10 +902,9 @@ mod tests {
     use std::collections::BTreeMap;
 
     const SOURCE: &str = r#"
-model decay {
+model decay(parameter rate: 1 / s = 1) {
   state x: 1;
   initial { x = 1; }
-  parameter rate: 1 / s = 1;
   relation flow {
     derivative(x) + rate * x = 0;
   }
@@ -928,7 +927,7 @@ model decay {
     fn projection_retains_checked_field_types_without_scalar_narrowing() {
         let document = ModelDocument::compile(
             "channels.eqi",
-            "model channels { variable channels: array<m, 2>; initial { channels = 0; } relation hold { channels = 0; } }",
+            "model channels() { variable channels: array<m, 2>; initial { channels = 0; } relation hold { channels = 0; } }",
         )
         .unwrap();
         let projection = project_document(&document, document.digest().unwrap()).unwrap();
@@ -980,7 +979,7 @@ model decay {
     fn projection_retains_rich_types_without_presenting_them_as_real_values() {
         let document = ModelDocument::compile(
             "typed.eqi",
-            "model Typed { parameter amplitude: complex<V> = 2; variable channels: array<m, 2>; initial { channels = 0; } relation resting { channels = 0; } }",
+            "model Typed(parameter amplitude: complex<V> = 2) { variable channels: array<m, 2>; initial { channels = 0; } relation resting { channels = 0; } }",
         )
         .unwrap();
         let projection = project_document(&document, document.digest().unwrap()).unwrap();
@@ -1030,7 +1029,7 @@ model decay {
     fn numeric_editor_rejects_complex_values_without_dropping_imaginary_parts() {
         let document = ModelDocument::compile(
             "complex.eqi",
-            "model typed { parameter voltage: complex<V> = math.complex(2, 3); variable observed: complex<V>; relation readout { observed = voltage; } }",
+            "model typed(parameter voltage: complex<V> = math.complex(2, 3)) { variable observed: complex<V>; relation readout { observed = voltage; } }",
         )
         .unwrap();
         let target = document.aliases()["voltage"];

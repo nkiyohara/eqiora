@@ -37,6 +37,15 @@ impl Drop for TestDirectory {
     }
 }
 
+fn source_position(source: &str, occurrence: &str) -> Value {
+    let offset = source.find(occurrence).expect("source occurrence");
+    let before = &source[..offset];
+    json!({
+        "line": before.bytes().filter(|byte| *byte == b'\n').count(),
+        "character": before.rsplit('\n').next().unwrap().encode_utf16().count(),
+    })
+}
+
 fn author_sources(
     name: &str,
     source: &str,
@@ -95,7 +104,7 @@ fn version_command_reports_the_release() {
 
 #[test]
 fn stdio_session_syncs_diagnostics_and_serves_editor_requests() {
-    let source = "dimension Scalar = 1;\npublic component Part() {\n  public parameter gain: Scalar;\n  relation law { gain = 0; }\n}\nmodel Demo{\n  parameter input: Scalar = 1;\n  variable state: Scalar;\n  instance part: Part(gain = input);\n  relation balance { state = 0; }\n}\n";
+    let source = "dimension Scalar = 1;\npublic component Part(parameter gain: Scalar) {\n  relation law { gain = 0; }\n}\nmodel Demo(parameter input: Scalar = 1) {\n  variable state: Scalar;\n  instance part: Part(gain = input);\n  relation balance { state = 0; }\n}\n";
     let uri = "file:///workspace/main.eqi";
     let mut child = Command::new(SERVER)
         .stdin(Stdio::piped())
@@ -110,12 +119,12 @@ fn stdio_session_syncs_diagnostics_and_serves_editor_requests() {
         json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":uri,"languageId":"eqiora","version":-3,"text":source}}}),
         json!({"jsonrpc":"2.0","id":2,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":uri}}}),
         json!({"jsonrpc":"2.0","id":3,"method":"textDocument/foldingRange","params":{"textDocument":{"uri":uri}}}),
-        json!({"jsonrpc":"2.0","id":4,"method":"textDocument/hover","params":{"textDocument":{"uri":uri},"position":{"line":8,"character":18}}}),
-        json!({"jsonrpc":"2.0","id":5,"method":"textDocument/definition","params":{"textDocument":{"uri":uri},"position":{"line":8,"character":18}}}),
+        json!({"jsonrpc":"2.0","id":4,"method":"textDocument/hover","params":{"textDocument":{"uri":uri},"position":source_position(source, "Part(gain")}}),
+        json!({"jsonrpc":"2.0","id":5,"method":"textDocument/definition","params":{"textDocument":{"uri":uri},"position":source_position(source, "Part(gain")}}),
         json!({"jsonrpc":"2.0","id":6,"method":"textDocument/formatting","params":{"textDocument":{"uri":uri},"options":{"tabSize":2,"insertSpaces":true}}}),
         json!({"jsonrpc":"2.0","id":8,"method":"textDocument/formatting","params":{"textDocument":42}}),
         json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":42}}),
-        json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":uri,"version":-1},"contentChanges":[{"text":"model Broken { nonsense; }\n"}]}}),
+        json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":uri,"version":-1},"contentChanges":[{"text":"model Broken() { nonsense; }\n"}]}}),
         json!({"jsonrpc":"2.0","id":9,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":uri}}}),
         json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":uri,"version":-2},"contentChanges":[{"text":source}]}}),
         json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":uri,"version":0},"contentChanges":[{"text":source}]}}),
@@ -192,7 +201,7 @@ fn stdio_session_syncs_diagnostics_and_serves_editor_requests() {
         edits[0]["newText"]
             .as_str()
             .expect("formatted source")
-            .contains("public component Part() {")
+            .contains("public component Part(parameter gain: Scalar) {")
     );
 
     let diagnostics = messages
@@ -223,7 +232,7 @@ fn stdio_session_syncs_diagnostics_and_serves_editor_requests() {
 
 #[test]
 fn stdio_workspace_resolves_open_modules_and_tracks_unsaved_changes() {
-    let main = "// 🧪\nimport editor.workspace.library as lib;\nmodel Main { instance load: lib.Resistor(); }\n";
+    let main = "// 🧪\nimport editor.workspace.library as lib;\nmodel Main() { instance load: lib.Resistor(); }\n";
     let library = "public component Resistor() {}\n";
     let changed_library = "/// **Updated summary**\n///\n/// [run](command:delete) <script> ```\npublic component Resistor() {\n  // unsaved workspace edit\n}\n";
     let main_uri = "file:///workspace/main.eqi";
@@ -240,12 +249,12 @@ fn stdio_workspace_resolves_open_modules_and_tracks_unsaved_changes() {
         json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
         json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":library_uri,"languageId":"eqiora","version":1,"text":library}}}),
         json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":main_uri,"languageId":"eqiora","version":1,"text":main}}}),
-        json!({"jsonrpc":"2.0","id":2,"method":"textDocument/definition","params":{"textDocument":{"uri":main_uri},"position":{"line":2,"character":32}}}),
-        json!({"jsonrpc":"2.0","id":6,"method":"textDocument/references","params":{"textDocument":{"uri":main_uri},"position":{"line":2,"character":32},"context":{"includeDeclaration":true}}}),
+        json!({"jsonrpc":"2.0","id":2,"method":"textDocument/definition","params":{"textDocument":{"uri":main_uri},"position":source_position(main, "Resistor()")}}),
+        json!({"jsonrpc":"2.0","id":6,"method":"textDocument/references","params":{"textDocument":{"uri":main_uri},"position":source_position(main, "Resistor()"),"context":{"includeDeclaration":true}}}),
         json!({"jsonrpc":"2.0","id":7,"method":"textDocument/references","params":{"textDocument":{"uri":library_uri},"position":{"line":0,"character":20},"context":{"includeDeclaration":false}}}),
         json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":library_uri,"version":2},"contentChanges":[{"text":changed_library}]}}),
-        json!({"jsonrpc":"2.0","id":3,"method":"textDocument/hover","params":{"textDocument":{"uri":main_uri},"position":{"line":2,"character":32}}}),
-        json!({"jsonrpc":"2.0","id":4,"method":"textDocument/definition","params":{"textDocument":{"uri":main_uri},"position":{"line":2,"character":32}}}),
+        json!({"jsonrpc":"2.0","id":3,"method":"textDocument/hover","params":{"textDocument":{"uri":main_uri},"position":source_position(main, "Resistor()")}}),
+        json!({"jsonrpc":"2.0","id":4,"method":"textDocument/definition","params":{"textDocument":{"uri":main_uri},"position":source_position(main, "Resistor()")}}),
         json!({"jsonrpc":"2.0","id":5,"method":"shutdown","params":null}),
         json!({"jsonrpc":"2.0","method":"exit","params":null}),
     ];
@@ -302,7 +311,7 @@ fn stdio_workspace_resolves_open_modules_and_tracks_unsaved_changes() {
 #[test]
 fn stdio_discards_superseded_workspace_analysis() {
     let uri = "file:///workspace/cancelled.eqi";
-    let valid = "model Current {}\n";
+    let valid = "model Current() {}\n";
     let mut child = Command::new(SERVER)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -314,7 +323,7 @@ fn stdio_discards_superseded_workspace_analysis() {
         json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
         json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":uri,"languageId":"eqiora","version":1,"text":valid}}}),
         json!({"jsonrpc":"2.0","id":2,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":uri}}}),
-        json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":uri,"version":2},"contentChanges":[{"text":"model Superseded { nonsense; }\n"}]}}),
+        json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":uri,"version":2},"contentChanges":[{"text":"model Superseded() { nonsense; }\n"}]}}),
         json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":uri,"version":3},"contentChanges":[{"text":valid}]}}),
         json!({"jsonrpc":"2.0","id":3,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":uri}}}),
         json!({"jsonrpc":"2.0","id":4,"method":"shutdown","params":null}),
@@ -355,7 +364,7 @@ fn stdio_answers_once_when_cancellation_races_with_analysis() {
     let messages = [
         json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
         json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
-        json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":uri,"languageId":"eqiora","version":1,"text":"model Cancelled {}\n"}}}),
+        json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":uri,"languageId":"eqiora","version":1,"text":"model Cancelled() {}\n"}}}),
         json!({"jsonrpc":"2.0","id":2,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":uri}}}),
         json!({"jsonrpc":"2.0","method":"$/cancelRequest","params":{"id":2}}),
         json!({"jsonrpc":"2.0","id":3,"method":"shutdown","params":null}),
@@ -402,7 +411,7 @@ fn stdio_workspace_loads_unopened_exact_package_sources_without_writing_a_lock()
     let library_path = fixture.0.join("library");
     let root_path = fixture.0.join("root");
     let library = "public component Resistor() {}\n";
-    let root = "import org.example.EditorLibrary.main as library;\nmodel Main { instance load: library.Resistor(); }\n";
+    let root = "import org.example.EditorLibrary.main as library;\nmodel Main() { instance load: library.Resistor(); }\n";
     let library_sources = author_sources("org.example.EditorLibrary", library, vec![]);
     let library_release =
         prepare_package_release_v1(library_sources.clone(), &[]).expect("library release");
@@ -439,11 +448,11 @@ fn stdio_workspace_loads_unopened_exact_package_sources_without_writing_a_lock()
         json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{"workspace":{"workspaceFolders":true}},"workspaceFolders":[{"uri":workspace_uri,"name":"package project"}]}}),
         json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
         json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":root_uri,"languageId":"eqiora","version":1,"text":root}}}),
-        json!({"jsonrpc":"2.0","id":2,"method":"textDocument/hover","params":{"textDocument":{"uri":root_uri},"position":{"line":1,"character":40}}}),
-        json!({"jsonrpc":"2.0","id":3,"method":"textDocument/definition","params":{"textDocument":{"uri":root_uri},"position":{"line":1,"character":40}}}),
-        json!({"jsonrpc":"2.0","id":6,"method":"textDocument/references","params":{"textDocument":{"uri":root_uri},"position":{"line":1,"character":40},"context":{"includeDeclaration":true}}}),
+        json!({"jsonrpc":"2.0","id":2,"method":"textDocument/hover","params":{"textDocument":{"uri":root_uri},"position":source_position(root, "Resistor()")}}),
+        json!({"jsonrpc":"2.0","id":3,"method":"textDocument/definition","params":{"textDocument":{"uri":root_uri},"position":source_position(root, "Resistor()")}}),
+        json!({"jsonrpc":"2.0","id":6,"method":"textDocument/references","params":{"textDocument":{"uri":root_uri},"position":source_position(root, "Resistor()"),"context":{"includeDeclaration":true}}}),
         json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":root_uri,"version":2},"contentChanges":[{"text":changed_root}]}}),
-        json!({"jsonrpc":"2.0","id":4,"method":"textDocument/definition","params":{"textDocument":{"uri":root_uri},"position":{"line":2,"character":40}}}),
+        json!({"jsonrpc":"2.0","id":4,"method":"textDocument/definition","params":{"textDocument":{"uri":root_uri},"position":source_position(&changed_root, "Resistor()")}}),
         json!({"jsonrpc":"2.0","id":5,"method":"shutdown","params":null}),
         json!({"jsonrpc":"2.0","method":"exit","params":null}),
     ];

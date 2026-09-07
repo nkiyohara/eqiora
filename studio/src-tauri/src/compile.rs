@@ -138,10 +138,9 @@ mod tests {
     use super::{AppState, compile_request};
 
     const SOURCE: &str = r#"
-model decay {
+model decay(parameter rate: 1 / s = 1[1 / s]) {
   state x: 1;
   initial { x = 1; }
-  parameter rate: 1 / s = 1[1 / s];
   relation flow {
     derivative(x) + rate * x = 0;
   }

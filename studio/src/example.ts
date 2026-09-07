@@ -1,14 +1,13 @@
-export const EXAMPLE_SOURCE = `model controlled_decay {
+export const EXAMPLE_SOURCE = `model controlled_decay(parameter rate: 1 / s = 0.8) {
   state state: 1;
   initial { state = 1; }
-  parameter rate: 1 / s = 0.8;
   relation decay {
     derivative(state) + rate * state = 0;
   }
 }
 `;
 
-export const CAD_EXAMPLE_SOURCE = `model cad_semantic_selection {
+export const CAD_EXAMPLE_SOURCE = `model cad_semantic_selection() {
   domain body = box(-0.5, 0.5, -0.5, 0.5, -0.5, 0.5);
   domain x_lower = boundary(body, axis = 0, side = lower);
   domain x_upper = boundary(body, axis = 0, side = upper);

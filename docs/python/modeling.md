@@ -985,10 +985,9 @@ comparison:
 ```python
 source_model = eqiora.compile(
     source="""
-    model decay {
+    model decay(parameter rate: 1 / s = 1) {
       state x: 1;
       initial { x = 1; }
-      parameter rate: 1 / s = 1;
       relation flow {
         derivative(x) + rate * x = 0;
       }
