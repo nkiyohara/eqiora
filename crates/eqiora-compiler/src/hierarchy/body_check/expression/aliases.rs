@@ -29,6 +29,14 @@ pub(in crate::hierarchy::body_check) fn validate_aliases<'a>(
     let mut errors = Vec::new();
     for declaration in order {
         if static_values.contains_key(declaration.name()) {
+            if declaration.domain().is_some() {
+                errors.push(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    scope.file,
+                    declaration.range(),
+                    "static let alias cannot assert spatial support",
+                ));
+            }
             continue;
         }
         let mut checker = ExpressionChecker {
@@ -44,6 +52,19 @@ pub(in crate::hierarchy::body_check) fn validate_aliases<'a>(
             evolution: Vec::new(),
         };
         let inferred = match checker.check(declaration.value()).and_then(|inferred| {
+            if let Some(domain) = declaration.domain() {
+                let expected = scope.spatial_support(domain).ok_or_else(|| {
+                    scope.wrong_local_kind(declaration.range(), domain, "let alias spatial support")
+                })?;
+                if inferred.support.as_ref() != Some(&expected) {
+                    return Err(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        scope.file,
+                        declaration.range(),
+                        "let alias support assertion does not match its inferred exact support",
+                    ));
+                }
+            }
             if let Some(assertion) = declaration.value_type() {
                 let expected = crate::value_types::lower_value_type(
                     scope.file,

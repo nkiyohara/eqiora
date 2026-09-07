@@ -71,12 +71,13 @@ impl ParameterDecl {
     }
 }
 
-/// Model-local compile-time expression alias with an optional mathematical type assertion.
+/// Immutable local expression alias with optional type and intrinsic-support assertions.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LetDecl {
     pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) name: String,
     pub(crate) value_type: Option<ValueTypeSyntax>,
+    pub(crate) domain: Option<String>,
     pub(crate) value: Expr,
     pub(crate) range: TextRange,
 }
@@ -94,7 +95,13 @@ impl LetDecl {
         self.value_type.as_ref()
     }
 
-    /// Returns the compile-time value expression.
+    /// Returns the optional assertion of the expression's intrinsic support.
+    #[must_use]
+    pub fn domain(&self) -> Option<&str> {
+        self.domain.as_deref()
+    }
+
+    /// Returns the immutable expression.
     #[must_use]
     pub const fn value(&self) -> &Expr {
         &self.value

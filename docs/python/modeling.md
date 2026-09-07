@@ -114,7 +114,8 @@ contains multiple public Components. A Source containing property contracts stil
 requires the exact Model Package compilation path described below.
 
 `component.let_alias(name, expression)` declares a private immutable expression alias.
-Its type and spatial support are inferred; `value_type=` asserts the inferred type.
+Its type and spatial support are inferred; `value_type=` asserts the inferred type,
+and `on=` asserts the exact inferred Support owned by this Component.
 Aliases can use the component's Parameters, fields, and other aliases. For example,
 `heat_flux = component.let_alias("heat_flux", coefficient * q.grad(potential))`
 can appear in a volume relation as `q.div(heat_flux)`. A Parameter-only alias can also
@@ -124,7 +125,9 @@ Aliases do not become required parameters, independent edit targets, unknowns, o
 Each occurrence retains the original dependencies, so Parameter edits and differentiation
 pass through the expression. Expressions must have an intrinsically inferable spatial support:
 keep context-dependent `coordinate`, `trace`, and `normal` expressions in their relations.
-Explicit `on`/`at` assertions remain outside this slice. Native/source state operators retain
+Writing `on=` cannot give a constant spatial support or select an unspecified boundary.
+An equal-shaped, separately declared Support is still a different nominal support.
+Explicit `at` assertions remain outside this slice. Native/source state operators retain
 their existing exact-clock and initialization rules through aliases; reading a current state
 through an alias adds no clock restriction.
 

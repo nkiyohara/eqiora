@@ -30,3 +30,61 @@ fn omitted_dimension_has_distinct_deterministic_identity() {
     assert_ne!(identity(annotated), identity(inferred));
     assert_eq!(identity(inferred), identity(reformatted));
 }
+
+#[test]
+fn support_assertions_change_identity_in_both_containers() {
+    for container in ["model M", "component C()"] {
+        let omitted = format!("{container} {{ let q: m = value; }}");
+        let asserted = format!("{container} {{ let q: m on body = value; }}");
+        let other = format!("{container} {{ let q: m on other = value; }}");
+        assert_ne!(identity(&omitted), identity(&asserted));
+        assert_ne!(identity(&asserted), identity(&other));
+        let document = eqiora_lang::parse("asserted.eqi", &asserted)
+            .into_document()
+            .unwrap();
+        assert_eq!(
+            identity(&asserted),
+            identity(&eqiora_lang::format(&document))
+        );
+    }
+}
+
+#[test]
+fn omitted_support_keeps_the_existing_three_field_record_contract() {
+    use crate::source_identity::{
+        Budget, Encoder, LocalSourceIdentityLimits, compile_time, encode_expression, encode_name,
+        value_type,
+    };
+    for annotation in ["", ": m"] {
+        let source = format!("model M {{ let q{annotation} = value; }}");
+        let document = eqiora_lang::parse("omitted.eqi", &source)
+            .into_document()
+            .unwrap();
+        let eqiora_lang::Item::Let(alias) = &document.models()[0].items()[0] else {
+            panic!("let")
+        };
+        let limits = LocalSourceIdentityLimits::default();
+        let mut actual = Encoder::new(limits.max_canonical_bytes);
+        compile_time::encode_let(&mut actual, alias, &mut Budget::new(limits)).unwrap();
+        // Existing alias record: name=1, optional type=2, expression=3.
+        // Absence of the new assertion must emit no tag or sentinel.
+        let mut expected = Encoder::new(limits.max_canonical_bytes);
+        let mut budget = Budget::new(limits);
+        expected
+            .field(1, |encoder| encode_name(encoder, "q", &mut budget))
+            .unwrap();
+        if let Some(value_type) = alias.value_type() {
+            expected
+                .field(2, |encoder| {
+                    value_type::encode_value_type(encoder, value_type, &mut budget, 1)
+                })
+                .unwrap();
+        }
+        expected
+            .field(3, |encoder| {
+                encode_expression(encoder, alias.value(), &mut budget, 1)
+            })
+            .unwrap();
+        assert_eq!(actual.finish().unwrap(), expected.finish().unwrap());
+    }
+}

@@ -39,6 +39,9 @@ pub(super) fn format_let(
         output.push_str(": ");
         super::value_type::format_value_type(value_type, output);
     }
+    if let Some(domain) = &declaration.domain {
+        write!(output, " on {domain}").expect("String write");
+    }
     output.push_str(" = ");
     format_expression(&declaration.value, 0, output);
     output.push_str(";\n");

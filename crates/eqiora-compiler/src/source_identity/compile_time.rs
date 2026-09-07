@@ -38,5 +38,9 @@ pub(super) fn encode_let(
     }
     encoder.field(3, |encoder| {
         encode_expression(encoder, declaration.value(), budget, 1)
-    })
+    })?;
+    if let Some(domain) = declaration.domain() {
+        encoder.field(4, |encoder| encode_name(encoder, domain, budget))?;
+    }
+    Ok(())
 }
