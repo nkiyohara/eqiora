@@ -294,7 +294,7 @@ fn algebraic_unknown_has_no_authored_continuous_derivative() {
 
 #[test]
 fn affine_rank_one_descriptor_uses_one_independent_initial_condition() {
-    for rate in [1.0, 2.0] {
+    for rate in [0.0, 1.0, 2.0] {
         let x = Id::new();
         let y = Id::new();
         let mut nodes = vec![scalar(x, FieldRole::State), scalar(y, FieldRole::State)];
@@ -314,6 +314,12 @@ fn affine_rank_one_descriptor_uses_one_independent_initial_condition() {
             let root = dag.add(sum, value).unwrap();
             nodes.push(RelationDef::new(Id::new(), dag.finish([root]).unwrap()).into());
         }
+        let missing = program(nodes.clone(), vec![]).unwrap();
+        assert!(
+            Interpreter::new()
+                .initialize(&missing, ReferenceConfig::new(0.0, 0.1).unwrap())
+                .is_err()
+        );
         nodes.push(
             RelationDef::initial(
                 Id::new(),
@@ -321,10 +327,34 @@ fn affine_rank_one_descriptor_uses_one_independent_initial_condition() {
             )
             .into(),
         );
+        let mut redundant = nodes.clone();
+        redundant.push(
+            RelationDef::initial(
+                Id::new(),
+                equation(SymbolRef::Field(y), 1.0, DimExponents::DIMENSIONLESS),
+            )
+            .into(),
+        );
+        assert!(
+            Interpreter::new()
+                .initialize(
+                    &program(redundant, vec![]).unwrap(),
+                    ReferenceConfig::new(0.0, 0.1).unwrap()
+                )
+                .is_err()
+        );
         let model = program(nodes, vec![]).unwrap();
-        let initial = Interpreter::new()
-            .initialize(&model, ReferenceConfig::new(0.0, 0.1).unwrap())
-            .unwrap();
+        let result = Interpreter::new().initialize(&model, ReferenceConfig::new(0.0, 0.1).unwrap());
+        if rate == 0.0 {
+            let errors = result.unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.message().contains("singular"))
+            );
+            continue;
+        }
+        let initial = result.unwrap();
         for field in [x, y] {
             assert!((initial.fields()[&field.erase()] - 1.0).abs() < 1e-8);
             assert!((initial.derivatives()[&field.erase()] + rate).abs() < 1e-8);

@@ -37,7 +37,7 @@ const GENERATION_V7: u16 = 7;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
 pub enum SemanticFingerprintGeneration {
-    /// Closed projection retaining mathematical scalar domains and component-axis roles.
+    /// Closed projection retaining Field roles and simultaneous initial-equation ownership.
     V7,
 }
 

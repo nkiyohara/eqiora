@@ -713,6 +713,18 @@ impl ExecutionPlan {
                     "reference execution requires real scalar Fields",
                 ));
             }
+            if let KernelNode::Field(field) = node
+                && program.edges().iter().any(|edge| {
+                    edge.from() == field.id().erase()
+                        && edge.kind() == eqiora_graph::EdgeKind::DefinedOn
+                        && edge.to().kind() == eqiora_core::EntityKind::Domain
+                })
+            {
+                return Err(Diagnostic::error(
+                    codes::NOT_IMPLEMENTED,
+                    "reference execution does not realize distributed Fields",
+                ));
+            }
             if let KernelNode::Port(port) = node
                 && let Some((_, value_type)) = port.signal_contract()
                 && (value_type.scalar_domain() != eqiora_core::ScalarDomain::Real

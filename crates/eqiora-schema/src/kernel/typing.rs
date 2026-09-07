@@ -280,6 +280,8 @@ impl<I: fmt::Debug> fmt::Display for TypeViolation<I> {
 pub enum RootContract {
     /// Every exact component of every root is an equation equal to zero.
     ComponentwiseResidual,
+    /// Simultaneous initial equations; each root retains its independently inferred support.
+    InitialConditions,
     /// Every root supplies one invariant scalar activation condition.
     ScalarActivation,
 }
@@ -390,6 +392,7 @@ impl<I: Clone + Eq> TypedResidual<I> {
                 RootContract::ComponentwiseResidual => {
                     residual(&root_type, relation_support.as_ref())
                 }
+                RootContract::InitialConditions => Ok(()),
                 RootContract::ScalarActivation => {
                     scalar_root(&root_type, relation_support.as_ref())
                 }

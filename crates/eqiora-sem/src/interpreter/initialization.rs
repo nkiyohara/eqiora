@@ -71,15 +71,18 @@ pub(super) fn solve_initialization(
     // Every Field exposed by the scalar reference execution must be determined;
     // an unused algebraic declaration is legal mathematics, not an implicit zero.
     let fields = plan.fields.clone();
+    let mut derivatives = plan.differential_fields.clone();
+    for relation in &plan.initial_relations {
+        for symbol in relation_symbols(program, *relation)? {
+            if let SymbolRef::Derivative(field) = symbol {
+                derivatives.insert(field.erase());
+            }
+        }
+    }
     let variables = fields
         .into_iter()
         .map(Variable::Field)
-        .chain(
-            plan.differential_fields
-                .iter()
-                .copied()
-                .map(Variable::Derivative),
-        )
+        .chain(derivatives.into_iter().map(Variable::Derivative))
         .chain(plan.continuous_ports.iter().copied().map(Variable::Port))
         .chain(
             plan.physical_unknowns

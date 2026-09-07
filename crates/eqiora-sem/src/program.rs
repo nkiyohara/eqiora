@@ -168,7 +168,11 @@ impl KernelProgram {
             definition.residuals().clone(),
             relation_id,
             scope,
-            RootContract::ComponentwiseResidual,
+            if definition.is_initial() {
+                RootContract::InitialConditions
+            } else {
+                RootContract::ComponentwiseResidual
+            },
         )
     }
 

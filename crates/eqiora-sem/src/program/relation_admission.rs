@@ -14,6 +14,12 @@ pub(super) fn validate_relations(
         };
 
         let scopes = edge_targets(edges, id, EdgeKind::AppliesOn);
+        if relation.is_initial() && !scopes.is_empty() {
+            diagnostics.push(kernel_error(
+                id,
+                "initial Relation roots own their support and must not have AppliesOn edges",
+            ));
+        }
         if scopes.len() > 1 {
             diagnostics.push(kernel_error(
                 id,
@@ -33,7 +39,11 @@ pub(super) fn validate_relations(
                 spatial_supports,
             },
             scope,
-            RootContract::ComponentwiseResidual,
+            if relation.is_initial() {
+                RootContract::InitialConditions
+            } else {
+                RootContract::ComponentwiseResidual
+            },
             diagnostics,
         );
         let dependencies = edge_targets(edges, id, EdgeKind::DependsOn);

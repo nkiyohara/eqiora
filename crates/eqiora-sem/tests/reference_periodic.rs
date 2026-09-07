@@ -134,3 +134,63 @@ fn coincident_periodic_activations_commit_next_fields_simultaneously() {
         1.0
     );
 }
+
+#[test]
+fn equal_periods_do_not_substitute_for_exact_state_clock_ownership() {
+    let field = Id::<kinds::Field>::new();
+    let state_clock = Id::<kinds::ClockDomain>::new();
+    let relation_clock = Id::<kinds::ClockDomain>::new();
+    let activation = Id::<kinds::Activation>::new();
+    let relation = Id::<kinds::Relation>::new();
+    let model = OntologyId::<Model>::new();
+    let period = RationalTime::new(1, 10).unwrap();
+    let mut dag = ExprDagBuilder::new();
+    let next = dag.symbol(SymbolRef::Next(field)).unwrap();
+    let pre = dag.symbol(SymbolRef::Pre(field)).unwrap();
+    let root = dag.sub(next, pre).unwrap();
+    let nodes = vec![
+        FieldDef::new(
+            field,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
+            eqiora_schema::kernel::FieldRole::State,
+        )
+        .into(),
+        RelationDef::new(relation, dag.finish([root]).unwrap()).into(),
+        ActivationDef::periodic(activation).into(),
+        ClockDomainDef::periodic(state_clock, period, RationalTime::ZERO)
+            .unwrap()
+            .into(),
+        ClockDomainDef::periodic(relation_clock, period, RationalTime::ZERO)
+            .unwrap()
+            .into(),
+    ];
+    let view = ModelView::new(model, nodes.iter().map(KernelNode::id), []).unwrap();
+    let mut transaction = Transaction::new("equal period wrong exact clock");
+    for node in nodes {
+        transaction.push(Op::DefineKernelNode { node });
+    }
+    for (from, to, edge) in [
+        (field.erase(), state_clock.erase(), EdgeKind::ClockedBy),
+        (
+            activation.erase(),
+            relation_clock.erase(),
+            EdgeKind::ClockedBy,
+        ),
+        (activation.erase(), relation.erase(), EdgeKind::Activates),
+        (relation.erase(), field.erase(), EdgeKind::DependsOn),
+    ] {
+        transaction.push(Op::Connect { from, to, edge });
+    }
+    transaction.push(Op::DefineOntologyView { view: view.into() });
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let errors = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message().contains("exact Relation ClockDomain"))
+    );
+}
