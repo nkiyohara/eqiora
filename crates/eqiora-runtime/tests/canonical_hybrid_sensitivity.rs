@@ -193,9 +193,9 @@ fn bouncing_ball(direction: EventDirection) -> BouncingBall {
             eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, velocity_dimension),
             eqiora_schema::kernel::FieldRole::State,
         )),
-        KernelNode::from(
-            ParameterDef::new(
-                gravity,
+        KernelNode::from(ParameterDef::new(
+            gravity,
+            eqiora_core::ValueLiteral::from_real(
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     acceleration_dimension,
@@ -203,10 +203,10 @@ fn bouncing_ball(direction: EventDirection) -> BouncingBall {
                 9.81,
             )
             .unwrap(),
-        ),
-        KernelNode::from(
-            ParameterDef::new(
-                restitution,
+        )),
+        KernelNode::from(ParameterDef::new(
+            restitution,
+            eqiora_core::ValueLiteral::from_real(
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
@@ -214,7 +214,7 @@ fn bouncing_ball(direction: EventDirection) -> BouncingBall {
                 0.8,
             )
             .unwrap(),
-        ),
+        )),
         KernelNode::from(RelationDef::new(
             flow,
             flow_expression

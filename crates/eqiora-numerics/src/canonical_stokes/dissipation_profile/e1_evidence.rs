@@ -488,10 +488,10 @@ fn geometry_program(
         transaction.push(Op::DefineKernelNode { node });
     }
     for node in cartesian.nodes() {
-        if let Some(value) = cartesian.value(node.id()) {
+        if let Some(value) = cartesian.typed_value(node.id()) {
             transaction.push(Op::SetValue {
                 target: node.id(),
-                value,
+                value: value.clone(),
             });
         }
     }
