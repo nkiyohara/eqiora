@@ -11,6 +11,7 @@ use crate::{
 };
 
 mod axes;
+mod partition;
 mod products;
 
 pub use products::{EvaluationMapJvp, EvaluationMapProducts, EvaluationMapVjp};

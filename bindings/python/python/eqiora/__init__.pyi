@@ -1126,6 +1126,14 @@ class DifferentiableProgram:
     def evaluate(
         self, parameters: Array | _Float64Array | _DLPackProducer
     ) -> DifferentiableEvaluation: ...
+    def map(
+        self,
+        mapped: Array | _Float64Array | _DLPackProducer,
+        *,
+        shared_inputs: Sequence[ParameterRef] | None = None,
+        shared: Array | _Float64Array | _DLPackProducer | None = None,
+        retained_bytes_limit: int = 67_108_864,
+    ) -> EvaluationMapPlan: ...
     def primal(self) -> DifferentiablePrimal: ...
     def jvp(
         self, tangent: Array | _Float64Array | _DLPackProducer
@@ -1133,6 +1141,146 @@ class DifferentiableProgram:
     def vjp(
         self, cotangent: Array | _Float64Array | _DLPackProducer
     ) -> DifferentiableVjp: ...
+
+@final
+class EvaluationMapCancellation:
+    """Cooperative native cancellation between ordered occurrences.
+
+    Authority: ``crates/eqiora-python/src/differentiation/batch.rs::PyEvaluationMapCancellation``.
+    """
+
+    def __init__(self) -> None: ...
+    def cancel(self) -> None: ...
+    @property
+    def requested(self) -> bool: ...
+
+@final
+class EvaluationMapPlan:
+    """Frozen complete points; planning validates metadata without solving.
+
+    Authority: ``crates/eqiora-python/src/differentiation/batch.rs::PyEvaluationMapPlan``.
+    """
+
+    def __len__(self) -> int: ...
+    def __getitem__(self, index: int) -> _Float64Array: ...
+    @property
+    def program(self) -> DifferentiableProgram: ...
+    @property
+    def point_shape(self) -> tuple[int, ...]: ...
+    @property
+    def input_shape(self) -> tuple[int, ...]: ...
+    @property
+    def output_shape(self) -> tuple[int, ...]: ...
+    @property
+    def shared_input_ids(self) -> list[str]: ...
+    @property
+    def mapped_input_ids(self) -> list[str]: ...
+    @property
+    def estimated_retained_bytes(self) -> int: ...
+    @property
+    def points(self) -> _Float64Array: ...
+    def occurrence_coordinates(self, index: int) -> tuple[int, ...]: ...
+    def execute(
+        self, *, cancellation: EvaluationMapCancellation | None = None
+    ) -> CompleteEvaluationMap | EvaluationMapTerminalReport: ...
+
+@final
+class CompleteEvaluationMap:
+    """Complete native batch retaining every accepted occurrence and linearization.
+
+    Authority: ``crates/eqiora-python/src/differentiation/batch/results.rs::PyCompleteEvaluationMap``.
+    """
+
+    def __len__(self) -> int: ...
+    def __getitem__(self, index: int) -> DifferentiableEvaluation: ...
+    @property
+    def plan(self) -> EvaluationMapPlan: ...
+    @property
+    def statuses(self) -> list[str]: ...
+    def member(self, index: int) -> DifferentiableEvaluation: ...
+    def primal(self) -> _Float64Array: ...
+    def jvp(
+        self, mapped: Array | _Float64Array | _DLPackProducer, *,
+        shared: Array | _Float64Array | _DLPackProducer | None = None,
+        seed_shape: Sequence[int] | None = None,
+        point_axes: Sequence[int] | None = None,
+        numerical_bytes_limit: int = 67_108_864,
+    ) -> EvaluationMapJvp: ...
+    def vjp(
+        self, cotangents: Array | _Float64Array | _DLPackProducer, *,
+        seed_shape: Sequence[int] | None = None,
+        point_axes: Sequence[int] | None = None,
+        numerical_bytes_limit: int = 67_108_864,
+    ) -> EvaluationMapVjp: ...
+
+@final
+class EvaluationMapTerminalReport:
+    """Inspectable failed or cancelled prefix, never a complete primal or product.
+
+    Authority: ``crates/eqiora-python/src/differentiation/batch/results.rs::PyEvaluationMapTerminalReport``.
+    """
+
+    def __len__(self) -> int: ...
+    def __getitem__(self, index: int) -> DifferentiableEvaluation | None: ...
+    @property
+    def plan(self) -> EvaluationMapPlan: ...
+    @property
+    def stopped_index(self) -> int: ...
+    @property
+    def cancelled(self) -> bool: ...
+    @property
+    def diagnostics(self) -> list[Diagnostic]: ...
+    @property
+    def statuses(self) -> list[str]: ...
+    def member(self, index: int) -> DifferentiableEvaluation | None: ...
+
+@final
+class EvaluationMapJvp:
+    """Native mapped JVPs in explicit point/seed order, preserving member evidence.
+
+    Authority: ``crates/eqiora-python/src/differentiation/batch/products.rs::PyEvaluationMapJvp``.
+    """
+
+    @property
+    def plan(self) -> EvaluationMapPlan: ...
+    @property
+    def seed_shape(self) -> tuple[int, ...]: ...
+    @property
+    def point_axes(self) -> tuple[int, ...]: ...
+    @property
+    def shape(self) -> tuple[int, ...]: ...
+    @property
+    def output(self) -> _Float64Array: ...
+    @property
+    def tangent(self) -> _Float64Array: ...
+    def member(self, index: int) -> DifferentiableJvp: ...
+
+@final
+class EvaluationMapVjp:
+    """Native mapped VJPs; globally shared cotangents sum over point axes.
+
+    Authority: ``crates/eqiora-python/src/differentiation/batch/products.rs::PyEvaluationMapVjp``.
+    """
+
+    @property
+    def plan(self) -> EvaluationMapPlan: ...
+    @property
+    def seed_shape(self) -> tuple[int, ...]: ...
+    @property
+    def point_axes(self) -> tuple[int, ...]: ...
+    @property
+    def shared_shape(self) -> tuple[int, ...]: ...
+    @property
+    def mapped_shape(self) -> tuple[int, ...]: ...
+    @property
+    def shared_input_ids(self) -> list[str]: ...
+    @property
+    def mapped_input_ids(self) -> list[str]: ...
+    @property
+    def shared_cotangents(self) -> _Float64Array: ...
+    @property
+    def mapped_cotangents(self) -> _Float64Array: ...
+    def member(self, index: int) -> DifferentiableVjp: ...
 
 @final
 class Series:
@@ -1555,6 +1703,12 @@ __all__ = [
     "DifferentiablePrimal",
     "DifferentiableProgram",
     "DifferentiableVjp",
+    "CompleteEvaluationMap",
+    "EvaluationMapPlan",
+    "EvaluationMapTerminalReport",
+    "EvaluationMapCancellation",
+    "EvaluationMapJvp",
+    "EvaluationMapVjp",
     "DifferentiationEvidence",
     "DifferentiationMode",
     "Dimension",

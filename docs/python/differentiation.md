@@ -37,15 +37,93 @@ tangents, and cotangents accept exact rank-one CPU arrays through the ownership
 contract described in
 [Execution, diagnostics, and arrays](execution-and-arrays.md).
 
-Multiple outputs, objective languages, batching, persisted programs, GPU
+Multiple outputs, objective languages, persisted programs, GPU
 adjoints, and higher-order differentiation remain separate capabilities.
+
+## Native ordered batches
+
+The batch API is in the current source tree, not the published `0.1.0a7`
+wheel. From a checkout with the declared Rust toolchain available:
+
+```console
+uv venv --python 3.13 .venv
+uv pip install --python .venv/bin/python .
+uv run --no-project --python .venv/bin/python your_batch.py
+```
+
+Plan a batch without solving, then execute it once in native code:
+
+```python
+batch = program.map(np.array([[1.5], [0.5], [1.5]], dtype=np.float64))
+print(batch.input_shape, batch.output_shape)
+result = batch.execute()
+if isinstance(result, eqiora.CompleteEvaluationMap):
+    states = result.primal()  # read-only [3, output components]
+    tangents = result.jvp(np.ones((3, 1), dtype=np.float64)).tangent
+    cotangents = result.vjp(np.ones(batch.output_shape, dtype=np.float64))
+else:
+    print(result.stopped_index, result.statuses, result.diagnostics)
+```
+
+The trailing input axis follows `program.input_ids`; preceding axes are the
+row-major point grid. Equal points remain separate occurrences in request
+order. A rank-one input is one point, and zero extents preserve output metadata
+without executing a solver. `batch.points` exposes the frozen complete inputs;
+`batch.occurrence_coordinates(i)` maps a flat occurrence back to its grid.
+
+Share selected coordinates explicitly across the whole grid. For a program
+whose ordered inputs are `(source, diffusion, boundary_offset)`:
+
+```python
+batch = program.map(
+    np.array([[3.0, 0.0], [1.0, 0.2], [3.0, 0.0]], dtype=np.float64),
+    shared_inputs=(model.parameter("diffusion"),),
+    shared=np.array([2.0], dtype=np.float64),
+)
+result = batch.execute()
+if isinstance(result, eqiora.CompleteEvaluationMap):
+    jvp = result.jvp(
+        np.ones((3, 2), dtype=np.float64),
+        shared=np.array([0.1], dtype=np.float64),
+    )
+    vjp = result.vjp(np.ones(batch.output_shape, dtype=np.float64))
+    # Shared covectors sum over all point occurrences; mapped ones stay separate.
+    print(vjp.shared_cotangents, vjp.mapped_cotangents)
+```
+
+Mapped coordinates are the remaining inputs in Program order, not the order
+of a Python dictionary. Shared values follow `shared_inputs`, which must be
+distinct references from the exact Program's Model. Sharing along only some
+point axes is not admitted; no broadcasting or identity conversion is applied.
+
+JVP and VJP reuse accepted native linearizations. Optional `seed_shape` and
+`point_axes` place point axes inside a nested product grid. For point shape
+`(2, 4)`, `seed_shape=(3,)` and `point_axes=(0, 2)` mean `(2, 3, 4)`;
+mapped tangent and output-cotangent arrays append their coordinate extent.
+Shared tangents use `seed_shape + (shared_count,)`. Products retain the Plan,
+axis metadata and per-member evidence. Rank is bounded to 32 point/seed axes;
+`retained_bytes_limit` and `numerical_bytes_limit` bound native retained
+numerical storage, not process peak memory.
+
+NumPy, Eqiora Array and CPU DLPack inputs use the existing exact `float64`
+ownership rules. NumPy/DLPack tensors must be aligned, native-endian and
+C-contiguous. Inputs are copied before execution releases the GIL, so later
+mutations cannot retarget a Plan or product. Eqiora Array is rank one; use its
+read-only NumPy view and explicit reshape when a point grid is desired.
+
+`eqiora.EvaluationMapCancellation()` can be passed to `batch.execute` and
+cancelled from another Python thread. Native execution polls it only between
+occurrences. A failed or cancelled prefix exposes accepted `member(i)` values
+and exact status/diagnostics, but has no complete `primal`, `jvp` or `vjp`.
+Importing and using batches requires neither JAX nor PyTorch.
 
 ## PyTorch
 
 Install the optional adapter and bind outside the compiled function:
 
 ```console
-python -m pip install "eqiora[torch]"
+uv venv --python 3.13 .venv
+uv pip install --python .venv/bin/python ".[torch]"
 ```
 
 ```python
@@ -87,7 +165,8 @@ AOT packaging are not yet supported.
 The optional JAX adapter uses native typed FFI:
 
 ```console
-python -m pip install "eqiora[jax]"
+uv venv --python 3.13 .venv
+uv pip install --python .venv/bin/python ".[jax]"
 ```
 
 ```python

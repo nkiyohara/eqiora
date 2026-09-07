@@ -17,7 +17,8 @@ Eqiora `0.1.0a7` supports ordinary-GIL CPython 3.11–3.14 on
 manylinux x86-64:
 
 ```console
-python -m pip install eqiora==0.1.0a7
+uv venv --python 3.13 .venv
+uv pip install --python .venv/bin/python eqiora==0.1.0a7
 ```
 
 Automatic exact-cylinder meshing requires Gmsh 4.15.2. The conventional Linux
@@ -25,7 +26,7 @@ installation is:
 
 ```console
 sudo apt-get install libglu1-mesa
-python -m pip install "eqiora[gmsh]==0.1.0a7"
+uv pip install --python .venv/bin/python "eqiora[gmsh]==0.1.0a7"
 ```
 
 The Gmsh extra is separate so the base `manylinux_2_17` package keeps its
@@ -34,14 +35,18 @@ compatibility floor; the current Gmsh wheel has a newer Linux floor.
 Optional first-order framework adapters are explicit:
 
 ```console
-python -m pip install "eqiora[torch]==0.1.0a7"
-python -m pip install "eqiora[jax]==0.1.0a7"
-python -m pip install "eqiora[matplotlib]==0.1.0a7"
-python -m pip install "eqiora[viewer]==0.1.0a7"
+uv pip install --python .venv/bin/python "eqiora[torch]==0.1.0a7"
+uv pip install --python .venv/bin/python "eqiora[jax]==0.1.0a7"
+uv pip install --python .venv/bin/python "eqiora[matplotlib]==0.1.0a7"
+uv pip install --python .venv/bin/python "eqiora[viewer]==0.1.0a7"
 ```
 
 The exact-cylinder pressure example combines the mesher and plot adapter:
-`python -m pip install "eqiora[gmsh,matplotlib]==0.1.0a7"`.
+`uv pip install --python .venv/bin/python "eqiora[gmsh,matplotlib]==0.1.0a7"`.
+
+Run scripts with `uv run --no-project --python .venv/bin/python your_script.py`
+to use this environment explicitly. Current-source features described in the
+development guides may not yet be included in this published release.
 
 The base package imports none of these optional libraries. The viewer extra
 pins `anywidget==0.11.0`; its JavaScript and CSS are already carried inside the

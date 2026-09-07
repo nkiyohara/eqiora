@@ -568,12 +568,14 @@ Install the Gmsh and Matplotlib adapters and ask the same runnable file to save
 the accepted pressure field:
 
 ```console
-python -m pip install 'eqiora[gmsh,matplotlib]'
-python examples/python/exact_cylinder_stokes.py \
+uv venv --python 3.13 .venv
+uv pip install --python .venv/bin/python '.[gmsh,matplotlib]'
+uv run --no-project --python .venv/bin/python examples/python/exact_cylinder_stokes.py \
   --pressure-png exact-cylinder-pressure.png
 ```
 
-The equivalent composition API is:
+These commands build the checked-out source with its matching example. The
+equivalent composition API is:
 
 ```python
 import eqiora.matplotlib as eqplot
