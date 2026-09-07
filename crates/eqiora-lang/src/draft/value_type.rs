@@ -125,15 +125,15 @@ mod tests {
         .unwrap()
         .array(3)
         .unwrap();
-        let field = DraftField::new("channels", value.clone(), None);
+        let field = DraftField::new("channels", value.clone(), crate::FieldRoleSyntax::Variable);
         assert_eq!(field.value_type(), &value);
-        assert_eq!(field.initial(), None);
+        assert_eq!(field.role(), crate::FieldRoleSyntax::Variable);
         let draft = ModelDraft::new("M", [field.into()]).unwrap();
         let native = draft.native_ast();
         let document =
             SourceAstFactory::document(vec![], vec![], vec![native.model().clone()]).unwrap();
         let source = crate::format(&document);
-        assert!(source.contains("field channels: array<vector<complex<1>, 2>, 3>;"));
+        assert!(source.contains("variable channels: array<vector<complex<1>, 2>, 3>;"));
         let parsed = crate::parse("native.eqi", &source).into_document().unwrap();
         assert_eq!(crate::format(&parsed), source);
         let Item::Field(field) = &native.model().items()[0] else {
@@ -149,11 +149,13 @@ mod tests {
     }
 
     #[test]
-    fn native_fields_obey_source_type_limits_and_initial_shape_rules() {
+    fn native_fields_obey_source_type_limits() {
         let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
-        let oversized = DraftField::new("large", scalar.clone().array(65_537).unwrap(), None);
+        let oversized = DraftField::new(
+            "large",
+            scalar.array(65_537).unwrap(),
+            crate::FieldRoleSyntax::Variable,
+        );
         assert!(ModelDraft::new("M", [oversized.into()]).is_err());
-        let initial = DraftField::new("channels", scalar.array(2).unwrap(), Some(1.0));
-        assert!(ModelDraft::new("M", [initial.into()]).is_err());
     }
 }

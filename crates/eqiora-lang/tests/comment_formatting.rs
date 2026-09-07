@@ -48,7 +48,7 @@ fn formatting_canonicalizes_examples_without_losing_authored_comments() {
 
 #[test]
 fn formatting_preserves_leading_trailing_and_body_comments() {
-    let source = "// leading\nmodel M { // trailing\n  // body\n  field x: 1 = 0;\n}\n";
+    let source = "// leading\nmodel M { // trailing\n  // body\n  variable x: 1;\n}\n";
     let document = parse("comments.eqi", source)
         .into_document()
         .expect("comment positions parse");
@@ -58,14 +58,14 @@ fn formatting_preserves_leading_trailing_and_body_comments() {
 
 #[test]
 fn formatting_still_canonicalizes_comment_free_source() {
-    let document = parse("plain.eqi", "model plain{field x:1=0;relation r{x=0;}}")
+    let document = parse("plain.eqi", "model plain{variable x: 1;relation r{x=0;}}")
         .into_document()
         .expect("plain source parses");
     let formatted = format(&document);
 
     assert_eq!(
         formatted,
-        "model plain {\n  field x: 1 = 0;\n  relation r {\n    x = 0;\n  }\n}\n"
+        "model plain {\n  variable x: 1;\n  relation r {\n    x = 0;\n  }\n}\n"
     );
     let reparsed = parse("plain.eqi", &formatted)
         .into_document()

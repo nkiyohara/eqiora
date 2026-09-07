@@ -1,8 +1,7 @@
 use super::*;
 use crate::draft_spatial::DraftBoundarySide;
 use crate::{
-    ConnectionSyntax, DomainDecl, DomainSyntax, Item, PortDecl, PortSyntax, RepresentationDecl,
-    RepresentationSyntax,
+    ConnectionSyntax, DomainDecl, DomainSyntax, FieldRoleSyntax, Item, PortDecl, PortSyntax,
 };
 
 fn voltage_dimension() -> DimExponents {
@@ -21,7 +20,7 @@ fn native_draft_rejects_foreign_symbol_even_when_name_matches() {
             eqiora_core::ScalarDomain::Real,
             DimExponents::DIMENSIONLESS,
         ),
-        Some(1.0),
+        FieldRoleSyntax::Variable,
     );
     let foreign = DraftField::new(
         "x",
@@ -29,7 +28,7 @@ fn native_draft_rejects_foreign_symbol_even_when_name_matches() {
             eqiora_core::ScalarDomain::Real,
             DimExponents::DIMENSIONLESS,
         ),
-        Some(1.0),
+        FieldRoleSyntax::Variable,
     );
     let relation = DraftRelation::continuous("flow", [foreign.expression()]);
 
@@ -49,7 +48,7 @@ fn typed_dimensions_and_expression_references_become_source_ast() {
             eqiora_core::ScalarDomain::Real,
             DimExponents::DIMENSIONLESS,
         ),
-        Some(1.0),
+        FieldRoleSyntax::State,
     );
     let rate = DraftParameter::new(
         "rate",
@@ -59,12 +58,15 @@ fn typed_dimensions_and_expression_references_become_source_ast() {
         ),
         1.0,
     );
+    let initial =
+        DraftDeclaration::Initial(vec![state.expression() - DraftExpression::constant(1.0)]);
     let residual = DraftExpression::derivative(&state) + rate.expression() * state.expression();
     let draft = ModelDraft::new(
         "decay",
         [
             state.into(),
             rate.into(),
+            initial,
             DraftRelation::continuous("flow", [residual]).into(),
         ],
     )
@@ -72,16 +74,17 @@ fn typed_dimensions_and_expression_references_become_source_ast() {
 
     let native = draft.native_ast();
     assert_eq!(native.model().name(), "decay");
-    assert_eq!(native.model().items().len(), 3);
+    assert_eq!(native.model().items().len(), 4);
     assert!(native.graph_path(native.model().range()).is_some());
-    for item in &native.model().items()[..2] {
-        let initializer = match item {
-            Item::Field(field) => field.initial().unwrap(),
-            Item::Parameter(parameter) => parameter.value(),
-            _ => panic!("expected a numeric declaration"),
-        };
-        assert!(matches!(initializer.kind(), ExprKind::Number(1.0)));
-    }
+    let Item::Field(field) = &native.model().items()[0] else {
+        panic!("state");
+    };
+    assert_eq!(field.role(), FieldRoleSyntax::State);
+    let Item::Parameter(parameter) = &native.model().items()[1] else {
+        panic!("parameter");
+    };
+    assert!(matches!(parameter.value().kind(), ExprKind::Number(1.0)));
+    assert!(matches!(native.model().items()[2], Item::Initial(_)));
 }
 
 #[test]
@@ -92,14 +95,22 @@ fn native_draft_rejects_names_and_numbers_source_could_not_express() {
             eqiora_core::ScalarDomain::Real,
             DimExponents::DIMENSIONLESS,
         ),
-        Some(f64::INFINITY),
+        FieldRoleSyntax::Variable,
     );
     let relation = DraftRelation::continuous(
         "flow",
         [field.expression() + DraftExpression::constant(f64::NAN)],
     );
 
-    let diagnostics = ModelDraft::new("", [field.into(), relation.into()]).unwrap_err();
+    let diagnostics = ModelDraft::new(
+        "",
+        [
+            field.into(),
+            relation.into(),
+            DraftDeclaration::Initial(vec![DraftExpression::constant(f64::INFINITY)]),
+        ],
+    )
+    .unwrap_err();
     assert!(
         diagnostics
             .iter()
@@ -113,7 +124,7 @@ fn native_draft_rejects_names_and_numbers_source_could_not_express() {
     assert!(
         diagnostics
             .iter()
-            .any(|diagnostic| diagnostic.message().contains("must be finite"))
+            .any(|diagnostic| diagnostic.message().contains("non-finite"))
     );
     assert!(
         diagnostics
@@ -317,7 +328,7 @@ fn duplicate_names_are_rejected_across_physical_and_scalar_declarations() {
             eqiora_core::ScalarDomain::Real,
             DimExponents::DIMENSIONLESS,
         ),
-        Some(0.0),
+        FieldRoleSyntax::Variable,
     );
     let diagnostics = ModelDraft::new("duplicates", [domain.into(), field.into()]).unwrap_err();
     assert!(
@@ -341,7 +352,7 @@ fn anonymous_connection_diagnostic_paths_follow_membership_not_declaration_posit
             eqiora_core::ScalarDomain::Real,
             DimExponents::DIMENSIONLESS,
         ),
-        Some(0.0),
+        FieldRoleSyntax::Variable,
     );
     let connection = DraftConservingConnection::new([&terminal]);
     let forward = ModelDraft::new(
@@ -379,32 +390,21 @@ fn anonymous_connection_diagnostic_paths_follow_membership_not_declaration_posit
 fn spatial_draft_retains_exact_scope_identity_before_ast_projection() {
     let included = DraftSpatialDomain::cartesian_box("interval", [(0.0, 1.0)]);
     let foreign = DraftSpatialDomain::cartesian_box("interval", [(0.0, 1.0)]);
-    let included_space = DraftRepresentation::continuum("space");
-    let foreign_space = DraftRepresentation::continuum("space");
     let field = DraftField::spatial(
         "u",
         &foreign,
-        &foreign_space,
         eqiora_core::ValueType::scalar(
             eqiora_core::ScalarDomain::Real,
             DimExponents::DIMENSIONLESS,
         ),
-        Some(0.0),
+        FieldRoleSyntax::Variable,
     );
-    let diagnostics = ModelDraft::new(
-        "foreign_scope",
-        [included.into(), included_space.into(), field.into()],
-    )
-    .unwrap_err();
+    let diagnostics =
+        ModelDraft::new("foreign_scope", [included.into(), field.into()]).unwrap_err();
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message()
             .contains("foreign or omitted Domain `interval`")
-    }));
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message()
-            .contains("foreign or omitted Representation `space`")
     }));
 }
 
@@ -412,16 +412,14 @@ fn spatial_draft_retains_exact_scope_identity_before_ast_projection() {
 fn spatial_draft_projects_only_to_existing_source_ast_forms() {
     let interval = DraftSpatialDomain::cartesian_box("interval", [(0.0, 1.0)]);
     let lower = DraftSpatialDomain::boundary("lower", &interval, 0, DraftBoundarySide::Lower);
-    let space = DraftRepresentation::continuum("space");
     let field = DraftField::spatial(
         "u",
         &interval,
-        &space,
         eqiora_core::ValueType::scalar(
             eqiora_core::ScalarDomain::Real,
             DimExponents::DIMENSIONLESS,
         ),
-        Some(0.0),
+        FieldRoleSyntax::Variable,
     );
     let balance = DraftRelation::continuous_on(
         "balance",
@@ -440,7 +438,6 @@ fn spatial_draft_projects_only_to_existing_source_ast_forms() {
         [
             interval.into(),
             lower.into(),
-            space.into(),
             field.into(),
             balance.into(),
             boundary.into(),
@@ -463,15 +460,13 @@ fn spatial_draft_projects_only_to_existing_source_ast_forms() {
             ..
         })
     ));
-    assert!(matches!(
-        native.model().items()[2],
-        Item::Representation(RepresentationDecl {
-            syntax: RepresentationSyntax::Continuum,
-            ..
-        })
-    ));
-    let Item::Relation(relation) = &native.model().items()[4] else {
-        panic!("fifth item must be a Relation");
+    let Item::Field(field) = &native.model().items()[2] else {
+        panic!("third item must be a Field");
+    };
+    assert_eq!(field.domain(), Some("interval"));
+    assert_eq!(field.role(), FieldRoleSyntax::Variable);
+    let Item::Relation(relation) = &native.model().items()[3] else {
+        panic!("fourth item must be a Relation");
     };
     assert_eq!(relation.domain(), Some("interval"));
     assert!(expression_contains_call(

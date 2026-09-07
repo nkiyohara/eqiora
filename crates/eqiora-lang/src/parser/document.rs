@@ -286,7 +286,7 @@ mod tests {
     fn source_module_declarations_are_not_language_syntax() {
         let parsed = parse(
             "primitives.eqi",
-            "module library.primitives; public component Resistor {}",
+            "module library.primitives; public component Resistor() {}",
         );
         assert!(parsed.diagnostics().iter().any(|diagnostic| {
             diagnostic

@@ -90,7 +90,7 @@ mod tests {
         let range = TextRange::new(0, 0);
         let expression = SourceAstFactory::expression(ExprKind::Name("m".to_owned()), range)
             .expect("dimension expression");
-        let model = parse("model.eqi", "model M { field x: Length = 0; }")
+        let model = parse("model.eqi", "model M { variable x: Length; }")
             .into_document()
             .expect("model source")
             .models()[0]
@@ -106,7 +106,7 @@ mod tests {
 
         assert_eq!(
             format(&document),
-            "dimension Length = m;\n\nmodel M {\n  field x: Length = 0;\n}\n"
+            "dimension Length = m;\n\nmodel M {\n  variable x: Length;\n}\n"
         );
     }
 

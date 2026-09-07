@@ -131,7 +131,7 @@ mod tests {
     fn constructs_primal_form_without_model_item_coercion() {
         let parsed = parse(
             "form.eqi",
-            "component C { relation balance { 1 = 0; } form primal for balance { integrate(region, test(value)) = integrate(region, test(value)); } }",
+            "component C() { relation balance { 1 = 0; } form primal for balance { integrate(region, test(value)) = integrate(region, test(value)); } }",
         )
         .into_document()
         .unwrap();

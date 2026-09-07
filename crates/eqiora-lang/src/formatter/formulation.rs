@@ -24,7 +24,7 @@ pub(super) fn format_component(
         .filter(|item| is_requirement(item))
         .collect();
     if !requirements.is_empty() {
-        output.push_str("\n");
+        output.push('\n');
         for item in &requirements {
             super::format_component_requirement(item, 2, output);
             output.push_str(",\n");
@@ -77,7 +77,7 @@ mod tests {
 
     #[test]
     fn primal_form_has_one_canonical_roundtrip() {
-        let source = "component D{public support region:volume(ambient_dimension=2);representation s=continuum;field u on region as s:1=0;relation balance on region{-div(grad(u))=f;}form primal for balance{integrate(region,dot(grad(test(u)),grad(u)))=integrate(region,test(u)*f);}}";
+        let source = "component D(support region:volume(ambient_dimension=2)) {variable u: 1 on region;relation balance on region{-div(grad(u))=f;}form primal for balance{integrate(region,dot(grad(test(u)),grad(u)))=integrate(region,test(u)*f);}}";
         let first = parse("form.eqi", source).into_document().unwrap();
         let formatted = format(&first);
         let second = parse("form.eqi", &formatted).into_document().unwrap();

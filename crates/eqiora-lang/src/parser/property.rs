@@ -244,7 +244,7 @@ public material composition ReferenceMaterial {
   property diffusivity = ReferenceDiffusivity;
 }
 
-public component Diffusion {
+public component Diffusion() {
   public property diffusivity: Diffusivity;
   relation law { diffusivity = 0; }
 }

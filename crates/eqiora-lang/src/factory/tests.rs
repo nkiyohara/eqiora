@@ -33,15 +33,12 @@ fn owned_flat_model_formats_and_parses_identically() {
         range(0, 0),
     )
     .expect("Domain");
-    let representation =
-        SourceAstFactory::representation("space", RepresentationSyntax::Continuum, range(0, 0))
-            .expect("Representation");
     let field = SourceAstFactory::field(
         "temperature",
         Some("body".to_owned()),
-        Some("space".to_owned()),
+        crate::FieldRoleSyntax::Variable,
+        ActivationSyntax::Continuous,
         crate::ValueTypeSyntax::real(dimension()),
-        Some(SourceAstFactory::expression(ExprKind::Number(0.0), range(0, 0)).unwrap()),
         range(0, 0),
     )
     .expect("Field");
@@ -117,7 +114,6 @@ fn owned_flat_model_formats_and_parses_identically() {
         "constructed",
         vec![
             Item::Domain(domain),
-            Item::Representation(representation),
             Item::Field(field),
             Item::Parameter(parameter),
             Item::Port(output),
@@ -263,16 +259,12 @@ fn owned_support_slots_and_bindings_format_and_parse_identically() {
         range(0, 0),
     )
     .expect("boundary support slot");
-    let representation =
-        SourceAstFactory::representation("space", RepresentationSyntax::Continuum, range(0, 0))
-            .expect("Representation");
     let component = SourceAstFactory::component(
         VisibilitySyntax::Private,
         "BoundaryState",
         vec![
             ComponentItem::Support(body),
             ComponentItem::Support(interface),
-            ComponentItem::Representation(representation),
         ],
         range(0, 0),
     )
@@ -315,9 +307,11 @@ fn owned_field_slots_and_bindings_format_and_parse_identically() {
         range(0, 0),
     )
     .expect("volume support slot");
-    let state = SourceAstFactory::field_slot(
+    let state = SourceAstFactory::field(
         "state",
-        "body",
+        Some("body".to_owned()),
+        crate::FieldRoleSyntax::Variable,
+        ActivationSyntax::Continuous,
         SourceAstFactory::value_type(
             crate::ValueTypeSyntaxKind::Vector {
                 scalar: Box::new(crate::ValueTypeSyntax::real(dimension())),
@@ -334,7 +328,7 @@ fn owned_field_slots_and_bindings_format_and_parse_identically() {
         "StateLaw",
         vec![
             ComponentItem::Support(body),
-            ComponentItem::FieldSlot(state),
+            ComponentItem::FieldRequirement(state),
         ],
         range(0, 0),
     )
@@ -362,10 +356,10 @@ fn owned_field_slots_and_bindings_format_and_parse_identically() {
         .expect("factory Field-slot source parses");
 
     assert_eq!(format(&reparsed), source);
-    let ComponentItem::FieldSlot(slot) = &reparsed.components()[0].items()[1] else {
+    let ComponentItem::FieldRequirement(slot) = &reparsed.components()[0].items()[1] else {
         panic!("second component member is a Field slot");
     };
-    assert_eq!(slot.support(), "body");
+    assert_eq!(slot.domain(), Some("body"));
     let Item::Instance(instance) = &reparsed.models()[0].items()[0] else {
         panic!("model member is an instance");
     };
@@ -454,7 +448,8 @@ fn factory_constructs_closed_field_physical_source_shapes() {
     let field = SourceAstFactory::field(
         "velocity",
         None,
-        None,
+        crate::FieldRoleSyntax::Variable,
+        ActivationSyntax::Continuous,
         SourceAstFactory::value_type(
             crate::ValueTypeSyntaxKind::Array {
                 element: Box::new(crate::ValueTypeSyntax::real(dimension())),
@@ -463,7 +458,6 @@ fn factory_constructs_closed_field_physical_source_shapes() {
             range(0, 0),
         )
         .unwrap(),
-        None,
         range(0, 0),
     )
     .expect("shaped Field");

@@ -6,8 +6,8 @@ fn parser_retains_exact_pure_operator_syntax_and_qualified_applications() {
   component(left, 0) * component(right, 1) + rational(03, 4) * delta(0, 1);
 
 model coupled {
-  field u: 1 = 0;
-  field v: 1 = 0;
+  variable u: 1;
+  variable v: 1;
   relation law { ops.dyadic(u, v) = 0; }
 }"#;
     let document = parse("pure-operator.eqi", source)
@@ -121,8 +121,9 @@ fn parser_requires_pure_operators_before_models_and_nonempty_calls() {
 fn parser_builds_continuous_and_periodic_relations() {
     let source = r#"
 model thermal {
-  field temperature: K = 293;
-  field command: 1 = 0;
+  state temperature: K;
+  state command: 1 at control;
+  initial { temperature = 293[K]; command = 0; }
   clock control = periodic(period = 1 / 10, phase = 0 / 1);
   relation plant {
 derivative(temperature) - command = 0;
@@ -136,12 +137,12 @@ next(command) - pre(command) = 0;
     let document = result.into_document().expect("valid source");
 
     assert_eq!(document.models().len(), 1);
-    assert_eq!(document.models()[0].items().len(), 5);
+    assert_eq!(document.models()[0].items().len(), 6);
 }
 
 #[test]
 fn parser_recovers_after_an_invalid_item() {
-    let source = "model m { nonsense; field x: 1 = 0; }";
+    let source = "model m { nonsense; variable x: 1; }";
     let result = parse("recovery.eqi", source);
 
     assert!(!result.diagnostics().is_empty());
@@ -206,7 +207,7 @@ fn parser_builds_typed_component_interfaces_instances_and_paths() {
     let source = r#"
 connector Pin = scalar_physical(across = kg * m ^ 2 / (s ^ 3 * A), through = A);
 
-component Pair {
+component Pair() {
   public parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2);
   parameter scale: 1 = 2;
   public port positive: conserving on Pin;
@@ -296,12 +297,12 @@ model parallel {
 }
 
 #[test]
-fn parser_retains_component_support_slots_representations_and_mixed_bindings() {
-    let source = r#"component BoundaryState {
-  public support body: volume(ambient_dimension = 2);
-  public support interface: boundary(parent = body);
-  representation state_space = continuum;
-  field state on body as state_space: 1 = 0;
+fn parser_retains_component_support_requirements_and_mixed_bindings() {
+    let source = r#"component BoundaryState(
+  support body: volume(ambient_dimension = 2),
+  support interface: boundary(parent = body)
+) {
+  variable state: 1 on body;
 }
 
 model coupled {
@@ -326,7 +327,7 @@ model coupled {
     ));
     assert_eq!(
         &source[body.range().start() as usize..body.range().end() as usize],
-        "public support body: volume(ambient_dimension = 2);"
+        "support body: volume(ambient_dimension = 2)"
     );
 
     let ComponentItem::Support(interface) = &component.items()[1] else {
@@ -336,11 +337,10 @@ model coupled {
         interface.syntax(),
         SupportSlotSyntax::Boundary { parent } if parent == "body"
     ));
-    let ComponentItem::Representation(representation) = &component.items()[2] else {
-        panic!("third member is the private Representation");
+    let ComponentItem::Field(field) = &component.items()[2] else {
+        panic!("third member is the private variable");
     };
-    assert_eq!(representation.name(), "state_space");
-
+    assert_eq!(field.name(), "state");
     let Item::Instance(instance) = &document.models()[0].items()[2] else {
         panic!("third model member is the component instance");
     };
@@ -355,18 +355,18 @@ model coupled {
 
 #[test]
 fn parser_retains_occurrence_bound_field_slots_and_bindings() {
-    let source = r#"component IsotropicBalance2d {
-  public support body: volume(ambient_dimension = 2);
-  public field slot displacement on body as continuum: vector<m, 2>;
-  public field slot load on body as continuum: vector<kg / (m * s ^ 2), 2>;
+    let source = r#"component IsotropicBalance2d(
+  support body: volume(ambient_dimension = 2),
+  variable displacement: vector<m, 2> on body,
+  variable load: vector<kg / (m * s ^ 2), 2> on body,
+) {
   public parameter mu: kg / (m * s ^ 2);
 }
 
 model Main {
   domain body = box(0, 1, 0, 1);
-  representation space = continuum;
-  field u on body as space: vector<m, 2>;
-  field f on body as space: vector<kg / (m * s ^ 2), 2>;
+  variable u: vector<m, 2> on body;
+  variable f: vector<kg / (m * s ^ 2), 2> on body;
   instance law: IsotropicBalance2d(mu = 3, support body = body, field displacement = u, field load = f);
 }"#;
     let document = parse("field-slots.eqi", source)
@@ -374,22 +374,22 @@ model Main {
         .expect("Field-slot syntax is valid");
     let component = &document.components()[0];
 
-    let ComponentItem::FieldSlot(displacement) = &component.items()[1] else {
+    let ComponentItem::FieldRequirement(displacement) = &component.items()[1] else {
         panic!("second member is the displacement Field slot");
     };
     assert_eq!(displacement.name(), "displacement");
-    assert_eq!(displacement.support(), "body");
+    assert_eq!(displacement.domain(), Some("body"));
     assert!(matches!(
         displacement.value_type().kind(),
         crate::ValueTypeSyntaxKind::Vector { extent: 2, .. }
     ));
     assert_eq!(
         &source[displacement.range().start() as usize..displacement.range().end() as usize],
-        "public field slot displacement on body as continuum: vector<m, 2>;"
+        "variable displacement: vector<m, 2> on body"
     );
 
-    let Item::Instance(instance) = &document.models()[0].items()[4] else {
-        panic!("fifth model member is the component instance");
+    let Item::Instance(instance) = &document.models()[0].items()[3] else {
+        panic!("fourth model member is the component instance");
     };
     assert_eq!(instance.bindings().len(), 1);
     assert_eq!(instance.support_bindings().len(), 1);
@@ -405,7 +405,7 @@ model Main {
 fn field_discriminator_does_not_reserve_the_parameter_name_field() {
     let document = parse(
         "field-parameter.eqi",
-        "component C { public parameter field: 1; } model m { instance c: C(field = 1); }",
+        "component C() { public parameter field: 1; } model m { instance c: C(field = 1); }",
     )
     .into_document()
     .expect("`field = expression` remains a Parameter binding");
@@ -418,16 +418,16 @@ fn field_discriminator_does_not_reserve_the_parameter_name_field() {
 }
 
 #[test]
-fn parser_rejects_non_public_or_non_continuum_field_slots() {
+fn parser_rejects_retired_body_field_slots() {
     let private = parse(
         "private-slot.eqi",
-        "component C { field slot state on body as continuum: 1; }",
+        "component C() { field slot state on body as continuum: 1; }",
     );
     assert!(private.into_document().is_err());
 
     let discrete = parse(
         "discrete-slot.eqi",
-        "component C { public field slot state on body as discrete: 1; }",
+        "component C() { public field slot state on body as discrete: 1; }",
     );
     assert!(discrete.into_document().is_err());
 }
@@ -436,7 +436,7 @@ fn parser_rejects_non_public_or_non_continuum_field_slots() {
 fn support_discriminator_does_not_reserve_the_parameter_name_support() {
     let document = parse(
         "support-parameter.eqi",
-        "component C { public parameter support: 1; } model m { instance c: C(support = 1); }",
+        "component C() { public parameter support: 1; } model m { instance c: C(support = 1); }",
     )
     .into_document()
     .expect("`support = expression` remains a Parameter binding");
@@ -451,8 +451,8 @@ fn support_discriminator_does_not_reserve_the_parameter_name_support() {
 #[test]
 fn parser_accepts_visibility_typed_declaration_only_documents() {
     let source = r#"public connector Pin = scalar_physical(across = 1, through = A);
-private component Internal {}
-public component Resistor {}"#;
+private component Internal() {}
+public component Resistor() {}"#;
     let document = parse("library.eqi", source)
         .into_document()
         .expect("library declarations parse without a Model");
@@ -478,7 +478,7 @@ public component Resistor {}"#;
     assert_eq!(
         &source[document.components()[0].range().start() as usize
             ..document.components()[0].range().end() as usize],
-        "private component Internal {}"
+        "private component Internal() {}"
     );
 }
 
@@ -502,7 +502,7 @@ fn parser_retains_public_and_private_model_visibility() {
 #[test]
 fn parser_discards_illegal_public_members_and_recovers() {
     let source = r#"
-component Invalid {
+component Invalid() {
   public relation exposed { 1 = 0; }
   public instance child: Other;
   instance malformed: ;
@@ -525,7 +525,7 @@ model root {}
 fn parser_requires_compilation_unit_definitions_before_models() {
     let result = parse(
         "order.eqi",
-        "model first {} component Late {} model second {}",
+        "model first {} component Late() {} model second {}",
     );
     let document = result.document().expect("declarations are recovered");
 
@@ -548,8 +548,7 @@ public connector MechanicalBoundary = field_physical(
 model coupled {
   domain fluid = box(0, 1, 0, 1);
   domain wall = boundary(fluid, axis = 0, side = upper);
-  representation state_space = continuum;
-  field velocity on fluid as state_space: array<m / s, 2>;
+  variable velocity: array<m / s, 2> on fluid;
   port interface: conserving MechanicalBoundary over wall;
   relation balance on wall { flux(interface) = 0; }
 }
@@ -574,23 +573,23 @@ model coupled {
     assert_eq!(*frame, FrameSyntax::Spatial);
     assert_eq!(*pairing, BoundaryPairingSyntax::EuclideanBoundaryDuality);
 
-    let Item::Field(field) = &document.models()[0].items()[3] else {
-        panic!("fourth item is the shaped Field");
+    let Item::Field(field) = &document.models()[0].items()[2] else {
+        panic!("third item is the shaped Field");
     };
     assert!(matches!(
         field.value_type().kind(),
         crate::ValueTypeSyntaxKind::Array { extent: 2, .. }
     ));
-    let Item::Port(port) = &document.models()[0].items()[4] else {
-        panic!("fifth item is the boundary Port");
+    let Item::Port(port) = &document.models()[0].items()[3] else {
+        panic!("fourth item is the boundary Port");
     };
     let PortSyntax::FieldPhysical { connector, support } = port.syntax() else {
         panic!("field-physical Port retained");
     };
     assert_eq!(connector.as_str(), "MechanicalBoundary");
     assert_eq!(support, "wall");
-    let Item::Relation(relation) = &document.models()[0].items()[5] else {
-        panic!("sixth item is the Relation");
+    let Item::Relation(relation) = &document.models()[0].items()[4] else {
+        panic!("fifth item is the Relation");
     };
     assert!(matches!(
         relation.equations()[0].left().kind(),
@@ -599,26 +598,22 @@ model coupled {
 }
 
 #[test]
-fn shaped_fields_never_desugar_a_scalar_initial_value() {
-    let valid = parse(
-        "shaped-field.eqi",
-        "model M { field velocity: array<m / s, 2>; }",
-    );
-    let document = valid.into_document().expect("shaped Field without initial");
+fn shaped_initial_equations_remain_explicit_for_shared_type_validation() {
+    let source = "model M { state velocity: array<m / s, 2>; initial { velocity = 1[m / s]; } }";
+    let document = parse("shaped-field.eqi", source)
+        .into_document()
+        .expect("syntax preserves the equation; compiler validates shape");
     let Item::Field(field) = &document.models()[0].items()[0] else {
-        panic!("fixture contains one Field");
+        panic!("field");
     };
-    assert_eq!(field.initial(), None);
-
-    let invalid = parse(
-        "broadcast.eqi",
-        "model M { field velocity: array<m / s, 2> = 1; }",
-    );
-    assert!(invalid.diagnostics().iter().any(|diagnostic| {
-        diagnostic
-            .message()
-            .contains("non-scalar Field cannot have a scalar initial value")
-    }));
+    assert_eq!(field.role(), crate::FieldRoleSyntax::State);
+    let Item::Initial(initial) = &document.models()[0].items()[1] else {
+        panic!("initial equations");
+    };
+    assert!(matches!(
+        initial.equations()[0].right().kind(),
+        ExprKind::Quantity { value: 1.0, .. }
+    ));
 }
 
 #[test]
@@ -648,9 +643,10 @@ fn field_physical_connector_fields_are_closed_and_exactly_once() {
 #[test]
 fn parser_retains_closed_complete_exterior_family_syntax() {
     let source = r#"
-component BoundaryLaw {
-  public support body: volume(ambient_dimension = 2);
-  public support exterior: complete_exterior(parent = body);
+component BoundaryLaw(
+  support body: volume(ambient_dimension = 2),
+  support exterior: complete_exterior(parent = body)
+) {
   public port mechanical[boundary in exterior]: conserving MechanicalBoundary over boundary;
   relation natural[boundary in exterior] on boundary {
 flux(mechanical[boundary = boundary]) = 0;
@@ -751,7 +747,7 @@ model periodic {
 
     let component = parse(
         "component-periodic.eqi",
-        "component C { connect periodic upper, lower; }",
+        "component C() { connect periodic upper, lower; }",
     );
     assert!(component.diagnostics().iter().any(|diagnostic| {
         diagnostic
@@ -765,11 +761,11 @@ fn parser_rejects_boundary_binders_outside_the_closed_family_sites() {
     let invalid_sources = [
         (
             "signal-port",
-            "component C { public port p[b in exterior]: signal input 1; }",
+            "component C() { public port p[b in exterior]: signal input 1; }",
         ),
         (
             "periodic-relation",
-            "component C { clock c = periodic(period = 1 / 1, phase = 0 / 1); relation r[b in exterior] on b at c { 1 = 0; } }",
+            "component C() { clock c = periodic(period = 1 / 1, phase = 0 / 1); relation r[b in exterior] on b at c { 1 = 0; } }",
         ),
         (
             "model-relation",
@@ -790,7 +786,7 @@ fn parser_rejects_boundary_binders_outside_the_closed_family_sites() {
 
 #[test]
 fn parser_and_formatter_retain_ordered_dimension_prefix_with_exact_ranges() {
-    let source = "dimension Speed = m / s;\ndimension Acceleration = Speed / s;\nmodel M { field velocity: Speed = 0; }";
+    let source = "dimension Speed = m / s;\ndimension Acceleration = Speed / s;\nmodel M { variable velocity: Speed; }";
     let document = parse("dimensions.eqi", source)
         .into_document()
         .expect("dimension prefix parses");
@@ -810,7 +806,7 @@ fn parser_and_formatter_retain_ordered_dimension_prefix_with_exact_ranges() {
 
     let misplaced = parse(
         "misplaced.eqi",
-        "model M { field x: m = 0; } dimension Length = m;",
+        "model M { variable x: m; } dimension Length = m;",
     );
     assert!(
         misplaced
