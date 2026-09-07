@@ -201,7 +201,7 @@ fn stdio_session_syncs_diagnostics_and_serves_editor_requests() {
         edits[0]["newText"]
             .as_str()
             .expect("formatted source")
-            .contains("public component Part(parameter gain: Scalar) {")
+            .contains("public component Part(\n  parameter gain: Scalar,\n) {")
     );
 
     let diagnostics = messages
