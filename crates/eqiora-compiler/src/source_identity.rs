@@ -13,6 +13,8 @@ use std::collections::BTreeMap;
 
 mod alias;
 mod compile_time;
+mod component_item;
+use component_item::encode_component_item;
 mod dimension;
 mod domain;
 pub(crate) mod formulation;
@@ -484,82 +486,6 @@ fn connection_set_identity_error(operation: &'static str, error: ConnectionSetEr
     ))
 }
 
-fn encode_component_item(item: &ComponentItem, budget: &mut Budget) -> Result<Vec<u8>, Diagnostic> {
-    let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
-    match item {
-        ComponentItem::Parameter(declaration) => {
-            encoder.u16(1)?;
-            encode_component_parameter(&mut encoder, declaration, budget)?;
-        }
-        ComponentItem::Port(declaration) => {
-            encoder.u16(2)?;
-            encode_component_port(&mut encoder, declaration, budget)?;
-        }
-        ComponentItem::PortFamily(declaration) => {
-            encoder.u16(COMPONENT_PORT_FAMILY_ITEM_TAG)?;
-            encode_component_port_family(&mut encoder, declaration, budget)?;
-        }
-        ComponentItem::Initial(declaration) => {
-            encoder.u16(15)?;
-            encode_initial(&mut encoder, declaration, budget)?;
-        }
-        ComponentItem::ClockRequirement(declaration) => {
-            encoder.u16(16)?;
-            encode_name(&mut encoder, declaration.name(), budget)?;
-        }
-        ComponentItem::Field(declaration) => {
-            encoder.u16(3)?;
-            encode_field(&mut encoder, declaration, budget)?;
-        }
-        ComponentItem::Clock(declaration) => {
-            encoder.u16(4)?;
-            encode_clock(&mut encoder, declaration, budget)?;
-        }
-        ComponentItem::Relation(declaration) => {
-            encoder.u16(5)?;
-            encode_relation(&mut encoder, declaration, budget)?;
-        }
-        ComponentItem::RelationFamily(declaration) => {
-            encoder.u16(COMPONENT_RELATION_FAMILY_ITEM_TAG)?;
-            encode_relation_family(&mut encoder, declaration, budget)?;
-        }
-        ComponentItem::Connection(declaration) => {
-            encoder.u16(COMPONENT_CONNECTION_ITEM_TAG)?;
-            encode_connection(&mut encoder, declaration, budget)?;
-        }
-        ComponentItem::BoundaryConnection(declaration) => {
-            encoder.u16(match declaration.syntax() {
-                ConnectionSyntax::Conserving => COMPONENT_BOUNDARY_CONNECTION_ITEM_TAG,
-                ConnectionSyntax::SpatialPeriodic => COMPONENT_SPATIAL_PERIODIC_CONNECTION_ITEM_TAG,
-                ConnectionSyntax::Signal => {
-                    return Err(source_identity_error(
-                        "boundary Connection cannot use signal semantics",
-                    ));
-                }
-            })?;
-            encode_boundary_connection(&mut encoder, declaration, budget)?;
-        }
-        ComponentItem::Instance(declaration) => {
-            encoder.u16(7)?;
-            encode_instance(&mut encoder, declaration, budget)?;
-        }
-        ComponentItem::Support(declaration) => {
-            encoder.u16(9)?;
-            encode_support_slot(&mut encoder, declaration, budget)?;
-        }
-        ComponentItem::FieldRequirement(declaration) => {
-            encoder.u16(10)?;
-            encode_field_slot(&mut encoder, declaration, budget)?;
-        }
-        _ => {
-            return Err(source_identity_error(
-                "component item is newer than source identity v1",
-            ));
-        }
-    }
-    encoder.finish()
-}
-
 fn encode_model_item(item: &Item, budget: &mut Budget) -> Result<Vec<u8>, Diagnostic> {
     let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
     match item {
@@ -579,9 +505,9 @@ fn encode_model_item(item: &Item, budget: &mut Budget) -> Result<Vec<u8>, Diagno
             encoder.u16(4)?;
             encode_parameter(&mut encoder, declaration, budget)?;
         }
-        Item::Let(_) => {
+        Item::Let(declaration) => {
             encoder.u16(MODEL_LET_ITEM_TAG)?;
-            encode_let(&mut encoder, item, budget)?;
+            encode_let(&mut encoder, declaration, budget)?;
         }
         Item::Port(declaration) => {
             encoder.u16(5)?;

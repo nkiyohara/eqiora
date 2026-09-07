@@ -1,6 +1,7 @@
 use eqiora_schema::kernel::BoundarySide;
 
-use crate::identity::FullElaborationIdentity;
+use crate::identity::{ElaborationIdentityLimits, FullElaborationIdentity, InstancePath};
+use eqiora_core::Diagnostic;
 
 pub(super) fn internal_name(identity: FullElaborationIdentity) -> String {
     format!("e{identity}")
@@ -25,4 +26,19 @@ pub(super) fn boundary_family_display(
         BoundarySide::Upper => "upper",
     };
     format!("{}[axis={axis},side={side}]", display_child(parent, family))
+}
+
+pub(super) fn child_instance_path(
+    parent: &InstancePath,
+    child: &str,
+    limits: ElaborationIdentityLimits,
+) -> Result<InstancePath, Diagnostic> {
+    InstancePath::with_limits(
+        parent
+            .segments()
+            .iter()
+            .map(String::as_str)
+            .chain(core::iter::once(child)),
+        limits,
+    )
 }

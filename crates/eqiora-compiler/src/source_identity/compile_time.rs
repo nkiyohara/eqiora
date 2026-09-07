@@ -25,14 +25,9 @@ pub(super) fn encode_parameter(
 
 pub(super) fn encode_let(
     encoder: &mut Encoder,
-    item: &Item,
+    declaration: &eqiora_lang::LetDecl,
     budget: &mut Budget,
 ) -> Result<(), Diagnostic> {
-    let Item::Let(declaration) = item else {
-        return Err(source_identity_error(
-            "let encoder received a non-let model item",
-        ));
-    };
     encoder.field(1, |encoder| {
         encode_name(encoder, declaration.name(), budget)
     })?;

@@ -16,10 +16,10 @@ mod value_type;
 use crate::ast::{
     ActivationSyntax, BoundaryConnectionDecl, BoundaryDecl, BoundaryFamilyBinderSyntax,
     BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax, BoundarySetBindingDecl,
-    BoundarySetMemberSyntax, ClockDecl, ComponentItem, ComponentParameterDecl, ComponentPortDecl,
+    BoundarySetMemberSyntax, ClockDecl, ComponentParameterDecl, ComponentPortDecl,
     ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorDecl,
     ConnectorQuantitySyntax, ConnectorSyntax, DomainDecl, DomainSyntax, Equation,
-    ExactIntegerSyntax, Expr, ExprKind, FieldBindingDecl, FieldDecl, InstanceDecl, Item, LetDecl,
+    ExactIntegerSyntax, Expr, ExprKind, FieldBindingDecl, FieldDecl, InstanceDecl, LetDecl,
     NamePath, ParameterBindingDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl,
     PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax,
     RationalSyntax, RelationDecl, RelationFamilyDecl, SupportBindingDecl, SupportSlotDecl,
@@ -837,41 +837,6 @@ fn validate_connector_syntax(syntax: &ConnectorSyntax) -> Result<(), AstConstruc
             validate_value_shape(shape)
         }
     }
-}
-
-fn validate_component_item(item: &ComponentItem) -> Result<(), AstConstructionError> {
-    let range = match item {
-        ComponentItem::Parameter(declaration) => declaration.range(),
-        ComponentItem::Port(declaration) => declaration.range(),
-        ComponentItem::PortFamily(declaration) => {
-            validate_port_syntax(declaration.port().syntax())?;
-            validate_boundary_family_binder(declaration.binder())?;
-            declaration.range()
-        }
-        ComponentItem::Support(declaration) => declaration.range(),
-        ComponentItem::FieldRequirement(declaration) => declaration.range(),
-        ComponentItem::Field(declaration) => declaration.range(),
-        ComponentItem::Initial(declaration) => declaration.range(),
-        ComponentItem::Clock(declaration) => declaration.range(),
-        ComponentItem::ClockRequirement(declaration) => declaration.range(),
-        ComponentItem::Relation(declaration) => declaration.range(),
-        ComponentItem::RelationFamily(declaration) => {
-            validate_boundary_family_binder(declaration.binder())?;
-            declaration.range()
-        }
-        ComponentItem::Connection(declaration) => declaration.range(),
-        ComponentItem::BoundaryConnection(declaration) => {
-            validate_boundary_connection(declaration)?;
-            if declaration.syntax() == ConnectionSyntax::SpatialPeriodic {
-                return Err(AstConstructionError::new(
-                    "a spatial-periodic Connection belongs only to a closed Model",
-                ));
-            }
-            declaration.range()
-        }
-        ComponentItem::Instance(declaration) => declaration.range(),
-    };
-    checked_range(range).map(|_| ())
 }
 
 fn validate_support_slot_syntax(syntax: &SupportSlotSyntax) -> Result<(), AstConstructionError> {

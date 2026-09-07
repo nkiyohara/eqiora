@@ -1,7 +1,6 @@
 use super::{
-    AstConstructionError, Expr, Item, LetDecl, ParameterBindingDecl, ParameterDecl,
-    SourceAstFactory, TextRange, checked_identifier, checked_range, validate_expression,
-    validate_identifier,
+    AstConstructionError, Expr, LetDecl, ParameterBindingDecl, ParameterDecl, SourceAstFactory,
+    TextRange, checked_identifier, checked_range, validate_expression, validate_identifier,
 };
 use crate::ast::DimensionDecl;
 
@@ -60,7 +59,7 @@ impl SourceAstFactory {
         })
     }
 
-    /// Construct a model-local compile-time expression alias.
+    /// Construct a reusable local compile-time expression alias.
     ///
     /// # Errors
     /// Returns an error for malformed source expressions, names, or ranges.
@@ -69,21 +68,21 @@ impl SourceAstFactory {
         value_type: Option<crate::ValueTypeSyntax>,
         value: Expr,
         range: TextRange,
-    ) -> Result<Item, AstConstructionError> {
+    ) -> Result<LetDecl, AstConstructionError> {
         validate_expression(&value)?;
-        Ok(Item::Let(LetDecl {
+        Ok(LetDecl {
             comments: Default::default(),
             name: checked_identifier(name, "let alias")?,
             value_type,
             value,
             range: checked_range(range)?,
-        }))
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{ExprKind, Item, SourceAstFactory, TextRange, format, parse};
+    use crate::{ExprKind, SourceAstFactory, TextRange, format, parse};
 
     #[test]
     fn checked_factory_constructs_a_formattable_dimension_prefix() {
@@ -117,21 +116,15 @@ mod tests {
         let dimension =
             SourceAstFactory::expression(ExprKind::Name("m".to_owned()), range).expect("dimension");
 
-        let Item::Let(inferred) =
-            SourceAstFactory::let_alias("inferred", None, value.clone(), range)
-                .expect("inferred alias")
-        else {
-            panic!("factory returns a let alias");
-        };
-        let Item::Let(annotated) = SourceAstFactory::let_alias(
+        let inferred = SourceAstFactory::let_alias("inferred", None, value.clone(), range)
+            .expect("inferred alias");
+        let annotated = SourceAstFactory::let_alias(
             "annotated",
             Some(crate::ValueTypeSyntax::real(dimension)),
             value,
             range,
         )
-        .expect("annotated alias") else {
-            panic!("factory returns a let alias");
-        };
+        .expect("annotated alias");
 
         assert!(inferred.value_type().is_none());
         assert!(annotated.value_type().is_some());

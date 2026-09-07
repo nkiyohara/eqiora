@@ -33,3 +33,30 @@ impl RootExpansion<'_, '_> {
         Ok(())
     }
 }
+
+impl RootExpansion<'_, '_> {
+    pub(super) fn allocate_component_lets(
+        &self,
+        scope: &mut Scope,
+        component: &super::ComponentDefinition<'_>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let mut values = scope.symbolic_parameters();
+        crate::hierarchy::parameters::resolve_component_lets(
+            component.file,
+            component.declaration,
+            &mut values,
+        )?;
+        for item in component.items() {
+            let eqiora_lang::ComponentItem::Let(declaration) = item else {
+                continue;
+            };
+            let value = values
+                .remove(declaration.name())
+                .ok_or_else(|| vec![hierarchy_error("resolved component let alias is missing")])?;
+            scope
+                .insert_let(declaration.name().to_owned(), value)
+                .map_err(|message| vec![hierarchy_error(message)])?;
+        }
+        Ok(())
+    }
+}

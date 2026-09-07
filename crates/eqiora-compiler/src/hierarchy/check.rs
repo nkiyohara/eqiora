@@ -21,8 +21,9 @@ use super::field_slots::{
     resolve_instance_fields,
 };
 use super::parameters::{
-    SymbolicParameterMap, SymbolicParameterValue, resolve_component_parameters_symbolically,
-    resolve_model_lets, validate_instance_parameters_symbolically,
+    SymbolicParameterMap, SymbolicParameterValue, resolve_component_lets,
+    resolve_component_parameters_symbolically, resolve_model_lets,
+    validate_instance_parameters_symbolically,
 };
 use super::preflight::{DefinitionKey, Elaborator};
 use super::supports::{
@@ -69,6 +70,7 @@ fn validate_definition_bodies_and_parameters(
     }
 
     let mut interfaces = BTreeMap::<DefinitionKey, SymbolicParameterMap>::new();
+    let mut body_values = BTreeMap::<DefinitionKey, SymbolicParameterMap>::new();
     let mut support_interfaces = BTreeMap::<DefinitionKey, SupportInterface>::new();
     let mut field_interfaces = BTreeMap::<DefinitionKey, FieldInterface>::new();
     for (key, definition) in elaborator.components() {
@@ -87,15 +89,19 @@ fn validate_definition_bodies_and_parameters(
         }
         match resolve_component_parameters_symbolically(definition.file, definition.declaration) {
             Ok(parameters) => {
+                let mut values = parameters.clone();
+                interfaces.insert(key.clone(), parameters);
+                if let Err(errors) =
+                    resolve_component_lets(definition.file, definition.declaration, &mut values)
+                {
+                    diagnostics.extend(errors);
+                    continue;
+                }
                 if let (Some(supports), Some(fields)) =
                     (support_interfaces.get(key), field_interfaces.get(key))
                 {
                     match super::body_check::validate_component_body(
-                        elaborator,
-                        definition,
-                        &parameters,
-                        supports,
-                        fields,
+                        elaborator, definition, &values, supports, fields,
                     ) {
                         Ok(proof) => {
                             body_proofs.components.insert(key.clone(), proof);
@@ -103,14 +109,14 @@ fn validate_definition_bodies_and_parameters(
                         Err(errors) => diagnostics.extend(errors),
                     }
                 }
-                interfaces.insert(key.clone(), parameters);
+                body_values.insert(key.clone(), values);
             }
             Err(errors) => diagnostics.extend(errors),
         }
     }
 
     for (key, definition) in elaborator.components() {
-        let Some(parent) = interfaces.get(key) else {
+        let Some(parent) = body_values.get(key) else {
             continue;
         };
         let parent_fields = match (support_interfaces.get(key), field_interfaces.get(key)) {
@@ -427,6 +433,9 @@ fn enforce_parameter_term_limit(elaborator: &Elaborator<'_>) -> Result<(), Diagn
     for (_, definition) in elaborator.components() {
         for item in definition.declaration.items() {
             match item {
+                ComponentItem::Let(declaration) => {
+                    count_expression_terms(declaration.value(), &mut terms, elaborator)?;
+                }
                 ComponentItem::Parameter(parameter) => {
                     increment_parameter_terms(&mut terms, 1, elaborator)?;
                     if let Some(default) = parameter.default() {

@@ -23,12 +23,17 @@ use crate::hierarchy::supports::SupportInterface;
 pub(super) fn validate(
     elaborator: &Elaborator<'_>,
     definition: &ComponentDefinition<'_>,
-    parameters: &SymbolicParameterMap,
+    compile_time_values: &SymbolicParameterMap,
     supports: &SupportInterface,
     fields: &FieldInterface,
 ) -> Result<DefinitionBodyProof, Vec<Diagnostic>> {
-    let mut checker =
-        ComponentBodyChecker::new(elaborator, definition, parameters, supports, fields);
+    let mut checker = ComponentBodyChecker::new(
+        elaborator,
+        definition,
+        compile_time_values,
+        supports,
+        fields,
+    );
     checker.validate();
     if checker.diagnostics.is_empty() {
         Ok(checker.proof)
@@ -39,7 +44,7 @@ pub(super) fn validate(
 
 struct ComponentBodyChecker<'e, 'd> {
     definition: &'e ComponentDefinition<'d>,
-    parameters: &'e SymbolicParameterMap,
+    compile_time_values: &'e SymbolicParameterMap,
     supports: &'e SupportInterface,
     fields: &'e FieldInterface,
     scope: DefinitionScope<'e, 'd>,
@@ -52,13 +57,13 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
     fn new(
         elaborator: &'e Elaborator<'d>,
         definition: &'e ComponentDefinition<'d>,
-        parameters: &'e SymbolicParameterMap,
+        compile_time_values: &'e SymbolicParameterMap,
         supports: &'e SupportInterface,
         fields: &'e FieldInterface,
     ) -> Self {
         Self {
             definition,
-            parameters,
+            compile_time_values,
             supports,
             fields,
             scope: DefinitionScope::new(elaborator, definition.namespace.clone(), definition.file),
@@ -115,8 +120,19 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
     fn bind_interfaces(&mut self) {
         for item in self.definition.declaration.items() {
             match item {
+                ComponentItem::Let(declaration) => {
+                    if let Some(value) = self.compile_time_values.get(declaration.name()) {
+                        self.scope.symbols.insert(
+                            declaration.name().to_owned(),
+                            SymbolContract::Parameter(ExpressionType::new(
+                                value.value_type.clone(),
+                                None,
+                            )),
+                        );
+                    }
+                }
                 ComponentItem::Parameter(declaration) => {
-                    let Some(parameter) = self.parameters.get(declaration.name()) else {
+                    let Some(parameter) = self.compile_time_values.get(declaration.name()) else {
                         self.diagnostics.push(source_error(
                             codes::LANGUAGE_LOWERING_ERROR,
                             self.definition.file,
@@ -315,7 +331,8 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                         self.diagnostics.extend(errors);
                     }
                 }
-                ComponentItem::Parameter(_)
+                ComponentItem::Let(_)
+                | ComponentItem::Parameter(_)
                 | ComponentItem::Port(_)
                 | ComponentItem::PortFamily(_)
                 | ComponentItem::Support(_)
@@ -459,11 +476,17 @@ mod tests {
                 (definition.declaration.name() == name).then(|| definition.clone())
             })
             .expect("selected Component exists");
-        let parameters =
+        let compile_time_values =
             resolve_component_parameters_symbolically(definition.file, definition.declaration)?;
         let supports = component_support_interface(definition.file, definition.declaration)?;
         let fields = component_field_interface(definition.file, definition.declaration, &supports)?;
-        validate(&elaborator, &definition, &parameters, &supports, &fields)
+        validate(
+            &elaborator,
+            &definition,
+            &compile_time_values,
+            &supports,
+            &fields,
+        )
     }
 
     const SCALAR_CONNECTOR: &str = r#"

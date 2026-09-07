@@ -111,3 +111,67 @@ fn forward_chain_uses_existing_symbolic_term_bound() {
             .contains("255 symbolic Parameter term limit")
     }));
 }
+
+#[test]
+fn component_aliases_preserve_parameter_interface_and_symbolic_polynomial() {
+    use crate::hierarchy::parameters::resolve_component_parameters_symbolically;
+    let source = "component C() { public parameter x: 1; public parameter y: 1; let f = z * y; let z = x * x; }";
+    let document = eqiora_lang::parse("component.eqi", source)
+        .into_document()
+        .unwrap();
+    let component = &document.components()[0];
+    let parameters = resolve_component_parameters_symbolically("component.eqi", component).unwrap();
+    let mut symbolic = parameters.clone();
+    resolve_component_lets("component.eqi", component, &mut symbolic).unwrap();
+    assert_eq!(
+        parameters.keys().map(String::as_str).collect::<Vec<_>>(),
+        ["x", "y"]
+    );
+    assert!(symbolic["f"].value.is_none());
+    assert_eq!(symbolic["f"].value_type, parameters["x"].value_type);
+    for (x, y) in [(2.0, 3.0), (5.0, -2.0)] {
+        let name = |name: &str| LoweringExpression::name(name.to_owned(), TextRange::new(0, 0));
+        let mut values = parameters.clone();
+        for (key, value) in [("x", x), ("y", y)] {
+            let parameter = values.get_mut(key).unwrap();
+            parameter.value = Some(value);
+            parameter.expression = Some(name(key));
+        }
+        resolve_component_lets("component.eqi", component, &mut values).unwrap();
+        let mul = |left, right| {
+            LoweringExpression::binary(BinaryOp::Mul, left, right, TextRange::new(0, 0))
+        };
+        assert_eq!(
+            values["f"].expression,
+            Some(mul(mul(name("x"), name("x")), name("y")))
+        );
+        assert_eq!(values["f"].value, Some(x * x * y));
+        assert!(matches!(
+            values["f"].lineage,
+            Some(ParameterLineage::Derived)
+        ));
+    }
+}
+
+#[test]
+fn unused_component_aliases_consume_the_existing_symbolic_term_budget() {
+    let source = "component C() { let a = b; let b = c; let c = 1; } model M {}";
+    let document = eqiora_lang::parse("bounded.eqi", source)
+        .into_document()
+        .unwrap();
+    let errors = crate::hierarchy::compile_hierarchy_with_limits(
+        "bounded.eqi",
+        source.len(),
+        &document,
+        crate::hierarchy::HierarchyLimits {
+            max_parameter_terms: 2,
+            ..Default::default()
+        },
+    )
+    .unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.message().contains("2 symbolic Parameter term limit"))
+    );
+}
