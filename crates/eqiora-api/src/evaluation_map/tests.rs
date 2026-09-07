@@ -74,6 +74,7 @@ fn complete_construction_binds_positions_and_rejects_foreign_members() {
     assert!(CompleteEvaluationMap::from_members(&plan, reordered).is_err());
     let foreign_document = document_from_source(
         &SOURCE.replace("component DifferentiatedPoisson", "component ForeignModel"),
+        "ForeignModel",
     );
     let inputs = ["source_scale", "diffusion", "boundary_offset"];
     let foreign_programs = [
@@ -309,7 +310,7 @@ fn structural_admission_and_resource_limits_precede_evaluation() {
 }
 
 pub(super) fn fixture() -> (ModelDocument, DifferentiableProgram) {
-    let document = document_from_source(SOURCE);
+    let document = document_from_source(SOURCE, "DifferentiatedPoisson");
     let program = program_for(
         &document,
         CommonSpatialPolicy::Q1,
@@ -336,7 +337,7 @@ pub(super) fn program_for(
     DifferentiableProgram::compile(plan, &inputs, &output).unwrap()
 }
 
-fn document_from_source(source: &str) -> ModelDocument {
+fn document_from_source(source: &str, entry: &str) -> ModelDocument {
     let graph = GeometryGraph::new();
     let rectangle = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
     let edges = rectangle.boundaries();
@@ -407,13 +408,8 @@ fn document_from_source(source: &str) -> ModelDocument {
             eqiora_compiler::StaticBindingValue::Expression(value),
         )
     }));
-    ModelDocument::compile_selected(
-        "bounded-parameter-study.eqi",
-        source,
-        "DifferentiatedPoisson",
-        &bindings,
-    )
-    .unwrap()
+    ModelDocument::compile_selected("bounded-parameter-study.eqi", source, entry, &bindings)
+        .unwrap()
 }
 
 fn plan_for(

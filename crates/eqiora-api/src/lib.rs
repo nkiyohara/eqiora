@@ -634,7 +634,8 @@ public component Resistor(
         assert!(
             diagnostics
                 .iter()
-                .any(|diagnostic| diagnostic.message().contains("private Model"))
+                .any(|diagnostic| diagnostic.message().contains("private Model")),
+            "{diagnostics:?}"
         );
     }
 

@@ -147,7 +147,7 @@ fn documentation_uses_exact_resolved_files_after_a_declaration_is_renamed() {
 
 #[test]
 fn recovered_signature_symbols_keep_only_their_own_documentation() {
-    let source = "/// Component summary.\ncomponent C(\n  parameter gain:1\n) {\n/// Gain summary.\n/// Broken summary.\nfield ;\nvariable retained:1;\n}\n";
+    let source = "/// Component summary.\ncomponent C(\n  /// Gain summary.\n  parameter gain:1\n) {\n/// Broken summary.\nfield ;\nvariable retained:1;\n}\n";
     let service = EditorService::new("docs.eqi", 1, source);
     let snapshot = service.current();
     assert!(!snapshot.diagnostics().is_empty());
