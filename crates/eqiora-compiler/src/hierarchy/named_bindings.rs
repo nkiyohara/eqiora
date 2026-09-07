@@ -163,3 +163,24 @@ pub(super) fn boundary_sets<'a>(
         })
         .collect()
 }
+
+/// Input arguments are explicit directed endpoint connections, not value synthesis.
+pub(super) fn input_connections(
+    file: &str,
+    component: &ComponentDecl,
+    instance: &InstanceDecl,
+) -> Result<Vec<eqiora_lang::ConnectionDecl>, Diagnostic> {
+    use eqiora_lang::{NamePath, SourceAstFactory};
+    instance.bindings().iter().filter(|binding| component.signature().iter().any(|item|
+        matches!(item, SignatureItem::Input(input) if input.name() == binding.name())))
+        .map(|binding| {
+            let fail = |message: &str| source_error(codes::LANGUAGE_TYPE_ERROR, file, binding.range(), message);
+            let source = match binding.value().kind() {
+                ExprKind::Name(name) => NamePath::from_segments([name.as_str()], binding.value().range()).map_err(|error| fail(error.message()))?,
+                ExprKind::Path(path) => path.clone(),
+                _ => return Err(fail("Input binding requires an exact causal endpoint; arbitrary value expressions do not create a driver")),
+            };
+            let target = NamePath::from_segments([instance.name(), binding.name()], binding.range()).map_err(|error| fail(error.message()))?;
+            SourceAstFactory::connection(eqiora_lang::ConnectionSyntax::Signal, vec![source, target], binding.range()).map_err(|error| fail(error.message()))
+        }).collect()
+}

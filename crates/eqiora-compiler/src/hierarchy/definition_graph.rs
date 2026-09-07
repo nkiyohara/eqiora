@@ -386,7 +386,7 @@ fn build_graph<'d>(
             key: key.clone(),
             file: definition.file,
             range: definition.declaration.range(),
-            local: model_local_footprint(definition, diagnostics),
+            local: model_local_footprint(elaborator, definition, diagnostics),
             local_connectors: BTreeSet::new(),
             edges,
         });

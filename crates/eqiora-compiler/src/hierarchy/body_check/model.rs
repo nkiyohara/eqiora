@@ -362,7 +362,17 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                 }
                 Item::Domain(declaration) => self.validate_domain(declaration),
                 Item::Field(declaration) => self.validate_field(declaration),
-                Item::Parameter(_) | Item::Let(_) | Item::Port(_) | Item::Instance(_) => {}
+                Item::Parameter(_) | Item::Let(_) | Item::Port(_) => {}
+                Item::Instance(instance) => {
+                    if let Err(error) = super::scope::validate_input_bindings(
+                        &self.scope,
+                        instance,
+                        &mut self.connected_ports,
+                        self.proof.connection_limits,
+                    ) {
+                        self.diagnostics.push(error);
+                    }
+                }
                 Item::Clock(declaration) => {
                     if let Err(error) = validate_clock(
                         self.scope.file,

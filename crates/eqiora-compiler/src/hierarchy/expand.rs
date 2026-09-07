@@ -41,6 +41,7 @@ mod binding_locations;
 mod cartesian;
 mod connector_domain;
 mod external;
+mod input_bindings;
 mod model_lets;
 mod names;
 
@@ -1897,7 +1898,28 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         )?;
                     }
                 }
-                ComponentItem::Instance(_) => {}
+                ComponentItem::Instance(child) => {
+                    self.add_input_bindings(
+                        child,
+                        scope,
+                        occurrence.instance_path,
+                        definition_path(
+                            &component.namespace,
+                            "component",
+                            component.name(),
+                            "input_binding",
+                        ),
+                        &component.namespace,
+                        ConnectionOrigin {
+                            instance: SourceLocation::new(
+                                occurrence.instance_file,
+                                instance.range(),
+                            ),
+                            bindings: scope.occurrence_bindings().to_vec(),
+                            definition_file: component.file.to_owned(),
+                        },
+                    )?;
+                }
                 _ => {
                     return Err(source_error(
                         codes::LANGUAGE_LOWERING_ERROR,
@@ -2218,7 +2240,26 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         },
                     )?;
                 }
-                Item::Let(_) | Item::Instance(_) => {}
+                Item::Let(_) => {}
+                Item::Instance(instance) => {
+                    self.add_input_bindings(
+                        instance,
+                        scope,
+                        &self.root_path.clone(),
+                        definition_path(
+                            &self.model.namespace,
+                            "model",
+                            self.model.name(),
+                            "input_binding",
+                        ),
+                        &self.model.namespace.clone(),
+                        ConnectionOrigin {
+                            instance: SourceLocation::new(self.model.file, self.model.range()),
+                            bindings: Vec::new(),
+                            definition_file: self.model.file.to_owned(),
+                        },
+                    )?;
+                }
                 _ => {
                     return Err(source_error(
                         codes::LANGUAGE_LOWERING_ERROR,

@@ -117,7 +117,24 @@ pub(super) fn component_local_footprint(
                     );
                 }
             }
-            ComponentItem::Let(_) | ComponentItem::Instance(_) => {}
+            ComponentItem::Let(_) => {}
+            ComponentItem::Instance(instance) => {
+                let count = input_binding_count(
+                    elaborator,
+                    &definition.namespace,
+                    definition.file,
+                    instance,
+                    diagnostics,
+                );
+                checked_local_add(
+                    &mut connections,
+                    count,
+                    definition.file,
+                    instance.range(),
+                    "Input connections",
+                    diagnostics,
+                );
+            }
             _ => {}
         }
         let port = match item {
@@ -232,6 +249,7 @@ fn complete_exterior_cardinality(
 }
 
 pub(super) fn model_local_footprint(
+    elaborator: &Elaborator<'_>,
     definition: &ModelDefinition<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> LocalFootprint {
@@ -262,7 +280,24 @@ pub(super) fn model_local_footprint(
                 "Connection",
                 diagnostics,
             ),
-            Item::Instance(_) | Item::Let(_) => {}
+            Item::Let(_) => {}
+            Item::Instance(instance) => {
+                let count = input_binding_count(
+                    elaborator,
+                    &definition.namespace,
+                    definition.file,
+                    instance,
+                    diagnostics,
+                );
+                checked_local_add(
+                    &mut footprint.connections,
+                    count,
+                    definition.file,
+                    instance.range(),
+                    "Input connections",
+                    diagnostics,
+                );
+            }
             _ => checked_local_add(
                 &mut footprint.declarations,
                 1,
@@ -292,5 +327,18 @@ fn checked_local_add(
             range,
             format!("local {resource} count overflows usize"),
         )),
+    }
+}
+
+fn input_binding_count(
+    elaborator: &Elaborator<'_>,
+    namespace: &super::super::preflight::DefinitionNamespace,
+    file: &str,
+    instance: &eqiora_lang::InstanceDecl,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> usize {
+    match elaborator.resolve_component(namespace, instance.definition(), file, instance.range()) {
+        Ok(child) => instance.bindings().iter().filter(|binding| child.signature().iter().any(|item| matches!(item, eqiora_lang::SignatureItem::Input(input) if input.name() == binding.name()))).count(),
+        Err(error) => { diagnostics.push(error); 0 }
     }
 }

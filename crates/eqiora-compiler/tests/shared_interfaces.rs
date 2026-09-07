@@ -288,3 +288,21 @@ fn clocked_variables_have_tick_local_reads_without_state_privileges() {
         );
     }
 }
+
+#[test]
+fn named_inputs_reuse_directed_endpoint_connections() {
+    let source = "component Identity(input u:1,output y:1) {relation value {y=u;}} component Wrapper(input u:1,output y:1) {instance inner:Identity(u=u);connect inner.y -> y;} model M(input u:1,output y:1) {instance wrapper:Wrapper(u=u);instance second:Identity(u=wrapper.y);connect second.y -> y;}";
+    eqiora_compiler::compile("input.eqi", source).unwrap_or_else(|e| panic!("{e:?}"));
+    for value in ["1", "u+u", "second.u"] {
+        let invalid = source.replace("Wrapper(u=u)", &format!("Wrapper(u={value})"));
+        assert!(
+            eqiora_compiler::compile("input.eqi", &invalid).is_err(),
+            "{value}"
+        );
+    }
+    let duplicate = source.replace(
+        "connect second.y -> y;",
+        "connect u -> wrapper.u;connect second.y -> y;",
+    );
+    assert!(eqiora_compiler::compile("input.eqi", &duplicate).is_err());
+}

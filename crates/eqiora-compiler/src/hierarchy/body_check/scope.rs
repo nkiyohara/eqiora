@@ -1,3 +1,5 @@
+mod input_bindings;
+pub(super) use input_bindings::validate_input_bindings;
 mod diagnostics;
 pub(super) use diagnostics::unresolved;
 mod scalar_connection;

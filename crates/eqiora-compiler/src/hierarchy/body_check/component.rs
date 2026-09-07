@@ -469,7 +469,16 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                         Err(error) => self.diagnostics.push(error),
                     }
                 }
-                ComponentItem::Instance(_) => {}
+                ComponentItem::Instance(instance) => {
+                    if let Err(error) = super::scope::validate_input_bindings(
+                        &self.scope,
+                        instance,
+                        &mut self.connected_ports,
+                        self.proof.connection_limits,
+                    ) {
+                        self.diagnostics.push(error);
+                    }
+                }
                 _ => {}
             }
         }
