@@ -1,6 +1,9 @@
 //! Deterministic reference execution for scalar continuous/periodic models.
 
 mod event_localization;
+mod initialization;
+pub use initialization::InitialState;
+use initialization::solve_initialization;
 mod samples;
 
 use event_localization::{crossing_events, locate_event_time};
@@ -126,6 +129,7 @@ impl ExecutionObserver for Uninterrupted {
 pub struct ReferenceConfig {
     end_time: f64,
     max_step: f64,
+    initial_guess: f64,
     absolute_tolerance: f64,
     relative_tolerance: f64,
     max_nonlinear_iterations: usize,
@@ -146,6 +150,7 @@ impl ReferenceConfig {
         let config = Self {
             end_time,
             max_step,
+            initial_guess: 0.0,
             absolute_tolerance: 1.0e-10,
             relative_tolerance: 1.0e-10,
             max_nonlinear_iterations: 32,
@@ -157,6 +162,23 @@ impl ReferenceConfig {
         };
         config.validate()?;
         Ok(config)
+    }
+
+    /// Set the uniform scalar Newton seed for fresh initialization.
+    /// This numerical guess adds no Model equation or physical initial data.
+    ///
+    /// # Errors
+    /// Returns `EQ0501` unless the seed is finite.
+    pub fn with_initial_guess(mut self, guess: f64) -> Result<Self, Diagnostic> {
+        self.initial_guess = guess;
+        self.validate()?;
+        Ok(self)
+    }
+
+    /// Uniform scalar numerical seed used only by fresh initialization.
+    #[must_use]
+    pub const fn initial_guess(self) -> f64 {
+        self.initial_guess
     }
 
     /// Override Newton residual tolerances.
@@ -277,6 +299,9 @@ impl ReferenceConfig {
     }
 
     fn validate(self) -> Result<(), Diagnostic> {
+        if !self.initial_guess.is_finite() {
+            return Err(config_error("initial Newton guess must be finite"));
+        }
         if !self.end_time.is_finite() || self.end_time < 0.0 {
             return Err(config_error(
                 "reference end_time must be finite and non-negative",
@@ -417,7 +442,7 @@ impl Interpreter {
         let mut plan = ExecutionPlan::new(program).map_err(|diagnostic| vec![diagnostic])?;
         let mut state = RuntimeState::new(program, &plan).map_err(|diagnostic| vec![diagnostic])?;
 
-        solve_consistency(program, &plan, &mut state, 0.0, config, backend)
+        solve_initialization(program, &plan, &mut state, config, backend)
             .map_err(|diagnostic| vec![diagnostic])?;
 
         let mut time = 0.0;
@@ -650,12 +675,12 @@ impl Interpreter {
 
 #[derive(Debug)]
 struct ExecutionPlan {
+    initial_relations: BTreeSet<RawId>,
     continuous_relations: BTreeSet<RawId>,
     periodic: Vec<PeriodicTask>,
     events: Vec<EventTask>,
     differential_fields: BTreeSet<RawId>,
     algebraic_fields: BTreeSet<RawId>,
-    discrete_fields: BTreeSet<RawId>,
     continuous_ports: BTreeSet<RawId>,
     signal_sources: BTreeMap<RawId, RawId>,
     physical_systems: Vec<ComposedResidualSystem>,
@@ -856,13 +881,22 @@ impl ExecutionPlan {
             })
             .collect();
 
+        let initial_relations = program
+            .nodes()
+            .filter_map(|node| match node {
+                KernelNode::Relation(relation) if relation.is_initial() => {
+                    Some(relation.id().erase())
+                }
+                _ => None,
+            })
+            .collect();
         Ok(Self {
+            initial_relations,
             continuous_relations,
             periodic,
             events,
             differential_fields,
             algebraic_fields,
-            discrete_fields,
             continuous_ports,
             signal_sources,
             physical_systems,
@@ -902,32 +936,13 @@ struct RuntimeState {
 
 impl RuntimeState {
     fn new(program: &KernelProgram, plan: &ExecutionPlan) -> Result<Self, Diagnostic> {
-        let required = plan
-            .differential_fields
-            .union(&plan.discrete_fields)
-            .copied()
-            .collect::<BTreeSet<_>>();
         let mut fields = BTreeMap::new();
         let mut ports = BTreeMap::new();
         for node in program.nodes() {
             match node {
                 KernelNode::Field(field) => {
                     let id = field.id().erase();
-                    match program.value(id) {
-                        Some(value) => {
-                            fields.insert(id, value.value());
-                        }
-                        None if required.contains(&id) => {
-                            return Err(Diagnostic::error(
-                                codes::MISSING_EXECUTION_INPUT,
-                                format!("state Field {id} requires an initial value"),
-                            )
-                            .with_graph_path(kernel_path(id)));
-                        }
-                        None => {
-                            fields.insert(id, 0.0);
-                        }
-                    }
+                    fields.insert(id, 0.0);
                 }
                 KernelNode::Port(port)
                     if matches!(port.signal_contract(), Some((SignalDirection::Output, _))) =>

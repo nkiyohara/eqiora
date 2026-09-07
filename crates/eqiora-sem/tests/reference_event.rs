@@ -1,3 +1,5 @@
+#[path = "support/initial.rs"]
+mod initial_support;
 use eqiora_core::entity::kinds;
 use eqiora_core::{DimExponents, DynQuantity, Id, OntologyId};
 use eqiora_graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
@@ -7,6 +9,7 @@ use eqiora_schema::kernel::{
 };
 use eqiora_schema::{Model, ModelView};
 use eqiora_sem::{Interpreter, KernelProgram, ReferenceConfig, Sample};
+use initial_support::{define_all, initial};
 
 struct BouncingFixture {
     program: KernelProgram,
@@ -214,30 +217,18 @@ fn bouncing_fixture(direction: EventDirection, reverse_nodes: bool) -> BouncingF
     };
 
     let mut nodes = vec![
-        KernelNode::from(
-            FieldDef::new(
-                height,
-                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, length),
-            )
-            .with_initial(
-                DynQuantity::new(1.0, length)
-                    .try_into()
-                    .expect("finite real initial value"),
-            )
-            .unwrap(),
-        ),
-        KernelNode::from(
-            FieldDef::new(
-                velocity,
-                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, velocity_dimension),
-            )
-            .with_initial(
-                DynQuantity::new(0.0, velocity_dimension)
-                    .try_into()
-                    .expect("finite real initial value"),
-            )
-            .unwrap(),
-        ),
+        KernelNode::from(FieldDef::new(
+            height,
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, length),
+            eqiora_schema::kernel::FieldRole::State,
+        )),
+        initial(height, DynQuantity::new(1.0, length)),
+        KernelNode::from(FieldDef::new(
+            velocity,
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, velocity_dimension),
+            eqiora_schema::kernel::FieldRole::State,
+        )),
+        initial(velocity, DynQuantity::new(0.0, velocity_dimension)),
         KernelNode::from(
             ParameterDef::new(
                 gravity,
@@ -305,9 +296,7 @@ fn bouncing_fixture(direction: EventDirection, reverse_nodes: bool) -> BouncingF
         nodes.reverse();
     }
     let mut transaction = Transaction::new("bouncing ball with split atomic reset");
-    for node in nodes {
-        transaction.push(Op::DefineKernelNode { node });
-    }
+    define_all(&mut transaction, nodes);
     connect_dependencies(
         &mut transaction,
         flight.erase(),
@@ -382,21 +371,15 @@ fn chattering_program() -> KernelProgram {
     .unwrap();
 
     let nodes = [
-        KernelNode::from(
-            FieldDef::new(
-                state,
-                eqiora_core::ValueType::scalar(
-                    eqiora_core::ScalarDomain::Real,
-                    DimExponents::DIMENSIONLESS,
-                ),
-            )
-            .with_initial(
-                DynQuantity::new(1.0e-6, DimExponents::DIMENSIONLESS)
-                    .try_into()
-                    .expect("finite real initial value"),
-            )
-            .unwrap(),
-        ),
+        KernelNode::from(FieldDef::new(
+            state,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
+            eqiora_schema::kernel::FieldRole::State,
+        )),
+        initial(state, DynQuantity::new(1.0e-6, DimExponents::DIMENSIONLESS)),
         KernelNode::from(
             ParameterDef::new(
                 rate,
@@ -429,9 +412,7 @@ fn chattering_program() -> KernelProgram {
     ];
     let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();
     let mut transaction = Transaction::new("deliberate zero-time chatter");
-    for node in nodes {
-        transaction.push(Op::DefineKernelNode { node });
-    }
+    define_all(&mut transaction, nodes);
     connect_dependencies(
         &mut transaction,
         flow.erase(),

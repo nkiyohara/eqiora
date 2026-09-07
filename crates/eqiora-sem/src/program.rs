@@ -1,7 +1,9 @@
 //! Whole-model validation and immutable interpreter input.
 
 pub(crate) mod geometry_admission;
+mod relation_admission;
 mod snapshot_admission;
+use relation_admission::validate_relations;
 mod spatial_domains;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -79,7 +81,7 @@ impl KernelProgram {
         self.nodes.get(&id)
     }
 
-    /// Revision-local Field initial value or Parameter value.
+    /// Revision-local Parameter value.
     ///
     /// This captures `SetValue` operations visible in the source snapshot;
     /// it is intentionally separate from the immutable node definition.
@@ -250,92 +252,6 @@ fn validate_closed_topology(
                     ),
                 ));
             }
-        }
-    }
-}
-
-fn validate_relations(
-    nodes: &BTreeMap<RawId, KernelNode>,
-    edges: &[Edge],
-    spatial_supports: &BTreeMap<RawId, SpatialSupport<RawId>>,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    for (&id, node) in nodes {
-        let KernelNode::Relation(relation) = node else {
-            continue;
-        };
-
-        let scopes = edge_targets(edges, id, EdgeKind::AppliesOn);
-        if scopes.len() > 1 {
-            diagnostics.push(kernel_error(
-                id,
-                format!(
-                    "Relation may apply on at most one Domain, found {}",
-                    scopes.len()
-                ),
-            ));
-        }
-        let scope = (scopes.len() == 1).then(|| *scopes.first().expect("one scope was checked"));
-        let symbols = validate_expression(
-            relation.residuals(),
-            id,
-            TypingEnvironment {
-                nodes,
-                edges,
-                spatial_supports,
-            },
-            scope,
-            RootContract::ComponentwiseResidual,
-            diagnostics,
-        );
-        let dependencies = edge_targets(edges, id, EdgeKind::DependsOn);
-        if symbols != dependencies {
-            diagnostics.push(kernel_error(
-                id,
-                format!(
-                    "Relation symbol set {symbols:?} differs from DependsOn targets {dependencies:?}"
-                ),
-            ));
-        }
-
-        let activations = edges
-            .iter()
-            .filter(|edge| edge.kind() == EdgeKind::Activates && edge.to() == id)
-            .map(Edge::from)
-            .collect::<Vec<_>>();
-        if activations.len() != 1 {
-            diagnostics.push(kernel_error(
-                id,
-                format!(
-                    "Relation requires exactly one Activation, found {}",
-                    activations.len()
-                ),
-            ));
-        } else if matches!(
-            nodes.get(&activations[0]),
-            Some(KernelNode::Activation(activation))
-                if matches!(activation.kind(), ActivationKind::Continuous)
-        ) && relation.residuals().nodes().iter().any(|node| {
-            matches!(
-                node,
-                ExprNode::Symbol(SymbolRef::Pre(_) | SymbolRef::Next(_))
-            )
-        }) {
-            diagnostics.push(kernel_error(
-                id,
-                "continuous Relation cannot read Pre or Next symbols",
-            ));
-        } else if matches!(nodes.get(&activations[0]), Some(KernelNode::Activation(activation)) if matches!(activation.kind(), ActivationKind::Periodic))
-            && relation
-                .residuals()
-                .nodes()
-                .iter()
-                .any(|node| matches!(node, ExprNode::Symbol(SymbolRef::Derivative(_))))
-        {
-            diagnostics.push(kernel_error(
-                id,
-                "clocked Relation cannot read Derivative symbols",
-            ));
         }
     }
 }
@@ -788,6 +704,15 @@ fn typed_residual_diagnostic(
         }
         TypedResidualError::Symbol {
             node_index,
+            error: SymbolTypeError::WrongFieldRole,
+            ..
+        } => kernel_error(
+            owner,
+            "Derivative requires continuous state; Pre/Next require state",
+        )
+        .with_graph_path(expression_path(owner, node_index)),
+        TypedResidualError::Symbol {
+            node_index,
             symbol: _,
             error: SymbolTypeError::WrongPortContract,
         } => kernel_error(
@@ -837,14 +762,27 @@ fn symbol_type(
     match symbol {
         SymbolRef::Field(id) | SymbolRef::Pre(id) | SymbolRef::Next(id) => {
             match nodes.get(&id.erase()) {
-                Some(KernelNode::Field(field)) => Ok(ExpressionType::new(
-                    field.value_type().clone(),
-                    field_support(id.erase(), edges, spatial_supports),
-                )),
+                Some(KernelNode::Field(field)) => {
+                    if matches!(symbol, SymbolRef::Pre(_) | SymbolRef::Next(_))
+                        && (field.role() != eqiora_schema::kernel::FieldRole::State)
+                    {
+                        return Err(SymbolTypeError::WrongFieldRole);
+                    }
+                    Ok(ExpressionType::new(
+                        field.value_type().clone(),
+                        field_support(id.erase(), edges, spatial_supports),
+                    ))
+                }
                 _ => Err(SymbolTypeError::Missing),
             }
         }
         SymbolRef::Derivative(id) => match nodes.get(&id.erase()) {
+            Some(KernelNode::Field(field))
+                if field.role() != eqiora_schema::kernel::FieldRole::State
+                    || !edge_targets(edges, id.erase(), EdgeKind::ClockedBy).is_empty() =>
+            {
+                Err(SymbolTypeError::WrongFieldRole)
+            }
             Some(KernelNode::Field(field)) => typing::time_derivative(&ExpressionType::new(
                 field.value_type().clone(),
                 field_support(id.erase(), edges, spatial_supports),
@@ -924,6 +862,7 @@ enum SymbolTypeError {
     Missing,
     Typing(TypeViolation<RawId>),
     WrongPortContract,
+    WrongFieldRole,
 }
 
 fn edge_targets(edges: &[Edge], from: RawId, kind: EdgeKind) -> BTreeSet<RawId> {

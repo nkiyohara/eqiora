@@ -14,7 +14,32 @@ pub(crate) fn solve<F>(
     initial: Vec<f64>,
     settings: NonlinearSettings,
     path: GraphPath,
+    residual: F,
+) -> Result<Vec<f64>, Diagnostic>
+where
+    F: FnMut(&[f64]) -> Result<Vec<f64>, Diagnostic>,
+{
+    solve_checked(initial, settings, path, residual, false)
+}
+
+pub(crate) fn solve_initial<F>(
+    initial: Vec<f64>,
+    settings: NonlinearSettings,
+    path: GraphPath,
+    residual: F,
+) -> Result<Vec<f64>, Diagnostic>
+where
+    F: FnMut(&[f64]) -> Result<Vec<f64>, Diagnostic>,
+{
+    solve_checked(initial, settings, path, residual, true)
+}
+
+fn solve_checked<F>(
+    initial: Vec<f64>,
+    settings: NonlinearSettings,
+    path: GraphPath,
     mut residual: F,
+    check_rank: bool,
 ) -> Result<Vec<f64>, Diagnostic>
 where
     F: FnMut(&[f64]) -> Result<Vec<f64>, Diagnostic>,
@@ -42,7 +67,7 @@ where
         settings.absolute_tolerance + settings.relative_tolerance * initial_norm.max(1.0);
 
     for _ in 0..settings.max_iterations {
-        if max_norm(&residuals) <= tolerance {
+        if !check_rank && max_norm(&residuals) <= tolerance {
             return Ok(values);
         }
 
@@ -73,6 +98,9 @@ where
             )
             .with_graph_path(path.clone())
         })?;
+        if max_norm(&residuals) <= tolerance {
+            return Ok(values);
+        }
         for (value, delta) in values.iter_mut().zip(update) {
             *value += delta;
         }

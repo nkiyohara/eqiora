@@ -725,71 +725,54 @@ mod tests {
     }
 
     #[test]
-    fn field_initial_value_is_dimension_checked() {
-        let field = Id::<kinds::Field>::new();
-        let diagnostic = FieldDef::new(
-            field,
-            ValueType::scalar(
-                eqiora_core::ScalarDomain::Real,
-                dim::TemperatureDim::EXPONENTS,
-            ),
-        )
-        .with_initial(
-            DynQuantity::new(2.0, dim::TimeDim::EXPONENTS)
-                .try_into()
+    fn field_roles_preserve_complete_types_without_declaration_values() {
+        use eqiora_core::ScalarDomain::{Complex, Real};
+        for value_type in [
+            ValueType::scalar(Real, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(Complex, DimExponents::DIMENSIONLESS)
+                .array(3)
                 .unwrap(),
-        )
-        .expect_err("time is not temperature");
-
-        assert_eq!(diagnostic.code(), codes::DIMENSION_MISMATCH);
+        ] {
+            for role in [FieldRole::Variable, FieldRole::State] {
+                let field = FieldDef::new(Id::new(), value_type.clone(), role);
+                assert_eq!(field.value_type(), &value_type);
+                assert_eq!(field.role(), role);
+                assert_eq!(KernelNode::Field(field).initial_value(), None);
+            }
+        }
     }
 
     #[test]
-    fn field_initial_value_rejects_nonfinite_numbers() {
-        let value_type = ValueType::scalar(
+    fn initial_equations_use_typed_residual_validation() {
+        use super::super::typing::{ExpressionType, RootContract, TypedResidual};
+        use super::super::{ExprDagBuilder, SymbolRef};
+        let field = Id::new();
+        let temperature = ValueType::scalar(
             eqiora_core::ScalarDomain::Real,
             dim::TemperatureDim::EXPONENTS,
         );
-        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-            assert!(ValueLiteral::new(value_type.clone(), value).is_err());
+        let mut builder = ExprDagBuilder::new();
+        let value = builder.symbol(SymbolRef::Field(field)).unwrap();
+        let wrong_dimension = builder
+            .constant(DynQuantity::new(2.0, dim::TimeDim::EXPONENTS))
+            .unwrap();
+        let root = builder.sub(value, wrong_dimension).unwrap();
+        let expression = builder.finish([root]).unwrap();
+        let initial = RelationDef::initial(Id::new(), expression.clone());
+        assert!(initial.is_initial());
+        assert!(!RelationDef::new(initial.id(), expression.clone()).is_initial());
+        assert!(
+            TypedResidual::<()>::infer(
+                expression,
+                None,
+                RootContract::ComponentwiseResidual,
+                |_| Ok::<_, ()>(ExpressionType::new(temperature.clone(), None))
+            )
+            .is_err()
+        );
+        for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert!(ValueLiteral::new(temperature.clone(), invalid).is_err());
         }
-        assert!(
-            FieldDef::new(Id::new(), value_type.clone())
-                .with_initial(ValueLiteral::new(value_type.clone(), f64::MAX).unwrap())
-                .is_ok()
-        );
-    }
-
-    #[test]
-    fn field_initial_value_preserves_complete_types() {
-        use eqiora_core::ScalarDomain::{Complex, Real};
-        let real = ValueType::scalar(Real, DimExponents::DIMENSIONLESS);
-        let complex = ValueType::scalar(Complex, real.dimension());
-        let initial = ValueLiteral::new(real.clone(), 2.0).unwrap();
-        let field = FieldDef::new(Id::new(), complex.clone())
-            .with_initial(initial)
-            .unwrap();
-        assert_eq!(field.initial().unwrap().value_type(), &complex);
-        assert_eq!(field.initial().unwrap().real_scalar_value(), None);
-        assert!(
-            FieldDef::new(Id::new(), real.clone())
-                .with_initial(ValueLiteral::new(complex.clone(), 2.0).unwrap())
-                .is_err()
-        );
-        let array = complex.array(3).unwrap();
-        let field = FieldDef::new(Id::new(), array.clone())
-            .with_initial(ValueLiteral::new(array.clone(), -0.0).unwrap())
-            .unwrap();
-        assert_eq!(field.initial().unwrap().value_type(), &array);
-        assert_eq!(
-            field.initial().unwrap().literal().to_bits(),
-            0.0_f64.to_bits()
-        );
-        assert!(
-            FieldDef::new(Id::new(), array)
-                .with_initial(ValueLiteral::new(real, 0.0).unwrap())
-                .is_err()
-        );
     }
 
     #[test]

@@ -13,13 +13,15 @@ use eqiora_sem::KernelProgram;
 
 #[test]
 fn valid_program_owns_one_snapshot_revision() {
-    let field = Id::<kinds::Field>::new();
+    let field = Id::<kinds::Parameter>::new();
     let relation = Id::<kinds::Relation>::new();
     let activation = Id::<kinds::Activation>::new();
     let model = OntologyId::<Model>::new();
 
     let mut expression = ExprDagBuilder::new();
-    let value = expression.symbol(SymbolRef::Field(field)).expect("field");
+    let value = expression
+        .symbol(SymbolRef::Parameter(field))
+        .expect("field");
     let zero = expression
         .constant(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
         .expect("zero");
@@ -28,17 +30,13 @@ fn valid_program_owns_one_snapshot_revision() {
     let mut transaction = Transaction::new("valid continuous model");
     for node in [
         KernelNode::from(
-            FieldDef::new(
+            ParameterDef::new(
                 field,
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
                 ),
-            )
-            .with_initial(
-                DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)
-                    .try_into()
-                    .expect("finite real initial value"),
+                1.0,
             )
             .expect("initial value"),
         ),
@@ -125,6 +123,7 @@ fn symbol_outside_model_is_rejected() {
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
             ),
+            eqiora_schema::kernel::FieldRole::Variable,
         )),
         KernelNode::from(RelationDef::new(
             relation,
@@ -183,6 +182,7 @@ fn incompatible_expression_dimensions_are_rejected() {
         KernelNode::from(FieldDef::new(
             field,
             eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, time_dimension),
+            eqiora_schema::kernel::FieldRole::State,
         )),
         KernelNode::from(RelationDef::new(
             relation,
@@ -256,6 +256,7 @@ fn shaped_relation_roots_are_componentwise_but_activation_roots_remain_scalar() 
                 ValueFrame::Invariant,
             )
             .unwrap(),
+            eqiora_schema::kernel::FieldRole::State,
         )),
         KernelNode::from(RelationDef::new(
             relation,
@@ -310,6 +311,7 @@ fn boundary_operator_without_boundary_scope_is_rejected() {
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
             ),
+            eqiora_schema::kernel::FieldRole::State,
         )),
         KernelNode::from(RelationDef::new(
             relation,
@@ -369,6 +371,7 @@ fn derivative_dimension_overflow_is_not_misreported_as_missing_symbol() {
         KernelNode::from(FieldDef::new(
             field,
             eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, extreme_dimension),
+            eqiora_schema::kernel::FieldRole::State,
         )),
         KernelNode::from(RelationDef::new(
             relation,
@@ -804,6 +807,7 @@ fn invalid_spatial_expression(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
             ),
+            eqiora_schema::kernel::FieldRole::Variable,
         )),
         KernelNode::from(FieldDef::new(
             ids.other_field,
@@ -811,6 +815,7 @@ fn invalid_spatial_expression(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
             ),
+            eqiora_schema::kernel::FieldRole::Variable,
         )),
         KernelNode::from(
             ParameterDef::new(

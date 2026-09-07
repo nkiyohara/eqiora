@@ -25,7 +25,7 @@ impl WireNode {
             },
             KernelNode::Field(value) => WireNodeDefinition::Field {
                 value_type: WireValueType::encode(value.value_type())?,
-                initial: value.initial().map(eqiora_core::ValueLiteral::literal),
+                role: WireFieldRole::encode(value.role()),
             },
             KernelNode::Parameter(value) => WireNodeDefinition::Parameter {
                 value_type: WireValueType::encode(value.value_type())?,
@@ -53,6 +53,7 @@ impl WireNode {
             },
             KernelNode::Relation(value) => WireNodeDefinition::Relation {
                 residuals: WireExpression::encode(value.residuals())?,
+                initial: value.is_initial(),
             },
             KernelNode::Activation(value) => WireNodeDefinition::Activation {
                 activation: WireActivationKind::encode(value.kind())?,
@@ -89,27 +90,12 @@ impl WireNode {
                 }
                 .into())
             }
-            WireNodeDefinition::Field {
-                value_type,
-                initial,
-            } => {
-                let id = self.id.typed::<kinds::Field>()?;
-                let mut definition = FieldDef::new(id, value_type.decode()?);
-                if let Some(initial) = initial {
-                    if *initial == 0.0 && initial.is_sign_negative() {
-                        return Err(invalid_artifact(
-                            "Field initial literal has noncanonical negative zero",
-                        ));
-                    }
-                    let literal =
-                        eqiora_core::ValueLiteral::new(definition.value_type().clone(), *initial)
-                            .map_err(|error| invalid_artifact(error.to_string()))?;
-                    definition = definition
-                        .with_initial(literal)
-                        .map_err(|error| invalid_artifact(error.message()))?;
-                }
-                Ok(definition.into())
-            }
+            WireNodeDefinition::Field { value_type, role } => Ok(FieldDef::new(
+                self.id.typed::<kinds::Field>()?,
+                value_type.decode()?,
+                role.decode(),
+            )
+            .into()),
             WireNodeDefinition::Parameter {
                 value_type,
                 literal,
@@ -150,11 +136,16 @@ impl WireNode {
                 boundary.typed::<kinds::Domain>()?,
             )
             .into()),
-            WireNodeDefinition::Relation { residuals } => Ok(RelationDef::new(
-                self.id.typed::<kinds::Relation>()?,
-                residuals.decode()?,
-            )
-            .into()),
+            WireNodeDefinition::Relation { residuals, initial } => {
+                let id = self.id.typed::<kinds::Relation>()?;
+                let residuals = residuals.decode()?;
+                Ok(if *initial {
+                    RelationDef::initial(id, residuals)
+                } else {
+                    RelationDef::new(id, residuals)
+                }
+                .into())
+            }
             WireNodeDefinition::Activation { activation } => Ok(ActivationDef::new(
                 self.id.typed::<kinds::Activation>()?,
                 activation.decode()?,
@@ -174,7 +165,7 @@ impl WireNode {
 
     pub(crate) fn expression_node_count(&self) -> usize {
         match &self.definition {
-            WireNodeDefinition::Relation { residuals } => residuals.nodes.len(),
+            WireNodeDefinition::Relation { residuals, .. } => residuals.nodes.len(),
             WireNodeDefinition::Activation { activation } => activation.expression_node_count(),
             _ => 0,
         }
@@ -182,7 +173,7 @@ impl WireNode {
 
     pub(crate) fn expression_root_count(&self) -> usize {
         match &self.definition {
-            WireNodeDefinition::Relation { residuals } => residuals.roots.len(),
+            WireNodeDefinition::Relation { residuals, .. } => residuals.roots.len(),
             WireNodeDefinition::Activation { activation } => activation.expression_root_count(),
             _ => 0,
         }
@@ -190,7 +181,7 @@ impl WireNode {
 
     pub(crate) fn pure_operator_counts(&self) -> Result<PureOperatorWireCounts, Diagnostic> {
         match &self.definition {
-            WireNodeDefinition::Relation { residuals } => residuals.pure_operator_counts(),
+            WireNodeDefinition::Relation { residuals, .. } => residuals.pure_operator_counts(),
             WireNodeDefinition::Activation { activation } => activation.pure_operator_counts(),
             _ => Ok(PureOperatorWireCounts::default()),
         }
@@ -198,7 +189,7 @@ impl WireNode {
 
     pub(crate) fn validate_pure_operator_features(&self) -> Result<(), Diagnostic> {
         match &self.definition {
-            WireNodeDefinition::Relation { residuals } => {
+            WireNodeDefinition::Relation { residuals, .. } => {
                 residuals.validate_pure_operator_features()
             }
             WireNodeDefinition::Activation { activation } => {
@@ -210,7 +201,7 @@ impl WireNode {
 
     pub(crate) fn canonicalize_pure_operator_definitions(&mut self) -> Result<(), Diagnostic> {
         match &mut self.definition {
-            WireNodeDefinition::Relation { residuals } => {
+            WireNodeDefinition::Relation { residuals, .. } => {
                 residuals.canonicalize_pure_operator_definitions()
             }
             WireNodeDefinition::Activation { activation } => {
@@ -228,7 +219,7 @@ impl WireNode {
             WireNodeDefinition::Field { value_type, .. }
             | WireNodeDefinition::SignalPort { value_type, .. }
             | WireNodeDefinition::Parameter { value_type, .. } => value_type.ensure_limits(limits),
-            WireNodeDefinition::Relation { residuals } => {
+            WireNodeDefinition::Relation { residuals, .. } => {
                 residuals.ensure_value_shape_limits(limits)
             }
             WireNodeDefinition::Activation { activation } => {
@@ -266,7 +257,7 @@ impl WireNode {
                 connector,
                 boundary,
             } => vec![connector, boundary],
-            WireNodeDefinition::Relation { residuals } => residuals.semantic_references(),
+            WireNodeDefinition::Relation { residuals, .. } => residuals.semantic_references(),
             WireNodeDefinition::Activation { activation } => activation.semantic_references(),
             WireNodeDefinition::Domain {
                 domain: WireDomainKind::CartesianBoxSources { coordinates },
@@ -290,7 +281,7 @@ pub(crate) enum WireNodeDefinition {
     },
     Field {
         value_type: WireValueType,
-        initial: Option<f64>,
+        role: WireFieldRole,
     },
     Parameter {
         value_type: WireValueType,
@@ -308,6 +299,7 @@ pub(crate) enum WireNodeDefinition {
         boundary: WireId,
     },
     Relation {
+        initial: bool,
         residuals: WireExpression,
     },
     Activation {
@@ -462,4 +454,25 @@ fn decode_geometry_digest(value: &str) -> Result<GeometryDigest, Diagnostic> {
             .map_err(|_| invalid_artifact("geometry digest is not hexadecimal"))?;
     }
     Ok(GeometryDigest::new(bytes))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum WireFieldRole {
+    Variable,
+    State,
+}
+impl WireFieldRole {
+    fn encode(role: eqiora_schema::kernel::FieldRole) -> Self {
+        match role {
+            eqiora_schema::kernel::FieldRole::Variable => Self::Variable,
+            eqiora_schema::kernel::FieldRole::State => Self::State,
+        }
+    }
+    fn decode(self) -> eqiora_schema::kernel::FieldRole {
+        match self {
+            Self::Variable => eqiora_schema::kernel::FieldRole::Variable,
+            Self::State => eqiora_schema::kernel::FieldRole::State,
+        }
+    }
 }

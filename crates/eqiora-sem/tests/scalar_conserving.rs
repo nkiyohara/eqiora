@@ -471,6 +471,7 @@ fn physical_relation_admits_state_but_still_requires_continuous_activation_and_c
         FieldDef::new(
             field,
             eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, across_dimension),
+            eqiora_schema::kernel::FieldRole::Variable,
         )
         .into(),
         periodic.into(),

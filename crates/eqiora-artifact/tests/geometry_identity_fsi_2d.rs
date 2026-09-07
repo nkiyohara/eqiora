@@ -32,8 +32,7 @@ model Main {
   domain right_y_lower = boundary(right, axis = 1, side = lower);
   domain right_y_upper = boundary(right, axis = 1, side = upper);
 
-  representation scalar_space = continuum;
-  field marker on left as scalar_space: 1 = 0;
+  variable marker: 1 on left;
   relation retain on left {
     marker = 0;
   }

@@ -54,11 +54,10 @@ model Main {
   domain fluid_face = boundary(fluid, axis = 0, side = upper);
   domain solid_face = boundary(solid, axis = 0, side = lower);
   BOUNDARIES
-  representation space = continuum;
-  field fluid_velocity on fluid as space: vector<m / s, DIM>;
-  field pressure on fluid as space: kg / (m * s ^ 2);
-  field solid_velocity on solid as space: vector<m / s, DIM>;
-  field displacement on solid as space: vector<m, DIM>;
+  variable fluid_velocity: vector<m / s, DIM> on fluid;
+  variable pressure: kg / (m * s ^ 2) on fluid;
+  variable solid_velocity: vector<m / s, DIM> on solid;
+  variable displacement: vector<m, DIM> on solid;
   relation fluid_relation on fluid { fluid_velocity = 0; pressure = 0; }
   relation solid_relation on solid { solid_velocity = 0; displacement = 0; }
   instance left: Side(support body = fluid, support face = fluid_face);

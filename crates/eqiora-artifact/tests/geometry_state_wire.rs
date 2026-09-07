@@ -32,8 +32,7 @@ model Main {
   domain solid_y_lower = boundary(solid, axis = 1, side = lower);
   domain solid_y_upper = boundary(solid, axis = 1, side = upper);
 
-  representation space = continuum;
-  field solid_displacement on solid as space: vector<m, 2>;
+  variable solid_displacement: vector<m, 2> on solid;
   relation retain on solid {
     div(solid_displacement) = 0;
   }

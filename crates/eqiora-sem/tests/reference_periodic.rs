@@ -1,3 +1,5 @@
+#[path = "support/initial.rs"]
+mod initial_support;
 use eqiora_core::entity::kinds;
 use eqiora_core::{DimExponents, DynQuantity, Id, OntologyId};
 use eqiora_graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
@@ -7,6 +9,7 @@ use eqiora_schema::kernel::{
 };
 use eqiora_schema::{Model, ModelView};
 use eqiora_sem::{Interpreter, KernelProgram, ReferenceConfig};
+use initial_support::{define_all, initial};
 
 #[test]
 fn coincident_periodic_activations_commit_next_fields_simultaneously() {
@@ -17,7 +20,6 @@ fn coincident_periodic_activations_commit_next_fields_simultaneously() {
     let left_activation = Id::<kinds::Activation>::new();
     let right_activation = Id::<kinds::Activation>::new();
     let left_clock = Id::<kinds::ClockDomain>::new();
-    let right_clock = Id::<kinds::ClockDomain>::new();
     let model = OntologyId::<Model>::new();
 
     let mut left_update = ExprDagBuilder::new();
@@ -40,36 +42,24 @@ fn coincident_periodic_activations_commit_next_fields_simultaneously() {
 
     let period = RationalTime::new(1, 10).expect("100 ms");
     let nodes = [
-        KernelNode::from(
-            FieldDef::new(
-                left,
-                eqiora_core::ValueType::scalar(
-                    eqiora_core::ScalarDomain::Real,
-                    DimExponents::DIMENSIONLESS,
-                ),
-            )
-            .with_initial(
-                DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)
-                    .try_into()
-                    .expect("finite real initial value"),
-            )
-            .expect("left initial"),
-        ),
-        KernelNode::from(
-            FieldDef::new(
-                right,
-                eqiora_core::ValueType::scalar(
-                    eqiora_core::ScalarDomain::Real,
-                    DimExponents::DIMENSIONLESS,
-                ),
-            )
-            .with_initial(
-                DynQuantity::new(2.0, DimExponents::DIMENSIONLESS)
-                    .try_into()
-                    .expect("finite real initial value"),
-            )
-            .expect("right initial"),
-        ),
+        KernelNode::from(FieldDef::new(
+            left,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
+            eqiora_schema::kernel::FieldRole::State,
+        )),
+        initial(left, DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)),
+        KernelNode::from(FieldDef::new(
+            right,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
+            eqiora_schema::kernel::FieldRole::State,
+        )),
+        initial(right, DynQuantity::new(2.0, DimExponents::DIMENSIONLESS)),
         KernelNode::from(RelationDef::new(
             left_relation,
             left_update.finish([left_residual]).expect("left DAG"),
@@ -83,20 +73,10 @@ fn coincident_periodic_activations_commit_next_fields_simultaneously() {
         KernelNode::from(
             ClockDomainDef::periodic(left_clock, period, RationalTime::ZERO).expect("left clock"),
         ),
-        KernelNode::from(
-            ClockDomainDef::periodic(
-                right_clock,
-                RationalTime::new(2, 20).expect("same exact period"),
-                RationalTime::ZERO,
-            )
-            .expect("right clock"),
-        ),
     ];
     let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();
     let mut transaction = Transaction::new("simultaneous periodic swap");
-    for node in nodes {
-        transaction.push(Op::DefineKernelNode { node });
-    }
+    define_all(&mut transaction, nodes);
     for (relation, dependencies) in [
         (left_relation.erase(), [left.erase(), right.erase()]),
         (right_relation.erase(), [right.erase(), left.erase()]),
@@ -111,7 +91,7 @@ fn coincident_periodic_activations_commit_next_fields_simultaneously() {
     }
     for (activation, relation, clock) in [
         (left_activation, left_relation, left_clock),
-        (right_activation, right_relation, right_clock),
+        (right_activation, right_relation, left_clock),
     ] {
         transaction
             .push(Op::Connect {
@@ -124,6 +104,13 @@ fn coincident_periodic_activations_commit_next_fields_simultaneously() {
                 to: clock.erase(),
                 edge: EdgeKind::ClockedBy,
             });
+    }
+    for field in [left, right] {
+        transaction.push(Op::Connect {
+            from: field.erase(),
+            to: left_clock.erase(),
+            edge: EdgeKind::ClockedBy,
+        });
     }
     transaction.push(Op::DefineOntologyView {
         view: ModelView::new(model, members, [])
