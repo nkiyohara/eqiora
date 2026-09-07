@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 
 import eqiora
+from _signature_bindings import support_bindings
 from eqiora._eqiora import _compose_view
 
 
@@ -19,12 +20,12 @@ public component ViewerPoisson(
   support left: boundary(parent = square),
   support right: boundary(parent = square),
   support bottom: boundary(parent = square),
-  support top: boundary(parent = square)
+  support top: boundary(parent = square),
+  parameter diffusion: 1,
+  parameter source_scale: 1 / m ^ 2
 ) {
 
   variable potential: 1 on square;
-  public parameter diffusion: 1;
-  public parameter source_scale: 1 / m ^ 2;
   relation balance on square {
     -div(diffusion * grad(potential)) - source_scale = 0;
   }
@@ -41,14 +42,14 @@ public component ViewerElasticity(
   support left: boundary(parent = square),
   support right: boundary(parent = square),
   support bottom: boundary(parent = square),
-  support top: boundary(parent = square)
+  support top: boundary(parent = square),
+  parameter stiffness: kg / (m * s ^ 2),
+  parameter lambda: kg / (m * s ^ 2),
+  parameter length_scale: m
 ) {
 
   variable displacement: vector<m, 2> on square;
   variable load_potential: kg / (m * s ^ 2) on square;
-  public parameter stiffness: kg / (m * s ^ 2);
-  public parameter lambda: kg / (m * s ^ 2);
-  public parameter length_scale: m;
   relation load on square {
     load_potential - 2 * stiffness * coordinate(0) / length_scale = 0;
   }
@@ -98,11 +99,7 @@ def scalar_output(
     spatial: eqiora.fem.Q1 | eqiora.fvm.CellCenteredTpfa,
 ) -> tuple[eqiora.geometry.Geometry, eqiora.meshing.Mesh, eqiora.FieldOutput]:
     geometry, mesh = rectangle_and_mesh()
-    model = eqiora.compile(
-        source=POISSON,
-        geometry=geometry,
-        parameters={"diffusion": 1.0, "source_scale": 1.0},
-    )
+    model = eqiora.compile(source=POISSON, geometry=geometry, entry='ViewerPoisson', bindings={**support_bindings(geometry, ['square'], [('left', 'square'), ('right', 'square'), ('bottom', 'square'), ('top', 'square')]), **{'diffusion': 1.0, 'source_scale': 1.0}})
     plan = eqiora.resolve(
         model,
         mesh=mesh,
@@ -250,11 +247,7 @@ def test_scalar_field_rejects_a_shape_matching_foreign_mesh() -> None:
 
 def test_v2_rejects_vector_fields_explicitly() -> None:
     geometry, mesh = rectangle_and_mesh()
-    model = eqiora.compile(
-        source=ELASTICITY,
-        geometry=geometry,
-        parameters={"stiffness": 1.0, "lambda": 0.0, "length_scale": 1.0},
-    )
+    model = eqiora.compile(source=ELASTICITY, geometry=geometry, entry='ViewerElasticity', bindings={**support_bindings(geometry, ['square'], [('left', 'square'), ('right', 'square'), ('bottom', 'square'), ('top', 'square')]), **{'stiffness': 1.0, 'lambda': 0.0, 'length_scale': 1.0}})
     plan = eqiora.resolve(
         model,
         mesh=mesh,

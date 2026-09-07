@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 import eqiora
+from _signature_bindings import support_bindings
 
 
 def geometry() -> eqiora.geometry.Geometry:
@@ -24,6 +25,7 @@ def geometry() -> eqiora.geometry.Geometry:
 
 def parameters(source: eqiora.geometry.Geometry) -> dict[str, float]:
     return {
+        **support_bindings(source, ['fluid'], [(n, 'fluid') for n in ['inlet', 'outlet', 'walls', 'cylinder']]),
         "dynamic_viscosity": 0.001,
         "zero_pressure": 0.0,
         "inlet_speed": 0.3,
@@ -36,12 +38,13 @@ def test_installed_path_and_loaded_source_have_one_model_meaning() -> None:
     assert source_path.is_file()
     assert not files(eqiora).joinpath("examples", "steady-flow-past-cylinder.model.json").is_file()
     source = geometry()
-    from_path = eqiora.compile(path=source_path, geometry=source, parameters=parameters(source))
+    from_path = eqiora.compile(path=source_path, geometry=source, entry="SteadyFlowPastCylinder", bindings=parameters(source))
     from_text = eqiora.compile(
         source=source_path.read_text(encoding="utf-8"),
         filename="logical/cylinder.eqi",
         geometry=source,
-        parameters=parameters(source),
+        entry="SteadyFlowPastCylinder",
+        bindings=parameters(source),
     )
     assert from_path.digest == from_text.digest
     assert eqiora.Model.from_bytes(from_path.to_bytes()).digest == from_path.digest
@@ -49,7 +52,7 @@ def test_installed_path_and_loaded_source_have_one_model_meaning() -> None:
 
 def test_source_shape_and_argument_admission_fail_closed(tmp_path: Path) -> None:
     root_source = """
-model Main {
+model Main() {
   variable x: 1;
   relation balance { x - 1 = 0; }
 }
@@ -63,8 +66,8 @@ model Main {
         eqiora.compile(path=tmp_path / "x.eqi", source=root_source)
     with pytest.raises(eqiora.ValidationError, match="filename"):
         eqiora.compile(path=tmp_path / "x.eqi", filename="logical.eqi")
-    with pytest.raises(eqiora.ValidationError, match="require geometry"):
-        eqiora.compile(source=root_source, parameters={})
+    with pytest.raises(eqiora.ValidationError, match="explicit entry"):
+        eqiora.compile(source=root_source, bindings={})
 
     invalid_utf8 = tmp_path / "invalid.eqi"
     invalid_utf8.write_bytes(b"\xff")
@@ -89,31 +92,33 @@ def test_component_and_parameter_inventory_are_source_owned() -> None:
         {**values, "extra": 1.0},
     ):
         with pytest.raises(eqiora.ValidationError):
-            eqiora.compile(source=source_text, geometry=authored, parameters=invalid)
+            eqiora.compile(source=source_text, geometry=authored, entry="SteadyFlowPastCylinder", bindings=invalid)
     for invalid in (True, object()):
         with pytest.raises(TypeError):
             eqiora.compile(
                 source=source_text,
                 geometry=authored,
-                parameters={**values, "inlet_speed": invalid},  # type: ignore[dict-item]
+                entry="SteadyFlowPastCylinder",
+                bindings={**values, "inlet_speed": invalid},  # type: ignore[dict-item]
             )
     for invalid in (float("nan"), float("inf")):
         with pytest.raises(ValueError, match="finite"):
             eqiora.compile(
                 source=source_text,
                 geometry=authored,
-                parameters={**values, "inlet_speed": invalid},
+                entry="SteadyFlowPastCylinder",
+                bindings={**values, "inlet_speed": invalid},
             )
 
     ambiguous = source_text + source_text.replace(
         "SteadyFlowPastCylinder", "OtherSteadyFlow", 1
     )
-    with pytest.raises(eqiora.ValidationError, match="component="):
-        eqiora.compile(source=ambiguous, geometry=authored, parameters=values)
+    with pytest.raises(eqiora.ValidationError, match="entry="):
+        eqiora.compile(source=ambiguous, geometry=authored, bindings=values)
     selected = eqiora.compile(
         source=ambiguous,
         geometry=authored,
-        parameters=values,
-        component="OtherSteadyFlow",
+        bindings=values,
+        entry="OtherSteadyFlow",
     )
     assert selected.digest

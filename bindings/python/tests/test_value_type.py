@@ -129,7 +129,7 @@ def test_source_parameter_uses_the_shared_type_and_native_formatter() -> None:
     source = eqiora.lang.Source()
     component = source.component("TypedParameter")
     component.parameter("amplitude", value_type=value_type)
-    assert f"public parameter amplitude: {value_type.to_eqi()};" in source.to_eqi()
+    assert f"parameter amplitude: {value_type.to_eqi()}," in source.to_eqi()
     with pytest.raises(TypeError):
         component.parameter("old", unit=eqiora.units.m)
     with pytest.raises(TypeError, match="eqiora.ValueType"):
@@ -156,7 +156,7 @@ def test_initial_equations_preserve_native_source_identity_and_foreign_ownership
     initial = eqiora.Initial(x - 2.0)
     native = eqiora.Model.define("decay", x, rate, flow, initial)
     source = eqiora.compile(source="""
-model decay {
+model decay() {
   state x: 1;
   parameter rate: 1 / s = 1;
   relation flow { derivative(x) + rate * x = 0; }
@@ -179,7 +179,7 @@ def test_initial_equations_do_not_broadcast_scalars_to_shaped_fields() -> None:
 
 
 def test_value_edits_reject_fields_by_alias_and_exact_identity() -> None:
-    model = eqiora.compile(source="model m { variable x: 1; relation law { x = 1; } }")
+    model = eqiora.compile(source='model m() { variable x: 1; relation law { x = 1; } }')
     for target in ("x", model.field_ids[0]):
         with pytest.raises(eqiora.EqioraError, match="Parameter"):
             model.preview_value_edit(target, 2.0)
@@ -240,7 +240,7 @@ def test_complete_native_parameter_matches_source_and_retains_typed_edits():
     native = eqiora.Model.define("typed", coefficient, field,
                                  eqiora.Relation("law", residual=field - coefficient[1]))
     source = eqiora.compile(source="""
-model typed {
+model typed() {
   parameter coefficient: array<complex<1>, 2> = [math.complex(1, 2), math.complex(3, -4)];
   variable x: complex<1>;
   relation law { x - coefficient[1] = 0; }

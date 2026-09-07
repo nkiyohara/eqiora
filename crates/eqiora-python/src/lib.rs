@@ -5,6 +5,7 @@
 
 mod array;
 mod cad_authored;
+mod clock;
 mod common_plan;
 mod differentiation;
 mod elasticity;
@@ -22,6 +23,8 @@ mod package;
 mod planar_operation;
 mod realization;
 mod result;
+mod sampled_session;
+mod static_bindings;
 mod steady_stokes;
 mod trajectory;
 mod viewer;
@@ -91,9 +94,9 @@ fn _input_unit_catalog() -> (Vec<(&'static str, bool)>, Vec<&'static str>) {
     )
 }
 
-/// Compile exactly one Eqiora source through the canonical Rust pipeline.
+/// Compile one closed Model or explicitly selected signature through the canonical pipeline.
 #[pyfunction]
-#[pyo3(signature = (*, path=None, source=None, filename=None, geometry=None, parameters=None, component=None))]
+#[pyo3(signature = (*, path=None, source=None, filename=None, geometry=None, bindings=None, entry=None))]
 #[allow(clippy::too_many_arguments)]
 fn compile(
     py: Python<'_>,
@@ -101,47 +104,38 @@ fn compile(
     source: Option<&str>,
     filename: Option<&str>,
     geometry: Option<Py<PyGeometry>>,
-    parameters: Option<&Bound<'_, PyDict>>,
-    component: Option<&str>,
+    bindings: Option<&Bound<'_, PyDict>>,
+    entry: Option<&str>,
 ) -> PyResult<PyModel> {
     panic_boundary(py, || {
         let (filename, source) = admitted_compile_source(py, path, source, filename)?;
         validate_python_compile_input(py, &filename, &source)?;
-        let parameter_values = extract_parameter_values(parameters)?;
-        match geometry {
-            None => {
-                if parameters.is_some() || component.is_some() {
-                    return Err(python_compile_admission_error(
-                        py,
-                        "parameters= and component= require geometry= for definitions-only source compilation",
-                    ));
-                }
-                py.detach(move || ModelDocument::compile(&filename, &source))
-                    .map_err(|diagnostics| diagnostic_error(py, &diagnostics))
-                    .and_then(|document| PyModel::from_document(py, document))
-            }
-            Some(geometry) => {
-                let native_geometry = geometry.borrow(py).geometry().clone();
-                let component = component.map(str::to_owned);
-                let compiled = py.detach(move || {
-                    let parameters = parameter_values
+        let authority = geometry
+            .as_ref()
+            .map(|geometry| geometry.borrow(py).geometry().clone());
+        let values = static_bindings::extract(bindings, authority.as_ref())?;
+        if entry.is_none() && (geometry.is_some() || bindings.is_some()) {
+            return Err(python_compile_admission_error(
+                py,
+                "static bindings and Geometry require an explicit entry=",
+            ));
+        }
+        let entry = entry.map(str::to_owned);
+        let compiled = py
+            .detach(move || match entry {
+                None => ModelDocument::compile(&filename, &source),
+                Some(entry) => {
+                    let bindings = values
                         .iter()
-                        .map(|(name, value)| (name.as_str(), value.clone()))
+                        .map(|(name, value)| (name.as_str(), value.borrowed(authority.as_ref())))
                         .collect::<Vec<_>>();
-                    ModelDocument::compile_with_geometry(
-                        &filename,
-                        &source,
-                        &native_geometry,
-                        component.as_deref(),
-                        &parameters,
-                    )
-                });
-                compiled
-                    .map_err(|diagnostics| diagnostic_error(py, &diagnostics))
-                    .and_then(|document| {
-                        PyModel::from_document_with_geometry(py, document, geometry)
-                    })
-            }
+                    ModelDocument::compile_selected(&filename, &source, &entry, &bindings)
+                }
+            })
+            .map_err(|diagnostics| diagnostic_error(py, &diagnostics))?;
+        match geometry {
+            Some(geometry) => PyModel::from_document_with_geometry(py, compiled, geometry),
+            None => PyModel::from_document(py, compiled),
         }
     })
 }
@@ -198,26 +192,6 @@ fn admitted_compile_source(
     }
 }
 
-pub(crate) fn extract_parameter_values(
-    parameters: Option<&Bound<'_, PyDict>>,
-) -> PyResult<Vec<(String, eqiora::language::Expr)>> {
-    let Some(parameters) = parameters else {
-        return Ok(Vec::new());
-    };
-    let mut values = Vec::with_capacity(parameters.len());
-    for (name, value) in parameters.iter() {
-        let name = name
-            .cast::<PyString>()
-            .map_err(|_| PyTypeError::new_err("parameter names must be strings"))?
-            .to_str()?
-            .to_owned();
-        let expression = modeling::value_literal::expression(&value)?.source_ast();
-        values.push((name, expression));
-    }
-    values.sort_by(|left, right| left.0.cmp(&right.0));
-    Ok(values)
-}
-
 fn validate_python_compile_input(py: Python<'_>, filename: &str, source: &str) -> PyResult<()> {
     if filename.is_empty()
         || filename.chars().count() > MAX_PYTHON_COMPILE_FILENAME_BYTES
@@ -251,6 +225,9 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add("__version__", version)?;
     error::register(module)?;
     model::register(module)?;
+    module.add_class::<sampled_session::PySampledSession>()?;
+    module.add_class::<sampled_session::PySampledCheckpoint>()?;
+    module.add_class::<clock::PyClockDomain>()?;
     package::register(module)?;
     array::register(module)?;
     cad_authored::register(module)?;
@@ -281,7 +258,7 @@ mod tests {
     use super::python_distribution_version;
 
     const SOURCE: &str = r#"
-model decay {
+model decay() {
   state x: 1;
   initial { x = 1; }
   parameter rate: 1 / s = 1;
@@ -327,7 +304,7 @@ model decay {
     fn ordinary_python_authoring_and_replay_use_the_current_contract() {
         let document = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
         let bytes = document.canonical_json().unwrap();
-        assert!(String::from_utf8_lossy(&bytes).contains("eqiora.model-envelope/v13"));
+        assert!(String::from_utf8_lossy(&bytes).contains("eqiora.model-envelope/v14"));
         let replayed = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(replayed.canonical_json().unwrap(), bytes);
         assert_eq!(replayed.digest().unwrap(), document.digest().unwrap());

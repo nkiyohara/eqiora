@@ -19,6 +19,7 @@ pub mod package;
 mod parameter_regeneration;
 mod remeshing_trajectory;
 mod run_request;
+mod sampled_session;
 mod sampling;
 mod value_edit;
 
@@ -123,7 +124,7 @@ impl ModelDocument {
     ) -> Result<Self, Vec<Diagnostic>> {
         let compiled = eqiora_compiler::analyze_resolved_hierarchy(input)?
             .validate_definitions()?
-            .compile_root(entry_model)?;
+            .compile_selected(entry_model, &[])?;
         Self::accept_compiled(compiled)
     }
 
@@ -250,6 +251,13 @@ impl ModelDocument {
     }
 
     pub(crate) fn accept_compiled(compiled: CompiledModel) -> Result<Self, Vec<Diagnostic>> {
+        Self::accept_compiled_with_geometry(compiled, &[])
+    }
+
+    pub(crate) fn accept_compiled_with_geometry(
+        compiled: CompiledModel,
+        geometries: &[&eqiora_geometry::CanonicalGeometryV1],
+    ) -> Result<Self, Vec<Diagnostic>> {
         let aliases = aliases(compiled.symbols());
         let authored_formulations = compiled.authored_formulations().cloned().collect();
         let model = compiled.model();
@@ -262,8 +270,13 @@ impl ModelDocument {
 
         let mut store = InMemoryGraphStore::new();
         store.commit(transaction)?;
-        let program = KernelProgram::from_snapshot(&store.snapshot(), model)?;
-        let mut document = Self::from_store(store, program, aliases, Vec::new())?;
+        let program =
+            KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, geometries)?;
+        let geometry_authority = geometries
+            .iter()
+            .map(|geometry| (*geometry).clone())
+            .collect();
+        let mut document = Self::from_store(store, program, aliases, geometry_authority)?;
         document.authored_formulations = authored_formulations;
         Ok(document)
     }
@@ -487,7 +500,7 @@ mod tests {
     use eqiora_lang::{DraftExpression, DraftField, DraftParameter, DraftRelation, ModelDraft};
 
     const SOURCE: &str = r#"
-model decay {
+model decay() {
   state x: 1;
   initial { x = 1; }
   parameter rate: 1 / s = 1;
@@ -523,13 +536,13 @@ model decay {
                 ResolvedSourceUnit::new(
                     owner.clone(),
                     "src/models/main.eqi",
-                    "import org.example.project.library.parts as lib; model Main { instance part: lib.Part(p = 1); }",
+                    "import org.example.project.library.parts as lib; model Main() { instance part: lib.Part(p = 1); }",
                 )
                 .unwrap(),
                 ResolvedSourceUnit::new(
                     owner.clone(),
                     "src/library/parts.eqi",
-                    "public component Part() { public parameter p: 1; relation law { p - 1 = 0; } }",
+                    "public component Part(\n  parameter p: 1\n) { relation law { p - 1 = 0; } }",
                 )
                 .unwrap(),
             ];
@@ -562,11 +575,12 @@ model decay {
     fn project_sources_derive_modules_from_paths_deterministically() {
         let main = r#"
 import eqiora.local_project.library.parts as lib;
-model Main { instance load: lib.Resistor(resistance = 2); }
+model Main() { instance load: lib.Resistor(resistance = 2); }
 "#;
         let library = r#"
-public component Resistor() {
-  public parameter resistance: 1;
+public component Resistor(
+  parameter resistance: 1
+) {
   relation law { resistance - 2 = 0; }
 }
 "#;
@@ -593,11 +607,11 @@ public component Resistor() {
             [
                 (
                     "src/main.eqi",
-                    "import eqiora.local_project.library.entries as lib; model Local {}",
+                    "import eqiora.local_project.library.entries as lib; model Local() {}",
                 ),
                 (
                     "src/library/entries.eqi",
-                    "public model Shared { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
+                    "public model Shared() { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
                 ),
             ],
             "lib.Shared",
@@ -610,9 +624,9 @@ public component Resistor() {
             [
                 (
                     "src/main.eqi",
-                    "import eqiora.local_project.library.entries as lib; model Local {}",
+                    "import eqiora.local_project.library.entries as lib; model Local() {}",
                 ),
-                ("src/library/entries.eqi", "model Hidden {}"),
+                ("src/library/entries.eqi", "model Hidden() {}"),
             ],
             "lib.Hidden",
         )
@@ -629,7 +643,7 @@ public component Resistor() {
         let diagnostics = ModelDocument::compile_project_sources(
             "models.main",
             [
-                ("../main.eqi", "model Main {}"),
+                ("../main.eqi", "model Main() {}"),
                 ("src/Part.eqi", "public component One() {}"),
                 ("src/part.eqi", "public component Two() {}"),
             ],
@@ -701,7 +715,7 @@ public component Resistor() {
     #[test]
     fn current_authoring_retains_tensor_vocabulary() {
         let source = r#"
-model elastic_relation {
+model elastic_relation() {
   domain body = box(0, 1, 0, 1);
   variable displacement: vector<m, 2> on body;
   parameter mu: kg / (m * s ^ 2) = 2;
@@ -728,7 +742,7 @@ model elastic_relation {
         let source = r#"
 public pure operator dyadic(left: spatial[1], right: spatial[1]) -> spatial[2]
   = component(left, 0) * component(right, 1);
-model pure_relation {
+model pure_relation() {
   domain body = box(0, 1, 0, 1);
   variable left: vector<1, 2> on body;
   variable right: vector<1, 2> on body;
@@ -742,7 +756,7 @@ model pure_relation {
         let bytes = current.canonical_json().unwrap();
         let json = String::from_utf8_lossy(&bytes);
         assert!(json.contains("pure-operator-application"));
-        assert!(json.contains("eqiora.model-envelope/v13"));
+        assert!(json.contains("eqiora.model-envelope/v14"));
         let replay = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(replay.canonical_json().unwrap(), bytes);
         assert_eq!(replay.digest().unwrap(), current.digest().unwrap());
@@ -751,7 +765,7 @@ model pure_relation {
     #[test]
     fn invalid_source_remains_a_structured_diagnostic() {
         let diagnostics =
-            ModelDocument::compile("broken.eqi", "model broken { field ; }").unwrap_err();
+            ModelDocument::compile("broken.eqi", "model broken() { field ; }").unwrap_err();
         assert!(!diagnostics.is_empty());
         assert!(diagnostics[0].code().0.starts_with("EQ"));
     }
@@ -792,7 +806,7 @@ model pure_relation {
         assert!(
             String::from_utf8(plan.transaction_json().unwrap())
                 .unwrap()
-                .contains("eqiora.model-transaction-envelope/v13")
+                .contains("eqiora.model-transaction-envelope/v14")
         );
 
         let result = document.commit_value_edit(plan.clone()).unwrap();
@@ -866,7 +880,7 @@ model pure_relation {
 
     #[test]
     fn value_edit_identity_includes_the_exact_base_artifact() {
-        let source = SOURCE.replace("model decay {", "model decay { parameter probe: 1 = 0;");
+        let source = SOURCE.replace("model decay() {", "model decay() { parameter probe: 1 = 0;");
         let base = ModelDocument::compile("decay.eqi", &source).unwrap();
         let probe = base.aliases()["probe"];
         let rate = base.aliases()["rate"];

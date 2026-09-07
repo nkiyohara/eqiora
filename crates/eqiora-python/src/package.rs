@@ -14,7 +14,6 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyDict, PyModule, PyString, PyTuple};
 
 use crate::error::{compatibility_error, diagnostic_error, panic_boundary};
-use crate::extract_parameter_values;
 use crate::geometry::PyGeometry;
 use crate::model::PyModel;
 use crate::python_distribution_version;
@@ -300,46 +299,34 @@ fn update_local_project(
     })
 }
 
-/// Compile one root-local or imported Model, or one Geometry-bound Component.
+/// Compile one locked Model or Component using explicit static signature bindings.
 #[pyfunction]
-#[pyo3(signature = (store_root, resolution, *, entry_model=None, geometry=None, component=None, parameters=None))]
+#[pyo3(signature = (store_root, resolution, *, entry, geometry=None, bindings=None))]
 fn compile_package(
     py: Python<'_>,
     store_root: &Bound<'_, PyAny>,
     resolution: &Bound<'_, PyAny>,
-    entry_model: Option<&str>,
+    entry: &str,
     geometry: Option<Py<PyGeometry>>,
-    component: Option<&str>,
-    parameters: Option<&Bound<'_, PyDict>>,
+    bindings: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<PyModel> {
     panic_boundary(py, || {
         let store_root = unicode_path(py, store_root)?;
         let resolution = resolution.cast::<PyBytes>()?.as_bytes().to_vec();
-        let compiled = match (entry_model, geometry.as_ref(), component) {
-            (Some(entry_model), None, None) if parameters.is_none() => {
-                let entry_model = entry_model.to_owned();
-                py.detach(move || compile_package_model_native(store_root, resolution, entry_model))
-            }
-            (None, Some(geometry), Some(component)) => {
-                let native_geometry = geometry.borrow(py).geometry().clone();
-                let component = component.to_owned();
-                let parameter_values = extract_parameter_values(parameters)?;
-                py.detach(move || {
-                    compile_package_component_native(
-                        store_root,
-                        resolution,
-                        component,
-                        native_geometry,
-                        parameter_values,
-                    )
-                })
-            }
-            _ => {
-                return Err(PyTypeError::new_err(
-                    "compile_package requires exactly entry_model=, or both geometry= and component=; parameters= is valid only with Geometry-bound Component compilation",
-                ));
-            }
-        };
+        let authority = geometry
+            .as_ref()
+            .map(|geometry| geometry.borrow(py).geometry().clone());
+        let values = crate::static_bindings::extract(bindings, authority.as_ref())?;
+        let entry = entry.to_owned();
+        let compiled = py.detach(move || {
+            let (store, resolution) = open_locked_package(store_root, resolution)?;
+            let bindings = values
+                .iter()
+                .map(|(name, value)| (name.as_str(), value.borrowed(authority.as_ref())))
+                .collect::<Vec<_>>();
+            PackagedModelDocument::compile_selected(&store, &resolution, &entry, &bindings)
+                .map_err(map_package_compilation_error)
+        });
         match compiled {
             Ok(packaged) => match geometry {
                 Some(geometry) => PyModel::from_packaged_with_geometry(py, packaged, geometry),
@@ -359,38 +346,6 @@ pub(crate) fn unicode_path(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult
     let path = py.import("os")?.getattr("fspath")?.call1((value,))?;
     let path = path.cast::<PyString>()?.to_str()?;
     Ok(PathBuf::from(path))
-}
-
-fn compile_package_model_native(
-    store_root: PathBuf,
-    resolution_bytes: Vec<u8>,
-    entry_model: String,
-) -> Result<PackagedModelDocument, CompilePackageFailure> {
-    let (store, resolution) = open_locked_package(store_root, resolution_bytes)?;
-    PackagedModelDocument::compile_locked(&store, &resolution, &entry_model)
-        .map_err(map_package_compilation_error)
-}
-
-fn compile_package_component_native(
-    store_root: PathBuf,
-    resolution_bytes: Vec<u8>,
-    component: String,
-    geometry: eqiora::geometry::CanonicalGeometryV1,
-    parameters: Vec<(String, eqiora::language::Expr)>,
-) -> Result<PackagedModelDocument, CompilePackageFailure> {
-    let (store, resolution) = open_locked_package(store_root, resolution_bytes)?;
-    let parameters = parameters
-        .iter()
-        .map(|(name, value)| (name.as_str(), value.clone()))
-        .collect::<Vec<_>>();
-    PackagedModelDocument::compile_locked_with_geometry(
-        &store,
-        &resolution,
-        &component,
-        &geometry,
-        &parameters,
-    )
-    .map_err(map_package_compilation_error)
 }
 
 fn open_locked_package(

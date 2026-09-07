@@ -16,6 +16,7 @@ import jax.numpy as jnp
 import jaxlib
 
 import eqiora
+from _signature_bindings import support_bindings
 import eqiora.jax as eqjax
 from eqiora import _eqiora
 
@@ -26,14 +27,14 @@ public component JaxDifferentiatedPoisson(
   support x_lower: boundary(parent = square),
   support x_upper: boundary(parent = square),
   support y_lower: boundary(parent = square),
-  support y_upper: boundary(parent = square)
+  support y_upper: boundary(parent = square),
+  parameter diffusion: 1,
+  parameter wave_number: 1 / m,
+  parameter source_scale: 1 / m ^ 2,
+  parameter boundary_offset: 1
 ) {
 
   variable potential: 1 on square;
-  public parameter diffusion: 1;
-  public parameter wave_number: 1 / m;
-  public parameter source_scale: 1 / m ^ 2;
-  public parameter boundary_offset: 1;
   relation balance on square {
     -div(diffusion * grad(potential))
       - source_scale * math.sin(wave_number * coordinate(0))
@@ -85,16 +86,7 @@ def differentiable_program(
         eqiora.meshing.CartesianMesher(cells=(4, 4)),
     )
     mesh = eqiora.meshing.generate(mesh_plan)
-    model = eqiora.compile(
-        source=POISSON,
-        geometry=geometry,
-        parameters={
-            "diffusion": 1.0,
-            "wave_number": np.pi,
-            "source_scale": 2.0 * np.pi**2,
-            "boundary_offset": 0.0,
-        },
-    )
+    model = eqiora.compile(source=POISSON, geometry=geometry, entry='JaxDifferentiatedPoisson', bindings={**support_bindings(geometry, ['square'], [('x_lower', 'square'), ('x_upper', 'square'), ('y_lower', 'square'), ('y_upper', 'square')]), **{'diffusion': 1.0, 'wave_number': np.pi, 'source_scale': 2.0 * np.pi ** 2, 'boundary_offset': 0.0}})
     spatial = (
         eqiora.fem.Q1()
         if method == eqiora.fem.Q1()

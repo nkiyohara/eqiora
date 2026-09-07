@@ -35,7 +35,7 @@ def test_git_project_pins_branch_and_reopens_without_repository(tmp_path: Path, 
     repo = tmp_path / "repository"
     (repo / "src").mkdir(parents=True)
     (repo / "eqiora.toml").write_text('[package]\nname="org.example.Git"\nversion="1.0.0"\nentry="main"\n')
-    source = "public model Shared { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }"
+    source = 'public model Shared() { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }'
     (repo / "src/main.eqi").write_text(source)
     git(repo, "init", "--initial-branch=main")
     git(repo, "add", ".")
@@ -44,13 +44,13 @@ def test_git_project_pins_branch_and_reopens_without_repository(tmp_path: Path, 
     project = tmp_path / "project"
     (project / "src").mkdir(parents=True)
     (project / "eqiora.toml").write_text('[package]\nname="org.example.Root"\nversion="1.0.0"\nentry="main"\n')
-    (project / "src/main.eqi").write_text("import org.example.Git.main as library; model Main {}")
+    (project / "src/main.eqi").write_text('import org.example.Git.main as library; model Main() {}')
     store = tmp_path / "store"
     store.mkdir()
     resolution = eqiora.add_git_dependency(project, store, "org.example.Git", version="1.0.0", repository=str(repo), revision="refs/heads/main")
     accepted = (project / "eqiora.lock").read_bytes()
     assert json.loads(accepted)["git"][0]["commit"] == commit
-    model = eqiora.compile_package(store, resolution, entry_model="library.Shared")
+    model = eqiora.compile_package(store, resolution, entry='library.Shared')
     (repo / "src/main.eqi").write_text(source.replace("2", "3"))
     git(repo, "add", ".")
     git(repo, "commit", "-m", "second")
@@ -69,5 +69,5 @@ def test_git_project_pins_branch_and_reopens_without_repository(tmp_path: Path, 
     project.rename(moved)
     reopened = eqiora.open_project(moved, moved / "vendor")
     assert reopened == resolution
-    replay = eqiora.compile_package(moved / "vendor", reopened, entry_model="library.Shared")
+    replay = eqiora.compile_package(moved / 'vendor', reopened, entry='library.Shared')
     assert replay.digest == model.digest

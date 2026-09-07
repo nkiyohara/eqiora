@@ -11,7 +11,7 @@ use std::path::Path;
 use std::process::Command;
 
 const SOURCE: &str = r#"
-model decay {
+model decay() {
   state x: 1;
   initial { x = 1; }
   parameter rate: 1 / s = 1;
@@ -81,7 +81,7 @@ fn python_compile_contract_is_claim_local_and_transport_neutral() -> PyResult<()
             .call1((module.getattr("compile")?,))?;
         assert_eq!(
             signature.str()?.to_str()?,
-            "(*, path=None, source=None, filename=None, geometry=None, parameters=None, component=None)"
+            "(*, path=None, source=None, filename=None, geometry=None, bindings=None, entry=None)"
         );
         Ok(())
     })
@@ -177,10 +177,10 @@ fn independent_python_control_and_direct_compilations_share_only_structure() -> 
             panic!("control-v2 rejected the accepted frozen source")
         };
         let control_reference = control_document.artifact_reference().unwrap();
-        assert_eq!(model.schema(), "eqiora.model-envelope/v13");
+        assert_eq!(model.schema(), "eqiora.model-envelope/v14");
         assert_eq!(
             model.transaction_schema(),
-            "eqiora.model-transaction-envelope/v13"
+            "eqiora.model-transaction-envelope/v14"
         );
         assert_eq!(model.model_id(), control_reference.model().to_string());
         assert_eq!(model.digest(), control_reference.artifact().as_str());
@@ -229,7 +229,7 @@ fn independent_python_control_and_direct_compilations_share_only_structure() -> 
 
 #[test]
 fn rejected_python_control_and_direct_compilations_preserve_ordinary_diagnostics() -> PyResult<()> {
-    const REJECTED: &str = "model broken { field ; }";
+    const REJECTED: &str = "model broken() { field ; }";
     const FILENAME: &str = "three-path-rejection.eqi";
 
     let direct = ModelDocument::compile(FILENAME, REJECTED).unwrap_err();
@@ -464,7 +464,7 @@ fn python_control_plane_preserves_identity_and_fails_closed() -> PyResult<()> {
         )?;
 
         let invalid_kwargs = PyDict::new(py);
-        invalid_kwargs.set_item("source", "model broken { field ; }")?;
+        invalid_kwargs.set_item("source", "model broken() { field ; }")?;
         let invalid_source = module
             .getattr("compile")?
             .call((), Some(&invalid_kwargs))

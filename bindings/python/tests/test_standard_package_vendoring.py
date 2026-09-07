@@ -11,7 +11,7 @@ import eqiora
 
 FLUID_MODEL = """import Eqiora.Fluid.Incompressible.incompressible as fluid;
 
-model Main {
+model Main() {
   domain body = box(0, 4, 0, 2);
   domain x_lower = boundary(body, axis = 0, side = lower);
   domain x_upper = boundary(body, axis = 0, side = upper);
@@ -28,10 +28,10 @@ model Main {
     force_potential - zero_pressure = 0;
   }
   instance governing: fluid.SteadyStokesWithPotential2d(
-    support body = body,
-    field velocity = velocity,
-    field pressure = pressure,
-    field force_potential = force_potential,
+    body = body,
+    velocity = velocity,
+    pressure = pressure,
+    force_potential = force_potential,
     dynamic_viscosity = dynamic_viscosity
   );
 }
@@ -58,7 +58,7 @@ def project(root: Path) -> tuple[Path, Path]:
         '[package]\nname = "org.example.External"\nversion = "1.0.0"\nentry = "main"\n',
         encoding="utf-8",
     )
-    (external / "src/main.eqi").write_text("public model Shared {}", encoding="utf-8")
+    (external / "src/main.eqi").write_text('public model Shared() {}', encoding="utf-8")
     return application, store
 
 
@@ -71,13 +71,13 @@ def test_bundled_project_moves_with_one_offline_closure(tmp_path: Path) -> None:
     vendor.mkdir()
     assert eqiora.vendor_project(application, store, vendor) == resolution
     assert eqiora.vendor_project(application, store, vendor) == resolution
-    original = eqiora.compile_package(store, resolution, entry_model="Main")
+    original = eqiora.compile_package(store, resolution, entry='Main')
     shutil.rmtree(store)
     shutil.rmtree(tmp_path / "external")
     moved = tmp_path / "moved"
     application.rename(moved)
     assert eqiora.open_project(moved, moved / "vendor") == resolution
-    replay = eqiora.compile_package(moved / "vendor", resolution, entry_model="Main")
+    replay = eqiora.compile_package(moved / 'vendor', resolution, entry='Main')
     assert replay.revision.number == original.revision.number == 1
     assert json.loads((moved / "eqiora.lock").read_bytes())["resolution"] == json.loads(resolution)
 
@@ -97,7 +97,7 @@ def test_fetch_and_update_are_explicit_and_failed_add_is_atomic(tmp_path: Path) 
     second = tmp_path / "second"
     second.mkdir()
     assert eqiora.fetch_project(application, second) == resolution
-    (application / "src/main.eqi").write_text("model Changed {}", encoding="utf-8")
+    (application / "src/main.eqi").write_text('model Changed() {}', encoding="utf-8")
     with pytest.raises(eqiora.CompatibilityError):
         eqiora.open_project(application, second)
     with pytest.raises(eqiora.CompatibilityError):
@@ -112,11 +112,11 @@ def test_fetch_and_update_are_explicit_and_failed_add_is_atomic(tmp_path: Path) 
 def test_solid_is_an_ordinary_exact_bundled_dependency(tmp_path: Path) -> None:
     application, store = project(tmp_path)
     (application / "src/main.eqi").write_text(
-        "model Main { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
+        'model Main() { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }',
         encoding="utf-8",
     )
     resolution = eqiora.add_bundled_dependency(
         application, store, "Eqiora.Solid.LinearElasticity", version="0.6.0"
     )
     assert eqiora.open_project(application, store) == resolution
-    assert eqiora.compile_package(store, resolution, entry_model="Main").revision.number == 1
+    assert eqiora.compile_package(store, resolution, entry='Main').revision.number == 1

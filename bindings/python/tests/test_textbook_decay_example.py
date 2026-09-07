@@ -29,7 +29,7 @@ def test_textbook_decay_listing_has_no_repository_private_imports() -> None:
     assert "from examples" not in source
     assert "verify" not in source
     assert "eqiora._" not in source
-    assert "model decay {" not in source
+    assert 'model decay() {' not in source
 
 
 def test_downloaded_decay_runs_and_edits_without_a_checkout(tmp_path: Path) -> None:

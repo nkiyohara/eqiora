@@ -25,12 +25,11 @@ public component PoissonLaw(
   support left: boundary(parent = region),
   support right: boundary(parent = region),
   support bottom: boundary(parent = region),
-  support top: boundary(parent = region)
+  support top: boundary(parent = region),
+  parameter wave_number: 1 / m,
+  parameter source_scale: 1 / m ^ 2,
+  property diffusivity: Diffusivity
 ) {
-
-  public parameter wave_number: 1 / m;
-  public parameter source_scale: 1 / m ^ 2;
-  public property diffusivity: Diffusivity;
 
   variable potential: 1 on region;
   relation balance on region {
@@ -49,20 +48,19 @@ public component PoissonRectangle(
   support left: boundary(parent = region),
   support right: boundary(parent = region),
   support bottom: boundary(parent = region),
-  support top: boundary(parent = region)
+  support top: boundary(parent = region),
+  parameter wave_number: 1 / m,
+  parameter source_scale: 1 / m ^ 2
 ) {
-
-  public parameter wave_number: 1 / m;
-  public parameter source_scale: 1 / m ^ 2;
   instance equation: PoissonLaw(
-    support region = region,
-    support left = left,
-    support right = right,
-    support bottom = bottom,
-    support top = top,
+    region = region,
+    left = left,
+    right = right,
+    bottom = bottom,
+    top = top,
     wave_number = wave_number,
     source_scale = source_scale,
-    property diffusivity = ReferenceDiffusivity
+    diffusivity = ReferenceDiffusivity
   );
 }
 "#;
@@ -142,7 +140,7 @@ fn local_package_project_locks_and_compiles_a_model_through_python() -> PyResult
     let path = NormalizedRelativePath::parse("src/main.eqi").expect("source path");
     fs::write(
         package_root.join(path.as_str()),
-        "public model Main { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
+        "public model Main() { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
     )
     .expect("write package source");
     fs::write(
@@ -153,7 +151,7 @@ fn local_package_project_locks_and_compiles_a_model_through_python() -> PyResult
     fs::create_dir_all(scratch.0.join("library/src")).unwrap();
     fs::write(
         scratch.0.join("library/src/main.eqi"),
-        "public model Shared { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
+        "public model Shared() { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
     )
     .unwrap();
     fs::write(
@@ -175,7 +173,7 @@ fn local_package_project_locks_and_compiles_a_model_through_python() -> PyResult
 resolution = eqiora.resolve_local_project(project, store)
 assert type(resolution) is bytes
 assert eqiora.open_project(project, store) == resolution
-model = eqiora.compile_package(store, resolution, entry_model="Main")
+model = eqiora.compile_package(store, resolution, entry='Main')
 assert model.package_compilation_digest is not None
 assert len(model.parameter_ids) == 1
 before_manifest = open(project + "/eqiora.toml", "rb").read()
@@ -192,13 +190,13 @@ assert eqiora.open_project(project, store) == resolution
 added = eqiora.add_local_dependency(project, store, "org.example.Library", version="1.0.0", path="../library")
 assert added != resolution
 assert eqiora.open_project(project, store) == added
-eqiora.compile_package(store, added, entry_model="Main")
+eqiora.compile_package(store, added, entry='Main')
 from pathlib import Path
 source_path = Path(project) / "root/src/main.eqi"
 original_source = source_path.read_text()
 source_path.write_text("import org.example.Library.main as library; " + original_source)
 imported = eqiora.resolve_local_project(project, store)
-eqiora.compile_package(store, imported, entry_model="library.Shared")
+eqiora.compile_package(store, imported, entry='library.Shared')
 source_path.write_text(original_source)
 removed = eqiora.remove_local_dependency(project, store, "org.example.Library")
 assert removed == resolution
@@ -260,19 +258,7 @@ root_right = root.boundary("right", parent=root_region)
 root_bottom = root.boundary("bottom", parent=root_region)
 root_top = root.boundary("top", parent=root_region)
 root_source_scale = root.parameter("source_scale", value_type=eqiora.ValueType.real(eqiora.Dimension(length=-2)))
-root.instance(
-    "equation",
-    component=law,
-    supports={
-        region: root_region,
-        left: root_left,
-        right: root_right,
-        bottom: root_bottom,
-        top: root_top,
-    },
-    parameters={source_scale: root_source_scale},
-    properties={diffusivity: release},
-)
+root.instance('equation', component=law, bindings={region: root_region, left: root_left, right: root_right, bottom: root_bottom, top: root_top, source_scale: root_source_scale, diffusivity: release})
 authored_source = source.to_eqi()
 "#
             ),
@@ -305,13 +291,7 @@ geometry = graph.build(rectangle, named_topology={
     "bottom": rectangle.boundaries[2],
     "top": rectangle.boundaries[3],
 })
-model = package.compile_package(
-    store,
-    resolution,
-    geometry=geometry,
-    component="PoissonRectangle",
-    parameters={"source_scale": 1.0},
-)
+model = package.compile_package(store, resolution, geometry=geometry, entry='PoissonRectangle', bindings={'region': geometry.selection('region'), 'left': (geometry.selection('left'), geometry.selection('region')), 'right': (geometry.selection('right'), geometry.selection('region')), 'bottom': (geometry.selection('bottom'), geometry.selection('region')), 'top': (geometry.selection('top'), geometry.selection('region')), **{'source_scale': 1.0}})
 assert model.package_compilation_digest is not None
 assert model.domain_ids
 assert isinstance(model.property_bindings, tuple)
@@ -389,13 +369,7 @@ foreign = graph.build(foreign_rectangle, named_topology={
     "top": foreign_rectangle.boundaries[3],
 })
 try:
-    package.compile_package(
-        store,
-        resolution,
-        geometry=foreign,
-        component="PoissonRectangle",
-        parameters={"source_scale": 1.0},
-    )
+    package.compile_package(store, resolution, geometry=foreign, entry='PoissonRectangle', bindings={'region': foreign.selection('region'), 'left': (foreign.selection('left'), foreign.selection('region')), 'right': (foreign.selection('right'), foreign.selection('region')), 'bottom': (foreign.selection('bottom'), foreign.selection('region')), 'top': (foreign.selection('top'), foreign.selection('region')), **{'source_scale': 1.0}})
 except package.ValidationError as error:
     assert "region" in error.diagnostics[0].message
 else:
@@ -431,11 +405,10 @@ geometry = graph.build(rectangle, named_topology={
     "top": rectangle.boundaries[3],
 })
 for args, kwargs in (
-    ((store, bytearray(resolution)), dict(geometry=geometry, component="PoissonRectangle")),
-    ((store, resolution), dict(component="PoissonRectangle")),
+    ((store, bytearray(resolution)), dict(entry="PoissonRectangle")),
     ((store, resolution), dict(geometry=geometry)),
-    ((store, resolution), dict(entry_model="Main", geometry=geometry, component="PoissonRectangle")),
-    ((store, resolution), dict(entry_model="Main", parameters={})),
+    ((store, resolution), dict(entry="Main", component="PoissonRectangle")),
+    ((store, resolution), dict(entry="Main", parameters={})),
 ):
     try:
         package.compile_package(*args, **kwargs)
@@ -445,12 +418,7 @@ for args, kwargs in (
         raise AssertionError("invalid package compile arguments were admitted")
 
 try:
-    package.compile_package(
-        store,
-        b" " + resolution,
-        geometry=geometry,
-        component="PoissonRectangle",
-    )
+    package.compile_package(store, b' ' + resolution, geometry=geometry, entry='PoissonRectangle', bindings={'region': geometry.selection('region'), 'left': (geometry.selection('left'), geometry.selection('region')), 'right': (geometry.selection('right'), geometry.selection('region')), 'bottom': (geometry.selection('bottom'), geometry.selection('region')), 'top': (geometry.selection('top'), geometry.selection('region')), **{}})
 except package.CompatibilityError:
     pass
 else:
@@ -511,13 +479,14 @@ public property release Reference implements Response {
   citation = org.example.measurement;
   license = spdx.CC0_1_0;
 }
-public component Consumer() {
-  public property response: Response;
+public component Consumer(
+  property response: Response
+) {
   variable x: complex<1>;
   relation law { x = response[1]; }
 }
-public model Main {
-  instance consumer: Consumer(property response = Reference);
+public model Main() {
+  instance consumer: Consumer(response = Reference);
 }
 "#,
     );
@@ -531,7 +500,7 @@ public model Main {
         py.run(
             c_str!(
                 r#"
-model = eqiora.compile_package(store, resolution, entry_model="Main")
+model = eqiora.compile_package(store, resolution, entry='Main')
 (binding,) = model.property_bindings
 assert binding.normalized_value == (2 + 4j, 6 - 8j)
 assert binding.value_type == eqiora.ValueType.array(eqiora.ValueType.complex(), 2)

@@ -5,12 +5,12 @@ fn fixture(name: &str) -> (TestDirectory, PathBuf, PathBuf, PathBuf) {
     let project = fixture.child("project");
     let external = fixture.child("external");
     let store = fixture.child("store");
-    let sources = author_sources("org.example.External", "public model Shared {}", vec![]);
+    let sources = author_sources("org.example.External", "public model Shared() {}", vec![]);
     let release = prepare_package_release_v1(sources.clone(), &[]).unwrap();
     write_package(&external, "src", &sources, &[]);
     let root = author_sources(
         "org.example.Offline",
-        "import org.example.External.main as external; model Main { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
+        "import org.example.External.main as external; model Main() { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
         vec![exact_dependency(&release)],
     );
     write_package(&project, "src", &root, &[(&release, "../external")]);
@@ -56,7 +56,7 @@ fn bundled_and_external_closure_moves_and_reopens_without_sources() {
         original.model().structural_fingerprint(),
         replay.model().structural_fingerprint()
     );
-    fs::write(moved.join("src/main.eqi"), "model Changed {}").unwrap();
+    fs::write(moved.join("src/main.eqi"), "model Changed() {}").unwrap();
     assert!(
         PackagedModelDocument::open_local_package_project_v1(&moved, &vendor)
             .unwrap_err()
@@ -86,7 +86,7 @@ fn fetch_preserves_lock_and_transport_does_not_change_identity() {
     let accepted_manifest = fs::read(project.join(PROJECT_MANIFEST)).unwrap();
     fs::write(
         fixture.0.join("relocated/src/main.eqi"),
-        "public model Changed {}",
+        "public model Changed() {}",
     )
     .unwrap();
     assert!(PackagedModelDocument::fetch_local_package_project_v1(&project, &second).is_err());
@@ -174,7 +174,7 @@ fn conflicting_local_standard_release_and_invalid_transport_are_rejected() {
     let conflicting = fixture.child("mechanics");
     let sources = author_sources(
         "Eqiora.Mechanics.Interfaces",
-        "public model Other {}",
+        "public model Other() {}",
         vec![],
     );
     write_package(&conflicting, "src", &sources, &[]);

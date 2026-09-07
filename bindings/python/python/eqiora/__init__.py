@@ -35,6 +35,9 @@ from ._eqiora import (
     CapabilityError,
     CompatibilityError,
     Connection,
+    ClockDomain,
+    SampledSession,
+    SampledCheckpoint,
     ConservingPort,
     ConvergenceReason,
     DerivativeImplementation,
@@ -146,6 +149,9 @@ __all__ = [
     "CapabilityError",
     "CompatibilityError",
     "Connection",
+    "ClockDomain",
+    "SampledSession",
+    "SampledCheckpoint",
     "ConservingPort",
     "ConvergenceReason",
     "DerivativeImplementation",
@@ -251,8 +257,8 @@ def compile(
     source=None,
     filename=None,
     geometry=None,
-    parameters=None,
-    component=None,
+    bindings=None,
+    entry=None,
 ):
     """Compile text, a path, or one :class:`eqiora.lang.Source` canonically."""
 
@@ -271,8 +277,8 @@ def compile(
         source=source,
         filename=filename,
         geometry=geometry,
-        parameters=parameters,
-        component=component,
+        bindings=bindings,
+        entry=entry,
     )
 
 

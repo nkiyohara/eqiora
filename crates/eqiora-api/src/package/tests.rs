@@ -73,7 +73,7 @@ fn caller_geometry(volume: &str) -> CanonicalGeometryV1 {
 #[test]
 fn declaration_prose_changes_package_source_but_not_physical_structure() {
     let source =
-        "/// First explanation.\nmodel Main { variable x: 1; relation balance { x=0; } }\n";
+        "/// First explanation.\nmodel Main() { variable x: 1; relation balance { x=0; } }\n";
     let changed = source.replace("First explanation.", "Different explanation.");
     let first = release("org.example.Documented", source, &[]);
     let second = release("org.example.Documented", &changed, &[]);
@@ -126,11 +126,12 @@ fn locked_source_bundle_reconstructs_path_derived_module_graph() {
         NormalizedRelativePath::parse("src/library/parts.eqi").expect("library path");
     let main_source = r#"
 import org.example.DeclaredModules.library.parts as lib;
-model Main { instance load: lib.Resistor(resistance = 2); }
+model Main() { instance load: lib.Resistor(resistance = 2); }
 "#;
     let library_source = r#"
-public component Resistor() {
-  public parameter resistance: 1;
+public component Resistor(
+  parameter resistance: 1
+) {
   relation law { resistance - 2 = 0; }
 }
 "#;
@@ -187,12 +188,12 @@ public component Resistor() {
 fn locked_root_can_select_one_direct_dependency_public_model() {
     let dependency = release(
         "org.example.Library",
-        "public model Shared { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
+        "public model Shared() { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
         &[],
     );
     let root = release(
         "org.example.Root",
-        "import org.example.Library.main as library; model Local {}",
+        "import org.example.Library.main as library; model Local() {}",
         &[("library", &dependency)],
     );
     let resolution =
@@ -220,7 +221,7 @@ fn editor_workspace_replays_exact_locked_dependency_sources() {
     );
     let root = release(
         "org.example.EditorRoot",
-        "import org.example.EditorLibrary.main as library; model Main { instance load: library.Resistor(); }",
+        "import org.example.EditorLibrary.main as library; model Main() { instance load: library.Resistor(); }",
         &[("library", &dependency)],
     );
     let resolution =
@@ -282,12 +283,13 @@ property release ReferenceDiffusivity implements Diffusivity {
   citation = org.example.measurement;
   license = spdx.CC0_1_0;
 }
-public component Diffusion() {
-  public property diffusivity: Diffusivity;
+public component Diffusion(
+  property diffusivity: Diffusivity
+) {
   relation law { diffusivity = 0; }
 }
-model Main {
-  instance domain: Diffusion(property diffusivity = ReferenceDiffusivity);
+model Main() {
+  instance domain: Diffusion(diffusivity = ReferenceDiffusivity);
 }
 "#;
     let root = release("org.example.Property", SOURCE, &[]);
@@ -347,8 +349,10 @@ model Main {
 #[test]
 fn locked_component_binds_caller_geometry_into_ordinary_model() {
     const SOURCE: &str = r#"
-public component SpatialLaw(support fluid: volume(ambient_dimension = 2)) {
-  public parameter forcing: 1;
+public component SpatialLaw(
+  support fluid: volume(ambient_dimension = 2),
+  parameter forcing: 1
+) {
   variable state: 1 on fluid;
   relation balance on fluid { state - forcing = 0; }
 }
@@ -359,17 +363,24 @@ public component SpatialLaw(support fluid: volume(ambient_dimension = 2)) {
     let resolution = ResolutionRecordV1::from_exact_releases(&root, &[]).expect("resolution");
     let geometry = caller_geometry("fluid");
 
-    let packaged = PackagedModelDocument::compile_locked_with_geometry(
-        &store,
-        &resolution,
-        "SpatialLaw",
-        &geometry,
-        &[(
+    let forcing = eqiora_lang::DraftExpression::constant(2.0).source_ast();
+    let bindings = [
+        (
+            "fluid",
+            eqiora_compiler::StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: geometry.entity_set("fluid").unwrap(),
+                parent: None,
+            },
+        ),
+        (
             "forcing",
-            eqiora_lang::DraftExpression::constant(2.0).source_ast(),
-        )],
-    )
-    .expect("Geometry-bound package compilation");
+            eqiora_compiler::StaticBindingValue::Expression(&forcing),
+        ),
+    ];
+    let packaged =
+        PackagedModelDocument::compile_selected(&store, &resolution, "SpatialLaw", &bindings)
+            .expect("Geometry-bound package compilation");
 
     packaged
         .compilation()
@@ -386,22 +397,26 @@ public component SpatialLaw(support fluid: volume(ambient_dimension = 2)) {
     );
 
     let foreign = caller_geometry("other");
-    let error = PackagedModelDocument::compile_locked_with_geometry(
-        &store,
-        &resolution,
-        "SpatialLaw",
-        &foreign,
-        &[(
+    let foreign_bindings = [
+        (
+            "fluid",
+            eqiora_compiler::StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: foreign.entity_set("other").unwrap(),
+                parent: None,
+            },
+        ),
+        (
             "forcing",
-            eqiora_lang::DraftExpression::constant(2.0).source_ast(),
-        )],
-    )
-    .expect_err("support names cannot fall back to matching bounds");
-    assert!(format!("{error:?}").contains("fluid"), "{error:?}");
+            eqiora_compiler::StaticBindingValue::Expression(&forcing),
+        ),
+    ];
+    PackagedModelDocument::compile_selected(&store, &resolution, "SpatialLaw", &foreign_bindings)
+        .expect_err("a foreign Geometry selection cannot borrow another authority's bounds");
 
     let duplicated_geometry = release(
         "org.example.DuplicatedGeometry",
-        &format!("{SOURCE}\nmodel Legacy {{ domain fluid = box(0, 1, 0, 1); }}\n"),
+        &format!("{SOURCE}\nmodel Legacy() {{ domain fluid = box(0, 1, 0, 1); }}\n"),
         &[],
     );
     let mut duplicated_store = InMemoryPackageStore::default();
@@ -410,34 +425,27 @@ public component SpatialLaw(support fluid: volume(ambient_dimension = 2)) {
         .expect("store duplicated Geometry package");
     let duplicated_resolution = ResolutionRecordV1::from_exact_releases(&duplicated_geometry, &[])
         .expect("duplicated Geometry resolution");
-    let error = PackagedModelDocument::compile_locked_with_geometry(
+    PackagedModelDocument::compile_selected(
         &duplicated_store,
         &duplicated_resolution,
         "SpatialLaw",
-        &geometry,
-        &[(
-            "forcing",
-            eqiora_lang::DraftExpression::constant(2.0).source_ast(),
-        )],
+        &bindings,
     )
-    .expect_err("package-authored root Geometry cannot coexist with caller Geometry");
-    assert!(
-        format!("{error:?}").contains("definitions-only root package"),
-        "{error:?}"
-    );
+    .expect("explicit selection permits other well-formed Model definitions in the source closure");
 }
 
 #[test]
 fn locked_compilation_binds_exact_graph_model_and_package_provenance() {
     const LIBRARY_SOURCE: &str = r#"
-public component Resistor() {
-  public parameter resistance: 1 = 2;
+public component Resistor(
+  parameter resistance: 1 = 2
+) {
   relation law { resistance - 2 = 0; }
 }
 "#;
     const ROOT_SOURCE: &str = r#"
 import Eqiora.Electrical.Basic.main as electrical;
-model Main {
+model Main() {
   instance load: electrical.Resistor(resistance = 3);
 }
 "#;
@@ -601,8 +609,9 @@ model Main {
 #[test]
 fn preparation_is_order_independent_over_one_transitive_exact_closure() {
     const LEAF: &str = r#"
-public component Resistor() {
-  public parameter resistance: 1 = 2;
+public component Resistor(
+  parameter resistance: 1 = 2
+) {
   relation law { resistance - 2 = 0; }
 }
 "#;
@@ -614,8 +623,8 @@ public component Branch() {
 "#;
     const ROOT: &str = r#"
 import org.example.Middle.main as middle;
-model Main {
-  instance branch: middle.Branch;
+model Main() {
+  instance branch: middle.Branch();
 }
 "#;
     let leaf = release("org.example.Leaf", LEAF, &[]);
@@ -639,14 +648,15 @@ model Main {
 #[test]
 fn preparation_rejects_incomplete_duplicate_and_unreachable_inputs() {
     const LIBRARY: &str = r#"
-public component Resistor() {
-  public parameter resistance: 1 = 2;
+public component Resistor(
+  parameter resistance: 1 = 2
+) {
   relation law { resistance - 2 = 0; }
 }
 "#;
     const ROOT: &str = r#"
 import org.example.Library.main as electrical;
-model Main {
+model Main() {
   instance load: electrical.Resistor(resistance = 3);
 }
 "#;
@@ -661,7 +671,7 @@ model Main {
         Err(PackagePreparationError::DuplicateDependency(_))
     ));
 
-    let independent = author_sources("org.example.Independent", "model Main {}\n", &[]);
+    let independent = author_sources("org.example.Independent", "model Main() {}\n", &[]);
     assert!(matches!(
         prepare_package_release_v1(independent, &[library]),
         Err(PackagePreparationError::Contract(_))
@@ -671,14 +681,15 @@ model Main {
 #[test]
 fn dishonest_dependency_source_fails_before_root_release_is_returned() {
     const LIBRARY_SOURCE: &str = r#"
-public component Resistor() {
-  public parameter resistance: 1 = 2;
+public component Resistor(
+  parameter resistance: 1 = 2
+) {
   relation law { resistance - 2 = 0; }
 }
 "#;
     const ROOT_SOURCE: &str = r#"
 import org.example.Dishonest.main as electrical;
-model Main {
+model Main() {
   instance load: electrical.Resistor(resistance = 3);
 }
 "#;
@@ -757,7 +768,7 @@ fn semantic_mismatch_fails_before_model_admission() {
         vec![SourceFileV1::new(
             path,
             BundleRoleV1::ModelSource,
-            b"model Main {}\n".to_vec(),
+            b"model Main() {}\n".to_vec(),
         )],
     )
     .expect("release");

@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 
 import eqiora
+from _signature_bindings import support_bindings
 
 
 PARAMETERS = {
@@ -65,12 +66,7 @@ def geometry_and_mesh() -> tuple[eqiora.geometry.Geometry, eqiora.meshing.Mesh]:
 
 def admitted() -> tuple[eqiora.Model, eqiora.meshing.Mesh, eqiora.Plan]:
     geometry, mesh = geometry_and_mesh()
-    model = eqiora.compile(
-        path=files(eqiora).joinpath("examples", "fixed-reference-fsi.eqi"),
-        geometry=geometry,
-        component="FixedReferenceFsi2d",
-        parameters=PARAMETERS,
-    )
+    model = eqiora.compile(path=files(eqiora).joinpath('examples', 'fixed-reference-fsi.eqi'), geometry=geometry, entry='FixedReferenceFsi2d', bindings={**support_bindings(geometry, ['fluid', 'solid'], [('fluid_x_lower', 'fluid'), ('fluid_x_upper', 'fluid'), ('fluid_y_lower', 'fluid'), ('fluid_y_upper', 'fluid'), ('solid_x_lower', 'solid'), ('solid_x_upper', 'solid'), ('solid_y_lower', 'solid'), ('solid_y_upper', 'solid')]), **PARAMETERS})
     plan = eqiora.resolve(
         model,
         mesh=mesh,
@@ -325,12 +321,7 @@ def test_common_worker_run_outputs_restart_and_observation_evidence() -> None:
 def test_scoped_domain_handles_reject_foreign_models() -> None:
     model, mesh, _ = admitted()
     foreign_geometry, _ = geometry_and_mesh()
-    foreign = eqiora.compile(
-        path=files(eqiora).joinpath("examples", "fixed-reference-fsi.eqi"),
-        geometry=foreign_geometry,
-        component="FixedReferenceFsi2d",
-        parameters={**PARAMETERS, "fluid_density": 4.0},
-    )
+    foreign = eqiora.compile(path=files(eqiora).joinpath('examples', 'fixed-reference-fsi.eqi'), geometry=foreign_geometry, entry='FixedReferenceFsi2d', bindings={**support_bindings(foreign_geometry, ['fluid', 'solid'], [('fluid_x_lower', 'fluid'), ('fluid_x_upper', 'fluid'), ('fluid_y_lower', 'fluid'), ('fluid_y_upper', 'fluid'), ('solid_x_lower', 'solid'), ('solid_x_upper', 'solid'), ('solid_y_lower', 'solid'), ('solid_y_upper', 'solid')]), **{**PARAMETERS, 'fluid_density': 4.0}})
     with pytest.raises(eqiora.ValidationError):
         eqiora.resolve(
             model,
@@ -473,7 +464,7 @@ def test_evidence_state_lookup_is_bound_to_exact_result_occurrence() -> None:
             evidence.state(foreign_state)
     foreign_model = eqiora.compile(
         source="""
-model decay {
+model decay() {
   state x: 1;
   initial { x = 1; }
   parameter rate: 1 / s = 1;
@@ -500,7 +491,7 @@ model decay {
 def test_unrelated_common_result_rejects_fsi_evidence() -> None:
     model = eqiora.compile(
         source="""
-model decay {
+model decay() {
   state x: 1;
   initial { x = 1; }
   parameter rate: 1 / s = 1;
@@ -609,8 +600,10 @@ request = eqiora.meshing.AffineTriangleMesher(cells=(2, 2))
 mesh = eqiora.meshing.generate(eqiora.meshing.resolve(geometry, request))
 model = eqiora.compile(
     path=files(eqiora).joinpath("examples", "fixed-reference-fsi.eqi"),
-    geometry=geometry, component="FixedReferenceFsi2d",
-    parameters={"fluid_density": 2.0, "fluid_viscosity": 0.5,
+    geometry=geometry, entry="FixedReferenceFsi2d",
+    bindings={**{r: geometry.selection(r) for r in ("fluid", "solid")},
+              **{r+"_"+side: (geometry.selection(r+"_"+side), geometry.selection(r))
+                 for r in ("fluid", "solid") for side in ("x_lower", "x_upper", "y_lower", "y_upper")},"fluid_density": 2.0, "fluid_viscosity": 0.5,
                 "solid_density": 3.0, "solid_mu": 4.0,
                 "solid_lambda": 2.0, "zero_pressure": 0.0},
 )

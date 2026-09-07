@@ -37,7 +37,7 @@ fn fixture(name: &str) -> (TestDirectory, PathBuf, PathBuf, PathBuf, String) {
     command(&repo, &["init", "--initial-branch=main"]);
     let sources = author_sources(
         "org.example.Git",
-        "public model Shared { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
+        "public model Shared() { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
         vec![],
     );
     write_package(&repo, "src", &sources, &[]);
@@ -49,7 +49,7 @@ fn fixture(name: &str) -> (TestDirectory, PathBuf, PathBuf, PathBuf, String) {
         "src",
         &author_sources(
             "org.example.Root",
-            "import org.example.Git.main as library; model Main {}",
+            "import org.example.Git.main as library; model Main() {}",
             vec![],
         ),
         &[],
@@ -64,7 +64,7 @@ fn git_relative_repository_is_resolved_from_its_declaring_manifest() {
     write_package(
         &outer,
         "src",
-        &author_sources("org.example.Outer", "public model Outer {}", vec![]),
+        &author_sources("org.example.Outer", "public model Outer() {}", vec![]),
         &[],
     );
     fs::rename(repo, outer.join("repository")).unwrap();
@@ -73,7 +73,7 @@ fn git_relative_repository_is_resolved_from_its_declaring_manifest() {
     fs::write(project.join(PROJECT_MANIFEST), "[package]\nname=\"org.example.Root\"\nversion=\"1.0.0\"\nentry=\"main\"\n[dependencies.\"org.example.Outer\"]\nversion=\"1.0.0\"\npath=\"outer\"\n").unwrap();
     fs::write(
         project.join("src/main.eqi"),
-        "import org.example.Outer.main as outer; model Main {}",
+        "import org.example.Outer.main as outer; model Main() {}",
     )
     .unwrap();
     let resolution =
@@ -124,14 +124,14 @@ fn git_retains_complete_repository_local_closure_for_offline_compile() {
     write_package(
         &repo.join("dependency"),
         "src",
-        &author_sources("org.example.Inner", "public model Inner {}", vec![]),
+        &author_sources("org.example.Inner", "public model Inner() {}", vec![]),
         &[],
     );
     let manifest = fs::read_to_string(repo.join(PROJECT_MANIFEST)).unwrap();
     fs::write(repo.join(PROJECT_MANIFEST), format!("{manifest}\n[dependencies.\"org.example.Inner\"]\nversion=\"1.0.0\"\npath=\"dependency\"\n")).unwrap();
     fs::write(
         repo.join("src/main.eqi"),
-        "import org.example.Inner.main as inner; public model Shared { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
+        "import org.example.Inner.main as inner; public model Shared() { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
     )
     .unwrap();
     command(&repo, &["add", "."]);
@@ -207,7 +207,7 @@ fn git_branch_fetch_is_pinned_update_is_explicit_and_vendor_is_offline() {
     .unwrap();
     fs::write(
         repo.join("src/main.eqi"),
-        "public model Shared { parameter gain: 1 = 3; relation law { gain - 3 = 0; } }",
+        "public model Shared() { parameter gain: 1 = 3; relation law { gain - 3 = 0; } }",
     )
     .unwrap();
     command(&repo, &["add", "."]);

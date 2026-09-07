@@ -16,6 +16,7 @@ import re
 import tempfile
 import textwrap
 from typing import Final
+from types import MappingProxyType
 
 from .._eqiora import FieldRole, ValueType
 
@@ -124,6 +125,17 @@ class MaterialComposition:
         object.__setattr__(self, "_name", _name_value)
         object.__setattr__(self, "_bindings", _bindings)
         object.__setattr__(self, "_doc", _doc)
+
+    def __getitem__(self, name: str) -> PropertyRelease:
+        """Select an exact release through this composition's declared member."""
+        for member, release in self._bindings:
+            if member == name:
+                selected = object.__new__(PropertyRelease)
+                for slot in PropertyRelease.__slots__:
+                    object.__setattr__(selected, slot, getattr(release, slot))
+                object.__setattr__(selected, "_name", f"{self._name}.{member}")
+                return selected
+        raise KeyError(name)
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("MaterialComposition handles are immutable")
@@ -637,10 +649,14 @@ def _relation_lines(left: Expression, right: Expression) -> list[str]:
 
 
 class Component:
-    """The bounded draft for one public equations-only Component."""
+    """The shared bounded draft for one public Model or Component definition."""
 
     __slots__ = (
         "_aliases",
+        "_kind",
+        "_requirements",
+        "_defaults",
+        "_causal",
         "_clocks",
         "_initials",
         "_component_token",
@@ -670,6 +686,10 @@ class Component:
             raise TypeError("components are created by Source.component()")
         assert _source is not None
         self._source = _source
+        self._kind = "component"
+        self._requirements: set[object] = set()
+        self._defaults: dict[Expression, Expression] = {}
+        self._causal: dict[Expression, str] = {}
         self._owner = _source._owner
         self._component_token = object()
         self._name = _name(_name_value)
@@ -678,7 +698,7 @@ class Component:
         )
         self._names: set[str] = set()
         self._supports: list[tuple[Support, str, object, tuple[str, ...]]] = []
-        self._clocks: list[tuple[Clock, Fraction, Fraction, tuple[str, ...]]] = []
+        self._clocks: list[tuple[Clock, Fraction | None, Fraction | None, tuple[str, ...]]] = []
         self._initials: list[tuple[tuple[Expression, ...], tuple[str, ...]]] = []
         self._parameters: list[tuple[_Parameter, str, tuple[str, ...]]] = []
         self._aliases: list[tuple[str, Expression, str | None, Support | None, Clock | None, tuple[str, ...]]] = []
@@ -696,17 +716,7 @@ class Component:
         self._formulations: list[
             tuple[Relation, Expression, Expression, tuple[str, ...]]
         ] = []
-        self._instances: list[
-            tuple[
-                str,
-                Component,
-                tuple[tuple[Support, Support], ...],
-                tuple[tuple[_Parameter, Expression], ...],
-                tuple[tuple[_PropertyRequirement, PropertyRelease], ...],
-                MaterialComposition | None,
-                tuple[str, ...],
-            ]
-        ] = []
+        self._instances: list[tuple[str, Component, tuple[tuple[str, str], ...], tuple[str, ...]]] = []
         self._declaration_count = 0
 
     def _add_name(self, name: object) -> str:
@@ -818,10 +828,43 @@ class Component:
         if not isinstance(value_type, ValueType):
             raise TypeError("value_type must be an eqiora.ValueType")
         syntax = value_type.to_eqi()
+        doc_lines = _doc(doc)
         admitted = self._add_name(name)
         parameter = _Parameter(self._component_token, admitted)
-        self._parameters.append((parameter, syntax, _doc(doc)))
+        self._parameters.append((parameter, syntax, doc_lines))
+        self._requirements.add(parameter)
         return parameter
+
+    def set_default(self, parameter: Expression, value: Expression | int | float | complex) -> None:
+        """Set a signature Parameter default after declaring its lexical dependencies."""
+        self._source._ensure_open()
+        if not isinstance(parameter, _Parameter) or parameter not in self._requirements:
+            raise SourceError("default target must be this Component's Parameter requirement")
+        expression = _expression(value)
+        if expression._owner is not None and expression._owner is not self._component_token:
+            raise SourceError("Parameter defaults must belong to this Component")
+        total = expression._nodes + sum(value._nodes for target, value in self._defaults.items() if target is not parameter)
+        if total > _MAX_EXPRESSION_NODES:
+            raise SourceError("Parameter defaults exceed the 4096-node expression limit")
+        self._defaults[parameter] = expression
+
+    def clock_requirement(self, name: str, *, doc: str | None = None) -> Clock:
+        """Declare a borrowed nominal clock in the external signature."""
+        doc_lines = _doc(doc)
+        admitted = self._add_name(name)
+        clock = Clock(_CREATE, self._component_token, admitted)
+        self._clocks.append((clock, None, None, doc_lines))
+        self._requirements.add(clock)
+        return clock
+
+    def field_requirement(
+        self, name: str, *, on: Support | None = None, value_type: ValueType, role: FieldRole,
+        at: Clock | None = None, doc: str | None = None,
+    ) -> Expression:
+        """Declare a borrowed Field; an occurrence never allocates its storage."""
+        field = self.field(name, on=on, value_type=value_type, role=role, at=at, doc=doc)
+        self._requirements.add(field)
+        return field
 
     def let_alias(
         self,
@@ -879,7 +922,7 @@ class Component:
         self,
         name: str,
         *,
-        on: Support,
+        on: Support | None = None,
         value_type: ValueType,
         role: FieldRole,
         at: Clock | None = None,
@@ -887,8 +930,8 @@ class Component:
     ) -> Expression:
         """Declare a spatial Field, optionally activated by an exact local clock."""
         at = self._clock(at)
-        on = self._support(on)
-        if on._kind != "volume":
+        on = None if on is None else self._support(on)
+        if on is not None and on._kind != "volume":
             raise SourceError(
                 "the initial Source vocabulary admits fields on volumes only"
             )
@@ -903,11 +946,30 @@ class Component:
         self._fields.append((expression, on, syntax, role, at, doc_lines))
         return expression
 
+    def input(
+        self, name: str, *, value_type: ValueType, on: Support | None = None,
+        at: Clock | None = None, doc: str | None = None,
+    ) -> Expression:
+        """Declare a causal input; runtime samples are supplied after static compilation."""
+        field = self.field(name, on=on, value_type=value_type, role=FieldRole.Variable, at=at, doc=doc)
+        self._causal[field] = "input"
+        self._requirements.add(field)
+        return field
+
+    def output(
+        self, name: str, *, value_type: ValueType, on: Support | None = None,
+        at: Clock | None = None, doc: str | None = None,
+    ) -> Expression:
+        """Declare a causal output defined by an ordinary body relation."""
+        field = self.field(name, on=on, value_type=value_type, role=FieldRole.Variable, at=at, doc=doc)
+        self._causal[field] = "output"
+        return field
+
     def relation(
         self,
         name: str,
         *,
-        on: Support,
+        on: Support | None = None,
         left: Expression | int | float | complex,
         right: Expression | int | float | complex,
         at: Clock | None = None,
@@ -915,7 +977,7 @@ class Component:
     ) -> Relation:
         """Declare an equality, optionally active on one exact local clock."""
         at = self._clock(at)
-        on = self._support(on)
+        on = None if on is None else self._support(on)
         def admit(value: Expression | int | float | complex) -> Expression:
             expression = _expression(value)
             if expression._owner is None:
@@ -997,96 +1059,59 @@ class Component:
         )
 
     def instance(
-        self,
-        name: str,
-        *,
-        component: Component,
-        supports: Mapping[Support, Support],
-        parameters: Mapping[Expression, Expression | int | float | complex],
-        properties: Mapping[Expression, PropertyRelease] | None = None,
-        material: MaterialComposition | None = None,
-        doc: str | None = None,
-    ) -> None:
+        self, name: str, *, component: Component,
+        bindings: Mapping[object, object], doc: str | None = None,
+    ) -> Mapping[Expression, Expression]:
+        """Bind explicit target signature handles to values in this lexical scope."""
         if not isinstance(component, Component) or component._owner is not self._owner:
             raise SourceError("instance component must belong to this Source")
-        if component is self:
-            raise SourceError("a Component cannot instantiate itself")
-        if not isinstance(supports, Mapping):
-            raise TypeError("supports must be a mapping of target to enclosing Support handles")
-        if not isinstance(parameters, Mapping):
-            raise TypeError("parameters must be a mapping of target Parameter expressions")
-        if properties is None:
-            properties = {}
-        if not isinstance(properties, Mapping):
-            raise TypeError("properties must be a mapping of target property requirements")
-
-        target_supports = [item[0] for item in component._supports]
-        target_parameters = [item[0] for item in component._parameters]
-        target_properties = [item[0] for item in component._properties]
-        if set(supports) != set(target_supports):
-            raise SourceError("instance support bindings must be complete and exact")
-        if set(parameters) != set(target_parameters):
-            raise SourceError("instance Parameter bindings must be complete and exact")
-        if material is not None:
-            if not isinstance(material, MaterialComposition) or material._owner is not self._owner:
-                raise SourceError("material composition must belong to this Source")
-            if properties:
-                raise SourceError(
-                    "an instance cannot combine a material composition with direct property bindings"
-                )
-            material_properties = dict(material._bindings)
-            if set(material_properties) != {target._name for target in target_properties}:
-                raise SourceError("material composition must satisfy the exact Component properties")
-            for target in target_properties:
-                if material_properties[target._name]._contract is not target._contract:
-                    raise SourceError(
-                        "material property release must implement the exact required contract"
-                    )
-        elif set(properties) != set(target_properties):
-            raise SourceError("instance property bindings must be complete and exact")
-
-        support_bindings: list[tuple[Support, Support]] = []
-        for target in target_supports:
-            enclosing = supports[target]
-            if (
-                not isinstance(enclosing, Support)
-                or enclosing._component is not self._component_token
-            ):
-                raise SourceError(
-                    "instance support targets must belong to the enclosing Component"
-                )
-            support_bindings.append((target, enclosing))
-
-        parameter_bindings: list[tuple[_Parameter, Expression]] = []
-        for target in target_parameters:
-            value = _expression(parameters[target])
-            if value._owner is not None and value._owner is not self._component_token:
-                raise SourceError("instance Parameter values must belong to this Component")
-            parameter_bindings.append((target, value))
-
-        property_bindings: list[tuple[_PropertyRequirement, PropertyRelease]] = []
-        for target in target_properties if material is None else ():
-            release = properties[target]
-            if not isinstance(release, PropertyRelease) or release._owner is not self._owner:
-                raise SourceError("instance property releases must belong to this Source")
-            if release._contract is not target._contract:
-                raise SourceError(
-                    "instance property release must implement the exact required contract"
-                )
-            property_bindings.append((target, release))
-
+        if component is self or component._kind != "component":
+            raise SourceError("an instance requires another Component definition")
+        if not isinstance(bindings, Mapping):
+            raise TypeError("bindings must map target signature handles to enclosing values")
+        targets = (set(component._requirements)
+                   | {item[0] for item in component._supports}
+                   | {item[0] for item in component._properties})
+        required = targets - set(component._defaults)
+        if not required <= set(bindings) or not set(bindings) <= targets:
+            raise SourceError("instance bindings must satisfy the exact required signature")
+        admitted_bindings = []
+        for target, value in bindings.items():
+            if isinstance(target, Support):
+                self._support(value)
+                expression = value._name
+            elif isinstance(target, Clock):
+                if not isinstance(value, Clock):
+                    raise SourceError("clock requirement needs an enclosing Clock")
+                self._clock(value)
+                expression = value._name
+            elif component._causal.get(target) == "input":
+                value = _expression(value)
+                if value._owner is not None and value._owner is not self._component_token:
+                    raise SourceError("input bindings must belong to this Component")
+                expression = value._text
+            elif isinstance(target, _Field):
+                if not isinstance(value, _Field) or value._component is not self._component_token:
+                    raise SourceError("Field requirement needs an enclosing Field")
+                expression = value._name
+            elif isinstance(target, _PropertyRequirement):
+                if (not isinstance(value, PropertyRelease) or value._owner is not self._owner
+                        or value._contract is not target._contract):
+                    raise SourceError("property binding requires the exact Source contract release")
+                expression = value._name
+            else:
+                value = _expression(value)
+                if value._owner is not None and value._owner is not self._component_token:
+                    raise SourceError("instance Parameter values must belong to this Component")
+                expression = value._text
+            admitted_bindings.append((target._name, expression))
+        doc_lines = _doc(doc)
         admitted = self._add_name(name)
-        self._instances.append(
-            (
-                admitted,
-                component,
-                tuple(support_bindings),
-                tuple(parameter_bindings),
-                tuple(property_bindings),
-                material,
-                _doc(doc),
-            )
-        )
+        self._instances.append((admitted, component, tuple(admitted_bindings), doc_lines))
+        return MappingProxyType({
+            field: Expression(_CREATE, f"{admitted}.{field._name}", self._component_token, 1, 1, 100)
+            for field, kind in component._causal.items() if kind == "output"
+        })
 
     def _render(self) -> str:
         lines = _comment(self._doc, "")
@@ -1096,29 +1121,31 @@ class Component:
                       else f"boundary(parent = {detail._name})")
             signature.extend(_comment(doc, "  "))
             signature.append(f"  support {support._name}: {syntax},")
-        lines.append(f"public component {self._name}(")
+        for parameter, value_type, doc in self._parameters:
+            signature.extend(_comment(doc, "  "))
+            default = self._defaults.get(parameter)
+            suffix = "" if default is None else f" = {default._text}"
+            signature.append(f"  parameter {parameter._name}: {value_type}{suffix},")
+        for requirement, contract, doc in self._properties:
+            signature.extend(_comment(doc, "  "))
+            signature.append(f"  property {requirement._name}: {contract._name},")
+        for clock, period, phase, doc in self._clocks:
+            if clock in self._requirements:
+                signature.extend(_comment(doc, "  "))
+                signature.append(f"  clock {clock._name},")
+        for field, support, value_type, role, clock, doc in self._fields:
+            if field in self._requirements or field in self._causal:
+                signature.extend(_comment(doc, "  "))
+                keyword = self._causal.get(field, "state" if role == FieldRole.State else "variable")
+                activation = "" if clock is None else f" at {clock._name}"
+                spatial = "" if support is None else f" on {support._name}"
+                signature.append(f"  {keyword} {field._name}: {value_type}{spatial}{activation},")
+        lines.append(f"public {self._kind} {self._name}(")
         lines.extend(signature)
         lines.append(") {")
-        for requirement, contract, doc in self._properties:
-            lines.extend(_comment(doc, "  "))
-            lines.append(
-                f"  public property {requirement._name}: {contract._name};"
-            )
-        if self._properties and (
-            self._supports
-            or self._parameters
-            or self._aliases
-            or self._fields
-            or self._relations
-            or self._instances
-        ):
-            lines.append("")
-        for parameter, value_type, doc in self._parameters:
-            lines.extend(_comment(doc, "  "))
-            lines.append(f"  public parameter {parameter._name}: {value_type};")
-        if self._parameters and (self._aliases or self._fields or self._relations or self._instances):
-            lines.append("")
         for clock, period, phase, doc in self._clocks:
+            if clock in self._requirements:
+                continue
             lines.extend(_comment(doc, "  "))
             lines.append(
                 f"  clock {clock._name} = periodic({period.numerator} [s] / {period.denominator}, "
@@ -1134,13 +1161,13 @@ class Component:
             lines.append("")
         if self._fields:
             for field, support, value_type, role, clock, doc in self._fields:
+                if field in self._requirements or field in self._causal:
+                    continue
                 lines.extend(_comment(doc, "  "))
                 keyword = "state" if role == FieldRole.State else "variable"
                 activation = "" if clock is None else f" at {clock._name}"
-                lines.append(
-                    f"  {keyword} {field._text}: "
-                    f"{value_type} on {support._name}{activation};"
-                )
+                spatial = "" if support is None else f" on {support._name}"
+                lines.append(f"  {keyword} {field._text}: {value_type}{spatial}{activation};")
         if self._fields and (self._relations or self._instances):
             lines.append("")
         for residuals, doc in self._initials:
@@ -1152,37 +1179,17 @@ class Component:
         for index, (name, support, left, right, clock, doc) in enumerate(self._relations):
             lines.extend(_comment(doc, "  "))
             activation = "" if clock is None else f" at {clock._name}"
-            lines.append(f"  relation {name} on {support._name}{activation} {{")
+            spatial = "" if support is None else f" on {support._name}"
+            lines.append(f"  relation {name}{spatial}{activation} {{")
             lines.extend(_relation_lines(left, right))
             lines.append("  }")
             if index + 1 != len(self._relations):
                 lines.append("")
         if self._relations and self._instances:
             lines.append("")
-        for index, (
-            name,
-            component,
-            support_bindings,
-            parameter_bindings,
-            property_bindings,
-            material,
-            doc,
-        ) in enumerate(self._instances):
+        for index, (name, component, named_bindings, doc) in enumerate(self._instances):
             lines.extend(_comment(doc, "  "))
-            bindings = [
-                f"support {target._name} = {enclosing._name}"
-                for target, enclosing in support_bindings
-            ]
-            bindings.extend(
-                f"{target._name} = {value._text}"
-                for target, value in parameter_bindings
-            )
-            if material is not None:
-                bindings.append(f"material = {material._name}")
-            bindings.extend(
-                f"property {target._name} = {release._name}"
-                for target, release in property_bindings
-            )
+            bindings = [f"{target} = {value}" for target, value in named_bindings]
             if bindings:
                 lines.append(f"  instance {name}: {component._name}(")
                 for binding_index, binding in enumerate(bindings):
@@ -1190,7 +1197,7 @@ class Component:
                     lines.append(f"    {binding}{comma}")
                 lines.append("  );")
             else:
-                lines.append(f"  instance {name}: {component._name};")
+                lines.append(f"  instance {name}: {component._name}();")
             if index + 1 != len(self._instances):
                 lines.append("")
         if self._formulations:
@@ -1206,7 +1213,7 @@ class Component:
 
 
 class Source:
-    """Author a bounded Component hierarchy and freeze it on first emission."""
+    """Author bounded Model and Component definitions; freeze on first emission."""
 
     __slots__ = (
         "_components",
@@ -1257,6 +1264,12 @@ class Source:
         component = Component(_CREATE, self, admitted, doc_lines)
         self._components.append(component)
         return component
+
+    def model(self, name: str, *, doc: str | None = None) -> Component:
+        """Author a selected Model using the same signature and body vocabulary."""
+        model = self.component(name, doc=doc)
+        model._kind = "model"
+        return model
 
     def property_contract(
         self,

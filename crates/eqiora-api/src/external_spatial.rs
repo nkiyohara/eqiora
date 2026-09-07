@@ -1,121 +1,47 @@
-//! Admission of one compiler-owned external-spatial Component occurrence.
+//! Admission of selected Model or Component signature bindings.
 
-use eqiora_artifact::{
-    AcceptedModelArtifact, CanonicalModelArtifact, ModelDecoderLimits, ModelTransactionEnvelope,
-};
-use eqiora_compiler::CompiledModel;
-use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, ValueLiteral};
-use eqiora_geometry::{CanonicalGeometryV1, NamedEntitySet};
-use eqiora_graph::{GraphStore, InMemoryGraphStore, Revision};
-use eqiora_sem::KernelProgram;
+use eqiora_compiler::{CompiledModel, StaticBindingValue};
+use eqiora_core::Diagnostic;
 
-use crate::{ModelDocument, aliases, single_diagnostic};
+use crate::ModelDocument;
 
 impl ModelDocument {
-    /// Compile one definitions-only `.eqi` Component against exact-name
-    /// selections borrowed from one common Geometry revision.
+    /// Compile one selected Model or Component with explicit static bindings.
     ///
-    /// The compiler selects the sole public Component unless `component` is
-    /// explicit, derives Parameter dimensions from source, expands one
-    /// ephemeral root occurrence, and returns the ordinary immutable Model.
-    #[doc(hidden)]
-    pub fn compile_with_geometry(
-        filename: &str,
-        source: &str,
-        geometry: &CanonicalGeometryV1,
-        component: Option<&str>,
-        parameters: &[(&str, eqiora_lang::Expr)],
-    ) -> Result<Self, Vec<Diagnostic>> {
-        let compiled = CompiledModel::compile_external_geometry_component(
-            filename, source, geometry, component, parameters,
-        )?;
-        Self::accept_external_compiled(compiled, geometry)
-    }
-
-    /// Compile one definitions-only `.eqi` Component against typed selections
-    /// borrowed from one exact common Geometry revision.
-    ///
-    /// Each support is `(slot, selection, parent)`. A volume has no parent; a
-    /// boundary supplies `(parent slot, parent selection)`. Parameter tuples
-    /// carry their complete checked mathematical values. The compiler materializes one
-    /// ephemeral root occurrence through the ordinary hierarchy expansion and
-    /// typed transaction lowerer; no compiled-package lifecycle is exposed.
+    /// The target signature determines each binding's kind. Geometry selections
+    /// retain their exact canonical authority; nominal clocks retain their identity.
+    /// All required static inputs must be satisfied before a Model is returned.
     ///
     /// # Errors
-    /// Returns source, binding, typed-lowering, graph, semantic-admission, or
-    /// artifact diagnostics. No partial Model is returned.
-    #[allow(
-        clippy::type_complexity,
-        reason = "the closed tuple keeps this seam from introducing a public lifecycle type"
-    )]
-    #[doc(hidden)]
-    pub fn compile_external_component(
+    /// Returns source, binding, semantic-admission, or artifact diagnostics.
+    pub fn compile_selected(
         filename: &str,
         source: &str,
-        geometry: &CanonicalGeometryV1,
-        model: &str,
-        component: &str,
-        supports: &[(&str, &NamedEntitySet, Option<(&str, &NamedEntitySet)>)],
-        parameters: &[(&str, ValueLiteral)],
+        entry: &str,
+        bindings: &[(&str, StaticBindingValue<'_>)],
     ) -> Result<Self, Vec<Diagnostic>> {
-        let compiled = CompiledModel::compile_external_component(
-            filename, source, model, component, geometry, supports, parameters,
-        )?;
-        Self::accept_external_compiled(compiled, geometry)
+        let compiled = CompiledModel::compile_selected(filename, source, entry, bindings)?;
+        Self::accept_bound_compiled(compiled, bindings)
     }
 
-    pub(crate) fn accept_external_compiled(
+    pub(crate) fn accept_bound_compiled(
         compiled: CompiledModel,
-        geometry: &CanonicalGeometryV1,
+        bindings: &[(&str, StaticBindingValue<'_>)],
     ) -> Result<Self, Vec<Diagnostic>> {
-        let aliases = aliases(compiled.symbols());
-        let authored_formulations = compiled.authored_formulations().cloned().collect();
-        let model = compiled.model();
-        let transaction = ModelTransactionEnvelope::from_transaction(compiled.transaction())
-            .and_then(|envelope| envelope.to_transaction())
-            .map_err(single_diagnostic)?;
-        let mut store = InMemoryGraphStore::new();
-        store.commit(transaction)?;
-        let program =
-            KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[geometry])?;
-        let artifact = AcceptedModelArtifact::from_program(&program).map_err(single_diagnostic)?;
-        let bytes = artifact.canonical_json().map_err(single_diagnostic)?;
-        let artifact = AcceptedModelArtifact::from_json(&bytes, ModelDecoderLimits::default())
-            .map_err(single_diagnostic)?;
-        let reference = artifact.artifact_reference().map_err(single_diagnostic)?;
-        let (transaction, model) = artifact.to_transaction()?;
-        let store = InMemoryGraphStore::restore_snapshot(
-            transaction,
-            Revision(artifact.source_revision()),
-        )?;
-        let program =
-            KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[geometry])?;
-        if program.model() != reference.model()
-            || program.revision().0 != reference.semantic_revision().get()
-        {
-            return Err(single_diagnostic(Diagnostic::error(
-                codes::INVALID_ARTIFACT,
-                "replayed Model identity or semantic revision differs from its exact artifact reference",
-            )));
+        let mut geometries = Vec::new();
+        for (_, binding) in bindings {
+            if let StaticBindingValue::GeometrySupport { geometry, .. } = binding {
+                if !geometries.contains(geometry) {
+                    geometries.push(*geometry);
+                }
+            }
         }
-        let document = Self {
-            program,
-            artifact,
-            aliases,
-            store,
-            geometry_authority: vec![geometry.clone()],
-            authored_formulations,
-        };
-        document
-            .replay_with_retained_geometry()
-            .map_err(single_diagnostic)?;
-        Ok(document)
+        Self::accept_compiled_with_geometry(compiled, &geometries)
     }
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::collections::{BTreeMap, BTreeSet};
 
     use super::*;
@@ -125,9 +51,100 @@ mod tests {
     };
     use eqiora_schema::kernel::{ExprNode, KernelNode, SymbolRef};
 
+    use eqiora_core::ValueLiteral;
+    use eqiora_core::diagnostic::codes;
+    use eqiora_geometry::{CanonicalGeometryV1, NamedEntitySet};
+
+    fn compile_geometry_fixture(
+        filename: &str,
+        source: &str,
+        geometry: &CanonicalGeometryV1,
+        entry: &str,
+        parameters: &[(&str, eqiora_lang::Expr)],
+    ) -> Result<ModelDocument, Vec<Diagnostic>> {
+        let fluid = geometry.entity_set("fluid").unwrap();
+        let mut bindings = vec![(
+            "fluid",
+            StaticBindingValue::GeometrySupport {
+                geometry,
+                selection: fluid,
+                parent: None,
+            },
+        )];
+        let boundaries: &[&str] = if entry == "ScalarDiffusion" {
+            &[]
+        } else {
+            &["inlet", "outlet", "walls", "cylinder"]
+        };
+        for &name in boundaries {
+            bindings.push((
+                name,
+                StaticBindingValue::GeometrySupport {
+                    geometry,
+                    selection: geometry.entity_set(name).unwrap(),
+                    parent: Some(fluid),
+                },
+            ));
+        }
+        bindings.extend(
+            parameters
+                .iter()
+                .map(|(name, value)| (*name, StaticBindingValue::Expression(value))),
+        );
+        ModelDocument::compile_selected(filename, source, entry, &bindings)
+    }
+
+    #[allow(clippy::type_complexity)]
+    pub(crate) fn compile_bound_fixture(
+        filename: &str,
+        source: &str,
+        geometry: &CanonicalGeometryV1,
+        entry: &str,
+        supports: &[(&str, &NamedEntitySet, Option<(&str, &NamedEntitySet)>)],
+        parameters: &[(&str, ValueLiteral)],
+    ) -> Result<ModelDocument, Vec<Diagnostic>> {
+        let expressions = parameters
+            .iter()
+            .map(|(name, value)| {
+                eqiora_lang::SourceAstFactory::value_literal(
+                    value,
+                    eqiora_lang::TextRange::default(),
+                )
+                .map(|value| (*name, value))
+                .map_err(|error| {
+                    vec![Diagnostic::error(
+                        codes::LANGUAGE_LOWERING_ERROR,
+                        error.to_string(),
+                    )]
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut bindings = supports
+            .iter()
+            .map(|(name, selection, parent)| {
+                (
+                    *name,
+                    StaticBindingValue::GeometrySupport {
+                        geometry,
+                        selection,
+                        parent: parent.map(|(_, selection)| selection),
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+        bindings.extend(
+            expressions
+                .iter()
+                .map(|(name, value)| (*name, StaticBindingValue::Expression(value))),
+        );
+        ModelDocument::compile_selected(filename, source, entry, &bindings)
+    }
+
     const SOURCE: &str = r#"
-public component FluidBoundaryLaw(support fluid: volume(ambient_dimension = 2), support inlet: boundary(parent = fluid), support outlet: boundary(parent = fluid), support walls: boundary(parent = fluid), support cylinder: boundary(parent = fluid)) {
-  public parameter value: 1;
+public component FluidBoundaryLaw(
+  support fluid: volume(ambient_dimension = 2), support inlet: boundary(parent = fluid), support outlet: boundary(parent = fluid), support walls: boundary(parent = fluid), support cylinder: boundary(parent = fluid),
+  parameter value: 1
+) {
   variable state: 1 on fluid;
   relation volume_law on fluid { state - value = 0; }
   relation inlet_law on inlet { trace(state) = 0; }
@@ -138,10 +155,12 @@ public component FluidBoundaryLaw(support fluid: volume(ambient_dimension = 2), 
 "#;
 
     const SCALAR_PRIMAL_SOURCE: &str = r#"
-public component ScalarDiffusion(support fluid: volume(ambient_dimension = 2)) {
-  public parameter diffusion: 1;
-  public parameter wave_number: 1 / m;
-  public parameter source_scale: 1 / m ^ 2;
+public component ScalarDiffusion(
+  support fluid: volume(ambient_dimension = 2),
+  parameter diffusion: 1,
+  parameter wave_number: 1 / m,
+  parameter source_scale: 1 / m ^ 2
+) {
   variable potential: 1 on fluid;
   relation balance on fluid {
     -div(diffusion * grad(potential))
@@ -158,11 +177,13 @@ public component ScalarDiffusion(support fluid: volume(ambient_dimension = 2)) {
 "#;
 
     const STEADY_FLOW_PAST_CYLINDER_COMPONENT: &str = r#"
-public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension = 2), support inlet: boundary(parent = fluid), support outlet: boundary(parent = fluid), support walls: boundary(parent = fluid), support cylinder: boundary(parent = fluid)) {
-  public parameter dynamic_viscosity: kg / (m * s);
-  public parameter zero_pressure: kg / (m * s ^ 2);
-  public parameter inlet_speed: m / s;
-  public parameter channel_height: m;
+public component SteadyFlowPastCylinder(
+  support fluid: volume(ambient_dimension = 2), support inlet: boundary(parent = fluid), support outlet: boundary(parent = fluid), support walls: boundary(parent = fluid), support cylinder: boundary(parent = fluid),
+  parameter dynamic_viscosity: kg / (m * s),
+  parameter zero_pressure: kg / (m * s ^ 2),
+  parameter inlet_speed: m / s,
+  parameter channel_height: m
+) {
 
   variable velocity: vector<m / s, 2> on fluid;
   variable pressure: kg / (m * s ^ 2) on fluid;
@@ -262,11 +283,11 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
                 eqiora_lang::DraftExpression::constant(2.0).source_ast(),
             ),
         ];
-        let with_form = ModelDocument::compile_with_geometry(
+        let with_form = compile_geometry_fixture(
             "scalar-primal.eqi",
             SCALAR_PRIMAL_SOURCE,
             &geometry,
-            None,
+            "ScalarDiffusion",
             &parameters,
         )
         .unwrap();
@@ -274,11 +295,11 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
             "{}}}\n",
             SCALAR_PRIMAL_SOURCE.split_once("  form primal").unwrap().0
         );
-        let without_form = ModelDocument::compile_with_geometry(
+        let without_form = compile_geometry_fixture(
             "scalar-primal.eqi",
             &without_form_source,
             &geometry,
-            None,
+            "ScalarDiffusion",
             &parameters,
         )
         .unwrap();
@@ -327,11 +348,11 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
             "test(potential) * source_scale",
             "test(potential) * diffusion",
         );
-        let diagnostics = ModelDocument::compile_with_geometry(
+        let diagnostics = compile_geometry_fixture(
             "invalid-primal.eqi",
             &invalid,
             &geometry,
-            None,
+            "ScalarDiffusion",
             &[
                 (
                     "diffusion",
@@ -401,11 +422,11 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
             ),
         ];
         for (source, expected) in invalid {
-            let diagnostics = ModelDocument::compile_with_geometry(
+            let diagnostics = compile_geometry_fixture(
                 "invalid-primal.eqi",
                 &source,
                 &geometry,
-                None,
+                "ScalarDiffusion",
                 &parameters,
             )
             .unwrap_err();
@@ -418,7 +439,7 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
         }
 
         let ordinary_source = format!(
-            "{SCALAR_PRIMAL_SOURCE}\nmodel root {{ variable x: 1; relation hold {{ x = 0; }} }}\n"
+            "{SCALAR_PRIMAL_SOURCE}\nmodel root() {{ variable x: 1; relation hold {{ x = 0; }} }}\n"
         );
         let diagnostics = ModelDocument::compile("unsupported.eqi", &ordinary_source)
             .expect_err("ordinary Model compilation cannot discard authored forms");
@@ -496,11 +517,10 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
                 Some(("fluid", fluid)),
             ),
         ];
-        ModelDocument::compile_external_component(
+        compile_bound_fixture(
             "steady-flow-past-cylinder.eqi",
             STEADY_FLOW_PAST_CYLINDER_COMPONENT,
             geometry,
-            "SteadyFlowPastCylinderModel",
             "SteadyFlowPastCylinder",
             &supports,
             parameters,
@@ -620,11 +640,10 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
                 Some(("fluid", fluid)),
             ),
         ];
-        let document = ModelDocument::compile_external_component(
+        let document = compile_bound_fixture(
             "fluid-boundary.eqi",
             SOURCE,
             &geometry,
-            "BoundFluid",
             "FluidBoundaryLaw",
             &supports,
             &[(
@@ -646,24 +665,24 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
     }
 
     #[test]
-    fn exact_name_geometry_compilation_selects_one_public_component() {
+    fn explicit_signature_bindings_preserve_diagnostic_filename_independence() {
         let geometry = fixture_geometry();
-        let automatic = ModelDocument::compile_with_geometry(
+        let automatic = compile_geometry_fixture(
             "fluid-boundary.eqi",
             SOURCE,
             &geometry,
-            None,
+            "FluidBoundaryLaw",
             &[(
                 "value",
                 eqiora_lang::DraftExpression::constant(2.0).source_ast(),
             )],
         )
-        .expect("sole public Component closes automatically");
-        let explicit = ModelDocument::compile_with_geometry(
+        .expect("explicit public Component closes");
+        let explicit = compile_geometry_fixture(
             "renamed-for-diagnostics.eqi",
             SOURCE,
             &geometry,
-            Some("FluidBoundaryLaw"),
+            "FluidBoundaryLaw",
             &[(
                 "value",
                 eqiora_lang::DraftExpression::constant(2.0).source_ast(),
@@ -672,11 +691,11 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
         .expect("explicit public Component closes identically");
         assert_eq!(automatic.digest().unwrap(), explicit.digest().unwrap());
         assert!(automatic.structurally_equivalent(&explicit).unwrap());
-        ModelDocument::compile_with_geometry(
+        compile_geometry_fixture(
             "negative-is-not-a-compiler-policy.eqi",
             SOURCE,
             &geometry,
-            None,
+            "FluidBoundaryLaw",
             &[(
                 "value",
                 eqiora_lang::DraftExpression::constant(-2.0).source_ast(),
@@ -685,18 +704,18 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
         .expect("compiler checks type and finiteness, not application positivity");
 
         let missing =
-            ModelDocument::compile_with_geometry("missing.eqi", SOURCE, &geometry, None, &[])
+            compile_geometry_fixture("missing.eqi", SOURCE, &geometry, "FluidBoundaryLaw", &[])
                 .unwrap_err();
         assert!(
             missing
                 .iter()
                 .any(|error| error.message().contains("value"))
         );
-        let extra = ModelDocument::compile_with_geometry(
+        let extra = compile_geometry_fixture(
             "extra.eqi",
             SOURCE,
             &geometry,
-            None,
+            "FluidBoundaryLaw",
             &[
                 (
                     "value",
@@ -715,11 +734,11 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
             "{SOURCE}\n{}",
             SOURCE.replace("FluidBoundaryLaw", "OtherLaw")
         );
-        let errors = ModelDocument::compile_with_geometry(
+        let errors = compile_geometry_fixture(
             "ambiguous.eqi",
             &ambiguous,
             &geometry,
-            None,
+            "MissingLaw",
             &[(
                 "value",
                 eqiora_lang::DraftExpression::constant(2.0).source_ast(),
@@ -729,42 +748,27 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
         assert!(
             errors
                 .iter()
-                .any(|error| error.message().contains("component="))
+                .any(|error| error.message().contains("MissingLaw"))
         );
     }
 
     #[test]
     fn common_geometry_rejects_foreign_kind_and_wrong_parent_bindings() {
+        const LAW: &str = "public component Law(support fluid: volume(ambient_dimension = 2)) { variable x: 1 on fluid; relation value on fluid { x = 0; } }";
         let geometry = fixture_geometry();
         let foreign = fixture_geometry();
         let stale = [("fluid", foreign.entity_set("fluid").unwrap(), None)];
         assert!(
-            ModelDocument::compile_external_component(
-                "foreign.eqi",
-                "not source",
-                &geometry,
-                "Root",
-                "Law",
-                &stale,
-                &[],
-            )
-            .unwrap_err()[0]
-                .message()
-                .contains("foreign or stale")
+            compile_bound_fixture("foreign.eqi", LAW, &geometry, "Law", &stale, &[]).unwrap_err()
+                [0]
+            .message()
+            .contains("foreign or stale")
         );
 
         let wrong_kind = [("fluid", geometry.entity_set("walls").unwrap(), None)];
         assert!(
-            ModelDocument::compile_external_component(
-                "wrong-kind.eqi",
-                "not source",
-                &geometry,
-                "Root",
-                "Law",
-                &wrong_kind,
-                &[],
-            )
-            .unwrap_err()[0]
+            compile_bound_fixture("wrong-kind.eqi", LAW, &geometry, "Law", &wrong_kind, &[])
+                .unwrap_err()[0]
                 .message()
                 .contains("selection dimension 1")
         );
@@ -803,14 +807,13 @@ public component SteadyFlowPastCylinder(support fluid: volume(ambient_dimension 
             ),
         ];
         assert!(
-            ModelDocument::compile_external_component(
+            compile_bound_fixture(
                 "wrong-parent.eqi",
-                "not source",
+                "public component Law(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body)) { variable x: 1 on body; relation value on body { x = 0; } relation boundary on wall { trace(x) = 0; } }",
                 &geometry,
-                "Root",
                 "Law",
                 &wrong_parent,
-                &[],
+                &[]
             )
             .unwrap_err()[0]
                 .message()

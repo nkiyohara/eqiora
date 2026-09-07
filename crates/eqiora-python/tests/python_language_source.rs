@@ -128,30 +128,17 @@ parameters = {
 }
 
 direct_source = cylinder_source()
-direct = eqiora.compile(
-    source=direct_source,
-    geometry=geometry,
-    parameters=parameters,
-)
+direct = eqiora.compile(source=direct_source, geometry=geometry, entry='SteadyFlowPastCylinder', bindings={'fluid': geometry.selection('fluid'), 'inlet': (geometry.selection('inlet'), geometry.selection('fluid')), 'outlet': (geometry.selection('outlet'), geometry.selection('fluid')), 'walls': (geometry.selection('walls'), geometry.selection('fluid')), 'cylinder': (geometry.selection('cylinder'), geometry.selection('fluid')), **parameters})
 with tempfile.TemporaryDirectory() as directory:
     path = pathlib.Path(directory) / "steady-flow-past-cylinder.eqi"
     direct_source.write_eqi(path)
     assert path.read_text(encoding="utf-8") == direct_source.to_eqi()
-    emitted = eqiora.compile(path=path, geometry=geometry, parameters=parameters)
+    emitted = eqiora.compile(path=path, geometry=geometry, entry='SteadyFlowPastCylinder', bindings={'fluid': geometry.selection('fluid'), 'inlet': (geometry.selection('inlet'), geometry.selection('fluid')), 'outlet': (geometry.selection('outlet'), geometry.selection('fluid')), 'walls': (geometry.selection('walls'), geometry.selection('fluid')), 'cylinder': (geometry.selection('cylinder'), geometry.selection('fluid')), **parameters})
 assert direct.digest == emitted.digest
-shipped = eqiora.compile(
-    source=shipped_source,
-    filename="steady-flow-past-cylinder.eqi",
-    geometry=geometry,
-    parameters=parameters,
-)
+shipped = eqiora.compile(source=shipped_source, filename='steady-flow-past-cylinder.eqi', geometry=geometry, entry='SteadyFlowPastCylinder', bindings={'fluid': geometry.selection('fluid'), 'inlet': (geometry.selection('inlet'), geometry.selection('fluid')), 'outlet': (geometry.selection('outlet'), geometry.selection('fluid')), 'walls': (geometry.selection('walls'), geometry.selection('fluid')), 'cylinder': (geometry.selection('cylinder'), geometry.selection('fluid')), **parameters})
 assert direct.structural_fingerprint == shipped.structural_fingerprint
 
-other_comments = eqiora.compile(
-    source=cylinder_source(doc="Different presentation-only documentation."),
-    geometry=geometry,
-    parameters=parameters,
-)
+other_comments = eqiora.compile(source=cylinder_source(doc='Different presentation-only documentation.'), geometry=geometry, entry='SteadyFlowPastCylinder', bindings={'fluid': geometry.selection('fluid'), 'inlet': (geometry.selection('inlet'), geometry.selection('fluid')), 'outlet': (geometry.selection('outlet'), geometry.selection('fluid')), 'walls': (geometry.selection('walls'), geometry.selection('fluid')), 'cylinder': (geometry.selection('cylinder'), geometry.selection('fluid')), **parameters})
 assert direct.digest == other_comments.digest
 
 try:
@@ -213,11 +200,7 @@ with tempfile.TemporaryDirectory() as directory:
     assert target.read_text(encoding="utf-8") == "preserved"
 
 try:
-    eqiora.compile(
-        source=cylinder_source(velocity_extent=None),
-        geometry=geometry,
-        parameters=parameters,
-    )
+    eqiora.compile(source=cylinder_source(velocity_extent=None), geometry=geometry, entry='SteadyFlowPastCylinder', bindings={'fluid': geometry.selection('fluid'), 'inlet': (geometry.selection('inlet'), geometry.selection('fluid')), 'outlet': (geometry.selection('outlet'), geometry.selection('fluid')), 'walls': (geometry.selection('walls'), geometry.selection('fluid')), 'cylinder': (geometry.selection('cylinder'), geometry.selection('fluid')), **parameters})
 except eqiora.ValidationError as error:
     assert error.diagnostics
     assert any(

@@ -8,13 +8,12 @@ public component AuthoredPoisson(
   support x_lower: boundary(parent = square),
   support x_upper: boundary(parent = square),
   support y_lower: boundary(parent = square),
-  support y_upper: boundary(parent = square)
+  support y_upper: boundary(parent = square),
+  parameter diffusion: 1,
+  parameter other_diffusion: 1,
+  parameter source_scale: 1 / m ^ 2,
+  parameter other_source: 1 / m ^ 2
 ) {
-
-  public parameter diffusion: 1;
-  public parameter other_diffusion: 1;
-  public parameter source_scale: 1 / m ^ 2;
-  public parameter other_source: 1 / m ^ 2;
 
   variable potential: 1 on square;
   relation balance on square {
@@ -51,7 +50,7 @@ geometry = graph.build(rectangle, named_topology={
     "y_upper": rectangle.boundaries[3],
 })
 parameters = {"diffusion": 1.0, "other_diffusion": 2.0, "source_scale": 1.0, "other_source": 3.0}
-model = eqiora.compile(source=source, geometry=geometry, parameters=parameters)
+model = eqiora.compile(source=source, geometry=geometry, entry='AuthoredPoisson', bindings={'square': geometry.selection('square'), 'x_lower': (geometry.selection('x_lower'), geometry.selection('square')), 'x_upper': (geometry.selection('x_upper'), geometry.selection('square')), 'y_lower': (geometry.selection('y_lower'), geometry.selection('square')), 'y_upper': (geometry.selection('y_upper'), geometry.selection('square')), **parameters})
 mesh_plan = eqiora.meshing.resolve(geometry, eqiora.meshing.CartesianMesher(cells=(3, 3)))
 mesh = eqiora.meshing.generate(mesh_plan)
 linear = eqiora.solve.Linear(relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=1000)
@@ -86,7 +85,7 @@ for changed, expected in (
     (source.replace("test(potential) * source_scale", "-test(potential) * source_scale"), "source term"),
     (source.replace("trace(potential) = 0;", "trace(potential) = 1;", 1), "homogeneous-essential"),
 ):
-    mismatched = eqiora.compile(source=changed, geometry=geometry, parameters=parameters)
+    mismatched = eqiora.compile(source=changed, geometry=geometry, entry='AuthoredPoisson', bindings={'square': geometry.selection('square'), 'x_lower': (geometry.selection('x_lower'), geometry.selection('square')), 'x_upper': (geometry.selection('x_upper'), geometry.selection('square')), 'y_lower': (geometry.selection('y_lower'), geometry.selection('square')), 'y_upper': (geometry.selection('y_upper'), geometry.selection('square')), **parameters})
     try:
         eqiora.resolve(mismatched, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
     except eqiora.ValidationError as error:

@@ -96,13 +96,13 @@ def test_decimal_and_centiprefix_quantity_matches_coherent_source():
         "bottom": rectangle.boundaries[2],
         "top": rectangle.boundaries[3],
     })
-    authored = eqiora.compile(source=source, geometry=geometry)
+    authored = eqiora.compile(source=source, geometry=geometry, entry='Length', bindings={'region': geometry.selection('region')})
     reference = eqiora.compile(source="""
 public component Length(support region: volume(ambient_dimension = 2)) {
   variable length: m on region;
   relation law on region { length = 0.1 [m]; }
 }
-""", geometry=geometry)
+""", geometry=geometry, entry='Length', bindings={'region': geometry.selection('region')})
     assert authored.structural_fingerprint == reference.structural_fingerprint
 
 

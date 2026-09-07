@@ -2,7 +2,6 @@
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use std::path::PathBuf;
 
 use eqiora::api::package::PackagedModelDocument;
 use eqiora::api::{ModelDocument, ModelParameterRef, StructuralSemanticFingerprint, ValueEditPlan};
@@ -13,7 +12,7 @@ use eqiora::package::PackageCompilationRecordV2;
 use eqiora::{Diagnostic, EntityKind, RawId};
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyBytes, PyModule, PyString, PyTuple};
+use pyo3::types::{PyAny, PyBytes, PyModule, PyTuple};
 
 use crate::error::{diagnostic_error, internal_diagnostic_error, panic_boundary, validation_error};
 use crate::geometry::PyGeometry;
@@ -652,7 +651,7 @@ impl PyModel {
     /// Atomically write this compiled Model to a `.eqmodel` file.
     fn write(&self, py: Python<'_>, path: &Bound<'_, PyAny>) -> PyResult<()> {
         panic_boundary(py, || {
-            let path = unicode_model_path(py, path)?;
+            let path = model_io::unicode_artifact_path(py, path)?;
             let bytes = self
                 .artifact
                 .canonical_json()
@@ -666,7 +665,7 @@ impl PyModel {
     #[staticmethod]
     fn read(py: Python<'_>, path: &Bound<'_, PyAny>) -> PyResult<Self> {
         panic_boundary(py, || {
-            let path = unicode_model_path(py, path)?;
+            let path = model_io::unicode_artifact_path(py, path)?;
             let bytes = py
                 .detach(move || model_io::read_model_bytes(&path))
                 .map_err(|diagnostic| crate::error::compatibility_error(py, &[diagnostic]))?;
@@ -803,6 +802,33 @@ impl PyModel {
                 .artifact_ids(EntityKind::Domain)
                 .map_err(|diagnostics| diagnostic_error(py, &diagnostics)),
         }
+    }
+
+    /// Start reference sampled execution with complete clock-indexed input tables.
+    #[pyo3(signature = (*, end_time_s, max_step_s, inputs))]
+    fn sampled_session(
+        &self,
+        py: Python<'_>,
+        end_time_s: f64,
+        max_step_s: f64,
+        inputs: &Bound<'_, pyo3::types::PyDict>,
+    ) -> PyResult<crate::sampled_session::PySampledSession> {
+        let document = self
+            .document()
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        crate::sampled_session::start(py, document, end_time_s, max_step_s, inputs)
+    }
+
+    /// Resume one accepted in-memory checkpoint on this exact immutable Model.
+    fn resume_sampled(
+        &self,
+        py: Python<'_>,
+        checkpoint: &crate::sampled_session::PySampledCheckpoint,
+    ) -> PyResult<crate::sampled_session::PySampledSession> {
+        let document = self
+            .document()
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        crate::sampled_session::resume(py, document, checkpoint)
     }
 
     /// Resolve a source alias or exact ULID once into an exact Parameter role.
@@ -948,14 +974,6 @@ impl PyModel {
             self.revision.model_id, self.revision.number, self.revision.digest
         )
     }
-}
-
-fn unicode_model_path(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<PathBuf> {
-    let path = py.import("os")?.getattr("fspath")?.call1((value,))?;
-    let path = path
-        .cast::<PyString>()
-        .map_err(|_| PyTypeError::new_err("path must resolve to a Unicode filesystem path"))?;
-    Ok(PathBuf::from(path.to_str()?))
 }
 
 fn hash_value(value: &impl Hash) -> u64 {

@@ -20,12 +20,14 @@ use eqiora_solver::REFERENCE_LINEAR_SOLVER;
 use super::{CompleteEvaluationMap, EvaluationMapOccurrence, EvaluationMapPlan};
 use crate::{DifferentiableProgram, ModelDocument};
 
-const SOURCE: &str = r#"public component DifferentiatedPoisson(support square: volume(ambient_dimension = 2), support x_lower: boundary(parent = square), support x_upper: boundary(parent = square), support y_lower: boundary(parent = square), support y_upper: boundary(parent = square)) {
+const SOURCE: &str = r#"public component DifferentiatedPoisson(
+  support square: volume(ambient_dimension = 2), support x_lower: boundary(parent = square), support x_upper: boundary(parent = square), support y_lower: boundary(parent = square), support y_upper: boundary(parent = square),
+  parameter diffusion: 1,
+  parameter wave_number: 1 / m,
+  parameter source_scale: 1 / m ^ 2,
+  parameter boundary_offset: 1
+) {
   variable potential: 1 on square;
-  public parameter diffusion: 1;
-  public parameter wave_number: 1 / m;
-  public parameter source_scale: 1 / m ^ 2;
-  public parameter boundary_offset: 1;
   relation balance on square {
     -div(diffusion * grad(potential))
       - source_scale
@@ -362,30 +364,54 @@ fn document_from_source(source: &str) -> ModelDocument {
             ]),
         )
         .unwrap();
-    ModelDocument::compile_with_geometry(
+    let parameters = [
+        (
+            "diffusion",
+            eqiora_lang::DraftExpression::constant(1.0).source_ast(),
+        ),
+        (
+            "wave_number",
+            eqiora_lang::DraftExpression::constant(std::f64::consts::PI).source_ast(),
+        ),
+        (
+            "source_scale",
+            eqiora_lang::DraftExpression::constant(2.0 * std::f64::consts::PI.powi(2)).source_ast(),
+        ),
+        (
+            "boundary_offset",
+            eqiora_lang::DraftExpression::constant(0.0).source_ast(),
+        ),
+    ];
+    let body = geometry.entity_set("square").unwrap();
+    let mut bindings = vec![(
+        "square",
+        eqiora_compiler::StaticBindingValue::GeometrySupport {
+            geometry: &geometry,
+            selection: body,
+            parent: None,
+        },
+    )];
+    for name in ["x_lower", "x_upper", "y_lower", "y_upper"] {
+        bindings.push((
+            name,
+            eqiora_compiler::StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: geometry.entity_set(name).unwrap(),
+                parent: Some(body),
+            },
+        ));
+    }
+    bindings.extend(parameters.iter().map(|(name, value)| {
+        (
+            *name,
+            eqiora_compiler::StaticBindingValue::Expression(value),
+        )
+    }));
+    ModelDocument::compile_selected(
         "bounded-parameter-study.eqi",
         source,
-        &geometry,
-        None,
-        &[
-            (
-                "diffusion",
-                eqiora_lang::DraftExpression::constant(1.0).source_ast(),
-            ),
-            (
-                "wave_number",
-                eqiora_lang::DraftExpression::constant(std::f64::consts::PI).source_ast(),
-            ),
-            (
-                "source_scale",
-                eqiora_lang::DraftExpression::constant(2.0 * std::f64::consts::PI.powi(2))
-                    .source_ast(),
-            ),
-            (
-                "boundary_offset",
-                eqiora_lang::DraftExpression::constant(0.0).source_ast(),
-            ),
-        ],
+        "DifferentiatedPoisson",
+        &bindings,
     )
     .unwrap()
 }

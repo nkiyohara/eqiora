@@ -40,7 +40,7 @@ def test_python_authoring_and_replay_use_the_current_public_schema() -> None:
 
 
 SOURCE = """
-model decay {
+model decay() {
   state x: 1;
   initial { x = 1; }
   parameter rate: 1 / s = 1;
@@ -51,7 +51,7 @@ model decay {
 """
 
 PHYSICAL_SOURCE = """
-model physical_pair {
+model physical_pair() {
   domain electrical = scalar_physical(
     across = kg * m ^ 2 / (s ^ 3 * A),
     through = A
@@ -67,7 +67,7 @@ model physical_pair {
 """
 
 SPATIAL_SOURCE = """
-model native_poisson {
+model native_poisson() {
   domain interval = box(0, 1);
   domain lower_end = boundary(interval, axis = 0, side = lower);
   domain upper_end = boundary(interval, axis = 0, side = upper);
@@ -142,7 +142,7 @@ def test_compile_artifact_run_and_owned_numpy_result() -> None:
 
 def test_diagnostics_are_structured() -> None:
     with pytest.raises(eqiora.EqioraError) as caught:
-        eqiora.compile(source="model broken { field ; }", filename="broken.eqi")
+        eqiora.compile(source='model broken() { field ; }', filename="broken.eqi")
     assert caught.value.diagnostics
     diagnostic = caught.value.diagnostics[0]
     assert diagnostic.code.startswith("EQ")
@@ -222,7 +222,7 @@ def test_native_declarations_share_the_canonical_compile_and_run_path() -> None:
     )
 
     model = eqiora.Model.define("decay", state, rate, flow, eqiora.Initial(state - 1.0))
-    assert json.loads(model.to_bytes())["schema"] == "eqiora.model-envelope/v13"
+    assert json.loads(model.to_bytes())["schema"] == "eqiora.model-envelope/v14"
     field = model.field(model.field_ids[0])
     plan = eqiora.resolve(
         model,
@@ -269,7 +269,7 @@ def test_source_and_native_models_share_only_structural_identity() -> None:
     assert source != native
     assert source.structural_fingerprint == native.structural_fingerprint
     assert source.structural_fingerprint.generation == (
-        "eqiora.structural-semantic-fingerprint/v8"
+        "eqiora.structural-semantic-fingerprint/v9"
     )
     assert len(source.structural_fingerprint.digest) == 64
     assert source.structurally_equivalent(native)

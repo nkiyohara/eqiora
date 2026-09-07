@@ -112,7 +112,7 @@ impl NativeRunCancellation {
                 request_identity,
                 state: _,
             } => format!(
-                "common transient execution {request_identity} was cancelled at accepted model time {model_time_s} after {accepted_steps} accepted steps"
+                "common transient execution {request_identity} was cancelled at accepted model time() {model_time_s} after {accepted_steps} accepted steps"
             ),
         };
         Diagnostic::error(codes::EXECUTION_CANCELLED, message).with_graph_path(GraphPath::new([
