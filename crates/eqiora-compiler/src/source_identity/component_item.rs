@@ -89,7 +89,7 @@ mod tests {
     fn alias_item_tags_separate_containers_and_declaration_roles() {
         let doc = eqiora_lang::parse(
             "tags.eqi",
-            "component C() { let a = 1; } model M { let a = 1; }",
+            "component C() { let a = 1; } model M() { let a = 1; }",
         )
         .into_document()
         .unwrap();

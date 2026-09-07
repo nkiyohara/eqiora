@@ -561,7 +561,7 @@ mod tests {
 
     #[test]
     fn definition_diagnostics_are_bounded_with_an_explicit_truncation() {
-        let source = "model A { relation bad { missing_a = 0; } } model B { relation bad { missing_b = 0; } }";
+        let source = "model A() { relation bad { missing_a = 0; } } model B() { relation bad { missing_b = 0; } }";
         let document = parse("bounded-diagnostics.eqi", source)
             .into_document()
             .expect("fixture parses");

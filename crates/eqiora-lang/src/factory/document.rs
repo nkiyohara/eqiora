@@ -204,7 +204,7 @@ mod tests {
     #[test]
     fn checked_factory_adds_one_canonical_module_import_prefix() {
         let range = TextRange::new(0, 0);
-        let document = parse("main.eqi", "model Main {}")
+        let document = parse("main.eqi", "model Main() {}")
             .into_document()
             .expect("base document");
         let document = SourceAstFactory::with_import(
@@ -230,7 +230,7 @@ mod tests {
         );
 
         let implicit = SourceAstFactory::with_import(
-            parse("main.eqi", "model Main {}").into_document().unwrap(),
+            parse("main.eqi", "model Main() {}").into_document().unwrap(),
             NamePath::from_segments(["org", "example", "parts"], range).unwrap(),
             None,
             range,

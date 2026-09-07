@@ -143,7 +143,7 @@ mod tests {
     fn admitted_targets_encode_kind_owner_and_module_without_collisions() {
         let document = eqiora_lang::parse(
             "alias.eqi",
-            "model Main { instance value: dependency.Component; }",
+            "model Main() { instance value: dependency.Component(); }",
         )
         .into_document()
         .expect("alias source");

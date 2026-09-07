@@ -89,7 +89,7 @@ mod tests {
         let range = TextRange::new(0, 0);
         let expression = SourceAstFactory::expression(ExprKind::Name("m".to_owned()), range)
             .expect("dimension expression");
-        let model = parse("model.eqi", "model M { variable x: Length; }")
+        let model = parse("model.eqi", "model M() { variable x: Length; }")
             .into_document()
             .expect("model source")
             .models()[0]

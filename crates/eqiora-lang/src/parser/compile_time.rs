@@ -81,7 +81,7 @@ mod tests {
 
     #[test]
     fn complete_let_type_annotations_round_trip() {
-        let source = "model M { let z: complex<m> = 0; let channels: array<complex<m>, 3> = 0; }";
+        let source = "model M() { let z: complex<m> = 0; let channels: array<complex<m>, 3> = 0; }";
         let document = parse("typed-let.eqi", source).into_document().unwrap();
         let formatted = format(&document);
         assert!(formatted.contains("let z: complex<m> = 0;"));
@@ -95,7 +95,7 @@ mod tests {
     #[test]
     fn parser_and_formatter_retain_annotated_and_inferred_let_aliases() {
         let source =
-            "model M { let wave_number = math.pi / length; let checked: 1 / m = wave_number; }";
+            "model M() { let wave_number = math.pi / length; let checked: 1 / m = wave_number; }";
         let document = parse("let.eqi", source)
             .into_document()
             .expect("let aliases parse");
@@ -111,7 +111,7 @@ mod tests {
         let formatted = format(&document);
         assert_eq!(
             formatted,
-            "model M {\n  let wave_number = math.pi / length;\n  let checked: 1 / m = wave_number;\n}\n"
+            "model M() {\n  let wave_number = math.pi / length;\n  let checked: 1 / m = wave_number;\n}\n"
         );
         let reparsed = parse("formatted-let.eqi", &formatted)
             .into_document()

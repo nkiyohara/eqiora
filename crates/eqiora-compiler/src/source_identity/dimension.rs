@@ -42,11 +42,11 @@ mod tests {
 
     #[test]
     fn aliases_are_exact_ordered_source_provenance() {
-        let first = "dimension Speed = m / s; dimension Acceleration = Speed / s; model M { variable x: Acceleration; initial { x = 0; } }";
-        let renamed = "dimension Velocity = m / s; dimension Acceleration = Velocity / s; model M { variable x: Acceleration; initial { x = 0; } }";
-        let changed = "dimension Speed = m / s; dimension Acceleration = m / s ^ 2; model M { variable x: Acceleration; initial { x = 0; } }";
-        let reordered = "dimension Acceleration = m / s ^ 2; dimension Speed = m / s; model M { variable x: Acceleration; initial { x = 0; } }";
-        let expanded = "model M { variable x: m / s ^ 2; initial { x = 0; } }";
+        let first = "dimension Speed = m / s; dimension Acceleration = Speed / s; model M() { variable x: Acceleration; initial { x = 0; } }";
+        let renamed = "dimension Velocity = m / s; dimension Acceleration = Velocity / s; model M() { variable x: Acceleration; initial { x = 0; } }";
+        let changed = "dimension Speed = m / s; dimension Acceleration = m / s ^ 2; model M() { variable x: Acceleration; initial { x = 0; } }";
+        let reordered = "dimension Acceleration = m / s ^ 2; dimension Speed = m / s; model M() { variable x: Acceleration; initial { x = 0; } }";
+        let expanded = "model M() { variable x: m / s ^ 2; initial { x = 0; } }";
 
         assert_ne!(identity(first), identity(renamed));
         assert_ne!(identity(first), identity(changed));
@@ -73,7 +73,7 @@ mod tests {
             vec![crate::ResolvedSourceUnit::new(
                 namespace,
                 "src/main.eqi",
-                "dimension Speed = m / s; model Main { variable velocity: Speed; initial { velocity = 0; } relation balance { velocity = 0; } }",
+                "dimension Speed = m / s; model Main() { variable velocity: Speed; initial { velocity = 0; } relation balance { velocity = 0; } }",
             )
             .expect("source path")],
             Vec::new(),

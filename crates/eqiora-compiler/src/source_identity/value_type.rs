@@ -57,7 +57,7 @@ mod tests {
             "tensor<V, 2, 2>",
         ] {
             for source in [
-                format!("model M {{ parameter value: {value_type} = 0; }}"),
+                format!("model M() {{ parameter value: {value_type} = 0; }}"),
                 format!("component C() {{ public parameter value: {value_type}; }}"),
             ] {
                 let document = eqiora_lang::parse("types.eqi", &source)

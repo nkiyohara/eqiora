@@ -1264,14 +1264,14 @@ public pure operator outer(left: spatial[1], right: spatial[1]) -> spatial[2]
   = component(left, 0) * component(right, 1);
 private pure operator scale(value: scalar) -> scalar
   = rational(2, 1) * component(value);
-model M { parameter p: 1 = 1; }
+model M() { parameter p: 1 = 1; }
 "#;
         let renamed_and_reordered = r#"
 private pure operator scale(x: scalar) -> scalar
   = rational(2, 1) * component(x);
 public pure operator outer(a: spatial[1], b: spatial[1]) -> spatial[2]
   = component(a, 0) * component(b, 1);
-model M { parameter p: 1 = 1; }
+model M() { parameter p: 1 = 1; }
 "#;
         let changed_body = renamed_and_reordered.replace(
             "component(a, 0) * component(b, 1)",
@@ -1297,13 +1297,13 @@ component Pair() {
   connect conserving positive, inner.positive, negative;
 }
 component Empty() {}
-model circuit {
+model circuit() {
   instance right: Pair(scale = 4, resistance = 5);
   instance left: Pair(resistance = 2, scale = 3);
   connect conserving left.positive, right.negative, right.positive;
   boundary right.positive, left.negative;
 }
-model auxiliary {}
+model auxiliary() {}
 "#;
         let permuted = r#"
 connector Heat = scalar_physical(across = K, through = kg * m ^ 2 / (s ^ 3 * K));
@@ -1318,8 +1318,8 @@ component Pair() {
   public parameter scale: 1 = 3;
   public parameter resistance: 1 = 2;
 }
-model auxiliary {}
-model circuit {
+model auxiliary() {}
+model circuit() {
   boundary left.negative, right.positive;
   connect conserving right.positive, left.positive, right.negative;
   instance left: Pair(scale = 3, resistance = 2);
@@ -1337,7 +1337,7 @@ component C(support body: volume(ambient_dimension = 2), support wall: boundary(
 
 
 }
-model M {
+model M() {
   domain volume = box(0, 1, 0, 1);
   domain left = boundary(volume, axis = 0, side = lower);
   domain right = boundary(volume, axis = 0, side = upper);
@@ -1349,7 +1349,7 @@ component C(support wall: boundary(parent = body), support body: volume(ambient_
 
 
 }
-model M {
+model M() {
   instance c: C(support wall = left, support body = volume);
   domain right = boundary(volume, axis = 0, side = upper);
   domain left = boundary(volume, axis = 0, side = lower);
@@ -1370,7 +1370,7 @@ component Law(variable displacement: vector<m, 2> on body, variable potential: K
 
 
 }
-model M {
+model M() {
   domain body = box(0, 1, 0, 1);
   variable displacement: vector<m, 2> on body;
   variable potential: K on body; initial { potential = 0; }
@@ -1388,7 +1388,7 @@ component Law(variable potential: K on body, variable displacement: vector<m, 2>
 
 
 }
-model M {
+model M() {
   instance law: Law(
     field potential = potential,
     field displacement = displacement,
@@ -1426,7 +1426,7 @@ public component SurfaceLaw(support body: volume(ambient_dimension = 2), support
       - trace(mechanical[boundary = boundary]) = 0;
   }
 }
-model M {
+model M() {
   domain body = box(0, 1, 0, 1);
   domain x_lower = boundary(body, axis = 0, side = lower);
   domain x_upper = boundary(body, axis = 0, side = upper);
@@ -1467,7 +1467,7 @@ component SurfaceLaw(support body: volume(ambient_dimension = 2), support exteri
 
 
 }
-model M {
+model M() {
   domain body = box(0, 1, 0, 1);
   domain x_lower = boundary(body, axis = 0, side = lower);
   domain x_upper = boundary(body, axis = 0, side = upper);
@@ -1502,7 +1502,7 @@ component Law(variable state: 1 on body, support body: volume(ambient_dimension 
 
 
 }
-model M {
+model M() {
   domain body = box(0, 1);
   variable state: 1 on body; initial { state = 0; }
   instance law: Law(gain = 1, support body = body, field state = state);
@@ -1522,7 +1522,7 @@ model M {
     fn retired_scalar_shape_spelling_is_not_an_identity_alias() {
         let retired = eqiora_lang::parse(
             "retired.eqi",
-            "model M { variable x: 1 shape []; initial { x = 0; } relation r { x = 0; } }",
+            "model M() { variable x: 1 shape []; initial { x = 0; } relation r { x = 0; } }",
         )
         .into_document();
         assert!(retired.is_err());
@@ -1530,33 +1530,33 @@ model M {
 
     #[test]
     fn conserving_fragments_have_definition_local_equivalence_identity() {
-        let component_nary = "component C() { connect conserving a, b, c; } model Empty {}";
+        let component_nary = "component C() { connect conserving a, b, c; } model Empty() {}";
         let component_chain =
-            "component C() { connect conserving a, b; connect conserving b, c; } model Empty {}";
+            "component C() { connect conserving a, b; connect conserving b, c; } model Empty() {}";
         assert_eq!(identity(component_nary), identity(component_chain));
 
-        let model_nary = "model M { connect conserving a, b, c; }";
-        let model_chain = "model M { connect conserving a, b; connect conserving b, c; }";
+        let model_nary = "model M() { connect conserving a, b, c; }";
+        let model_chain = "model M() { connect conserving a, b; connect conserving b, c; }";
         assert_eq!(identity(model_nary), identity(model_chain));
     }
 
     #[test]
     fn duplicate_conserving_fragments_are_identity_idempotent() {
-        let component_once = "component C() { connect conserving a, b; } model Empty {}";
+        let component_once = "component C() { connect conserving a, b; } model Empty() {}";
         let component_twice =
-            "component C() { connect conserving a, b; connect conserving b, a; } model Empty {}";
+            "component C() { connect conserving a, b; connect conserving b, a; } model Empty() {}";
         assert_eq!(identity(component_once), identity(component_twice));
 
-        let model_once = "model M { connect conserving a, b; }";
-        let model_twice = "model M { connect conserving a, b; connect conserving b, a; }";
+        let model_once = "model M() { connect conserving a, b; }";
+        let model_twice = "model M() { connect conserving a, b; connect conserving b, a; }";
         assert_eq!(identity(model_once), identity(model_twice));
     }
 
     #[test]
     fn spatial_periodic_pair_identity_is_endpoint_order_invariant_but_not_conserving() {
-        let lower_upper = "model M { connect periodic lower.p, upper.p; }";
-        let upper_lower = "model M { connect periodic upper.p, lower.p; }";
-        let conserving = "model M { connect conserving lower.p, upper.p; }";
+        let lower_upper = "model M() { connect periodic lower.p, upper.p; }";
+        let upper_lower = "model M() { connect periodic upper.p, lower.p; }";
+        let conserving = "model M() { connect conserving lower.p, upper.p; }";
 
         assert_eq!(identity(lower_upper), identity(upper_lower));
         assert_ne!(identity(lower_upper), identity(conserving));
@@ -1565,8 +1565,8 @@ model M {
     #[test]
     fn disjoint_conserving_and_signal_records_keep_the_legacy_bytes() {
         let document = document(
-            "component C() { connect conserving a, b; connect signal out -> in_b, in_a; connect conserving c, d; } \
-             model M { connect conserving w, x; connect signal source -> sink_b, sink_a; connect conserving y, z; }",
+            "component C() { connect conserving a, b; connect out -> in_b, in_a; connect conserving c, d; } \
+             model M() { connect conserving w, x; connect source -> sink_b, sink_a; connect conserving y, z; }",
         );
         let limits = LocalSourceIdentityLimits::default();
 
@@ -1610,7 +1610,7 @@ model M {
     #[test]
     fn normalized_conserving_sets_cannot_evade_connection_member_limits() {
         let document = document(
-            "component C() { connect conserving a, b; connect conserving b, c; } model Empty {}",
+            "component C() { connect conserving a, b; connect conserving b, c; } model Empty() {}",
         );
         let limits = LocalSourceIdentityLimits {
             max_connection_members: 2,
@@ -1628,9 +1628,9 @@ model M {
 
     #[test]
     fn signal_output_is_positional_but_inputs_are_canonical_members() {
-        let base = "model m { port o: signal output 1; port a: signal input 1; port b: signal input 1; connect signal o -> a, b; }";
-        let inputs_permuted = "model m { port o: signal output 1; port a: signal input 1; port b: signal input 1; connect signal o -> b, a; }";
-        let different_output = "model m { port o: signal output 1; port a: signal input 1; port b: signal input 1; connect signal a -> o, b; }";
+        let base = "model m() { port o: signal output 1; port a: signal input 1; port b: signal input 1; connect o -> a, b; }";
+        let inputs_permuted = "model m() { port o: signal output 1; port a: signal input 1; port b: signal input 1; connect o -> b, a; }";
+        let different_output = "model m() { port o: signal output 1; port a: signal input 1; port b: signal input 1; connect a -> o, b; }";
 
         assert_eq!(identity(base), identity(inputs_permuted));
         assert_ne!(identity(base), identity(different_output));
@@ -1638,10 +1638,10 @@ model M {
 
     #[test]
     fn semantic_structure_and_exact_values_change_identity() {
-        let base = "model m { parameter p: 1 = 2; relation r { p + 1 = 0; } }";
-        let changed_value = "model m { parameter p: 1 = 3; relation r { p + 1 = 0; } }";
-        let changed_operator = "model m { parameter p: 1 = 2; relation r { p - 1 = 0; } }";
-        let changed_activation = "model m { clock c = periodic(1[s] / 1, phase = 0[s] / 1); parameter p: 1 = 2; relation r at c { p + 1 = 0; } }";
+        let base = "model m() { parameter p: 1 = 2; relation r { p + 1 = 0; } }";
+        let changed_value = "model m() { parameter p: 1 = 3; relation r { p + 1 = 0; } }";
+        let changed_operator = "model m() { parameter p: 1 = 2; relation r { p - 1 = 0; } }";
+        let changed_activation = "model m() { clock c = periodic(1[s] / 1, phase = 0[s] / 1); parameter p: 1 = 2; relation r at c { p + 1 = 0; } }";
 
         assert_ne!(identity(base), identity(changed_value));
         assert_ne!(identity(base), identity(changed_operator));
@@ -1650,11 +1650,11 @@ model M {
 
     #[test]
     fn canonical_identity_is_structural_not_algebraic_equivalence() {
-        let folded = "model m { parameter p: 1 = 2; relation r { p + 2 = 0; } }";
-        let unfolded = "model m { parameter p: 1 = 2; relation r { p + (1 + 1) = 0; } }";
+        let folded = "model m() { parameter p: 1 = 2; relation r { p + 2 = 0; } }";
+        let unfolded = "model m() { parameter p: 1 = 2; relation r { p + (1 + 1) = 0; } }";
         let multiplied_dimension =
-            "model m { parameter area: m * m = 1; relation r { area = 0; } }";
-        let powered_dimension = "model m { parameter area: m ^ 2 = 1; relation r { area = 0; } }";
+            "model m() { parameter area: m * m = 1; relation r { area = 0; } }";
+        let powered_dimension = "model m() { parameter area: m ^ 2 = 1; relation r { area = 0; } }";
 
         assert_ne!(identity(folded), identity(unfolded));
         assert_ne!(identity(multiplied_dimension), identity(powered_dimension));
@@ -1662,18 +1662,18 @@ model M {
 
     #[test]
     fn interface_visibility_defaults_ports_bindings_and_domains_are_semantic() {
-        let public_default = "component C() { public parameter p: 1 = 2; public port s: signal input 1; } model m { instance x: C(p = 2); }";
-        let private_default = "component C() { parameter p: 1 = 2; public port s: signal input 1; } model m { instance x: C(p = 2); }";
-        let required = "component C() { public parameter p: 1; public port s: signal input 1; } model m { instance x: C(p = 2); }";
-        let output_port = "component C() { public parameter p: 1 = 2; public port s: signal output 1; } model m { instance x: C(p = 2); }";
-        let changed_binding = "component C() { public parameter p: 1 = 2; public port s: signal input 1; } model m { instance x: C(p = 3); }";
+        let public_default = "component C() { public parameter p: 1 = 2; public port s: signal input 1; } model m() { instance x: C(p = 2); }";
+        let private_default = "component C() { parameter p: 1 = 2; public port s: signal input 1; } model m() { instance x: C(p = 2); }";
+        let required = "component C() { public parameter p: 1; public port s: signal input 1; } model m() { instance x: C(p = 2); }";
+        let output_port = "component C() { public parameter p: 1 = 2; public port s: signal output 1; } model m() { instance x: C(p = 2); }";
+        let changed_binding = "component C() { public parameter p: 1 = 2; public port s: signal input 1; } model m() { instance x: C(p = 3); }";
         assert_ne!(identity(public_default), identity(private_default));
         assert_ne!(identity(public_default), identity(required));
         assert_ne!(identity(public_default), identity(output_port));
         assert_ne!(identity(public_default), identity(changed_binding));
 
-        let on_domain = "model m { domain d = box(0, 1); relation r on d { 1 = 0; } }";
-        let without_domain = "model m { domain d = box(0, 1); relation r { 1 = 0; } }";
+        let on_domain = "model m() { domain d = box(0, 1); relation r on d { 1 = 0; } }";
+        let without_domain = "model m() { domain d = box(0, 1); relation r { 1 = 0; } }";
         assert_ne!(identity(on_domain), identity(without_domain));
     }
 
@@ -1690,9 +1690,9 @@ model M {
         assert_ne!(identity(private), identity(public_component));
         assert_ne!(identity(public_connector), identity(public_component));
 
-        let private_model = "model Main {}";
-        let explicit_private_model = "private model Main {}";
-        let public_model = "public model Main {}";
+        let private_model = "model Main() {}";
+        let explicit_private_model = "private model Main() {}";
+        let public_model = "public model Main() {}";
         assert_eq!(identity(private_model), identity(explicit_private_model));
         assert_ne!(identity(private_model), identity(public_model));
 
@@ -1714,25 +1714,25 @@ model M {
     #[test]
     fn residual_root_order_is_preserved() {
         let first =
-            "model m { parameter a: 1 = 1; parameter b: 1 = 2; relation r { a = 0; b = 0; } }";
+            "model m() { parameter a: 1 = 1; parameter b: 1 = 2; relation r { a = 0; b = 0; } }";
         let reversed =
-            "model m { parameter a: 1 = 1; parameter b: 1 = 2; relation r { b = 0; a = 0; } }";
+            "model m() { parameter a: 1 = 1; parameter b: 1 = 2; relation r { b = 0; a = 0; } }";
 
         assert_ne!(identity(first), identity(reversed));
     }
 
     #[test]
     fn negative_zero_is_normalized_to_positive_zero() {
-        let positive = "model m { parameter p: 1 = 0; }";
-        let negative = "model m { parameter p: 1 = -0; }";
+        let positive = "model m() { parameter p: 1 = 0; }";
+        let negative = "model m() { parameter p: 1 = -0; }";
 
         assert_eq!(identity(positive), identity(negative));
     }
 
     #[test]
     fn negative_zero_has_one_source_transaction_and_model_meaning() {
-        let positive = "connector Pin = scalar_physical(across = 1, through = 1); model m { domain d = box(0, 1); variable x: 1 on d; initial { x = 0; } parameter p: 1 = 0; relation r on d { x + p + 0 = 0; } }";
-        let negative = "connector Pin = scalar_physical(across = 1, through = 1); model m { domain d = box(-0, 1); variable x: 1 on d; initial { x = -0; } parameter p: 1 = -0; relation r on d { x + p + -0 = 0; } }";
+        let positive = "connector Pin = scalar_physical(across = 1, through = 1); model m() { domain d = box(0, 1); variable x: 1 on d; initial { x = 0; } parameter p: 1 = 0; relation r on d { x + p + 0 = 0; } }";
+        let negative = "connector Pin = scalar_physical(across = 1, through = 1); model m() { domain d = box(-0, 1); variable x: 1 on d; initial { x = -0; } parameter p: 1 = -0; relation r on d { x + p + -0 = 0; } }";
 
         assert_eq!(identity(positive), identity(negative));
         let mut positive = crate::compile("zero.eqi", positive).unwrap();
@@ -1745,10 +1745,10 @@ model M {
 
     #[test]
     fn cartesian_coordinate_sources_preserve_exact_root_declaration_identity() {
-        let parameter = "model m { parameter extent: m = 2; parameter other: m = 2; domain body = box(-1, extent, extent, 6); relation r on body { coordinate(0) - coordinate(0) = 0; } }";
-        let declarations_permuted = "model m { domain body = box(-1, extent, extent, 6); relation r on body { coordinate(0) - coordinate(0) = 0; } parameter other: m = 2; parameter extent: m = 2; }";
-        let fixed = "model m { parameter extent: m = 2; parameter other: m = 2; domain body = box(-1, 2, 2, 6); relation r on body { coordinate(0) - coordinate(0) = 0; } }";
-        let other_root = "model m { parameter extent: m = 2; parameter other: m = 2; domain body = box(-1, other, other, 6); relation r on body { coordinate(0) - coordinate(0) = 0; } }";
+        let parameter = "model m() { parameter extent: m = 2; parameter other: m = 2; domain body = box(-1, extent, extent, 6); relation r on body { coordinate(0) - coordinate(0) = 0; } }";
+        let declarations_permuted = "model m() { domain body = box(-1, extent, extent, 6); relation r on body { coordinate(0) - coordinate(0) = 0; } parameter other: m = 2; parameter extent: m = 2; }";
+        let fixed = "model m() { parameter extent: m = 2; parameter other: m = 2; domain body = box(-1, 2, 2, 6); relation r on body { coordinate(0) - coordinate(0) = 0; } }";
+        let other_root = "model m() { parameter extent: m = 2; parameter other: m = 2; domain body = box(-1, other, other, 6); relation r on body { coordinate(0) - coordinate(0) = 0; } }";
 
         assert_eq!(identity(parameter), identity(declarations_permuted));
         assert_ne!(identity(parameter), identity(fixed));
@@ -1757,7 +1757,7 @@ model M {
 
     #[test]
     fn resource_limits_fail_closed() {
-        let base_document = document("model m { parameter p: 1 = 2; relation r { p + 1 = 0; } }");
+        let base_document = document("model m() { parameter p: 1 = 2; relation r { p + 1 = 0; } }");
         let top_level = LocalSourceIdentityLimits {
             max_top_level_declarations: 0,
             ..LocalSourceIdentityLimits::default()
@@ -1788,7 +1788,7 @@ model M {
 
         let mixed_bindings = document(
             "component C(support d: volume(ambient_dimension = 1)) { public parameter p: 1;  } \
-             model M { domain d = box(0, 1); instance c: C(p = 1, support d = d); }",
+             model M() { domain d = box(0, 1); instance c: C(p = 1, support d = d); }",
         );
         let bindings = LocalSourceIdentityLimits {
             max_bindings_per_instance: 1,

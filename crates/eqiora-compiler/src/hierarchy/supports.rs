@@ -1477,7 +1477,7 @@ component BoundaryFamily(support body: volume(ambient_dimension = 2), support ex
 "#;
 
     const EXTERIOR_MODEL: &str = r#"
-model Use {
+model Use() {
   domain body = box(0, 1, 0, 1);
   domain x_lower = boundary(body, axis = 0, side = lower);
   domain x_upper = boundary(body, axis = 0, side = upper);
@@ -1498,7 +1498,7 @@ model Use {
     fn exact_volume_and_boundary_bindings_are_accepted_independent_of_order() {
         let source = format!(
             r#"{COMPONENT}
-model Use {{
+model Use() {{
   domain fluid = box(0, 1, 0, 1);
   domain wall = boundary(fluid, axis = 0, side = lower);
   instance forward: BoundaryState(
@@ -1675,7 +1675,7 @@ model Use {{
     fn complete_exterior_proof_failures_remain_source_located() {
         let source = format!(
             r#"{EXTERIOR_COMPONENT}
-model Use {{
+model Use() {{
   domain body = box(0, 1, 0, 1);
   domain other = box(0, 1, 0, 1);
   domain x_lower = boundary(body, axis = 0, side = lower);
@@ -1735,7 +1735,7 @@ model Use {{
         for (name, bindings, expected) in cases {
             let source = format!(
                 r#"{COMPONENT}
-model Use {{
+model Use() {{
   domain fluid = box(0, 1, 0, 1);
   domain wall = boundary(fluid, axis = 0, side = lower);
   instance probe: BoundaryState({bindings});
@@ -1767,7 +1767,7 @@ model Use {{
 
     #[test]
     fn private_support_slots_are_rejected_at_the_definition_boundary() {
-        let source = "component HiddenSupport() { support body: volume(ambient_dimension = 2); } model Use {}";
+        let source = "component HiddenSupport() { support body: volume(ambient_dimension = 2); } model Use() {}";
         let diagnostics = eqiora_lang::parse("supports.eqi", source)
             .into_document()
             .expect_err("body support is not a signature requirement");
@@ -1796,7 +1796,7 @@ model Use {{
         for (name, bindings, expected) in cases {
             let source = format!(
                 r#"{COMPONENT}
-model Use {{
+model Use() {{
   domain fluid = box(0, 1, 0, 1);
   domain wall = boundary(fluid, axis = 0, side = lower);
   instance probe: BoundaryState({bindings});
@@ -1844,7 +1844,7 @@ model Use {{
         for (name, bindings, expected) in cases {
             let source = format!(
                 r#"{COMPONENT}
-model Use {{
+model Use() {{
   domain fluid = box(0, 1, 0, 1);
   domain wall = boundary(fluid, axis = 0, side = lower);
   domain line = box(0, 1);
@@ -1880,7 +1880,7 @@ model Use {{
     fn boundary_binding_must_share_the_exact_bound_parent() {
         let source = format!(
             r#"{COMPONENT}
-model Use {{
+model Use() {{
   domain fluid = box(0, 1, 0, 1);
   domain wall = boundary(fluid, axis = 0, side = lower);
   domain other = box(0, 1, 0, 1);
@@ -1920,7 +1920,7 @@ component C(support body: volume(ambient_dimension = 2), support wall: boundary(
 
 
 }
-model Use {}
+model Use() {}
 "#,
         );
         let boundary_first = parse(
@@ -1929,7 +1929,7 @@ component C(support wall: boundary(parent = body), support body: volume(ambient_
 
 
 }
-model Use {}
+model Use() {}
 "#,
         );
         let body_first = interface(&body_first, "C");

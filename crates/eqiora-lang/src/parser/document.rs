@@ -274,7 +274,7 @@ mod tests {
 
         let misplaced = parse(
             "misplaced.eqi",
-            "model Main {} import org.example.geometry.channel;",
+            "model Main() {} import org.example.geometry.channel;",
         );
         assert!(
             misplaced
@@ -305,7 +305,7 @@ mod tests {
             "expected `import`, `dimension`, `property`, `connector`, `component`, `pure operator`, or `model` declaration"
         );
 
-        let after = parse("after.eqi", "model Main {} unexpected");
+        let after = parse("after.eqi", "model Main() {} unexpected");
         assert_eq!(
             after.diagnostics()[0].message(),
             "expected `dimension`, `property`, `connector`, `component`, `pure operator`, or `model` declaration"
