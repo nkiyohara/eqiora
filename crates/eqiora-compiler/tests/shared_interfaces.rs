@@ -135,3 +135,47 @@ fn selected_shared_clock_aliases_and_conflicting_payloads_are_exact() {
     .unwrap();
     assert_ne!(model.symbols().get("a"), model.symbols().get("b"));
 }
+
+#[test]
+fn selected_property_values_require_the_exact_release_owner() {
+    use eqiora_compiler::{CompiledModel, StaticBindingValue};
+    use eqiora_lang::{ExprKind, NamePath, SourceAstFactory as F, TextRange};
+    let range = TextRange::default();
+    let declarations = "property contract Gain():1 {derivatives value_only;} property contract Other():1 {derivatives value_only;} property release Measured implements Gain {value=2;source_unit:1=1;validity=unconditional;citation=org.example.measurement;license=spdx.CC0_1_0;} property release Wrong implements Other {value=2;source_unit:1=1;validity=unconditional;citation=org.example.measurement;license=spdx.CC0_1_0;} material composition Material {property gain=Measured;}";
+    for container in ["model M", "public component M"] {
+        let source = format!(
+            "{declarations} {container}(property gain:Gain,output y:1) {{relation equation {{y=gain;}}}}"
+        );
+        for reference in ["Measured", "Material.gain"] {
+            let path = NamePath::from_segments(reference.split('.'), range).unwrap();
+            let value = F::expression(
+                if path.is_qualified() {
+                    ExprKind::Path(path)
+                } else {
+                    ExprKind::Name(reference.to_owned())
+                },
+                range,
+            )
+            .unwrap();
+            CompiledModel::compile_selected(
+                "property.eqi",
+                &source,
+                "M",
+                &[("gain", StaticBindingValue::Expression(&value))],
+            )
+            .unwrap_or_else(|errors| panic!("{errors:?}"));
+        }
+        for kind in [ExprKind::Number(2.0), ExprKind::Name("Wrong".to_owned())] {
+            let value = F::expression(kind, range).unwrap();
+            assert!(
+                CompiledModel::compile_selected(
+                    "property.eqi",
+                    &source,
+                    "M",
+                    &[("gain", StaticBindingValue::Expression(&value))]
+                )
+                .is_err()
+            );
+        }
+    }
+}

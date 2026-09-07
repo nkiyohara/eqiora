@@ -1,7 +1,27 @@
 //! Signature-directed external compilation reuses ordinary occurrence allocation.
 use super::*;
 use crate::StaticBindingValue;
-use crate::resolved::ValidatedResolvedHierarchy;
+use crate::resolved::{
+    AnalyzedSourceUnit, CompilationModuleId, CompilationNamespaceId, ModuleName, ResolvedAlias,
+    ValidatedResolvedHierarchy,
+};
+
+struct PropertyScope<'a> {
+    units: &'a [AnalyzedSourceUnit],
+    aliases: &'a [ResolvedAlias],
+    local_namespace: Option<&'a CompilationModuleId>,
+}
+impl PropertyScope<'_> {
+    fn namespace<'a>(
+        &'a self,
+        namespace: &'a preflight::DefinitionNamespace,
+    ) -> Option<&'a CompilationModuleId> {
+        match namespace {
+            preflight::DefinitionNamespace::Resolved(value) => Some(value),
+            preflight::DefinitionNamespace::Local => self.local_namespace,
+        }
+    }
+}
 use eqiora_lang::{ModelDecl, SignatureItem};
 
 pub(crate) fn local(
@@ -12,9 +32,27 @@ pub(crate) fn local(
 ) -> Result<CompiledModel, Vec<Diagnostic>> {
     let document = parse(file, source).into_document()?;
     let identity = LocalSourceIdentity::from_document(&document).map_err(|error| vec![error])?;
-    let document = crate::dimensions::elaborate_dimension_aliases(file, &document)?;
+    let document = crate::dimensions::elaborate_dimension_aliases(file, &document)?.into_owned();
+    // This private lookup namespace never enters local source/occurrence identity.
+    let module = CompilationModuleId::new(
+        CompilationNamespaceId::new(["eqiora.local"]).map_err(|error| vec![error])?,
+        ModuleName::new(["main"]).map_err(|error| vec![error])?,
+    );
+    let mut units = vec![AnalyzedSourceUnit {
+        module: module.clone(),
+        file: file.to_owned(),
+        source_bytes: source.len(),
+        authored_document: std::sync::Arc::new(document.clone()),
+        document,
+    }];
+    crate::property::validate_and_elaborate(&mut units, &[])?;
+    let context = PropertyScope {
+        units: &units,
+        aliases: &[],
+        local_namespace: Some(&module),
+    };
     let limits = HierarchyLimits::default();
-    let elaborator = Elaborator::new(file, source.len(), document.as_ref(), identity, limits)?;
+    let elaborator = Elaborator::new(file, source.len(), &units[0].document, identity, limits)?;
     let checked = check::validate(&elaborator)?;
     compile(
         &elaborator,
@@ -22,7 +60,7 @@ pub(crate) fn local(
         entry,
         bindings,
         &preflight::DefinitionNamespace::Local,
-        None,
+        &context,
     )
 }
 
@@ -38,7 +76,11 @@ pub(crate) fn resolved(
         entry,
         bindings,
         &preflight::DefinitionNamespace::Resolved(hierarchy.analysis.root.clone()),
-        Some(hierarchy),
+        &PropertyScope {
+            units: &hierarchy.analysis.units,
+            aliases: &hierarchy.analysis.aliases,
+            local_namespace: None,
+        },
     )
 }
 
@@ -48,7 +90,7 @@ fn compile(
     entry: &str,
     bindings: &[(&str, StaticBindingValue<'_>)],
     root_namespace: &preflight::DefinitionNamespace,
-    hierarchy: Option<&ValidatedResolvedHierarchy>,
+    hierarchy: &PropertyScope<'_>,
 ) -> Result<CompiledModel, Vec<Diagnostic>> {
     let limits = elaborator.limits;
     if let Ok(model) = elaborator.entry_model(entry) {
@@ -138,19 +180,13 @@ fn compile(
 }
 
 fn authored_signature<'a>(
-    hierarchy: Option<&'a ValidatedResolvedHierarchy>,
+    scope: &'a PropertyScope<'_>,
     namespace: &preflight::DefinitionNamespace,
     name: &str,
     model: bool,
 ) -> Option<&'a [SignatureItem]> {
-    let preflight::DefinitionNamespace::Resolved(namespace) = namespace else {
-        return None;
-    };
-    let unit = hierarchy?
-        .analysis
-        .units
-        .iter()
-        .find(|unit| &unit.module == namespace)?;
+    let namespace = scope.namespace(namespace)?;
+    let unit = scope.units.iter().find(|unit| &unit.module == namespace)?;
     if model {
         unit.authored_document
             .models()
@@ -166,25 +202,20 @@ fn authored_signature<'a>(
     }
 }
 fn property(
-    hierarchy: Option<&ValidatedResolvedHierarchy>,
+    scope: &PropertyScope<'_>,
     namespace: &preflight::DefinitionNamespace,
     file: &str,
     requirement: &eqiora_lang::ComponentPropertyDecl,
     value: &eqiora_lang::Expr,
 ) -> Result<eqiora_core::ValueLiteral, Vec<Diagnostic>> {
-    let (Some(hierarchy), preflight::DefinitionNamespace::Resolved(namespace)) =
-        (hierarchy, namespace)
-    else {
-        return Err(vec![source_error(
-            codes::LANGUAGE_TYPE_ERROR,
-            file,
-            value.range(),
-            "selected property binding requires an analyzed source property scope",
-        )]);
-    };
+    let namespace = scope.namespace(namespace).ok_or_else(|| {
+        vec![hierarchy_error(
+            "selected property scope is missing its source namespace",
+        )]
+    })?;
     crate::property::selected_value(
-        &hierarchy.analysis.units,
-        &hierarchy.analysis.aliases,
+        scope.units,
+        scope.aliases,
         namespace,
         file,
         requirement,
