@@ -56,7 +56,7 @@ use property::{encode_material_composition, encode_property_contract, encode_pro
 use visibility::encode_visibility;
 
 const MAGIC: &[u8; 8] = b"EQIORASU";
-const CANONICAL_VERSION: u16 = 4;
+const CANONICAL_VERSION: u16 = 5;
 const COMPONENT_CONNECTION_ITEM_TAG: u16 = 6;
 const MODEL_CONNECTION_ITEM_TAG: u16 = 8;
 const COMPONENT_PORT_FAMILY_ITEM_TAG: u16 = 11;
@@ -1295,7 +1295,7 @@ mod tests {
         let document = document("model minimal { parameter gain: 1 = 2; }");
         let digest = LocalSourceIdentity::from_document(&document).unwrap();
         let namespace = digest.namespace().unwrap();
-        assert_eq!(namespace.segments()[0], "local-source-v4");
+        assert_eq!(namespace.segments()[0], "local-source-v5");
         assert_eq!(namespace.segments()[1], digest.to_string());
     }
 

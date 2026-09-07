@@ -86,7 +86,7 @@ pub(super) fn evaluate_parameter_expression(
             lineage: Some(ParameterLineage::Constant),
         },
         ExprKind::Quantity { value, unit } => {
-            let quantity = crate::units::quantity(*value, unit).map_err(|message| {
+            let quantity = crate::units::quantity(value, unit).map_err(|message| {
                 source_error(
                     codes::LANGUAGE_TYPE_ERROR,
                     file,

@@ -22,7 +22,8 @@ pub(crate) fn is_contextual_zero(mut expression: &Expr) -> bool {
 pub(crate) fn is_literal_zero(mut expression: &Expr) -> bool {
     loop {
         match expression.kind() {
-            ExprKind::Number(value) | ExprKind::Quantity { value, .. } => return *value == 0.0,
+            ExprKind::Number(value) => return *value == 0.0,
+            ExprKind::Quantity { value, .. } => return value.is_zero(),
             ExprKind::Unary {
                 op: UnaryOp::Neg,
                 value,

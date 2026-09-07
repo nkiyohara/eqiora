@@ -14,7 +14,9 @@ pub(super) fn encode_parameter(
     match declaration.value().kind() {
         ExprKind::Number(value) => encoder.field(3, |encoder| encoder.f64(*value)),
         ExprKind::Quantity { value, unit } => {
-            encoder.field(3, |encoder| encoder.f64(*value))?;
+            encoder.field(3, |encoder| {
+                super::expression::encode_decimal(encoder, value, false)
+            })?;
             encoder.field(4, |encoder| encode_expression(encoder, unit, budget, 1))
         }
         ExprKind::Unary {
@@ -25,11 +27,13 @@ pub(super) fn encode_parameter(
             ExprKind::Number(_) | ExprKind::Quantity { .. }
         ) =>
         {
-            // Parameter syntax previously stored a single leading minus in its literal.
+            // Canonicalize a signed native literal and a parsed unary minus identically.
             match value.kind() {
                 ExprKind::Number(value) => encoder.field(3, |encoder| encoder.f64(-value)),
                 ExprKind::Quantity { value, unit } => {
-                    encoder.field(3, |encoder| encoder.f64(-value))?;
+                    encoder.field(3, |encoder| {
+                        super::expression::encode_decimal(encoder, value, true)
+                    })?;
                     encoder.field(4, |encoder| encode_expression(encoder, unit, budget, 1))
                 }
                 _ => unreachable!("literal guard"),

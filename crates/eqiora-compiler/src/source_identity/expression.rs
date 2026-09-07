@@ -14,7 +14,7 @@ pub(super) fn encode_expression(
         }
         ExprKind::Quantity { value, unit } => {
             encoder.u16(9)?;
-            encoder.field(1, |encoder| encoder.f64(*value))?;
+            encoder.field(1, |encoder| encode_decimal(encoder, value, false))?;
             encoder.field(2, |encoder| {
                 encode_expression(encoder, unit, budget, next_depth(depth)?)
             })
@@ -187,4 +187,18 @@ pub(super) fn encode_relation_family(
     encoder.field(2, |encoder| {
         encode_boundary_family_binder(encoder, declaration.binder(), budget)
     })
+}
+
+pub(super) fn encode_decimal(
+    encoder: &mut Encoder,
+    value: &eqiora_lang::DecimalLiteral,
+    negate: bool,
+) -> Result<(), Diagnostic> {
+    let negative = !value.is_zero() && (value.is_negative() != negate);
+    encoder.string(&format!(
+        "{}{}e{}",
+        if negative { "-" } else { "" },
+        value.coefficient(),
+        value.exponent10(),
+    ))
 }

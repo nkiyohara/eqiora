@@ -153,7 +153,7 @@ fn parameter_expression_identity_matches_native_factory_and_preserves_signed_lit
             let unit = SourceAstFactory::expression(ExprKind::Name("V".into()), range).unwrap();
             SourceAstFactory::expression(
                 ExprKind::Quantity {
-                    value: -2.0,
+                    value: eqiora_lang::DecimalLiteral::parse("-2").unwrap(),
                     unit: Box::new(unit),
                 },
                 range,
@@ -177,4 +177,15 @@ fn parameter_expression_identity_matches_native_factory_and_preserves_signed_lit
             identity(&source)
         );
     }
+}
+
+#[test]
+fn quantity_identity_preserves_exact_decimals_before_numerical_rounding() {
+    let source = |literal: &str| format!("model M {{ parameter p: m = {literal}[nm]; }}");
+    assert_eq!(identity(&source("0.1")), identity(&source("10e-2")));
+    // These distinct exact decimals round to the same unscaled binary64.
+    assert_ne!(
+        identity(&source("0.1")),
+        identity(&source("0.100000000000000001")),
+    );
 }
