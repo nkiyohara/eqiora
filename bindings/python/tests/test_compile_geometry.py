@@ -90,12 +90,19 @@ def test_component_and_parameter_inventory_are_source_owned() -> None:
     ):
         with pytest.raises(eqiora.ValidationError):
             eqiora.compile(source=source_text, geometry=authored, parameters=invalid)
-    for invalid in (True, object(), float("nan"), float("inf")):
-        with pytest.raises((TypeError, eqiora.ValidationError)):
+    for invalid in (True, object()):
+        with pytest.raises(TypeError):
             eqiora.compile(
                 source=source_text,
                 geometry=authored,
                 parameters={**values, "inlet_speed": invalid},  # type: ignore[dict-item]
+            )
+    for invalid in (float("nan"), float("inf")):
+        with pytest.raises(ValueError, match="finite"):
+            eqiora.compile(
+                source=source_text,
+                geometry=authored,
+                parameters={**values, "inlet_speed": invalid},
             )
 
     ambiguous = source_text + source_text.replace(

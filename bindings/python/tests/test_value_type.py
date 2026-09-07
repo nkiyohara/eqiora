@@ -142,7 +142,8 @@ def test_parameter_declaration_retains_its_complete_type() -> None:
     parameter = eqiora.Parameter("coefficient", value_type=value_type, value=0.0)
     assert parameter.value_type == value_type
     assert parameter.dimension == dimension
-    assert parameter.value == 0.0
+    assert parameter.value == (0j, 0j, 0j)
+    assert all(type(component) is complex for component in parameter.value)
     assert eqiora.Parameter("scalar", value=2.0).value_type == eqiora.ValueType.real()
     with pytest.raises(TypeError):
         eqiora.Parameter("old", dimension=dimension, value=1.0)
