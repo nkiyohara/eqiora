@@ -270,6 +270,13 @@ pub(crate) enum WireExpressionNode {
         real: u32,
         imag: u32,
     },
+    Sample {
+        value: u32,
+        clock: WireId,
+    },
+    Hold {
+        value: u32,
+    },
     Symbol {
         symbol: WireSymbol,
     },
@@ -343,6 +350,13 @@ impl WireExpressionNode {
             ExprNode::Complex { real, imag } => Self::Complex {
                 real: real.index(),
                 imag: imag.index(),
+            },
+            ExprNode::Sample { value, clock } => Self::Sample {
+                value: value.index(),
+                clock: WireId::from_raw(clock.erase()),
+            },
+            ExprNode::Hold(value) => Self::Hold {
+                value: value.index(),
             },
             ExprNode::Symbol(symbol) => Self::Symbol {
                 symbol: WireSymbol::encode(*symbol)?,
@@ -427,6 +441,10 @@ impl WireExpressionNode {
             Self::Complex { real, imag } => {
                 builder.complex(operand(ids, *real)?, operand(ids, *imag)?)
             }
+            Self::Sample { value, clock } => {
+                builder.sample(operand(ids, *value)?, clock.typed::<kinds::ClockDomain>()?)
+            }
+            Self::Hold { value } => builder.hold(operand(ids, *value)?),
             Self::Symbol { symbol } => builder.symbol(symbol.decode()?),
             Self::Neg { value } => builder.neg(operand(ids, *value)?),
             Self::Add { left, right } => builder.add(operand(ids, *left)?, operand(ids, *right)?),
@@ -659,5 +677,39 @@ mod typed_operation_tests {
                 "forward/self operands must be rejected"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod transition_tests {
+    use super::*;
+    use eqiora_core::{Id, entity::kinds};
+
+    #[test]
+    fn transition_wire_retains_clock_and_operand_identity() {
+        let clock = Id::<kinds::ClockDomain>::new();
+        let field = Id::<kinds::Field>::new();
+        let mut builder = ExprDagBuilder::new();
+        let state = builder.symbol(SymbolRef::Field(field)).unwrap();
+        let held = builder.hold(state).unwrap();
+        let sampled = builder.sample(held, clock).unwrap();
+        let expression = builder.finish([sampled]).unwrap();
+        let wire = WireExpression::encode(&expression).unwrap();
+        let encoded = serde_json::to_value(&wire).unwrap();
+        assert_eq!(encoded["nodes"][1]["op"], "hold");
+        assert_eq!(encoded["nodes"][1]["value"], 0);
+        assert_eq!(encoded["nodes"][2]["op"], "sample");
+        assert_eq!(encoded["nodes"][2]["value"], 1);
+        assert_eq!(wire.decode().unwrap(), expression);
+        let mut wrong_clock = wire.clone();
+        if let WireExpressionNode::Sample { clock, .. } = &mut wrong_clock.nodes[2] {
+            *clock = WireId::from_raw(field.erase());
+        }
+        assert!(wrong_clock.decode().is_err());
+        let mut wrong_operand = wire;
+        if let WireExpressionNode::Hold { value } = &mut wrong_operand.nodes[1] {
+            *value = 2;
+        }
+        assert!(wrong_operand.decode().is_err());
     }
 }

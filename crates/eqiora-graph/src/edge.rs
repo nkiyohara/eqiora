@@ -9,7 +9,7 @@ use eqiora_core::{EntityKind, GraphClass, RawId};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
 pub enum EdgeKind {
-    /// A field is defined on a domain or representation.
+    /// A Field is defined on a Domain/Representation, or a spatial Port on a Domain.
     DefinedOn,
     /// A spatial relation holds on one domain or boundary domain.
     AppliesOn,
@@ -24,7 +24,7 @@ pub enum EdgeKind {
     Activates,
     /// A connection touches a port.
     Connects,
-    /// An activation belongs to a clock domain.
+    /// An Activation, State Field, or causal Port belongs to an exact ClockDomain.
     ClockedBy,
     /// A realization entity realizes a semantic entity.
     Realizes,
@@ -61,7 +61,8 @@ impl EdgeKind {
 
         match self {
             Self::DefinedOn => {
-                matches!(from, K::Field) && matches!(to, K::Domain | K::Representation)
+                (matches!(from, K::Field) && matches!(to, K::Domain | K::Representation))
+                    || (matches!(from, K::Port) && matches!(to, K::Domain))
             }
             Self::AppliesOn => matches!(from, K::Relation) && matches!(to, K::Domain),
             Self::BoundaryOf => matches!(from, K::Domain) && matches!(to, K::Domain),
@@ -73,7 +74,7 @@ impl EdgeKind {
             Self::Activates => matches!(from, K::Activation) && matches!(to, K::Relation),
             Self::Connects => matches!(from, K::Connection) && matches!(to, K::Port),
             Self::ClockedBy => {
-                matches!(from, K::Activation | K::Field) && matches!(to, K::ClockDomain)
+                matches!(from, K::Activation | K::Field | K::Port) && matches!(to, K::ClockDomain)
             }
             Self::Realizes => {
                 matches!(from.graph(), G::Realization) && matches!(to.graph(), G::Semantic)
@@ -139,5 +140,18 @@ impl Edge {
     #[must_use]
     pub const fn kind(&self) -> EdgeKind {
         self.kind
+    }
+}
+
+#[cfg(test)]
+mod signal_edge_tests {
+    use super::*;
+
+    #[test]
+    fn signal_activation_and_support_use_existing_exact_edge_kinds() {
+        assert!(EdgeKind::ClockedBy.permits(EntityKind::Port, EntityKind::ClockDomain));
+        assert!(EdgeKind::DefinedOn.permits(EntityKind::Port, EntityKind::Domain));
+        assert!(!EdgeKind::DefinedOn.permits(EntityKind::Port, EntityKind::Representation));
+        assert!(!EdgeKind::ClockedBy.permits(EntityKind::Port, EntityKind::Parameter));
     }
 }

@@ -485,6 +485,21 @@ fn encode_expression(
             ExprNode::Complex { real, imag } => {
                 binary_expr(encoder, 20, *real, *imag, &canonical_index)?
             }
+            ExprNode::Sample { value, clock } => {
+                unary_expr(encoder, 21, *value, &canonical_index)?;
+                let mut label = Encoder::new(32);
+                label.u8(3)?;
+                label.u8(scope)?;
+                label.u32(index)?;
+                label.u8(12)?;
+                push_reference(
+                    references,
+                    label.finish()?,
+                    lookup(ids, clock.erase(), "sample clock")?,
+                    budget,
+                )?;
+            }
+            ExprNode::Hold(value) => unary_expr(encoder, 22, *value, &canonical_index)?,
             ExprNode::Symbol(symbol) => {
                 encoder.u8(2)?;
                 encode_symbol(encoder, *symbol, scope, index, ids, references, budget)?;
@@ -659,7 +674,9 @@ fn expression_operands(node: &ExprNode) -> Vec<eqiora_schema::kernel::ExprId> {
     match node {
         ExprNode::Array { elements } => elements.clone(),
         ExprNode::Complex { real, imag } => vec![*real, *imag],
-        ExprNode::Index { value, .. }
+        ExprNode::Sample { value, .. }
+        | ExprNode::Hold(value)
+        | ExprNode::Index { value, .. }
         | ExprNode::Neg(value)
         | ExprNode::PowI(value, _)
         | ExprNode::UnaryMath(_, value)

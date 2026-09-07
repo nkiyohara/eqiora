@@ -438,7 +438,7 @@ impl ActivationDef {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ConnectionSemantics {
-    /// Causal signal; a discrete source is held between activation instants.
+    /// Causal signal requiring equal exact source and sink activation.
     Signal,
     /// Acausal connection enforcing equality and conservation laws.
     Conserving,

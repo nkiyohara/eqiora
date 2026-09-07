@@ -52,7 +52,7 @@ pub(super) fn infer_node<I: Clone + Eq, E>(
             };
             real.complex(imag)
         }
-        ExprNode::Neg(value) => {
+        ExprNode::Sample { value, .. } | ExprNode::Hold(value) | ExprNode::Neg(value) => {
             return inferred_type(inferred, *value)
                 .map_or(NodeInference::Unavailable, NodeInference::Typed);
         }
