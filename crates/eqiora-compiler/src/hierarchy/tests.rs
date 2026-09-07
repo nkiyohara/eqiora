@@ -362,36 +362,32 @@ fn external_dimensioned_parameter_failures_are_typed() {
         ))
         .is_err()
     );
-    for (value, expected) in [(
+    let (value, expected) = (
         DynQuantity::new(
             2.0,
             DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
         ),
         "has dimension",
-    )] {
-        let mut binding = external_binding();
-        binding = crate::external::ExternalComponentBinding::new(
-            "Rejected",
-            "BoundaryLaw",
-            binding.supports().to_vec(),
-            vec![crate::external::ExternalParameterBinding::new(
-                "value",
-                eqiora_core::ValueLiteral::try_from(value).unwrap(),
-            )],
-        );
-        let diagnostics = super::compile_external_component(
-            "boundary-law.eqi",
-            EXTERNAL_SPATIAL_COMPONENT,
-            &binding,
-        )
-        .unwrap_err();
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message().contains(expected)),
-            "missing `{expected}` in {diagnostics:#?}",
-        );
-    }
+    );
+    let mut binding = external_binding();
+    binding = crate::external::ExternalComponentBinding::new(
+        "Rejected",
+        "BoundaryLaw",
+        binding.supports().to_vec(),
+        vec![crate::external::ExternalParameterBinding::new(
+            "value",
+            eqiora_core::ValueLiteral::try_from(value).unwrap(),
+        )],
+    );
+    let diagnostics =
+        super::compile_external_component("boundary-law.eqi", EXTERNAL_SPATIAL_COMPONENT, &binding)
+            .unwrap_err();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message().contains(expected)),
+        "missing `{expected}` in {diagnostics:#?}",
+    );
 }
 
 #[test]
