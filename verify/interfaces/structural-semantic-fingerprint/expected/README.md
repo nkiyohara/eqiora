@@ -1,7 +1,7 @@
 # Expected evidence
 
 - Independent source compilation, source renaming/formatting/reordering, native
-  Rust construction, and the current exact Model codec v13 agree structurally.
+  Rust construction, and the current exact Model codec v14 agree structurally.
 - Every independent construction retains a distinct exact Model artifact
   reference; exact replay retains the original exact reference.
 - The scalar and scalar-physical source/native pairs compare equal.
