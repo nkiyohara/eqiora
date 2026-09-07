@@ -107,14 +107,14 @@ pub(crate) fn canonical_state_dependent_mass_dae() -> CanonicalStateDependentMas
             ),
             eqiora::kernel::FieldRole::Variable,
         )),
-        KernelNode::from(
-            ParameterDef::new(
-                rate,
+        KernelNode::from(ParameterDef::new(
+            rate,
+            eqiora_core::ValueLiteral::from_real(
                 eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time),
                 1.0,
             )
             .unwrap(),
-        ),
+        )),
         KernelNode::from(RelationDef::new(
             relation,
             expression

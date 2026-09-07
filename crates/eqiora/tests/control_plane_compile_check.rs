@@ -84,7 +84,7 @@ fn accepted_fixture_links_one_execution_and_preserves_structural_meaning() {
     for document in documents {
         assert_eq!(
             document.structural_fingerprint().unwrap().generation(),
-            eqiora::api::SemanticFingerprintGeneration::V7
+            eqiora::api::SemanticFingerprintGeneration::V8
         );
     }
     assert_pairwise_distinct(documents.map(|value| value.digest().unwrap()));

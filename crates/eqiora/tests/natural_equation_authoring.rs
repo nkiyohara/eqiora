@@ -94,7 +94,12 @@ fn relation(document: &Document) -> &RelationDecl {
 fn compiled_roots(model: &ModelDocument) -> Vec<Tree> {
     fn project(model: &ModelDocument, dag: &ExprDag, id: ExprId) -> Tree {
         match &dag.nodes()[id.index() as usize] {
-            ExprNode::Constant(value) => number(value.literal()),
+            ExprNode::Constant(value) => number(
+                value
+                    .real_scalar_value()
+                    .expect("real scalar fixture")
+                    .value(),
+            ),
             ExprNode::Symbol(symbol) => {
                 let id = match symbol {
                     SymbolRef::Field(id) => id.erase(),

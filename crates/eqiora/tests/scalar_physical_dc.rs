@@ -90,18 +90,27 @@ fn native_parallel_dc_draft() -> ModelDraft {
     );
     let supply_voltage = DraftParameter::new(
         "supply_voltage",
-        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage),
-        12.0,
+        eqiora_core::ValueLiteral::from_real(
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage),
+            12.0,
+        )
+        .unwrap(),
     );
     let resistance_two = DraftParameter::new(
         "resistance_two",
-        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, resistance),
-        2.0,
+        eqiora_core::ValueLiteral::from_real(
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, resistance),
+            2.0,
+        )
+        .unwrap(),
     );
     let resistance_four = DraftParameter::new(
         "resistance_four",
-        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, resistance),
-        4.0,
+        eqiora_core::ValueLiteral::from_real(
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, resistance),
+            4.0,
+        )
+        .unwrap(),
     );
     let source_positive = DraftConservingPort::new("source_positive", &electrical);
     let source_negative = DraftConservingPort::new("source_negative", &electrical);

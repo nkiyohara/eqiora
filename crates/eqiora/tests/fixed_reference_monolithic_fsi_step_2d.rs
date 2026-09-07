@@ -229,12 +229,54 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
         &geometry,
         Some("FixedReferenceFsi2d"),
         &[
-            ("fluid_density", 2.0),
-            ("fluid_viscosity", 0.5),
-            ("solid_density", 3.0),
-            ("solid_mu", 4.0),
-            ("solid_lambda", 2.0),
-            ("zero_pressure", 0.0),
+            (
+                "fluid_density",
+                eqiora::language::SourceAstFactory::expression(
+                    eqiora::language::ExprKind::Number(2.0),
+                    eqiora::language::TextRange::new(0, 0),
+                )
+                .unwrap(),
+            ),
+            (
+                "fluid_viscosity",
+                eqiora::language::SourceAstFactory::expression(
+                    eqiora::language::ExprKind::Number(0.5),
+                    eqiora::language::TextRange::new(0, 0),
+                )
+                .unwrap(),
+            ),
+            (
+                "solid_density",
+                eqiora::language::SourceAstFactory::expression(
+                    eqiora::language::ExprKind::Number(3.0),
+                    eqiora::language::TextRange::new(0, 0),
+                )
+                .unwrap(),
+            ),
+            (
+                "solid_mu",
+                eqiora::language::SourceAstFactory::expression(
+                    eqiora::language::ExprKind::Number(4.0),
+                    eqiora::language::TextRange::new(0, 0),
+                )
+                .unwrap(),
+            ),
+            (
+                "solid_lambda",
+                eqiora::language::SourceAstFactory::expression(
+                    eqiora::language::ExprKind::Number(2.0),
+                    eqiora::language::TextRange::new(0, 0),
+                )
+                .unwrap(),
+            ),
+            (
+                "zero_pressure",
+                eqiora::language::SourceAstFactory::expression(
+                    eqiora::language::ExprKind::Number(0.0),
+                    eqiora::language::TextRange::new(0, 0),
+                )
+                .unwrap(),
+            ),
         ],
     )
     .expect("component-only FSI compiles against exact Geometry");

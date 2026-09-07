@@ -487,14 +487,14 @@ fn canonical_decay_with_integral() -> (
             ),
             eqiora::kernel::FieldRole::State,
         )),
-        KernelNode::from(
-            ParameterDef::new(
-                rate,
+        KernelNode::from(ParameterDef::new(
+            rate,
+            eqiora_core::ValueLiteral::from_real(
                 eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time),
                 2.0,
             )
             .unwrap(),
-        ),
+        )),
         KernelNode::from(RelationDef::new(relation, residuals)),
         KernelNode::from(ActivationDef::continuous(continuous)),
     ];
@@ -560,14 +560,14 @@ fn state_dependent_mass_relation() -> (eqiora::sem::KernelProgram, Id<kinds::Rel
             ),
             eqiora::kernel::FieldRole::State,
         )),
-        KernelNode::from(
-            ParameterDef::new(
-                rate,
+        KernelNode::from(ParameterDef::new(
+            rate,
+            eqiora_core::ValueLiteral::from_real(
                 eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time),
                 2.0,
             )
             .unwrap(),
-        ),
+        )),
         KernelNode::from(RelationDef::new(
             relation,
             expression.finish([residual]).unwrap(),
@@ -656,14 +656,14 @@ fn canonical_index_one_dae() -> (
             ),
             eqiora::kernel::FieldRole::Variable,
         )),
-        KernelNode::from(
-            ParameterDef::new(
-                rate,
+        KernelNode::from(ParameterDef::new(
+            rate,
+            eqiora_core::ValueLiteral::from_real(
                 eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time),
                 1.0,
             )
             .unwrap(),
-        ),
+        )),
         KernelNode::from(RelationDef::new(
             relation,
             expression
@@ -768,14 +768,14 @@ fn canonical_dense_mass_matrix(
             ),
             eqiora::kernel::FieldRole::State,
         )),
-        KernelNode::from(
-            ParameterDef::new(
-                rate,
+        KernelNode::from(ParameterDef::new(
+            rate,
+            eqiora_core::ValueLiteral::from_real(
                 eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time),
                 1.0,
             )
             .unwrap(),
-        ),
+        )),
         KernelNode::from(RelationDef::new(
             relation,
             expression
@@ -894,9 +894,9 @@ fn canonical_bouncing_ball() -> CanonicalBouncingBall {
             eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, velocity_dimension),
             eqiora::kernel::FieldRole::State,
         )),
-        KernelNode::from(
-            ParameterDef::new(
-                gravity,
+        KernelNode::from(ParameterDef::new(
+            gravity,
+            eqiora_core::ValueLiteral::from_real(
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     acceleration_dimension,
@@ -904,10 +904,10 @@ fn canonical_bouncing_ball() -> CanonicalBouncingBall {
                 9.81,
             )
             .unwrap(),
-        ),
-        KernelNode::from(
-            ParameterDef::new(
-                restitution,
+        )),
+        KernelNode::from(ParameterDef::new(
+            restitution,
+            eqiora_core::ValueLiteral::from_real(
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
@@ -915,7 +915,7 @@ fn canonical_bouncing_ball() -> CanonicalBouncingBall {
                 0.8,
             )
             .unwrap(),
-        ),
+        )),
         KernelNode::from(RelationDef::new(
             flow,
             flow_expression
