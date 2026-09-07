@@ -152,6 +152,7 @@ pub(super) struct RootExpansion<'a, 'd> {
     model_key: ModelViewKey,
     model_full: FullElaborationIdentity,
     items: Vec<FlatItemBlueprint>,
+    support_representations: BTreeMap<String, (EntityIdentity, bool)>,
     connector_domains: BTreeMap<ConnectorSpecializationKey, FlatSymbol>,
     display_symbols: BTreeMap<String, DisplayIdentity>,
     physical_ports: BTreeMap<FullElaborationIdentity, PhysicalPortOccurrence>,
@@ -197,6 +198,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             model_key,
             model_full,
             items,
+            support_representations: BTreeMap::new(),
             connector_domains: BTreeMap::new(),
             display_symbols: BTreeMap::new(),
             physical_ports: BTreeMap::new(),
@@ -214,29 +216,26 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         })
     }
 
-    fn add_field_representation(
+    fn add_support_representation(
         &mut self,
-        field: &EntityIdentity,
-        spatial: bool,
+        support: Option<&str>,
     ) -> Result<Option<String>, Diagnostic> {
-        if !spatial {
+        let Some(support) = support else {
             return Ok(None);
-        }
-        let key = field.key.field_representation()?;
-        let full = key.full_identity()?;
-        let identity = EntityIdentity {
-            key,
-            full,
-            definition: field.definition.clone(),
-            instance: field.instance.clone(),
-            bindings: field.bindings.clone(),
         };
-        let name = internal_name(full);
-        self.items.push(FlatItemBlueprint::Representation {
-            name: name.clone(),
-            range: field.definition.range,
-            identity,
-        });
+        let (identity, emitted) = self
+            .support_representations
+            .get_mut(support)
+            .ok_or_else(|| hierarchy_error("Field support has no representation owner"))?;
+        let name = internal_name(identity.full);
+        if !*emitted {
+            self.items.push(FlatItemBlueprint::Representation {
+                name: name.clone(),
+                range: identity.definition.range,
+                identity: identity.clone(),
+            });
+            *emitted = true;
+        }
         Ok(Some(name))
     }
 
@@ -370,6 +369,18 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         scope: &mut Scope,
     ) -> Result<(), Diagnostic> {
         let internal_name = internal_name(identity.full);
+        if matches!(kind, SymbolKind::Domain) {
+            let key = identity.key.support_representation()?;
+            let representation = EntityIdentity {
+                full: key.full_identity()?,
+                key,
+                definition: identity.definition.clone(),
+                instance: identity.instance.clone(),
+                bindings: identity.bindings.clone(),
+            };
+            self.support_representations
+                .insert(internal_name.clone(), (representation, false));
+        }
         let symbol = FlatSymbol {
             internal_name,
             display_name: display_name.clone(),
@@ -1696,17 +1707,17 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
     ) -> Result<(), Diagnostic> {
         let component = occurrence.definition;
         let instance = occurrence.instance;
-        for (item_index, item) in component.items().iter().enumerate() {
+        let mut initial_duplicates = BTreeMap::<String, usize>::new();
+        for item in component.items() {
             match item {
                 ComponentItem::Initial(declaration) => {
+                    let name = crate::source_identity::initial_declaration_name(declaration)?;
+                    let duplicate = initial_duplicates.entry(name.clone()).or_default();
+                    let name = format!("{name}-{duplicate}");
+                    *duplicate += 1;
                     let identity = self.relation_identity(
                         occurrence.instance_path,
-                        definition_path(
-                            &component.namespace,
-                            "component",
-                            component.name(),
-                            &format!("$initial{item_index}"),
-                        ),
+                        definition_path(&component.namespace, "component", component.name(), &name),
                         SourceLocation::new(component.file, declaration.range()),
                         SourceLocation::new(occurrence.instance_file, instance.range()),
                         Vec::new(),
@@ -1800,8 +1811,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     let identity = identities.entities[declaration.name()].clone();
                     let (domain, activation) =
                         rewrite_field_scope(component.file, declaration, scope)?;
-                    let representation =
-                        self.add_field_representation(&identity, domain.is_some())?;
+                    let representation = self.add_support_representation(domain.as_deref())?;
                     self.items.push(FlatItemBlueprint::Field {
                         name: internal_name(identity.full),
                         domain,
@@ -2124,17 +2134,17 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         identities: &ScopeIdentities,
     ) -> Result<(), Diagnostic> {
         let model = self.model.clone();
-        for (item_index, item) in model.items().iter().enumerate() {
+        let mut initial_duplicates = BTreeMap::<String, usize>::new();
+        for item in model.items() {
             match item {
                 Item::Initial(declaration) => {
+                    let name = crate::source_identity::initial_declaration_name(declaration)?;
+                    let duplicate = initial_duplicates.entry(name.clone()).or_default();
+                    let name = format!("{name}-{duplicate}");
+                    *duplicate += 1;
                     let identity = self.relation_identity(
                         &self.root_path,
-                        definition_path(
-                            &self.model.namespace,
-                            "model",
-                            self.model.name(),
-                            &format!("$initial{item_index}"),
-                        ),
+                        definition_path(&self.model.namespace, "model", self.model.name(), &name),
                         SourceLocation::new(self.model.file, declaration.range()),
                         SourceLocation::new(self.model.file, self.model.range()),
                         Vec::new(),
@@ -2200,8 +2210,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     let identity = identities.entities[declaration.name()].clone();
                     let (domain, activation) =
                         rewrite_field_scope(self.model.file, declaration, scope)?;
-                    let representation =
-                        self.add_field_representation(&identity, domain.is_some())?;
+                    let representation = self.add_support_representation(domain.as_deref())?;
                     self.items.push(FlatItemBlueprint::Field {
                         name: internal_name(identity.full),
                         domain,

@@ -718,13 +718,10 @@ pub(crate) fn lower_typed_model(
                 let Binding::Field(id, contract) = bindings[name].clone() else {
                     unreachable!("first pass assigns Field bindings");
                 };
-                resolve_field_contract(file, *range, &contract, &bindings)
-                    .and_then(|value_type| {
-                        Ok(FieldDef::new(id, value_type, match role {
+                resolve_field_contract(file, *range, &contract, &bindings).map(|value_type| FieldDef::new(id, value_type, match role {
                             eqiora_lang::FieldRoleSyntax::Variable => eqiora_schema::kernel::FieldRole::Variable,
                             eqiora_lang::FieldRoleSyntax::State => eqiora_schema::kernel::FieldRole::State,
                         }))
-                    })
                     .and_then(|definition| {
                         nodes.push(definition.into());
                         if let ActivationSyntax::Periodic(clock) = activation {

@@ -18,7 +18,7 @@ impl LoweringModel {
                         domain: declaration.domain().map(str::to_owned),
                         representation: declaration
                             .domain()
-                            .map(|_| format!("$continuum-{}", declaration.name())),
+                            .map(|domain| format!("$continuum-{domain}")),
                         value_type: declaration.value_type().clone(),
                         role: declaration.role(),
                         activation: declaration.activation().clone(),
@@ -81,6 +81,7 @@ impl LoweringModel {
             })
             .collect::<Result<_, Diagnostic>>()?;
         let mut items: Vec<LoweringItem> = items;
+        let mut represented_supports = std::collections::BTreeSet::new();
         let representations: Vec<_> = model
             .items()
             .iter()
@@ -88,10 +89,13 @@ impl LoweringModel {
                 let Item::Field(field) = item else {
                     return None;
                 };
-                field.domain().map(|_| LoweringItem::Representation {
-                    name: format!("$continuum-{}", field.name()),
-                    range: field.range(),
-                })
+                let domain = field.domain()?;
+                represented_supports
+                    .insert(domain)
+                    .then(|| LoweringItem::Representation {
+                        name: format!("$continuum-{domain}"),
+                        range: field.range(),
+                    })
             })
             .collect();
         items.extend(representations);

@@ -373,8 +373,8 @@ model Catalog {
   parameter force: N = 3;
   parameter duration: s = 1;
   let energy: J = force * length;
-  field power: W = 0;
-  field pressure: Pa = 0;
+  variable power: W; initial { power = 0; }
+  variable pressure: Pa; initial { pressure = 0; }
   port frequency: signal input Hz;
   relation balance {
     power = energy / duration;
@@ -398,7 +398,7 @@ dimension Speed = m / s;
 dimension Momentum = N * s;
 
 connector Motion = scalar_physical(across = Speed, through = Momentum);
-component Law {
+component Law() {
   public parameter target: Speed;
   public port input: signal input Speed;
   relation balance { input - target = 0; }
@@ -406,7 +406,7 @@ component Law {
 model Example {
   parameter target: Speed = 2[m / s];
   let doubled: Speed = target * 2;
-  field velocity: Speed = 0;
+  variable velocity: Speed; initial { velocity = 0; }
   port input: signal input Speed;
   relation balance { velocity + input - doubled = 0; }
   instance law: Law(target = target);
@@ -450,52 +450,52 @@ model Example {
         for (case, source, message) in [
             (
                 "forward",
-                "dimension A1 = B1; dimension B1 = m; model M { field x: A1 = 0; }",
+                "dimension A1 = B1; dimension B1 = m; model M { variable x: A1; initial { x = 0; } }",
                 "forward or self reference",
             ),
             (
                 "self",
-                "dimension A1 = A1; model M { field x: A1 = 0; }",
+                "dimension A1 = A1; model M { variable x: A1; initial { x = 0; } }",
                 "forward or self reference",
             ),
             (
                 "duplicate",
-                "dimension D = m; dimension D = s; model M { field x: D = 0; }",
+                "dimension D = m; dimension D = s; model M { variable x: D; initial { x = 0; } }",
                 "duplicate dimension alias",
             ),
             (
                 "builtin",
-                "dimension Pa = m; model M { field x: Pa = 0; }",
+                "dimension Pa = m; model M { variable x: Pa; initial { x = 0; } }",
                 "cannot shadow",
             ),
             (
                 "unknown",
-                "dimension D = Missing; model M { field x: D = 0; }",
+                "dimension D = Missing; model M { variable x: D; initial { x = 0; } }",
                 "unknown coherent-SI dimension symbol or alias",
             ),
             (
                 "overflow",
-                "dimension D = m ^ 2147483647 * m; model M { field x: D = 0; }",
+                "dimension D = m ^ 2147483647 * m; model M { variable x: D; initial { x = 0; } }",
                 "exceeds rational exponent bounds",
             ),
             (
                 "denominator-overflow",
-                "dimension D = (m ^ (1 / 2147483647)) ^ (1 / 2); model M { field x: D = 0; }",
+                "dimension D = (m ^ (1 / 2147483647)) ^ (1 / 2); model M { variable x: D; initial { x = 0; } }",
                 "exceeds rational exponent bounds",
             ),
             (
                 "zero-denominator",
-                "dimension D = m ^ (1 / 0); model M { field x: D = 0; }",
+                "dimension D = m ^ (1 / 0); model M { variable x: D; initial { x = 0; } }",
                 "positive denominator",
             ),
             (
                 "negative-denominator",
-                "dimension D = m ^ (1 / -2); model M { field x: D = 0; }",
+                "dimension D = m ^ (1 / -2); model M { variable x: D; initial { x = 0; } }",
                 "positive denominator",
             ),
             (
                 "malformed",
-                "dimension D = 2; model M { field x: D = 0; }",
+                "dimension D = 2; model M { variable x: D; initial { x = 0; } }",
                 "dimension must use",
             ),
         ] {
@@ -524,7 +524,7 @@ property release Reference implements Diffusivity {
   citation = org.example.measurement;
   license = spdx.CC0_1_0;
 }
-public component Diffusion {
+public component Diffusion() {
   public property diffusivity: Diffusivity;
   relation law { diffusivity = 0; }
 }

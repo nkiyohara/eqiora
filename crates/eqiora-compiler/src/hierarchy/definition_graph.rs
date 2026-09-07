@@ -1273,7 +1273,7 @@ mod tests {
 
     #[test]
     fn future_model_depth_boundary_is_exact() {
-        let source = "component C2 {} component C1 { instance c2: C2; } component C0 { instance c1: C1; } model Main { instance root: C0; }";
+        let source = "component C2() {} component C1() { instance c2: C2; } component C0() { instance c1: C1; } model Main { instance root: C0; }";
         let limits = HierarchyLimits {
             max_instance_depth: 4,
             ..HierarchyLimits::default()
@@ -1281,7 +1281,7 @@ mod tests {
         let graph = validate_source(source, limits).expect("Model plus three Components fits");
         assert_eq!(model_summary(&graph, "Main").component_levels(), 4);
 
-        let over = "component C3 {} component C2 { instance c3: C3; } component C1 { instance c2: C2; } component C0 { instance c1: C1; } model Main { instance root: C0; }";
+        let over = "component C3() {} component C2() { instance c3: C3; } component C1() { instance c2: C2; } component C0() { instance c1: C1; } model Main { instance root: C0; }";
         let diagnostics = validate_source(over, limits).expect_err("fifth level fails");
         assert!(diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -1293,7 +1293,7 @@ mod tests {
 
     #[test]
     fn cycle_detection_is_independent_of_depth_cutoff() {
-        let source = "component C0 { instance c1: C1; } component C1 { instance c2: C2; } component C2 { instance c3: C3; } component C3 { instance c4: C4; } component C4 { instance c0: C0; } model Main {}";
+        let source = "component C0() { instance c1: C1; } component C1() { instance c2: C2; } component C2() { instance c3: C3; } component C3() { instance c4: C4; } component C4() { instance c0: C0; } model Main {}";
         let limits = HierarchyLimits {
             max_instance_depth: 4,
             ..HierarchyLimits::default()
@@ -1311,7 +1311,7 @@ mod tests {
 
     #[test]
     fn repeated_definition_edges_retain_occurrence_multiplicity() {
-        let source = "component Leaf {} component Branch { instance a: Leaf; instance b: Leaf; } component Root { instance x: Branch; instance y: Branch; } model Main { instance root: Root; }";
+        let source = "component Leaf() {} component Branch() { instance a: Leaf; instance b: Leaf; } component Root() { instance x: Branch; instance y: Branch; } model Main { instance root: Root; }";
         let graph = validate_source(source, HierarchyLimits::default()).expect("DAG is bounded");
         let root = model_summary(&graph, "Main");
         assert_eq!(root.instances(), 7);
@@ -1320,7 +1320,7 @@ mod tests {
 
     #[test]
     fn exponential_occurrence_fails_from_memoized_definition_summary() {
-        let source = "component C10 {} component C9 { instance a:C10; instance b:C10; } component C8 { instance a:C9; instance b:C9; } component C7 { instance a:C8; instance b:C8; } component C6 { instance a:C7; instance b:C7; } component C5 { instance a:C6; instance b:C6; } component C4 { instance a:C5; instance b:C5; } component C3 { instance a:C4; instance b:C4; } component C2 { instance a:C3; instance b:C3; } component C1 { instance a:C2; instance b:C2; } component C0 { instance a:C1; instance b:C1; } model Main {}";
+        let source = "component C10() {} component C9() { instance a:C10; instance b:C10; } component C8() { instance a:C9; instance b:C9; } component C7() { instance a:C8; instance b:C8; } component C6() { instance a:C7; instance b:C7; } component C5() { instance a:C6; instance b:C6; } component C4() { instance a:C5; instance b:C5; } component C3() { instance a:C4; instance b:C4; } component C2() { instance a:C3; instance b:C3; } component C1() { instance a:C2; instance b:C2; } component C0() { instance a:C1; instance b:C1; } model Main {}";
         let limits = HierarchyLimits {
             max_instances: 1_000,
             ..HierarchyLimits::default()
@@ -1334,7 +1334,7 @@ mod tests {
 
     #[test]
     fn model_edges_share_the_definition_edge_budget() {
-        let source = "component Leaf {} model Main { instance a:Leaf; instance b:Leaf; }";
+        let source = "component Leaf() {} model Main { instance a:Leaf; instance b:Leaf; }";
         let limits = HierarchyLimits {
             max_definition_edges: 1,
             ..HierarchyLimits::default()

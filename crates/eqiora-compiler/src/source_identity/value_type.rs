@@ -58,7 +58,7 @@ mod tests {
         ] {
             for source in [
                 format!("model M {{ parameter value: {value_type} = 0; }}"),
-                format!("component C {{ public parameter value: {value_type}; }}"),
+                format!("component C() {{ public parameter value: {value_type}; }}"),
             ] {
                 let document = eqiora_lang::parse("types.eqi", &source)
                     .into_document()

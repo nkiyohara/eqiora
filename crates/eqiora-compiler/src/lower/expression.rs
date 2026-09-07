@@ -143,20 +143,8 @@ pub(super) fn lower_relation(
     };
     let mut normalized = Vec::with_capacity(equations.len());
     for equation in equations {
-        let left_type = expression_type(
-            file,
-            &equation.left,
-            bindings,
-            support.as_ref(),
-            discrete || initial,
-        )?;
-        let right_type = expression_type(
-            file,
-            &equation.right,
-            bindings,
-            support.as_ref(),
-            discrete || initial,
-        )?;
+        let left_type = expression_type(file, &equation.left, bindings, support.as_ref())?;
+        let right_type = expression_type(file, &equation.right, bindings, support.as_ref())?;
         let checked = equality::check(
             left_type,
             right_type,

@@ -10,7 +10,7 @@ use crate::source_identity::LocalSourceIdentity;
 #[test]
 fn model_let_alias_expands_without_a_kernel_entity() {
     let source = r#"
-component Law {
+component Law() {
   public parameter phase: 1;
   relation balance { phase - 1 = 0; }
 }
@@ -18,7 +18,7 @@ model Derived {
   parameter length: m = 2;
   let wave_number: 1 / m = math.pi / length;
   let phase: 1 = wave_number * length;
-  field state: 1 = 0;
+  variable state: 1; initial { state = 0; }
   relation balance { state + phase = 0; }
   instance law: Law(phase = phase);
 }
@@ -50,7 +50,7 @@ model Derived {
   let length: m = 2;
   let wave_number: 1 / m = math.pi / length;
   let unitless: 1 = 1;
-  field state: 1 / m = 0;
+  variable state: 1 / m; initial { state = 0; }
   relation balance { state - wave_number * unitless = 0; }
 }
 "#;
@@ -136,12 +136,11 @@ fn model_let_alias_rejects_forward_references_and_dimension_mismatches() {
 }
 
 const EXTERNAL_SPATIAL_COMPONENT: &str = r#"
-public component BoundaryLaw {
-  public support body: volume(ambient_dimension = 2);
-  public support wall: boundary(parent = body);
+public component BoundaryLaw(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body)) {
+
+
   public parameter value: 1;
-  representation space = continuum;
-  field state on body as space: 1 = 0;
+  variable state: 1 on body; initial { state = 0; }
   relation volume_law on body { state - value = 0; }
   relation wall_law on wall { trace(state) = 0; }
 }
@@ -504,7 +503,7 @@ connector Pin = scalar_physical(
   through = A
 );
 
-component Resistor {
+component Resistor() {
   public parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2);
   public port positive: conserving on Pin;
   public port negative: conserving on Pin;
@@ -575,7 +574,7 @@ fn elaborates_repeated_component_instances_to_distinct_flat_entities() {
 fn semantic_declaration_order_and_source_location_do_not_change_ids() {
     let reordered = r#"
 connector Pin = scalar_physical(across = kg * m ^ 2 / (s ^ 3 * A), through = A);
-component Resistor {
+component Resistor() {
   public port negative: conserving on Pin;
   relation voltage {
     across(positive) - across(negative) - resistance * through(positive) = 0;
@@ -609,7 +608,7 @@ model parallel {
 fn nested_instances_are_elaborated_recursively() {
     let source = r#"
 connector Pin = scalar_physical(across = 1, through = 1);
-component Leaf {
+component Leaf() {
   public port left: conserving on Pin;
   public port right: conserving on Pin;
   relation law {
@@ -618,7 +617,7 @@ component Leaf {
   }
 }
 
-component Pair {
+component Pair() {
   instance first: Leaf;
   instance second: Leaf;
   connect conserving first.left, second.left;
@@ -640,15 +639,14 @@ fn occurrence_bound_field_is_an_exact_non_materialized_alias() {
     use eqiora_schema::kernel::{ExprNode, SymbolRef};
 
     let source = r#"
-component Law {
-  public support body: volume(ambient_dimension = 2);
-  public field slot state on body as continuum: K;
+component Law(variable state: K on body, support body: volume(ambient_dimension = 2)) {
+
+
   relation balance on body { state = 0; }
 }
 model Coupled {
   domain body = box(0, 1, 0, 1);
-  representation space = continuum;
-  field state on body as space: K = 0;
+  variable state: K on body; initial { state = 0; }
   instance law: Law(support body = body, field state = state);
 }
 "#;
@@ -702,7 +700,7 @@ fn occurrence_bound_parameter_is_one_exact_non_materialized_identity() {
     use eqiora_schema::kernel::{ExprNode, SymbolRef};
 
     let source = r#"
-component Law {
+component Law() {
   public parameter coefficient: 1;
   relation balance { coefficient - 1 = 0; }
 }
@@ -752,7 +750,7 @@ fn equal_valued_parameters_remain_distinct_through_arithmetic_bindings() {
     use eqiora_schema::kernel::{ExprNode, SymbolRef};
 
     let source = r#"
-component Law {
+component Law() {
   public parameter coefficient: 1;
   relation balance { coefficient - 1 = 0; }
 }
@@ -807,7 +805,7 @@ model Coupled {
 fn literal_parameter_bindings_normalize_negative_zero_without_a_direction() {
     let source = |literal: &str| {
         format!(
-            "component Law {{ public parameter coefficient: 1; relation balance {{ coefficient = 0; }} }} model Coupled {{ instance law: Law(coefficient = {literal}); }}"
+            "component Law() {{ public parameter coefficient: 1; relation balance {{ coefficient = 0; }} }} model Coupled {{ instance law: Law(coefficient = {literal}); }}"
         )
     };
     let mut positive = crate::compile("zero.eqi", &source("0.0")).unwrap();
@@ -833,20 +831,19 @@ fn nested_field_forwarding_preserves_target_identity_and_occurrence_chain() {
     use eqiora_schema::kernel::{ExprNode, SymbolRef};
 
     let source = r#"
-component Inner {
-  public support body: volume(ambient_dimension = 2);
-  public field slot state on body as continuum: K;
+component Inner(variable state: K on body, support body: volume(ambient_dimension = 2)) {
+
+
   relation balance on body { state = 0; }
 }
-component Outer {
-  public support body: volume(ambient_dimension = 2);
-  public field slot state on body as continuum: K;
+component Outer(variable state: K on body, support body: volume(ambient_dimension = 2)) {
+
+
   instance inner: Inner(support body = body, field state = state);
 }
 model Coupled {
   domain body = box(0, 1, 0, 1);
-  representation space = continuum;
-  field state on body as space: K = 0;
+  variable state: K on body; initial { state = 0; }
   instance outer: Outer(support body = body, field state = state);
 }
 "#;
@@ -895,16 +892,15 @@ model Coupled {
 #[test]
 fn field_binding_requires_complete_exact_contract() {
     let base = r#"
-component Law {
-  public support body: volume(ambient_dimension = 2);
-  public field slot state on body as continuum: vector<K, 2>;
+component Law(variable state: vector<K, 2> on body, support body: volume(ambient_dimension = 2)) {
+
+
   relation balance on body { state = 0; }
 }
 model Coupled {
   domain left = box(0, 1, 0, 1);
   domain right = box(1, 2, 0, 1);
-  representation space = continuum;
-  field state on right as space: vector<K, 2>;
+  variable state: vector<K, 2> on right;
   instance law: Law(support body = left, field state = state);
 }
 "#;
@@ -918,8 +914,8 @@ model Coupled {
 
     let wrong_shape = base
         .replace(
-            "field state on right as space: vector<K, 2>;",
-            "field state on right as space: array<K, 2>;",
+            "variable state: vector<K, 2> on right;",
+            "variable state: array<K, 2> on right;",
         )
         .replace("support body = left", "support body = right");
     let diagnostics = crate::compile("field-shape-mismatch.eqi", &wrong_shape)
@@ -944,7 +940,7 @@ model Coupled {
 fn transitive_physical_fragments_emit_one_canonical_connection() {
     let nary = r#"
 connector Pin = scalar_physical(across = 1, through = 1);
-component Terminal {
+component Terminal() {
   public port p: conserving on Pin;
   relation owner { across(p) = 0; }
 }
@@ -986,7 +982,7 @@ model Network {
 fn redundant_ancestor_fragment_owns_one_connection_and_preserves_both_origins() {
     let source = r#"
 connector Pin = scalar_physical(across = 1, through = 1);
-component ClosedLeaf {
+component ClosedLeaf() {
   public port a: conserving on Pin;
   public port b: conserving on Pin;
   relation law {
@@ -994,7 +990,7 @@ component ClosedLeaf {
   }
   connect conserving a, b;
 }
-component Parent {
+component Parent() {
   instance leaf: ClosedLeaf;
   connect conserving leaf.a, leaf.b;
 }
@@ -1051,11 +1047,11 @@ model Network { instance parent: Parent; }
 fn ownerless_public_port_is_eliminated_without_fabricating_an_entity_alias() {
     let source = r#"
 connector Pin = scalar_physical(across = 1, through = 1);
-component Leaf {
+component Leaf() {
   public port p: conserving on Pin;
   relation owner { across(p) = 0; }
 }
-component Wrapper {
+component Wrapper() {
   public port p: conserving on Pin;
   instance leaf: Leaf;
   connect conserving p, leaf.p;
@@ -1140,16 +1136,16 @@ model Network {
 fn nested_physical_exposures_retain_distinct_occurrence_cuts() {
     let source = r#"
 connector Pin = scalar_physical(across = 1, through = 1);
-component Leaf {
+component Leaf() {
   public port p: conserving on Pin;
   relation owner { across(p) = 0; }
 }
-component Inner {
+component Inner() {
   public port p: conserving on Pin;
   instance leaf: Leaf;
   connect conserving p, leaf.p;
 }
-component Outer {
+component Outer() {
   public port p: conserving on Pin;
   instance inner: Inner;
   instance sibling: Leaf;
@@ -1224,11 +1220,11 @@ model Network {
 
 const DISTINCT_EXPOSURE_CUTS: &str = r#"
 connector Pin = scalar_physical(across = 1, through = 1);
-component Leaf {
+component Leaf() {
   public port p: conserving on Pin;
   relation owner { across(p) = 0; }
 }
-component Pair {
+component Pair() {
   public port p: conserving on Pin;
   public port q: conserving on Pin;
   instance left: Leaf;
@@ -1327,23 +1323,23 @@ fn physical_exposure_projection_resources_fail_closed_independently() {
 fn parameter_bindings_are_closed_typed_and_fail_before_lowering() {
     let cases = [
         (
-            "component C { public parameter p: 1; } model m { instance c: C; }",
+            "component C() { public parameter p: 1; } model m { instance c: C; }",
             "required Parameter `p` has no instance binding",
         ),
         (
-            "component C { public parameter p: 1 = 1; } model m { instance c: C(q = 2); }",
+            "component C() { public parameter p: 1 = 1; } model m { instance c: C(q = 2); }",
             "unknown public Parameter `q`",
         ),
         (
-            "component C { parameter p: 1 = 1; } model m { instance c: C(p = 2); }",
+            "component C() { parameter p: 1 = 1; } model m { instance c: C(p = 2); }",
             "private Parameter `p` cannot be bound",
         ),
         (
-            "component C { public parameter p: m = 1; } model m { parameter q: s = 2; instance c: C(p = q); }",
+            "component C() { public parameter p: m = 1; } model m { parameter q: s = 2; instance c: C(p = q); }",
             "Parameter binding has dimension",
         ),
         (
-            "component C { public parameter p: 1; } model m { parameter exponent: 1 = 2; instance c: C(p = 3 ^ exponent); }",
+            "component C() { public parameter p: 1; } model m { parameter exponent: 1 = 2; instance c: C(p = 3 ^ exponent); }",
             "power exponent cannot depend on a live Parameter",
         ),
     ];
@@ -1360,8 +1356,7 @@ fn parameter_bindings_are_closed_typed_and_fail_before_lowering() {
 
 #[test]
 fn recursion_and_private_member_selection_fail_closed() {
-    let recursive =
-        "component A { instance b: B; } component B { instance a: A; } model m { instance a: A; }";
+    let recursive = "component A() { instance b: B; } component B() { instance a: A; } model m { instance a: A; }";
     let diagnostics = crate::compile("recursive.eqi", recursive).unwrap_err();
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -1370,7 +1365,7 @@ fn recursion_and_private_member_selection_fail_closed() {
     }));
 
     let private = r#"
-component C { port hidden: signal input 1; }
+component C() { port hidden: signal input 1; }
 model m {
   port source: signal output 1;
   instance c: C;
@@ -1384,7 +1379,8 @@ model m {
             .contains("does not select a public Port")
     }));
 
-    let invalid_member = "component C { relation bad { missing = 0; } } model m { instance c: C; }";
+    let invalid_member =
+        "component C() { relation bad { missing = 0; } } model m { instance c: C; }";
     let diagnostics = crate::compile("instance-context.eqi", invalid_member).unwrap_err();
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message().contains("`missing`") && diagnostic.source_span().is_some()
@@ -1394,7 +1390,7 @@ model m {
 #[test]
 fn one_port_boundary_remains_valid_in_hierarchy_lowering() {
     let source = r#"
-component Empty {}
+component Empty() {}
 model bounded {
   port input: signal input 1;
   relation law { input = 0; }
@@ -1408,7 +1404,7 @@ model bounded {
 
 #[test]
 fn preflight_enforces_depth_staging_and_provenance_limits() {
-    let nested = "component B {} component A { instance b: B; } model m { instance a: A; }";
+    let nested = "component B() {} component A() { instance b: B; } model m { instance a: A; }";
     let document = eqiora_lang::parse("limits.eqi", nested)
         .into_document()
         .unwrap();
@@ -1425,7 +1421,7 @@ fn preflight_enforces_depth_staging_and_provenance_limits() {
             .contains("requires 3 Model-relative instance depth, exceeding the 2 limit")
     }));
 
-    let one_parameter = "component Empty {} model m { parameter p: 1 = 1; }";
+    let one_parameter = "component Empty() {} model m { parameter p: 1 = 1; }";
     let document = eqiora_lang::parse("limits.eqi", one_parameter)
         .into_document()
         .unwrap();
@@ -1473,9 +1469,9 @@ public connector MechanicalBoundary = field_physical(
   frame = spatial,
   pairing = euclidean_boundary_duality
 );
-public component Side {
-  public support body: volume(ambient_dimension = 2);
-  public support wall: boundary(parent = body);
+public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body)) {
+
+
   public port interface: conserving MechanicalBoundary over wall;
   relation load on wall { flux(interface) = 0; }
 }
@@ -1545,9 +1541,9 @@ public connector TransportBoundary = field_physical(
   frame = invariant,
   pairing = euclidean_boundary_duality
 );
-public component Side {
-  public support body: volume(ambient_dimension = 2);
-  public support wall: boundary(parent = body);
+public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body)) {
+
+
   public port interface: conserving TransportBoundary over wall;
   relation owner on wall { flux(interface) = 0; }
 }
@@ -1599,15 +1595,15 @@ public connector MechanicalBoundary = field_physical(
   frame = spatial,
   pairing = euclidean_boundary_duality
 );
-public component Side {
-  public support body: volume(ambient_dimension = 2);
-  public support wall: boundary(parent = body);
+public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body)) {
+
+
   public port interface: conserving MechanicalBoundary over wall;
   relation load on wall { flux(interface) = 0; }
 }
-public component Wrapper {
-  public support body: volume(ambient_dimension = 2);
-  public support wall: boundary(parent = body);
+public component Wrapper(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body)) {
+
+
   public port interface: conserving MechanicalBoundary over wall;
   instance side: Side(support body = body, support wall = wall);
   connect conserving interface, side.interface;
@@ -1672,9 +1668,9 @@ public connector B = field_physical(
   trace = u: 1, flux = f: 1, shape = spatial_vector,
   frame = spatial, pairing = euclidean_boundary_duality
 );
-public component Side {
-  public support body: volume(ambient_dimension = 2);
-  public support wall: boundary(parent = body);
+public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body)) {
+
+
   public port p: conserving B over wall;
   relation owner on wall { flux(p) = 0; }
 }
@@ -1704,9 +1700,9 @@ public connector Bad = field_physical(
   trace = u: 1, flux = f: 1, shape = [2, 3],
   frame = spatial, pairing = euclidean_boundary_duality
 );
-public component Side {
-  public support body: volume(ambient_dimension = 2);
-  public support wall: boundary(parent = body);
+public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body)) {
+
+
   public port p: conserving Bad over wall;
 }
 model Empty {}

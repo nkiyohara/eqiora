@@ -27,7 +27,7 @@ fn length(exponent: i32) -> DimExponents {
 fn required_public_parameters_are_typed_free_variables() {
     let document = document(
         r#"
-component Symbolic {
+component Symbolic() {
   public parameter base: m;
   public parameter exponent: 1;
   public parameter area: m ^ 2 = base ^ exponent;
@@ -56,7 +56,7 @@ component Symbolic {
 
 #[test]
 fn required_private_parameter_has_no_symbolic_witness() {
-    let document = document("component Invalid { parameter hidden: m; }");
+    let document = document("component Invalid() { parameter hidden: m; }");
     let diagnostics = resolve_component_parameters_symbolically(
         "parameters.eqi",
         component(&document, "Invalid"),
@@ -74,12 +74,12 @@ fn required_private_parameter_has_no_symbolic_witness() {
 fn nested_instance_validates_symbolic_parent_bindings_with_cached_child() {
     let document = document(
         r#"
-component Child {
+component Child() {
   public parameter base: m;
   public parameter exponent: 1;
   public parameter area: m ^ 2 = base ^ exponent;
 }
-component Parent {
+component Parent() {
   public parameter length: m;
   instance child: Child(base = length, exponent = 2);
 }
@@ -114,11 +114,11 @@ component Parent {
 fn symbolic_instances_preserve_binding_diagnostics() {
     let document = document(
         r#"
-component Child {
+component Child() {
   public parameter required: m;
   parameter hidden: m = 1;
 }
-component Parent {
+component Parent() {
   public parameter length: m;
   instance missing: Child;
   instance unknown: Child(other = length);
@@ -183,7 +183,7 @@ component Parent {
 fn ten_thousand_parameter_chains_and_cycles_are_iterative() {
     const COUNT: usize = 10_000;
 
-    let mut chain = String::from("component Chain {\n");
+    let mut chain = String::from("component Chain() {\n");
     writeln!(chain, "  parameter p00000: 1 = 1;").expect("write to String");
     for index in 1..COUNT {
         writeln!(chain, "  parameter p{index:05}: 1 = p{:05};", index - 1)
@@ -199,7 +199,7 @@ fn ten_thousand_parameter_chains_and_cycles_are_iterative() {
     assert_eq!(parameters.len(), COUNT);
     assert_eq!(parameters["p09999"].value, Some(1.0));
 
-    let mut cycle = String::from("component Cycle {\n");
+    let mut cycle = String::from("component Cycle() {\n");
     for index in 0..COUNT {
         writeln!(
             cycle,
@@ -228,7 +228,7 @@ fn ten_thousand_parameter_chains_and_cycles_are_iterative() {
 
 #[test]
 fn parameter_self_loop_has_one_source_spanned_type_diagnostic() {
-    let document = document("component Loop { parameter value: 1 = value; }");
+    let document = document("component Loop() { parameter value: 1 = value; }");
     let diagnostics =
         resolve_component_parameters_symbolically("parameters.eqi", component(&document, "Loop"))
             .expect_err("self dependency is a cycle");
@@ -250,7 +250,7 @@ fn parameter_self_loop_has_one_source_spanned_type_diagnostic() {
 fn symbolic_default_outcome_is_declaration_order_independent() {
     let forward = document(
         r#"
-component Ordered {
+component Ordered() {
   parameter base: 1 = 2;
   parameter shifted: 1 = base + 3;
   parameter scaled: 1 = shifted * 4;
@@ -259,7 +259,7 @@ component Ordered {
     );
     let reverse = document(
         r#"
-component Ordered {
+component Ordered() {
   parameter scaled: 1 = shifted * 4;
   parameter shifted: 1 = base + 3;
   parameter base: 1 = 2;

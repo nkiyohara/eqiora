@@ -56,9 +56,8 @@ pub(super) fn expression_type(
     expression: &LoweringExpression,
     bindings: &BTreeMap<String, Binding>,
     support: Option<&SpatialSupport<RawId>>,
-    discrete: bool,
 ) -> Result<ExpressionType<RawId>, Diagnostic> {
-    let infer = |operand| expression_type(file, operand, bindings, support, discrete);
+    let infer = |operand| expression_type(file, operand, bindings, support);
     let violation = |error| spatial_type_error(file, expression, error);
     match expression.node.as_ref() {
         LoweringExpressionNode::Literal(value) => {
@@ -234,16 +233,15 @@ pub(super) fn expression_type(
                 }
                 _ => {}
             }
-            if matches!(callee.as_str(), "derivative" | "pre" | "next") {
-                if !matches!(argument.node.as_ref(), LoweringExpressionNode::Name(name) if matches!(bindings.get(name), Some(Binding::Field(..))))
-                {
-                    return Err(source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        file,
-                        argument.range(),
-                        "time operator requires one Field name",
-                    ));
-                }
+            if matches!(callee.as_str(), "derivative" | "pre" | "next")
+                && !matches!(argument.node.as_ref(), LoweringExpressionNode::Name(name) if matches!(bindings.get(name), Some(Binding::Field(..))))
+            {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    argument.range(),
+                    "time operator requires one Field name",
+                ));
             }
             let operand = infer(argument)?;
             match callee.as_str() {

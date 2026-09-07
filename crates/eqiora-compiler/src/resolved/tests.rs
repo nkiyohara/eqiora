@@ -31,7 +31,7 @@ fn dependency_edge(
 }
 
 const LIBRARY: &str = r#"
-public component Resistor {
+public component Resistor() {
   public parameter resistance: 1;
   relation law { resistance - 2 = 0; }
 }
@@ -86,7 +86,7 @@ fn module_labels_use_only_path_assigned_identity() {
     let assigned = ResolvedSourceUnit::new(
         owner.clone(),
         "src/library/primitives.eqi",
-        "public component Part {}",
+        "public component Part() {}",
     )
     .expect("path-assigned module");
     assert!(
@@ -97,7 +97,7 @@ fn module_labels_use_only_path_assigned_identity() {
     let recovering = ResolvedSourceUnit::new(
         owner,
         "src/library/primitives.eqi",
-        "public component Part {",
+        "public component Part() {",
     )
     .expect("path-assigned broken module");
     assert!(recovering.diagnostic_file().contains("module:"));
@@ -219,9 +219,8 @@ fn explicit_local_module_import_elaborates_component_and_operator() {
 import org.example.project.library.primitives as lib;
 model Main {
   domain d = box(0, 1, 0, 1);
-  representation s = continuum;
-  field a on d as s: vector<1, 2>;
-  field b on d as s: vector<1, 2>;
+  variable a: vector<1, 2> on d;
+  variable b: vector<1, 2> on d;
   instance load: lib.Resistor(resistance = 2);
   relation doubled on d { div(div(lib.outer(a, b))) = 0; }
 }
@@ -229,7 +228,7 @@ model Main {
     let library_source = r#"
 public pure operator outer(left: spatial[1], right: spatial[1]) -> spatial[2]
   = component(left, 0) * component(right, 1);
-public component Resistor {
+public component Resistor() {
   public parameter resistance: 1;
   relation law { resistance - 2 = 0; }
 }
@@ -391,7 +390,7 @@ fn host_assigned_module_identity_requires_no_source_header() {
                     &owner,
                     "library.parts",
                     "src/library/parts.eqi",
-                    "public component Resistor { public parameter resistance: 1; relation law { resistance - 2 = 0; } }",
+                    "public component Resistor() { public parameter resistance: 1; relation law { resistance - 2 = 0; } }",
                 ),
             ],
             vec![],
@@ -411,7 +410,7 @@ fn host_assigned_module_identity_requires_no_source_header() {
 #[test]
 fn removed_source_module_declaration_is_rejected() {
     let owner = namespace("org.example.project");
-    let source = "module declared.name; public component Value {}";
+    let source = "module declared.name; public component Value() {}";
     let input = ResolvedHierarchyInput::with_root_module(
         owner.clone(),
         ["assigned", "name"],
@@ -475,7 +474,12 @@ fn source_local_alias_identity_cannot_collide_with_an_external_namespace() {
                     "root.eqi",
                     "import root.parts as value; model Main { instance x: value.Resistor; }",
                 ),
-                module_unit(&root, "parts", "parts.eqi", "public component Resistor {}"),
+                module_unit(
+                    &root,
+                    "parts",
+                    "parts.eqi",
+                    "public component Resistor() {}",
+                ),
             ],
             vec![],
         )
@@ -495,7 +499,7 @@ fn source_local_alias_identity_cannot_collide_with_an_external_namespace() {
             unit(
                 &external_target,
                 "parts.eqi",
-                "public component Resistor {}",
+                "public component Resistor() {}",
             ),
         ],
         vec![dependency_edge(&root, &external_target)],
@@ -560,7 +564,7 @@ fn explicit_local_import_graph_rejects_missing_duplicate_reserved_and_cycle() {
                 "models.main",
                 "import org.example.project.library.one as lib; model Main { instance value: lib.Missing; }",
             ),
-            ("library.one", "public component One {}"),
+            ("library.one", "public component One() {}"),
         ],
     )
     .expect_err("missing exported declaration");
@@ -578,8 +582,8 @@ fn explicit_local_import_graph_rejects_missing_duplicate_reserved_and_cycle() {
                 "models.main",
                 "import org.example.project.library.one as lib; import org.example.project.library.two as lib; model Main {}",
             ),
-            ("library.one", "public component One {}"),
-            ("library.two", "public component Two {}"),
+            ("library.one", "public component One() {}"),
+            ("library.two", "public component Two() {}"),
         ],
     )
     .expect_err("duplicate alias");
@@ -596,7 +600,7 @@ fn explicit_local_import_graph_rejects_missing_duplicate_reserved_and_cycle() {
                 "models.main",
                 "import org.example.project.library.one as math; model Main {}",
             ),
-            ("library.one", "public component One {}"),
+            ("library.one", "public component One() {}"),
         ],
     )
     .expect_err("reserved root");
@@ -615,7 +619,7 @@ fn explicit_local_import_graph_rejects_missing_duplicate_reserved_and_cycle() {
             ),
             (
                 "modules.b",
-                "import org.example.project.modules.a as a; public component B {}",
+                "import org.example.project.modules.a as a; public component B() {}",
             ),
         ],
     )
@@ -700,7 +704,7 @@ public pure operator outer(left: spatial[1], right: spatial[1]) -> spatial[2]
                     &root,
                     "root.eqi",
                     &format!(
-                        "import operators.main as {alias_name}; model Main {{ domain d = box(0,1,0,1); representation s = continuum; field a on d as s: vector<1, 2>; field b on d as s: vector<1, 2>; relation r on d {{ div(div({alias_name}.outer(a,b))) = 0; }} }}"
+                        "import operators.main as {alias_name}; model Main {{ domain d = box(0,1,0,1); variable a: vector<1, 2> on d; variable b: vector<1, 2> on d; relation r on d {{ div(div({alias_name}.outer(a,b))) = 0; }} }}"
                     ),
                 ),
                 unit(&operators, operator_file, dependency),
@@ -738,7 +742,7 @@ fn private_pure_operator_cannot_cross_an_exact_package_boundary() {
             unit(
                 &root,
                 "root.eqi",
-                "import operators.main as ops; model Main { domain d = box(0,1); representation s = continuum; field a on d as s: vector<1, 1>; field b on d as s: vector<1, 1>; relation r on d { div(ops.outer(a,b)) = 0; } }",
+                "import operators.main as ops; model Main { domain d = box(0,1); variable a: vector<1, 1> on d; variable b: vector<1, 1> on d; relation r on d { div(ops.outer(a,b)) = 0; } }",
             ),
             unit(
                 &dependency,
@@ -766,17 +770,17 @@ fn private_unknown_and_transitive_imports_fail_during_analysis() {
     let cases = [
         (
             "import dependency.main as dep; model Main { instance c: dep.Private; }",
-            "component Private {}",
+            "component Private() {}",
             "private component `dep.Private` cannot be imported",
         ),
         (
             "model Main { instance c: missing.C; }",
-            "public component C {}",
+            "public component C() {}",
             "unknown direct package alias `missing`",
         ),
         (
             "import dependency.main as dep; model Main { instance c: dep.nested.C; }",
-            "public component C {}",
+            "public component C() {}",
             "uses transitive or member qualification",
         ),
     ];
@@ -815,12 +819,12 @@ fn package_local_names_do_not_collide_but_duplicates_and_aliases_do() {
             unit(
                 &first,
                 "first.eqi",
-                "public component C { parameter p: 1 = 1; relation law { p - 1 = 0; } }",
+                "public component C() { parameter p: 1 = 1; relation law { p - 1 = 0; } }",
             ),
             unit(
                 &second,
                 "second.eqi",
-                "public component C { parameter p: 1 = 2; relation law { p - 2 = 0; } }",
+                "public component C() { parameter p: 1 = 2; relation law { p - 2 = 0; } }",
             ),
         ],
         vec![
@@ -844,7 +848,7 @@ fn package_local_names_do_not_collide_but_duplicates_and_aliases_do() {
         vec![unit(
             &first,
             "a.eqi",
-            "public component C {} public component C {}",
+            "public component C() {} public component C() {}",
         )],
         vec![],
     );
@@ -863,8 +867,8 @@ fn package_local_names_do_not_collide_but_duplicates_and_aliases_do() {
                 "root.eqi",
                 "import first.main as lib; import second.main as lib; model Main {}",
             ),
-            unit(&first, "first.eqi", "public component C {}"),
-            unit(&second, "second.eqi", "public component D {}"),
+            unit(&first, "first.eqi", "public component C() {}"),
+            unit(&second, "second.eqi", "public component D() {}"),
         ],
         vec![
             dependency_edge(&root, &first),
@@ -889,12 +893,12 @@ fn cross_package_import_cycle_fails_before_a_transaction_exists() {
             unit(
                 &root,
                 "root.eqi",
-                "import dependency.main as dep; public component A { instance b: dep.B; } model Main {}",
+                "import dependency.main as dep; public component A() { instance b: dep.B; } model Main {}",
             ),
             unit(
                 &dependency,
                 "dependency.eqi",
-                "import root.main as app; public component B { instance a: app.A; }",
+                "import root.main as app; public component B() { instance a: app.A; }",
             ),
         ],
         vec![
@@ -950,12 +954,12 @@ fn symbolic_component_interfaces_validate_without_occurrence_values() {
             &root,
             "root.eqi",
             r#"
-public component Leaf {
+public component Leaf() {
   public parameter period: s;
   public parameter offset: s = period;
   relation invariant { offset - period = 0; }
 }
-public component Wrapper {
+public component Wrapper() {
   public parameter period: s;
   instance leaf: Leaf(period = period);
 }
@@ -979,13 +983,13 @@ fn unused_nested_parameter_contracts_fail_before_root_selection() {
             &root,
             "root.eqi",
             r#"
-public component Leaf { public parameter period: s; }
-public component Missing { instance leaf: Leaf; }
-public component WrongDimension {
+public component Leaf() { public parameter period: s; }
+public component Missing() { instance leaf: Leaf; }
+public component WrongDimension() {
   public parameter length: m;
   instance leaf: Leaf(period = length);
 }
-public component InvalidPrivate { parameter hidden: s; }
+public component InvalidPrivate() { parameter hidden: s; }
 model Empty {}
 "#,
         )],

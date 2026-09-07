@@ -694,12 +694,11 @@ property release Reference implements Amplitude {
   citation = org.example.measurement;
   license = spdx.CC0_1_0;
 }
-component Wave {
-  public support body: volume(ambient_dimension = 1);
-  representation space = continuum;
+component Wave(support body: volume(ambient_dimension = 1)) {
+
   public property amplitude: Amplitude;
-  field value on body as space: m ^ (-1 / 2) = 0;
-  field intensity on body as space: m ^ -1 = 0;
+  variable value: m ^ (-1 / 2) on body; initial { value = 0; }
+  variable intensity: m ^ -1 on body; initial { intensity = 0; }
   relation law on body { value = amplitude; intensity = square(value); }
 }
 model Main {
@@ -725,7 +724,10 @@ model Main {
             .unwrap();
         let wrong_unit = source.replace("source_unit: m ^ (-2 / 4)", "source_unit: m ^ -1");
         assert!(analyze_resolved_hierarchy(input(&wrong_unit)).is_err());
-        let wrong_output = source.replace("as space: m ^ -1", "as space: m ^ (-1 / 2)");
+        let wrong_output = source.replace(
+            "intensity: m ^ -1 on body",
+            "intensity: m ^ (-1 / 2) on body",
+        );
         let invalid = analyze_resolved_hierarchy(input(&wrong_output)).unwrap();
         assert!(invalid.validate_definitions().is_err());
     }
@@ -742,7 +744,7 @@ property release ReferenceDiffusivity implements Diffusivity {
   citation = org.example.measurement;
   license = spdx.CC0_1_0;
 }
-public component Diffusion {
+public component Diffusion() {
   public property diffusivity: Diffusivity;
   relation law { diffusivity = 0; }
 }
@@ -764,7 +766,7 @@ model Main { instance domain: Diffusion(property diffusivity = ReferenceDiffusiv
             .compile_root("Main")
             .expect("property model compiles");
         let direct = r#"
-public component Diffusion {
+public component Diffusion() {
   public parameter diffusivity: m ^ 2 / s;
   relation law { diffusivity = 0; }
 }
@@ -805,7 +807,7 @@ public material composition MaterialA {
   property capacity = CapacityA;
   property conductivity = ConductivityA;
 }
-public component DiffusionLaw {
+public component DiffusionLaw() {
   public property conductivity: Conductivity;
   public property capacity: Capacity;
   relation law { conductivity / capacity = 0; }
@@ -888,7 +890,7 @@ model Main {}
 
         let missing = r#"
 property contract Diffusivity { scalar value: m ^ 2 / s; }
-component Diffusion {
+component Diffusion() {
   public property diffusivity: Diffusivity;
   relation law { diffusivity = 0; }
 }
@@ -918,7 +920,7 @@ material composition Duplicate {
   property value = A1;
   property value = A1;
 }
-component Law { public property value: A; relation law { value = 0; } }
+component Law() { public property value: A; relation law { value = 0; } }
 model Main { instance law: Law(material = Duplicate); }
 "#,
                 "duplicate material property",
@@ -932,7 +934,7 @@ property release B1 implements B {
   citation = org.example; license = spdx.CC0_1_0;
 }
 material composition Foreign { property value = B1; }
-component Law { public property value: A; relation law { value = 0; } }
+component Law() { public property value: A; relation law { value = 0; } }
 model Main { instance law: Law(material = Foreign); }
 "#,
                 "different nominal contract",
@@ -945,7 +947,7 @@ property release A1 implements A {
   citation = org.example; license = spdx.CC0_1_0;
 }
 material composition EmptyForLaw { property other = A1; }
-component Law { public property value: A; relation law { value = 0; } }
+component Law() { public property value: A; relation law { value = 0; } }
 model Main { instance law: Law(material = EmptyForLaw); }
 "#,
                 "requires property `value`",
@@ -958,7 +960,7 @@ property release A1 implements A {
   citation = org.example; license = spdx.CC0_1_0;
 }
 material composition MaterialA { property value = A1; }
-component Law { public property value: A; relation law { value = 0; } }
+component Law() { public property value: A; relation law { value = 0; } }
 model Main {
   instance law: Law(material = MaterialA, property value = A1);
 }

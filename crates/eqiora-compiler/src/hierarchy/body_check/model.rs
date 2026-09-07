@@ -162,7 +162,8 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                     }
                     Ok(None)
                 }
-                Item::Field(_)
+                Item::Initial(_)
+                | Item::Field(_)
                 | Item::Port(_)
                 | Item::Connection(_)
                 | Item::BoundaryConnection(_)
@@ -374,25 +375,25 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
     }
 
     fn validate_field(&mut self, declaration: &eqiora_lang::FieldDecl) {
-        if let Some(domain) = declaration.domain() {
-            if self.scope.spatial_support(domain).is_none() {
-                self.diagnostics.push(unresolved(
-                    self.scope.file,
-                    declaration.range(),
-                    domain,
-                    "Field Domain",
-                ));
-            }
+        if let Some(domain) = declaration.domain()
+            && self.scope.spatial_support(domain).is_none()
+        {
+            self.diagnostics.push(unresolved(
+                self.scope.file,
+                declaration.range(),
+                domain,
+                "Field Domain",
+            ));
         }
-        if let eqiora_lang::ActivationSyntax::Periodic(clock) = declaration.activation() {
-            if !matches!(self.scope.symbols.get(clock), Some(SymbolContract::Clock)) {
-                self.diagnostics.push(unresolved(
-                    self.scope.file,
-                    declaration.range(),
-                    clock,
-                    "Field ClockDomain",
-                ));
-            }
+        if let eqiora_lang::ActivationSyntax::Periodic(clock) = declaration.activation()
+            && !matches!(self.scope.symbols.get(clock), Some(SymbolContract::Clock))
+        {
+            self.diagnostics.push(unresolved(
+                self.scope.file,
+                declaration.range(),
+                clock,
+                "Field ClockDomain",
+            ));
         }
     }
 

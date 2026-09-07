@@ -193,22 +193,22 @@ struct Path {
 pub enum GeneratedRole {
     /// The Activation owned by an elaborated Relation declaration.
     RelationActivation,
-    /// Continuum representation owned by a distributed field.
-    FieldRepresentation,
+    /// Continuum representation shared by fields on one exact support.
+    SupportRepresentation,
 }
 
 impl GeneratedRole {
     const fn entity_kind(self) -> EntityKind {
         match self {
             Self::RelationActivation => EntityKind::Activation,
-            Self::FieldRepresentation => EntityKind::Representation,
+            Self::SupportRepresentation => EntityKind::Representation,
         }
     }
 
     const fn canonical_code(self) -> u16 {
         match self {
             Self::RelationActivation => RELATION_ACTIVATION_ROLE,
-            Self::FieldRepresentation => 2,
+            Self::SupportRepresentation => 3,
         }
     }
 }
@@ -250,12 +250,13 @@ enum Subject {
 }
 
 impl ElaborationKey {
-    pub(crate) fn field_representation(&self) -> Result<Self, Diagnostic> {
-        Self::generated(
+    pub(crate) fn support_representation(&self) -> Result<Self, Diagnostic> {
+        Self::generated_with_limits(
             self.namespace.clone(),
             self.instance_path.clone(),
             self.declaration_path.clone(),
-            GeneratedRole::FieldRepresentation,
+            GeneratedRole::SupportRepresentation,
+            self.limits,
         )
     }
 

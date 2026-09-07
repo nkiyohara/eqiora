@@ -88,6 +88,11 @@ pub(super) fn component_field_interface(
         let ComponentItem::FieldRequirement(declaration) = item else {
             continue;
         };
+        if let eqiora_lang::ActivationSyntax::Periodic(clock) = declaration.activation()
+            && !component.items().iter().any(|item| matches!(item, ComponentItem::ClockRequirement(requirement) if requirement.name() == clock)) {
+                diagnostics.push(source_error(codes::LANGUAGE_TYPE_ERROR, file, declaration.range(), "required field clock must name a clock requirement in the signature"));
+                continue;
+            }
         match field_slot_contract(file, declaration, supports) {
             Ok(contract) => {
                 if slots
@@ -228,21 +233,20 @@ pub(super) fn resolve_instance_clocks(
     let mut result = BTreeMap::new();
     let mut errors = Vec::new();
     for binding in instance.clock_bindings() {
-        let value = resolve(binding.target());
-        if !required.contains(binding.slot())
-            || result.contains_key(binding.slot())
-            || value.is_none()
+        if let Some(value) = resolve(binding.target())
+            .filter(|_| required.contains(binding.slot()) && !result.contains_key(binding.slot()))
         {
+            result.insert(binding.slot().to_owned(), value);
+        } else {
             errors.push(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 file,
                 binding.range(),
                 "clock binding must name one unbound requirement and an exact enclosing clock",
             ));
-        } else {
-            result.insert(binding.slot().to_owned(), value.unwrap());
         }
     }
+
     for name in required {
         if !result.contains_key(name) {
             errors.push(source_error(
@@ -439,15 +443,14 @@ mod tests {
         let source = |slot_type, field_type| {
             format!(
                 r#"
-component Law {{
-  public support body: volume(ambient_dimension = 2);
-  public field slot value on body as continuum: {slot_type};
+component Law(variable value: {slot_type} on body, support body: volume(ambient_dimension = 2)) {{
+
+
   relation balance on body {{ value - value = 0; }}
 }}
 model Main {{
   domain body = box(0, 1, 0, 1);
-  representation space = continuum;
-  field value on body as space: {field_type};
+  variable value: {field_type} on body;
   instance law: Law(support body = body, field value = value);
 }}
 "#
@@ -492,11 +495,16 @@ model Main {{
             )
             .unwrap()
         };
-        let array = FieldContract::continuum(ExpressionType::<()>::new(
-            spatial(vec![2]).array(2).unwrap(),
-            None,
-        ));
-        let tensor = FieldContract::continuum(ExpressionType::<()>::new(spatial(vec![2, 2]), None));
+        let array = FieldContract::continuum(
+            ExpressionType::<()>::new(spatial(vec![2]).array(2).unwrap(), None),
+            eqiora_lang::FieldRoleSyntax::Variable,
+            eqiora_lang::ActivationSyntax::Continuous,
+        );
+        let tensor = FieldContract::continuum(
+            ExpressionType::<()>::new(spatial(vec![2, 2]), None),
+            eqiora_lang::FieldRoleSyntax::Variable,
+            eqiora_lang::ActivationSyntax::Continuous,
+        );
         assert!(field_contract_mismatch("input", &array, &array).is_none());
         assert_eq!(
             field_contract_mismatch("input", &tensor, &array).as_deref(),
@@ -530,14 +538,13 @@ model Main {{
     fn exact_support_shape_frame_and_dimension_are_required() {
         let document = parse(
             r#"
-component Law {
-  public support body: volume(ambient_dimension = 2);
-  public field slot displacement on body as continuum: vector<m, 2>;
+component Law(variable displacement: vector<m, 2> on body, support body: volume(ambient_dimension = 2)) {
+
+
 }
 model Use {
   domain body = box(0, 1, 0, 1);
-  representation space = continuum;
-  field displacement on body as space: vector<m, 2>;
+  variable displacement: vector<m, 2> on body;
   instance law: Law(support body = body, field displacement = displacement);
 }
 "#,
@@ -561,12 +568,15 @@ model Use {
                 Some(exact_support.clone()),
             )
             .unwrap(),
+            eqiora_lang::FieldRoleSyntax::Variable,
+            eqiora_lang::ActivationSyntax::Continuous,
         );
         let resolved = resolve_instance_fields(
             "field_slots.eqi",
             component,
             &interface,
             instance(&document),
+            |_| None,
             |_| Some(exact_support.clone()),
             |name| (name == "displacement").then(|| target.clone()),
         )

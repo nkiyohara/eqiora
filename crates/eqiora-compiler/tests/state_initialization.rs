@@ -38,7 +38,7 @@ fn algebraic_state_support_and_initial_owners_are_independent() {
             .iter()
             .filter(|n| matches!(n, KernelNode::Representation(_)))
             .count(),
-        2
+        1
     );
     assert_eq!(
         result
@@ -128,4 +128,77 @@ fn borrowed_clocks_and_states_forward_exact_targets() {
             "clock other = periodic(period = 1 / 1, phase = 0 / 1); state x: 1 at c;",
         );
     assert!(compile("wrong.eqi", &wrong).is_err());
+}
+
+#[test]
+fn initial_equation_identity_ignores_unrelated_declaration_order() {
+    let first = nodes(
+        "component Marker() {} model M { state x: 1; variable a: 1; initial { x = 1; } initial { a = 2; } }",
+    );
+    let second = nodes(
+        "component Marker() {} model M { initial { a = 2; } variable a: 1; initial { x = 1; } state x: 1; }",
+    );
+    let initial_ids = |nodes: Vec<KernelNode>| {
+        nodes
+            .into_iter()
+            .filter_map(|node| match node {
+                KernelNode::Relation(relation) if relation.is_initial() => {
+                    Some(relation.id().erase())
+                }
+                _ => None,
+            })
+            .collect::<std::collections::BTreeSet<_>>()
+    };
+    assert_eq!(initial_ids(first), initial_ids(second));
+}
+
+#[test]
+fn initialization_has_no_implicit_values_or_scalar_broadcast() {
+    assert!(
+        !nodes("model M { variable x: 1; state y: 1; relation r { x = y; } }")
+            .iter()
+            .any(|node| matches!(node, KernelNode::Relation(r) if r.is_initial()))
+    );
+    nodes(
+        "model M { domain body = box(0,1,0,1); state x: vector<m,2> on body; initial { x = 0; } }",
+    );
+    assert!(compile("broadcast.eqi", "model M { domain body = box(0,1,0,1); state x: vector<m,2> on body; initial { x = 1[m]; } }").is_err());
+}
+
+#[test]
+fn unused_component_clock_ownership_is_checked_at_its_definition() {
+    for source in [
+        "component C() { state x: 1 at missing; } model M { variable y: 1; relation r { y = 0; } }",
+        "component C(state x: 1 at hidden) { clock hidden = periodic(period = 1 / 1, phase = 0 / 1); } model M { variable y: 1; relation r { y = 0; } }",
+    ] {
+        assert!(compile("unused.eqi", source).is_err(), "{source}");
+    }
+}
+
+#[test]
+fn continuum_owner_is_shared_by_exact_support_across_components() {
+    use eqiora_core::entity::EntityKind;
+    use eqiora_graph::EdgeKind;
+    let source = "component C(support body: volume(ambient_dimension = 1)) { variable load: 1 on body; relation r on body { load = 0; } } model M { domain a = box(0,1); domain b = box(0,1); state x: 1 on a; variable y: 1 on a; variable z: 1 on b; instance c: C(support body = a); relation r on a { x = y; } }";
+    let compiled = compile("shared.eqi", source).unwrap();
+    let model = &compiled[0];
+    let representation = |field: &str| {
+        let id = model.symbols().get(field).unwrap();
+        model
+            .transaction()
+            .ops()
+            .iter()
+            .find_map(|op| match op {
+                Op::Connect {
+                    from,
+                    to,
+                    edge: EdgeKind::DefinedOn,
+                } if *from == id && to.kind() == EntityKind::Representation => Some(*to),
+                _ => None,
+            })
+            .unwrap()
+    };
+    assert_eq!(representation("x"), representation("y"));
+    assert_eq!(representation("x"), representation("c.load"));
+    assert_ne!(representation("x"), representation("z"));
 }

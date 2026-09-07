@@ -322,14 +322,23 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                 | ComponentItem::ClockRequirement(_)
                 | ComponentItem::FieldRequirement(_) => {}
                 ComponentItem::Field(declaration) => {
-                    if let Some(domain) = declaration.domain() {
-                        if self.scope.spatial_support(domain).is_none() {
-                            self.diagnostics.push(self.scope.wrong_local_kind(
-                                declaration.range(),
-                                domain,
-                                "Field support",
-                            ));
-                        }
+                    if let eqiora_lang::ActivationSyntax::Periodic(clock) = declaration.activation()
+                        && !matches!(self.scope.symbols.get(clock), Some(SymbolContract::Clock))
+                    {
+                        self.diagnostics.push(self.scope.wrong_local_kind(
+                            declaration.range(),
+                            clock,
+                            "Field ClockDomain",
+                        ));
+                    }
+                    if let Some(domain) = declaration.domain()
+                        && self.scope.spatial_support(domain).is_none()
+                    {
+                        self.diagnostics.push(self.scope.wrong_local_kind(
+                            declaration.range(),
+                            domain,
+                            "Field support",
+                        ));
                     }
                 }
                 ComponentItem::Clock(declaration) => {
@@ -471,11 +480,11 @@ public connector BoundaryScalar = field_physical(
     fn complete_exterior_family_is_checked_once_with_a_synthetic_member_identity() {
         let source = format!(
             r#"{SCALAR_CONNECTOR}
-component BoundaryLaw {{
+component BoundaryLaw(support exterior: complete_exterior(parent = body), support body: volume(ambient_dimension = 2)) {{
   public port natural[boundary in exterior]: conserving BoundaryScalar over boundary;
   public port coupled[boundary in exterior]: conserving BoundaryScalar over boundary;
-  public support exterior: complete_exterior(parent = body);
-  public support body: volume(ambient_dimension = 2);
+
+
   relation natural_law[boundary in exterior] on boundary {{
     flux(natural[boundary = boundary]) = 0;
   }}
@@ -496,11 +505,11 @@ component BoundaryLaw {{
     fn binderless_exact_boundary_connection_retains_its_component_class() {
         let source = format!(
             r#"{SCALAR_CONNECTOR}
-component Coupler {{
-  public support left_body: volume(ambient_dimension = 2);
-  public support left_face: boundary(parent = left_body);
-  public support right_body: volume(ambient_dimension = 2);
-  public support right_face: boundary(parent = right_body);
+component Coupler(support left_body: volume(ambient_dimension = 2), support left_face: boundary(parent = left_body), support right_body: volume(ambient_dimension = 2), support right_face: boundary(parent = right_body)) {{
+
+
+
+
   public port left: conserving BoundaryScalar over left_face;
   public port right: conserving BoundaryScalar over right_face;
   relation left_law on left_face {{ trace(left) = 0; flux(left) = 0; }}
@@ -539,9 +548,9 @@ component Coupler {{
             };
             let source = format!(
                 r#"{SCALAR_CONNECTOR}
-component BoundaryLaw {{
-  public support body: volume(ambient_dimension = 2);
-  public support exterior: complete_exterior(parent = body);
+component BoundaryLaw(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body)) {{
+
+
   public port natural[boundary in exterior]: conserving BoundaryScalar over boundary;
   relation law[boundary in {relation_set}] on boundary {{
     flux(natural[boundary = {target}]) = 0;
@@ -576,9 +585,9 @@ public connector B = field_physical(
   frame = invariant,
   pairing = euclidean_boundary_duality
 );
-component InvalidConnection {
-  public support body: volume(ambient_dimension = 2);
-  public support exterior: complete_exterior(parent = body);
+component InvalidConnection(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body)) {
+
+
   public port left[boundary in exterior]: conserving A over boundary;
   public port right[boundary in exterior]: conserving B over boundary;
   connect conserving [boundary in exterior]
@@ -598,9 +607,9 @@ component InvalidConnection {
     fn child_port_family_requires_explicit_complete_exterior_forwarding() {
         let prefix = format!(
             r#"{SCALAR_CONNECTOR}
-component Leaf {{
-  public support body: volume(ambient_dimension = 2);
-  public support exterior: complete_exterior(parent = body);
+component Leaf(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body)) {{
+
+
   public port mechanical[side in exterior]: conserving BoundaryScalar over side;
 }}
 "#
@@ -608,9 +617,9 @@ component Leaf {{
         let parent = |forwarding: &str| {
             format!(
                 r#"{prefix}
-component Parent {{
-  public support body: volume(ambient_dimension = 2);
-  public support exterior: complete_exterior(parent = body);
+component Parent(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body)) {{
+
+
   public port mechanical[boundary in exterior]: conserving BoundaryScalar over boundary;
   instance child: Leaf(support body = body{forwarding});
   connect conserving [boundary in exterior]
