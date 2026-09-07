@@ -14,6 +14,7 @@ mod operator;
 mod property;
 mod relation;
 mod value_type;
+pub(crate) mod value_literal;
 
 use crate::ast::{
     ActivationSyntax, BoundaryConnectionDecl, BoundaryDecl, BoundaryFamilyBinderSyntax,
