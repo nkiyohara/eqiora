@@ -306,6 +306,7 @@ pub mod runtime {
 pub mod sem {
     pub use eqiora_sem::{
         ComposedResidualSystem, Interpreter, JunctionResidual, KernelProgram, PhysicalUnknown,
-        ReferenceConfig, RelationResidual, Sample, ScalarPhysicalSubsystemId, Trajectory,
+        ReferenceConfig, RelationResidual, Sample, SampledCheckpoint, SampledSession,
+        ScalarPhysicalSubsystemId, Trajectory,
     };
 }
