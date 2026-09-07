@@ -159,14 +159,6 @@ impl Default for HierarchyLimits {
     }
 }
 
-pub(crate) fn compile_hierarchy(
-    file: &str,
-    source_bytes: usize,
-    document: &Document,
-) -> Result<Vec<CompiledModel>, Vec<Diagnostic>> {
-    compile_hierarchy_with_limits(file, source_bytes, document, HierarchyLimits::default())
-}
-
 /// Compile one local Component definition as an ephemeral root occurrence
 /// bound to exact external Geometry supports.
 ///
@@ -545,54 +537,14 @@ fn validate_external_support_inventory(
     }
 }
 
+#[cfg(test)]
 fn compile_hierarchy_with_limits(
     file: &str,
     source_bytes: usize,
     document: &Document,
     limits: HierarchyLimits,
 ) -> Result<Vec<CompiledModel>, Vec<Diagnostic>> {
-    if source_bytes > limits.max_source_bytes {
-        return Err(vec![source_error(
-            codes::LANGUAGE_LOWERING_ERROR,
-            file,
-            TextRange::new(0, u32::try_from(source_bytes).unwrap_or(u32::MAX)),
-            format!(
-                "source requires {source_bytes} bytes, exceeding the {} byte hierarchy limit",
-                limits.max_source_bytes
-            ),
-        )]);
-    }
-    let source_identity =
-        LocalSourceIdentity::from_document(document).map_err(|error| vec![error])?;
-    let document = crate::dimensions::elaborate_dimension_aliases(file, document)?;
-    let elaborator = Elaborator::new(
-        file,
-        source_bytes,
-        document.as_ref(),
-        source_identity,
-        limits,
-    )?;
-    let checked = check::validate(&elaborator)?;
-    let mut compiled = Vec::new();
-    let mut diagnostics = Vec::new();
-    for model in document.models() {
-        let model = elaborator.local_model(model);
-        let result = checked_model_expansion_size(&checked, &model)
-            .and_then(|size| {
-                RootExpansion::new(&elaborator, model, size).map_err(|error| vec![error])
-            })
-            .and_then(RootExpansion::expand)
-            .and_then(|blueprint| blueprint.compile(limits));
-        match result {
-            Ok(model) => compiled.push(model),
-            Err(mut errors) => diagnostics.append(&mut errors),
-        }
-    }
-    if diagnostics.is_empty() {
-        Ok(compiled)
-    } else {
-        Err(diagnostics)
-    }
+    selected::local_document(file, source_bytes, document.clone(), None, &[], limits)
 }
 
 pub(crate) fn compile_resolved_hierarchy(

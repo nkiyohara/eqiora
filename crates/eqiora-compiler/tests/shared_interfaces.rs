@@ -228,3 +228,18 @@ fn borrowed_alias_clocks_are_checked_at_the_exact_occurrence() {
         }
     }
 }
+
+#[test]
+fn closed_and_selected_compilation_share_local_property_admission() {
+    use eqiora_compiler::CompiledModel;
+    let source = "property contract Gain():1 {derivatives value_only;} property release Measured implements Gain {value=2;source_unit:1=1;validity=unconditional;citation=org.example.measurement;license=spdx.CC0_1_0;} material composition Material {property gain=Measured;} component Amplifier(property gain:Gain,output y:1) {relation value {y=gain;}} model First() {instance amplifier:Amplifier(gain=Material.gain);} model Second() {instance amplifier:Amplifier(gain=Measured);}";
+    let closed = eqiora_compiler::compile("local.eqi", source).unwrap();
+    assert_eq!(closed.len(), 2);
+    for (model, entry) in closed.iter().zip(["First", "Second"]) {
+        let selected = CompiledModel::compile_selected("local.eqi", source, entry, &[]).unwrap();
+        assert_eq!(model.model(), selected.model());
+    }
+    let invalid = source.replace("gain=Material.gain", "gain=2");
+    assert!(eqiora_compiler::compile("local.eqi", &invalid).is_err());
+    assert!(CompiledModel::compile_selected("local.eqi", &invalid, "First", &[]).is_err());
+}

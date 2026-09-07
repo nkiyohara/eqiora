@@ -303,16 +303,6 @@ impl<'a> Elaborator<'a> {
         Ok(definition)
     }
 
-    pub(super) fn local_model(&self, model: &'a ModelDecl) -> ModelDefinition<'a> {
-        self.models
-            .get(&DefinitionKey {
-                namespace: DefinitionNamespace::Local,
-                name: model.name().to_owned(),
-            })
-            .expect("local Model was indexed")
-            .clone()
-    }
-
     pub(super) fn connectors(
         &self,
     ) -> impl ExactSizeIterator<Item = (&DefinitionKey, &ConnectorDefinition<'a>)> {

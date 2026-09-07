@@ -30,7 +30,44 @@ pub(crate) fn local(
     entry: &str,
     bindings: &[(&str, StaticBindingValue<'_>)],
 ) -> Result<CompiledModel, Vec<Diagnostic>> {
-    let document = parse(file, source).into_document()?;
+    let mut models = local_entries(file, source, Some(entry), bindings)?;
+    Ok(models.remove(0))
+}
+
+pub(crate) fn local_all(file: &str, source: &str) -> Result<Vec<CompiledModel>, Vec<Diagnostic>> {
+    local_entries(file, source, None, &[])
+}
+
+fn local_entries(
+    file: &str,
+    source: &str,
+    entry: Option<&str>,
+    bindings: &[(&str, StaticBindingValue<'_>)],
+) -> Result<Vec<CompiledModel>, Vec<Diagnostic>> {
+    let parsed = parse(file, source);
+    let document = if entry.is_some() {
+        parsed.into_document()?
+    } else {
+        parsed.into_compilation_document()?
+    };
+    local_document(
+        file,
+        source.len(),
+        document,
+        entry,
+        bindings,
+        HierarchyLimits::default(),
+    )
+}
+
+pub(super) fn local_document(
+    file: &str,
+    source_bytes: usize,
+    document: Document,
+    entry: Option<&str>,
+    bindings: &[(&str, StaticBindingValue<'_>)],
+    limits: HierarchyLimits,
+) -> Result<Vec<CompiledModel>, Vec<Diagnostic>> {
     let identity = LocalSourceIdentity::from_document(&document).map_err(|error| vec![error])?;
     let document = crate::dimensions::elaborate_dimension_aliases(file, &document)?.into_owned();
     // This private lookup namespace never enters local source/occurrence identity.
@@ -41,7 +78,7 @@ pub(crate) fn local(
     let mut units = vec![AnalyzedSourceUnit {
         module: module.clone(),
         file: file.to_owned(),
-        source_bytes: source.len(),
+        source_bytes,
         authored_document: std::sync::Arc::new(document.clone()),
         document,
     }];
@@ -51,17 +88,39 @@ pub(crate) fn local(
         aliases: &[],
         local_namespace: Some(&module),
     };
-    let limits = HierarchyLimits::default();
-    let elaborator = Elaborator::new(file, source.len(), &units[0].document, identity, limits)?;
+    let elaborator = Elaborator::new(file, source_bytes, &units[0].document, identity, limits)?;
     let checked = check::validate(&elaborator)?;
-    compile(
-        &elaborator,
-        &checked,
-        entry,
-        bindings,
-        &preflight::DefinitionNamespace::Local,
-        &context,
-    )
+    let entries = entry.map_or_else(
+        || {
+            units[0]
+                .document
+                .models()
+                .iter()
+                .map(ModelDecl::name)
+                .collect::<Vec<_>>()
+        },
+        |entry| vec![entry],
+    );
+    let mut models = Vec::with_capacity(entries.len());
+    let mut diagnostics = Vec::new();
+    for entry in entries {
+        match compile(
+            &elaborator,
+            &checked,
+            entry,
+            bindings,
+            &preflight::DefinitionNamespace::Local,
+            &context,
+        ) {
+            Ok(model) => models.push(model),
+            Err(mut errors) => diagnostics.append(&mut errors),
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(models)
+    } else {
+        Err(diagnostics)
+    }
 }
 
 pub(crate) fn resolved(
