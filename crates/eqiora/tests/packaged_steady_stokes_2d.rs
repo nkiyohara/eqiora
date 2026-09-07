@@ -4,7 +4,7 @@ use eqiora::api::ModelDocument;
 use eqiora::artifact::ModelEnvelope;
 use eqiora::diagnostic::codes;
 use eqiora::kernel::BoundarySide;
-use eqiora::language::{ComponentItem, DomainSyntax, Item};
+use eqiora::language::{ComponentItem, DomainSyntax, Item, SignatureItem};
 use eqiora::package::{
     BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
     PackageCompilationRecordV2, PackageDependencyV1, PackageManifestV1, PackageReleaseV1,
@@ -439,28 +439,28 @@ fn assert_component_and_root_boundaries() {
     assert_eq!(component.components().len(), 1);
     let component = &component.components()[0];
     assert_eq!(component.name(), "SteadyStokesWithPotential2d");
-    assert_eq!(component.items().len(), 7);
+    assert_eq!(component.signature().len() + component.items().len(), 7);
     assert_eq!(
         component
-            .items()
+            .signature()
             .iter()
-            .filter(|item| matches!(item, ComponentItem::Support(_)))
+            .filter(|item| matches!(item, SignatureItem::Support(_)))
             .count(),
         1
     );
     assert_eq!(
         component
-            .items()
+            .signature()
             .iter()
-            .filter(|item| matches!(item, ComponentItem::FieldRequirement(_)))
+            .filter(|item| matches!(item, SignatureItem::Field(_)))
             .count(),
         3
     );
     assert_eq!(
         component
-            .items()
+            .signature()
             .iter()
-            .filter(|item| matches!(item, ComponentItem::Parameter(_)))
+            .filter(|item| matches!(item, SignatureItem::Parameter(_)))
             .count(),
         1
     );
