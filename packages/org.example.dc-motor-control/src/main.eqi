@@ -8,7 +8,7 @@ component SampledPController() {
   public port command: signal output kg * m ^ 2 / (s ^ 3 * A);
 
   state held_voltage: kg * m ^ 2 / (s ^ 3 * A) at sample;
-  clock sample = periodic(period = 1 / 100, phase = 0 / 1);
+  clock sample = periodic(1[s] / 100, phase = 0[s] / 1);
 
   initial {
     held_voltage = 0;

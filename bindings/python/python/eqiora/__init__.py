@@ -16,6 +16,7 @@ from . import (
     solve,
     time,
     trajectory,
+    units,
 )
 
 from ._eqiora import (
@@ -213,6 +214,7 @@ __all__ = [
     "div",
     "grad",
     "lang",
+    "units",
     "resolve",
     "resolve_local_project",
     "add_local_dependency",

@@ -136,7 +136,7 @@ fn only_declared_continuous_states_have_authored_time_derivatives() {
     for source in [
         "model M { variable x: 1; relation law { derivative(x) = 0; } }",
         "model M { variable x: 1; initial { derivative(x) = 0; } }",
-        "model M { clock c = periodic(period = 1 / 1, phase = 0 / 1); state x: 1 at c; relation law { derivative(x) = 0; } }",
+        "model M { clock c = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1 at c; relation law { derivative(x) = 0; } }",
     ] {
         assert!(compile("bad.eqi", source).is_err(), "{source}");
     }
@@ -145,12 +145,12 @@ fn only_declared_continuous_states_have_authored_time_derivatives() {
 #[test]
 fn clocked_state_initializes_pre_and_requires_exact_clock() {
     nodes(
-        "model M { domain body = box(0,1); clock c = periodic(period = 1 / 1, phase = 0 / 1); state x: 1 on body at c; initial { pre(x) = 0; } relation law on body at c { next(x) = pre(x); } }",
+        "model M { domain body = box(0,1); clock c = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1 on body at c; initial { pre(x) = 0; } relation law on body at c { next(x) = pre(x); } }",
     );
     for source in [
-        "model M { clock c = periodic(period = 1 / 1, phase = 0 / 1); clock d = periodic(period = 1 / 1, phase = 0 / 1); state x: 1 at c; relation law at d { next(x) = pre(x); } }",
-        "model M { clock c = periodic(period = 1 / 1, phase = 0 / 1); variable x: 1 at c; relation law at c { next(x) = pre(x); } }",
-        "model M { clock c = periodic(period = 1 / 1, phase = 0 / 1); state x: 1 at c; initial { next(x) = 0; } }",
+        "model M { clock c = periodic(1[s] / 1, phase = 0[s] / 1); clock d = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1 at c; relation law at d { next(x) = pre(x); } }",
+        "model M { clock c = periodic(1[s] / 1, phase = 0[s] / 1); variable x: 1 at c; relation law at c { next(x) = pre(x); } }",
+        "model M { clock c = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1 at c; initial { next(x) = 0; } }",
     ] {
         assert!(compile("bad.eqi", source).is_err(), "{source}");
     }
@@ -177,7 +177,7 @@ fn borrowed_roles_preserve_target_and_cannot_launder_state_eligibility() {
 
 #[test]
 fn borrowed_clocks_and_states_forward_exact_targets() {
-    let source = "component Delay(clock tick, state value: 1 at tick) { initial { pre(value) = 0; } relation law at tick { next(value) = pre(value); } } component Forward(clock tick, state value: 1 at tick) { instance d: Delay(clock tick = tick, field value = value); } model M { clock c = periodic(period = 1 / 1, phase = 0 / 1); state x: 1 at c; instance f: Forward(clock tick = c, field value = x); }";
+    let source = "component Delay(clock tick, state value: 1 at tick) { initial { pre(value) = 0; } relation law at tick { next(value) = pre(value); } } component Forward(clock tick, state value: 1 at tick) { instance d: Delay(clock tick = tick, field value = value); } model M { clock c = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1 at c; instance f: Forward(clock tick = c, field value = x); }";
     let result = nodes(source);
     assert_eq!(
         result
@@ -197,7 +197,7 @@ fn borrowed_clocks_and_states_forward_exact_targets() {
         .replace("clock tick = c, field", "clock tick = other, field")
         .replace(
             "state x: 1 at c;",
-            "clock other = periodic(period = 1 / 1, phase = 0 / 1); state x: 1 at c;",
+            "clock other = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1 at c;",
         );
     assert!(compile("wrong.eqi", &wrong).is_err());
 }
@@ -241,7 +241,7 @@ fn initialization_has_no_implicit_values_or_scalar_broadcast() {
 fn unused_component_clock_ownership_is_checked_at_its_definition() {
     for source in [
         "component C() { state x: 1 at missing; } model M { variable y: 1; relation r { y = 0; } }",
-        "component C(state x: 1 at hidden) { clock hidden = periodic(period = 1 / 1, phase = 0 / 1); } model M { variable y: 1; relation r { y = 0; } }",
+        "component C(state x: 1 at hidden) { clock hidden = periodic(1[s] / 1, phase = 0[s] / 1); } model M { variable y: 1; relation r { y = 0; } }",
     ] {
         assert!(compile("unused.eqi", source).is_err(), "{source}");
     }

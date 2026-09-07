@@ -318,7 +318,7 @@ fn canonical_lowering_fails_closed_at_physical_identity_and_model_boundaries() {
     let periodic_load = MANUFACTURED
         .replace(
             "model manufactured_isotropic_elasticity_plane {",
-            "model manufactured_isotropic_elasticity_plane { clock tick = periodic(period = 1 / 1, phase = 0 / 1);",
+            "model manufactured_isotropic_elasticity_plane { clock tick = periodic(1[s] / 1, phase = 0[s] / 1);",
         )
         .replace(
             "relation load on body",

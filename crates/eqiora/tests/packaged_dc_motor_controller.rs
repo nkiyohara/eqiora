@@ -1035,7 +1035,11 @@ fn exact_packages_execute_and_accept_one_sampled_acausal_drive() {
         "source import aliases and source-unit insertion order are not model meaning"
     );
 
-    let changed_clock_source = ROOT_SOURCE.replacen("period = 1 / 100", "period = 1 / 50", 1);
+    let changed_clock_source = ROOT_SOURCE.replacen("periodic(1[s] / 100", "periodic(1[s] / 50", 1);
+    assert_ne!(
+        changed_clock_source, ROOT_SOURCE,
+        "clock mutant must change the authored period"
+    );
     let changed_clock = packaged_model_with_root(&changed_clock_source);
     assert_ne!(
         packaged.model().digest().expect("model digest"),
@@ -1048,11 +1052,11 @@ fn exact_packages_execute_and_accept_one_sampled_acausal_drive() {
     assert_ne!(fixture.root_semantic, changed_clock.root_semantic);
 
     let multiple_clock_source = ROOT_SOURCE.replace(
-        "  clock sample = periodic(period = 1 / 100, phase = 0 / 1);",
-        "  clock sample = periodic(period = 1 / 100, phase = 0 / 1);\n\
+        "  clock sample = periodic(1[s] / 100, phase = 0[s] / 1);",
+        "  clock sample = periodic(1[s] / 100, phase = 0[s] / 1);\n\
          \n\
            state secondary_hold: kg * m ^ 2 / (s ^ 3 * A) at secondary; initial { secondary_hold = 0; }\n\
-           clock secondary = periodic(period = 1 / 50, phase = 0 / 1);\n\
+           clock secondary = periodic(1[s] / 50, phase = 0[s] / 1);\n\
            relation secondary_update at secondary {\n\
              next(secondary_hold) - pre(secondary_hold) = 0;\n\
            }",

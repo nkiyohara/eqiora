@@ -2,7 +2,7 @@
 
 This catalog supplies the units used by the [language specimens](core.md). Type
 dimensions, scaled input units, and output presentation remain separate. The compiler owns
-one catalog shared by source and Python `eqiora.lang.units`; no root-level unit aliases
+one catalog shared by source and Python `eqiora.units`; no root-level unit aliases
 or package-specific unit evaluator are introduced.
 
 ## Coherent symbols
@@ -82,13 +82,32 @@ product/division/power composes dimensions and scales exactly before the canonic
 rounding boundary. Non-exact rational scale roots reject in the initial profile.
 
 Python constructs the same source with `eqiora.lang.quantity(1, units.Ohm.prefixed("k"))`.
-It does not evaluate unit scales independently. The compiler composes decimal scale powers
-exactly, rounds the resulting decimal scale to binary64, and multiplies the input value once.
-Nonfinite scales and results reject; zero is canonicalized to positive zero.
+It does not evaluate unit scales independently. A quantity retains its exact decimal
+coefficient and exponent until the compiler composes the unit's decimal power. The resulting
+decimal is rounded once to binary64 (nearest, ties to even). Neither the input number nor
+the scale must be separately representable: `1e-400[km ^ 100]` denotes `1e-100[m ^ 100]`.
+Nonfinite final values and nonzero values rounding to zero reject; representable subnormals
+remain valid, and zero is canonicalized to positive zero. `0.1[nm]` therefore agrees with
+`1e-10[m]` without an intermediate rounded multiplication.
+
+Decimal tokens are bounded to 256 bytes before normalization. Their explicit and normalized
+decimal exponents must fit signed 64-bit integers; composed unit scale powers retain their
+signed 32-bit bound. Source identity preserves the exact normalized decimal value and unit
+expression, while the Model stores the resulting binary64 value. Native finite values enter
+source authoring through their shortest scientific decimal spelling; Python `Decimal` input
+preserves an intentionally exact decimal value. Bare numerical expressions retain their
+ordinary numerical evaluation boundary.
 
 For independent conversions, 10 ms is 1/100 s, 1 kOhm is 1000 Ohm, 210 GPa is
 210,000,000,000 Pa, and 1 uF is 1/1,000,000 F. Exact clocks retain the 1/100-second rational;
-they do not recover it from a rounded numerical literal. Case or namespace collisions with
+they do not recover it from a rounded numerical literal. Concrete clocks use
+`periodic(10[ms], phase = 0[s])`; phase may be omitted. Exact literal arithmetic with
+`+`, `-`, `*`, and `/` admits nonterminating rational seconds such as `periodic(1[s] / 3)`.
+Every exact clock expression node has a reduced numerator magnitude and positive denominator
+bounded by `u64`; dimension arithmetic and expression nesting keep their existing bounds.
+The final period must be positive and the phase nonnegative, both dimensioned as time.
+These checks do not evaluate value references or numerical operators and never pass through
+binary64. This input boundary does not add clock-interface or multiclock scheduling semantics. Case or namespace collisions with
 ordinary values do not affect these conversions.
 
 Affine Celsius/Fahrenheit symbols are not admitted by this initial multiplicative catalog.

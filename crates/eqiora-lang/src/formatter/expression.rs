@@ -17,7 +17,7 @@ pub(super) fn format_expression(
     match &expression.kind {
         ExprKind::Number(value) => output.push_str(&format_number(*value)),
         ExprKind::Quantity { value, unit } => {
-            output.push_str(&format_number(*value));
+            output.push_str(&value.canonical_text());
             output.push_str(" [");
             format_expression(unit, 0, output);
             output.push(']');
@@ -104,7 +104,8 @@ fn expression_precedence(expression: &Expr) -> u8 {
         ExprKind::Unary { .. } => 6,
         // Native source factories may store a negative literal directly rather
         // than as Unary(Neg). Its printed sign still needs a grouped power base.
-        ExprKind::Number(value) | ExprKind::Quantity { value, .. } if *value < 0.0 => 6,
+        ExprKind::Number(value) if *value < 0.0 => 6,
+        ExprKind::Quantity { value, .. } if value.is_negative() => 6,
         ExprKind::Number(_)
         | ExprKind::Quantity { .. }
         | ExprKind::Name(_)

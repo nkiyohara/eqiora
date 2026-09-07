@@ -15,6 +15,6 @@ requires:
   shape, frame, ambient-dimension, and exact-support failures before graph
   mutation, plus parser rejection of any non-`continuum` slot family.
 
-Source identity uses the current ordered-equality epoch `local-source-v4`.
+Source identity uses the current exact-decimal quantity epoch `local-source-v5`.
 Changing an exact Field target changes that identity; historical encodings
 are not retained as compatibility alternatives.

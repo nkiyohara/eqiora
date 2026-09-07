@@ -5,6 +5,9 @@ use eqiora_lang::{BinaryOp, Expr, ExprKind};
 
 use crate::dimensions::rational_literal;
 
+mod exact_time;
+pub(crate) use exact_time::lower_clock;
+
 pub(crate) fn parameter_literal(
     file: &str,
     declaration: &eqiora_lang::ParameterDecl,
@@ -22,31 +25,66 @@ pub(crate) fn typed_literal(
     crate::hierarchy::closed_value(file, expression, value_type)
 }
 
+/// The compiler's closed multiplicative input-unit vocabulary.
+///
+/// Source lowering and authoring clients share these symbols and prefix rules.
+/// Scale evaluation remains at the compiler quantity boundary.
+pub struct InputUnitCatalog;
+
+impl InputUnitCatalog {
+    /// Bare input symbols and whether one decimal prefix may be applied.
+    pub fn symbols() -> impl Iterator<Item = (&'static str, bool)> {
+        COHERENT_UNITS
+            .iter()
+            .map(|(name, _)| (*name, *name != "kg"))
+            .chain([("g", true), ("1", false)])
+    }
+
+    /// Admitted case-sensitive prefixes, each applied at most once.
+    pub fn prefixes() -> impl Iterator<Item = &'static str> {
+        PREFIXES.iter().map(|(prefix, _)| *prefix)
+    }
+}
+
+const COHERENT_UNITS: &[(&str, [i32; 7])] = &[
+    ("kg", [1, 0, 0, 0, 0, 0, 0]),
+    ("m", [0, 1, 0, 0, 0, 0, 0]),
+    ("s", [0, 0, 1, 0, 0, 0, 0]),
+    ("A", [0, 0, 0, 1, 0, 0, 0]),
+    ("K", [0, 0, 0, 0, 1, 0, 0]),
+    ("mol", [0, 0, 0, 0, 0, 1, 0]),
+    ("cd", [0, 0, 0, 0, 0, 0, 1]),
+    ("Hz", [0, 0, -1, 0, 0, 0, 0]),
+    ("N", [1, 1, -2, 0, 0, 0, 0]),
+    ("Pa", [1, -1, -2, 0, 0, 0, 0]),
+    ("J", [1, 2, -2, 0, 0, 0, 0]),
+    ("W", [1, 2, -3, 0, 0, 0, 0]),
+    ("C", [0, 0, 1, 1, 0, 0, 0]),
+    ("V", [1, 2, -3, -1, 0, 0, 0]),
+    ("Ohm", [1, 2, -3, -2, 0, 0, 0]),
+    ("S", [-1, -2, 3, 2, 0, 0, 0]),
+    ("F", [-1, -2, 4, 2, 0, 0, 0]),
+    ("H", [1, 2, -2, -2, 0, 0, 0]),
+    ("Wb", [1, 2, -2, -1, 0, 0, 0]),
+    ("T", [1, 0, -2, -1, 0, 0, 0]),
+];
+
+const PREFIXES: &[(&str, i32)] = &[
+    ("n", -9),
+    ("u", -6),
+    ("m", -3),
+    ("c", -2),
+    ("k", 3),
+    ("M", 6),
+    ("G", 9),
+];
+
 pub(crate) fn coherent_dimension(name: &str) -> Option<DimExponents> {
-    let exponents = match name {
-        "kg" => [1, 0, 0, 0, 0, 0, 0],
-        "m" => [0, 1, 0, 0, 0, 0, 0],
-        "s" => [0, 0, 1, 0, 0, 0, 0],
-        "A" => [0, 0, 0, 1, 0, 0, 0],
-        "K" => [0, 0, 0, 0, 1, 0, 0],
-        "mol" => [0, 0, 0, 0, 0, 1, 0],
-        "cd" => [0, 0, 0, 0, 0, 0, 1],
-        "Hz" => [0, 0, -1, 0, 0, 0, 0],
-        "N" => [1, 1, -2, 0, 0, 0, 0],
-        "Pa" => [1, -1, -2, 0, 0, 0, 0],
-        "J" => [1, 2, -2, 0, 0, 0, 0],
-        "W" => [1, 2, -3, 0, 0, 0, 0],
-        "C" => [0, 0, 1, 1, 0, 0, 0],
-        "V" => [1, 2, -3, -1, 0, 0, 0],
-        "Ohm" => [1, 2, -3, -2, 0, 0, 0],
-        "S" => [-1, -2, 3, 2, 0, 0, 0],
-        "F" => [-1, -2, 4, 2, 0, 0, 0],
-        "H" => [1, 2, -2, -2, 0, 0, 0],
-        "Wb" => [1, 2, -2, -1, 0, 0, 0],
-        "T" => [1, 0, -2, -1, 0, 0, 0],
-        _ => return None,
-    };
-    DimExponents::from_integers(exponents)
+    COHERENT_UNITS.iter().find_map(|(symbol, exponents)| {
+        (*symbol == name)
+            .then(|| DimExponents::from_integers(*exponents))
+            .flatten()
+    })
 }
 
 struct Unit {
@@ -71,15 +109,7 @@ fn named_unit(name: &str) -> Option<Unit> {
     if let Some(unit) = bare_unit(name) {
         return Some(unit);
     }
-    for (prefix, power) in [
-        ("n", -9),
-        ("u", -6),
-        ("m", -3),
-        ("c", -2),
-        ("k", 3),
-        ("M", 6),
-        ("G", 9),
-    ] {
+    for &(prefix, power) in PREFIXES {
         if let Some(base) = name.strip_prefix(prefix).filter(|base| *base != "kg")
             && let Some(mut unit) = bare_unit(base)
         {
@@ -146,15 +176,32 @@ fn lower_unit(expression: &Expr, depth: usize) -> Result<Unit, &'static str> {
     }
 }
 
-pub(crate) fn quantity(value: f64, expression: &Expr) -> Result<DynQuantity, &'static str> {
+pub(crate) fn quantity(
+    value: &eqiora_lang::DecimalLiteral,
+    expression: &Expr,
+) -> Result<DynQuantity, &'static str> {
     let unit = lower_unit(expression, 0)?;
-    // All catalog scales are powers of ten. Compose them exactly above;
-    // round the final scale to binary64 only at this numerical boundary.
-    let scale = format!("1e{}", unit.decimal_power)
-        .parse::<f64>()
-        .map_err(|_| "input-unit scale cannot be represented")?;
+    let exponent = value
+        .exponent10()
+        .checked_add(i64::from(unit.decimal_power))
+        .ok_or("normalized quantity exceeds decimal exponent bounds")?;
+    // Preserve the decimal coefficient and compose the exact power of ten.
+    // Parsing this final decimal is the only binary64 rounding boundary.
+    let normalized = format!(
+        "{}{}e{exponent}",
+        if value.is_negative() { "-" } else { "" },
+        value.coefficient(),
+    )
+    .parse::<f64>()
+    .map_err(|_| "normalized quantity cannot be represented")?;
+    if !normalized.is_finite() {
+        return Err("normalized quantity must be finite");
+    }
+    if !value.is_zero() && normalized == 0.0 {
+        return Err("nonzero quantity underflows the normalized binary64 range");
+    }
     Ok(DynQuantity::new(
-        normalize_value(value, scale)?,
+        if normalized == 0.0 { 0.0 } else { normalized },
         unit.dimension,
     ))
 }
@@ -178,6 +225,13 @@ mod tests {
     use super::*;
     use eqiora_lang::{Item, parse};
 
+    fn quantity(value: f64, expression: &Expr) -> Result<DynQuantity, &'static str> {
+        super::quantity(
+            &eqiora_lang::DecimalLiteral::from_f64(value).unwrap(),
+            expression,
+        )
+    }
+
     fn unit(source: &str) -> Expr {
         let source = format!("model M {{ let value = 1 [{source}]; }}");
         let document = parse("unit.eqi", &source).into_document().unwrap();
@@ -188,6 +242,102 @@ mod tests {
             panic!("quantity")
         };
         unit.as_ref().clone()
+    }
+
+    #[test]
+    fn decimal_quantity_rounds_only_after_exact_unit_composition() {
+        use eqiora_graph::Op;
+        use eqiora_schema::kernel::KernelNode;
+
+        // 0.1 nm = 1 / 10^10 m. The nearest binary64 is independently
+        // specified by its bits, not by multiplying two rounded f64 values.
+        let compiled = crate::compile(
+            "single-rounding.eqi",
+            "model M { parameter length: m = 0.1[nm]; relation r { length - length = 0; } }",
+        )
+        .unwrap();
+        let value = compiled[0]
+            .transaction()
+            .ops()
+            .iter()
+            .find_map(|op| match op {
+                Op::DefineKernelNode {
+                    node: KernelNode::Parameter(parameter),
+                } => parameter.real_scalar_value(),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(value.value().to_bits(), 0x3ddb_7cdf_d9d7_bdbb);
+    }
+
+    #[test]
+    fn scaled_decimal_midpoints_round_to_even() {
+        // Exact decimal spellings of (1 + 2^-53) * 1000 and
+        // (1 + 3 * 2^-53) * 1000; ms contributes the exact 10^-3 factor.
+        for (decimal, expected_bits) in [
+            (
+                "1000.00000000000011102230246251565404236316680908203125",
+                0x3ff0_0000_0000_0000,
+            ),
+            (
+                "1000.00000000000033306690738754696212708950042724609375",
+                0x3ff0_0000_0000_0002,
+            ),
+        ] {
+            let value = eqiora_lang::DecimalLiteral::parse(decimal).unwrap();
+            let converted = super::quantity(&value, &unit("ms")).unwrap();
+            assert_eq!(converted.value().to_bits(), expected_bits);
+        }
+    }
+
+    #[test]
+    fn complex_quantity_components_share_the_exact_decimal_boundary() {
+        use eqiora_graph::Op;
+        use eqiora_schema::kernel::KernelNode;
+
+        let compiled = crate::compile(
+            "complex-units.eqi",
+            "model M { parameter length: complex<m> = math.complex(0.1[nm], -0.1[nm]); relation r { length - length = 0; } }",
+        ).unwrap();
+        let value = compiled[0]
+            .transaction()
+            .ops()
+            .iter()
+            .find_map(|op| match op {
+                Op::DefineKernelNode {
+                    node: KernelNode::Parameter(parameter),
+                } => Some(parameter.value()),
+                _ => None,
+            })
+            .unwrap();
+        let (real, imaginary) = value.component(0).unwrap();
+        assert_eq!(real.to_bits(), 0x3ddb_7cdf_d9d7_bdbb);
+        assert_eq!(imaginary.to_bits(), 0xbddb_7cdf_d9d7_bdbb);
+    }
+
+    #[test]
+    fn decimal_quantity_checks_the_final_scaled_range() {
+        for (literal, expected) in [
+            ("1e-400[km ^ 100]", 1e-100_f64),
+            ("1e400[nm ^ 100]", 0.0),
+            ("1e400[nm ^ 20]", 1e220),
+            ("0[nm ^ 100]", 0.0),
+        ] {
+            let source = format!("model M {{ let value = {literal}; }}");
+            let document = parse("scaled.eqi", &source).into_document().unwrap();
+            let Item::Let(binding) = &document.models()[0].items()[0] else {
+                panic!("let")
+            };
+            let ExprKind::Quantity { value, unit } = binding.value().kind() else {
+                panic!("quantity")
+            };
+            let converted = super::quantity(value, unit);
+            if literal == "1e400[nm ^ 100]" {
+                assert!(converted.is_err(), "nonzero final underflow must reject");
+            } else {
+                assert_eq!(converted.unwrap().value().to_bits(), expected.to_bits());
+            }
+        }
     }
 
     #[test]

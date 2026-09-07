@@ -15,7 +15,7 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__in
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.pyi" kind="blob">bindings/python/python/eqiora/lang/__init__.pyi</ExactSourceLink>
 
-This module publishes **26** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **25** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
 <a id="api-eqiora-lang-Clock"></a>
 
@@ -149,7 +149,7 @@ class Source:
     def __init__(self) -> None: ...
     def component(self, name: str, *, doc: str | None=None) -> Component: ...
     def property_contract(self, name: str, *, value_type: ValueType, doc: str | None=None) -> PropertyContract: ...
-    def property_release(self, name: str, *, implements: PropertyContract, value: int | float | complex | Sequence[object], source_unit: _Unit, source_scale: int | float, citation: str, license: str, doc: str | None=None) -> PropertyRelease: ...
+    def property_release(self, name: str, *, implements: PropertyContract, value: int | float | complex | Sequence[object], source_unit: Unit, source_scale: int | float, citation: str, license: str, doc: str | None=None) -> PropertyRelease: ...
     def material_composition(self, name: str, *, properties: Mapping[str, PropertyRelease], doc: str | None=None) -> MaterialComposition: ...
     def to_eqi(self) -> str: ...
     def write_eqi(self, path: str | PathLike[str]) -> None: ...
@@ -324,7 +324,7 @@ Author an input quantity; the compiler owns conversion to coherent SI.
 Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::quantity</ExactSourceLink>
 
 ```python
-def quantity(value: int | float, unit: _Unit) -> Expression: ...
+def quantity(value: int | float | Decimal, unit: Unit) -> Expression: ...
 ```
 
 <a id="api-eqiora-lang-symmetric_part"></a>
@@ -361,16 +361,4 @@ Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py
 
 ```python
 def trace(value: Expression) -> Expression: ...
-```
-
-<a id="api-eqiora-lang-units"></a>
-
-## `units`
-
-Structural SI-unit expressions used by Source declarations.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/units.py" kind="blob">bindings/python/python/eqiora/lang/units.py</ExactSourceLink>
-
-```python
-units: _Units
 ```

@@ -148,11 +148,11 @@ fn full_type_support_and_activation_fail_in_the_source_owner() {
             "eligible declared state at the exact clock",
         ),
         (
-            "model M { clock tick = periodic(period=1/1,phase=0/1); state x: 1; initial { x = 0; } relation r at tick { derivative(x) = 0; } }",
+            "model M { clock tick = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1; initial { x = 0; } relation r at tick { derivative(x) = 0; } }",
             "clocked Relation cannot use",
         ),
         (
-            "component C() { state x: 1; initial { x = 0; } clock tick = periodic(period=1/1,phase=0/1); relation r at tick { derivative(x) = 0; } } model M {}",
+            "component C() { state x: 1; initial { x = 0; } clock tick = periodic(1[s] / 1, phase = 0[s] / 1); relation r at tick { derivative(x) = 0; } } model M {}",
             "clocked Relation cannot use",
         ),
     ] {
@@ -168,7 +168,7 @@ fn full_type_support_and_activation_fail_in_the_source_owner() {
     for source in [
         "model M { variable x: complex<1>; initial { x = 0; } relation r { x = -(-0); } }",
         "model M { domain d = box(0,1,0,1); variable x: vector<m,2> on d; relation r on d { x = 0; } }",
-        "model M { clock tick = periodic(period=1/1,phase=0/1); state x: 1 at tick; initial { pre(x) = 0; } relation r at tick { next(x) = pre(x); } }",
+        "model M { clock tick = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1 at tick; initial { pre(x) = 0; } relation r at tick { next(x) = pre(x); } }",
     ] {
         crate::compile("positive.eqi", source).unwrap();
     }

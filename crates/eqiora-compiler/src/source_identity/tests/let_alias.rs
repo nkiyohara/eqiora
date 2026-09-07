@@ -153,7 +153,7 @@ fn parameter_expression_identity_matches_native_factory_and_preserves_signed_lit
             let unit = SourceAstFactory::expression(ExprKind::Name("V".into()), range).unwrap();
             SourceAstFactory::expression(
                 ExprKind::Quantity {
-                    value: -2.0,
+                    value: eqiora_lang::DecimalLiteral::parse("-2").unwrap(),
                     unit: Box::new(unit),
                 },
                 range,
@@ -177,4 +177,65 @@ fn parameter_expression_identity_matches_native_factory_and_preserves_signed_lit
             identity(&source)
         );
     }
+}
+
+#[test]
+fn quantity_identity_preserves_exact_decimals_before_numerical_rounding() {
+    let source = |literal: &str| format!("model M {{ parameter p: m = {literal}[nm]; }}");
+    assert_eq!(identity(&source("0.1")), identity(&source("10e-2")));
+    // These distinct exact decimals round to the same unscaled binary64.
+    assert_ne!(
+        identity(&source("0.1")),
+        identity(&source("0.100000000000000001")),
+    );
+}
+
+#[test]
+fn negative_dimensioned_constructor_values_match_native_and_formatted_identity() {
+    use eqiora_core::{DimExponents, ScalarDomain, ValueLiteral, ValueType};
+    use eqiora_lang::{Item, SourceAstFactory, TextRange, VisibilitySyntax};
+    let dimension = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
+    let complex = ValueType::scalar(ScalarDomain::Complex, dimension);
+    for (value, initializer, annotation) in [
+        (
+            ValueLiteral::new(complex.clone(), [(1.0, -2.0)]).unwrap(),
+            "math.complex(1[m], -2[m])",
+            "complex<m>",
+        ),
+        (
+            ValueLiteral::new(complex.array(2).unwrap(), [(1.0, -2.0), (-3.0, 4.0)]).unwrap(),
+            "[math.complex(1[m], -2[m]), math.complex(-3[m], 4[m])]",
+            "array<complex<m>, 2>",
+        ),
+    ] {
+        let source = format!("model M {{ parameter p: {annotation} = {initializer}; }}");
+        let parsed = eqiora_lang::parse("signed.eqi", &source)
+            .into_document()
+            .unwrap();
+        let Item::Parameter(parameter) = &parsed.models()[0].items()[0] else {
+            panic!("parameter")
+        };
+        let range = TextRange::new(0, 0);
+        let expression = SourceAstFactory::value_literal(&value, range).unwrap();
+        let parameter =
+            SourceAstFactory::parameter("p", parameter.value_type().clone(), expression, range)
+                .unwrap();
+        let model = SourceAstFactory::model(
+            VisibilitySyntax::Private,
+            "M",
+            vec![Item::Parameter(parameter)],
+            range,
+        )
+        .unwrap();
+        let native = SourceAstFactory::document(vec![], vec![], vec![model]).unwrap();
+        let native_identity =
+            crate::source_identity::LocalSourceIdentity::from_document(&native).unwrap();
+        assert_eq!(native_identity, identity(&source));
+        assert_eq!(native_identity, identity(&eqiora_lang::format(&native)));
+    }
+    // Negation of an expression remains structural; this is not algebraic folding.
+    assert_ne!(
+        identity("model M { let x=-(1[m]+2[m]); }"),
+        identity("model M { let x=-3[m]; }")
+    );
 }

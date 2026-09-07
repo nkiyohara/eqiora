@@ -1,5 +1,5 @@
 use super::*;
-use crate::draft_spatial::DraftBoundarySide;
+use crate::BoundarySideSyntax;
 use crate::{
     ConnectionSyntax, DomainDecl, DomainSyntax, FieldRoleSyntax, Item, PortDecl, PortSyntax,
 };
@@ -88,7 +88,7 @@ fn typed_dimensions_and_expression_references_become_source_ast() {
     };
     assert!(matches!(
         parameter.value().kind(),
-        ExprKind::Quantity { value: 1.0, .. }
+        ExprKind::Quantity { value, .. } if value.canonical_text() == "1"
     ));
     assert!(matches!(native.model().items()[2], Item::Initial(_)));
 }
@@ -420,7 +420,7 @@ fn spatial_draft_retains_exact_scope_identity_before_ast_projection() {
 #[test]
 fn spatial_draft_projects_only_to_existing_source_ast_forms() {
     let interval = DraftSpatialDomain::cartesian_box("interval", [(0.0, 1.0)]);
-    let lower = DraftSpatialDomain::boundary("lower", &interval, 0, DraftBoundarySide::Lower);
+    let lower = DraftSpatialDomain::boundary("lower", &interval, 0, BoundarySideSyntax::Lower);
     let field = DraftField::spatial(
         "u",
         &interval,

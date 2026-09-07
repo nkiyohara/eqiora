@@ -14,7 +14,7 @@ pub(super) fn encode_expression(
         }
         ExprKind::Quantity { value, unit } => {
             encoder.u16(9)?;
-            encoder.field(1, |encoder| encoder.f64(*value))?;
+            encoder.field(1, |encoder| encode_decimal(encoder, value, false))?;
             encoder.field(2, |encoder| {
                 encode_expression(encoder, unit, budget, next_depth(depth)?)
             })
@@ -58,6 +58,21 @@ pub(super) fn encode_expression(
             })
         }
         ExprKind::Unary { op, value } => {
+            if let ExprKind::Quantity {
+                value: literal,
+                unit,
+            } = value.kind()
+            {
+                // Native signed decimals and parsed literal negation share one
+                // quantity record. Keep the authored node/depth budget intact.
+                let literal_depth = next_depth(depth)?;
+                budget.account_expression(literal_depth)?;
+                encoder.u16(9)?;
+                encoder.field(1, |encoder| encode_decimal(encoder, literal, true))?;
+                return encoder.field(2, |encoder| {
+                    encode_expression(encoder, unit, budget, next_depth(literal_depth)?)
+                });
+            }
             if matches!(op, UnaryOp::Neg)
                 && matches!(value.kind(), ExprKind::Number(value) if *value == 0.0)
             {
@@ -187,4 +202,18 @@ pub(super) fn encode_relation_family(
     encoder.field(2, |encoder| {
         encode_boundary_family_binder(encoder, declaration.binder(), budget)
     })
+}
+
+pub(super) fn encode_decimal(
+    encoder: &mut Encoder,
+    value: &eqiora_lang::DecimalLiteral,
+    negate: bool,
+) -> Result<(), Diagnostic> {
+    let negative = !value.is_zero() && (value.is_negative() != negate);
+    encoder.string(&format!(
+        "{}{}e{}",
+        if negative { "-" } else { "" },
+        value.coefficient(),
+        value.exponent10(),
+    ))
 }

@@ -899,12 +899,12 @@ pub enum SignalDirectionSyntax {
 }
 
 /// Exact periodic clock declaration.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ClockDecl {
     pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) name: String,
-    pub(crate) period: RationalSyntax,
-    pub(crate) phase: RationalSyntax,
+    pub(crate) period: Expr,
+    pub(crate) phase: Expr,
     pub(crate) range: TextRange,
 }
 
@@ -915,43 +915,22 @@ impl ClockDecl {
         &self.name
     }
 
-    /// Exact period in seconds.
+    /// Authored period expression; exact time admission belongs to lowering.
     #[must_use]
-    pub const fn period(&self) -> RationalSyntax {
-        self.period
+    pub const fn period(&self) -> &Expr {
+        &self.period
     }
 
-    /// Exact phase in seconds.
+    /// Authored phase expression, or the exact zero-second default.
     #[must_use]
-    pub const fn phase(&self) -> RationalSyntax {
-        self.phase
+    pub const fn phase(&self) -> &Expr {
+        &self.phase
     }
 
     /// Full declaration range.
     #[must_use]
     pub const fn range(&self) -> TextRange {
         self.range
-    }
-}
-
-/// Unreduced rational literal; semantic validation occurs during lowering.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct RationalSyntax {
-    pub(crate) numerator: u64,
-    pub(crate) denominator: u64,
-}
-
-impl RationalSyntax {
-    /// Numerator.
-    #[must_use]
-    pub const fn numerator(self) -> u64 {
-        self.numerator
-    }
-
-    /// Denominator.
-    #[must_use]
-    pub const fn denominator(self) -> u64 {
-        self.denominator
     }
 }
 

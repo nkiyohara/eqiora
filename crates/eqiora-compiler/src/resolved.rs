@@ -22,9 +22,7 @@ mod declaration;
 mod graph;
 mod source;
 pub use analyze::analyze_resolved_hierarchy;
-pub use declaration::{
-    CanonicalDeclarationIdentity, CanonicalDeclarationKind, CanonicalDeclarationVisibility,
-};
+pub use declaration::{CanonicalDeclarationIdentity, CanonicalDeclarationKind};
 
 const MAX_NAMESPACE_SEGMENTS: usize = 31;
 const MAX_NAMESPACE_SEGMENT_BYTES: usize = 4_096;
@@ -734,7 +732,7 @@ fn collect_canonical_declarations(
                     namespace: unit.module.owner().clone(),
                     path,
                     kind: CanonicalDeclarationKind::PureOperator,
-                    visibility: operator.visibility().into(),
+                    visibility: operator.visibility(),
                     canonical_form: pure_operator_identity_form(definition.digest().bytes()),
                 }),
                 Err(error) => diagnostics.push(error),
@@ -836,7 +834,7 @@ fn push_canonical(
         namespace: namespace.clone(),
         path: path.to_owned(),
         kind,
-        visibility: visibility.into(),
+        visibility,
         canonical_form: declaration_identity_form(identity.digest()),
     });
 }
@@ -849,10 +847,10 @@ fn is_identifier(value: &str) -> bool {
         && bytes.all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
 }
 
-const fn visibility_rank(visibility: CanonicalDeclarationVisibility) -> u8 {
+const fn visibility_rank(visibility: VisibilitySyntax) -> u8 {
     match visibility {
-        CanonicalDeclarationVisibility::Private => 0,
-        CanonicalDeclarationVisibility::Public => 1,
+        VisibilitySyntax::Private => 0,
+        VisibilitySyntax::Public => 1,
     }
 }
 

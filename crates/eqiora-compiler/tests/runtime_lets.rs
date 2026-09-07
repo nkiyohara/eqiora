@@ -62,7 +62,7 @@ fn runtime_effects_do_not_enter_static_bindings_transitively() {
 
 #[test]
 fn deferred_clock_obligations_are_checked_at_each_use() {
-    let prefix = "clock a = periodic(period=1/1,phase=0/1); clock b = periodic(period=1/1,phase=0/1); state x: 1 at a; let read = x; let old = pre(read); let future = next(read);";
+    let prefix = "clock a = periodic(1[s] / 1, phase = 0[s] / 1); clock b = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1 at a; let read = x; let old = pre(read); let future = next(read);";
     accepted(&format!(
         "model M {{ {prefix} initial {{ old = 0; }} relation r at a {{ future = old+1; }} }}"
     ));
@@ -81,7 +81,7 @@ fn deferred_clock_obligations_are_checked_at_each_use() {
         rejected(&format!("model M {{ {prefix} {law} }}"));
     }
     rejected(
-        "model M { state x: 1; let dx=derivative(x); clock c = periodic(period=1/1,phase=0/1); relation r at c { dx=0; } }",
+        "model M { state x: 1; let dx=derivative(x); clock c = periodic(1[s] / 1, phase = 0[s] / 1); relation r at c { dx=0; } }",
     );
 }
 

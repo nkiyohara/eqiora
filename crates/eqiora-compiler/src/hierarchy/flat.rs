@@ -106,8 +106,8 @@ pub(super) enum FlatItemBlueprint {
     },
     Clock {
         name: String,
-        period: eqiora_lang::RationalSyntax,
-        phase: eqiora_lang::RationalSyntax,
+        period: eqiora_lang::Expr,
+        phase: eqiora_lang::Expr,
         range: TextRange,
         identity: EntityIdentity,
     },
@@ -387,8 +387,8 @@ impl ExpandedBlueprint {
                     ..
                 } => LoweringItem::Clock {
                     name: name.clone(),
-                    period: *period,
-                    phase: *phase,
+                    period: period.clone(),
+                    phase: phase.clone(),
                     range: *range,
                 },
                 FlatItemBlueprint::Relation {

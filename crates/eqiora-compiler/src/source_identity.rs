@@ -56,7 +56,7 @@ use property::{encode_material_composition, encode_property_contract, encode_pro
 use visibility::encode_visibility;
 
 const MAGIC: &[u8; 8] = b"EQIORASU";
-const CANONICAL_VERSION: u16 = 4;
+const CANONICAL_VERSION: u16 = 5;
 const COMPONENT_CONNECTION_ITEM_TAG: u16 = 6;
 const MODEL_CONNECTION_ITEM_TAG: u16 = 8;
 const COMPONENT_PORT_FAMILY_ITEM_TAG: u16 = 11;
@@ -803,12 +803,10 @@ fn encode_clock(
         encode_name(encoder, declaration.name(), budget)
     })?;
     encoder.field(2, |encoder| {
-        encoder.u64(declaration.period().numerator())?;
-        encoder.u64(declaration.period().denominator())
+        encode_expression(encoder, declaration.period(), budget, 0)
     })?;
     encoder.field(3, |encoder| {
-        encoder.u64(declaration.phase().numerator())?;
-        encoder.u64(declaration.phase().denominator())
+        encode_expression(encoder, declaration.phase(), budget, 0)
     })
 }
 
@@ -1281,6 +1279,7 @@ mod tests {
     use super::*;
 
     mod let_alias;
+    mod namespace;
 
     fn document(source: &str) -> Document {
         parse("fixture.eqi", source).into_document().unwrap()
@@ -1288,33 +1287,6 @@ mod tests {
 
     fn identity(source: &str) -> LocalSourceIdentity {
         LocalSourceIdentity::from_document(&document(source)).unwrap()
-    }
-
-    #[test]
-    fn canonical_source_namespace_tracks_the_current_encoding() {
-        let document = document("model minimal { parameter gain: 1 = 2; }");
-        let digest = LocalSourceIdentity::from_document(&document).unwrap();
-        let namespace = digest.namespace().unwrap();
-        assert_eq!(namespace.segments()[0], "local-source-v4");
-        assert_eq!(namespace.segments()[1], digest.to_string());
-    }
-
-    #[test]
-    fn formatting_file_and_span_changes_do_not_change_identity() {
-        let compact = "model m{parameter p:1=2;relation r{p-1=0;}}";
-        let parsed = document(compact);
-        let formatted = format(&parsed);
-        let relocated = parse(
-            "elsewhere/relocated.eqi",
-            &format!("\n\n// shifts every source span\n{formatted}"),
-        )
-        .into_document()
-        .unwrap();
-
-        assert_eq!(
-            LocalSourceIdentity::from_document(&parsed).unwrap(),
-            LocalSourceIdentity::from_document(&relocated).unwrap()
-        );
     }
 
     #[test]
@@ -1701,7 +1673,7 @@ model M {
         let base = "model m { parameter p: 1 = 2; relation r { p + 1 = 0; } }";
         let changed_value = "model m { parameter p: 1 = 3; relation r { p + 1 = 0; } }";
         let changed_operator = "model m { parameter p: 1 = 2; relation r { p - 1 = 0; } }";
-        let changed_activation = "model m { clock c = periodic(period = 1/1, phase = 0/1); parameter p: 1 = 2; relation r at c { p + 1 = 0; } }";
+        let changed_activation = "model m { clock c = periodic(1[s] / 1, phase = 0[s] / 1); parameter p: 1 = 2; relation r at c { p + 1 = 0; } }";
 
         assert_ne!(identity(base), identity(changed_value));
         assert_ne!(identity(base), identity(changed_operator));
@@ -1857,3 +1829,6 @@ model M {
         assert!(LocalSourceIdentity::from_document_with_limits(&mixed_bindings, bindings).is_err());
     }
 }
+
+#[cfg(test)]
+mod exact_clock_tests;

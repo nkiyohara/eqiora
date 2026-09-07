@@ -1660,8 +1660,8 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     let identity = identities.entities[declaration.name()].clone();
                     self.items.push(FlatItemBlueprint::Clock {
                         name: internal_name(identity.full),
-                        period: declaration.period(),
-                        phase: declaration.phase(),
+                        period: declaration.period().clone(),
+                        phase: declaration.phase().clone(),
                         range: declaration.range(),
                         identity,
                     });
@@ -2084,8 +2084,8 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     let identity = identities.entities[declaration.name()].clone();
                     self.items.push(FlatItemBlueprint::Clock {
                         name: internal_name(identity.full),
-                        period: declaration.period(),
-                        phase: declaration.phase(),
+                        period: declaration.period().clone(),
+                        phase: declaration.phase().clone(),
                         range: declaration.range(),
                         identity,
                     });

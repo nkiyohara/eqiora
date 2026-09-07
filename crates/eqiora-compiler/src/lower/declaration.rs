@@ -26,13 +26,3 @@ pub(super) fn lower_port(
         } => Ok(PortDef::boundary_physical(id, connector, boundary)),
     }
 }
-
-pub(super) fn lower_clock(
-    period: eqiora_lang::RationalSyntax,
-    phase: eqiora_lang::RationalSyntax,
-) -> Result<(RationalTime, RationalTime), Diagnostic> {
-    Ok((
-        RationalTime::new(period.numerator(), period.denominator())?,
-        RationalTime::new(phase.numerator(), phase.denominator())?,
-    ))
-}

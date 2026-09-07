@@ -7,7 +7,7 @@ fn factory_negative_literal_power_bases_are_grouped() {
     for kind in [
         ExprKind::Number(-2.0),
         ExprKind::Quantity {
-            value: -2.0,
+            value: crate::DecimalLiteral::from_f64(-2.0).unwrap(),
             unit: Box::new(Expr {
                 kind: ExprKind::Name("m".into()),
                 range: TextRange::new(0, 0),

@@ -287,10 +287,7 @@ fn directly_imported_public_model_is_an_executable_entry() {
         .find(|declaration| declaration.path() == "library.entries.Shared")
         .expect("public Model is canonicalized");
     assert_eq!(exported.kind(), CanonicalDeclarationKind::Model);
-    assert_eq!(
-        exported.visibility(),
-        CanonicalDeclarationVisibility::Public
-    );
+    assert_eq!(exported.visibility(), VisibilitySyntax::Public);
     let compiled = analysis
         .validate_definitions()
         .expect("public entry graph validates")

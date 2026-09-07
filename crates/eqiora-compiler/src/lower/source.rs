@@ -37,8 +37,8 @@ impl LoweringModel {
                     },
                     Item::Clock(declaration) => LoweringItem::Clock {
                         name: declaration.name().to_owned(),
-                        period: declaration.period(),
-                        phase: declaration.phase(),
+                        period: declaration.period().clone(),
+                        phase: declaration.phase().clone(),
                         range: declaration.range(),
                     },
                     Item::Initial(declaration) => LoweringItem::Relation {

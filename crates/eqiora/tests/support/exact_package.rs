@@ -1,7 +1,7 @@
 use eqiora::compiler::{
-    AnalyzedResolvedHierarchy, CanonicalDeclarationKind, CanonicalDeclarationVisibility,
-    CompilationNamespaceId,
+    AnalyzedResolvedHierarchy, CanonicalDeclarationKind, CompilationNamespaceId,
 };
+use eqiora::language::VisibilitySyntax;
 use eqiora::package::{
     CanonicalDeclaration, DeclarationKindV1, ExactVersion, ModelPackageIdentityV1,
     PackageManifestV1, PackageReleaseV1, PackageSemanticDigest, QualifiedName, SemanticContentV1,
@@ -54,8 +54,8 @@ fn semantic_content(
                 QualifiedName::parse(declaration.path()).expect("declaration path"),
                 kind,
                 match declaration.visibility() {
-                    CanonicalDeclarationVisibility::Private => VisibilityV1::Private,
-                    CanonicalDeclarationVisibility::Public => VisibilityV1::Public,
+                    VisibilitySyntax::Private => VisibilityV1::Private,
+                    VisibilitySyntax::Public => VisibilityV1::Public,
                 },
                 CanonicalDeclaration::new(declaration.canonical_form())
                     .expect("canonical declaration"),

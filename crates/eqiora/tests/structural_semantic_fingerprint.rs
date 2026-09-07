@@ -262,12 +262,12 @@ fn semantic_types_support_and_model_time_are_fingerprint_meaning() {
 
     let slow_clock = ModelDocument::compile(
         "slow.eqi",
-        "model m { state x: 1 at tick; initial { x = 0; } clock tick = periodic(period = 1 / 10, phase = 0 / 1); relation update at tick { next(x) - x = 0; } }",
+        "model m { state x: 1 at tick; initial { x = 0; } clock tick = periodic(1[s] / 10, phase = 0[s] / 1); relation update at tick { next(x) - x = 0; } }",
     )
     .unwrap();
     let fast_clock = ModelDocument::compile(
         "fast.eqi",
-        "model m { state x: 1 at tick; initial { x = 0; } clock tick = periodic(period = 1 / 20, phase = 0 / 1); relation update at tick { next(x) - x = 0; } }",
+        "model m { state x: 1 at tick; initial { x = 0; } clock tick = periodic(1[s] / 20, phase = 0[s] / 1); relation update at tick { next(x) - x = 0; } }",
     )
     .unwrap();
     assert!(!slow_clock.structurally_equivalent(&fast_clock).unwrap());

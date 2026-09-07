@@ -62,7 +62,7 @@ fn uninitialized_differential_field_fails_at_execution_admission() {
 #[test]
 fn uninitialized_discrete_field_fails_at_execution_admission() {
     let (program, symbols) = compile_program(
-        "model discrete { state state: 1 at tick; clock tick = periodic(period = 1 / 1, phase = 0 / 1); relation update at tick { next(state) - pre(state) = 0; } }",
+        "model discrete { state state: 1 at tick; clock tick = periodic(1[s] / 1, phase = 0[s] / 1); relation update at tick { next(state) - pre(state) = 0; } }",
     );
     assert_eq!(program.value(symbols.get("state").expect("state ID")), None);
 
@@ -92,7 +92,7 @@ model thermal_controller {
   port control_out: signal output 1;
   port control_in: signal input 1;
 
-  clock control = periodic(period = 1 / 1, phase = 0 / 1);
+  clock control = periodic(1[s] / 1, phase = 0[s] / 1);
 
   relation plant {
     derivative(temperature)

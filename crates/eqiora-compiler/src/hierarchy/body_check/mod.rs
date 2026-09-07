@@ -6,14 +6,12 @@
 //! semantic oracle.
 
 use eqiora_core::Diagnostic;
-use eqiora_core::diagnostic::codes;
 use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_lang::{Expr, ExprKind, NamePath, TextRange};
 
 use crate::connection_sets::ConnectionFragment;
 use crate::connection_sets::ConnectionSetLimits;
-use crate::diagnostics::source_error;
 
 use super::field_slots::FieldInterface;
 use super::parameters::SymbolicParameterMap;
@@ -141,27 +139,11 @@ pub(super) struct DefinitionBodyProofs {
 
 fn validate_clock(
     file: &str,
-    range: TextRange,
-    period: eqiora_lang::RationalSyntax,
-    phase: eqiora_lang::RationalSyntax,
+    _range: TextRange,
+    period: &eqiora_lang::Expr,
+    phase: &eqiora_lang::Expr,
 ) -> Result<(), Diagnostic> {
-    if period.denominator() == 0 || phase.denominator() == 0 {
-        return Err(source_error(
-            codes::LANGUAGE_TYPE_ERROR,
-            file,
-            range,
-            "rational model time denominator must be non-zero",
-        ));
-    }
-    if period.numerator() == 0 {
-        return Err(source_error(
-            codes::LANGUAGE_TYPE_ERROR,
-            file,
-            range,
-            "periodic ClockDomain requires a strictly positive period",
-        ));
-    }
-    Ok(())
+    crate::units::lower_clock(file, period, phase).map(|_| ())
 }
 
 #[cfg(test)]

@@ -5,13 +5,39 @@ use crate::lexer::TokenKind;
 impl Parser<'_> {
     pub(super) fn parse_quantity_or_number(&mut self) -> Option<Expr> {
         let token = self.bump();
-        let value = self.parse_f64(&token)?;
         if !self.at(TokenKind::LeftBracket) {
+            if self.exact_numeric {
+                let value = match crate::DecimalLiteral::parse(token.text()) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        self.error_token(&token, error.message());
+                        return None;
+                    }
+                };
+                return Some(Expr {
+                    kind: ExprKind::Quantity {
+                        value,
+                        unit: Box::new(Expr {
+                            kind: ExprKind::Number(1.0),
+                            range: token.range(),
+                        }),
+                    },
+                    range: token.range(),
+                });
+            }
+            let value = self.parse_f64(&token)?;
             return Some(Expr {
                 kind: ExprKind::Number(value),
                 range: token.range(),
             });
         }
+        let value = match crate::DecimalLiteral::parse(token.text()) {
+            Ok(value) => value,
+            Err(error) => {
+                self.error_token(&token, error.message());
+                return None;
+            }
+        };
         self.bump();
         let unit = self.parse_dimension_expression()?;
         let end = self

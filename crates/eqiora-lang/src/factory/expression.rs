@@ -18,10 +18,7 @@ fn validate_expression_depth(expression: &Expr, depth: usize) -> Result<(), AstC
     checked_range(expression.range())?;
     match expression.kind() {
         ExprKind::Number(value) => validate_finite(*value, "expression literal"),
-        ExprKind::Quantity { value, unit } => {
-            validate_finite(*value, "quantity literal")?;
-            validate_expression_depth(unit, depth + 1)
-        }
+        ExprKind::Quantity { unit, .. } => validate_expression_depth(unit, depth + 1),
         ExprKind::Name(name) => validate_identifier(name, "expression name"),
         ExprKind::Path(path) => validate_name_path(path),
         ExprKind::BoundaryPortSelection { port, selector } => {

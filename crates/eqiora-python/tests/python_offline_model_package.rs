@@ -222,7 +222,7 @@ fn package_component_uses_caller_geometry_common_plan_and_run() -> PyResult<()> 
             c_str!(
                 r#"
 q = eqiora.lang
-u = q.units
+u = eqiora.units
 source = q.Source()
 contract = source.property_contract("Diffusivity", value_type=eqiora.ValueType.real())
 release = source.property_release(
