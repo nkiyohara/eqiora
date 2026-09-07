@@ -484,7 +484,7 @@ fn manually_allocated_program(reverse_expression: bool, expose_port: bool) -> Ke
         .push(Op::DefineKernelNode {
             node: PortDef::signal(
                 port,
-                SignalDirection::Input,
+                SignalDirection::Output,
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,

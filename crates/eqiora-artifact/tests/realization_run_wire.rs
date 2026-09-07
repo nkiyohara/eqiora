@@ -363,7 +363,11 @@ fn run_v2_rejects_policy_and_topology_drift() {
         LayoutArtifacts::Replicated,
     )
     .unwrap();
-    let unrelated_model = model_fixture().0;
+    let unrelated_source =
+        POISSON.replace("model manufactured_poisson(", "model unrelated_poisson(");
+    assert_ne!(unrelated_source, POISSON);
+    let (unrelated_model, unrelated_id) = model_fixture_from_source(&unrelated_source);
+    assert_ne!(unrelated_id, model);
     assert!(
         RealizationEnvelopeV1::from_resolved(
             &unrelated_model,
@@ -475,7 +479,11 @@ fn digest(byte: u8) -> ArtifactDigest {
 }
 
 fn model_fixture() -> (ModelEnvelope, OntologyId<Model>) {
-    let mut compiled = compile("poisson.eqi", POISSON).unwrap();
+    model_fixture_from_source(POISSON)
+}
+
+fn model_fixture_from_source(source: &str) -> (ModelEnvelope, OntologyId<Model>) {
+    let mut compiled = compile("poisson.eqi", source).unwrap();
     let compiled = compiled.remove(0);
     let model = compiled.model();
     let (transaction, _, _) = compiled.into_parts();
