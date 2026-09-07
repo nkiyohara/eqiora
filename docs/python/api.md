@@ -1128,7 +1128,7 @@ class PhysicalDomain:
 
 ### `eqiora.PropertyBinding`
 
-Exact package-owned scalar property binding inspection.
+Exact package-owned typed constant property binding inspection.
 
 Authority: [`crates/eqiora-python/src/model.rs::PyPropertyBinding`](../../crates/eqiora-python/src/model.rs)
 

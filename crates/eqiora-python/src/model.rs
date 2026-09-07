@@ -51,7 +51,7 @@ pub(crate) struct PyStructuralSemanticFingerprint {
     value: StructuralSemanticFingerprint,
 }
 
-/// Immutable inspection of one exact package-owned scalar property binding.
+/// Immutable inspection of one exact package-owned typed constant property binding.
 #[pyclass(
     name = "PropertyBinding",
     module = "eqiora._eqiora",

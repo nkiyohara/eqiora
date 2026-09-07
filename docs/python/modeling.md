@@ -60,6 +60,23 @@ The same `value_type=` objects apply to `Parameter`,
 `eqiora.lang.Component.field`, and `eqiora.lang.Component.parameter`.
 `ValueType.to_eqi()` emits the canonical type through the Rust formatter.
 
+Parameters accept real or complex scalars and nested channel sequences matching the declared
+shape. Inspection returns immutable nested tuples with every real/imaginary component:
+
+```python
+coefficients = eqiora.Parameter(
+    "coefficients",
+    value_type=eqiora.ValueType.array(eqiora.ValueType.complex(), 2),
+    value=[1 + 2j, 3 - 4j],
+)
+assert coefficients.value == (1 + 2j, 3 - 4j)
+selected = coefficients[1]
+```
+
+Indices are static exact nonnegative integers; mutable Parameters cannot supply indices.
+Typed value edits preserve the complete declared type and all components through replay.
+This authoring support does not establish a complex numerical solver.
+
 A numeric Parameter default uses the declared dimension's coherent unit.
 For example, `parameter rate: 1 / s = 1;` gives the same value as
 `parameter rate: 1 / s = 1[1 / s];`. Explicit input units still express compatible
@@ -423,9 +440,9 @@ store-mismatched resolution bytes fail closed. Missing or ambiguous support
 bindings fail instead of matching Geometry by bounds, coordinates, or digest.
 
 `package_compilation_digest` is read-only lineage for the accepted compilation.
-When the package binds an exact scalar property release, `property_bindings` is
+When the package binds an exact typed constant property release, `property_bindings` is
 an immutable projection of the compiler-owned optional composition, contract, release, consuming
-Component, requirement, coherent-SI value, validity, citation, and license. It
+Component, requirement, complete value type and coherent-SI value, validity, citation, and license. It
 is inspection metadata beside the compilation, not a second property evaluator.
 The resulting `Model` enters ordinary `eqiora.resolve(model, mesh=..., ...)` and
 `eqiora.run(plan)`; its `Plan` and `Run` retain the same digest. Bare Model JSON
