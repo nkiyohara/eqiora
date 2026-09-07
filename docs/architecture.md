@@ -537,7 +537,7 @@ and persisted current bytes use `replay`; all three converge before artifact
 acceptance.
 Canonical bytes expose the persisted `eqiora.model-envelope/v12` schema as an
 output fact; the suffix is not a selectable authoring profile. Historical
-Historical Model bytes reject, and replay never sniffs, retries, or migrates them.
+Model bytes reject, and replay never sniffs, retries, or migrates them.
 The bounded value-edit and scalar-elliptic application workflows retain exact
 current artifact identity as a checked capability boundary. [RFC
 0083](../rfcs/0083-current-model-artifact-epoch.md) owns this pre-1.0 epoch
