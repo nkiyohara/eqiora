@@ -447,7 +447,7 @@ below.
 
 | Capability | C | X | V | M | Current boundary / mature destination |
 |---|:---:|:---:|:---:|:---:|---|
-| Exact rational clock domains | ✅ | ✅ | ✅ | ⬜ | Canonical clock identity exists |
+| Exact rational clock domains | ✅ | ✅ | ✅ | ⬜ | Canonical nominal identity retains reduced rational period and phase. Concrete source quantities and bounded closed literal arithmetic lower without binary64; focused product tests cover this input boundary. Clock-interface and general multiclock execution work remains. |
 | Continuous activation | ✅ | ✅ | ✅ | ⬜ | Scalar reference relations |
 | Periodic activation | ✅ | ✅ | ✅ | ⬜ | Sampled-controller conformance slice |
 | Event activation | ✅ | ✅ | ✅ | ⬜ | Registered zero-crossing event slice |

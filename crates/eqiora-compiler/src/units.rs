@@ -275,8 +275,14 @@ mod tests {
         // Exact decimal spellings of (1 + 2^-53) * 1000 and
         // (1 + 3 * 2^-53) * 1000; ms contributes the exact 10^-3 factor.
         for (decimal, expected_bits) in [
-            ("1000.00000000000011102230246251565404236316680908203125", 0x3ff0_0000_0000_0000),
-            ("1000.00000000000033306690738754696212708950042724609375", 0x3ff0_0000_0000_0002),
+            (
+                "1000.00000000000011102230246251565404236316680908203125",
+                0x3ff0_0000_0000_0000,
+            ),
+            (
+                "1000.00000000000033306690738754696212708950042724609375",
+                0x3ff0_0000_0000_0002,
+            ),
         ] {
             let value = eqiora_lang::DecimalLiteral::parse(decimal).unwrap();
             let converted = super::quantity(&value, &unit("ms")).unwrap();
