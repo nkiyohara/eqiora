@@ -16,8 +16,8 @@ component Law() {
 }
 model Derived {
   parameter length: m = 2;
-  let wave_number: 1 / m = math.pi / length;
   let phase: 1 = wave_number * length;
+  let wave_number: 1 / m = math.pi / length;
   variable state: 1; initial { state = 0; }
   relation balance { state + phase = 0; }
   instance law: Law(phase = phase);
@@ -99,12 +99,12 @@ model Derived {
 }
 
 #[test]
-fn model_let_alias_rejects_forward_references_and_dimension_mismatches() {
+fn model_let_alias_rejects_cycles_unknown_names_and_dimension_mismatches() {
     let invalid = [
         (
-            "forward",
-            "model M { let first: 1 = second; let second: 1 = 2; }",
-            "aliases may refer only to earlier let declarations",
+            "unknown",
+            "model M { let first: 1 = missing; }",
+            "unknown Parameter or let alias `missing`",
         ),
         (
             "dimension",
@@ -114,7 +114,7 @@ fn model_let_alias_rejects_forward_references_and_dimension_mismatches() {
         (
             "cycle",
             "model M { let self_reference: 1 = self_reference; }",
-            "aliases may refer only to earlier let declarations",
+            "let alias dependency cycle: self_reference -> self_reference",
         ),
         (
             "shadow",

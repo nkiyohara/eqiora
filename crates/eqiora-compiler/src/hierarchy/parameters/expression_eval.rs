@@ -8,6 +8,14 @@ pub(super) enum ExpressionContext {
 }
 
 impl ExpressionContext {
+    pub(super) fn unknown_name_message(self, name: &str) -> String {
+        match self {
+            Self::Binding => format!("unknown Parameter `{name}` in compile-time binding"),
+            Self::Default => format!("unknown component Parameter `{name}`"),
+            Self::Let => format!("unknown Parameter or let alias `{name}`"),
+        }
+    }
+
     pub(super) fn qualified_name_message(self, path: &impl std::fmt::Display) -> String {
         match self {
             Self::Binding => format!(
