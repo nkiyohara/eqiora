@@ -2,14 +2,13 @@ mod support;
 
 use eqiora::api::DifferentiableProgram;
 use eqiora::compiler::{ModelSymbols, compile};
-use eqiora::graph::{GraphStore, InMemoryGraphStore, Op, Precondition, Transaction};
+use eqiora::graph::{GraphStore, InMemoryGraphStore};
 use eqiora::ir::{
     DifferentiationRole, LinearizedRelation, RelationCotangent, RelationTangent, ScalarOperatorIr,
 };
 use eqiora::kernel::{KernelNode, SymbolRef};
 use eqiora::runtime::{CpuExecutor, CpuProgram};
 use eqiora::sem::{Interpreter, KernelProgram, ReferenceConfig};
-use eqiora::{DimExponents, DynQuantity};
 use eqiora_numerics::CommonSpatialPolicy;
 use support::common_scalar_plan::{COMPONENT, document_and_plan_with_source};
 
@@ -273,81 +272,36 @@ fn runtime_heat_flux_alias_preserves_bounded_spatial_execution_and_parameter_cha
 }
 
 #[test]
-fn static_math_aliases_retain_derivatives_and_domain_failure_after_parameter_edit() {
-    let source = r#"
-model M {
-  parameter p: 1 = 9;
-  parameter angle: 1 = 0;
-  let root = math.sqrt(p);
-  let wave = math.sin(angle);
-  variable output: 1;
-  relation result { output = root + wave; }
-}
-"#;
-    let compiled = compile("static-math-aliases.eqi", source)
-        .unwrap()
-        .pop()
-        .unwrap();
-    let (transaction, model, symbols) = compiled.into_parts();
-    let p = symbols.get("p").unwrap();
-    let angle = symbols.get("angle").unwrap();
-    let output = symbols.get("output").unwrap();
-    let mut store = InMemoryGraphStore::new();
-    store.commit(transaction).unwrap();
-    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
-    let Some(KernelNode::Relation(relation)) = program.node(symbols.get("result").unwrap()) else {
-        panic!("result relation");
-    };
-    let ir = ScalarOperatorIr::lower(relation.residuals()).unwrap();
-    let mut values = Vec::new();
-    let mut roles = Vec::new();
-    let mut expected = Vec::new();
-    for symbol in ir.symbols() {
-        match symbol {
-            SymbolRef::Field(field) => {
-                assert_eq!(field.erase(), output);
-                values.push(3.0);
-                roles.push(DifferentiationRole::Unknown);
+fn static_math_aliases_retain_spatial_derivatives_and_domain_failure_after_parameter_edit() {
+    let source = COMPONENT
+        .replace("  relation balance on square {", "  let coefficient = math.sqrt(diffusion) + math.sin(diffusion);\n  relation balance on square {")
+        .replace("-div(diffusion * grad(potential))", "-div(coefficient * grad(potential))");
+    for policy in [
+        CommonSpatialPolicy::Q1,
+        CommonSpatialPolicy::CellCenteredTpfa,
+    ] {
+        let (document, plan) = document_and_plan_with_source(policy, &source);
+        let input = document.parameter_ref("diffusion").unwrap();
+        let output = document
+            .field_ref(&plan.fields().next().unwrap().0.ulid().to_string())
+            .unwrap();
+        let program = DifferentiableProgram::compile(plan, &[input], &output).unwrap();
+        for p in [1.0_f64, 9.0] {
+            let point = program.evaluate(&[p]).unwrap();
+            let primal = point.primal();
+            let tangent = point.jvp(&[1.0]).unwrap();
+            // A(p)=k(p)*A(1), k(p)=sqrt(p)+sin(p), so du/dp=-u*k'(p)/k(p).
+            let factor = -(0.5 / p.sqrt() + p.cos()) / (p.sqrt() + p.sin());
+            for (u, derivative) in primal.output().iter().zip(tangent.tangent()) {
+                assert!((derivative - factor * u).abs() <= 1e-9 * (1.0 + u.abs()));
             }
-            SymbolRef::Parameter(parameter) => {
-                let is_p = parameter.erase() == p;
-                assert!(is_p || parameter.erase() == angle);
-                values.push(if is_p { 9.0 } else { 0.0 });
-                roles.push(DifferentiationRole::Parameter);
-                // r=output-sqrt(p)-sin(angle): partials are -1/(2sqrt(p)), -cos(angle).
-                expected.push(if is_p { -1.0 / 6.0 } else { -1.0 });
-            }
-            _ => panic!("original scalar dependencies only"),
+            let reverse = point.vjp(&vec![1.0; primal.output().len()]).unwrap();
+            let expected = factor * primal.output().iter().sum::<f64>();
+            assert!(
+                (reverse.input_cotangent()[0] - expected).abs() <= 1e-8 * (1.0 + expected.abs())
+            );
         }
+        // Rebind only the original Parameter; retained sqrt must still reject its negative domain.
+        assert!(program.evaluate(&[-1.0]).is_err());
     }
-    assert_eq!(ir.evaluate(&values).unwrap(), [0.0]);
-    let mut unknown = [0.0];
-    let mut parameters = [0.0; 2];
-    ir.linearize(&values, &roles)
-        .unwrap()
-        .vjp(
-            &[1.0],
-            RelationCotangent::Both {
-                unknown: &mut unknown,
-                parameter: &mut parameters,
-            },
-        )
-        .unwrap();
-    assert_eq!(unknown, [1.0]);
-    for (actual, expected) in parameters.iter().zip(expected) {
-        assert!((actual - expected).abs() < 1e-14);
-    }
-    let mut edit = Transaction::new("negative original Parameter must retain sqrt domain failure");
-    edit.require(Precondition::RevisionIs(store.snapshot().revision()));
-    edit.push(Op::SetValue {
-        target: p,
-        value: DynQuantity::new(-1.0, DimExponents::DIMENSIONLESS),
-    });
-    store.commit(edit).unwrap();
-    let edited = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
-    assert!(
-        Interpreter::new()
-            .run(&edited, ReferenceConfig::new(0.0, 0.01).unwrap())
-            .is_err()
-    );
 }
