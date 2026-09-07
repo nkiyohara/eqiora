@@ -783,7 +783,7 @@ fn project_node(
         KernelNode::Connection(definition) => (
             "connection",
             match definition.semantics() {
-                ConnectionSemantics::Signal => "Causal signal connection".to_owned(),
+                ConnectionSemantics::Signal { .. } => "Causal signal connection".to_owned(),
                 ConnectionSemantics::Conserving => "Acausal conserving connection".to_owned(),
                 _ => return Err(unsupported_node_contract()),
             },
