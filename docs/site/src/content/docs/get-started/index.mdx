@@ -1,100 +1,128 @@
 ---
 title: Get started
-description: Carry one exact-cylinder flow problem from authored geometry to typed result evidence.
+description: Install Eqiora with uv, run a small decay model, and predict what changes when you edit it.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
-import ExactSourceLink from '../../../components/site/ExactSourceLink.astro';
+import { Code } from '@astrojs/starlight/components';
+import modelSource from '../../../../../../examples/decay.eqi?raw';
+import modelDownload from '../../../../../../examples/decay.eqi?url&no-inline';
+import programSource from '../../../../../../examples/python/textbook_decay.py?raw';
+import programDownload from '../../../../../../examples/python/textbook_decay.py?url&no-inline';
 
-The public alpha supports ordinary-GIL CPython 3.11–3.14 on manylinux x86-64.
+Run a small model, then change it and see the difference. You need two files and
+a Python environment—not a repository checkout, mesh generator or editor extension.
 
-## Install
+## Install with uv
 
-Create a clean environment and install the available prerelease:
+This example uses the published **Eqiora 0.1.0a7** release on **Linux x86-64**
+with ordinary-GIL **CPython 3.13**. Its manylinux wheel requires glibc 2.17 or
+newer. macOS, Windows and free-threaded Python are not supported by this release.
 
-```bash
-python -m venv .venv
-. .venv/bin/activate
-python -m pip install --pre 'eqiora[gmsh]'
-```
-
-## Build geometry, mesh, and run
-
-This bounded application keeps exact geometry and Model meaning separate from explicit meshing and solver plans, then ties the returned evidence to the same immutable lineage:
-
-```python
-from importlib.resources import files
-
-import eqiora
-
-graph = eqiora.geometry.GeometryGraph()
-rectangle = graph.rectangle(x_bounds=(0.0, 2.2), y_bounds=(0.0, 0.41))
-circle = graph.circle(center=(0.2, 0.2), radius=0.05)
-fluid = graph.subtract(rectangle, circle)
-geometry = graph.build(fluid, named_topology={
-    "fluid": fluid.region,
-    "inlet": rectangle.boundaries[0],
-    "outlet": rectangle.boundaries[1],
-    "walls": rectangle.boundaries[2:4],
-    "cylinder": circle.boundaries[0],
-})
-mesh_request = eqiora.meshing.GmshMesher(
-    maximum_boundary_error=1e-4,
-    maximum_target_size=0.025,
-    minimum_mean_ratio=1e-5,
-    maximum_boundary_facets=50,
-)
-mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
-mesh = eqiora.meshing.generate(mesh_plan)
-
-model = eqiora.compile(
-    path=files(eqiora).joinpath("examples", "steady-flow-past-cylinder.eqi"),
-    geometry=geometry,
-    parameters={
-        "dynamic_viscosity": 1.0e-3,
-        "zero_pressure": 0.0,
-        "inlet_speed": 0.3,
-        "channel_height": geometry.bounds[1][1] - geometry.bounds[1][0],
-    },
-)
-linear = eqiora.solve.Linear(
-    relative_tolerance=1e-6,
-    absolute_tolerance=1e-13,
-    maximum_iterations=10_000,
-)
-plan = eqiora.resolve(
-    model, mesh=mesh, spatial=eqiora.fem.MiniP1(), solve=linear, scaling=None,
-)
-result = eqiora.run(plan)
-evidence = eqiora.fluid.steady_stokes_evidence(result)
-
-print(result.plan_key)
-print(evidence.solve)
-print("pressure", evidence.pressure_minimum, evidence.pressure_maximum, "Pa")
-print("cylinder force on fluid", evidence.cylinder_force_on_fluid, "N/m")
-print("net flux", evidence.net_flux, "m^2/s")
-```
-
-This uses the current steady-Stokes path. The [gallery walkthrough](/gallery/exact-cylinder-steady-stokes/) explains the pressure field and result checks. <ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob">View the complete runnable source</ExactSourceLink>.
-
-## Choose your next path
-
-- [Python guide](/python/) covers spatial modeling, structured diagnostics, asynchronous runs, cancellation, and framework adapters.
-- [Concepts](/concepts/) explains relations, realizations, and evidence.
-- [Examples](/examples/) separates readable orientation from capability proof.
-- [Capabilities](/capabilities/) summarizes current support and verification status.
-
-Rust users can run the small public-facade orientation examples from a source checkout:
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) if you do
+not have it, then open a terminal in a new working folder:
 
 ```bash
-git clone https://github.com/nkiyohara/eqiora.git
-cd eqiora
-cargo run --locked -p eqiora --example quickstart
-python examples/python/exact_cylinder_stokes.py
+mkdir first-eqiora-model
+cd first-eqiora-model
+uv venv --python 3.13
+uv pip install --python .venv/bin/python 'eqiora==0.1.0a7'
 ```
 
-`quickstart` remains the smallest semantic-kernel orientation example. The exact-cylinder Python path is its spatial counterpart: it authors Geometry, compiles the equations-only component, resolves one typed root Plan, and runs it on the host CPU. The [Examples](/examples/) page expands that workflow.
+Keep the following files in this folder, beside `.venv`. No shell activation is
+needed: each run below explicitly selects that environment.
 
-<Aside type="caution" title="Check the bounded claim">
-  Before relying on any numerical method or backend, trace its row in the [capability matrix](/capabilities/) to a registered evidence case.
-</Aside>
+## Predict the result
+
+Let a dimensionless quantity $x$ start at 1 and decay at rate
+$k=1\,\mathrm{s}^{-1}$:
+
+$$
+\frac{\mathrm{d}x}{\mathrm{d}t}+kx=0,\qquad x(0)=1.
+$$
+
+The solution is $x(t)=\exp(-kt)$. After one second, predict
+$x(1)=\exp(-1)\approx0.367879$—about 37% of the initial value.
+
+## Save the model
+
+<a href={modelDownload} download="decay.eqi">Download decay.eqi</a>, or copy
+this complete source into a file named `decay.eqi`:
+
+<Code code={modelSource} lang="eqiora" title="decay.eqi" />
+
+The `.eqi` file describes the model. `field x` carries its initial value,
+`parameter rate` has inverse-second units, and the `relation` states an equation
+as a residual equal to zero. The numerical method does not belong in this file.
+
+## Save the run script
+
+<a href={programDownload} download="run.py">Download run.py</a>, or copy this
+complete script into `run.py` in the same folder:
+
+<Code code={programSource} lang="python" title="run.py" />
+
+The script compiles `decay.eqi`, chooses an adaptive time method, starts from the
+model's initial state and requests three observations. The returned `Result`
+contains a time series selected by the model's field handle. The two NumPy arrays
+hold times in seconds and the corresponding dimensionless values.
+
+## Run and inspect
+
+```bash
+uv run --no-project --python .venv/bin/python python run.py
+```
+
+You should see values close to:
+
+```text
+t=0.25, x=0.7788007829
+t=0.50, x=0.6065306597
+t=1.00, x=0.3678794412
+```
+
+The last line agrees with the hand prediction. The result is printed in the
+terminal; this small script does not create a plot or save a result file.
+
+## Change the model
+
+In `decay.eqi`, change just the rate declaration to:
+
+```eqiora
+parameter rate: 1 / s = 2;
+```
+
+Before rerunning, predict $x(1)=\exp(-2)\approx0.135335$: doubling the rate makes
+the quantity decay faster. Run the **same command and script** again. Its last
+line should now be close to `t=1.00, x=0.1353352833`.
+
+You changed the model, not the time method. Restore `rate` to 1 when following
+the [ODE lesson](/textbooks/mathematical-modeling/ordinary-differential-equations/).
+
+## If something goes wrong
+
+- **`uv: command not found`:** install uv using its linked instructions, reopen
+  the terminal and check `uv --version`.
+- **No compatible distribution:** check the Linux x86-64/glibc requirements
+  above. Use CPython 3.13, not a free-threaded build.
+- **Wrong Python or missing `eqiora`:** run
+  `uv run --no-project --python .venv/bin/python python -c "import eqiora; print(eqiora.__version__)"`.
+  It should print `0.1.0a7`. Use the same folder and environment for installation
+  and execution; do not substitute an unrelated system Python.
+- **Model file not found:** keep `decay.eqi` beside `run.py` and run from their
+  folder, or pass its path: `python run.py path/to/decay.eqi` inside the selected
+  environment.
+- **A source diagnostic:** misspelling `rate` as `missing_rate` in the relation
+  produces `EQ0603: unresolved expression symbol` in this release. Correct the
+  name to match the declaration. Changing the rate's unit to `m` instead produces
+  an addition/subtraction dimension mismatch: the two terms must both have
+  inverse-time units.
+
+## Where next?
+
+- **Learn:** [derive this ODE and try the exercises](/textbooks/mathematical-modeling/ordinary-differential-equations/).
+- **Guides:** [author and realize models in Python](/python/modeling/).
+- **Gallery:** [explore complete simulation investigations](/gallery/).
+- **Reference:** [look up the public interfaces](/reference/).
+
+[Capabilities](/capabilities/) describes which problem classes and numerical
+methods are available when you move beyond this example.

@@ -124,7 +124,7 @@ export default defineConfig({
         },
       ],
       sidebar: [
-        { label: 'Docs', link: '/get-started/' },
+        { label: 'Get started', link: '/get-started/' },
         { label: 'Textbooks', link: '/textbooks/' },
         { label: 'Gallery', link: '/gallery/' },
         { label: 'Reference', link: '/reference/' },

@@ -1073,6 +1073,8 @@ class ChangeClassificationTests(unittest.TestCase):
             "crates/eqiora/src/lib.rs",
             "bindings/python/python/eqiora/fluid.pyi",
             "docs/site/src/content/docs/index.mdx",
+            "examples/decay.eqi",
+            "examples/python/textbook_decay.py",
             "editor/eqiora/syntaxes/eqiora.tmLanguage.json",
             "tools/docs/generate_python_api.py",
             "tools/editor/check_syntax_bundle.py",

@@ -3,13 +3,14 @@ title: 4. Ordinary differential equations
 description: Derive, run, and interpret one bounded first-order initial-value problem through the installed Eqiora release.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside, Code } from '@astrojs/starlight/components';
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
-import ReleaseIdentity from '@components/site/ReleaseIdentity.astro';
+import modelSource from '../../../../../../../examples/decay.eqi?raw';
+import programSource from '../../../../../../../examples/python/textbook_decay.py?raw';
 
 <Aside type="note" title="Chapter status">
   **Checked · executable from the installed release.** The bounded scalar decay
-  example targets the current <ReleaseIdentity /> surface and is compared with
+  example uses published Eqiora **0.1.0a7** and is compared with
   its independently stated closed form in a focused product test. It is not
   registered evidence and makes no general accuracy, convergence, stiffness,
   or performance claim.
@@ -64,15 +65,7 @@ general ODE support.
 
 ## Model source
 
-```eqiora
-model decay {
-  field x: 1 = 1;
-  parameter rate: 1 / s = 1;
-  relation flow continuous {
-    derivative(x) + rate * x = 0;
-  }
-}
-```
+<Code code={modelSource} lang="eqiora" title="decay.eqi" />
 
 The initial value and rate belong to the Model. The adaptive method, its
 tolerances, the final time, and requested observations belong to the
@@ -80,38 +73,21 @@ Realization or Run.
 
 ## Execute from the installed release
 
-After following [Get started](/get-started/), run the checked-in program:
+Follow [Get started](/get-started/) to install the release and download the same
+`decay.eqi` and `run.py` used here. Set `rate` to 1, then run from their folder:
 
 ```console
-$ python examples/python/textbook_decay.py
+$ uv run --no-project --python .venv/bin/python python run.py
 ```
 
-Its essential public path is:
+The complete script uses the public compile → resolve → run path:
 
-```python
-model = eqiora.compile(source=SOURCE, filename="decay.eqi")
-field = model.field(model.field_ids[0])
-plan = eqiora.resolve(
-    model,
-    temporal=eqiora.time.Tsitouras45(
-        initial_step_s=0.01,
-        relative_tolerance=1.0e-9,
-        absolute_tolerances={field: 1.0e-11},
-    ),
-)
-result = eqiora.run(
-    plan,
-    state=eqiora.State.initial(plan),
-    until_s=1.0,
-    output_times_s=(0.25, 0.5, 1.0),
-)
-series = result.series(field)
-```
+<Code code={programSource} lang="python" title="run.py" />
 
-<ExactSourceLink path="examples/python/textbook_decay.py" kind="blob">View the complete runnable source and closed-form comparison</ExactSourceLink>.
+<ExactSourceLink path="examples/python/textbook_decay.py" kind="blob">View the maintained run script</ExactSourceLink>.
 
-The program prints the computed value, $exp(-t)$, and their absolute
-difference at each requested time. The focused installed-package test requires
+The program prints the time and computed value. Compare each value with
+$\exp(-t)$ independently. The focused installed-package test requires
 the absolute difference to remain at most $2\times10^{-8}$ for exactly these
 three samples. That is adequate for this lesson; it is not a tolerance for a
 different model, interval, backend, or method.

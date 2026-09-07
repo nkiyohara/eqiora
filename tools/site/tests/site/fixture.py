@@ -646,7 +646,7 @@ def _head(route: str) -> str:
 
 def _nav() -> str:
     return ('<a class="site-title" href="/"><img src="/assets/brand.svg" alt=""><span>Eqiora</span></a>'
-            '<nav class="sidebar"><a href="/get-started/">Docs</a><a href="/textbooks/">Textbooks</a>'
+            '<nav class="sidebar"><a href="/get-started/">Get started</a><a href="/textbooks/">Textbooks</a>'
             '<a href="/gallery/">Gallery</a><a href="/reference/">Reference</a>'
             '<a href="/capabilities/">Capabilities</a><a href="/release-notes/">Releases</a>'
             '<a href="https://github.com/nkiyohara/eqiora">GitHub</a></nav>')
@@ -692,7 +692,7 @@ def _home_body() -> str:
 <p>That separation lets block diagrams, acausal physical networks, PDE fields, hybrid dynamics, and reusable components share one canonical meaning without making a numerical method or hardware backend part of the model.</p>
 <a href="/get-started/">Get started</a><a href="/gallery/">Explore gallery</a>
 <article><p>Featured walkthrough</p><h2>Exact-cylinder steady Stokes</h2><img src="/assets/pressure.png" alt="{PRESSURE_ALT}"><p>Follow one frozen 2D steady-Stokes problem from model definition and named boundaries through one submit/Result path to an independently admitted static pressure image.</p><p>Python</p><p>2D</p><p>steady Stokes</p><a href="/gallery/exact-cylinder-steady-stokes/">View the static walkthrough</a></article>
-<article><h2>Docs</h2><p>Learn the Model–Realization boundary and start from bounded examples.</p></article>
+<article><h2>Get started</h2><p>Learn the Model–Realization boundary and start from bounded examples.</p></article>
 <article><h2>Textbooks</h2><p>Follow the planned path from mathematics and physics to Eqiora models, numerical realization, and interpretation.</p></article>
 <article><h2>Capabilities</h2><p>See what is available, executable, checked, or verified.</p></article>
 <article><h2>Reference</h2><p>Browse exact-commit Python, Rust, CLI, control-v2, and MCP surfaces.</p></article>
