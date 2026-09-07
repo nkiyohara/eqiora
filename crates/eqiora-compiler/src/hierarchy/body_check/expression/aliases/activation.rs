@@ -1,0 +1,96 @@
+//! Declared dependency clocks, independent of evolution-use obligations.
+
+use super::*;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum DependencyActivation {
+    Static,
+    Continuous,
+    Clock(String),
+    Mixed,
+}
+
+impl DependencyActivation {
+    fn join(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Static, value) | (value, Self::Static) => value,
+            (left, right) if left == right => left,
+            _ => Self::Mixed,
+        }
+    }
+
+    fn symbol(symbol: &SymbolContract) -> Self {
+        match symbol {
+            SymbolContract::Field(_, _, ActivationSyntax::Periodic(clock)) => {
+                Self::Clock(clock.clone())
+            }
+            SymbolContract::Field(..) | SymbolContract::Port(_) => Self::Continuous,
+            SymbolContract::Alias(alias) => alias.activation.clone(),
+            _ => Self::Static,
+        }
+    }
+
+    pub(super) fn infer(scope: &DefinitionScope<'_, '_>, expression: &Expr) -> Self {
+        let mut profile = Self::Static;
+        let mut pending = vec![expression];
+        while let Some(expression) = pending.pop() {
+            let contribution = match expression.kind() {
+                ExprKind::Name(name) if name == "time" => Self::Continuous,
+                ExprKind::Name(name) => scope
+                    .symbols
+                    .get(name)
+                    .map(Self::symbol)
+                    .unwrap_or(Self::Static),
+                ExprKind::Path(path) => scope
+                    .resolve_symbol(path)
+                    .as_ref()
+                    .map(Self::symbol)
+                    .unwrap_or(Self::Static),
+                ExprKind::BoundaryPortSelection { .. } => Self::Continuous,
+                ExprKind::Unary { value, .. } => {
+                    pending.push(value);
+                    Self::Static
+                }
+                ExprKind::Binary { left, right, .. } => {
+                    pending.extend([left.as_ref(), right.as_ref()]);
+                    Self::Static
+                }
+                ExprKind::Call { arguments, .. } => {
+                    // Evolution operators retain their target's declared activation too.
+                    // The intrinsic checker has already validated identity-only targets.
+                    pending.extend(arguments.iter());
+                    Self::Static
+                }
+                _ => Self::Static,
+            };
+            profile = profile.join(contribution);
+        }
+        profile
+    }
+
+    pub(super) fn validate(
+        &self,
+        scope: &DefinitionScope<'_, '_>,
+        declaration: &eqiora_lang::LetDecl,
+    ) -> Result<(), Diagnostic> {
+        let Some(clock) = declaration.activation() else {
+            return Ok(());
+        };
+        if !matches!(scope.symbols.get(clock), Some(SymbolContract::Clock)) {
+            return Err(scope.wrong_local_kind(
+                declaration.range(),
+                clock,
+                "let alias clock activation",
+            ));
+        }
+        if self != &Self::Clock(clock.to_owned()) {
+            return Err(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                scope.file,
+                declaration.range(),
+                "let alias activation assertion does not match its exact declared dependency clock",
+            ));
+        }
+        Ok(())
+    }
+}
