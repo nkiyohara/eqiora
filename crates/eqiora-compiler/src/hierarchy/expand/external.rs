@@ -72,6 +72,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         scope: &mut Scope,
         supports: &[ExternalGeometrySupportBinding],
     ) -> Result<(), Diagnostic> {
+        let mut regions = BTreeMap::new();
         for support in supports {
             let ExternalGeometrySupportBinding::Region {
                 slot,
@@ -82,6 +83,11 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             else {
                 continue;
             };
+            let key = (support.geometry(), support.entity_set().to_owned());
+            if let Some((symbol, spatial)) = regions.get(&key) {
+                self.alias_external_support(scope, slot, symbol, spatial)?;
+                continue;
+            }
             let identity = self.external_support_identity(slot)?;
             let internal_name = internal_name(identity.full);
             self.register_symbol(slot.clone(), slot, &identity, SymbolKind::Domain, scope)?;
@@ -91,6 +97,16 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     domain: identity.full,
                     dimensions: *ambient_dimension,
                 },
+            );
+            regions.insert(
+                key,
+                (
+                    scope.symbol(slot).expect("registered support").clone(),
+                    scope
+                        .spatial_support(slot)
+                        .expect("registered support")
+                        .clone(),
+                ),
             );
             self.items.push(FlatItemBlueprint::Domain {
                 name: internal_name,
@@ -103,6 +119,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 identity,
             });
         }
+        let mut boundaries = BTreeMap::new();
         for support in supports {
             let ExternalGeometrySupportBinding::Boundary {
                 slot,
@@ -127,6 +144,11 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     ),
                 ));
             };
+            let key = (support.geometry(), support.entity_set().to_owned(), parent);
+            if let Some((symbol, spatial)) = boundaries.get(&key) {
+                self.alias_external_support(scope, slot, symbol, spatial)?;
+                continue;
+            }
             let parent_name = scope
                 .symbol(parent_slot)
                 .ok_or_else(|| hierarchy_error("external volume support has no symbol"))?
@@ -143,6 +165,16 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     dimensions,
                 },
             );
+            boundaries.insert(
+                key,
+                (
+                    scope.symbol(slot).expect("registered support").clone(),
+                    scope
+                        .spatial_support(slot)
+                        .expect("registered support")
+                        .clone(),
+                ),
+            );
             self.boundary_parents.insert(identity.full, parent);
             // Exact external Geometry owns the boundary metric and orientation;
             // retain the boundary contract while deferring Cartesian embedding
@@ -158,6 +190,33 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 identity,
             });
         }
+        Ok(())
+    }
+
+    fn alias_external_support(
+        &mut self,
+        scope: &mut Scope,
+        slot: &str,
+        symbol: &FlatSymbol,
+        spatial: &SpatialSupport<FullElaborationIdentity>,
+    ) -> Result<(), Diagnostic> {
+        if scope
+            .insert_symbol(slot.to_owned(), symbol.clone())
+            .is_some()
+            || self
+                .display_symbols
+                .insert(
+                    slot.to_owned(),
+                    DisplayIdentity {
+                        full: symbol.full_identity,
+                        kind: EntityKind::Domain,
+                    },
+                )
+                .is_some()
+        {
+            return Err(hierarchy_error("duplicate selected support binding name"));
+        }
+        scope.insert_spatial_support(slot.to_owned(), spatial.clone());
         Ok(())
     }
 
