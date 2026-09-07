@@ -11,13 +11,13 @@ impl SourceAstFactory {
     /// Parameters and bindings while retaining their source metadata.
     pub fn elaborate_property_terms(
         document: &mut Document,
-        contract_dimensions: &BTreeMap<String, Expr>,
+        contract_types: &BTreeMap<String, crate::ValueTypeSyntax>,
         release_values: &BTreeMap<String, Expr>,
         material_values: &BTreeMap<String, Vec<(String, Expr)>>,
     ) -> Result<(), AstConstructionError> {
         for component in &mut document.components {
             for requirement in &component.property_requirements {
-                let dimension = contract_dimensions
+                let value_type = contract_types
                     .get(requirement.contract.as_str())
                     .ok_or_else(|| {
                         AstConstructionError::new(format!(
@@ -31,7 +31,7 @@ impl SourceAstFactory {
                         comments: Default::default(),
                         visibility: VisibilitySyntax::Public,
                         name: requirement.name.clone(),
-                        value_type: crate::ValueTypeSyntax::real(dimension.clone()),
+                        value_type: value_type.clone(),
                         default: None,
                         range: requirement.range,
                     }));

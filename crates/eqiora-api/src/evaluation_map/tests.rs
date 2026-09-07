@@ -368,10 +368,23 @@ fn document_from_source(source: &str) -> ModelDocument {
         &geometry,
         None,
         &[
-            ("diffusion", 1.0),
-            ("wave_number", std::f64::consts::PI),
-            ("source_scale", 2.0 * std::f64::consts::PI.powi(2)),
-            ("boundary_offset", 0.0),
+            (
+                "diffusion",
+                eqiora_lang::DraftExpression::constant(1.0).source_ast(),
+            ),
+            (
+                "wave_number",
+                eqiora_lang::DraftExpression::constant(std::f64::consts::PI).source_ast(),
+            ),
+            (
+                "source_scale",
+                eqiora_lang::DraftExpression::constant(2.0 * std::f64::consts::PI.powi(2))
+                    .source_ast(),
+            ),
+            (
+                "boundary_offset",
+                eqiora_lang::DraftExpression::constant(0.0).source_ast(),
+            ),
         ],
     )
     .unwrap()

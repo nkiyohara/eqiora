@@ -32,7 +32,7 @@ use std::path::PathBuf;
 use eqiora::api::ModelDocument;
 use pyo3::exceptions::{PyRuntimeError, PyTypeError};
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyBool, PyDict, PyFloat, PyInt, PyModule, PyString};
+use pyo3::types::{PyAny, PyDict, PyModule, PyString};
 
 pub(crate) use error::diagnostic_error;
 #[doc(hidden)]
@@ -117,7 +117,7 @@ fn compile(
                 let compiled = py.detach(move || {
                     let parameters = parameter_values
                         .iter()
-                        .map(|(name, value)| (name.as_str(), *value))
+                        .map(|(name, value)| (name.as_str(), value.clone()))
                         .collect::<Vec<_>>();
                     ModelDocument::compile_with_geometry(
                         &filename,
@@ -191,7 +191,7 @@ fn admitted_compile_source(
 
 pub(crate) fn extract_parameter_values(
     parameters: Option<&Bound<'_, PyDict>>,
-) -> PyResult<Vec<(String, f64)>> {
+) -> PyResult<Vec<(String, eqiora::language::Expr)>> {
     let Some(parameters) = parameters else {
         return Ok(Vec::new());
     };
@@ -202,26 +202,8 @@ pub(crate) fn extract_parameter_values(
             .map_err(|_| PyTypeError::new_err("parameter names must be strings"))?
             .to_str()?
             .to_owned();
-        if value.cast::<PyBool>().is_ok() {
-            return Err(PyTypeError::new_err(format!(
-                "parameter {name:?} must be a real coherent-SI scalar, not bool"
-            )));
-        }
-        let scalar = if let Ok(value) = value.cast::<PyFloat>() {
-            value.value()
-        } else if value.cast::<PyInt>().is_ok() {
-            value.extract::<f64>()?
-        } else {
-            return Err(PyTypeError::new_err(format!(
-                "parameter {name:?} must be a real coherent-SI scalar"
-            )));
-        };
-        if !scalar.is_finite() {
-            return Err(PyTypeError::new_err(format!(
-                "parameter {name:?} must be finite"
-            )));
-        }
-        values.push((name, scalar));
+        let expression = modeling::value_literal::expression(&value)?.source_ast();
+        values.push((name, expression));
     }
     values.sort_by(|left, right| left.0.cmp(&right.0));
     Ok(values)
@@ -335,7 +317,7 @@ model decay {
     fn ordinary_python_authoring_and_replay_use_the_current_contract() {
         let document = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
         let bytes = document.canonical_json().unwrap();
-        assert!(String::from_utf8_lossy(&bytes).contains("eqiora.model-envelope/v12"));
+        assert!(String::from_utf8_lossy(&bytes).contains("eqiora.model-envelope/v13"));
         let replayed = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(replayed.canonical_json().unwrap(), bytes);
         assert_eq!(replayed.digest().unwrap(), document.digest().unwrap());

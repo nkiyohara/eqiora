@@ -11,7 +11,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyModule};
 
 const SOURCE: &str = r#"
-public property contract Diffusivity { scalar value: 1; }
+public property contract Diffusivity(): 1 { derivatives value_only; }
 public property release ReferenceDiffusivity implements Diffusivity {
   value = 25;
   source_unit: 1 = 1 / 1000;
@@ -224,8 +224,8 @@ fn package_component_uses_caller_geometry_common_plan_and_run() -> PyResult<()> 
 q = eqiora.lang
 u = q.units
 source = q.Source()
-contract = source.scalar_property_contract("Diffusivity", unit=u.one)
-release = source.scalar_property_release(
+contract = source.property_contract("Diffusivity", value_type=eqiora.ValueType.real())
+release = source.property_release(
     "ReferenceDiffusivity",
     implements=contract,
     value=25,
@@ -497,4 +497,49 @@ spec.loader.exec_module(package)
         .get_item("package")?
         .expect("public package must load")
         .cast_into::<PyModule>()?)
+}
+
+#[test]
+fn typed_property_projection_preserves_scaled_complex_channels() -> PyResult<()> {
+    let (store, resolution, _) = locked_store(
+        r#"
+public property contract Response(): array<complex<1>, 2> { derivatives value_only; }
+public property release Reference implements Response {
+  value = [math.complex(1, 2), math.complex(3, -4)];
+  source_unit: 1 = 2;
+  validity = unconditional;
+  citation = org.example.measurement;
+  license = spdx.CC0_1_0;
+}
+public component Consumer() {
+  public property response: Response;
+  variable x: complex<1>;
+  relation law { x = response[1]; }
+}
+public model Main {
+  instance consumer: Consumer(property response = Reference);
+}
+"#,
+    );
+    Python::initialize();
+    Python::attach(|py| {
+        let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
+        let locals = PyDict::new(py);
+        locals.set_item("eqiora", native.bind(py))?;
+        locals.set_item("store", store.0.to_str().expect("Unicode scratch"))?;
+        locals.set_item("resolution", PyBytes::new(py, &resolution))?;
+        py.run(
+            c_str!(
+                r#"
+model = eqiora.compile_package(store, resolution, entry_model="Main")
+(binding,) = model.property_bindings
+assert binding.normalized_value == (2 + 4j, 6 - 8j)
+assert binding.value_type == eqiora.ValueType.array(eqiora.ValueType.complex(), 2)
+assert model.package_compilation_digest is not None
+"#
+            ),
+            Some(&locals),
+            None,
+        )
+    })
 }

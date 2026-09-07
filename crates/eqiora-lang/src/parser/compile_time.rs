@@ -13,7 +13,7 @@ impl Parser<'_> {
         self.expect(TokenKind::Colon, "`:` before dimension")?;
         let value_type = self.parse_value_type()?;
         self.expect(TokenKind::Equal, "`=` before value")?;
-        let value = self.parse_signed_quantity_literal()?;
+        let value = self.parse_expression(0)?;
         let end = self
             .expect(TokenKind::Semicolon, "`;` after declaration")?
             .range()

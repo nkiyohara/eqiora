@@ -97,8 +97,18 @@ fn compile_model(
     supports: &[SupportBinding<'_>],
     parameters: &[(&str, DynQuantity)],
 ) -> ModelEnvelope {
+    let parameters = parameters
+        .iter()
+        .map(|(name, value)| (*name, eqiora_core::ValueLiteral::try_from(*value).unwrap()))
+        .collect::<Vec<_>>();
     let compiled = CompiledModel::compile_external_component(
-        filename, source, model, component, geometry, supports, parameters,
+        filename,
+        source,
+        model,
+        component,
+        geometry,
+        supports,
+        &parameters,
     )
     .unwrap();
     let (transaction, model, _) = compiled.into_parts();

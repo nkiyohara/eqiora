@@ -131,7 +131,7 @@ impl FieldDef {
     }
 }
 
-/// Typed Parameter definition initialized by a real literal.
+/// Typed Parameter definition initialized by a complete mathematical value.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParameterDef {
     id: Id<kinds::Parameter>,
@@ -139,20 +139,10 @@ pub struct ParameterDef {
 }
 
 impl ParameterDef {
-    /// Define a typed Parameter. Zero adopts the complete declared type.
-    ///
-    /// # Errors
-    /// Rejects non-finite literals and nonzero scalar literals for shaped values.
-    pub fn new(
-        id: Id<kinds::Parameter>,
-        value_type: ValueType,
-        literal: f64,
-    ) -> Result<Self, Diagnostic> {
-        let value = ValueLiteral::new(value_type, literal).map_err(|error| {
-            Diagnostic::error(codes::INVALID_KERNEL_DEFINITION, error.to_string())
-                .with_graph_path(kernel_path(id.erase()))
-        })?;
-        Ok(Self { id, value })
+    /// Define a Parameter from an already validated complete value.
+    #[must_use]
+    pub const fn new(id: Id<kinds::Parameter>, value: ValueLiteral) -> Self {
+        Self { id, value }
     }
 
     /// Typed Parameter ID.
@@ -167,15 +157,15 @@ impl ParameterDef {
         self.value.value_type()
     }
 
-    /// Real literal embedded into the declared domain, or contextual shaped zero.
+    /// Complete value, including every real and imaginary component.
     #[must_use]
-    pub const fn literal(&self) -> f64 {
-        self.value.literal()
+    pub const fn value(&self) -> &ValueLiteral {
+        &self.value
     }
 
     /// Extract a value only when its mathematical type is a real scalar.
     #[must_use]
-    pub const fn real_scalar_value(&self) -> Option<DynQuantity> {
+    pub fn real_scalar_value(&self) -> Option<DynQuantity> {
         self.value.real_scalar_value()
     }
 }
@@ -632,19 +622,16 @@ impl KernelNode {
 
     /// Declared scalar dimension for values addressable by `SetValue`.
     #[must_use]
-    pub const fn value_dimension(&self) -> Option<DimExponents> {
+    pub fn value_dimension(&self) -> Option<DimExponents> {
         match self {
-            Self::Parameter(value) => match value.real_scalar_value() {
-                Some(value) => Some(value.dim()),
-                None => None,
-            },
+            Self::Parameter(value) => value.real_scalar_value().map(|value| value.dim()),
             _ => None,
         }
     }
 
     /// Model value installed when the node is first defined.
     #[must_use]
-    pub const fn initial_value(&self) -> Option<DynQuantity> {
+    pub fn initial_value(&self) -> Option<DynQuantity> {
         match self {
             Self::Parameter(value) => value.real_scalar_value(),
             _ => None,
@@ -709,18 +696,31 @@ mod tests {
             eqiora_core::ScalarDomain::Complex,
             DimExponents::DIMENSIONLESS,
         );
-        let parameter = ParameterDef::new(Id::new(), real.clone(), 2.0).unwrap();
+        let parameter = ParameterDef::new(
+            Id::new(),
+            ValueLiteral::from_real(real.clone(), 2.0).unwrap(),
+        );
         assert_eq!(parameter.real_scalar_value().unwrap().value(), 2.0);
-        let parameter = ParameterDef::new(Id::new(), complex.clone(), 2.0).unwrap();
+        let parameter = ParameterDef::new(
+            Id::new(),
+            ValueLiteral::new(complex.clone(), [(2.0, 3.0)]).unwrap(),
+        );
         assert_eq!(parameter.value_type(), &complex);
+        assert_eq!(parameter.value().component(0), Some((2.0, 3.0)));
         assert_eq!(parameter.real_scalar_value(), None);
         let array = complex.array(3).unwrap();
-        let parameter = ParameterDef::new(Id::new(), array.clone(), -0.0).unwrap();
-        assert_eq!(parameter.literal().to_bits(), 0.0_f64.to_bits());
+        let parameter = ParameterDef::new(
+            Id::new(),
+            ValueLiteral::from_real(array.clone(), -0.0).unwrap(),
+        );
+        assert_eq!(
+            parameter.value().component(0).unwrap().0.to_bits(),
+            0.0_f64.to_bits()
+        );
         assert_eq!(parameter.real_scalar_value(), None);
-        assert!(ParameterDef::new(Id::new(), array, 1.0).is_err());
+        assert!(ValueLiteral::from_real(array, 1.0).is_err());
         for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-            assert!(ParameterDef::new(Id::new(), real.clone(), invalid).is_err());
+            assert!(ValueLiteral::from_real(real.clone(), invalid).is_err());
         }
     }
 
@@ -771,7 +771,7 @@ mod tests {
             .is_err()
         );
         for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-            assert!(ValueLiteral::new(temperature.clone(), invalid).is_err());
+            assert!(ValueLiteral::from_real(temperature.clone(), invalid).is_err());
         }
     }
 

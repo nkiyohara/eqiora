@@ -6,13 +6,9 @@ public connector DisplacementTractionBoundary = field_physical(
   pairing = euclidean_boundary_duality
 );
 
-public property contract YoungModulus {
-  scalar value: kg / (m * s ^ 2);
-}
+public property contract YoungModulus(): kg / (m * s ^ 2) { derivatives value_only; }
 
-public property contract PoissonRatio {
-  scalar value: 1;
-}
+public property contract PoissonRatio(): 1 { derivatives value_only; }
 
 public component IsotropicBalance2d(
   support body: volume(ambient_dimension = 2),

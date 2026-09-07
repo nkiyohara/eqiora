@@ -221,17 +221,19 @@ mod tests {
             .unwrap();
         let mut builder = ExprDagBuilder::new();
         let root = builder
-            .constant(ValueLiteral::new(value_type, 0.0).unwrap())
+            .constant(ValueLiteral::from_real(value_type, 0.0).unwrap())
             .unwrap();
         let expression = builder.finish([root]).unwrap();
         let wire = WireExpression::encode(&expression).unwrap();
         assert_eq!(wire.decode().unwrap(), expression);
-        for invalid in [-0.0, 1.0, f64::INFINITY, f64::NAN] {
+        for invalid in [-0.0, f64::INFINITY, f64::NAN] {
             let mut malformed = wire.clone();
-            let WireExpressionNode::Constant { literal, .. } = &mut malformed.nodes[0] else {
+            let WireExpressionNode::Constant { value, .. } = &mut malformed.nodes[0] else {
                 panic!("constant");
             };
-            *literal = invalid;
+            value.components = crate::model::literal::WireComponents::Dense {
+                values: vec![(invalid, 0.0)],
+            };
             assert!(malformed.decode().is_err());
         }
     }
@@ -247,7 +249,7 @@ mod tests {
         ] {
             let mut builder = ExprDagBuilder::new();
             let root = builder
-                .constant(ValueLiteral::new(value_type, 0.0).unwrap())
+                .constant(ValueLiteral::from_real(value_type, 0.0).unwrap())
                 .unwrap();
             let expression = builder.finish([root]).unwrap();
             for node in [
@@ -272,17 +274,20 @@ mod tests {
         let value_type = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
             .array(2)
             .unwrap();
-        let node = KernelNode::from(
-            eqiora_schema::kernel::ParameterDef::new(Id::new(), value_type, 0.0).unwrap(),
-        );
+        let node = KernelNode::from(eqiora_schema::kernel::ParameterDef::new(
+            Id::new(),
+            eqiora_core::ValueLiteral::from_real(value_type, 0.0).unwrap(),
+        ));
         assert_eq!(WireNode::encode(&node).unwrap().decode().unwrap(), node);
-        for invalid in [-0.0, 1.0, f64::INFINITY, f64::NAN] {
+        for invalid in [-0.0, f64::INFINITY, f64::NAN] {
             let mut wire = WireNode::encode(&node).unwrap();
-            let crate::model::WireNodeDefinition::Parameter { literal, .. } = &mut wire.definition
+            let crate::model::WireNodeDefinition::Parameter { value, .. } = &mut wire.definition
             else {
                 unreachable!()
             };
-            *literal = invalid;
+            value.components = crate::model::literal::WireComponents::Dense {
+                values: vec![(invalid, 0.0)],
+            };
             assert!(wire.decode().is_err());
         }
     }
@@ -295,10 +300,10 @@ mod tests {
             (0..9).fold(scalar, |value, _| value.array(1).unwrap()),
         ] {
             for node in [
-                KernelNode::from(
-                    eqiora_schema::kernel::ParameterDef::new(Id::new(), value_type.clone(), 0.0)
-                        .unwrap(),
-                ),
+                KernelNode::from(eqiora_schema::kernel::ParameterDef::new(
+                    Id::new(),
+                    eqiora_core::ValueLiteral::from_real(value_type.clone(), 0.0).unwrap(),
+                )),
                 KernelNode::from(eqiora_schema::kernel::PortDef::signal(
                     Id::new(),
                     eqiora_schema::kernel::SignalDirection::Input,

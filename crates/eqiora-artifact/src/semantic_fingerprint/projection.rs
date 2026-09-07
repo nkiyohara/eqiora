@@ -56,7 +56,7 @@ impl ProjectionGraph {
             let mut references = Vec::new();
             let intrinsic = encode_node(
                 node,
-                program.value(node.id()),
+                program.typed_value(node.id()),
                 program.boundary().contains(&node.id()),
                 &ids,
                 &mut references,

@@ -57,9 +57,23 @@ pub(super) fn evaluate_parameter_expression(
     context: ExpressionContext,
     resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
 ) -> Result<EvaluatedParameter, Diagnostic> {
+    if matches!(
+        expression.kind(),
+        ExprKind::Array(_) | ExprKind::Index { .. }
+    ) || matches!(expression.kind(), ExprKind::Path(path) if path.as_str() == "math.i")
+        || matches!(expression.kind(), ExprKind::Call { callee, .. } if callee.as_str() == "math.complex")
+    {
+        return super::value_expressions::evaluate(file, expression, context, resolve);
+    }
     let evaluated = match expression.kind() {
         ExprKind::Number(value) => EvaluatedParameter {
-            value: Some(normalize_zero(*value)),
+            value: Some(
+                ValueLiteral::from_real(
+                    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+                    normalize_zero(*value),
+                )
+                .expect("finite source literal"),
+            ),
             value_type: EvaluatedType::Known(ValueType::scalar(
                 ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
@@ -81,7 +95,7 @@ pub(super) fn evaluate_parameter_expression(
                 )
             })?;
             EvaluatedParameter {
-                value: Some(quantity.value()),
+                value: Some(ValueLiteral::try_from(quantity).expect("finite quantity")),
                 value_type: EvaluatedType::Known(ValueType::scalar(
                     ScalarDomain::Real,
                     quantity.dim(),
@@ -94,7 +108,13 @@ pub(super) fn evaluate_parameter_expression(
         ExprKind::Name(name) => resolve(name, expression.range())?.into(),
         ExprKind::Path(path) => match crate::math::constant(path) {
             Some(value) => EvaluatedParameter {
-                value: Some(value),
+                value: Some(
+                    ValueLiteral::from_real(
+                        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+                        value,
+                    )
+                    .expect("finite math constant"),
+                ),
                 value_type: EvaluatedType::Known(ValueType::scalar(
                     ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
@@ -155,6 +175,10 @@ pub(super) fn evaluate_parameter_expression(
             let value = operand
                 .value
                 .map(|value| {
+                    let value = value
+                        .real_scalar_value()
+                        .expect("scalar math type checked")
+                        .value();
                     if matches!(function, eqiora_schema::kernel::UnaryMathFunction::Sqrt)
                         && value < 0.0
                     {
@@ -165,7 +189,7 @@ pub(super) fn evaluate_parameter_expression(
                             "math.sqrt requires a nonnegative real operand",
                         ));
                     }
-                    finite_constant(
+                    let value = finite_constant(
                         file,
                         expression.range(),
                         match function {
@@ -173,7 +197,15 @@ pub(super) fn evaluate_parameter_expression(
                             eqiora_schema::kernel::UnaryMathFunction::Sqrt => value.sqrt(),
                             _ => unreachable!("admitted scalar mathematics"),
                         },
-                    )
+                    )?;
+                    ValueLiteral::from_real(inferred.value_type.clone(), value).map_err(|error| {
+                        source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            file,
+                            expression.range(),
+                            error.to_string(),
+                        )
+                    })
                 })
                 .transpose()?;
             EvaluatedParameter {
@@ -205,7 +237,16 @@ pub(super) fn evaluate_parameter_expression(
             let operand = evaluate_parameter_expression(file, value, context, resolve)?;
             let negated = operand
                 .value
-                .map(|value| finite_constant(file, expression.range(), -value))
+                .map(|value| {
+                    crate::typed_values::negate(&value).map_err(|message| {
+                        source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            file,
+                            expression.range(),
+                            message,
+                        )
+                    })
+                })
                 .transpose()?;
             EvaluatedParameter {
                 value: negated,
@@ -234,6 +275,31 @@ pub(super) fn evaluate_parameter_expression(
     Ok(evaluated)
 }
 
+pub(super) fn evaluate_initializer(
+    file: &str,
+    expression: &Expr,
+    context: ExpressionContext,
+    resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
+    target: ValueType,
+    label: &str,
+) -> Result<EvaluatedParameter, Diagnostic> {
+    let evaluated = if matches!(expression.kind(), ExprKind::Array(_))
+        || matches!(expression.kind(), ExprKind::Call { callee, .. } if callee.as_str() == "math.complex")
+    {
+        super::value_expressions::evaluate_with_target(
+            file,
+            expression,
+            context,
+            resolve,
+            Some(&target),
+        )?
+    } else {
+        evaluate_parameter_expression(file, expression, context, resolve)?
+    };
+    coerce_parameter_with_label(file, expression.range(), evaluated, target, label, true)
+        .map(Into::into)
+}
+
 pub(super) fn coerce_parameter(
     file: &str,
     range: TextRange,
@@ -253,18 +319,24 @@ pub(super) fn coerce_parameter_with_label(
 ) -> Result<SymbolicParameterValue, Diagnostic> {
     if evaluated.bare_literal
         && (declaration_initializer
-            || evaluated.value == Some(0.0)
+            || evaluated.value.as_ref().is_some_and(ValueLiteral::is_zero)
             || target.dimension() == DimExponents::DIMENSIONLESS)
     {
-        let literal = ValueLiteral::new(
+        let literal = ValueLiteral::from_real(
             target.clone(),
-            evaluated.value.expect("bare literals have a known value"),
+            evaluated
+                .value
+                .as_ref()
+                .expect("bare literals have a known value")
+                .real_scalar_value()
+                .expect("bare real literal")
+                .value(),
         )
         .map_err(|error| {
             source_error(codes::LANGUAGE_TYPE_ERROR, file, range, error.to_string())
         })?;
         return Ok(SymbolicParameterValue {
-            value: evaluated.value,
+            value: Some(literal.clone()),
             value_type: target,
             expression: Some(LoweringExpression::literal(literal, range)),
             lineage: evaluated.lineage,
@@ -331,7 +403,14 @@ pub(super) fn coerce_parameter_with_label(
         evaluated.lineage
     };
     Ok(SymbolicParameterValue {
-        value: evaluated.value,
+        value: evaluated
+            .value
+            .map(|value| {
+                crate::typed_values::retype(&value, target.clone()).map_err(|message| {
+                    source_error(codes::LANGUAGE_TYPE_ERROR, file, range, message)
+                })
+            })
+            .transpose()?,
         value_type: target,
         expression,
         lineage,
@@ -368,7 +447,7 @@ mod tests {
 
     fn symbolic(value_type: ValueType) -> EvaluatedParameter {
         SymbolicParameterValue {
-            value: Some(0.0),
+            value: Some(ValueLiteral::from_real(value_type.clone(), 0.0).unwrap()),
             value_type,
             expression: None,
             lineage: Some(ParameterLineage::Constant),

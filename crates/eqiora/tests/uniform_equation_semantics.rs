@@ -46,7 +46,10 @@ fn equation_permutation_preserves_simultaneous_solution_not_ordered_identity() {
         let mut values = Vec::new();
         for node in dag.nodes() {
             values.push(match node {
-                ExprNode::Constant(value) => value.literal(),
+                ExprNode::Constant(value) => value
+                    .real_scalar_value()
+                    .expect("real scalar fixture")
+                    .value(),
                 ExprNode::Symbol(eqiora::kernel::SymbolRef::Field(id)) => {
                     if id.erase() == model.aliases()["x"] {
                         4.0

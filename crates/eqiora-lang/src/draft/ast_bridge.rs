@@ -81,15 +81,13 @@ impl super::ModelDraft {
                     comments: Default::default(),
                     name: parameter.name.clone(),
                     value_type: value_type::project(
-                        &parameter.value_type,
+                        parameter.value_type(),
                         &path,
                         &mut ranges,
                         &mut paths,
                     ),
-                    value: Expr {
-                        kind: ExprKind::Number(parameter.value),
-                        range,
-                    },
+                    value: crate::SourceAstFactory::value_literal(parameter.value(), range)
+                        .expect("validated native Parameter projection"),
                     range,
                 }),
                 DraftDeclaration::ConservingPort(port) => Item::Port(PortDecl {

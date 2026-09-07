@@ -1,0 +1,193 @@
+use super::{AstConstructionError, SourceAstFactory, checked_range};
+use crate::{BinaryOp, Expr, ExprKind, NamePath, TextRange};
+use eqiora_core::{DimExponents, ScalarDomain, ValueFrame, ValueLiteral};
+
+impl SourceAstFactory {
+    /// Project one complete coherent-SI value into the canonical source vocabulary.
+    ///
+    /// # Errors
+    /// Rejects excessive type cardinality/nesting and nonzero spatial components,
+    /// which require an admitted explicit frame-bearing source constructor.
+    pub fn value_literal(
+        value: &ValueLiteral,
+        range: TextRange,
+    ) -> Result<Expr, AstConstructionError> {
+        checked_range(range)?;
+        crate::ValueTypeSyntax::from_checked(value.value_type())?;
+        if value.is_zero() && !value.value_type().shape().is_scalar() {
+            return Self::expression(ExprKind::Number(0.0), range);
+        }
+        if value.value_type().frame() != ValueFrame::Invariant {
+            return Err(AstConstructionError::new(
+                "nonzero spatial values require an explicit frame-bearing source constructor",
+            ));
+        }
+        fn nested(value: &ValueLiteral, axis: usize, offset: &mut usize, range: TextRange) -> Expr {
+            if let Some(extent) = value.value_type().shape().extents().get(axis) {
+                return Expr {
+                    kind: ExprKind::Array(
+                        (0..extent.get())
+                            .map(|_| nested(value, axis + 1, offset, range))
+                            .collect(),
+                    ),
+                    range,
+                };
+            }
+            let (real, imaginary) = value.component(*offset).expect("bounded value component");
+            *offset += 1;
+            let scalar = |number| Expr {
+                kind: if value.value_type().dimension() == DimExponents::DIMENSIONLESS {
+                    ExprKind::Number(number)
+                } else {
+                    ExprKind::Quantity {
+                        value: number,
+                        unit: Box::new(dimension_expression(
+                            value.value_type().dimension(),
+                            || range,
+                        )),
+                    }
+                },
+                range,
+            };
+            Expr {
+                kind: if value.value_type().scalar_domain() == ScalarDomain::Complex {
+                    ExprKind::Call {
+                        callee: NamePath::from_parsed_segments(
+                            ["math".to_owned(), "complex".to_owned()],
+                            range,
+                        ),
+                        arguments: vec![scalar(real), scalar(imaginary)],
+                    }
+                } else {
+                    scalar(real).kind
+                },
+                range,
+            }
+        }
+        let result = nested(value, 0, &mut 0, range);
+        Self::expression(result.kind, range)
+    }
+}
+
+pub(crate) fn dimension_expression(
+    dimension: DimExponents,
+    mut range: impl FnMut() -> TextRange,
+) -> Expr {
+    let mut factors = ["kg", "m", "s", "A", "K", "mol", "cd"]
+        .into_iter()
+        .zip(dimension.exponents())
+        .filter(|(_, (numerator, _))| *numerator != 0)
+        .map(|(name, (numerator, denominator))| {
+            let base = Expr {
+                kind: ExprKind::Name(name.to_owned()),
+                range: range(),
+            };
+            if (numerator, denominator) == (1, 1) {
+                base
+            } else {
+                let numerator = Expr {
+                    kind: ExprKind::Number(f64::from(numerator)),
+                    range: range(),
+                };
+                let exponent = if denominator == 1 {
+                    numerator
+                } else {
+                    Expr {
+                        kind: ExprKind::Binary {
+                            op: BinaryOp::Div,
+                            left: Box::new(numerator),
+                            right: Box::new(Expr {
+                                kind: ExprKind::Number(f64::from(denominator)),
+                                range: range(),
+                            }),
+                        },
+                        range: range(),
+                    }
+                };
+                Expr {
+                    kind: ExprKind::Binary {
+                        op: BinaryOp::Pow,
+                        left: Box::new(base),
+                        right: Box::new(exponent),
+                    },
+                    range: range(),
+                }
+            }
+        })
+        .collect::<Vec<_>>()
+        .into_iter();
+
+    let Some(first) = factors.next() else {
+        return Expr {
+            kind: ExprKind::Number(1.0),
+            range: range(),
+        };
+    };
+    factors.fold(first, |left, right| Expr {
+        kind: ExprKind::Binary {
+            op: BinaryOp::Mul,
+            left: Box::new(left),
+            right: Box::new(right),
+        },
+        range: range(),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use eqiora_core::{ValueShape, ValueType};
+
+    #[test]
+    fn complete_complex_channels_keep_order_dimensions_and_real_complex_domain() {
+        let kind = ValueType::scalar(
+            ScalarDomain::Complex,
+            DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
+        )
+        .array(2)
+        .unwrap();
+        let literal = ValueLiteral::new(kind, [(1.0, 2.0), (3.0, 0.0)]).unwrap();
+        let expression = SourceAstFactory::value_literal(&literal, TextRange::new(0, 1)).unwrap();
+        let ExprKind::Array(elements) = expression.kind() else {
+            panic!("channel axis")
+        };
+        for (element, expected) in elements.iter().zip([[1.0, 2.0], [3.0, 0.0]]) {
+            let ExprKind::Call { callee, arguments } = element.kind() else {
+                panic!("complex constructor")
+            };
+            assert_eq!(callee.as_str(), "math.complex");
+            for (argument, expected) in arguments.iter().zip(expected) {
+                let ExprKind::Quantity { value, unit } = argument.kind() else {
+                    panic!("coherent quantity")
+                };
+                assert_eq!(*value, expected);
+                assert!(matches!(unit.kind(), ExprKind::Name(name) if name == "m"));
+            }
+        }
+    }
+
+    #[test]
+    fn contextual_spatial_zero_is_compact_but_nonzero_spatial_channels_are_not_reinterpreted() {
+        let vector = ValueType::shaped(
+            ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+            ValueShape::new([2]).unwrap(),
+            ValueFrame::SpatialCartesian,
+        )
+        .unwrap();
+        let zero = ValueLiteral::from_real(vector.clone(), 0.0).unwrap();
+        assert!(matches!(
+            SourceAstFactory::value_literal(&zero, TextRange::new(0, 1))
+                .unwrap()
+                .kind(),
+            ExprKind::Number(0.0)
+        ));
+        let value = ValueLiteral::new(vector, [(1.0, 0.0), (2.0, 0.0)]).unwrap();
+        assert!(
+            SourceAstFactory::value_literal(&value, TextRange::new(0, 1))
+                .unwrap_err()
+                .to_string()
+                .contains("frame-bearing")
+        );
+    }
+}

@@ -17,7 +17,7 @@ capabilities = [
 model = "scalar exponential decay"
 declarations = "continuous state, Parameter, simultaneous initial equation, one continuous Relation"
 operators = "constants, references, arithmetic, and time derivative"
-comparison = "generation-v7 structural semantic fingerprint and reference trajectory"
+comparison = "generation-v8 structural semantic fingerprint and reference trajectory"
 
 [claim_boundary]
 scalar = true

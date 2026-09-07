@@ -677,14 +677,14 @@ model decay {
                 ),
                 eqiora_schema::kernel::FieldRole::State,
             )),
-            KernelNode::from(
-                ParameterDef::new(
-                    rate,
+            KernelNode::from(ParameterDef::new(
+                rate,
+                eqiora_core::ValueLiteral::from_real(
                     eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time),
                     1.0,
                 )
                 .unwrap(),
-            ),
+            )),
             KernelNode::from(RelationDef::new(relation, residuals)),
             KernelNode::from(ActivationDef::continuous(continuous)),
         ];

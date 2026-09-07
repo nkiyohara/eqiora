@@ -192,58 +192,58 @@ fn thermal_fixture() -> ThermalFixture {
             eqiora_schema::kernel::FieldRole::State,
         )),
         initial(command, DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)),
-        KernelNode::from(
-            ParameterDef::new(
-                ambient,
+        KernelNode::from(ParameterDef::new(
+            ambient,
+            eqiora_core::ValueLiteral::from_real(
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     temperature_dimension,
                 ),
                 293.0,
             )
-            .unwrap(),
-        ),
-        KernelNode::from(
-            ParameterDef::new(
-                time_constant,
+            .expect("valid parameter value"),
+        )),
+        KernelNode::from(ParameterDef::new(
+            time_constant,
+            eqiora_core::ValueLiteral::from_real(
                 eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, time_dimension),
                 10.0,
             )
-            .unwrap(),
-        ),
-        KernelNode::from(
-            ParameterDef::new(
-                heating_gain,
+            .expect("valid parameter value"),
+        )),
+        KernelNode::from(ParameterDef::new(
+            heating_gain,
+            eqiora_core::ValueLiteral::from_real(
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     temperature_rate_dimension,
                 ),
                 2.0,
             )
-            .unwrap(),
-        ),
-        KernelNode::from(
-            ParameterDef::new(
-                setpoint,
+            .expect("valid parameter value"),
+        )),
+        KernelNode::from(ParameterDef::new(
+            setpoint,
+            eqiora_core::ValueLiteral::from_real(
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     temperature_dimension,
                 ),
                 300.0,
             )
-            .unwrap(),
-        ),
-        KernelNode::from(
-            ParameterDef::new(
-                controller_gain,
+            .expect("valid parameter value"),
+        )),
+        KernelNode::from(ParameterDef::new(
+            controller_gain,
+            eqiora_core::ValueLiteral::from_real(
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     inverse_temperature_dimension,
                 ),
                 0.1,
             )
-            .unwrap(),
-        ),
+            .expect("valid parameter value"),
+        )),
         KernelNode::from(PortDef::signal(
             controller_output,
             SignalDirection::Output,

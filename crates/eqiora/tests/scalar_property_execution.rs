@@ -41,7 +41,7 @@ fn typed_material_composition_runs_as_the_same_effective_multi_property_law() {
         &material_source(false, 2, 4, false),
         &geometry,
         Some("ExecutableDiffusion"),
-        PARAMETERS,
+        &parameter_expressions(),
     )
     .expect("direct multi-parameter Law compiles");
 
@@ -116,8 +116,8 @@ fn public_material_composition_crosses_an_exact_package_boundary() {
     let properties = release(
         "org.example.Materials",
         r#"
-public property contract Conductivity { scalar value: 1; }
-public property contract Capacity { scalar value: 1; }
+public property contract Conductivity(): 1 { derivatives value_only; }
+public property contract Capacity(): 1 { derivatives value_only; }
 property release ConductivityA implements Conductivity {
   value = 2; source_unit: 1 = 1; validity = unconditional;
   citation = org.example.a; license = spdx.CC0_1_0;
@@ -174,14 +174,17 @@ fn one_exact_release_runs_through_two_independent_common_scalar_consumers() {
             &consumer.source(false),
             &geometry,
             Some(consumer.wrapper()),
-            PARAMETERS,
+            &parameter_expressions(),
         )
         .expect("direct Parameter Component compiles against the same Geometry");
 
         assert_eq!(property.property_bindings().len(), 1);
         let binding = property.property_bindings().next().unwrap();
         assert_eq!(binding.4, consumer.requirement());
-        assert_eq!(binding.5, NORMALIZED_DIFFUSIVITY);
+        assert_eq!(
+            binding.5.real_scalar_value().unwrap().value(),
+            NORMALIZED_DIFFUSIVITY
+        );
         assert_eq!(binding.6, "unconditional");
         assert_eq!(binding.7, "org.example.measurement");
         assert_eq!(binding.8, "spdx.CC0_1_0");
@@ -400,8 +403,8 @@ public component {wrapper}(
 fn property_release(value: u32, citation: &str, contract: &str) -> PackageReleaseV1 {
     let source = format!(
         r#"
-public property contract Diffusivity {{ scalar value: 1; }}
-public property contract OtherDiffusivity {{ scalar value: 1; }}
+public property contract Diffusivity(): 1 {{ derivatives value_only; }}
+public property contract OtherDiffusivity(): 1 {{ derivatives value_only; }}
 public property release ReferenceDiffusivity implements {contract} {{
   value = {value};
   source_unit: 1 = 1 / 1000;
@@ -418,8 +421,8 @@ fn reordered_property_release() -> PackageReleaseV1 {
     release(
         PROPERTY_PACKAGE,
         r#"
-public property contract OtherDiffusivity { scalar value: 1; }
-public property contract Diffusivity { scalar value: 1; }
+public property contract OtherDiffusivity(): 1 { derivatives value_only; }
+public property contract Diffusivity(): 1 { derivatives value_only; }
 public property release ReferenceDiffusivity implements Diffusivity {
   value = 25;
   source_unit: 1 = 1 / 1000;
@@ -455,7 +458,7 @@ fn compile_property_consumer(
         &resolution,
         consumer.wrapper(),
         geometry,
-        PARAMETERS,
+        &parameter_expressions(),
     )
     .map_err(|error| error.to_string())
 }
@@ -474,7 +477,7 @@ fn compile_root_component(
         &resolution,
         component,
         geometry,
-        PARAMETERS,
+        &parameter_expressions(),
     )
     .map_err(|error| error.to_string())
 }
@@ -497,8 +500,8 @@ fn material_source(composed: bool, conductivity: u32, capacity: u32, reverse: bo
             "  property capacity = CapacityValue;\n  property conductivity = ConductivityValue;"
         };
         format!(
-            r#"public property contract Conductivity {{ scalar value: 1; }}
-public property contract Capacity {{ scalar value: 1; }}
+            r#"public property contract Conductivity(): 1 {{ derivatives value_only; }}
+public property contract Capacity(): 1 {{ derivatives value_only; }}
 public property release ConductivityValue implements Conductivity {{
   value = {conductivity}; source_unit: 1 = 1; validity = unconditional;
   citation = org.example.measurement; license = spdx.CC0_1_0;
@@ -708,4 +711,20 @@ fn assert_same_scalar_result(left: &CommonResult, right: &CommonResult) {
     assert_eq!(left.0, right.0);
     assert_eq!(left.1, right.1);
     assert_eq!(left.2, right.2);
+}
+
+fn parameter_expressions() -> Vec<(&'static str, eqiora::language::Expr)> {
+    PARAMETERS
+        .iter()
+        .map(|(name, value)| {
+            (
+                *name,
+                eqiora::language::SourceAstFactory::expression(
+                    eqiora::language::ExprKind::Number(*value),
+                    eqiora::language::TextRange::new(0, 0),
+                )
+                .unwrap(),
+            )
+        })
+        .collect()
 }

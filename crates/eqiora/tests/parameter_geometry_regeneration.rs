@@ -119,7 +119,7 @@ fn one_value_transaction_regenerates_every_endpoint_and_retains_selections() {
             Precondition::RevisionIs(base.program().revision()),
             Precondition::ValueEquals {
                 target: parameter,
-                expected: plan.before(),
+                expected: plan.before().try_into().unwrap(),
             },
         ]
     );
@@ -127,7 +127,7 @@ fn one_value_transaction_regenerates_every_endpoint_and_retains_selections() {
         transaction.ops(),
         &[Op::SetValue {
             target: parameter,
-            value: plan.after(),
+            value: plan.after().try_into().unwrap(),
         }]
     );
 
@@ -302,7 +302,21 @@ fn plan_is_canonical_and_invalid_requests_fail_before_mutation() {
         base.preview_parameter_geometry_regeneration(base.aliases()["retain"], 3.5)
             .is_err()
     );
-    assert!(base.preview_value_edit(parameter, 3.5).is_err());
+    assert!(
+        base.preview_value_edit(
+            parameter,
+            eqiora_core::ValueLiteral::from_real(
+                base.program()
+                    .typed_value(parameter)
+                    .unwrap()
+                    .value_type()
+                    .clone(),
+                3.5
+            )
+            .unwrap()
+        )
+        .is_err()
+    );
 
     let invalid = ModelDocument::compile("invalid-targets.eqi", INVALID_TARGETS).unwrap();
     assert!(
@@ -325,7 +339,19 @@ fn plan_is_canonical_and_invalid_requests_fail_before_mutation() {
     let planar_parameter = planar.aliases()["extent"];
     assert_eq!(
         planar
-            .preview_value_edit(planar_parameter, 3.5)
+            .preview_value_edit(
+                planar_parameter,
+                eqiora_core::ValueLiteral::from_real(
+                    planar
+                        .program()
+                        .typed_value(planar_parameter)
+                        .unwrap()
+                        .value_type()
+                        .clone(),
+                    3.5
+                )
+                .unwrap()
+            )
             .unwrap_err()
             .message(),
         "value edit cannot target a Cartesian coordinate Parameter; the geometry regeneration owner currently accepts one 3D Domain"

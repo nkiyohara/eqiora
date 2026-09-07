@@ -74,6 +74,19 @@ fn expression_type_cached(
     let mut infer = |operand| expression_type_cached(file, operand, bindings, support, cache);
     let violation = |error| spatial_type_error(file, expression, error);
     let inferred = match expression.node.as_ref() {
+        LoweringExpressionNode::Array(elements) => {
+            let elements = elements
+                .iter()
+                .map(&mut infer)
+                .collect::<Result<Vec<_>, _>>()?;
+            ExpressionType::array(&elements).map_err(violation)
+        }
+        LoweringExpressionNode::Index { value, index } => {
+            ExpressionType::index(infer(value)?, *index).map_err(violation)
+        }
+        LoweringExpressionNode::Complex { real, imag } => {
+            ExpressionType::complex(infer(real)?, infer(imag)?).map_err(violation)
+        }
         LoweringExpressionNode::Literal(value) => {
             Ok(ExpressionType::new(value.value_type().clone(), None))
         }

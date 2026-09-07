@@ -5,7 +5,7 @@
 //! discovery or permit coordinate Parameters to bypass that owner.
 
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, DynQuantity, EntityKind, RawId};
+use eqiora_core::{Diagnostic, EntityKind, RawId, ValueLiteral};
 use eqiora_graph::{EdgeKind, GraphStore, Op, Precondition, Revision, Transaction};
 use eqiora_schema::kernel::KernelNode;
 
@@ -21,8 +21,8 @@ pub struct ValueEditPlan {
     base_digest: String,
     base_revision: Revision,
     target: RawId,
-    before: DynQuantity,
-    after: DynQuantity,
+    before: ValueLiteral,
+    after: ValueLiteral,
     transaction: ModelTransactionEnvelope,
     transaction_digest: String,
 }
@@ -49,7 +49,7 @@ impl ValueEditPlan {
         self.base_revision
     }
 
-    /// Stable Field or Parameter identity targeted by the edit.
+    /// Stable Parameter identity targeted by the edit.
     #[must_use]
     pub const fn target(&self) -> RawId {
         self.target
@@ -57,14 +57,14 @@ impl ValueEditPlan {
 
     /// Value required by the optimistic precondition.
     #[must_use]
-    pub const fn before(&self) -> DynQuantity {
-        self.before
+    pub const fn before(&self) -> &ValueLiteral {
+        &self.before
     }
 
-    /// Replacement value in coherent SI units with unchanged dimension.
+    /// Replacement complete value with unchanged mathematical type.
     #[must_use]
-    pub const fn after(&self) -> DynQuantity {
-        self.after
+    pub const fn after(&self) -> &ValueLiteral {
+        &self.after
     }
 
     /// Domain-separated identity of the exact ordered transaction wire.
@@ -123,11 +123,11 @@ impl ValueEditResult {
 }
 
 impl ModelDocument {
-    /// Resolve one finite Field/Parameter value change into the shared,
+    /// Resolve one complete Parameter value change into the shared,
     /// versioned Model-transaction wire without mutating this document.
     ///
     /// The transaction requires both the current graph revision and the exact
-    /// current quantity. A no-op, non-finite value, missing target, or target
+    /// current quantity. A no-op, changed type, missing target, or target
     /// outside the quantitative node vocabulary is rejected before commit.
     ///
     /// # Errors
@@ -136,21 +136,15 @@ impl ModelDocument {
     pub fn preview_value_edit(
         &self,
         target: RawId,
-        new_value_si: f64,
+        after: ValueLiteral,
     ) -> Result<ValueEditPlan, Diagnostic> {
-        if !new_value_si.is_finite() {
-            return Err(Diagnostic::error(
-                codes::INVALID_OPERATION,
-                "model value edits require one finite coherent-SI scalar",
-            ));
-        }
         let Some(node) = self.program.node(target) else {
             return Err(Diagnostic::error(
                 codes::NODE_NOT_FOUND,
                 format!("value-edit target {target} is outside this model revision"),
             ));
         };
-        if !matches!(node.id().kind(), EntityKind::Field | EntityKind::Parameter) {
+        if !matches!(node.id().kind(), EntityKind::Parameter) {
             return Err(Diagnostic::error(
                 codes::INVALID_OPERATION,
                 format!("value edits are not valid for {:?}", node.id().kind()),
@@ -168,13 +162,18 @@ impl ModelDocument {
                 "value edit cannot target a Cartesian coordinate Parameter; the geometry regeneration owner currently accepts one 3D Domain",
             ));
         }
-        let Some(before) = self.program.value(target) else {
+        let Some(before) = self.program.typed_value(target).cloned() else {
             return Err(Diagnostic::error(
                 codes::INVALID_OPERATION,
-                format!("value-edit target {target} has no revision-local scalar value"),
+                format!("value-edit target {target} has no revision-local typed value"),
             ));
         };
-        let after = DynQuantity::new(new_value_si, before.dim());
+        if before.value_type() != after.value_type() {
+            return Err(Diagnostic::error(
+                codes::INVALID_OPERATION,
+                "value edit must preserve the complete declared Parameter type",
+            ));
+        }
         if before == after {
             return Err(Diagnostic::error(
                 codes::INVALID_OPERATION,
@@ -185,7 +184,7 @@ impl ModelDocument {
         let label = self.value_edit_label(target);
         let base_revision = self.store.revision();
         let (transaction, transaction_digest) =
-            self.prepare_value_transaction(target, before, after, label)?;
+            self.prepare_value_transaction(target, before.clone(), after.clone(), label)?;
         Ok(ValueEditPlan {
             base_digest: self.digest()?,
             base_revision,
@@ -232,8 +231,8 @@ impl ModelDocument {
     pub(crate) fn prepare_value_transaction(
         &self,
         target: RawId,
-        before: DynQuantity,
-        after: DynQuantity,
+        before: ValueLiteral,
+        after: ValueLiteral,
         label: String,
     ) -> Result<(ModelTransactionEnvelope, String), Diagnostic> {
         let mut transaction = Transaction::new(label);
@@ -273,9 +272,18 @@ impl ModelDocument {
 
         let mut store = self.store.clone();
         store.commit(replay.to_transaction().map_err(single_diagnostic)?)?;
-        let program =
-            eqiora_sem::KernelProgram::from_snapshot(&store.snapshot(), self.program.model())?;
-        ModelDocument::from_store(store, program, self.aliases.clone())
+        let geometries = self.geometry_authority.iter().collect::<Vec<_>>();
+        let program = eqiora_sem::KernelProgram::from_snapshot_with_geometry(
+            &store.snapshot(),
+            self.program.model(),
+            &geometries,
+        )?;
+        ModelDocument::from_store(
+            store,
+            program,
+            self.aliases.clone(),
+            self.geometry_authority.clone(),
+        )
     }
 
     pub(crate) fn value_edit_label(&self, target: RawId) -> String {

@@ -10,7 +10,7 @@ use std::ops::{Add, Div, Mul, Neg, Sub};
 use crate::ast::{BinaryOp, Expr, ExprKind, ModelDecl, NamePath, TextRange, UnaryOp};
 use crate::draft_spatial::{DraftSpatialDomain, DraftSpatialDomainKind};
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, DimExponents, GraphPath, ValueType};
+use eqiora_core::{Diagnostic, DimExponents, GraphPath, ValueLiteral, ValueType};
 
 /// One immutable native model definition request.
 #[derive(Debug, Clone)]
@@ -129,12 +129,12 @@ impl ModelDraft {
                 }
                 if residuals
                     .iter()
-                    .any(DraftExpression::contains_non_finite_constant)
+                    .any(DraftExpression::contains_invalid_literal)
                 {
                     diagnostics.push(native_diagnostic(
                         &self.name,
                         path,
-                        "equation group contains a non-finite numeric literal",
+                        "equation group contains a non-finite numeric literal or empty array",
                     ));
                 }
             }
@@ -145,14 +145,17 @@ impl ModelDraft {
                     }
                 }
                 DraftDeclaration::Parameter(parameter) => {
-                    if !parameter.value.is_finite() {
+                    if let Err(error) = crate::SourceAstFactory::value_literal(
+                        parameter.value(),
+                        TextRange::new(0, 1),
+                    ) {
                         diagnostics.push(native_diagnostic(
                             &self.name,
                             parameter.name(),
-                            "Parameter value must be finite",
+                            error.to_string(),
                         ));
                     }
-                    if let Err(message) = value_type::validate(&parameter.value_type) {
+                    if let Err(message) = value_type::validate(parameter.value_type()) {
                         diagnostics.push(native_diagnostic(&self.name, parameter.name(), message));
                     }
                 }
@@ -646,23 +649,21 @@ impl DraftField {
     }
 }
 
-/// Immutable typed Parameter declaration with a real numeric literal.
+/// Immutable Parameter declaration owning one complete validated value.
 #[derive(Debug, Clone)]
 pub struct DraftParameter {
     symbol: DraftSymbol,
     name: String,
-    value_type: ValueType,
-    value: f64,
+    value: ValueLiteral,
 }
 
 impl DraftParameter {
-    /// Declare one typed Parameter literal in coherent SI units.
+    /// Declare one complete Parameter value in coherent SI units.
     #[must_use]
-    pub fn new(name: impl Into<String>, value_type: ValueType, value: f64) -> Self {
+    pub fn new(name: impl Into<String>, value: ValueLiteral) -> Self {
         Self {
             symbol: DraftSymbol::new(),
             name: name.into(),
-            value_type,
             value,
         }
     }
@@ -676,22 +677,22 @@ impl DraftParameter {
     /// Static SI dimension.
     #[must_use]
     pub const fn dimension(&self) -> DimExponents {
-        self.value_type.dimension()
+        self.value.value_type().dimension()
     }
 
     /// Complete declared mathematical type.
     #[must_use]
     pub const fn value_type(&self) -> &ValueType {
-        &self.value_type
+        self.value.value_type()
     }
 
-    /// Value in coherent SI units.
+    /// Complete value in coherent SI units, without scalar projection.
     #[must_use]
-    pub const fn value(&self) -> f64 {
-        self.value
+    pub const fn value(&self) -> &ValueLiteral {
+        &self.value
     }
 
-    /// Use this Parameter as a scalar expression.
+    /// Use this Parameter as a typed expression.
     #[must_use]
     pub fn expression(&self) -> DraftExpression {
         DraftExpression::reference(
@@ -776,6 +777,33 @@ impl DraftExpression {
         }
     }
 
+    /// Construct an ordered channel-array expression.
+    #[must_use]
+    pub fn array(values: impl IntoIterator<Item = Self>) -> Self {
+        Self {
+            kind: DraftExpressionKind::Array(values.into_iter().collect()),
+        }
+    }
+
+    /// Select a static channel index. The compiler checks type and bounds.
+    #[must_use]
+    pub fn index(self, index: u32) -> Self {
+        Self {
+            kind: DraftExpressionKind::Index {
+                value: Box::new(self),
+                index,
+            },
+        }
+    }
+
+    /// Construct a complex scalar without discarding either component.
+    #[must_use]
+    pub fn complex(real: f64, imaginary: f64) -> Self {
+        Self {
+            kind: DraftExpressionKind::Complex(real, imaginary),
+        }
+    }
+
     fn reference(symbol: DraftSymbol, name: String, kind: DraftSymbolKind) -> Self {
         Self {
             kind: DraftExpressionKind::Reference(DraftReference { symbol, name, kind }),
@@ -849,7 +877,13 @@ impl DraftExpression {
 
     fn references<'a>(&'a self, output: &mut Vec<DraftExpressionReference<'a>>) {
         match &self.kind {
-            DraftExpressionKind::Constant(_) => {}
+            DraftExpressionKind::Constant(_) | DraftExpressionKind::Complex(_, _) => {}
+            DraftExpressionKind::Array(values) => {
+                for value in values {
+                    value.references(output);
+                }
+            }
+            DraftExpressionKind::Index { value, .. } => value.references(output),
             DraftExpressionKind::Reference(reference)
             | DraftExpressionKind::Derivative(reference) => {
                 output.push(DraftExpressionReference::Value(reference));
@@ -867,68 +901,26 @@ impl DraftExpression {
         }
     }
 
-    fn contains_non_finite_constant(&self) -> bool {
+    fn contains_invalid_literal(&self) -> bool {
         match &self.kind {
             DraftExpressionKind::Constant(value) => !value.is_finite(),
+            DraftExpressionKind::Complex(real, imaginary) => {
+                !real.is_finite() || !imaginary.is_finite()
+            }
+            DraftExpressionKind::Array(values) => {
+                values.is_empty() || values.iter().any(Self::contains_invalid_literal)
+            }
+            DraftExpressionKind::Index { value, .. } => value.contains_invalid_literal(),
             DraftExpressionKind::Reference(_)
             | DraftExpressionKind::Derivative(_)
             | DraftExpressionKind::Across(_)
             | DraftExpressionKind::Through(_) => false,
             DraftExpressionKind::Neg(value) | DraftExpressionKind::SpatialCall { value, .. } => {
-                value.contains_non_finite_constant()
+                value.contains_invalid_literal()
             }
             DraftExpressionKind::Binary { left, right, .. } => {
-                left.contains_non_finite_constant() || right.contains_non_finite_constant()
+                left.contains_invalid_literal() || right.contains_invalid_literal()
             }
-        }
-    }
-
-    fn ast(
-        &self,
-        path: &GraphPath,
-        ranges: &mut RangeAllocator,
-        paths: &mut HashMap<TextRange, GraphPath>,
-    ) -> Expr {
-        let kind = match &self.kind {
-            DraftExpressionKind::Constant(value) => ExprKind::Number(*value),
-            DraftExpressionKind::Reference(reference) => ExprKind::Name(reference.name.clone()),
-            DraftExpressionKind::Derivative(reference) => ExprKind::Call {
-                callee: NamePath::single("derivative".to_owned(), ranges.allocate(path, paths)),
-                arguments: vec![Expr {
-                    kind: ExprKind::Name(reference.name.clone()),
-                    range: ranges.allocate(path, paths),
-                }],
-            },
-            DraftExpressionKind::Across(reference) => {
-                physical_accessor_ast("across", reference, path, ranges, paths)
-            }
-            DraftExpressionKind::Through(reference) => {
-                physical_accessor_ast("through", reference, path, ranges, paths)
-            }
-            DraftExpressionKind::SpatialCall { operator, value } => ExprKind::Call {
-                callee: NamePath::single(
-                    operator.source_name().to_owned(),
-                    ranges.allocate(path, paths),
-                ),
-                arguments: vec![value.ast(path, ranges, paths)],
-            },
-            DraftExpressionKind::Neg(value) => ExprKind::Unary {
-                op: UnaryOp::Neg,
-                value: Box::new(value.ast(path, ranges, paths)),
-            },
-            DraftExpressionKind::Binary {
-                operator,
-                left,
-                right,
-            } => ExprKind::Binary {
-                op: *operator,
-                left: Box::new(left.ast(path, ranges, paths)),
-                right: Box::new(right.ast(path, ranges, paths)),
-            },
-        };
-        Expr {
-            kind,
-            range: ranges.allocate(path, paths),
         }
     }
 }
@@ -963,6 +955,12 @@ impl_binary_expression_operator!(Div, div, BinaryOp::Div);
 #[derive(Debug, Clone)]
 enum DraftExpressionKind {
     Constant(f64),
+    Complex(f64, f64),
+    Array(Vec<DraftExpression>),
+    Index {
+        value: Box<DraftExpression>,
+        index: u32,
+    },
     Reference(DraftReference),
     Derivative(DraftReference),
     Across(DraftPortReference),
@@ -1049,6 +1047,7 @@ pub struct NativeModelAst {
 
 mod ast_bridge;
 mod dimension;
+mod expression;
 mod symbol;
 mod value_type;
 use ast_bridge::{RangeAllocator, physical_accessor_ast};

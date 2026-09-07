@@ -28,8 +28,7 @@ impl WireNode {
                 role: WireFieldRole::encode(value.role()),
             },
             KernelNode::Parameter(value) => WireNodeDefinition::Parameter {
-                value_type: WireValueType::encode(value.value_type())?,
-                literal: value.literal(),
+                value: WireValueLiteral::encode(value.value())?,
             },
             KernelNode::Port(value) => match value.payload() {
                 PortPayload::ScalarPhysical { domain } => WireNodeDefinition::ScalarPhysicalPort {
@@ -96,22 +95,8 @@ impl WireNode {
                 role.decode(),
             )
             .into()),
-            WireNodeDefinition::Parameter {
-                value_type,
-                literal,
-            } => {
-                if *literal == 0.0 && literal.is_sign_negative() {
-                    return Err(invalid_artifact(
-                        "Parameter literal has noncanonical negative zero",
-                    ));
-                }
-                Ok(ParameterDef::new(
-                    self.id.typed::<kinds::Parameter>()?,
-                    value_type.decode()?,
-                    *literal,
-                )
-                .map_err(|error| invalid_artifact(error.message()))?
-                .into())
+            WireNodeDefinition::Parameter { value } => {
+                Ok(ParameterDef::new(self.id.typed::<kinds::Parameter>()?, value.decode()?).into())
             }
             WireNodeDefinition::SignalPort {
                 direction,
@@ -211,14 +196,23 @@ impl WireNode {
         }
     }
 
+    pub(crate) fn literal_component_count(&self) -> Result<usize, Diagnostic> {
+        match &self.definition {
+            WireNodeDefinition::Parameter { value } => Ok(value.component_payload_count()),
+            WireNodeDefinition::Relation { residuals, .. } => residuals.literal_component_count(),
+            WireNodeDefinition::Activation { activation } => activation.literal_component_count(),
+            _ => Ok(0),
+        }
+    }
+
     pub(crate) fn ensure_value_shape_limits(
         &self,
         limits: ModelDecoderLimits,
     ) -> Result<(), Diagnostic> {
         match &self.definition {
             WireNodeDefinition::Field { value_type, .. }
-            | WireNodeDefinition::SignalPort { value_type, .. }
-            | WireNodeDefinition::Parameter { value_type, .. } => value_type.ensure_limits(limits),
+            | WireNodeDefinition::SignalPort { value_type, .. } => value_type.ensure_limits(limits),
+            WireNodeDefinition::Parameter { value } => value.ensure_limits(limits),
             WireNodeDefinition::Relation { residuals, .. } => {
                 residuals.ensure_value_shape_limits(limits)
             }
@@ -284,8 +278,7 @@ pub(crate) enum WireNodeDefinition {
         role: WireFieldRole,
     },
     Parameter {
-        value_type: WireValueType,
-        literal: f64,
+        value: WireValueLiteral,
     },
     SignalPort {
         direction: WireSignalDirection,

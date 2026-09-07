@@ -40,7 +40,7 @@ pub struct KernelProgram {
     revision: Revision,
     model: OntologyId<Model>,
     nodes: BTreeMap<RawId, KernelNode>,
-    values: BTreeMap<RawId, DynQuantity>,
+    values: BTreeMap<RawId, eqiora_core::ValueLiteral>,
     edges: Vec<Edge>,
     boundary: BTreeSet<RawId>,
     spatial_supports: BTreeMap<RawId, SpatialSupport<RawId>>,
@@ -87,7 +87,14 @@ impl KernelProgram {
     /// it is intentionally separate from the immutable node definition.
     #[must_use]
     pub fn value(&self, id: RawId) -> Option<DynQuantity> {
-        self.values.get(&id).copied()
+        self.typed_value(id)
+            .and_then(eqiora_core::ValueLiteral::real_scalar_value)
+    }
+
+    /// Complete revision-local Parameter value, retaining every typed component.
+    #[must_use]
+    pub fn typed_value(&self, id: RawId) -> Option<&eqiora_core::ValueLiteral> {
+        self.values.get(&id)
     }
 
     /// Kernel definitions in deterministic `(kind, ULID)` order.

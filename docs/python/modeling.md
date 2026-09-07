@@ -60,6 +60,23 @@ The same `value_type=` objects apply to `Parameter`,
 `eqiora.lang.Component.field`, and `eqiora.lang.Component.parameter`.
 `ValueType.to_eqi()` emits the canonical type through the Rust formatter.
 
+Parameters accept real or complex scalars and nested channel sequences matching the declared
+shape. Inspection returns immutable nested tuples with every real/imaginary component:
+
+```python
+coefficients = eqiora.Parameter(
+    "coefficients",
+    value_type=eqiora.ValueType.array(eqiora.ValueType.complex(), 2),
+    value=[1 + 2j, 3 - 4j],
+)
+assert coefficients.value == (1 + 2j, 3 - 4j)
+selected = coefficients[1]
+```
+
+Indices are static exact nonnegative integers; mutable Parameters cannot supply indices.
+Typed value edits preserve the complete declared type and all components through replay.
+This authoring support does not establish a complex numerical solver.
+
 A numeric Parameter default uses the declared dimension's coherent unit.
 For example, `parameter rate: 1 / s = 1;` gives the same value as
 `parameter rate: 1 / s = 1[1 / s];`. Explicit input units still express compatible
@@ -171,13 +188,13 @@ structure such as `q.grad` and `q.div`, while scalar functions and constants
 live under `q.math`. They are not Python numerical operations, and the native
 compiler remains the authority for their typing and value semantics.
 
-The same Source owner can emit the bounded scalar property declarations used by
+The same Source owner can emit the bounded constant property declarations used by
 an exact Model Package:
 
 ```python
 source = q.Source()
-contract = source.scalar_property_contract("Diffusivity", unit=u.one)
-release = source.scalar_property_release(
+contract = source.property_contract("Diffusivity", value_type=eqiora.ValueType.real())
+release = source.property_release(
     "ReferenceDiffusivity",
     implements=contract,
     value=25,
@@ -423,9 +440,9 @@ store-mismatched resolution bytes fail closed. Missing or ambiguous support
 bindings fail instead of matching Geometry by bounds, coordinates, or digest.
 
 `package_compilation_digest` is read-only lineage for the accepted compilation.
-When the package binds an exact scalar property release, `property_bindings` is
+When the package binds an exact typed constant property release, `property_bindings` is
 an immutable projection of the compiler-owned optional composition, contract, release, consuming
-Component, requirement, coherent-SI value, validity, citation, and license. It
+Component, requirement, complete value type and coherent-SI value, validity, citation, and license. It
 is inspection metadata beside the compilation, not a second property evaluator.
 The resulting `Model` enters ordinary `eqiora.resolve(model, mesh=..., ...)` and
 `eqiora.run(plan)`; its `Plan` and `Run` retain the same digest. Bare Model JSON
@@ -956,7 +973,7 @@ assert same.revision == child.revision
 ```
 
 The canonical bytes still expose the persisted
-`eqiora.model-envelope/v12` schema, but callers do not select that suffix.
+`eqiora.model-envelope/v13` schema, but callers do not select that suffix.
 `.eqi` remains source text; `.eqmodel` is the canonical compiled Model artifact.
 Only the current schema is accepted; decoding never sniffs, retries, or silently
 migrates an older artifact.

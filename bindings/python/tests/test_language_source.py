@@ -238,8 +238,8 @@ PARAMETERS = {
 
 def scalar_property_source(*, doc: str = "Reference scalar diffusivity release.", binding=None):
     source = q.Source()
-    contract = source.scalar_property_contract("Diffusivity", unit=u.one)
-    release = source.scalar_property_release(
+    contract = source.property_contract("Diffusivity", value_type=eqiora.ValueType.real())
+    release = source.property_release(
         "ReferenceDiffusivity",
         implements=contract,
         value=25,
@@ -297,9 +297,9 @@ def scalar_property_source(*, doc: str = "Reference scalar diffusivity release."
 
 def material_composition_source() -> q.Source:
     source = q.Source()
-    conductivity_contract = source.scalar_property_contract("Conductivity", unit=u.one)
-    capacity_contract = source.scalar_property_contract("Capacity", unit=u.one)
-    conductivity_release = source.scalar_property_release(
+    conductivity_contract = source.property_contract("Conductivity", value_type=eqiora.ValueType.real())
+    capacity_contract = source.property_contract("Capacity", value_type=eqiora.ValueType.real())
+    conductivity_release = source.property_release(
         "ConductivityA",
         implements=conductivity_contract,
         value=2,
@@ -308,7 +308,7 @@ def material_composition_source() -> q.Source:
         citation="org.example.a",
         license="spdx.CC0_1_0",
     )
-    capacity_release = source.scalar_property_release(
+    capacity_release = source.property_release(
         "CapacityA",
         implements=capacity_contract,
         value=4,
@@ -348,8 +348,8 @@ def test_removed_source_choice_keywords_are_unexpected() -> None:
 
     contract_source = q.Source()
     with pytest.raises(TypeError, match="unexpected keyword argument 'public'"):
-        contract_source.scalar_property_contract("Diffusivity", unit=u.one, public=True)
-    contract = contract_source.scalar_property_contract("Diffusivity", unit=u.one)
+        contract_source.property_contract("Diffusivity", value_type=eqiora.ValueType.real(), public=True)
+    contract = contract_source.property_contract("Diffusivity", value_type=eqiora.ValueType.real())
     release_arguments = {
         "implements": contract,
         "value": 25,
@@ -359,11 +359,11 @@ def test_removed_source_choice_keywords_are_unexpected() -> None:
         "license": "spdx.CC0_1_0",
     }
     with pytest.raises(TypeError, match="unexpected keyword argument 'public'"):
-        contract_source.scalar_property_release(
+        contract_source.property_release(
             "ReferenceDiffusivity", **release_arguments, public=True
         )
     with pytest.raises(TypeError, match="unexpected keyword argument 'validity'"):
-        contract_source.scalar_property_release(
+        contract_source.property_release(
             "ReferenceDiffusivity",
             **release_arguments,
             validity="unconditional",
@@ -548,13 +548,13 @@ def test_material_composition_emits_one_ordered_typed_binding_set() -> None:
 
 def test_scalar_property_source_owns_exact_handles_and_complete_binding() -> None:
     source = q.Source()
-    contract = source.scalar_property_contract("Diffusivity", unit=u.one)
+    contract = source.property_contract("Diffusivity", value_type=eqiora.ValueType.real())
     with pytest.raises(TypeError):
         q.PropertyContract()
     with pytest.raises(TypeError):
         q.PropertyRelease()
     with pytest.raises(q.SourceError, match="strictly positive"):
-        source.scalar_property_release(
+        source.property_release(
             "ReferenceDiffusivity",
             implements=contract,
             value=25,
@@ -564,7 +564,7 @@ def test_scalar_property_source_owns_exact_handles_and_complete_binding() -> Non
             license="spdx.CC0_1_0",
         )
     with pytest.raises(q.SourceError, match="citation identity"):
-        source.scalar_property_release(
+        source.property_release(
             "ReferenceDiffusivity",
             implements=contract,
             value=25,
@@ -573,7 +573,7 @@ def test_scalar_property_source_owns_exact_handles_and_complete_binding() -> Non
             citation="not/a/name/path",
             license="spdx.CC0_1_0",
         )
-    release = source.scalar_property_release(
+    release = source.property_release(
         "ReferenceDiffusivity",
         implements=contract,
         value=25,
@@ -800,8 +800,8 @@ def test_static_alias_authoring_cannot_bind_private_alias_as_parameter():
 @pytest.mark.parametrize("kind", ["parameter", "alias", "compound", "trace", "property"])
 def test_static_alias_authoring_rejects_same_source_sibling_capture(kind):
     source = q.Source()
-    contract = source.scalar_property_contract("Scalar", unit=u.one)
-    release = source.scalar_property_release(
+    contract = source.property_contract("Scalar", value_type=eqiora.ValueType.real())
+    release = source.property_release(
         "Unit", implements=contract, value=1, source_unit=u.one, source_scale=1,
         citation="org.example.unit", license="spdx.CC0_1_0",
     )
@@ -1205,3 +1205,89 @@ def test_clock_authoring_tick_expressions_retain_depth_bound_and_doc_validation(
         expression = q.pre(expression)
     with pytest.raises(q.SourceError, match="depth"):
         q.next(expression)
+
+
+def test_typed_value_authoring_preserves_complex_and_nested_channel_expressions():
+    source = q.Source()
+    component = source.component("Typed")
+    supplied = component.parameter("supplied", value_type=eqiora.ValueType.complex())
+    component.let_alias("imaginary", q.math.i)
+    component.let_alias("phasor", q.math.complex(2, -3))
+    component.let_alias("channels", q.array([[supplied, 2j], [3, 4]]))
+    component.let_alias("selected", (q.array([supplied, 1]) + q.array([2, 3]))[1])
+    text = source.to_eqi()
+    assert "let imaginary = math.i;" in text
+    assert "let phasor = math.complex(2, -3);" in text
+    assert "[[supplied, math.complex(0.0, 2.0)], [3, 4]]" in text
+    assert "([supplied, 1] + [2, 3])[1]" in text
+
+
+def test_typed_value_authoring_rejects_foreign_array_and_complex_operands():
+    source = q.Source()
+    left = source.component("Left")
+    right = source.component("Right")
+    local = left.parameter("value", value_type=eqiora.ValueType.real())
+    foreign = right.parameter("value", value_type=eqiora.ValueType.real())
+    for make in (lambda: q.array([local, foreign]), lambda: q.math.complex(local, foreign)):
+        with pytest.raises(q.SourceError, match="Component"):
+            make()
+    with pytest.raises(q.SourceError, match="Component"):
+        right.let_alias("captured", q.array([local])[0])
+
+
+def test_typed_value_authoring_retains_bounds_and_explicit_array_admission():
+    with pytest.raises(q.SourceError, match="nonempty"):
+        q.array([])
+    with pytest.raises(TypeError, match="sequence"):
+        q.array("123")
+    with pytest.raises(q.SourceError, match="4096"):
+        q.array([1] * 4096)
+    cyclic = []
+    cyclic.append(cyclic)
+    with pytest.raises(q.SourceError, match="depth"):
+        q.array(cyclic)
+    for index in (True, 1.5, "0"):
+        with pytest.raises(TypeError, match="indices"):
+            q.array([1])[index]
+    with pytest.raises(q.SourceError, match="nonnegative"):
+        q.array([1])[-1]
+    with pytest.raises(q.SourceError, match="finite"):
+        q.math.complex(1, float("inf"))
+
+
+def test_typed_property_authoring_emits_complete_contract_and_literal_components():
+    source = q.Source()
+    kind = eqiora.ValueType.array(eqiora.ValueType.complex(), 2)
+    contract = source.property_contract("Response", value_type=kind)
+    source.property_release("Reference", implements=contract, value=[1 + 2j, 3 - 4j],
+                            source_unit=u.one, source_scale=2, citation="test.reference", license="CC0")
+    source.component("Consumer").property("response", contract=contract)
+    text = source.to_eqi()
+    assert f"property contract Response(): {kind.to_eqi()} {{" in text
+    assert "derivatives value_only;" in text
+    assert "value = [math.complex(1.0, 2.0), math.complex(3.0, -4.0)];" in text
+    assert "source_unit: 1 = 2;" in text
+    assert not hasattr(source, "scalar_property_contract")
+    assert not hasattr(source, "scalar_property_release")
+
+
+def test_typed_parameter_geometry_input_preserves_complex_channel_index(tmp_path):
+    source = q.Source()
+    component = source.component("TypedInputs")
+    region = component.volume("region", dimensions=2)
+    kind = eqiora.ValueType.array(eqiora.ValueType.complex(), 2)
+    parameter = component.parameter("coefficients", value_type=kind)
+    field = component.field("value", on=region, role=eqiora.FieldRole.Variable,
+                            value_type=eqiora.ValueType.complex())
+    component.relation("law", on=region, left=field, right=parameter[1])
+    parameters = {"coefficients": [1 + 2j, 3 - 4j]}
+    model = eqiora.compile(source=source, geometry=rectangle_geometry(), parameters=parameters)
+    path = tmp_path / "typed-inputs.eqi"
+    source.write_eqi(path)
+    from_file = eqiora.compile(path=path, geometry=rectangle_geometry(), parameters=parameters)
+    assert model.structural_fingerprint == from_file.structural_fingerprint
+    changed = model.commit(model.preview_value_edit("coefficients", [1 + 2j, 3 - 7j]))
+    assert changed.digest != model.digest
+    assert eqiora.Model.from_bytes(changed.to_bytes()).digest == changed.digest
+    with pytest.raises(eqiora.ValidationError):
+        eqiora.compile(source=source, geometry=rectangle_geometry(), parameters={"coefficients": [1 + 2j]})

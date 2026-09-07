@@ -13,7 +13,7 @@ capabilities = [
 ]
 
 [canonical_contract]
-model_wire = 12
+model_wire = 13
 package_wire = 1
 root_owned_fields = 2
 expanded_relations = 2

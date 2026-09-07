@@ -69,12 +69,20 @@ impl Parser<'_> {
             .expect_identifier("property contract name")?
             .text()
             .to_owned();
-        self.expect(TokenKind::LeftBrace, "`{` after property contract name")?;
-        self.expect_keyword("scalar")?;
-        self.expect_keyword("value")?;
-        self.expect(TokenKind::Colon, "`:` before property dimension")?;
-        let dimension = self.parse_dimension_expression()?;
-        self.expect(TokenKind::Semicolon, "`;` after property role")?;
+        self.expect(TokenKind::LeftParen, "`(` before property inputs")?;
+        self.expect(
+            TokenKind::RightParen,
+            "constant property contracts require empty inputs",
+        )?;
+        self.expect(TokenKind::Colon, "`:` before property result type")?;
+        let value_type = self.parse_value_type()?;
+        self.expect(TokenKind::LeftBrace, "`{` before property profile")?;
+        self.expect_keyword("derivatives")?;
+        self.expect_keyword("value_only")?;
+        self.expect(
+            TokenKind::Semicolon,
+            "`;` after property derivative profile",
+        )?;
         let end = self
             .expect(TokenKind::RightBrace, "`}` after property contract")?
             .range()
@@ -83,7 +91,7 @@ impl Parser<'_> {
             comments: Default::default(),
             visibility,
             name,
-            dimension,
+            value_type,
             range: TextRange::new(start, end),
         })
     }
@@ -228,8 +236,8 @@ impl Parser<'_> {
 mod tests {
     #[test]
     fn contract_release_requirement_and_binding_round_trip() {
-        let source = r#"public property contract Diffusivity {
-  scalar value: m ^ 2 / s;
+        let source = r#"public property contract Diffusivity(): m ^ 2 / s {
+  derivatives value_only;
 }
 
 property release ReferenceDiffusivity implements Diffusivity {

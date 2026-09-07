@@ -5,6 +5,28 @@ use super::*;
 impl ExecutionPlan {
     pub(super) fn new(program: &KernelProgram) -> Result<Self, Diagnostic> {
         for node in program.nodes() {
+            if let KernelNode::Parameter(parameter) = node
+                && (parameter.value_type().scalar_domain() != eqiora_core::ScalarDomain::Real
+                    || !parameter.value_type().shape().is_scalar())
+            {
+                return Err(Diagnostic::error(
+                    codes::NOT_IMPLEMENTED,
+                    "reference execution requires real scalar Parameters",
+                ));
+            }
+            if let KernelNode::Relation(relation) = node
+                && relation.residuals().nodes().iter().any(|node| {
+                    matches!(
+                        node,
+                        ExprNode::Array { .. } | ExprNode::Index { .. } | ExprNode::Complex { .. }
+                    )
+                })
+            {
+                return Err(Diagnostic::error(
+                    codes::NOT_IMPLEMENTED,
+                    "reference execution does not admit array, index, or complex construction",
+                ));
+            }
             if let KernelNode::Domain(domain) = node
                 && let DomainKind::ScalarPhysical {
                     across_type,

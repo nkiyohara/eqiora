@@ -26,6 +26,7 @@ mod resolved;
 mod source_compile;
 #[doc(hidden)]
 pub mod source_identity;
+mod typed_values;
 mod units;
 mod value_types;
 

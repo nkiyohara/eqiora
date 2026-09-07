@@ -1,6 +1,6 @@
 //! Client-neutral inputs for one ephemeral external-spatial occurrence.
 
-use eqiora_core::DynQuantity;
+use eqiora_core::ValueLiteral;
 use eqiora_schema::kernel::GeometryDigest;
 
 /// One exact external Geometry support supplied to a Component occurrence.
@@ -95,13 +95,13 @@ impl ExternalGeometrySupportBinding {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct ExternalParameterBinding {
     parameter: String,
-    value: DynQuantity,
+    value: ValueLiteral,
 }
 
 impl ExternalParameterBinding {
     /// Construct a named, explicitly dimensioned scalar value.
     #[must_use]
-    pub(crate) fn new(parameter: impl Into<String>, value: DynQuantity) -> Self {
+    pub(crate) fn new(parameter: impl Into<String>, value: ValueLiteral) -> Self {
         Self {
             parameter: parameter.into(),
             value,
@@ -116,8 +116,8 @@ impl ExternalParameterBinding {
 
     /// Explicit coherent-SI scalar value and dimension.
     #[must_use]
-    pub(crate) const fn value(&self) -> DynQuantity {
-        self.value
+    pub(crate) const fn value(&self) -> &ValueLiteral {
+        &self.value
     }
 }
 

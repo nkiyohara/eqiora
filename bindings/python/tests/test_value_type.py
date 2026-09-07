@@ -142,7 +142,8 @@ def test_parameter_declaration_retains_its_complete_type() -> None:
     parameter = eqiora.Parameter("coefficient", value_type=value_type, value=0.0)
     assert parameter.value_type == value_type
     assert parameter.dimension == dimension
-    assert parameter.value == 0.0
+    assert parameter.value == (0j, 0j, 0j)
+    assert all(type(component) is complex for component in parameter.value)
     assert eqiora.Parameter("scalar", value=2.0).value_type == eqiora.ValueType.real()
     with pytest.raises(TypeError):
         eqiora.Parameter("old", dimension=dimension, value=1.0)
@@ -196,3 +197,67 @@ def test_source_field_requires_role_and_rejects_embedded_initial_values() -> Non
     assert "support body: volume(ambient_dimension = 1)" in text
     assert "state stored: 1 on body;" in text
     assert "representation" not in text
+
+
+@pytest.mark.parametrize("value, kind, expected", [
+    (1 + 2j, eqiora.ValueType.complex(), 1 + 2j),
+    (3, eqiora.ValueType.complex(), 3 + 0j),
+    ([[1 + 2j, 3], [4, 5 - 6j]],
+     eqiora.ValueType.array(eqiora.ValueType.array(eqiora.ValueType.complex(), 2), 2),
+     ((1 + 2j, 3 + 0j), (4 + 0j, 5 - 6j))),
+    ([1, 2], eqiora.ValueType.array(eqiora.ValueType.real(), 2), (1.0, 2.0)),
+])
+def test_parameter_preserves_complete_ordered_value(value, kind, expected):
+    parameter = eqiora.Parameter("coefficient", value_type=kind, value=value)
+    assert parameter.value == expected
+    assert parameter.value_type == kind
+    if isinstance(expected, complex):
+        assert type(parameter.value) is complex
+    else:
+        assert type(parameter.value) is tuple
+
+
+def test_parameter_infers_only_scalar_domain_and_rejects_shape_or_imaginary_loss():
+    assert eqiora.Parameter("complex_scalar", value=1j).value_type == eqiora.ValueType.complex()
+    for value, kind in [
+        (1j, eqiora.ValueType.real()),
+        ([1, 2], eqiora.ValueType.real()),
+        ([1], eqiora.ValueType.array(eqiora.ValueType.real(), 2)),
+        ([[1], [2, 3]], eqiora.ValueType.array(eqiora.ValueType.array(eqiora.ValueType.real(), 2), 2)),
+        (1, eqiora.ValueType.array(eqiora.ValueType.real(), 2)),
+        (complex(1, float("nan")), eqiora.ValueType.complex()),
+    ]:
+        with pytest.raises((TypeError, ValueError)):
+            eqiora.Parameter("invalid", value_type=kind, value=value)
+    with pytest.raises(TypeError):
+        eqiora.Parameter("bool", value=True)
+
+
+def test_complete_native_parameter_matches_source_and_retains_typed_edits():
+    kind = eqiora.ValueType.array(eqiora.ValueType.complex(), 2)
+    coefficient = eqiora.Parameter("coefficient", value_type=kind, value=[1 + 2j, 3 - 4j])
+    field = eqiora.Field("x", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.complex())
+    native = eqiora.Model.define("typed", coefficient, field,
+                                 eqiora.Relation("law", residual=field - coefficient[1]))
+    source = eqiora.compile(source="""
+model typed {
+  parameter coefficient: array<complex<1>, 2> = [math.complex(1, 2), math.complex(3, -4)];
+  variable x: complex<1>;
+  relation law { x - coefficient[1] = 0; }
+}
+""")
+    assert native.structural_fingerprint == source.structural_fingerprint
+    changed = native.commit(native.preview_value_edit("coefficient", [1 + 7j, 3 - 4j]))
+    assert changed.digest != native.digest
+    replay = eqiora.Model.from_bytes(changed.to_bytes())
+    assert replay.to_bytes() == changed.to_bytes()
+    with pytest.raises(eqiora.EqioraError):
+        replay.preview_value_edit("coefficient", [1 + 7j, 3 - 4j])
+
+
+def test_nonzero_spatial_parameter_projection_rejects_channel_reinterpretation():
+    vector = eqiora.ValueType.vector(eqiora.ValueType.real(), 2)
+    coefficient = eqiora.Parameter("coefficient", value_type=vector, value=[1, 2])
+    assert coefficient.value == (1.0, 2.0)
+    with pytest.raises(eqiora.ValidationError, match="frame-bearing"):
+        eqiora.Model.define("unsupported_spatial_literal", coefficient)

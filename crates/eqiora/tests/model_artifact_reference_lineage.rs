@@ -177,11 +177,14 @@ fn artifact_owner_replays_the_current_model_and_preserves_lineage() {
     );
     let rate = DraftParameter::new(
         "rate",
-        eqiora_core::ValueType::scalar(
-            eqiora_core::ScalarDomain::Real,
-            DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),
-        ),
-        1.0,
+        eqiora_core::ValueLiteral::from_real(
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),
+            ),
+            1.0,
+        )
+        .unwrap(),
     );
     let flow = DraftRelation::continuous(
         "flow",

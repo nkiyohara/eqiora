@@ -96,7 +96,32 @@ fn accepted() -> Accepted {
         SOURCE,
         &geometry,
         None,
-        &[("mu", 3.0), ("lambda", 0.0), ("length_scale", 1.0)],
+        &[
+            (
+                "mu",
+                eqiora::language::SourceAstFactory::expression(
+                    eqiora::language::ExprKind::Number(3.0),
+                    eqiora::language::TextRange::new(0, 0),
+                )
+                .unwrap(),
+            ),
+            (
+                "lambda",
+                eqiora::language::SourceAstFactory::expression(
+                    eqiora::language::ExprKind::Number(0.0),
+                    eqiora::language::TextRange::new(0, 0),
+                )
+                .unwrap(),
+            ),
+            (
+                "length_scale",
+                eqiora::language::SourceAstFactory::expression(
+                    eqiora::language::ExprKind::Number(1.0),
+                    eqiora::language::TextRange::new(0, 0),
+                )
+                .unwrap(),
+            ),
+        ],
     )
     .unwrap();
     let cells = CartesianMeshCellsV2::new([CELLS_PER_AXIS; 2]).unwrap();

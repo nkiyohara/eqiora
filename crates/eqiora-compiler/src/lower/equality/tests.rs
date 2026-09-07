@@ -68,7 +68,7 @@ fn explicit_complex_rhs_zero_keeps_promotion_in_the_actual_residual() {
     };
     let equation = &mut equations[0];
     equation.right = LoweringExpression::literal(
-        ValueLiteral::new(
+        ValueLiteral::from_real(
             ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS),
             -0.0,
         )
@@ -96,7 +96,7 @@ fn explicit_complex_rhs_zero_keeps_promotion_in_the_actual_residual() {
         panic!("typed zero")
     };
     assert_eq!(value.value_type().scalar_domain(), ScalarDomain::Complex);
-    assert_eq!(value.literal().to_bits(), 0.0_f64.to_bits());
+    assert_eq!(value.component(0).unwrap().0.to_bits(), 0.0_f64.to_bits());
 }
 
 #[test]

@@ -58,7 +58,7 @@ fn expression(
             }
         }
         ExprNode::Div(a, b) => recurse(*a, coefficient.divide(context.data(*b, depth + 1)?), row),
-        ExprNode::Constant(value) if value.literal() == 0.0 => {
+        ExprNode::Constant(value) if value.is_zero() => {
             if coefficient.spatial() {
                 return Err(invalid(
                     "discarded zero requires a coordinate-independent multiplier",

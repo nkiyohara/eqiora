@@ -113,3 +113,68 @@ fn activation_assertions_change_identity_in_both_containers() {
         }
     }
 }
+
+#[test]
+fn arrays_and_indices_retain_order_shape_and_selection_identity() {
+    for (left, right) in [
+        ("[1, 2]", "[2, 1]"),
+        ("[1, 2]", "[[1, 2]]"),
+        ("samples[0]", "samples[1]"),
+        ("samples[0]", "other[0]"),
+        ("samples[0][1]", "samples[1][0]"),
+        ("10[ms]", "(10)[ms]"),
+    ] {
+        let left = format!("model M {{ let x = {left}; }}");
+        let right = format!("model M {{ let x = {right}; }}");
+        assert_ne!(identity(&left), identity(&right));
+        let document = eqiora_lang::parse("array.eqi", &left)
+            .into_document()
+            .unwrap();
+        assert_eq!(identity(&left), identity(&eqiora_lang::format(&document)));
+    }
+}
+
+#[test]
+fn parameter_expression_identity_matches_native_factory_and_preserves_signed_literals() {
+    use eqiora_lang::{ExprKind, Item, SourceAstFactory, TextRange, VisibilitySyntax};
+    for initializer in ["[1, 2]", "math.complex(1, 2)", "-2", "-2[V]"] {
+        let source = format!("model M {{ parameter p: V = {initializer}; }}");
+        let document = eqiora_lang::parse("parameter.eqi", &source)
+            .into_document()
+            .unwrap();
+        let Item::Parameter(parameter) = &document.models()[0].items()[0] else {
+            panic!("parameter")
+        };
+        let range = TextRange::new(0, 0);
+        let value = if initializer == "-2" {
+            // Old native signed-literal representation retains the same identity.
+            SourceAstFactory::expression(ExprKind::Number(-2.0), range).unwrap()
+        } else if initializer == "-2[V]" {
+            let unit = SourceAstFactory::expression(ExprKind::Name("V".into()), range).unwrap();
+            SourceAstFactory::expression(
+                ExprKind::Quantity {
+                    value: -2.0,
+                    unit: Box::new(unit),
+                },
+                range,
+            )
+            .unwrap()
+        } else {
+            parameter.value().clone()
+        };
+        let parameter =
+            SourceAstFactory::parameter("p", parameter.value_type().clone(), value, range).unwrap();
+        let model = SourceAstFactory::model(
+            VisibilitySyntax::Private,
+            "M",
+            vec![Item::Parameter(parameter)],
+            range,
+        )
+        .unwrap();
+        let native = SourceAstFactory::document(vec![], vec![], vec![model]).unwrap();
+        assert_eq!(
+            crate::source_identity::LocalSourceIdentity::from_document(&native).unwrap(),
+            identity(&source)
+        );
+    }
+}

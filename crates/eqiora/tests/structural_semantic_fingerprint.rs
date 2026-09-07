@@ -34,12 +34,12 @@ fn rational_dimension_meaning_survives_canonical_model_replay() {
     assert!(model.structurally_equivalent(&replay).unwrap());
     let current_schema = String::from_utf8(bytes).unwrap();
     let old_schema =
-        current_schema.replace("eqiora.model-envelope/v12", "eqiora.model-envelope/v10");
+        current_schema.replace("eqiora.model-envelope/v13", "eqiora.model-envelope/v10");
     assert_ne!(old_schema, current_schema);
     assert!(ModelDocument::replay(old_schema.as_bytes()).is_err());
     assert_eq!(
         model.structural_fingerprint().unwrap().generation(),
-        SemanticFingerprintGeneration::V7
+        SemanticFingerprintGeneration::V8
     );
 }
 
@@ -100,7 +100,7 @@ fn current_generation_is_independent_of_coordinate_vocabulary() {
     for model in [&fixed, &referenced] {
         assert_eq!(
             model.structural_fingerprint().unwrap().generation(),
-            SemanticFingerprintGeneration::V7
+            SemanticFingerprintGeneration::V8
         );
     }
     // Equal endpoint values do not erase the nominal Parameter dependency.
@@ -130,7 +130,7 @@ fn source_native_codec_and_allocation_routes_share_only_structural_identity() {
         );
     }
     let fingerprint = source.structural_fingerprint().unwrap();
-    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V7);
+    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V8);
     assert_eq!(fingerprint.digest().len(), 64);
 
     let replay = eqiora::api::ModelDocument::replay(&source.canonical_json().unwrap()).unwrap();
@@ -143,7 +143,19 @@ fn source_native_codec_and_allocation_routes_share_only_structural_identity() {
     let child = source
         .commit_value_edit(
             source
-                .preview_value_edit(source.aliases()["rate"], 2.0)
+                .preview_value_edit(
+                    source.aliases()["rate"],
+                    eqiora_core::ValueLiteral::from_real(
+                        source
+                            .program()
+                            .typed_value(source.aliases()["rate"])
+                            .unwrap()
+                            .value_type()
+                            .clone(),
+                        2.0,
+                    )
+                    .unwrap(),
+                )
                 .unwrap(),
         )
         .unwrap();
@@ -304,11 +316,14 @@ fn native_decay(reversed: bool) -> ModelDraft {
     );
     let rate = DraftParameter::new(
         "coefficient",
-        eqiora_core::ValueType::scalar(
-            eqiora_core::ScalarDomain::Real,
-            DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),
-        ),
-        1.0,
+        eqiora_core::ValueLiteral::from_real(
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),
+            ),
+            1.0,
+        )
+        .unwrap(),
     );
     let relation = DraftRelation::continuous(
         "balance",
@@ -342,11 +357,14 @@ fn native_resistor(reversed: bool) -> ModelDraft {
     let tap = DraftConservingPort::new("t", &electrical);
     let resistance = DraftParameter::new(
         "r",
-        eqiora_core::ValueType::scalar(
-            eqiora_core::ScalarDomain::Real,
-            DimExponents::from_integers([1, 2, -3, -2, 0, 0, 0]).expect("bounded dimension"),
-        ),
-        2.0,
+        eqiora_core::ValueLiteral::from_real(
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::from_integers([1, 2, -3, -2, 0, 0, 0]).expect("bounded dimension"),
+            ),
+            2.0,
+        )
+        .unwrap(),
     );
     let law = DraftRelation::continuous(
         "law",

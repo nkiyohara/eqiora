@@ -32,7 +32,19 @@ fn rust_authoring_edit_replay_and_control_share_the_current_profile() {
         schemas["schema"]["const"]
     );
     let edit = source
-        .preview_value_edit(source.aliases()["mu"], 4.0)
+        .preview_value_edit(
+            source.aliases()["mu"],
+            eqiora_core::ValueLiteral::from_real(
+                source
+                    .program()
+                    .typed_value(source.aliases()["mu"])
+                    .unwrap()
+                    .value_type()
+                    .clone(),
+                4.0,
+            )
+            .unwrap(),
+        )
         .unwrap();
     assert_eq!(
         serde_json::from_slice::<Value>(&edit.transaction_json().unwrap()).unwrap()["schema"],

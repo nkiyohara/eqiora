@@ -151,10 +151,16 @@ fn offline_agent_proposal_uses_the_ordinary_exact_edit_and_execution_path() {
     let target = base.aliases()[&objective.target_alias];
 
     let agent_plan = base
-        .preview_value_edit(target, proposal.proposed_value_si)
+        .preview_value_edit(
+            target,
+            scalar_edit_value(&base, target, proposal.proposed_value_si),
+        )
         .unwrap();
     let ordinary_client_plan = base
-        .preview_value_edit(target, proposal.proposed_value_si)
+        .preview_value_edit(
+            target,
+            scalar_edit_value(&base, target, proposal.proposed_value_si),
+        )
         .unwrap();
 
     assert_eq!(agent_plan, ordinary_client_plan);
@@ -164,12 +170,15 @@ fn offline_agent_proposal_uses_the_ordinary_exact_edit_and_execution_path() {
     );
     assert_eq!(agent_plan.base_digest(), base_digest);
     assert_eq!(agent_plan.base_revision(), base_revision);
-    assert_eq!(agent_plan.before().value(), 1.0);
-    assert_eq!(agent_plan.after().value(), 2.0);
+    assert_eq!(
+        agent_plan.before().real_scalar_value().unwrap().value(),
+        1.0
+    );
+    assert_eq!(agent_plan.after().real_scalar_value().unwrap().value(), 2.0);
     assert!(
         String::from_utf8(agent_plan.transaction_json().unwrap())
             .unwrap()
-            .contains("eqiora.model-transaction-envelope/v12")
+            .contains("eqiora.model-transaction-envelope/v13")
     );
     assert_eq!(base.canonical_json().unwrap(), base_bytes);
     assert_eq!(base.digest().unwrap(), base_digest);
@@ -225,7 +234,10 @@ fn independent_evidence_rejects_a_valid_but_scientifically_wrong_proposal() {
     let target = base.aliases()[&objective.target_alias];
 
     let plan = base
-        .preview_value_edit(target, proposal.proposed_value_si)
+        .preview_value_edit(
+            target,
+            scalar_edit_value(&base, target, proposal.proposed_value_si),
+        )
         .unwrap();
     let candidate = base.commit_value_edit(plan).unwrap();
     let result = execute(candidate.document()).unwrap();
@@ -259,9 +271,14 @@ fn stale_foreign_forged_and_unsupported_inputs_fail_closed() {
     let base_digest = base.digest().unwrap();
     let base_revision = base.program().revision();
 
-    let stale = base.preview_value_edit(target, 2.0).unwrap();
+    let stale = base
+        .preview_value_edit(target, scalar_edit_value(&base, target, 2.0))
+        .unwrap();
     let child = base
-        .commit_value_edit(base.preview_value_edit(target, 3.0).unwrap())
+        .commit_value_edit(
+            base.preview_value_edit(target, scalar_edit_value(&base, target, 3.0))
+                .unwrap(),
+        )
         .unwrap();
     assert_eq!(
         child.document().commit_value_edit(stale).unwrap_err()[0].code(),
@@ -269,13 +286,38 @@ fn stale_foreign_forged_and_unsupported_inputs_fail_closed() {
     );
 
     let left = base
-        .commit_value_edit(base.preview_value_edit(target, 2.0).unwrap())
+        .commit_value_edit(
+            base.preview_value_edit(target, scalar_edit_value(&base, target, 2.0))
+                .unwrap(),
+        )
         .unwrap();
     let right = base
-        .commit_value_edit(base.preview_value_edit(target, 3.0).unwrap())
+        .commit_value_edit(
+            base.preview_value_edit(target, scalar_edit_value(&base, target, 3.0))
+                .unwrap(),
+        )
         .unwrap();
-    let left_plan = left.document().preview_value_edit(probe, 1.0).unwrap();
-    let right_plan = right.document().preview_value_edit(probe, 1.0).unwrap();
+    let left_plan = left
+        .document()
+        .preview_value_edit(probe, scalar_edit_value(left.document(), probe, 1.0))
+        .unwrap();
+    let right_plan = right
+        .document()
+        .preview_value_edit(
+            probe,
+            eqiora_core::ValueLiteral::from_real(
+                right
+                    .document()
+                    .program()
+                    .typed_value(probe)
+                    .unwrap()
+                    .value_type()
+                    .clone(),
+                1.0,
+            )
+            .unwrap(),
+        )
+        .unwrap();
     assert_eq!(left_plan.base_revision(), right_plan.base_revision());
     assert_eq!(
         left_plan.transaction_digest(),
@@ -293,24 +335,52 @@ fn stale_foreign_forged_and_unsupported_inputs_fail_closed() {
     );
 
     assert_eq!(
-        base.preview_value_edit(target, 1.0).unwrap_err().code(),
+        base.preview_value_edit(target, scalar_edit_value(&base, target, 1.0))
+            .unwrap_err()
+            .code(),
         codes::INVALID_OPERATION
     );
+    assert!(
+        eqiora_core::ValueLiteral::from_real(
+            base.program()
+                .typed_value(target)
+                .unwrap()
+                .value_type()
+                .clone(),
+            f64::NAN
+        )
+        .is_err()
+    );
     assert_eq!(
-        base.preview_value_edit(target, f64::NAN)
+        base.preview_value_edit(field, scalar_edit_value(&base, target, 1.0))
             .unwrap_err()
             .code(),
         codes::INVALID_OPERATION
     );
     assert_eq!(
-        base.preview_value_edit(field, 1.0).unwrap_err().code(),
-        codes::INVALID_OPERATION
-    );
-    assert_eq!(
-        base.preview_value_edit(relation, 2.0).unwrap_err().code(),
+        base.preview_value_edit(relation, scalar_edit_value(&base, target, 2.0))
+            .unwrap_err()
+            .code(),
         codes::INVALID_OPERATION
     );
     assert_eq!(base.canonical_json().unwrap(), base_bytes);
     assert_eq!(base.digest().unwrap(), base_digest);
     assert_eq!(base.program().revision(), base_revision);
+}
+
+fn scalar_edit_value(
+    document: &ModelDocument,
+    target: eqiora_core::RawId,
+    value: f64,
+) -> eqiora_core::ValueLiteral {
+    eqiora_core::ValueLiteral::from_real(
+        document
+            .program()
+            .typed_value(target)
+            .unwrap()
+            .value_type()
+            .clone(),
+        value,
+    )
+    .unwrap()
 }

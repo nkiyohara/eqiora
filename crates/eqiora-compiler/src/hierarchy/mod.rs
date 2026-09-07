@@ -320,25 +320,9 @@ fn compile_external_component_from_definition<'a>(
         };
         let declaration = SourceAstFactory::parameter(
             declaration.name(),
-            SourceAstFactory::value_type(
-                eqiora_lang::ValueTypeSyntaxKind::Scalar {
-                    domain: eqiora_core::ScalarDomain::Real,
-                    dimension: declaration.dimension().clone(),
-                },
-                declaration.dimension().range(),
-            )
-            .map_err(|error| vec![hierarchy_error(error.message())])?,
-            SourceAstFactory::expression(
-                ExprKind::Quantity {
-                    value: parameter.value().value(),
-                    unit: Box::new(crate::dimensions::dimension_expression(
-                        parameter.value().dim(),
-                        range,
-                    )),
-                },
-                range,
-            )
-            .map_err(|error| vec![hierarchy_error(error.message())])?,
+            declaration.value_type().clone(),
+            SourceAstFactory::value_literal(parameter.value(), range)
+                .map_err(|error| vec![hierarchy_error(error.message())])?,
             range,
         )
         .map_err(|error| vec![hierarchy_error(error.message())])?;
@@ -427,21 +411,10 @@ fn validate_external_parameters(
     let mut diagnostics = Vec::new();
     for binding in bindings {
         let value = binding.value();
-        if !value.value().is_finite() {
-            diagnostics.push(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                file,
-                TextRange::default(),
-                format!(
-                    "external Parameter `{}` must have a finite coherent-SI value",
-                    binding.parameter(),
-                ),
-            ));
-        }
         let Some(parameter) = interface.get(binding.parameter()) else {
             continue;
         };
-        if value.dim() != parameter.value_type.dimension() {
+        if value.value_type() != &parameter.value_type {
             diagnostics.push(source_error(
                 codes::DIMENSION_MISMATCH,
                 file,
@@ -449,7 +422,7 @@ fn validate_external_parameters(
                 format!(
                     "external Parameter `{}` has dimension [{}], expected [{}]",
                     binding.parameter(),
-                    value.dim(),
+                    value.value_type().dimension(),
                     parameter.value_type.dimension(),
                 ),
             ));
@@ -652,3 +625,9 @@ fn hierarchy_error(message: impl Into<String>) -> Diagnostic {
 
 #[cfg(test)]
 mod tests;
+
+pub(crate) use parameters::closed_value;
+
+pub(crate) fn closed_index(expression: &eqiora_lang::Expr) -> Result<u32, Diagnostic> {
+    parameters::static_index("", expression, &Default::default())
+}

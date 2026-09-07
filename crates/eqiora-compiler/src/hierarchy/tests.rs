@@ -159,7 +159,8 @@ fn external_binding() -> crate::external::ExternalComponentBinding {
         ],
         vec![crate::external::ExternalParameterBinding::new(
             "value",
-            DynQuantity::new(2.0, DimExponents::DIMENSIONLESS),
+            eqiora_core::ValueLiteral::try_from(DynQuantity::new(2.0, DimExponents::DIMENSIONLESS))
+                .unwrap(),
         )],
     )
 }
@@ -210,7 +211,7 @@ fn external_geometry_supports_enter_the_ordinary_component_lowerer() {
             KernelNode::Parameter(definition) => {
                 parameters += 1;
                 assert_eq!(definition.id().erase(), parameter);
-                assert_eq!(definition.literal(), 2.0);
+                assert_eq!(definition.value().component(0).unwrap().0, 2.0);
             }
             KernelNode::Relation(relation) => {
                 parameter_references.extend(relation.residuals().nodes().iter().filter_map(
@@ -288,7 +289,8 @@ fn external_geometry_binding_inventory_fails_before_a_transaction_exists() {
     let parameter = || {
         crate::external::ExternalParameterBinding::new(
             "value",
-            DynQuantity::new(2.0, DimExponents::DIMENSIONLESS),
+            eqiora_core::ValueLiteral::try_from(DynQuantity::new(2.0, DimExponents::DIMENSIONLESS))
+                .unwrap(),
         )
     };
     let mut foreign_boundary = boundary();
@@ -353,41 +355,39 @@ fn external_geometry_binding_inventory_fails_before_a_transaction_exists() {
 
 #[test]
 fn external_dimensioned_parameter_failures_are_typed() {
-    for (value, expected) in [
-        (
-            DynQuantity::new(
-                2.0,
-                DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
-            ),
-            "has dimension",
+    assert!(
+        eqiora_core::ValueLiteral::try_from(DynQuantity::new(
+            f64::NAN,
+            DimExponents::DIMENSIONLESS
+        ))
+        .is_err()
+    );
+    let (value, expected) = (
+        DynQuantity::new(
+            2.0,
+            DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
         ),
-        (
-            DynQuantity::new(f64::NAN, DimExponents::DIMENSIONLESS),
-            "must have a finite",
-        ),
-    ] {
-        let mut binding = external_binding();
-        binding = crate::external::ExternalComponentBinding::new(
-            "Rejected",
-            "BoundaryLaw",
-            binding.supports().to_vec(),
-            vec![crate::external::ExternalParameterBinding::new(
-                "value", value,
-            )],
-        );
-        let diagnostics = super::compile_external_component(
-            "boundary-law.eqi",
-            EXTERNAL_SPATIAL_COMPONENT,
-            &binding,
-        )
-        .unwrap_err();
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message().contains(expected)),
-            "missing `{expected}` in {diagnostics:#?}",
-        );
-    }
+        "has dimension",
+    );
+    let mut binding = external_binding();
+    binding = crate::external::ExternalComponentBinding::new(
+        "Rejected",
+        "BoundaryLaw",
+        binding.supports().to_vec(),
+        vec![crate::external::ExternalParameterBinding::new(
+            "value",
+            eqiora_core::ValueLiteral::try_from(value).unwrap(),
+        )],
+    );
+    let diagnostics =
+        super::compile_external_component("boundary-law.eqi", EXTERNAL_SPATIAL_COMPONENT, &binding)
+            .unwrap_err();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message().contains(expected)),
+        "missing `{expected}` in {diagnostics:#?}",
+    );
 }
 
 #[test]
@@ -437,7 +437,11 @@ fn external_occurrence_rejects_closed_binding_and_source_failures() {
                 parameter.clone(),
                 crate::external::ExternalParameterBinding::new(
                     "extra",
-                    DynQuantity::new(1.0, DimExponents::DIMENSIONLESS),
+                    eqiora_core::ValueLiteral::try_from(DynQuantity::new(
+                        1.0,
+                        DimExponents::DIMENSIONLESS,
+                    ))
+                    .unwrap(),
                 ),
             ],
             "unknown public Parameter `extra`",

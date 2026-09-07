@@ -376,12 +376,12 @@ fn compile_package_component_native(
     resolution_bytes: Vec<u8>,
     component: String,
     geometry: eqiora::geometry::CanonicalGeometryV1,
-    parameters: Vec<(String, f64)>,
+    parameters: Vec<(String, eqiora::language::Expr)>,
 ) -> Result<PackagedModelDocument, CompilePackageFailure> {
     let (store, resolution) = open_locked_package(store_root, resolution_bytes)?;
     let parameters = parameters
         .iter()
-        .map(|(name, value)| (name.as_str(), *value))
+        .map(|(name, value)| (name.as_str(), value.clone()))
         .collect::<Vec<_>>();
     PackagedModelDocument::compile_locked_with_geometry(
         &store,

@@ -71,6 +71,16 @@ impl Expr {
                 left: Box::new(left.rewrite_name_paths_with(rewrite)),
                 right: Box::new(right.rewrite_name_paths_with(rewrite)),
             },
+            ExprKind::Array(elements) => ExprKind::Array(
+                elements
+                    .iter()
+                    .map(|element| element.rewrite_name_paths_with(rewrite))
+                    .collect(),
+            ),
+            ExprKind::Index { value, index } => ExprKind::Index {
+                value: Box::new(value.rewrite_name_paths_with(rewrite)),
+                index: Box::new(index.rewrite_name_paths_with(rewrite)),
+            },
             ExprKind::Call { callee, arguments } => ExprKind::Call {
                 callee: rewrite(callee).map_or_else(
                     || callee.clone(),
@@ -109,6 +119,15 @@ pub enum ExprKind {
         value: f64,
         /// Unit-catalog expression, independent of value names and dimension aliases.
         unit: Box<Expr>,
+    },
+    /// Nonempty ordered channel-array elements; rectangularity is checked during lowering.
+    Array(Vec<Expr>),
+    /// Select one channel from a value; index legality is checked during lowering.
+    Index {
+        /// Value being indexed.
+        value: Box<Expr>,
+        /// Authored index expression.
+        index: Box<Expr>,
     },
     /// Source identifier.
     Name(String),

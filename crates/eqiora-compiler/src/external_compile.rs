@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, DynQuantity};
+use eqiora_core::{Diagnostic, ValueLiteral};
 use eqiora_geometry::{CanonicalGeometryV1, NamedEntitySet};
 use eqiora_lang::{ComponentItem, SupportSlotSyntax, TextRange, VisibilitySyntax, parse};
 use eqiora_schema::kernel::GeometryDigest;
@@ -28,7 +28,7 @@ impl ValidatedResolvedHierarchy {
         &self,
         geometry: &CanonicalGeometryV1,
         component: &str,
-        parameters: &[(&str, f64)],
+        parameters: &[(&str, eqiora_lang::Expr)],
     ) -> Result<CompiledModel, Vec<Diagnostic>> {
         CompiledModel::compile_resolved_external_geometry_component(
             self, geometry, component, parameters,
@@ -53,7 +53,7 @@ impl CompiledModel {
         source: &str,
         geometry: &eqiora_geometry::CanonicalGeometryV1,
         component: Option<&str>,
-        parameters: &[(&str, f64)],
+        parameters: &[(&str, eqiora_lang::Expr)],
     ) -> Result<Self, Vec<Diagnostic>> {
         let document = parse(file, source).into_document()?;
         if !document.models().is_empty() {
@@ -125,7 +125,7 @@ impl CompiledModel {
         hierarchy: &ValidatedResolvedHierarchy,
         geometry: &CanonicalGeometryV1,
         component: &str,
-        parameters: &[(&str, f64)],
+        parameters: &[(&str, eqiora_lang::Expr)],
     ) -> Result<Self, Vec<Diagnostic>> {
         if let Some(unit) = hierarchy
             .analysis
@@ -212,7 +212,7 @@ impl CompiledModel {
         component: &str,
         geometry: &CanonicalGeometryV1,
         supports: &[(&str, &NamedEntitySet, Option<(&str, &NamedEntitySet)>)],
-        parameters: &[(&str, DynQuantity)],
+        parameters: &[(&str, ValueLiteral)],
     ) -> Result<Self, Vec<Diagnostic>> {
         validate_binding_counts(file, supports.len(), parameters.len())?;
         validate_external_name_limits(file, model, component, supports, parameters)?;
@@ -237,7 +237,7 @@ impl CompiledModel {
             .collect();
         let parameters = parameters
             .iter()
-            .map(|(parameter, value)| ExternalParameterBinding::new(*parameter, *value))
+            .map(|(parameter, value)| ExternalParameterBinding::new(*parameter, value.clone()))
             .collect();
         let binding = ExternalComponentBinding::new(model, component, supports, parameters);
         crate::hierarchy::compile_external_component(file, source, &binding)
@@ -249,7 +249,7 @@ fn external_geometry_binding(
     selected: &eqiora_lang::ComponentDecl,
     geometry: &CanonicalGeometryV1,
     model: &str,
-    parameters: &[(&str, f64)],
+    parameters: &[(&str, eqiora_lang::Expr)],
 ) -> Result<ExternalComponentBinding, Vec<Diagnostic>> {
     let mut supports = Vec::new();
     for item in selected.items() {
@@ -320,21 +320,20 @@ fn external_geometry_binding(
         .collect::<BTreeMap<_, _>>();
     let mut dimensioned = Vec::with_capacity(parameters.len());
     for (name, value) in parameters {
-        if !value.is_finite() {
-            return Err(vec![source_error(
+        let declaration = declarations.get(name).ok_or_else(|| {
+            vec![source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 file,
-                TextRange::default(),
-                format!("external Parameter `{name}` must have a finite coherent-SI value"),
-            )]);
-        }
-        let dimension = declarations
-            .get(name)
-            .map(|declaration| crate::dimensions::lower_dimension(file, declaration.dimension()))
-            .transpose()
-            .map_err(|diagnostic| vec![diagnostic])?
-            .unwrap_or(eqiora_core::DimExponents::DIMENSIONLESS);
-        dimensioned.push((*name, DynQuantity::new(*value, dimension)));
+                value.range(),
+                format!("unknown external Parameter `{name}`"),
+            )]
+        })?;
+        let target =
+            crate::value_types::lower_value_type::<()>(file, declaration.value_type(), None)
+                .map_err(|error| vec![error])?;
+        let value =
+            crate::hierarchy::closed_value(file, value, target).map_err(|error| vec![error])?;
+        dimensioned.push((*name, value));
     }
     validate_binding_counts(file, supports.len(), dimensioned.len())?;
     validate_external_name_limits(file, model, selected.name(), &supports, &dimensioned)?;
@@ -359,7 +358,7 @@ fn external_geometry_binding(
         .collect();
     let parameters = dimensioned
         .iter()
-        .map(|(parameter, value)| ExternalParameterBinding::new(*parameter, *value))
+        .map(|(parameter, value)| ExternalParameterBinding::new(*parameter, value.clone()))
         .collect();
     Ok(ExternalComponentBinding::new(
         model,
@@ -378,7 +377,7 @@ fn validate_external_name_limits(
     model: &str,
     component: &str,
     supports: &[(&str, &NamedEntitySet, Option<(&str, &NamedEntitySet)>)],
-    parameters: &[(&str, DynQuantity)],
+    parameters: &[(&str, ValueLiteral)],
 ) -> Result<(), Vec<Diagnostic>> {
     let limits = LocalSourceIdentityLimits::default();
     let mut total = 0_usize;
@@ -625,7 +624,14 @@ mod tests {
     fn parameter_count_fails_before_source_or_binding_allocation() {
         let limit = CompiledModel::external_component_binding_limit();
         let geometry = geometry();
-        let parameter = ("value", DynQuantity::new(1.0, DimExponents::DIMENSIONLESS));
+        let parameter = (
+            "value",
+            ValueLiteral::try_from(eqiora_core::DynQuantity::new(
+                1.0,
+                DimExponents::DIMENSIONLESS,
+            ))
+            .unwrap(),
+        );
         let parameters = vec![parameter; limit + 1];
         let diagnostics = CompiledModel::compile_external_component(
             "oversized.eqi",
@@ -650,7 +656,14 @@ mod tests {
         let geometry = geometry();
         let support = ("fluid", geometry.entity_set("fluid").unwrap(), None);
         let supports = vec![support; limit];
-        let parameters = &[("value", DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))];
+        let parameters = &[(
+            "value",
+            ValueLiteral::try_from(eqiora_core::DynQuantity::new(
+                1.0,
+                DimExponents::DIMENSIONLESS,
+            ))
+            .unwrap(),
+        )];
         let diagnostics = CompiledModel::compile_external_component(
             "oversized.eqi",
             "not valid source",

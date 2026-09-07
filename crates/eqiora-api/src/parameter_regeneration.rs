@@ -232,7 +232,20 @@ impl ModelDocument {
         // carried by the operation and its optimistic precondition.
         let label = format!("regenerate geometry parameter {target}");
         let (transaction, transaction_digest) = self
-            .prepare_value_transaction(target, before, after, label)
+            .prepare_value_transaction(
+                target,
+                before
+                    .try_into()
+                    .map_err(|error: eqiora_core::InvalidValueLiteral| {
+                        single_diagnostic(invalid_regeneration(error.to_string()))
+                    })?,
+                after
+                    .try_into()
+                    .map_err(|error: eqiora_core::InvalidValueLiteral| {
+                        single_diagnostic(invalid_regeneration(error.to_string()))
+                    })?,
+                label,
+            )
             .map_err(single_diagnostic)?;
         let child = self.replay_model_transaction(
             &transaction,

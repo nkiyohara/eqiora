@@ -50,7 +50,14 @@ component Symbolic() {
     );
     assert_eq!(parameters["area"].value, None);
     assert_eq!(parameters["area"].value_type.dimension(), length(2));
-    assert_eq!(parameters["offset"].value, Some(2.0));
+    assert_eq!(
+        parameters["offset"]
+            .value
+            .as_ref()
+            .and_then(|value| value.real_scalar_value())
+            .map(|quantity| quantity.value()),
+        Some(2.0)
+    );
     assert_eq!(parameters["offset"].value_type.dimension(), length(1));
 }
 
@@ -197,7 +204,14 @@ fn ten_thousand_parameter_chains_and_cycles_are_iterative() {
     )
     .expect("deep acyclic graph resolves without recursive calls");
     assert_eq!(parameters.len(), COUNT);
-    assert_eq!(parameters["p09999"].value, Some(1.0));
+    assert_eq!(
+        parameters["p09999"]
+            .value
+            .as_ref()
+            .and_then(|value| value.real_scalar_value())
+            .map(|quantity| quantity.value()),
+        Some(1.0)
+    );
 
     let mut cycle = String::from("component Cycle() {\n");
     for index in 0..COUNT {
@@ -274,5 +288,12 @@ component Ordered() {
         resolve_component_parameters_symbolically("parameters.eqi", component(&reverse, "Ordered"))
             .expect("reverse declarations resolve");
     assert_eq!(forward, reverse);
-    assert_eq!(forward["scaled"].value, Some(20.0));
+    assert_eq!(
+        forward["scaled"]
+            .value
+            .as_ref()
+            .and_then(|value| value.real_scalar_value())
+            .map(|quantity| quantity.value()),
+        Some(20.0)
+    );
 }

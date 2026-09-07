@@ -11,7 +11,7 @@ use crate::{
     validate_text,
 };
 
-const TRANSACTION_SCHEMA: &str = "eqiora.model-transaction-envelope/v12";
+const TRANSACTION_SCHEMA: &str = "eqiora.model-transaction-envelope/v13";
 const TRANSACTION_LABEL: &str = "current Model transaction";
 const ENVELOPE_LABEL: &str = "current Model transaction envelope";
 
@@ -183,7 +183,28 @@ impl ModelTransactionEnvelope {
         for op in &mut self.wire.ops {
             op.canonicalize_pure_operator_definitions()?;
         }
+        let literal_components = checked_count_sum(
+            self.wire
+                .ops
+                .iter()
+                .map(WireModelOp::literal_component_count)
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .chain(
+                    self.wire
+                        .preconditions
+                        .iter()
+                        .map(WireModelPrecondition::literal_component_count),
+                ),
+            "literal component payload",
+        )?;
+        require_decoder_count(
+            "literal component payload",
+            literal_components,
+            limits.max_value_literal_components,
+        )?;
         for precondition in &self.wire.preconditions {
+            precondition.ensure_value_shape_limits(limits)?;
             precondition.decode()?;
         }
         for op in &self.wire.ops {

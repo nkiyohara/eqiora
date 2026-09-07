@@ -390,6 +390,17 @@ a complex scalar from real operands with equal dimensions. It is the canonical e
 construction; neither bare `i`/`j` suffixes nor implicit imaginary-part removal are admitted.
 For example, `math.complex(2 [V], 3 [V])` has type `complex<V>`.
 
+A declaration's complete type also supplies context to literal constructors. Numeric leaves
+of an array initializer or `math.complex` initializer inherit the declared coherent dimension:
+`parameter channels: array<V, 2> = [1, 2];` and
+`parameter voltage: complex<V> = math.complex(1, 2);` retain their explicit shape and domain.
+Each array axis must have exactly its declared extent. This rule does not broadcast a scalar,
+reshape an array, or turn channel axes into spatial axes. Explicit quantity leaves must have
+compatible dimensions. Arithmetic expressions inside a constructor retain their ordinary
+expression dimensions; this context does not apply to arbitrary expressions or instance
+bindings. Outside declaration initializers, `math.complex` requires two real scalar expressions
+with equal dimensions.
+
 Dimension legality does not establish a numerical domain. Real square roots require nonnegative
 arguments; real logarithms require positive dimensionless arguments. Complex principal roots
 and logarithms use argument in `(-pi, pi]`; the logarithm is undefined at zero. A request for a

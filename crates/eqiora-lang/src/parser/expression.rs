@@ -33,7 +33,54 @@ impl Parser<'_> {
     }
 
     fn parse_expression_inner(&mut self, minimum_binding_power: u8) -> Option<(Expr, usize)> {
-        let (mut left, mut depth) = if self.at(TokenKind::Minus) {
+        let (mut left, mut depth) = self.parse_primary()?;
+        loop {
+            if self.at(TokenKind::LeftBracket) {
+                self.bump();
+                let (index, index_depth) = self.parse_expression_with_depth(0)?;
+                depth = self.parent_depth(depth.max(index_depth))?;
+                let end = self
+                    .expect(TokenKind::RightBracket, "`]` after index")?
+                    .range()
+                    .end();
+                let range = TextRange::new(left.range.start(), end);
+                left = Expr {
+                    kind: ExprKind::Index {
+                        value: Box::new(left),
+                        index: Box::new(index),
+                    },
+                    range,
+                };
+                continue;
+            }
+            let (operator, left_power, right_power) = match self.current().kind() {
+                TokenKind::Plus => (BinaryOp::Add, 1, 2),
+                TokenKind::Minus => (BinaryOp::Sub, 1, 2),
+                TokenKind::Star => (BinaryOp::Mul, 3, 4),
+                TokenKind::Slash => (BinaryOp::Div, 3, 4),
+                TokenKind::Caret => (BinaryOp::Pow, 7, 6),
+                _ => break,
+            };
+            if left_power < minimum_binding_power {
+                break;
+            }
+            self.bump();
+            let (right, right_depth) = self.parse_expression_with_depth(right_power)?;
+            depth = self.parent_depth(depth.max(right_depth))?;
+            let range = TextRange::new(left.range.start(), right.range.end());
+            left = Expr {
+                kind: ExprKind::Binary {
+                    op: operator,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                },
+                range,
+            };
+        }
+        Some((left, depth))
+    }
+    fn parse_primary(&mut self) -> Option<(Expr, usize)> {
+        let result = if self.at(TokenKind::Minus) {
             let start = self.bump().range().start();
             // Power binds inside unary minus, including a signed right power:
             // -x^2 is -(x^2), while x^-2 is x^(-2).
@@ -49,12 +96,57 @@ impl Parser<'_> {
                 },
                 depth,
             )
+        } else if self.at(TokenKind::LeftBracket) {
+            return self.parse_array();
         } else if self.at(TokenKind::Number) {
             let expression = self.parse_quantity_or_number()?;
             // The unit grammar owns the separate dimension tree; the quantity
             // is one scalar operand in this value-expression depth bound.
             (expression, 1)
         } else if self.at(TokenKind::Identifier) {
+            return self.parse_named();
+        } else if self.at(TokenKind::LeftParen) {
+            return self.parse_group();
+        } else {
+            self.error_here("expected expression");
+            return None;
+        };
+        Some(result)
+    }
+
+    fn parse_array(&mut self) -> Option<(Expr, usize)> {
+        let result = {
+            let start = self.bump().range().start();
+            if self.at(TokenKind::RightBracket) {
+                self.error_here("array literal requires at least one element");
+                return None;
+            }
+            let (first, mut child_depth) = self.parse_expression_with_depth(0)?;
+            let mut elements = vec![first];
+            while self.at(TokenKind::Comma) {
+                self.bump();
+                let (element, depth) = self.parse_expression_with_depth(0)?;
+                child_depth = child_depth.max(depth);
+                elements.push(element);
+            }
+            let depth = self.parent_depth(child_depth)?;
+            let end = self
+                .expect(TokenKind::RightBracket, "`]` after array elements")?
+                .range()
+                .end();
+            (
+                Expr {
+                    kind: ExprKind::Array(elements),
+                    range: TextRange::new(start, end),
+                },
+                depth,
+            )
+        };
+        Some(result)
+    }
+
+    fn parse_named(&mut self) -> Option<(Expr, usize)> {
+        let result = {
             let token = self.bump();
             let name = token.text().to_owned();
             let path = if self.at(TokenKind::Dot) {
@@ -91,7 +183,7 @@ impl Parser<'_> {
                     },
                     depth,
                 )
-            } else if self.at(TokenKind::LeftBracket) {
+            } else if self.at_boundary_selection() {
                 let selector = self.parse_boundary_port_selector()?;
                 let range = TextRange::new(path.range().start(), selector.range().end());
                 (
@@ -113,7 +205,12 @@ impl Parser<'_> {
                 };
                 (Expr { kind, range }, 1)
             }
-        } else if self.at(TokenKind::LeftParen) {
+        };
+        Some(result)
+    }
+
+    fn parse_group(&mut self) -> Option<(Expr, usize)> {
+        let result = {
             let start = self.bump().range().start();
             let (mut expression, depth) = self.parse_expression_with_depth(0)?;
             let end = self
@@ -122,35 +219,19 @@ impl Parser<'_> {
                 .end();
             expression.range = TextRange::new(start, end);
             (expression, depth)
-        } else {
-            self.error_here("expected expression");
-            return None;
         };
-        loop {
-            let (operator, left_power, right_power) = match self.current().kind() {
-                TokenKind::Plus => (BinaryOp::Add, 1, 2),
-                TokenKind::Minus => (BinaryOp::Sub, 1, 2),
-                TokenKind::Star => (BinaryOp::Mul, 3, 4),
-                TokenKind::Slash => (BinaryOp::Div, 3, 4),
-                TokenKind::Caret => (BinaryOp::Pow, 7, 6),
-                _ => break,
-            };
-            if left_power < minimum_binding_power {
-                break;
-            }
-            self.bump();
-            let (right, right_depth) = self.parse_expression_with_depth(right_power)?;
-            depth = self.parent_depth(depth.max(right_depth))?;
-            let range = TextRange::new(left.range.start(), right.range.end());
-            left = Expr {
-                kind: ExprKind::Binary {
-                    op: operator,
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
-                range,
-            };
+        Some(result)
+    }
+
+    fn at_boundary_selection(&mut self) -> bool {
+        if !self.at(TokenKind::LeftBracket) {
+            return false;
         }
-        Some((left, depth))
+        let mut tokens = self.tokens[self.cursor..]
+            .iter()
+            .filter(|token| !token.kind().is_trivia());
+        tokens.next();
+        matches!(tokens.next().map(Token::kind), Some(TokenKind::Identifier))
+            && matches!(tokens.next().map(Token::kind), Some(TokenKind::Equal))
     }
 }

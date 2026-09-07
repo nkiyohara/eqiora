@@ -1,5 +1,5 @@
 use eqiora_core::Diagnostic;
-use eqiora_lang::{Expr, NamePath, TextRange, VisibilitySyntax};
+use eqiora_lang::{Expr, NamePath, TextRange, ValueTypeSyntax, VisibilitySyntax};
 
 use super::{
     Budget, Encoder, encode_expression, encode_name, encode_sorted_records, encode_type_path,
@@ -7,14 +7,14 @@ use super::{
 };
 
 pub(super) fn encode_property_contract(
-    declaration: &(VisibilitySyntax, &str, &Expr, TextRange),
+    declaration: &(VisibilitySyntax, &str, &ValueTypeSyntax, TextRange),
     budget: &mut Budget,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let (visibility, name, dimension, _) = *declaration;
+    let (visibility, name, value_type, _) = *declaration;
     let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
     encoder.field(1, |encoder| encode_name(encoder, name, budget))?;
     encoder.field(2, |encoder| {
-        encode_expression(encoder, dimension, budget, 1)
+        super::value_type::encode_value_type(encoder, value_type, budget, 1)
     })?;
     if visibility == VisibilitySyntax::Public {
         encoder.field(3, |encoder| encode_visibility(encoder, visibility))?;
@@ -87,4 +87,33 @@ pub(super) fn encode_material_composition(
         encoder.field(3, |encoder| encode_visibility(encoder, *visibility))?;
     }
     encoder.finish()
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::source_identity::LocalSourceIdentity;
+
+    #[test]
+    fn property_contract_identity_retains_domain_and_array_roles() {
+        let identity = |kind: &str| {
+            let source = format!("property contract Value(): {kind} {{ derivatives value_only; }}");
+            let document = eqiora_lang::parse("property.eqi", &source)
+                .into_document()
+                .unwrap();
+            let identity = LocalSourceIdentity::from_document(&document).unwrap();
+            let formatted = eqiora_lang::format(&document);
+            let reparsed = eqiora_lang::parse("again.eqi", &formatted)
+                .into_document()
+                .unwrap();
+            assert_eq!(
+                identity,
+                LocalSourceIdentity::from_document(&reparsed).unwrap()
+            );
+            identity
+        };
+        assert_ne!(identity("V"), identity("complex<V>"));
+        assert_ne!(identity("array<V, 2>"), identity("array<complex<V>, 2>"));
+        assert_ne!(identity("array<V, 2>"), identity("vector<V, 2>"));
+        assert_ne!(identity("array<V, 2>"), identity("array<V, 3>"));
+    }
 }

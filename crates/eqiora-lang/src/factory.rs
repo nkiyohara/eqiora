@@ -8,9 +8,12 @@ mod component;
 mod dimension_rewrite;
 mod document;
 mod domain_validation;
+mod expression;
+use expression::validate_expression;
 mod operator;
 mod property;
 mod relation;
+pub(crate) mod value_literal;
 mod value_type;
 
 use crate::ast::{
@@ -711,40 +714,6 @@ fn validate_name_path(path: &NamePath) -> Result<(), AstConstructionError> {
         validate_identifier(segment, "NamePath segment")?;
     }
     Ok(())
-}
-
-fn validate_expression(expression: &Expr) -> Result<(), AstConstructionError> {
-    checked_range(expression.range())?;
-    match expression.kind() {
-        ExprKind::Number(value) => validate_finite(*value, "expression literal"),
-        ExprKind::Quantity { value, unit } => {
-            validate_finite(*value, "quantity literal")?;
-            validate_expression(unit)
-        }
-        ExprKind::Name(name) => validate_identifier(name, "expression name"),
-        ExprKind::Path(path) => validate_name_path(path),
-        ExprKind::BoundaryPortSelection { port, selector } => {
-            validate_name_path(port)?;
-            validate_boundary_port_selector(selector)
-        }
-        ExprKind::Unary { value, .. } => validate_expression(value),
-        ExprKind::Binary { left, right, .. } => {
-            validate_expression(left)?;
-            validate_expression(right)
-        }
-        ExprKind::Call { callee, arguments } => {
-            validate_name_path(callee)?;
-            if arguments.is_empty() {
-                return Err(AstConstructionError::new(
-                    "an expression operator call requires at least one argument",
-                ));
-            }
-            for argument in arguments {
-                validate_expression(argument)?;
-            }
-            Ok(())
-        }
-    }
 }
 
 fn validate_exact_integer(value: &ExactIntegerSyntax) -> Result<(), AstConstructionError> {

@@ -52,7 +52,7 @@ fn direct_sources_resolve_once_and_match_both_precommitted_revisions() {
         StructuralSemanticFingerprint::from_program(&base)
             .unwrap()
             .generation(),
-        SemanticFingerprintGeneration::V7
+        SemanticFingerprintGeneration::V8
     );
 
     let before = base.value(parameter.erase()).unwrap();
@@ -61,11 +61,13 @@ fn direct_sources_resolve_once_and_match_both_precommitted_revisions() {
         .require(Precondition::RevisionIs(base.revision()))
         .require(Precondition::ValueEquals {
             target: parameter.erase(),
-            expected: before,
+            expected: before.try_into().unwrap(),
         })
         .push(Op::SetValue {
             target: parameter.erase(),
-            value: DynQuantity::new(oracle.second_revision.parameter_m, length_dimension()),
+            value: DynQuantity::new(oracle.second_revision.parameter_m, length_dimension())
+                .try_into()
+                .unwrap(),
         });
     store.commit(update).unwrap();
     let second = KernelProgram::from_snapshot(&store.snapshot(), base.model()).unwrap();
@@ -285,7 +287,21 @@ fn a_non_cartesian_domain_cannot_carry_a_parameter_dependency() {
 fn incomplete_edit_paths_reject_a_geometry_driving_parameter() {
     let document = ModelDocument::compile("parameter-box.eqi", SOURCE).unwrap();
     let parameter = document.aliases()["extent"];
-    let value_error = document.preview_value_edit(parameter, 3.5).unwrap_err();
+    let value_error = document
+        .preview_value_edit(
+            parameter,
+            eqiora_core::ValueLiteral::from_real(
+                document
+                    .program()
+                    .typed_value(parameter)
+                    .unwrap()
+                    .value_type()
+                    .clone(),
+                3.5,
+            )
+            .unwrap(),
+        )
+        .unwrap_err();
     assert_eq!(value_error.code(), codes::INVALID_OPERATION);
     assert_eq!(
         value_error.message(),
@@ -305,16 +321,10 @@ fn incomplete_edit_paths_reject_a_geometry_driving_parameter() {
 
 #[test]
 fn absent_parameter_definition_and_non_finite_value_fail_whole_model_resolution() {
-    let (mut store, base, _, parameter) = compile_program(SOURCE);
-    let mut non_finite = Transaction::new("non-finite revision-local length");
-    non_finite
-        .require(Precondition::RevisionIs(base.revision()))
-        .push(Op::SetValue {
-            target: parameter.erase(),
-            value: DynQuantity::new(f64::NAN, length_dimension()),
-        });
-    store.commit(non_finite).unwrap();
-    assert!(KernelProgram::from_snapshot(&store.snapshot(), base.model()).is_err());
+    assert!(
+        eqiora_core::ValueLiteral::try_from(DynQuantity::new(f64::NAN, length_dimension()))
+            .is_err()
+    );
 
     // A defined Parameter always seeds its revision-local value and no public
     // operation clears it. The constructible absence is therefore a coordinate
@@ -401,7 +411,7 @@ fn current_decoding_rejects_a_parameter_definition_that_omits_its_mandatory_valu
     decode_current(&wire).expect("the unmutated current model decodes");
 
     let mut omitted = wire.clone();
-    assert!(remove_parameter_definition_literal(&mut omitted));
+    assert!(remove_parameter_definition_value(&mut omitted));
     assert!(decode_current(&omitted).is_err());
 }
 
@@ -581,7 +591,7 @@ fn dependency_edge_index(
         .expect("current persists one Domain DependsOn Parameter edge")
 }
 
-fn remove_parameter_definition_literal(wire: &mut serde_json::Value) -> bool {
+fn remove_parameter_definition_value(wire: &mut serde_json::Value) -> bool {
     wire["nodes"]
         .as_array_mut()
         .unwrap()
@@ -590,7 +600,7 @@ fn remove_parameter_definition_literal(wire: &mut serde_json::Value) -> bool {
         .expect("the proving Model defines one Parameter node")["definition"]
         .as_object_mut()
         .unwrap()
-        .remove("literal")
+        .remove("value")
         .is_some()
 }
 

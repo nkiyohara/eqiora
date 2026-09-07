@@ -226,6 +226,51 @@ impl ExpressionChecker<'_, '_, '_> {
 
     fn check(&mut self, expression: &Expr) -> Result<ExpressionType<String>, Diagnostic> {
         match expression.kind() {
+            ExprKind::Array(elements) => {
+                let types = elements
+                    .iter()
+                    .map(|element| self.check(element))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let inferred = ExpressionType::array(&types)
+                    .map_err(|error| type_error(self.scope.file, expression, error))?;
+                crate::typed_values::check_type(&inferred.value_type).map_err(|message| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.scope.file,
+                        expression.range(),
+                        message,
+                    )
+                })?;
+                Ok(inferred)
+            }
+            ExprKind::Index { value, index } => {
+                let index = crate::hierarchy::parameters::static_index(
+                    self.scope.file,
+                    index,
+                    &self.scope.static_values,
+                )?;
+                ExpressionType::index(self.check(value)?, index)
+                    .map_err(|error| type_error(self.scope.file, expression, error))
+            }
+            ExprKind::Path(path) if path.as_str() == "math.i" => Ok(ExpressionType::new(
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Complex,
+                    DimExponents::DIMENSIONLESS,
+                ),
+                None,
+            )),
+            ExprKind::Call { callee, arguments } if callee.as_str() == "math.complex" => {
+                let [real, imag] = arguments.as_slice() else {
+                    return Err(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.scope.file,
+                        expression.range(),
+                        "math.complex requires exactly two real scalar arguments",
+                    ));
+                };
+                ExpressionType::complex(self.check(real)?, self.check(imag)?)
+                    .map_err(|error| type_error(self.scope.file, expression, error))
+            }
             ExprKind::Number(_) => Ok(ExpressionType::scalar(DimExponents::DIMENSIONLESS, None)),
             ExprKind::Quantity { value, unit } => {
                 let quantity = crate::units::quantity(*value, unit).map_err(|message| {

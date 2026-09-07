@@ -496,22 +496,22 @@ mod tests {
                 )
                 .unwrap(),
             ),
-            KernelNode::from(
-                ParameterDef::new(
-                    supply,
+            KernelNode::from(ParameterDef::new(
+                supply,
+                eqiora_core::ValueLiteral::from_real(
                     eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage),
                     12.0,
                 )
                 .unwrap(),
-            ),
-            KernelNode::from(
-                ParameterDef::new(
-                    load,
+            )),
+            KernelNode::from(ParameterDef::new(
+                load,
+                eqiora_core::ValueLiteral::from_real(
                     eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, resistance),
                     2.0,
                 )
                 .unwrap(),
-            ),
+            )),
             KernelNode::from(PortDef::scalar_physical(ports[0], domain)),
             KernelNode::from(PortDef::scalar_physical(ports[1], domain)),
             KernelNode::from(RelationDef::new(

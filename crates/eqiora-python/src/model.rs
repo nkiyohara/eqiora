@@ -51,7 +51,7 @@ pub(crate) struct PyStructuralSemanticFingerprint {
     value: StructuralSemanticFingerprint,
 }
 
-/// Immutable inspection of one exact package-owned scalar property binding.
+/// Immutable inspection of one exact package-owned typed constant property binding.
 #[pyclass(
     name = "PropertyBinding",
     module = "eqiora._eqiora",
@@ -65,7 +65,7 @@ pub(crate) struct PyPropertyBinding {
     release: String,
     component: String,
     requirement: String,
-    normalized_value: f64,
+    normalized_value: eqiora::ValueLiteral,
     validity: String,
     citation: String,
     license: String,
@@ -99,8 +99,15 @@ impl PyPropertyBinding {
     }
 
     #[getter]
-    const fn normalized_value(&self) -> f64 {
-        self.normalized_value
+    fn normalized_value(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        crate::modeling::value_literal::to_python(py, &self.normalized_value)
+    }
+
+    #[getter]
+    fn value_type(&self) -> crate::modeling::PyValueType {
+        crate::modeling::PyValueType {
+            value: self.normalized_value.value_type().clone(),
+        }
     }
 
     #[getter]
@@ -498,7 +505,7 @@ impl PyModel {
                     release: release.to_owned(),
                     component: component.to_owned(),
                     requirement: requirement.to_owned(),
-                    normalized_value,
+                    normalized_value: normalized_value.clone(),
                     validity: validity.to_owned(),
                     citation: citation.to_owned(),
                     license: license.to_owned(),
@@ -879,19 +886,26 @@ impl PyModel {
         })
     }
 
-    /// Prepare an exact-base scalar value edit without mutating this Model.
+    /// Prepare an exact-base complete typed value edit without mutating this Model.
     fn preview_value_edit(
         &self,
         py: Python<'_>,
         target: &str,
-        value: f64,
+        value: &Bound<'_, PyAny>,
     ) -> PyResult<PyValueEdit> {
         panic_boundary(py, || {
             let target = self
                 .resolve_edit_target(target)
                 .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-            self.document()
-                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
+            let document = self
+                .document()
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            let before = document.program().typed_value(target).ok_or_else(|| {
+                PyTypeError::new_err("value edit target has no complete Parameter value")
+            })?;
+            let value =
+                crate::modeling::value_literal::from_python(value, before.value_type().clone())?;
+            document
                 .preview_value_edit(target, value)
                 .map(|plan| PyValueEdit { plan })
                 .map_err(|diagnostic| validation_error(py, &[diagnostic]))

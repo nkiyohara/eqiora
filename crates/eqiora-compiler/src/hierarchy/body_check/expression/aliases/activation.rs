@@ -47,6 +47,14 @@ impl DependencyActivation {
                     .map(Self::symbol)
                     .unwrap_or(Self::Static),
                 ExprKind::BoundaryPortSelection { .. } => Self::Continuous,
+                ExprKind::Array(elements) => {
+                    pending.extend(elements);
+                    Self::Static
+                }
+                ExprKind::Index { value, .. } => {
+                    pending.push(value);
+                    Self::Static
+                }
                 ExprKind::Unary { value, .. } => {
                     pending.push(value);
                     Self::Static

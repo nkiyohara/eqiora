@@ -61,7 +61,9 @@ fn static_aliases_preserve_occurrence_values_parameter_edits_and_the_chain_rule(
             for (target, value) in [(x_id, x), (y_id, y)] {
                 update.push(Op::SetValue {
                     target,
-                    value: DynQuantity::new(value, DimExponents::DIMENSIONLESS),
+                    value: DynQuantity::new(value, DimExponents::DIMENSIONLESS)
+                        .try_into()
+                        .unwrap(),
                 });
             }
             store.commit(update).unwrap();

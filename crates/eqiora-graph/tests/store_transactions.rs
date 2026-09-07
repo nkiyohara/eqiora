@@ -20,7 +20,10 @@ fn define(definition: impl Into<KernelNode>) -> Op {
 fn zero_relation(id: Id<kinds::Relation>) -> RelationDef {
     let mut expressions = ExprDagBuilder::new();
     let zero = expressions
-        .constant(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
+        .constant(
+            eqiora_core::ValueLiteral::try_from(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
+                .unwrap(),
+        )
         .expect("one constant fits the arena");
     RelationDef::new(id, expressions.finish([zero]).expect("one residual root"))
 }
@@ -30,9 +33,9 @@ fn commit_is_atomic_and_records_provenance() {
     let parameter = Id::<kinds::Parameter>::new();
     let mut transaction = Transaction::new("add inlet velocity");
     transaction
-        .push(define(
-            ParameterDef::new(
-                parameter,
+        .push(define(ParameterDef::new(
+            parameter,
+            eqiora_core::ValueLiteral::from_real(
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     dim::VelocityDim::EXPONENTS,
@@ -40,10 +43,14 @@ fn commit_is_atomic_and_records_provenance() {
                 0.0,
             )
             .unwrap(),
-        ))
+        )))
         .push(Op::SetValue {
             target: parameter.erase(),
-            value: DynQuantity::new(12.0, dim::VelocityDim::EXPONENTS),
+            value: eqiora_core::ValueLiteral::try_from(DynQuantity::new(
+                12.0,
+                dim::VelocityDim::EXPONENTS,
+            ))
+            .unwrap(),
         });
 
     let mut store = InMemoryGraphStore::new();
@@ -55,8 +62,15 @@ fn commit_is_atomic_and_records_provenance() {
     assert_eq!(
         snapshot
             .node(parameter.erase())
-            .and_then(|node| node.value()),
-        Some(DynQuantity::new(12.0, dim::VelocityDim::EXPONENTS))
+            .and_then(|node| node.value())
+            .cloned(),
+        Some(
+            eqiora_core::ValueLiteral::try_from(DynQuantity::new(
+                12.0,
+                dim::VelocityDim::EXPONENTS
+            ))
+            .unwrap()
+        )
     );
     assert!(snapshot.node(committed.transaction.erase()).is_some());
     assert_eq!(snapshot.commits().len(), 1);
@@ -79,7 +93,11 @@ fn failed_operation_rolls_back_the_whole_transaction() {
         )))
         .push(Op::SetValue {
             target: domain.erase(),
-            value: DynQuantity::new(1.0, dim::LengthDim::EXPONENTS),
+            value: eqiora_core::ValueLiteral::try_from(DynQuantity::new(
+                1.0,
+                dim::LengthDim::EXPONENTS,
+            ))
+            .unwrap(),
         });
 
     let mut store = InMemoryGraphStore::new();
@@ -92,16 +110,21 @@ fn failed_operation_rolls_back_the_whole_transaction() {
 #[test]
 fn optimistic_preconditions_preserve_snapshot_isolation() {
     let parameter = Id::<kinds::Parameter>::new();
-    let initial = DynQuantity::new(12.0, dim::VelocityDim::EXPONENTS);
+    let initial =
+        eqiora_core::ValueLiteral::try_from(DynQuantity::new(12.0, dim::VelocityDim::EXPONENTS))
+            .unwrap();
     let mut add = Transaction::new("add parameter");
-    add.push(define(
-        ParameterDef::new(
-            parameter,
-            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, initial.dim()),
-            initial.value(),
+    add.push(define(ParameterDef::new(
+        parameter,
+        eqiora_core::ValueLiteral::from_real(
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                initial.value_type().dimension(),
+            ),
+            initial.real_scalar_value().unwrap().value(),
         )
         .unwrap(),
-    ));
+    )));
 
     let mut store = InMemoryGraphStore::new();
     store.commit(add).expect("setup succeeds");
@@ -112,11 +135,15 @@ fn optimistic_preconditions_preserve_snapshot_isolation() {
         .require(Precondition::RevisionIs(Revision(1)))
         .require(Precondition::ValueEquals {
             target: parameter.erase(),
-            expected: initial,
+            expected: initial.clone(),
         })
         .push(Op::SetValue {
             target: parameter.erase(),
-            value: DynQuantity::new(15.0, dim::VelocityDim::EXPONENTS),
+            value: eqiora_core::ValueLiteral::try_from(DynQuantity::new(
+                15.0,
+                dim::VelocityDim::EXPONENTS,
+            ))
+            .unwrap(),
         });
     store.commit(update).expect("preconditions match");
 
@@ -124,8 +151,9 @@ fn optimistic_preconditions_preserve_snapshot_isolation() {
     assert_eq!(
         old_snapshot
             .node(parameter.erase())
-            .and_then(|node| node.value()),
-        Some(initial)
+            .and_then(|node| node.value())
+            .cloned(),
+        Some(initial.clone())
     );
     assert_eq!(store.revision(), Revision(2));
 }
@@ -133,16 +161,21 @@ fn optimistic_preconditions_preserve_snapshot_isolation() {
 #[test]
 fn restored_snapshot_retains_its_revision_and_advances_normally() {
     let parameter = Id::<kinds::Parameter>::new();
-    let initial = DynQuantity::new(12.0, dim::VelocityDim::EXPONENTS);
+    let initial =
+        eqiora_core::ValueLiteral::try_from(DynQuantity::new(12.0, dim::VelocityDim::EXPONENTS))
+            .unwrap();
     let mut snapshot = Transaction::new("restore complete snapshot");
-    snapshot.push(define(
-        ParameterDef::new(
-            parameter,
-            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, initial.dim()),
-            initial.value(),
+    snapshot.push(define(ParameterDef::new(
+        parameter,
+        eqiora_core::ValueLiteral::from_real(
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                initial.value_type().dimension(),
+            ),
+            initial.real_scalar_value().unwrap().value(),
         )
         .unwrap(),
-    ));
+    )));
 
     let mut store = InMemoryGraphStore::restore_snapshot(snapshot, Revision(7))
         .expect("a complete snapshot can be hydrated at its recorded revision");
@@ -155,8 +188,9 @@ fn restored_snapshot_retains_its_revision_and_advances_normally() {
     assert_eq!(
         restored
             .node(parameter.erase())
-            .and_then(|node| node.value()),
-        Some(initial)
+            .and_then(|node| node.value())
+            .cloned(),
+        Some(initial.clone())
     );
 
     let mut update = Transaction::new("advance restored snapshot");
@@ -164,11 +198,15 @@ fn restored_snapshot_retains_its_revision_and_advances_normally() {
         .require(Precondition::RevisionIs(Revision(7)))
         .require(Precondition::ValueEquals {
             target: parameter.erase(),
-            expected: initial,
+            expected: initial.clone(),
         })
         .push(Op::SetValue {
             target: parameter.erase(),
-            value: DynQuantity::new(15.0, dim::VelocityDim::EXPONENTS),
+            value: eqiora_core::ValueLiteral::try_from(DynQuantity::new(
+                15.0,
+                dim::VelocityDim::EXPONENTS,
+            ))
+            .unwrap(),
         });
     let committed = store
         .commit(update)
@@ -197,9 +235,9 @@ fn snapshot_restoration_rejects_zero_revision_and_preconditions() {
 fn dimension_change_is_rejected() {
     let parameter = Id::<kinds::Parameter>::new();
     let mut setup = Transaction::new("add length");
-    setup.push(define(
-        ParameterDef::new(
-            parameter,
+    setup.push(define(ParameterDef::new(
+        parameter,
+        eqiora_core::ValueLiteral::from_real(
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 dim::LengthDim::EXPONENTS,
@@ -207,14 +245,15 @@ fn dimension_change_is_rejected() {
             2.0,
         )
         .unwrap(),
-    ));
+    )));
     let mut store = InMemoryGraphStore::new();
     store.commit(setup).expect("setup succeeds");
 
     let mut invalid = Transaction::new("change dimension");
     invalid.push(Op::SetValue {
         target: parameter.erase(),
-        value: DynQuantity::new(2.0, dim::TimeDim::EXPONENTS),
+        value: eqiora_core::ValueLiteral::try_from(DynQuantity::new(2.0, dim::TimeDim::EXPONENTS))
+            .unwrap(),
     });
     let diagnostics = store.commit(invalid).expect_err("dimension must be stable");
 
@@ -242,7 +281,11 @@ fn set_value_cannot_initialize_scalar_or_shaped_unknowns() {
             let mut transaction = Transaction::new("reject unknown value mutation");
             transaction.push(define(definition)).push(Op::SetValue {
                 target: field.erase(),
-                value: DynQuantity::new(1.0, dim::VelocityDim::EXPONENTS),
+                value: eqiora_core::ValueLiteral::try_from(DynQuantity::new(
+                    1.0,
+                    dim::VelocityDim::EXPONENTS,
+                ))
+                .unwrap(),
             });
             let mut store = InMemoryGraphStore::new();
             let diagnostics = store

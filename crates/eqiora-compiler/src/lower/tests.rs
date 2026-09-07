@@ -95,7 +95,7 @@ fn typed_literal_lowering_preserves_type_through_detachment_and_zero_negation() 
     let scalar = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS);
     for value_type in [scalar.clone(), scalar.array(3).unwrap()] {
         let literal = LoweringExpression::literal(
-            ValueLiteral::new(value_type.clone(), -0.0).unwrap(),
+            ValueLiteral::from_real(value_type.clone(), -0.0).unwrap(),
             TextRange::new(0, 1),
         );
         let literal = LoweringExpression::neg(literal.detached_clone(), TextRange::new(0, 1));
@@ -130,7 +130,10 @@ fn typed_literal_lowering_preserves_type_through_detachment_and_zero_negation() 
             })
             .unwrap();
         assert_eq!(constant.value_type(), &value_type);
-        assert_eq!(constant.literal().to_bits(), 0.0_f64.to_bits());
+        assert_eq!(
+            constant.component(0).unwrap().0.to_bits(),
+            0.0_f64.to_bits()
+        );
     }
 }
 
@@ -216,7 +219,7 @@ fn component_real_to_complex_binding_keeps_the_real_parameter_identity() {
                 eqiora_schema::kernel::ExprNode::Constant(value) =>
                     value.value_type().scalar_domain() == eqiora_core::ScalarDomain::Complex
                         && value.value_type().dimension() == DimExponents::DIMENSIONLESS
-                        && value.literal() == 1.0,
+                        && value.component(0).unwrap().0 == 1.0,
                 _ => false,
             }),
         _ => false,
@@ -295,7 +298,7 @@ fn typed_lowering_keeps_parameter_domains_and_array_roles() {
             })
             .unwrap();
         assert_eq!(parameter.value_type(), &value_type);
-        assert_eq!(parameter.literal(), 0.0);
+        assert_eq!(parameter.value().component(0).unwrap().0, 0.0);
     }
 }
 
@@ -325,7 +328,7 @@ fn source_parameter_literals_preserve_domains_and_reject_nonzero_shapes() {
         parameter.value_type().dimension(),
         crate::dimensions::length_dimension()
     );
-    assert_eq!(parameter.literal(), 2.0);
+    assert_eq!(parameter.value().component(0).unwrap().0, 2.0);
     for syntax in ["array<m, 3>", "array<complex<m>, 3>"] {
         let errors = compile(
             "typed.eqi",
@@ -334,10 +337,7 @@ fn source_parameter_literals_preserve_domains_and_reject_nonzero_shapes() {
         .unwrap_err();
         assert!(
             errors.iter().any(|error| {
-                error
-                    .message()
-                    .contains("shaped value requires a contextual zero")
-                    && error.source_span().is_some()
+                error.message().contains("incompatible types") && error.source_span().is_some()
             }),
             "{errors:?}"
         );
@@ -669,7 +669,7 @@ model valid {
     assert!(relation.residuals().nodes().iter().any(|node| matches!(
         node,
         eqiora_schema::kernel::ExprNode::Constant(value)
-            if value.literal().to_bits() == 0x4009_21fb_5444_2d18
+            if value.component(0).unwrap().0.to_bits() == 0x4009_21fb_5444_2d18
     )));
 
     for (source, expected) in [
@@ -901,11 +901,14 @@ fn native_lowering_replaces_synthetic_ranges_with_declaration_paths() {
     );
     let duration = eqiora_lang::DraftParameter::new(
         "duration",
-        eqiora_core::ValueType::scalar(
-            eqiora_core::ScalarDomain::Real,
-            DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension"),
-        ),
-        1.0,
+        eqiora_core::ValueLiteral::from_real(
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension"),
+            ),
+            1.0,
+        )
+        .unwrap(),
     );
     let relation = eqiora_lang::DraftRelation::continuous(
         "invalid",
@@ -996,8 +999,11 @@ model resistor {
     let tap = eqiora_lang::DraftConservingPort::new("tap", &electrical);
     let resistance = eqiora_lang::DraftParameter::new(
         "resistance",
-        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, resistance_dimension()),
-        2.0,
+        eqiora_core::ValueLiteral::from_real(
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, resistance_dimension()),
+            2.0,
+        )
+        .unwrap(),
     );
     let law = eqiora_lang::DraftRelation::continuous(
         "law",
@@ -1306,7 +1312,7 @@ fn normalized_physical_semantics(model: &CompiledModel) -> Vec<String> {
             } => signatures.push(format!(
                 "parameter:{}:{:016x}:{:?}",
                 named(&names, parameter.id().erase()),
-                parameter.literal().to_bits(),
+                parameter.value().component(0).unwrap().0.to_bits(),
                 parameter.value_type().dimension()
             )),
             Op::DefineKernelNode {
@@ -1394,7 +1400,7 @@ fn normalized_physical_semantics(model: &CompiledModel) -> Vec<String> {
             .map(|node| match node {
                 ExprNode::Constant(value) => format!(
                     "constant({:016x},{:?})",
-                    value.literal().to_bits(),
+                    value.component(0).unwrap().0.to_bits(),
                     value.value_type()
                 ),
                 ExprNode::Symbol(symbol) => normalize_symbol(*symbol, names),
@@ -1586,7 +1592,7 @@ fn field_initial_units_normalize_and_report_the_exact_literal() {
             _ => None,
         })
         .unwrap();
-    assert!(initial.residuals().nodes().iter().any(|node| matches!(node, eqiora_schema::kernel::ExprNode::Constant(value) if value.literal() == 2.5)));
+    assert!(initial.residuals().nodes().iter().any(|node| matches!(node, eqiora_schema::kernel::ExprNode::Constant(value) if value.component(0).unwrap().0 == 2.5)));
     assert!(
         initial
             .residuals()

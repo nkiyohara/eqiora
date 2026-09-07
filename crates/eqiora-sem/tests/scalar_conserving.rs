@@ -55,14 +55,14 @@ fn physical_transaction(ids: PhysicalIds, reverse_insertion: bool) -> Transactio
             DomainDef::scalar_physical(ids.domain, real(across_dimension), real(through_dimension))
                 .unwrap(),
         ),
-        KernelNode::from(
-            ParameterDef::new(
-                ids.parameter,
+        KernelNode::from(ParameterDef::new(
+            ids.parameter,
+            eqiora_core::ValueLiteral::from_real(
                 eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, across_dimension),
                 12.0,
             )
-            .unwrap(),
-        ),
+            .expect("valid parameter value"),
+        )),
         KernelNode::from(ConnectionDef::new(
             ids.connection,
             ConnectionSemantics::Conserving,

@@ -1,3 +1,5 @@
+mod diagnostics;
+pub(super) use diagnostics::unresolved;
 mod scalar_connection;
 use scalar_connection::{connection_fragment_error, validate_connection_contract};
 
@@ -212,6 +214,7 @@ pub(super) struct DefinitionScope<'e, 'd> {
     pub(super) namespace: DefinitionNamespace,
     pub(super) file: &'d str,
     pub(super) symbols: BTreeMap<String, SymbolContract>,
+    pub(super) static_values: crate::hierarchy::parameters::SymbolicParameterMap,
     pub(super) children: BTreeMap<String, ComponentDefinition<'d>>,
     pub(super) child_instances: BTreeMap<String, &'d InstanceDecl>,
 }
@@ -227,6 +230,7 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
             namespace,
             file,
             symbols: BTreeMap::new(),
+            static_values: BTreeMap::new(),
             children: BTreeMap::new(),
             child_instances: BTreeMap::new(),
         }
@@ -453,24 +457,6 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
                 )
             }
             _ => Err(self.invalid_public_port_selection(path)),
-        }
-    }
-
-    pub(super) fn wrong_local_kind(
-        &self,
-        range: TextRange,
-        name: &str,
-        expected: &str,
-    ) -> Diagnostic {
-        if self.symbols.contains_key(name) || self.children.contains_key(name) {
-            source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                self.file,
-                range,
-                format!("`{name}` is not a {expected}"),
-            )
-        } else {
-            unresolved(self.file, range, name, expected)
         }
     }
 
@@ -1226,13 +1212,4 @@ fn resolve_frame(
             "frame syntax is newer than this compiler",
         )]),
     }
-}
-
-pub(super) fn unresolved(file: &str, range: TextRange, name: &str, expected: &str) -> Diagnostic {
-    source_error(
-        codes::LANGUAGE_TYPE_ERROR,
-        file,
-        range,
-        format!("unresolved {expected} `{name}`"),
-    )
 }

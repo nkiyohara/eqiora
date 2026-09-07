@@ -13,7 +13,7 @@ fn scalar_ir_rejects_nonreal_or_shaped_constants() {
     ] {
         let mut builder = ExprDagBuilder::new();
         let root = builder
-            .constant(ValueLiteral::new(value_type, 0.0).unwrap())
+            .constant(ValueLiteral::from_real(value_type, 0.0).unwrap())
             .unwrap();
         let error = ScalarOperatorIr::lower(&builder.finish([root]).unwrap()).unwrap_err();
         assert!(error.message().contains("real scalar constants"));

@@ -6,8 +6,8 @@ use std::sync::Arc;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{
-    Diagnostic, DynQuantity, EntityKind, GraphClass, GraphPath, Id, OntologyView, RawId,
-    RawOntologyId,
+    Diagnostic, EntityKind, GraphClass, GraphPath, Id, OntologyView, RawId, RawOntologyId,
+    ValueLiteral,
 };
 use eqiora_schema::kernel::KernelNode;
 
@@ -17,7 +17,7 @@ use crate::{Committed, Edge, EdgeKind, Op, Precondition, Revision, Transaction};
 #[derive(Debug, Clone, PartialEq)]
 pub struct Node {
     id: RawId,
-    value: Option<DynQuantity>,
+    value: Option<ValueLiteral>,
     kernel_definition: Option<KernelNode>,
     label: Option<String>,
 }
@@ -35,7 +35,10 @@ impl Node {
     fn kernel(definition: KernelNode) -> Self {
         Self {
             id: definition.id(),
-            value: definition.initial_value(),
+            value: match &definition {
+                KernelNode::Parameter(parameter) => Some(parameter.value().clone()),
+                _ => None,
+            },
             kernel_definition: Some(definition),
             label: None,
         }
@@ -58,8 +61,8 @@ impl Node {
 
     /// Quantitative value, if this field/parameter has one.
     #[must_use]
-    pub const fn value(&self) -> Option<DynQuantity> {
-        self.value
+    pub const fn value(&self) -> Option<&ValueLiteral> {
+        self.value.as_ref()
     }
 
     /// Complete Semantic Kernel definition, or `None` for infrastructure and
@@ -347,15 +350,11 @@ fn validate_preconditions(state: &State, preconditions: &[Precondition]) -> Vec<
                 ))
             }
             Precondition::ValueEquals { target, expected } => match state.nodes.get(target) {
-                Some(node) if node.value == Some(*expected) => None,
-                Some(node) => Some(
+                Some(node) if node.value.as_ref() == Some(expected) => None,
+                Some(_) => Some(
                     Diagnostic::error(
                         codes::PRECONDITION_FAILED,
-                        format!(
-                            "value precondition failed: expected {expected}, found {}",
-                            node.value
-                                .map_or_else(|| "<unset>".to_owned(), |value| value.to_string())
-                        ),
+                        "value precondition failed: current complete value differs",
                     )
                     .with_graph_path(path_for(*target)),
                 ),
@@ -376,7 +375,7 @@ fn apply_op(state: &mut State, op: &Op) -> Result<(), Diagnostic> {
     match op {
         Op::AddNode { kind, id } => add_node(state, *kind, *id),
         Op::DefineKernelNode { node } => define_kernel_node(state, node.clone()),
-        Op::SetValue { target, value } => set_value(state, *target, *value),
+        Op::SetValue { target, value } => set_value(state, *target, value.clone()),
         Op::Connect { from, to, edge } => connect(state, *from, *to, *edge),
         Op::RemoveNode { id } => remove_node(state, *id),
         Op::DefineOntologyView { view } => define_ontology_view(state, view.clone()),
@@ -430,7 +429,7 @@ fn define_kernel_node(state: &mut State, definition: KernelNode) -> Result<(), D
     Ok(())
 }
 
-fn set_value(state: &mut State, target: RawId, value: DynQuantity) -> Result<(), Diagnostic> {
+fn set_value(state: &mut State, target: RawId, value: ValueLiteral) -> Result<(), Diagnostic> {
     let Some(node) = state.nodes.get_mut(&target) else {
         return Err(not_found(target));
     };
@@ -441,32 +440,17 @@ fn set_value(state: &mut State, target: RawId, value: DynQuantity) -> Result<(),
         )
         .with_graph_path(path_for(target)));
     }
-    if node
-        .kernel_definition
-        .as_ref()
-        .and_then(KernelNode::value_dimension)
-        .is_some_and(|declared| declared != value.dim())
+    if let Some(current) = node.value.as_ref()
+        && current.value_type() != value.value_type()
     {
+        let code = if current.value_type().dimension() != value.value_type().dimension() {
+            codes::DIMENSION_MISMATCH
+        } else {
+            codes::INVALID_OPERATION
+        };
         return Err(Diagnostic::error(
-            codes::DIMENSION_MISMATCH,
-            format!(
-                "value dimension [{}] differs from the node definition",
-                value.dim()
-            ),
-        )
-        .with_graph_path(path_for(target)));
-    }
-    if node
-        .value
-        .is_some_and(|current| current.dim() != value.dim())
-    {
-        return Err(Diagnostic::error(
-            codes::DIMENSION_MISMATCH,
-            format!(
-                "cannot change stored dimension from [{}] to [{}]",
-                node.value.expect("checked as Some").dim(),
-                value.dim()
-            ),
+            code,
+            "value edit must preserve the complete declared Parameter type",
         )
         .with_graph_path(path_for(target)));
     }

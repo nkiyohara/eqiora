@@ -29,6 +29,7 @@ pub(in crate::hierarchy::body_check) fn validate_aliases<'a>(
     declarations: impl Iterator<Item = &'a eqiora_lang::LetDecl>,
     static_values: &crate::hierarchy::parameters::SymbolicParameterMap,
 ) -> Result<(), Vec<Diagnostic>> {
+    scope.static_values = static_values.clone();
     let order = crate::hierarchy::parameters::alias_order(scope.file, declarations)?;
     let mut errors = Vec::new();
     for declaration in order {

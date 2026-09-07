@@ -12,7 +12,7 @@ use core::fmt;
 use std::collections::BTreeMap;
 
 use eqiora_core::ValueFrame;
-use eqiora_core::{Diagnostic, DimExponents, DynQuantity, RawId, ValueShape};
+use eqiora_core::{Diagnostic, DimExponents, DynQuantity, RawId, ValueLiteral, ValueShape};
 use eqiora_graph::EdgeKind;
 use eqiora_schema::kernel::{
     ActivationKind, BoundaryPairing, BoundarySide, CartesianCoordinateSource, ClockKind,
@@ -26,9 +26,9 @@ use crate::{ArtifactDigest, invalid_artifact};
 use canonical::{Canonicalizer, Encoder};
 use projection::{ConstructionBudget, ProjectionGraph, Reference};
 
-const FINGERPRINT_DOMAIN_V7: &[u8] = b"eqiora.structural-semantic-fingerprint/v7\0";
+const FINGERPRINT_DOMAIN_V8: &[u8] = b"eqiora.structural-semantic-fingerprint/v8\0";
 const PROJECTION_MAGIC: &[u8; 8] = b"EQIORASF";
-const GENERATION_V7: u16 = 7;
+const GENERATION_V8: u16 = 8;
 
 /// Current generation of the structural semantic projection.
 ///
@@ -37,8 +37,9 @@ const GENERATION_V7: u16 = 7;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
 pub enum SemanticFingerprintGeneration {
-    /// Closed projection retaining Field roles and simultaneous initial-equation ownership.
-    V7,
+    /// Closed projection retaining complete typed literals, ordered channel operations,
+    /// Field roles, and simultaneous initial-equation ownership.
+    V8,
 }
 
 impl SemanticFingerprintGeneration {
@@ -46,19 +47,19 @@ impl SemanticFingerprintGeneration {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::V7 => "eqiora.structural-semantic-fingerprint/v7",
+            Self::V8 => "eqiora.structural-semantic-fingerprint/v8",
         }
     }
 
     const fn code(self) -> u16 {
         match self {
-            Self::V7 => GENERATION_V7,
+            Self::V8 => GENERATION_V8,
         }
     }
 
     const fn hash_domain(self) -> &'static [u8] {
         match self {
-            Self::V7 => FINGERPRINT_DOMAIN_V7,
+            Self::V8 => FINGERPRINT_DOMAIN_V8,
         }
     }
 }
@@ -201,7 +202,7 @@ impl ProjectionIdentity {
         limits: SemanticFingerprintLimits,
     ) -> Result<Self, Diagnostic> {
         validate_limits(limits)?;
-        let generation = SemanticFingerprintGeneration::V7;
+        let generation = SemanticFingerprintGeneration::V8;
         let graph = ProjectionGraph::from_program(program, limits)?;
         let canonical = Canonicalizer::new(&graph, limits).canonicalize()?;
         let mut hasher = Sha256::new();
@@ -217,7 +218,7 @@ impl ProjectionIdentity {
 
 fn encode_node(
     node: &KernelNode,
-    current_value: Option<DynQuantity>,
+    current_value: Option<&ValueLiteral>,
     boundary: bool,
     ids: &BTreeMap<RawId, usize>,
     references: &mut Vec<Reference>,
@@ -257,19 +258,7 @@ fn encode_node(
         }
         KernelNode::Parameter(parameter) => {
             encoder.u8(4)?;
-            let value_type = parameter.value_type();
-            encoder.u8(match value_type.scalar_domain() {
-                eqiora_core::ScalarDomain::Real => 0,
-                eqiora_core::ScalarDomain::Complex => 1,
-            })?;
-            encoder.u32(
-                u32::try_from(value_type.array_rank())
-                    .map_err(|_| invalid_artifact("array rank exceeds u32"))?,
-            )?;
-            encode_dimension(&mut encoder, value_type.dimension())?;
-            encode_shape(&mut encoder, value_type.shape())?;
-            encode_frame(&mut encoder, value_type.frame())?;
-            encoder.u64(parameter.literal().to_bits())?;
+            encode_literal(&mut encoder, parameter.value())?;
         }
         KernelNode::Port(port) => {
             encoder.u8(5)?;
@@ -378,7 +367,7 @@ fn encode_node(
         }
         _ => return Err(newer_vocabulary("Semantic Kernel node")),
     }
-    encode_optional_quantity(&mut encoder, current_value)?;
+    encode_optional_literal(&mut encoder, current_value)?;
     encoder.bool(boundary)?;
     encoder.finish()
 }
@@ -477,19 +466,24 @@ fn encode_expression(
         match node {
             ExprNode::Constant(value) => {
                 encoder.u8(1)?;
-                let value_type = value.value_type();
-                encoder.u8(match value_type.scalar_domain() {
-                    eqiora_core::ScalarDomain::Real => 0,
-                    eqiora_core::ScalarDomain::Complex => 1,
-                })?;
+                encode_literal(encoder, value)?;
+            }
+            ExprNode::Array { elements } => {
+                encoder.u8(18)?;
                 encoder.u32(
-                    u32::try_from(value_type.array_rank())
-                        .map_err(|_| fingerprint_error("array rank exceeds u32"))?,
+                    u32::try_from(elements.len())
+                        .map_err(|_| fingerprint_error("array operands exceed u32"))?,
                 )?;
-                encode_dimension(encoder, value_type.dimension())?;
-                encode_shape(encoder, value_type.shape())?;
-                encode_frame(encoder, value_type.frame())?;
-                encoder.u64(value.literal().to_bits())?;
+                for element in elements {
+                    encoder.u32(canonical_index[element.index() as usize])?;
+                }
+            }
+            ExprNode::Index { value, index } => {
+                unary_expr(encoder, 19, *value, &canonical_index)?;
+                encoder.u32(*index)?;
+            }
+            ExprNode::Complex { real, imag } => {
+                binary_expr(encoder, 20, *real, *imag, &canonical_index)?
             }
             ExprNode::Symbol(symbol) => {
                 encoder.u8(2)?;
@@ -663,7 +657,10 @@ fn canonical_expression_order(expression: &ExprDag) -> Result<(Vec<usize>, Vec<u
 
 fn expression_operands(node: &ExprNode) -> Vec<eqiora_schema::kernel::ExprId> {
     match node {
-        ExprNode::Neg(value)
+        ExprNode::Array { elements } => elements.clone(),
+        ExprNode::Complex { real, imag } => vec![*real, *imag],
+        ExprNode::Index { value, .. }
+        | ExprNode::Neg(value)
         | ExprNode::PowI(value, _)
         | ExprNode::UnaryMath(_, value)
         | ExprNode::Gradient(value)
@@ -742,14 +739,28 @@ fn lookup(ids: &BTreeMap<RawId, usize>, id: RawId, role: &str) -> Result<usize, 
     })
 }
 
-fn encode_optional_quantity(
+fn encode_literal(encoder: &mut Encoder, value: &ValueLiteral) -> Result<(), Diagnostic> {
+    encode_value_type(encoder, value.value_type())?;
+    if value.is_zero() {
+        return encoder.u8(0);
+    }
+    encoder.u8(1)?;
+    encoder.u64(value.component_count() as u64)?;
+    for (real, imag) in value.components() {
+        encoder.u64(real.to_bits())?;
+        encoder.u64(imag.to_bits())?;
+    }
+    Ok(())
+}
+
+fn encode_optional_literal(
     encoder: &mut Encoder,
-    value: Option<DynQuantity>,
+    value: Option<&ValueLiteral>,
 ) -> Result<(), Diagnostic> {
     match value {
         Some(value) => {
             encoder.u8(1)?;
-            encode_quantity(encoder, value)
+            encode_literal(encoder, value)
         }
         None => encoder.u8(0),
     }
@@ -857,7 +868,7 @@ fn validate_limits(limits: SemanticFingerprintLimits) -> Result<(), Diagnostic> 
 
 fn newer_vocabulary(subject: &str) -> Diagnostic {
     fingerprint_error(format!(
-        "{subject} is newer than structural semantic fingerprint generation v7"
+        "{subject} is newer than structural semantic fingerprint generation v8"
     ))
 }
 

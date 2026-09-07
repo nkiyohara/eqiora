@@ -173,10 +173,38 @@ fn document_and_plans_with_source(
         &geometry,
         None,
         &[
-            ("diffusion", 1.0),
-            ("wave_number", std::f64::consts::PI),
-            ("source_scale", 2.0 * std::f64::consts::PI.powi(2)),
-            ("boundary_offset", 0.0),
+            (
+                "diffusion",
+                eqiora::language::SourceAstFactory::expression(
+                    eqiora::language::ExprKind::Number(1.0),
+                    eqiora::language::TextRange::new(0, 0),
+                )
+                .unwrap(),
+            ),
+            (
+                "wave_number",
+                eqiora::language::SourceAstFactory::expression(
+                    eqiora::language::ExprKind::Number(std::f64::consts::PI),
+                    eqiora::language::TextRange::new(0, 0),
+                )
+                .unwrap(),
+            ),
+            (
+                "source_scale",
+                eqiora::language::SourceAstFactory::expression(
+                    eqiora::language::ExprKind::Number(2.0 * std::f64::consts::PI.powi(2)),
+                    eqiora::language::TextRange::new(0, 0),
+                )
+                .unwrap(),
+            ),
+            (
+                "boundary_offset",
+                eqiora::language::SourceAstFactory::expression(
+                    eqiora::language::ExprKind::Number(0.0),
+                    eqiora::language::TextRange::new(0, 0),
+                )
+                .unwrap(),
+            ),
         ],
     )
     .unwrap();

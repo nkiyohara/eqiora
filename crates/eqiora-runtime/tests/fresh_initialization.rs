@@ -87,14 +87,14 @@ fn dense_descriptor(parameter_initial: bool) -> (KernelProgram, Id<kinds::Relati
     let nodes = vec![
         KernelNode::from(FieldDef::new(x, scalar.clone(), FieldRole::State)),
         KernelNode::from(FieldDef::new(y, scalar, FieldRole::State)),
-        KernelNode::from(
-            ParameterDef::new(
-                rate,
+        KernelNode::from(ParameterDef::new(
+            rate,
+            eqiora_core::ValueLiteral::from_real(
                 ValueType::scalar(ScalarDomain::Real, inverse_time),
                 2.0,
             )
             .unwrap(),
-        ),
+        )),
         KernelNode::from(RelationDef::new(
             relation,
             expression.finish([first, second]).unwrap(),
@@ -199,14 +199,14 @@ fn decay(initial_value: Option<f64>) -> (KernelProgram, Id<kinds::Relation>) {
     let residual = expression.add(derivative, decay).unwrap();
     let mut nodes = vec![
         KernelNode::from(FieldDef::new(field, scalar, FieldRole::State)),
-        KernelNode::from(
-            ParameterDef::new(
-                rate,
+        KernelNode::from(ParameterDef::new(
+            rate,
+            eqiora_core::ValueLiteral::from_real(
                 ValueType::scalar(ScalarDomain::Real, inverse_time),
                 2.0,
             )
             .unwrap(),
-        ),
+        )),
         KernelNode::from(RelationDef::new(
             relation,
             expression.finish([residual]).unwrap(),
