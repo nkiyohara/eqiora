@@ -109,6 +109,14 @@ class Component:
         value_type: ValueType,
         doc: str | None = None,
     ) -> Expression: ...
+    def let_alias(
+        self,
+        name: str,
+        expression: Expression | int | float,
+        *,
+        value_type: ValueType | None = None,
+        doc: str | None = None,
+    ) -> Expression: ...
     def property(
         self,
         name: str,

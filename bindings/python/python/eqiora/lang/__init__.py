@@ -515,6 +515,7 @@ class Component:
     """The bounded draft for one public equations-only Component."""
 
     __slots__ = (
+        "_aliases",
         "_component_token",
         "_declaration_count",
         "_doc",
@@ -551,6 +552,7 @@ class Component:
         self._names: set[str] = set()
         self._supports: list[tuple[Support, str, object, tuple[str, ...]]] = []
         self._parameters: list[tuple[_Parameter, str, tuple[str, ...]]] = []
+        self._aliases: list[tuple[str, Expression, str | None, tuple[str, ...]]] = []
         self._properties: list[
             tuple[_PropertyRequirement, PropertyContract, tuple[str, ...]]
         ] = []
@@ -648,6 +650,30 @@ class Component:
         parameter = _Parameter(self._owner, self._component_token, admitted)
         self._parameters.append((parameter, syntax, _doc(doc)))
         return parameter
+
+    def let_alias(
+        self,
+        name: str,
+        expression: Expression | int | float,
+        *,
+        value_type: ValueType | None = None,
+        doc: str | None = None,
+    ) -> Expression:
+        """Name a private static expression; the compiler owns type admission."""
+        value = _expression(expression)
+        if value._owner is not None and value._owner is not self._owner:
+            raise SourceError("alias expressions must belong to this Source")
+        if value_type is not None and not isinstance(value_type, ValueType):
+            raise TypeError("value_type must be an eqiora.ValueType")
+        syntax = None if value_type is None else value_type.to_eqi()
+        doc_lines = _doc(doc)
+        if sum(item[1]._nodes for item in self._aliases) + value._nodes > _MAX_EXPRESSION_NODES:
+            raise SourceError(
+                f"Component alias expressions exceed the {_MAX_EXPRESSION_NODES}-node limit"
+            )
+        admitted = self._add_name(name)
+        self._aliases.append((admitted, value, syntax, doc_lines))
+        return Expression(_CREATE, admitted, self._owner, 1, 1, 100)
 
     def property(
         self,
@@ -889,6 +915,7 @@ class Component:
         if self._properties and (
             self._supports
             or self._parameters
+            or self._aliases
             or self._fields
             or self._relations
             or self._instances
@@ -897,7 +924,13 @@ class Component:
         for parameter, value_type, doc in self._parameters:
             lines.extend(_comment(doc, "  "))
             lines.append(f"  public parameter {parameter._name}: {value_type};")
-        if self._parameters and (self._fields or self._relations or self._instances):
+        if self._parameters and (self._aliases or self._fields or self._relations or self._instances):
+            lines.append("")
+        for name, expression, value_type, doc in self._aliases:
+            lines.extend(_comment(doc, "  "))
+            assertion = "" if value_type is None else f": {value_type}"
+            lines.append(f"  let {name}{assertion} = {expression._text};")
+        if self._aliases and (self._fields or self._relations or self._instances):
             lines.append("")
         if self._fields:
             for field, support, value_type, role, doc in self._fields:
