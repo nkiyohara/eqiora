@@ -1132,7 +1132,7 @@ class Component:
         for clock, period, phase, doc in self._clocks:
             if clock in self._requirements:
                 signature.extend(_comment(doc, "  "))
-                signature.append(f"  clock {clock._name},")
+                signature.append(f"  clock {clock._name}: periodic,")
         for field, support, value_type, role, clock, doc in self._fields:
             if field in self._requirements or field in self._causal:
                 signature.extend(_comment(doc, "  "))

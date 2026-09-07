@@ -1251,7 +1251,7 @@ def test_source_model_sampled_signature_and_exact_snapshot_resume(tmp_path):
     source = sampled_source()
     text = source.to_eqi()
     assert "public model Sampled(" in text
-    assert "clock tick," in text
+    assert "clock tick: periodic," in text
     assert "input drive: 1 at tick," in text
     assert "output observed: 1 at tick," in text
     assert "state memory: 1 at tick;" in text
@@ -1366,11 +1366,11 @@ def test_external_clock_alias_assertion_compares_nominal_identity():
     first = owner.clock_requirement("first")
     second = owner.clock_requirement("second")
     memory = owner.field("memory", value_type=eqiora.ValueType.real(), role=eqiora.FieldRole.State, at=first)
-    observed = owner.field("observed", value_type=eqiora.ValueType.real(), role=eqiora.FieldRole.Variable)
+    observed = owner.field("observed", value_type=eqiora.ValueType.real(), role=eqiora.FieldRole.Variable, at=first)
     owner.initial(q.pre(memory) - 1)
     owner.relation("hold", at=first, left=q.next(memory), right=q.pre(memory))
     alias = owner.let_alias("current", memory, at=second)
-    owner.relation("observe", left=observed, right=alias)
+    owner.relation("observe", at=first, left=observed, right=alias)
     shared = eqiora.ClockDomain(period_s=Fraction(1, 10))
     assert eqiora.compile(source=source, entry="Clocks", bindings={"first": shared, "second": shared}).digest
     with pytest.raises(eqiora.EqioraError, match="clock|activation"):

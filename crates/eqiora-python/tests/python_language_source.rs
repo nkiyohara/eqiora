@@ -218,6 +218,50 @@ else:
     })
 }
 
+#[test]
+fn python_sampled_signature_round_trips_through_the_actual_parser() -> PyResult<()> {
+    Python::initialize();
+    Python::attach(|py| {
+        let locals = PyDict::new(py);
+        locals.set_item("eqiora", public_module(py)?)?;
+        py.run(c_str!(r#"
+q = eqiora.lang
+source = q.Source()
+model = source.model("Sampled")
+tick = model.clock_requirement("tick")
+drive = model.input("drive", value_type=eqiora.ValueType.real(), at=tick)
+observed = model.output("observed", value_type=eqiora.ValueType.real(), at=tick)
+memory = model.field("memory", value_type=eqiora.ValueType.real(), role=eqiora.FieldRole.State, at=tick)
+model.initial(q.pre(memory))
+model.relation("update", at=tick, left=q.next(memory), right=q.pre(memory) + drive)
+model.relation("observe", at=tick, left=observed, right=q.pre(memory))
+text = source.to_eqi()
+"#), Some(&locals), Some(&locals))?;
+        let text: String = locals
+            .get_item("text")?
+            .expect("authored Source")
+            .extract()?;
+        let parsed = eqiora::language::parse("sampled.eqi", &text);
+        assert!(
+            parsed.diagnostics().is_empty(),
+            "{:?}",
+            parsed.diagnostics()
+        );
+        let formatted = eqiora::language::format(parsed.document().expect("parsed Source"));
+        let reparsed = eqiora::language::parse("formatted.eqi", &formatted);
+        assert!(
+            reparsed.diagnostics().is_empty(),
+            "{:?}",
+            reparsed.diagnostics()
+        );
+        assert_eq!(
+            formatted,
+            eqiora::language::format(reparsed.document().unwrap())
+        );
+        Ok(())
+    })
+}
+
 fn public_module(py: Python<'_>) -> PyResult<Bound<'_, PyModule>> {
     let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
     let package_directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
