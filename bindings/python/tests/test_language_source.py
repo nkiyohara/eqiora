@@ -716,7 +716,7 @@ def test_static_alias_authoring_emits_private_typed_immutable_expressions():
 def test_static_alias_authoring_rejects_foreign_values_and_invalid_assertions():
     component = q.Source().component("Owner")
     foreign = q.Source().component("Foreign").parameter("input", value_type=eqiora.ValueType.real())
-    with pytest.raises(q.SourceError, match="this Source"):
+    with pytest.raises(q.SourceError, match="this Component"):
         component.let_alias("foreign", foreign + 1)
     with pytest.raises(TypeError, match="eqiora.ValueType"):
         component.let_alias("invalid", 1, value_type=u.one)
@@ -779,3 +779,45 @@ def test_static_alias_authoring_cannot_bind_private_alias_as_parameter():
     with pytest.raises(q.SourceError, match="Parameter bindings must be complete and exact"):
         root.instance("child", component=child, supports={}, parameters={required: rhs, private: 1})
     root.instance("child", component=child, supports={}, parameters={required: rhs})
+
+
+@pytest.mark.parametrize("kind", ["parameter", "alias", "compound", "trace", "property"])
+def test_static_alias_authoring_rejects_same_source_sibling_capture(kind):
+    source = q.Source()
+    contract = source.scalar_property_contract("Scalar", unit=u.one)
+    release = source.scalar_property_release(
+        "Unit", implements=contract, value=1, source_unit=u.one, source_scale=1,
+        citation="org.example.unit", license="spdx.CC0_1_0",
+    )
+    left = source.component("Left")
+    left_region = left.volume("region", dimensions=2)
+    left_parameter = left.parameter("supplied", value_type=eqiora.ValueType.real())
+    left_alias = left.let_alias("derived", left_parameter * 2)
+    left_field = left.field("value", on=left_region, role=eqiora.FieldRole.Variable,
+                           value_type=eqiora.ValueType.real())
+    left_property = left.property("coefficient", contract=contract)
+    right = source.component("Right")
+    right_region = right.volume("region", dimensions=2)
+    right_parameter = right.parameter("supplied", value_type=eqiora.ValueType.real())
+    right.let_alias("derived", right_parameter * 3)
+    right.property("coefficient", contract=contract)
+    right_relation = right.relation("own", on=right_region, left=right_parameter, right=0)
+    foreign = {
+        "parameter": left_parameter,
+        "alias": left_alias,
+        "compound": -(left_alias + 1) * 2,
+        "trace": q.trace(left_field),
+        "property": left_property,
+    }[kind]
+    for operation in (
+        lambda: right.let_alias("captured", foreign),
+        lambda: right.relation("captured", on=right_region, left=foreign, right=0),
+        lambda: q.integrate(right_region, foreign),
+        lambda: foreign + right_parameter,
+        lambda: right.primal_form(right_relation, left=q.integrate(left_region, foreign),
+                                  right=q.integrate(right_region, right_parameter)),
+        lambda: right.instance("child", component=left, supports={left_region: right_region},
+                               parameters={left_parameter: foreign}, properties={left_property: release}),
+    ):
+        with pytest.raises(q.SourceError, match="Component"):
+            operation()

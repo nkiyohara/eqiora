@@ -235,8 +235,8 @@ math: Final = _Math()
 class _Parameter(Expression):
     __slots__ = ("_component", "_name")
 
-    def __init__(self, owner: object, component: object, name: str) -> None:
-        super().__init__(_CREATE, name, owner, 1, 1, 100)
+    def __init__(self, component: object, name: str) -> None:
+        super().__init__(_CREATE, name, component, 1, 1, 100)
         object.__setattr__(self, "_component", component)
         object.__setattr__(self, "_name", name)
 
@@ -244,8 +244,8 @@ class _Parameter(Expression):
 class _Field(Expression):
     __slots__ = ("_component", "_name")
 
-    def __init__(self, owner: object, component: object, name: str) -> None:
-        super().__init__(_CREATE, name, owner, 1, 1, 100)
+    def __init__(self, component: object, name: str) -> None:
+        super().__init__(_CREATE, name, component, 1, 1, 100)
         object.__setattr__(self, "_component", component)
         object.__setattr__(self, "_name", name)
 
@@ -277,12 +277,11 @@ class _PropertyRequirement(Expression):
 
     def __init__(
         self,
-        owner: object,
         component: object,
         name: str,
         contract: PropertyContract,
     ) -> None:
-        super().__init__(_CREATE, name, owner, 1, 1, 100)
+        super().__init__(_CREATE, name, component, 1, 1, 100)
         object.__setattr__(self, "_component", component)
         object.__setattr__(self, "_name", name)
         object.__setattr__(self, "_contract", contract)
@@ -348,7 +347,7 @@ def _owner(left: Expression, right: Expression) -> object | None:
         and right._owner is not None
         and left._owner is not right._owner
     ):
-        raise SourceError("cannot combine expressions from different Source values")
+        raise SourceError("cannot combine expressions from different Source or Component owners")
     return left._owner if left._owner is not None else right._owner
 
 
@@ -424,12 +423,12 @@ def integrate(domain: Support, integrand: object) -> Expression:
     if not isinstance(domain, Support) or domain._kind != "volume":
         raise SourceError("integrate() requires a volume Support")
     expression = _expression(integrand)
-    if expression._owner is not None and expression._owner is not domain._owner:
-        raise SourceError("integrand and Support must belong to the same Source")
+    if expression._owner is not None and expression._owner is not domain._component:
+        raise SourceError("integrand and Support must belong to the same Component")
     return Expression(
         _CREATE,
         f"integrate({domain._name}, {expression._text})",
-        domain._owner,
+        domain._component,
         expression._depth + 1,
         expression._nodes + 1,
         100,
@@ -647,7 +646,7 @@ class Component:
             raise TypeError("value_type must be an eqiora.ValueType")
         syntax = value_type.to_eqi()
         admitted = self._add_name(name)
-        parameter = _Parameter(self._owner, self._component_token, admitted)
+        parameter = _Parameter(self._component_token, admitted)
         self._parameters.append((parameter, syntax, _doc(doc)))
         return parameter
 
@@ -661,8 +660,8 @@ class Component:
     ) -> Expression:
         """Name a private static expression; the compiler owns type admission."""
         value = _expression(expression)
-        if value._owner is not None and value._owner is not self._owner:
-            raise SourceError("alias expressions must belong to this Source")
+        if value._owner is not None and value._owner is not self._component_token:
+            raise SourceError("alias expressions must belong to this Component")
         if value_type is not None and not isinstance(value_type, ValueType):
             raise TypeError("value_type must be an eqiora.ValueType")
         syntax = None if value_type is None else value_type.to_eqi()
@@ -673,7 +672,7 @@ class Component:
             )
         admitted = self._add_name(name)
         self._aliases.append((admitted, value, syntax, doc_lines))
-        return Expression(_CREATE, admitted, self._owner, 1, 1, 100)
+        return Expression(_CREATE, admitted, self._component_token, 1, 1, 100)
 
     def property(
         self,
@@ -686,7 +685,7 @@ class Component:
             raise SourceError("property contract must belong to this Source")
         admitted = self._add_name(name)
         requirement = _PropertyRequirement(
-            self._owner, self._component_token, admitted, contract
+            self._component_token, admitted, contract
         )
         self._properties.append((requirement, contract, _doc(doc)))
         return requirement
@@ -711,7 +710,7 @@ class Component:
         if not isinstance(role, FieldRole):
             raise TypeError("role must be an eqiora.FieldRole")
         admitted = self._add_name(name)
-        expression = _Field(self._owner, self._component_token, admitted)
+        expression = _Field(self._component_token, admitted)
         self._fields.append((expression, on, syntax, role, _doc(doc)))
         return expression
 
@@ -731,13 +730,13 @@ class Component:
                 return Expression(
                     _CREATE,
                     expression._text,
-                    self._owner,
+                    self._component_token,
                     expression._depth,
                     expression._nodes,
                     expression._precedence,
                 )
-            if expression._owner is not self._owner:
-                raise SourceError("relation expressions must belong to this Source")
+            if expression._owner is not self._component_token:
+                raise SourceError("relation expressions must belong to this Component")
             return expression
 
         left_expression = admit(left)
@@ -779,8 +778,8 @@ class Component:
         left_expression = _expression(left)
         right_expression = _expression(right)
         for expression in (left_expression, right_expression):
-            if expression._owner is not self._owner:
-                raise SourceError("form expressions must belong to this Source")
+            if expression._owner is not self._component_token:
+                raise SourceError("form expressions must belong to this Component")
         if self._formulations:
             raise SourceError("the scalar-primal Source vocabulary admits one form")
         total_nodes = (
@@ -868,8 +867,8 @@ class Component:
         parameter_bindings: list[tuple[_Parameter, Expression]] = []
         for target in target_parameters:
             value = _expression(parameters[target])
-            if value._owner is not None and value._owner is not self._owner:
-                raise SourceError("instance Parameter values must belong to this Source")
+            if value._owner is not None and value._owner is not self._component_token:
+                raise SourceError("instance Parameter values must belong to this Component")
             parameter_bindings.append((target, value))
 
         property_bindings: list[tuple[_PropertyRequirement, PropertyRelease]] = []
