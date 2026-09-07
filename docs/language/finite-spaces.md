@@ -35,7 +35,10 @@ A repeated factor retains distinct positions. Product extent is checked before e
 | `coordinates<S, dual<B>>` | Linear dual coordinates, not implicit conjugation |
 | `map<S, A, B>` | Linear map from `A` to `B`, whose matrix coefficients have scalar type `S` |
 
-Here `S` is a real dimension or `complex<dimension>`. A map's coefficient dimension multiplies
+For coordinates, `S` may also be `integer`, retaining exact signed components without a
+physical dimension. Maps in this catalog retain real or complex coefficients; admitting
+integer coordinates does not establish integer map execution.
+For continuous values, `S` is a real dimension or `complex<dimension>`. A map's coefficient dimension multiplies
 the input coordinate dimension. For example, applying `map<J, Levels, Levels>` to dimensionless
 coordinates returns energy-valued coordinates. The scalar domain embeds real into complex
 when needed; it never discards an imaginary component.
@@ -77,6 +80,40 @@ does not arise just because a renderer swaps row and column labels.
 Products multiply dimensions and addition requires equal dimensions and exact spaces.
 No operation uses a same-sized spatial vector or raw array as a substitute. Finite products,
 selectors, and permutations have static bounded extents; runtime state cannot grow topology.
+
+## Exact counts and signed changes
+
+`counts<Species>` retains an atomic Space's exact identity and ordered labels, together with
+nonnegative particle cardinalities. `counts(Species, [values])` checks the exact cardinality
+and signed-integer bounds; it does not coerce an array or floating-point value into a count.
+The Space has no inferred chemical formula, charge or conservation law.
+
+```eqiora
+space Species = orthonormal(A, B);
+
+model Transfer() {
+  clock tick = periodic(1[s], phase = 0[s]);
+  state population: counts<Species> at tick;
+  parameter change: coordinates<integer, Species> = coordinates(Species, [-1, 1]);
+  initial {
+    population = counts(Species, [2, 9007199254740993]);
+  }
+  relation transfer at tick {
+    next(population) = pre(population) + change;
+  }
+}
+```
+
+Count plus signed coordinates produces counts only for the exact same atomic Space. All
+components are staged and checked before any accepted state changes. The example's first
+two updates are `[1, 9007199254740994]` and `[0, 9007199254740995]`; the third update rejects
+underflow and preserves the second accepted state and tick. Same labels or extent in another
+Space do not grant compatibility. Reordering labels changes coordinate meaning rather than
+silently reordering the values.
+
+This bounded path represents one inspectable signed stoichiometric column. It does not
+establish full map algebra, reaction conservation metadata, stochastic sampling or a
+count-to-amount/concentration conversion. Those require their explicit owners and evidence.
 
 ## Compact grammar
 

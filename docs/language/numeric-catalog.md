@@ -41,6 +41,43 @@ integer representation alone supplies neither species identity nor a count-to-am
 Runtime counts cannot determine model extent. Integers, indexes, Booleans, and enums have
 no ordinary continuous derivative, even if an integer value happens to remain constant.
 
+### Finite index sets and component families
+
+`indexset Stages = range(n);` declares the ordered indexes from zero through `n - 1`.
+The extent is a positive exact static integer and obeys the existing expansion budget before
+allocation. A body declaration may depend on its selected static parameters; runtime State
+cannot determine it. Distinct declarations retain distinct nominal identity even when their
+extents agree. Duplicate names and cyclic static dependencies reject.
+
+```eqiora
+indexset Stages = range(3);
+instance cell[i in Stages]: Cell(value = to_real(ordinal(i)));
+```
+
+The binder has type `index<Stages>` and is scoped to the instance's arguments. It cannot
+silently shadow another declaration. `ordinal(i)` explicitly projects its exact integer
+position; ordinary integer arithmetic does not operate on nominal indexes implicitly.
+`cell[index(Stages, 0)].output` selects the indexed instance's ordinary member. A foreign
+same-sized set or an out-of-range ordinal rejects. Boundary Relation families keep their
+separate exact boundary-member meaning.
+
+Expansion produces ordinary fixed instances in declared index order. It does not introduce
+a runtime loop or resize the Model. An edit to a static parameter that would invalidate
+elaborated structure rejects; changing the structure requires compilation with new bindings.
+The initial bounded family profile admits one binder, without nested families or runtime
+indexing. Explicit and indexed descriptions can be compared by their mathematical equations
+and occurrence structure; their distinct authored Source is not required to have equal bytes.
+
+### Nominal particle counts
+
+The [finite-space owner](finite-spaces.md#exact-counts-and-signed-changes) supplies ordered
+species identity. `counts<Species>` is a vector of nonnegative particle cardinalities, each
+bounded by the maximum signed integer. It is distinct from integer channels, signed component
+changes and amount concentrations. Integer storage alone does not supply a species or units
+conversion. A signed stoichiometric change uses `coordinates<integer, Species>`; adding it
+to counts requires the exact same Space and rejects any component underflow or overflow.
+Every component and the enclosing tick are validated before committing state or outputs.
+
 ## Real elementary functions
 
 Except where stated otherwise, the following functions require real dimensionless scalar
