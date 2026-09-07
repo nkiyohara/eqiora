@@ -7,7 +7,7 @@ pub(crate) struct PropertyContractDecl {
     pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) visibility: VisibilitySyntax,
     pub(crate) name: String,
-    pub(crate) dimension: Expr,
+    pub(crate) value_type: crate::ValueTypeSyntax,
     pub(crate) range: TextRange,
 }
 
@@ -54,12 +54,12 @@ impl Document {
     #[must_use]
     pub fn property_contract_syntax(
         &self,
-    ) -> impl ExactSizeIterator<Item = (VisibilitySyntax, &str, &Expr, TextRange)> {
+    ) -> impl ExactSizeIterator<Item = (VisibilitySyntax, &str, &crate::ValueTypeSyntax, TextRange)> {
         self.property_contracts.iter().map(|value| {
             (
                 value.visibility,
                 value.name.as_str(),
-                &value.dimension,
+                &value.value_type,
                 value.range,
             )
         })

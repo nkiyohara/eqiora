@@ -12,7 +12,7 @@ pub(super) fn format_properties(
         separate_declaration(output, count);
         super::compile_time::format_dimension(dimension, output);
     }
-    for (declaration, (visibility, name, dimension, _)) in document
+    for (declaration, (visibility, name, value_type, _)) in document
         .property_contracts
         .iter()
         .zip(document.property_contract_syntax())
@@ -22,10 +22,9 @@ pub(super) fn format_properties(
         if visibility == VisibilitySyntax::Public {
             output.push_str("public ");
         }
-        writeln!(output, "property contract {name} {{").expect("String write");
-        output.push_str("  scalar value: ");
-        format_expression(dimension, 0, output);
-        output.push_str(";\n}\n");
+        write!(output, "property contract {name}(): ").expect("String write");
+        super::value_type::format_value_type(value_type, output);
+        output.push_str(" {\n  derivatives value_only;\n}\n");
         output.end();
     }
     for (
