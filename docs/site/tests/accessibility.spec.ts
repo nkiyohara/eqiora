@@ -266,7 +266,7 @@ test('00D exact real Rustdoc Diagnostic ordinary chunk is complete and green', a
   test.setTimeout(300_000);
   const plan = createOrdinaryRoutePlan();
   expect(assertOrdinaryRoutePlan(plan)).toEqual([...SITE_ROUTES]);
-  expect(ROUTES).toHaveLength(51);
+  expect(ROUTES).toHaveLength(59);
   const context = await browser.newContext({
     baseURL: BASE_URL,
     locale: 'en-GB',
@@ -362,10 +362,10 @@ test('table structure is complete across current site routes', async () => {
     directTotal += observation.counts.direct;
     componentTotal += expected.component;
   }
-  expect(tableTotal).toBe(8);
+  expect(tableTotal).toBe(14);
   expect(directTotal).toBe(tableTotal - 1);
   expect(componentTotal).toBe(1);
-  expect(invariantRoutes).toBe(6);
+  expect(invariantRoutes).toBe(11);
   await navigateSitePage(page, '/reference/python/eqiora/');
   await expect(page.locator('main table')).toHaveCount(0);
 
@@ -426,10 +426,13 @@ test('tables reflow and remain accessible across widths and forced colours', asy
     expect(external).toEqual([]);
     expect(work).toEqual({
       cells: 6,
-      routes: 36,
-      dynamicProjections: 36,
-      conditionAxeCalls: 36,
-      conditionAxeRuleApplications: 60,
+      // Each declared route runs in six cells; two cells apply three Axe
+      // rules and the remaining four apply one. Derive from the route owner,
+      // not observed work, so newly documented tables retain full coverage.
+      routes: TABLE_ROUTES.length * 6,
+      dynamicProjections: TABLE_ROUTES.length * 6,
+      conditionAxeCalls: TABLE_ROUTES.length * 6,
+      conditionAxeRuleApplications: TABLE_ROUTES.length * (2 * 3 + 4),
       contexts: 1,
       pages: 1,
     });

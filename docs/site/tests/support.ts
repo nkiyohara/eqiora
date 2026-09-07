@@ -35,6 +35,14 @@ export const SITE_ROUTES = [
   '/python/execution-and-arrays/',
   '/python/modeling/',
   '/reference/',
+  '/reference/language/',
+  '/reference/language/composition/',
+  '/reference/language/declarations/',
+  '/reference/language/equations/',
+  '/reference/language/units/',
+  '/reference/standard-packages/',
+  '/reference/standard-packages/continuum/',
+  '/reference/standard-packages/electrical/',
   '/reference/cli/',
   '/reference/control-v2/',
   '/reference/mcp/',
@@ -102,8 +110,13 @@ export const TABLE_ROUTES = [
   { route: '/evidence/', tables: 0, direct: 0, component: 0 },
   { route: '/gallery/exact-cylinder-steady-stokes/', tables: 1, direct: 0, component: 1 },
   { route: '/reference/control-v2/', tables: 1, direct: 1, component: 0 },
+  { route: '/reference/language/', tables: 1, direct: 1, component: 0 },
+  { route: '/reference/language/declarations/', tables: 1, direct: 1, component: 0 },
+  { route: '/reference/language/units/', tables: 1, direct: 1, component: 0 },
   { route: '/reference/python/', tables: 2, direct: 2, component: 0 },
   { route: '/reference/rust/', tables: 3, direct: 3, component: 0 },
+  { route: '/reference/standard-packages/', tables: 2, direct: 2, component: 0 },
+  { route: '/reference/standard-packages/electrical/', tables: 1, direct: 1, component: 0 },
 ] as const satisfies readonly TableRouteShape[];
 
 export type TableRoute = (typeof TABLE_ROUTES)[number];
@@ -130,8 +143,8 @@ export function createOrdinaryRoutePlan(): OrdinaryRoutePlan {
 
 export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly string[] {
   if (REFERENCE_START < 1) throw new Error('route authority missing /reference/');
-  if (SITE_ROUTES.length !== 50 || new Set(SITE_ROUTES).size !== 50) {
-    throw new Error('route authority is not 50 unique entries');
+  if (SITE_ROUTES.length !== 58 || new Set(SITE_ROUTES).size !== 58) {
+    throw new Error('route authority is not 58 unique entries');
   }
   const entries = (['A', 'B', 'C'] as const).flatMap((chunk) =>
     plan[chunk].map((route) => ({ chunk, route })),
@@ -149,7 +162,7 @@ export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly strin
   if (missing) throw new Error(`ORDER-MISSING: ${missing}`);
 
   const expected = createOrdinaryRoutePlan();
-  const cardinalities = { A: 1, B: 15, C: 34 } as const;
+  const cardinalities = { A: 1, B: 15, C: 42 } as const;
   for (const chunk of ['A', 'B', 'C'] as const) {
     if (plan[chunk].length !== cardinalities[chunk]) {
       throw new Error(`ORDER-CARDINALITY ${chunk}: ${plan[chunk].length}`);
@@ -161,12 +174,12 @@ export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly strin
       throw new Error(`ORDER-REORDER ${chunk}`);
     }
   }
-  if (entries.length !== 50 || seen.size !== 50) {
-    throw new Error('ORDER-UNION is not exactly 50 entries');
+  if (entries.length !== 58 || seen.size !== 58) {
+    throw new Error('ORDER-UNION is not exactly 58 entries');
   }
 
   const byRoute = new Map(entries.map((entry) => [entry.route, entry]));
-  if (byRoute.size !== 50) throw new Error('ORDER-CANONICAL duplicate identity');
+  if (byRoute.size !== 58) throw new Error('ORDER-CANONICAL duplicate identity');
   const canonical = SITE_ROUTES.map((route) => {
     const entry = byRoute.get(route);
     if (!entry) throw new Error(`ORDER-CANONICAL missing: ${route}`);

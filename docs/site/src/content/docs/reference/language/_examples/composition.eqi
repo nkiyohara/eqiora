@@ -1,0 +1,11 @@
+component Offset {
+  public parameter input: 1;
+  public parameter offset: 1 = 1;
+  field output: 1;
+  relation value continuous { output - input - offset = 0; }
+}
+
+model TwoOffsets {
+  instance first: Offset(input = 2);
+  instance second: Offset(input = 5, offset = 3);
+}

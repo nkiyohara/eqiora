@@ -1,0 +1,53 @@
+---
+title: Equations and state
+description: Residual equations, scalar initial values and periodic state syntax in Eqiora 0.1.0a7.
+editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/language/equations.mdx
+---
+
+import { Code } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import clocked from './_examples/clocked.eqi?raw';
+
+[Language overview](/reference/language/) · Installed release: **0.1.0a7**
+
+## Continuous equations
+
+Use `relation name continuous { residual = 0; }`. A relation may contain several
+residuals; they constrain the same Model simultaneously. In the
+[current example](/reference/language/declarations/), `voltage - resistance * current = 0`
+expresses Ohm's law. It is not a sequential assignment to `current`.
+
+The release requires literal zero on the right. To express `left = right`, write
+`left - right = 0`. Both terms must have compatible dimensions. A valid equation
+does not by itself establish that the selected numerical backend can solve it.
+
+`derivative(x)` denotes the time derivative of a Field, dividing its dimension by
+time. Spatial operators such as `grad`, `div`, `trace` and `normal` have separate
+support rules; the [continuum examples](/reference/standard-packages/continuum/)
+show their existing standard declarations without selecting a discretization.
+
+## Initial values and restart
+
+The [ODE lesson](/textbooks/mathematical-modeling/ordinary-differential-equations/)
+uses `field x: 1 = 1;` and the residual `derivative(x) + rate * x = 0`.
+Its complete, installed-release example exercises `State.initial(plan)` and a run.
+The scalar initializer belongs to the Model; a numerical tolerance or time step
+does not change that initial condition.
+
+Use a supported accepted State for continuation rather than constructing a fresh
+initial State at every output time. This reference does not claim general DAE
+initialization, arbitrary shaped initial values or automatic state selection.
+
+## Periodic state
+
+<Code code={clocked} lang="eqiora" title="clocked.eqi — compilation example" />
+
+The clock specifies a period of exactly 1/10 second and a phase of zero.
+`pre(memory)` refers to the pre-tick value; `next(memory)` participates in the
+candidate update. This example checks the released clock, initial-value and
+periodic-relation syntax. It is not a Python periodic-execution recipe or a claim
+that a continuous ODE method can execute this Model.
+
+<ExactSourceLink kind="blob" path="docs/site/src/content/docs/reference/language/_examples/clocked.eqi">Clocked example source</ExactSourceLink>
+· [Released relation parser](https://github.com/nkiyohara/eqiora/blob/e72f744cf6956e0e3c1f03aad65868d726f8ebbf/crates/eqiora-lang/src/parser/relation.rs)
+· Next: [Composition](/reference/language/composition/)

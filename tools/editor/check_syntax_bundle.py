@@ -74,7 +74,7 @@ def main() -> int:
     if missing:
         raise SystemExit(f"syntax bundle misses parser keywords: {', '.join(missing)}")
 
-    site_config = (ROOT / "docs/site/astro.config.mjs").read_text(encoding="utf-8")
+    site_config = (ROOT / "docs/site/ec.config.mjs").read_text(encoding="utf-8")
     if "../../editor/eqiora/syntaxes/eqiora.tmLanguage.json" not in site_config:
         raise SystemExit("documentation site does not consume the canonical grammar")
     print(f"editor syntax bundle: {len(parser_keywords)} parser keywords covered")

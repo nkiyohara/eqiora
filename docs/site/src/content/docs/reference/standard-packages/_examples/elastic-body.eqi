@@ -1,0 +1,34 @@
+// Append after the self-contained quasistatic declarations from the linked release source.
+// This example checks component composition; it does not select a mesh or solve.
+model ReferenceElasticBody {
+  domain body = box(0, 1, 0, 1);
+  domain x_lower = boundary(body, axis = 0, side = lower);
+  domain x_upper = boundary(body, axis = 0, side = upper);
+  domain y_lower = boundary(body, axis = 1, side = lower);
+  domain y_upper = boundary(body, axis = 1, side = upper);
+  representation space = continuum;
+  field displacement on body as space: m shape spatial_vector;
+  field load_potential on body as space: kg / (m * s ^ 2);
+  parameter mu: kg / (m * s ^ 2) = 3;
+  parameter lambda: kg / (m * s ^ 2) = 2;
+
+  relation unloaded continuous on body { load_potential = 0; }
+  instance balance: IsotropicBalanceWithPotential2d(
+    support body = body, field displacement = displacement,
+    field load_potential = load_potential, mu = mu, lambda = lambda
+  );
+  instance surface: IsotropicMechanicalInterface2d(
+    support body = body,
+    support exterior = boundaries(x_lower, x_upper, y_lower, y_upper),
+    field displacement = displacement, mu = mu, lambda = lambda
+  );
+  instance fixed: FixedDisplacement2d(support body = body, support face = x_lower);
+  instance free_right: ZeroTraction2d(support body = body, support face = x_upper);
+  instance free_bottom: ZeroTraction2d(support body = body, support face = y_lower);
+  instance free_top: ZeroTraction2d(support body = body, support face = y_upper);
+
+  connect conserving surface.mechanical[boundary = x_lower], fixed.mechanical;
+  connect conserving surface.mechanical[boundary = x_upper], free_right.mechanical;
+  connect conserving surface.mechanical[boundary = y_lower], free_bottom.mechanical;
+  connect conserving surface.mechanical[boundary = y_upper], free_top.mechanical;
+}

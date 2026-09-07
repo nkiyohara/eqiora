@@ -1,0 +1,51 @@
+---
+title: Composition
+description: Components, explicit bindings and conserving connections in Eqiora 0.1.0a7.
+editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/language/composition.mdx
+---
+
+import { Code } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import source from './_examples/composition.eqi?raw';
+
+[Language overview](/reference/language/) · Installed release: **0.1.0a7**
+
+A `component` is a reusable declaration. An `instance` creates one occurrence with
+explicit named bindings. In this release, `public` requirements live inside the
+component body, not in a converged parenthesized signature.
+
+<Code code={source} lang="eqiora" title="composition.eqi" />
+
+`input` is required; `offset` has a default. The two occurrences own separate
+private `output` Fields and relations. Equal input values would not merge those
+occurrences. Missing required parameters and unknown bindings are errors.
+
+## Ports and physical connections
+
+[Electrical components](/reference/standard-packages/electrical/) expose named
+`positive` and `negative` conserving ports. `connect conserving` connects their
+typed connector occurrences: across values agree and outward through values sum
+to zero. It does not paste one component's equations into another or impose an
+execution order. A signal input/output port has different semantics.
+
+## Binding existing spatial Fields
+
+A continuum component can require `public support body: volume(ambient_dimension = 2);`
+and an occurrence-bound `public field slot`. In an instance, write
+`support body = body` and `field displacement = displacement` explicitly.
+The [elastic-body example](/reference/standard-packages/continuum/#elastic-balance-and-boundaries)
+binds the same displacement to a balance law and its boundary interface. These
+bindings refer to one existing Field, not two copied displacement states.
+
+Exact support and connector identity matter; equal numerical sizes are insufficient.
+Complete boundary families must include the actual exterior members.
+
+## Source files and packages
+
+A package-qualified declaration additionally requires its exact dependency closure.
+See [source files and installation](/reference/standard-packages/#source-and-installation-boundary)
+for the released workflow.
+
+<ExactSourceLink kind="blob" path="docs/site/src/content/docs/reference/language/_examples/composition.eqi">Example source</ExactSourceLink>
+· [Released hierarchy compiler](https://github.com/nkiyohara/eqiora/tree/e72f744cf6956e0e3c1f03aad65868d726f8ebbf/crates/eqiora-compiler/src/hierarchy)
+· Next: [Standard sources](/reference/standard-packages/)

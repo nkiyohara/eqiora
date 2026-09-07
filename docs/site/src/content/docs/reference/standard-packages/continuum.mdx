@@ -1,0 +1,116 @@
+---
+title: Continuum laws and boundaries
+description: Released elastic balance, mechanical boundary and inertial-flow declarations with typed occurrence examples.
+editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/standard-packages/continuum.mdx
+---
+
+import { Aside, Code } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import elastic from './_examples/elastic-body.eqi?raw';
+import flow from './_examples/inertial-stokes.eqi?raw';
+
+[Standard sources](/reference/standard-packages/) · Installed release: **0.1.0a7**
+
+These components bind existing support and Field occurrences. The examples check
+their composition; mesh and solver selection belong to the execution workflow.
+
+## Elastic balance and boundaries
+
+Canonical owner: [Solid.LinearElasticity / linear_elasticity.eqi](https://github.com/nkiyohara/eqiora/blob/e72f744cf6956e0e3c1f03aad65868d726f8ebbf/packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi).
+The self-contained quasistatic declarations precede the dynamic additions in that file.
+
+### `IsotropicBalanceWithPotential2d`
+
+Requires a two-dimensional `body`, vector `displacement` in m, scalar
+`load_potential` in Pa, and Lamé parameters `mu` and `lambda` in Pa. Supplies
+small-strain isotropic elastic balance driven by the load-potential gradient.
+
+### `IsotropicMechanicalInterface2d`
+
+Requires the same body, displacement and Lamé parameters, plus the complete
+`exterior`. Supplies the displacement trace and parent-outward elastic traction
+on each boundary.
+
+### `FixedDisplacement2d`
+
+Requires `body` and one `face`. Fixes the complete displacement trace at its
+`mechanical` port to zero.
+
+### `ZeroTraction2d`
+
+Requires `body` and one `face`. Fixes the complete outward traction at its
+`mechanical` port to zero.
+
+The `QuasistaticMechanicalBoundary` connector pairs displacement (m) with traction
+(Pa). It is nominally distinct from the velocity/traction connector in
+Mechanics.Interfaces; equal vector extent does not make them interchangeable.
+`load_potential` is a pressure-valued scalar whose gradient supplies the volume
+load. It is not an arbitrary vector body-force input or a boundary pressure.
+
+<Code code={elastic} lang="eqiora" title="elastic-body.eqi — compilation, not a solve" />
+
+This unloaded body binds one displacement Field to the balance and interface,
+clamps the left face and connects every remaining face to a free-traction
+component. It exercises both boundary conditions without leaving a child physical
+port unconnected. The complete exterior is explicit.
+
+<details>
+<summary>Compile the example from the extracted release source</summary>
+
+Save the code above as `elastic-body.eqi` beside the extracted source archive.
+Select the unchanged, self-contained quasistatic prefix; the later dynamic
+declarations have an additional package dependency and are not needed here.
+
+```python
+from pathlib import Path
+import eqiora
+
+path = Path("eqiora-0.1.0a7/packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi")
+released = path.read_text()
+end = released.index("public component IsotropicElastodynamicsWithPotential2d")
+source = released[:end] + "\n" + Path("elastic-body.eqi").read_text()
+model = eqiora.compile(source=source, filename="elastic-body.eqi")
+```
+
+The prefix selection is specific to this release. For an executed structural
+example, see [Mixed-boundary elasticity](/gallery/mixed-boundary-elasticity/) and
+its stated source and environment.
+
+</details>
+
+## Inertial flow law
+
+Canonical owner: [Fluid.InertialStokes / inertial_stokes.eqi](https://github.com/nkiyohara/eqiora/blob/e72f744cf6956e0e3c1f03aad65868d726f8ebbf/packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi).
+
+`InertialStokesWithPotential2d` requires a two-dimensional `body`, vector
+`velocity` in m/s, scalar `pressure` and `force_potential` in Pa, `density` in
+kg/m³ and `dynamic_viscosity` in Pa·s. It supplies inertial momentum balance and
+incompressibility. There is no advective velocity term: this is not a general
+Navier–Stokes component. The force-potential gradient is separate from the pressure
+unknown.
+
+<Code code={flow} lang="eqiora" title="inertial-stokes.eqi — typed law bindings only" />
+
+Append that example after the unchanged released `inertial_stokes.eqi` source:
+
+```python
+from pathlib import Path
+import eqiora
+
+path = Path("eqiora-0.1.0a7/packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi")
+source = path.read_text() + "\n" + Path("inertial-stokes.eqi").read_text()
+model = eqiora.compile(source=source, filename="inertial-stokes.eqi")
+```
+
+<Aside type="caution" title="A law is not a complete simulation">
+  This example only exercises the component signature through compilation. It
+  does not supply a force-potential definition, pressure reference, initial data,
+  boundary conditions, mesh or temporal method. Do not call it a solved flow problem.
+</Aside>
+
+For other delivered mechanical sources and dependency-bearing interfaces, browse
+the [source inventory](/reference/standard-packages/#browse-the-distributed-sources).
+For user-authored equations, use [Equations and state](/reference/language/equations/).
+
+<ExactSourceLink kind="blob" path="docs/site/src/content/docs/reference/standard-packages/_examples/elastic-body.eqi">Elastic-body example source</ExactSourceLink>
+· <ExactSourceLink kind="blob" path="docs/site/src/content/docs/reference/standard-packages/_examples/inertial-stokes.eqi">Inertial-law example source</ExactSourceLink>
