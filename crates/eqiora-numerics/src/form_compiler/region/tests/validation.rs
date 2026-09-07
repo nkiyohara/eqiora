@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn discarded_zero_rejects_coordinate_dependent_multipliers() {
-    let source = "model Scalar {
+    let source = "model Scalar() {
         domain body = box(0, 1, 0, 1);
 
         variable u: 1 on body;

@@ -1,7 +1,7 @@
 use eqiora_lang::{Expr, ExprKind, Item, SourceAstFactory, TextRange};
 
 fn expression(source: &str) -> Expr {
-    let source = format!("model M {{ let a = {source}; }}");
+    let source = format!("model M() {{ let a = {source}; }}");
     let document = eqiora_lang::parse("array.eqi", &source)
         .into_document()
         .unwrap();
@@ -23,9 +23,10 @@ fn arrays_and_postfix_indices_preserve_structure_and_precedence() {
         "(a ^ b)[0]",
         "a[b[0]]",
     ] {
-        let document = eqiora_lang::parse("array.eqi", &format!("model M {{ let a = {source}; }}"))
-            .into_document()
-            .unwrap();
+        let document =
+            eqiora_lang::parse("array.eqi", &format!("model M() {{ let a = {source}; }}"))
+                .into_document()
+                .unwrap();
         let formatted = eqiora_lang::format(&document);
         assert_eq!(
             eqiora_lang::format(
@@ -62,13 +63,13 @@ fn quantities_and_explicit_boundary_selectors_keep_their_discriminators() {
         ExprKind::Index { .. }
     ));
     assert!(
-        eqiora_lang::parse("unit.eqi", "model M { let a = 10 [2]; }")
+        eqiora_lang::parse("unit.eqi", "model M() { let a = 10 [2]; }")
             .into_document()
             .is_err()
     );
     for invalid in ["[]", "a[]", "[1,]", "a[side = 2]", "a[1, 2]"] {
         assert!(
-            eqiora_lang::parse("bad.eqi", &format!("model M {{ let a = {invalid}; }}"))
+            eqiora_lang::parse("bad.eqi", &format!("model M() {{ let a = {invalid}; }}"))
                 .into_document()
                 .is_err()
         );
@@ -111,7 +112,7 @@ fn factory_and_reference_rewrite_preserve_index_and_array_structure() {
 
 #[test]
 fn parameter_initializers_and_nested_comments_round_trip() {
-    let source = "model M {\n/// channels\nparameter p: array<V, 2> = [1[V], // first\n 2[V]];\nlet z = math.complex(p[0], p[1]);\n}";
+    let source = "model M() {\n/// channels\nparameter p: array<V, 2> = [1[V], // first\n 2[V]];\nlet z = math.complex(p[0], p[1]);\n}";
     let document = eqiora_lang::parse("values.eqi", source)
         .into_document()
         .unwrap();
@@ -135,7 +136,7 @@ fn parser_rejects_excessive_array_and_index_depth() {
         format!("a{}", "[0]".repeat(256)),
     ] {
         assert!(
-            eqiora_lang::parse("deep.eqi", &format!("model M {{ let a = {source}; }}"))
+            eqiora_lang::parse("deep.eqi", &format!("model M() {{ let a = {source}; }}"))
                 .into_document()
                 .is_err()
         );

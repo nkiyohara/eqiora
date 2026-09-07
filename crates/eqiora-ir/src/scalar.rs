@@ -1,8 +1,10 @@
+mod lower;
+
 use std::collections::HashMap;
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, GraphPath};
-use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, SymbolRef};
+use eqiora_schema::kernel::SymbolRef;
 
 use crate::ScalarSymbolCoordinate;
 use crate::{DifferentiationRole, LinearizedRelation, RelationCotangent, RelationTangent};
@@ -256,75 +258,6 @@ pub struct ScalarOperatorIr {
 }
 
 impl ScalarOperatorIr {
-    /// Lower a canonical expression DAG into dense symbol slots and scalar
-    /// instructions without changing operation order.
-    ///
-    /// # Errors
-    /// Returns `EQ0701` if an operand/root index is inconsistent with the DAG
-    /// contract.
-    pub fn lower(expression: &ExprDag) -> Result<Self, Diagnostic> {
-        let mut symbols = Vec::new();
-        let mut symbol_slots = HashMap::new();
-        let mut instructions = Vec::with_capacity(expression.nodes().len());
-        for (index, node) in expression.nodes().iter().enumerate() {
-            let instruction = match node {
-                ExprNode::Constant(value) => Instruction::Constant(
-                    value
-                        .real_scalar_value()
-                        .ok_or_else(|| {
-                            Diagnostic::error(
-                                codes::NOT_IMPLEMENTED,
-                                "scalar IR requires real scalar constants",
-                            )
-                        })?
-                        .value(),
-                ),
-                ExprNode::Symbol(symbol) => {
-                    let next_slot = u32::try_from(symbols.len()).map_err(|_| ir_size_error())?;
-                    let slot = *symbol_slots.entry(*symbol).or_insert_with(|| {
-                        symbols.push(*symbol);
-                        SymbolSlot(next_slot)
-                    });
-                    Instruction::Read(slot)
-                }
-                ExprNode::Neg(value) => Instruction::Neg(value_id(*value, index)?),
-                ExprNode::Add(left, right) => {
-                    Instruction::Add(value_id(*left, index)?, value_id(*right, index)?)
-                }
-                ExprNode::Sub(left, right) => {
-                    Instruction::Sub(value_id(*left, index)?, value_id(*right, index)?)
-                }
-                ExprNode::Mul(left, right) => {
-                    Instruction::Mul(value_id(*left, index)?, value_id(*right, index)?)
-                }
-                ExprNode::Div(left, right) => {
-                    Instruction::Div(value_id(*left, index)?, value_id(*right, index)?)
-                }
-                ExprNode::PowI(base, exponent) => {
-                    Instruction::PowI(value_id(*base, index)?, *exponent)
-                }
-                _ => {
-                    return Err(Diagnostic::error(
-                        codes::INVALID_OPERATOR_IR,
-                        "expression node is newer than scalar Operator IR",
-                    )
-                    .with_graph_path(ir_path(index)));
-                }
-            };
-            instructions.push(instruction);
-        }
-        let roots = expression
-            .roots()
-            .iter()
-            .map(|root| value_id(*root, instructions.len()))
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(Self {
-            symbols,
-            instructions,
-            roots,
-        })
-    }
-
     /// Dense symbol order expected by [`Self::evaluate`].
     #[must_use]
     pub fn symbols(&self) -> &[SymbolRef] {
@@ -1112,15 +1045,6 @@ enum Instruction {
     PowI(ValueId, i32),
 }
 
-fn value_id(id: ExprId, upper_bound: usize) -> Result<ValueId, Diagnostic> {
-    let index = usize::try_from(id.index()).map_err(|_| invalid_value(id, upper_bound))?;
-    if index >= upper_bound {
-        Err(invalid_value(id, upper_bound))
-    } else {
-        Ok(ValueId(id.index()))
-    }
-}
-
 fn read(values: &[f64], id: ValueId, instruction: usize) -> Result<f64, Diagnostic> {
     usize::try_from(id.0)
         .ok()
@@ -1300,17 +1224,6 @@ fn invalid_value_index(id: ValueId, instruction: usize) -> Diagnostic {
 fn invalid_linearization(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_LINEARIZATION, message)
         .with_graph_path(GraphPath::new(["operator-ir", "linearization"]))
-}
-
-fn invalid_value(id: ExprId, upper_bound: usize) -> Diagnostic {
-    Diagnostic::error(
-        codes::INVALID_OPERATOR_IR,
-        format!(
-            "expression value {} is not below the instruction bound {upper_bound}",
-            id.index()
-        ),
-    )
-    .with_graph_path(ir_path(upper_bound))
 }
 
 fn ir_size_error() -> Diagnostic {

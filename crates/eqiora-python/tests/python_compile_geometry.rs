@@ -31,8 +31,8 @@ parameters = {
     "inlet_speed": 0.3,
     "channel_height": geometry.bounds[1][1] - geometry.bounds[1][0],
 }
-model = eqiora.compile(source=source_text, filename="cylinder.eqi", geometry=geometry, parameters=parameters)
-explicit = eqiora.compile(source=source_text, filename="renamed.eqi", geometry=geometry, parameters=parameters, component="SteadyFlowPastCylinder")
+model = eqiora.compile(source=source_text, filename='cylinder.eqi', geometry=geometry, entry='SteadyFlowPastCylinder', bindings={'fluid': geometry.selection('fluid'), 'inlet': (geometry.selection('inlet'), geometry.selection('fluid')), 'outlet': (geometry.selection('outlet'), geometry.selection('fluid')), 'walls': (geometry.selection('walls'), geometry.selection('fluid')), 'cylinder': (geometry.selection('cylinder'), geometry.selection('fluid')), **parameters})
+explicit = eqiora.compile(source=source_text, filename='renamed.eqi', geometry=geometry, entry='SteadyFlowPastCylinder', bindings={'fluid': geometry.selection('fluid'), 'inlet': (geometry.selection('inlet'), geometry.selection('fluid')), 'outlet': (geometry.selection('outlet'), geometry.selection('fluid')), 'walls': (geometry.selection('walls'), geometry.selection('fluid')), 'cylinder': (geometry.selection('cylinder'), geometry.selection('fluid')), **parameters})
 assert model.digest == explicit.digest
 replayed = eqiora.Model.from_bytes(model.to_bytes())
 request = eqiora.meshing.GmshMesher(
@@ -74,7 +74,7 @@ for invalid in (
     {**parameters, "extra": 1.0},
 ):
     try:
-        eqiora.compile(source=source_text, geometry=geometry, parameters=invalid)
+        eqiora.compile(source=source_text, geometry=geometry, entry='SteadyFlowPastCylinder', bindings={'fluid': geometry.selection('fluid'), 'inlet': (geometry.selection('inlet'), geometry.selection('fluid')), 'outlet': (geometry.selection('outlet'), geometry.selection('fluid')), 'walls': (geometry.selection('walls'), geometry.selection('fluid')), 'cylinder': (geometry.selection('cylinder'), geometry.selection('fluid')), **invalid})
     except eqiora.ValidationError:
         pass
     else:

@@ -52,7 +52,7 @@ fn direct_sources_resolve_once_and_match_both_precommitted_revisions() {
         StructuralSemanticFingerprint::from_program(&base)
             .unwrap()
             .generation(),
-        SemanticFingerprintGeneration::V8
+        SemanticFingerprintGeneration::V9
     );
 
     let before = base.value(parameter.erase()).unwrap();
@@ -82,7 +82,7 @@ fn direct_sources_resolve_once_and_match_both_precommitted_revisions() {
 }
 
 #[test]
-fn declaration_permutations_preserve_structure_without_relabelling_exact_occurrences() {
+fn declaration_permutations_preserve_canonical_source_occurrences() {
     let (base_transaction, base_program) = compiled_parts(SOURCE);
     let (permuted_transaction, permuted_program) = compiled_parts(PERMUTED);
 
@@ -92,7 +92,7 @@ fn declaration_permutations_preserve_structure_without_relabelling_exact_occurre
         StructuralSemanticFingerprint::from_program(&base_program).unwrap(),
         StructuralSemanticFingerprint::from_program(&permuted_program).unwrap()
     );
-    assert_ne!(
+    assert_eq!(
         base_model.digest().unwrap(),
         permuted_model.digest().unwrap()
     );
@@ -104,11 +104,11 @@ fn declaration_permutations_preserve_structure_without_relabelling_exact_occurre
         .nodes()
         .map(KernelNode::id)
         .collect::<std::collections::BTreeSet<_>>();
-    assert!(base_ids.is_disjoint(&permuted_ids));
+    assert_eq!(base_ids, permuted_ids);
 
     let base_edit = ModelTransactionEnvelope::from_transaction(&base_transaction).unwrap();
     let permuted_edit = ModelTransactionEnvelope::from_transaction(&permuted_transaction).unwrap();
-    assert_ne!(base_edit.digest().unwrap(), permuted_edit.digest().unwrap());
+    assert_eq!(base_edit.digest().unwrap(), permuted_edit.digest().unwrap());
 
     let model_bytes = base_model.canonical_json().unwrap();
     let replayed = ModelEnvelope::from_json(&model_bytes, ModelDecoderLimits::default()).unwrap();
@@ -136,27 +136,27 @@ fn declaration_permutations_preserve_structure_without_relabelling_exact_occurre
 #[test]
 fn closed_language_and_whole_model_invariants_fail_before_exposure() {
     assert_compile_rejected_with(
-        "model m { domain body = box(0, missing); relation r on body { coordinate(0) - coordinate(0) = 0; } }",
+        "model m() { domain body = box(0, missing); relation r on body { coordinate(0) - coordinate(0) = 0; } }",
         codes::LANGUAGE_TYPE_ERROR,
         "unresolved Cartesian coordinate Parameter `missing`",
     );
     assert_compile_rejected_with(
-        "model m { parameter extent: s = 1; domain body = box(0, extent); relation r on body { coordinate(0) - coordinate(0) = 0; } }",
+        "model m() { parameter extent: s = 1; domain body = box(0, extent); relation r on body { coordinate(0) - coordinate(0) = 0; } }",
         codes::LANGUAGE_TYPE_ERROR,
         "Cartesian coordinate Parameter `extent` is not a real scalar length",
     );
     assert_compile_rejected_with(
-        "model m { parameter extent: m = 1; domain body = box(0, extent + 1); relation r on body { coordinate(0) - coordinate(0) = 0; } }",
+        "model m() { parameter extent: m = 1; domain body = box(0, extent + 1); relation r on body { coordinate(0) - coordinate(0) = 0; } }",
         codes::SYNTAX_ERROR,
         "after Cartesian bounds",
     );
     assert_compile_rejected_with(
-        "model m { parameter extent: m = 7; domain body = box(-1, extent, extent, 6); relation r on body { coordinate(0) - coordinate(0) = 0; } }",
+        "model m() { parameter extent: m = 7; domain body = box(-1, extent, extent, 6); relation r on body { coordinate(0) - coordinate(0) = 0; } }",
         codes::INVALID_KERNEL_DEFINITION,
         "resolves to non-finite, equal, or reversed bounds",
     );
     assert_compile_rejected_with(
-        "model m { parameter extent: m = 1; domain a = box(0, extent); domain b = box(0, extent); relation r on a { coordinate(0) - coordinate(0) = 0; } }",
+        "model m() { parameter extent: m = 1; domain a = box(0, extent); domain b = box(0, extent); relation r on a { coordinate(0) - coordinate(0) = 0; } }",
         codes::INVALID_KERNEL_DEFINITION,
         "is already owned by Domain",
     );

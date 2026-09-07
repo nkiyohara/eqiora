@@ -332,7 +332,7 @@ mod tests {
             QualifiedName::parse("Main").expect("declaration"),
             DeclarationKindV1::Model,
             VisibilityV1::Public,
-            CanonicalDeclaration::new("model Main {}\n").expect("canonical"),
+            CanonicalDeclaration::new("model Main() {}\n").expect("canonical"),
         )])
         .expect("semantic");
         let make = |bytes: &[u8]| {
@@ -347,8 +347,8 @@ mod tests {
             )
             .expect("release")
         };
-        let compact = make(b"model Main {}\n");
-        let formatted = make(b"model   Main { }\n");
+        let compact = make(b"model Main() {}\n");
+        let formatted = make(b"model   Main() { }\n");
         assert_eq!(compact.package_identity(), formatted.package_identity());
         assert_ne!(compact.source_digest(), formatted.source_digest());
         assert_eq!(
@@ -384,7 +384,7 @@ mod tests {
             QualifiedName::parse("Main").expect("declaration"),
             DeclarationKindV1::Model,
             VisibilityV1::Public,
-            CanonicalDeclaration::new("model Main {}\n").expect("canonical"),
+            CanonicalDeclaration::new("model Main() {}\n").expect("canonical"),
         )])
         .expect("semantic");
         let first = PackageReleaseV1::new(
@@ -393,7 +393,7 @@ mod tests {
             vec![SourceFileV1::new(
                 source_a,
                 BundleRoleV1::ModelSource,
-                b"model Main {}\n".to_vec(),
+                b"model Main() {}\n".to_vec(),
             )],
         )
         .expect("release");
@@ -404,7 +404,7 @@ mod tests {
                 SourceFileV1::new(
                     source_b,
                     BundleRoleV1::ModelSource,
-                    b"model Main {}\n".to_vec(),
+                    b"model Main() {}\n".to_vec(),
                 ),
                 SourceFileV1::new(
                     docs,
@@ -434,13 +434,13 @@ mod tests {
                 QualifiedName::parse("Main").expect("declaration"),
                 DeclarationKindV1::Model,
                 VisibilityV1::Private,
-                CanonicalDeclaration::new("model Main {}\n").expect("canonical"),
+                CanonicalDeclaration::new("model Main() {}\n").expect("canonical"),
             )])
             .expect("semantic"),
             vec![SourceFileV1::new(
                 path,
                 BundleRoleV1::ModelSource,
-                b"model Main {}\n".to_vec(),
+                b"model Main() {}\n".to_vec(),
             )],
         )
         .expect("release");

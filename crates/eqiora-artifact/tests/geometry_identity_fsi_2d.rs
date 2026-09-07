@@ -19,7 +19,7 @@ const MODEL: &str = include_str!(
 );
 
 const REPLAYABLE_GEOMETRY_MODEL: &str = r#"
-model Main {
+model Main() {
   domain left = box(0, 1, 0, 1);
   domain left_x_lower = boundary(left, axis = 0, side = lower);
   domain left_x_upper = boundary(left, axis = 0, side = upper);
@@ -454,10 +454,7 @@ fn geometry_identity_falsifiers_fail_closed() {
         first["facet_indices"].as_array_mut().unwrap().pop();
     });
 
-    let same_side_model = MODEL.replace(
-        "support face = solid_x_lower",
-        "support face = solid_x_upper",
-    );
+    let same_side_model = MODEL.replace("face = solid_x_lower", "face = solid_x_upper");
     assert!(
         compile("same-side-interface.eqi", &same_side_model).is_err(),
         "equal-facing or noncoincident Connection sides must fail before Model exposure"

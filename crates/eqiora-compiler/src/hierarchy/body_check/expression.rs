@@ -1,4 +1,6 @@
 mod aliases;
+mod transitions;
+pub(in crate::hierarchy) use aliases::DependencyActivation;
 pub(super) use aliases::{AliasContract, validate_aliases};
 
 use eqiora_core::diagnostic::codes;
@@ -32,6 +34,8 @@ pub(super) fn validate_initial_expression(
         intrinsic: false,
         alias_dependencies: Vec::new(),
         evolution: Vec::new(),
+        contextual: Vec::new(),
+        sampling: false,
     };
     let errors: Vec<_> = declaration
         .equations()
@@ -96,6 +100,8 @@ pub(super) fn validate_relation_expression(
         intrinsic: false,
         alias_dependencies: Vec::new(),
         evolution: Vec::new(),
+        contextual: Vec::new(),
+        sampling: false,
     };
     for equation in declaration.equations() {
         let inferred = match checker.check_equation(equation) {
@@ -167,6 +173,8 @@ pub(super) fn validate_relation_family_expression(
         intrinsic: false,
         alias_dependencies: Vec::new(),
         evolution: Vec::new(),
+        contextual: Vec::new(),
+        sampling: false,
     };
     for equation in relation.equations() {
         let inferred = match checker.check_equation(equation) {
@@ -198,6 +206,8 @@ struct ExpressionChecker<'a, 'e, 'd> {
     intrinsic: bool,
     alias_dependencies: Vec<std::sync::Arc<AliasContract>>,
     evolution: Vec<aliases::EvolutionRequirement>,
+    contextual: Vec<Expr>,
+    sampling: bool,
 }
 
 impl ExpressionChecker<'_, '_, '_> {
@@ -353,9 +363,49 @@ impl ExpressionChecker<'_, '_, '_> {
         contract: SymbolContract,
     ) -> Result<ExpressionType<String>, Diagnostic> {
         match contract {
-            SymbolContract::Field(inferred, ..) | SymbolContract::Parameter(inferred) => Ok(inferred),
+            SymbolContract::Field(inferred, role, activation) => {
+                if self.sampling && activation != ActivationSyntax::Continuous {
+                    return Err(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.scope.file,
+                        expression.range(),
+                        "sample operand must be continuous",
+                    ));
+                }
+                if role == eqiora_lang::FieldRoleSyntax::Variable
+                    && matches!(activation, ActivationSyntax::Periodic(_))
+                {
+                    if self.intrinsic {
+                        self.contextual.push(expression.clone());
+                    } else if self.initial
+                        || !self.scope.activation_matches(&activation, self.activation)
+                    {
+                        return Err(source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            self.scope.file,
+                            expression.range(),
+                            "clocked Variable read requires its exact declared activation",
+                        ));
+                    }
+                }
+                Ok(inferred)
+            }
+            SymbolContract::Parameter(inferred) => Ok(inferred),
             SymbolContract::Alias(alias) => self.use_alias(alias),
-            SymbolContract::Port(contract) => contract.expression_type().ok_or_else(|| {
+            SymbolContract::Port(contract) => {
+                if let PortContract::Signal { activation, .. } = &contract {
+                    if self.intrinsic {
+                        self.contextual.push(expression.clone());
+                    } else if !self.scope.activation_matches(activation, self.activation) {
+                        return Err(source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            self.scope.file,
+                            expression.range(),
+                            "signal Port read requires its exact declared activation; use an explicit transition",
+                        ));
+                    }
+                }
+                contract.expression_type().ok_or_else(|| {
                 source_error(
                     codes::LANGUAGE_TYPE_ERROR,
                     self.scope.file,
@@ -364,7 +414,8 @@ impl ExpressionChecker<'_, '_, '_> {
                         "scalar physical Port `{display}` must be read as `across({display})` or `through({display})`"
                     ),
                 )
-            }),
+            })
+            }
             SymbolContract::PortFamily(_) => Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 self.scope.file,
@@ -393,6 +444,32 @@ impl ExpressionChecker<'_, '_, '_> {
         arguments: &[Expr],
     ) -> Result<ExpressionType<String>, Diagnostic> {
         let callee_name = callee.as_str();
+        if callee_name == "period" {
+            let [argument] = arguments else {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.scope.file,
+                    expression.range(),
+                    "period requires one clock name",
+                ));
+            };
+            if !matches!(argument.kind(),ExprKind::Name(name) if matches!(self.scope.symbols.get(name),Some(SymbolContract::Clock)))
+            {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.scope.file,
+                    argument.range(),
+                    "period requires one declared periodic clock",
+                ));
+            }
+            return Ok(ExpressionType::new(
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, time_dimension()),
+                None,
+            ));
+        }
+        if matches!(callee_name, "sample" | "hold") {
+            return self.check_transition(expression, callee_name, arguments);
+        }
         if callee_name == "sin" {
             return Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,

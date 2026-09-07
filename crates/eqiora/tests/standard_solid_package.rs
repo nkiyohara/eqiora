@@ -285,11 +285,12 @@ public material composition ReferenceMaterial {{
             String::new(),
             format!(
                 r#"  instance governing: solid.{component}(
-    support body = body,
-    support exterior = boundaries(x_lower, x_upper, y_lower, y_upper),
-    field displacement = displacement,
-    field load_potential = load_potential,
-    material = ReferenceMaterial
+    body = body,
+    exterior = boundaries(x_lower, x_upper, y_lower, y_upper),
+    displacement = displacement,
+    load_potential = load_potential,
+    young_modulus = ReferenceMaterial.young_modulus,
+    poisson_ratio = ReferenceMaterial.poisson_ratio
   );"#
             ),
         )
@@ -304,16 +305,16 @@ public material composition ReferenceMaterial {{
                 "  parameter shear_modulus: kg / (m * s ^ 2) = 48;\n  parameter first_lame_parameter: kg / (m * s ^ 2) = {lambda};"
             ),
             r#"  instance balance: solid.IsotropicBalance2d(
-    support body = body,
-    field displacement = displacement,
-    field load_potential = load_potential,
+    body = body,
+    displacement = displacement,
+    load_potential = load_potential,
     shear_modulus = shear_modulus,
     first_lame_parameter = first_lame_parameter
   );
   instance interface: solid.DisplacementTractionInterface2d(
-    support body = body,
-    support exterior = boundaries(x_lower, x_upper, y_lower, y_upper),
-    field displacement = displacement,
+    body = body,
+    exterior = boundaries(x_lower, x_upper, y_lower, y_upper),
+    displacement = displacement,
     shear_modulus = shear_modulus,
     first_lame_parameter = first_lame_parameter
   );"#
@@ -343,29 +344,29 @@ public material composition ReferenceMaterial {{
   }
 "#,
             r#"  instance x_lower_condition: solid.PrescribedDisplacement2d(
-    support body = body,
-    support face = x_lower,
-    field displacement = boundary_displacement
+    body = body,
+    face = x_lower,
+    displacement = boundary_displacement
   );"#,
             r#"  instance x_upper_condition: solid.PrescribedTraction2d(
-    support body = body,
-    support face = x_upper,
-    field traction = boundary_traction
+    body = body,
+    face = x_upper,
+    traction = boundary_traction
   );"#,
         )
     } else {
         (
             "",
             r#"  instance x_lower_condition: solid.FixedDisplacement2d(
-    support body = body, support face = x_lower
+    body = body, face = x_lower
   );"#,
             r#"  instance x_upper_condition: solid.TractionFree2d(
-    support body = body, support face = x_upper
+    body = body, face = x_upper
   );"#,
         )
     };
     format!(
-        r#"{preamble}model Main {{
+        r#"{preamble}model Main() {{
   domain body = box(0, 4, 0, 2);
   domain x_lower = boundary(body, axis = 0, side = lower);
   domain x_upper = boundary(body, axis = 0, side = upper);
@@ -384,10 +385,10 @@ public material composition ReferenceMaterial {{
 {x_lower_condition}
 {x_upper_condition}
   instance y_lower_condition: solid.TractionFree2d(
-    support body = body, support face = y_lower
+    body = body, face = y_lower
   );
   instance y_upper_condition: solid.TractionFree2d(
-    support body = body, support face = y_upper
+    body = body, face = y_upper
   );
 
   connect conserving {interface}.mechanical[boundary = x_lower],

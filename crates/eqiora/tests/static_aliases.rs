@@ -8,21 +8,23 @@ use eqiora::sem::{Interpreter, KernelProgram, ReferenceConfig};
 use eqiora::{DimExponents, DynQuantity};
 
 const ALIASES: &str = r#"
-component Polynomial() {
-  public parameter x: 1;
-  public parameter y: 1;
+component Polynomial(
+  parameter x: 1,
+  parameter y: 1
+) {
   let f = z * y;
   let z = x * x;
   variable output: 1;
   relation balance { output = f; }
 }
-component Wrapper() {
-  public parameter a: 1;
-  public parameter b: 1;
+component Wrapper(
+  parameter a: 1,
+  parameter b: 1
+) {
   let shifted = a + 1;
   instance poly: Polynomial(x = shifted, y = b);
 }
-model M {
+model M() {
   parameter x: 1 = 2;
   parameter y: 1 = 3;
   instance direct: Polynomial(x = x, y = y);

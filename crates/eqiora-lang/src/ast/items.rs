@@ -2,8 +2,7 @@
 
 use super::*;
 
-/// Component signature requirements and private implementation declarations.
-/// Parameter, Port, and property interface convergence is owned by its later slice.
+/// Private Component implementation declarations.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ComponentItem {
@@ -15,12 +14,6 @@ pub enum ComponentItem {
     Port(ComponentPortDecl),
     /// Field-physical Port family over one complete exterior.
     PortFamily(ComponentPortFamilyDecl),
-    /// Required occurrence-bound spatial support.
-    Support(SupportSlotDecl),
-    /// Exact borrowed unknown requirement in the Component signature.
-    FieldRequirement(FieldDecl),
-    /// Exact nominal clock requirement in the Component signature.
-    ClockRequirement(ClockRequirementDecl),
     /// Private mutable state.
     Field(FieldDecl),
     /// Simultaneous fresh initialization, owned by this occurrence.
@@ -63,8 +56,6 @@ pub enum Item {
     Connection(ConnectionDecl),
     /// Conserving connection containing exact boundary-member selectors.
     BoundaryConnection(BoundaryConnectionDecl),
-    /// Public model Port list.
-    Boundary(BoundaryDecl),
     /// Compile-time component instance.
     Instance(InstanceDecl),
 }

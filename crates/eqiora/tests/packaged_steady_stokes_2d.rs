@@ -4,7 +4,7 @@ use eqiora::api::ModelDocument;
 use eqiora::artifact::ModelEnvelope;
 use eqiora::diagnostic::codes;
 use eqiora::kernel::BoundarySide;
-use eqiora::language::{ComponentItem, DomainSyntax, Item};
+use eqiora::language::{ComponentItem, DomainSyntax, Item, SignatureItem};
 use eqiora::package::{
     BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
     PackageCompilationRecordV2, PackageDependencyV1, PackageManifestV1, PackageReleaseV1,
@@ -439,28 +439,28 @@ fn assert_component_and_root_boundaries() {
     assert_eq!(component.components().len(), 1);
     let component = &component.components()[0];
     assert_eq!(component.name(), "SteadyStokesWithPotential2d");
-    assert_eq!(component.items().len(), 7);
+    assert_eq!(component.signature().len() + component.items().len(), 7);
     assert_eq!(
         component
-            .items()
+            .signature()
             .iter()
-            .filter(|item| matches!(item, ComponentItem::Support(_)))
+            .filter(|item| matches!(item, SignatureItem::Support(_)))
             .count(),
         1
     );
     assert_eq!(
         component
-            .items()
+            .signature()
             .iter()
-            .filter(|item| matches!(item, ComponentItem::FieldRequirement(_)))
+            .filter(|item| matches!(item, SignatureItem::Field(_)))
             .count(),
         3
     );
     assert_eq!(
         component
-            .items()
+            .signature()
             .iter()
-            .filter(|item| matches!(item, ComponentItem::Parameter(_)))
+            .filter(|item| matches!(item, SignatureItem::Parameter(_)))
             .count(),
         1
     );
@@ -885,8 +885,8 @@ fn canonical_stokes_recognizer_rejects_semantic_near_misses() {
 
     let distinct_support = DIRECT
         .replace(
-            "model Main {",
-            "model Main { domain peer = box(0, 1, 0, 1);",
+            "model Main() {",
+            "model Main() { domain peer = box(0, 1, 0, 1);",
         )
         .replace(
             "variable pressure: kg / (m * s ^ 2) on body;",
@@ -895,10 +895,7 @@ fn canonical_stokes_recognizer_rejects_semantic_near_misses() {
     assert_model_or_lowering_rejects(&distinct_support);
 
     let component = component_release();
-    let misbound = PACKAGED.replace(
-        "field pressure = pressure,",
-        "field pressure = force_potential,",
-    );
+    let misbound = PACKAGED.replace("pressure = pressure,", "pressure = force_potential,");
     let root = root_release(&component, "fluid", &misbound, false);
     let (packaged, _) = compile_locked(&component, &root);
     let diagnostic = lower_steady_incompressible_stokes_cartesian_2d(packaged.model().program())

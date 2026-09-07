@@ -317,7 +317,7 @@ mod tests {
     use super::lower_dimension;
 
     fn parameter_dimension(source: &str) -> eqiora_core::DimExponents {
-        let source = format!("model M {{ parameter value: {source} = 1; }}");
+        let source = format!("model M() {{ parameter value: {source} = 1; }}");
         let document = parse("dimension.eqi", &source)
             .into_document()
             .expect("dimension source parses");
@@ -368,7 +368,7 @@ mod tests {
     #[test]
     fn coherent_aliases_compile_across_model_declarations() {
         let source = r#"
-model Catalog {
+model Catalog() {
   parameter length: m = 2;
   parameter force: N = 3;
   parameter duration: s = 1;
@@ -398,12 +398,12 @@ dimension Speed = m / s;
 dimension Momentum = N * s;
 
 connector Motion = scalar_physical(across = Speed, through = Momentum);
-component Law() {
-  public parameter target: Speed;
-  public port input: signal input Speed;
+component Law(parameter target: Speed, input input: Speed) {
+  
+  
   relation balance { input - target = 0; }
 }
-model Example {
+model Example() {
   parameter target: Speed = 2[m / s];
   let doubled: Speed = target * 2;
   variable velocity: Speed; initial { velocity = 0; }
@@ -450,52 +450,52 @@ model Example {
         for (case, source, message) in [
             (
                 "forward",
-                "dimension A1 = B1; dimension B1 = m; model M { variable x: A1; initial { x = 0; } }",
+                "dimension A1 = B1; dimension B1 = m; model M() { variable x: A1; initial { x = 0; } }",
                 "forward or self reference",
             ),
             (
                 "self",
-                "dimension A1 = A1; model M { variable x: A1; initial { x = 0; } }",
+                "dimension A1 = A1; model M() { variable x: A1; initial { x = 0; } }",
                 "forward or self reference",
             ),
             (
                 "duplicate",
-                "dimension D = m; dimension D = s; model M { variable x: D; initial { x = 0; } }",
+                "dimension D = m; dimension D = s; model M() { variable x: D; initial { x = 0; } }",
                 "duplicate dimension alias",
             ),
             (
                 "builtin",
-                "dimension Pa = m; model M { variable x: Pa; initial { x = 0; } }",
+                "dimension Pa = m; model M() { variable x: Pa; initial { x = 0; } }",
                 "cannot shadow",
             ),
             (
                 "unknown",
-                "dimension D = Missing; model M { variable x: D; initial { x = 0; } }",
+                "dimension D = Missing; model M() { variable x: D; initial { x = 0; } }",
                 "unknown coherent-SI dimension symbol or alias",
             ),
             (
                 "overflow",
-                "dimension D = m ^ 2147483647 * m; model M { variable x: D; initial { x = 0; } }",
+                "dimension D = m ^ 2147483647 * m; model M() { variable x: D; initial { x = 0; } }",
                 "exceeds rational exponent bounds",
             ),
             (
                 "denominator-overflow",
-                "dimension D = (m ^ (1 / 2147483647)) ^ (1 / 2); model M { variable x: D; initial { x = 0; } }",
+                "dimension D = (m ^ (1 / 2147483647)) ^ (1 / 2); model M() { variable x: D; initial { x = 0; } }",
                 "exceeds rational exponent bounds",
             ),
             (
                 "zero-denominator",
-                "dimension D = m ^ (1 / 0); model M { variable x: D; initial { x = 0; } }",
+                "dimension D = m ^ (1 / 0); model M() { variable x: D; initial { x = 0; } }",
                 "positive denominator",
             ),
             (
                 "negative-denominator",
-                "dimension D = m ^ (1 / -2); model M { variable x: D; initial { x = 0; } }",
+                "dimension D = m ^ (1 / -2); model M() { variable x: D; initial { x = 0; } }",
                 "positive denominator",
             ),
             (
                 "malformed",
-                "dimension D = 2; model M { variable x: D; initial { x = 0; } }",
+                "dimension D = 2; model M() { variable x: D; initial { x = 0; } }",
                 "dimension must use",
             ),
         ] {
@@ -524,11 +524,11 @@ property release Reference implements Diffusivity {
   citation = org.example.measurement;
   license = spdx.CC0_1_0;
 }
-public component Diffusion() {
-  public property diffusivity: Diffusivity;
+public component Diffusion(property diffusivity: Diffusivity) {
+  
   relation law { diffusivity = 0; }
 }
-model Main { instance domain: Diffusion(property diffusivity = Reference); }
+model Main() { instance domain: Diffusion(diffusivity = Reference); }
 "#;
         let input = crate::ResolvedHierarchyInput::new(
             namespace.clone(),

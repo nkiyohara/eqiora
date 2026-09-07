@@ -208,14 +208,14 @@ mod tests {
             "2 [Hz ^ (-2 / 4)]",
             "-3 [kg * m / s ^ 2]",
         ] {
-            let source = format!("model M {{ relation value {{ {literal} = 0; }} }}");
+            let source = format!("model M() {{ relation value {{ {literal} = 0; }} }}");
             let document = parse("quantity.eqi", &source).into_document().unwrap();
             let formatted = format(&document);
             let replay = parse("formatted.eqi", &formatted).into_document().unwrap();
             assert_eq!(format(&replay), formatted);
         }
         for literal in ["1 []", "1 [m + s]", "1 [m ^ (1 / 0)]", "1 [m"] {
-            let source = format!("model M {{ relation value {{ {literal} = 0; }} }}");
+            let source = format!("model M() {{ relation value {{ {literal} = 0; }} }}");
             assert!(
                 parse("invalid.eqi", &source).into_document().is_err(),
                 "{source}"
@@ -227,7 +227,7 @@ mod tests {
     fn dimension_resources_reject_before_deep_recursion_or_integer_conversion() {
         let nested = |depth: usize| {
             format!(
-                "dimension D = {}m{}; model M {{}}",
+                "dimension D = {}m{}; model M() {{}}",
                 "(".repeat(depth),
                 ")".repeat(depth)
             )
@@ -236,7 +236,7 @@ mod tests {
         for source in [
             nested(257),
             nested(10_000),
-            format!("dimension D = m ^ {}1; model M {{}}", "0".repeat(256)),
+            format!("dimension D = m ^ {}1; model M() {{}}", "0".repeat(256)),
         ] {
             let parsed = parse("excess.eqi", &source);
             assert!(
@@ -247,7 +247,7 @@ mod tests {
             );
             assert!(parsed.into_document().is_err());
         }
-        let at_limit = format!("dimension D = m ^ {}1; model M {{}}", "0".repeat(255));
+        let at_limit = format!("dimension D = m ^ {}1; model M() {{}}", "0".repeat(255));
         assert!(parse("token-limit.eqi", &at_limit).into_document().is_ok());
     }
 
@@ -263,7 +263,7 @@ mod tests {
             "m ^ (0 / 2147483647)",
             "(m ^ 2) ^ (1 / 2)",
         ] {
-            let source = format!("dimension D = {dimension}; model M {{ parameter x: D = 1; }}");
+            let source = format!("dimension D = {dimension}; model M() {{ parameter x: D = 1; }}");
             let document = parse("dimension.eqi", &source)
                 .into_document()
                 .expect(dimension);
@@ -294,10 +294,10 @@ mod tests {
             "m ^ 2 ^ 3",
         ] {
             for source in [
-                format!("dimension D = {dimension}; model M {{}}"),
-                format!("model M {{ parameter x: {dimension} = 1; }}"),
-                format!("model M {{ let x: {dimension} = 1; }}"),
-                format!("component C() {{ public parameter x: {dimension}; }} model M {{}}"),
+                format!("dimension D = {dimension}; model M() {{}}"),
+                format!("model M() {{ parameter x: {dimension} = 1; }}"),
+                format!("model M() {{ let x: {dimension} = 1; }}"),
+                format!("component C() {{ public parameter x: {dimension}; }} model M() {{}}"),
             ] {
                 assert!(
                     parse("invalid.eqi", &source).into_document().is_err(),

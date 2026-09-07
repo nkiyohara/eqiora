@@ -172,6 +172,7 @@ impl Parser<'_> {
     ) -> Option<ModelDecl> {
         self.expect_keyword("model")?;
         let name = self.expect_identifier("model name")?.text().to_owned();
+        let signature = self.parse_signature()?;
         self.expect(TokenKind::LeftBrace, "`{` after model name")?;
         let mut items = Vec::new();
         while !self.at(TokenKind::RightBrace) && !self.at(TokenKind::Eof) {
@@ -188,6 +189,7 @@ impl Parser<'_> {
             comments: Default::default(),
             visibility,
             name,
+            signature,
             items,
             range: TextRange::new(declaration_start, end),
         })
@@ -247,7 +249,7 @@ mod tests {
 
     #[test]
     fn parser_and_formatter_retain_explicit_import_prefix() {
-        let source = "import org.example.geometry.channel;\nimport org.example.materials.water as fluid;\nmodel Main {}";
+        let source = "import org.example.geometry.channel;\nimport org.example.materials.water as fluid;\nmodel Main() {}";
         let document = parse("main.eqi", source)
             .into_document()
             .expect("module imports parse");
@@ -272,7 +274,7 @@ mod tests {
 
         let misplaced = parse(
             "misplaced.eqi",
-            "model Main {} import org.example.geometry.channel;",
+            "model Main() {} import org.example.geometry.channel;",
         );
         assert!(
             misplaced
@@ -303,7 +305,7 @@ mod tests {
             "expected `import`, `dimension`, `property`, `connector`, `component`, `pure operator`, or `model` declaration"
         );
 
-        let after = parse("after.eqi", "model Main {} unexpected");
+        let after = parse("after.eqi", "model Main() {} unexpected");
         assert_eq!(
             after.diagnostics()[0].message(),
             "expected `dimension`, `property`, `connector`, `component`, `pure operator`, or `model` declaration"

@@ -134,7 +134,7 @@ fn one_poisson_revision_executes_through_two_realization_plans() {
 #[test]
 fn coordinate_axis_is_checked_against_the_relation_domain() {
     let source = r#"
-model invalid_axis {
+model invalid_axis() {
   domain interval = box(0, 1);
 
   variable length: m on interval;
@@ -164,7 +164,7 @@ model invalid_axis {
 #[test]
 fn canonical_coordinate_axis_is_runtime_dimensional() {
     let source = r#"
-model coordinate_plane {
+model coordinate_plane() {
   domain plane = box(0, 1, 0, 2);
 
   variable ordinate: m on plane;

@@ -20,6 +20,7 @@ use super::supports::SupportInterface;
 
 mod component;
 mod expression;
+pub(super) use expression::DependencyActivation;
 mod model;
 mod scope;
 pub(super) use scope::{field_expression_type, resolve_value_shape};
@@ -175,7 +176,7 @@ mod tests {
     #[test]
     fn valid_spatial_contract_is_accepted() {
         let source = r#"
-model Poisson {
+model Poisson() {
   domain body = box(0, 1, 0, 1);
   domain wall = boundary(body, axis = 0, side = lower);
   variable u: 1 on body; initial { u = 0; }
@@ -191,42 +192,42 @@ model Poisson {
         let cases = [
             (
                 "grad parameter",
-                "model M { domain d = box(0,1); parameter p: 1 = 1; relation r on d { grad(p) = 0; } }",
+                "model M() { domain d = box(0,1); parameter p: 1 = 1; relation r on d { grad(p) = 0; } }",
                 "gradient operand has no spatial Domain support",
             ),
             (
                 "div scalar",
-                "model M { domain d = box(0,1); variable u: 1 on d; initial { u = 0; } relation r on d { div(u) = 0; } }",
+                "model M() { domain d = box(0,1); variable u: 1 on d; initial { u = 0; } relation r on d { div(u) = 0; } }",
                 "divergence requires a spatial tensor operand",
             ),
             (
                 "symmetric vector",
-                "model M { domain d = box(0,1,0,1); variable u: vector<1, 2> on d; relation r on d { symmetric_part(u) = 0; } }",
+                "model M() { domain d = box(0,1,0,1); variable u: vector<1, 2> on d; relation r on d { symmetric_part(u) = 0; } }",
                 "symmetric_part requires an exact [d,d] spatial Cartesian tensor",
             ),
             (
                 "symmetric nonsquare",
-                "model M { domain d = box(0,1,0,1); variable a: array<array<1, 3>, 2> on d; relation r on d { symmetric_part(a) = 0; } }",
+                "model M() { domain d = box(0,1,0,1); variable a: array<array<1, 3>, 2> on d; relation r on d { symmetric_part(a) = 0; } }",
                 "symmetric_part requires an exact [d,d] spatial Cartesian tensor",
             ),
             (
                 "lift vector",
-                "model M { domain d = box(0,1,0,1); variable u: vector<1, 2> on d; relation r on d { isotropic_lift(u) = 0; } }",
+                "model M() { domain d = box(0,1,0,1); variable u: vector<1, 2> on d; relation r on d { isotropic_lift(u) = 0; } }",
                 "isotropic_lift requires an invariant scalar",
             ),
             (
                 "lift parameter",
-                "model M { domain d = box(0,1,0,1); parameter p: 1 = 1; relation r on d { isotropic_lift(p) = 0; } }",
+                "model M() { domain d = box(0,1,0,1); parameter p: 1 = 1; relation r on d { isotropic_lift(p) = 0; } }",
                 "isotropic_lift requires a Cartesian volume operand",
             ),
             (
                 "coordinate without domain",
-                "model M { relation r { coordinate(0) = 0; } }",
+                "model M() { relation r { coordinate(0) = 0; } }",
                 "coordinate operator requires a Cartesian Relation scope",
             ),
             (
                 "coordinate outside domain",
-                "model M { domain d = box(0,1); relation r on d { coordinate(1) = 0; } }",
+                "model M() { domain d = box(0,1); relation r on d { coordinate(1) = 0; } }",
                 "coordinate axis 1 is outside Domain dimension 1",
             ),
         ];
@@ -246,27 +247,27 @@ model Poisson {
         let cases = [
             (
                 "mixed domains",
-                "model M { domain a = box(0,1); domain b = box(0,1); variable x: 1 on a; initial { x = 0; } variable y: 1 on b; initial { y = 0; } relation r on a { x + y = 0; } }",
+                "model M() { domain a = box(0,1); domain b = box(0,1); variable x: 1 on a; initial { x = 0; } variable y: 1 on b; initial { y = 0; } relation r on a { x + y = 0; } }",
                 "incompatible supports",
             ),
             (
                 "relation support",
-                "model M { domain d = box(0,1); relation r on d { 1 = 0; } }",
+                "model M() { domain d = box(0,1); relation r on d { 1 = 0; } }",
                 "residual support",
             ),
             (
                 "trace on volume",
-                "model M { domain d = box(0,1); variable u: 1 on d; initial { u = 0; } relation r on d { trace(u) = 0; } }",
+                "model M() { domain d = box(0,1); variable u: 1 on d; initial { u = 0; } relation r on d { trace(u) = 0; } }",
                 "boundary Domain",
             ),
             (
                 "normal scalar",
-                "model M { domain d = box(0,1); domain w = boundary(d, axis = 0, side = lower); variable u: 1 on d; initial { u = 0; } relation r on w { normal(u) = 0; } }",
+                "model M() { domain d = box(0,1); domain w = boundary(d, axis = 0, side = lower); variable u: 1 on d; initial { u = 0; } relation r on w { normal(u) = 0; } }",
                 "normal component requires a spatial tensor",
             ),
             (
                 "nested boundary",
-                "model M { domain d = box(0,1); domain w = boundary(d, axis = 0, side = lower); domain nested = boundary(w, axis = 0, side = lower); relation r { 0 = 0; } }",
+                "model M() { domain d = box(0,1); domain w = boundary(d, axis = 0, side = lower); domain nested = boundary(w, axis = 0, side = lower); relation r { 0 = 0; } }",
                 "Cartesian boundary parent must be a Cartesian box Domain",
             ),
         ];
@@ -291,17 +292,17 @@ model Poisson {
         let cases = [
             (
                 "signal dimensions",
-                "model M { port out: signal output m; port sink: signal input s; connect signal out -> sink; }",
+                "model M() { port out: signal output m; port sink: signal input s; connect out -> sink; }",
                 "dimension-matched inputs",
             ),
             (
                 "signal source",
-                "model M { port out: signal output 1; port sink: signal input 1; connect signal sink -> out; }",
+                "model M() { port out: signal output 1; port sink: signal input 1; connect sink -> out; }",
                 "source before `->`",
             ),
             (
                 "conserving families",
-                "model M { domain d = scalar_physical(across = 1, through = 1); port causal: signal input 1; port physical: conserving on d; connect conserving causal, physical; }",
+                "model M() { domain d = scalar_physical(across = 1, through = 1); port causal: signal input 1; port physical: conserving on d; connect conserving causal, physical; }",
                 "cannot mix",
             ),
         ];
@@ -331,27 +332,27 @@ public connector BoundaryScalar = field_physical(
   frame = invariant,
   pairing = euclidean_boundary_duality
 );
-component BoundaryLaw(support body: volume(ambient_dimension = 1), support exterior: complete_exterior(parent = body)) {
+component BoundaryLaw(support body: volume(ambient_dimension = 1), support exterior: complete_exterior(parent = body), port boundary[side in exterior]: conserving BoundaryScalar over side) {
 
 
-  public port boundary[side in exterior]: conserving BoundaryScalar over side;
+  
 }
-component BoundaryTerminal(support body: volume(ambient_dimension = 1), support face: boundary(parent = body)) {
+component BoundaryTerminal(support body: volume(ambient_dimension = 1), support face: boundary(parent = body), port boundary: conserving BoundaryScalar over face) {
 
 
-  public port boundary: conserving BoundaryScalar over face;
+  
 }
-model M {
+model M() {
   domain body = box(0, 1);
   domain lower = boundary(body, axis = 0, side = lower);
   domain upper = boundary(body, axis = 0, side = upper);
   instance law: BoundaryLaw(
-    support body = body,
-    support exterior = boundaries(lower, upper)
+    body = body,
+    exterior = boundaries(lower, upper)
   );
   instance environment: BoundaryTerminal(
-    support body = body,
-    support face = lower
+    body = body,
+    face = lower
   );
   connect conserving law.boundary[side = lower], environment.boundary;
 }

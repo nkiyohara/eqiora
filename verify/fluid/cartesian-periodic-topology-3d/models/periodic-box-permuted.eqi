@@ -9,16 +9,15 @@ public connector PeriodicBoundary = field_physical(
 public component PeriodicSide3d(
   support body: volume(ambient_dimension = 3),
   support face: boundary(parent = body),
+  port periodic: conserving PeriodicBoundary over face
 ) {
-  public port periodic: conserving PeriodicBoundary over face;
-
   relation carrier on face {
     trace(periodic) - trace(periodic) = 0;
     flux(periodic) - flux(periodic) = 0;
   }
 }
 
-model PeriodicBox3d {
+model PeriodicBox3d() {
   domain z_upper = boundary(body, axis = 2, side = upper);
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain body = box(-2, 3, 1, 8, -1, 10);
@@ -28,28 +27,28 @@ model PeriodicBox3d {
   domain y_upper = boundary(body, axis = 1, side = upper);
 
   instance z_upper_side: PeriodicSide3d(
-    support body = body,
-    support face = z_upper
+    body = body,
+    face = z_upper
   );
   instance x_lower_side: PeriodicSide3d(
-    support body = body,
-    support face = x_lower
+    body = body,
+    face = x_lower
   );
   instance y_upper_side: PeriodicSide3d(
-    support body = body,
-    support face = y_upper
+    body = body,
+    face = y_upper
   );
   instance z_lower_side: PeriodicSide3d(
-    support body = body,
-    support face = z_lower
+    body = body,
+    face = z_lower
   );
   instance y_lower_side: PeriodicSide3d(
-    support body = body,
-    support face = y_lower
+    body = body,
+    face = y_lower
   );
   instance x_upper_side: PeriodicSide3d(
-    support body = body,
-    support face = x_upper
+    body = body,
+    face = x_upper
   );
 
   connect periodic z_upper_side.periodic, z_lower_side.periodic;

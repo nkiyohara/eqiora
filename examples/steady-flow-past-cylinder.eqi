@@ -5,15 +5,14 @@ public component SteadyFlowPastCylinder(
   support inlet: boundary(parent = fluid),
   support outlet: boundary(parent = fluid),
   support walls: boundary(parent = fluid),
-  support cylinder: boundary(parent = fluid)
+  support cylinder: boundary(parent = fluid),
+  // Values supplied when the component is compiled into a Model.
+  parameter dynamic_viscosity: kg / (m * s),
+  parameter zero_pressure: kg / (m * s ^ 2),
+  parameter inlet_speed: m / s,
+  parameter channel_height: m
 ) {
   // Supports name the volume and its semantic boundaries without defining their shape.
-
-  // Values supplied when the component is compiled into a Model.
-  public parameter dynamic_viscosity: kg / (m * s);
-  public parameter zero_pressure: kg / (m * s ^ 2);
-  public parameter inlet_speed: m / s;
-  public parameter channel_height: m;
 
   // Unknown continuum fields live on the fluid volume.
 

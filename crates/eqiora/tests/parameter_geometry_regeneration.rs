@@ -25,7 +25,7 @@ const ORACLE: &[u8] = include_bytes!(
 );
 const TOLERANCE_M: f64 = 1.0e-12;
 const INVALID_TARGETS: &str = r"
-model invalid_targets {
+model invalid_targets() {
   parameter scalar: 1 = 1;
   parameter ordinary_length: m = 1;
   domain body = box(0, 1, 0, 1, 0, 1);
@@ -35,7 +35,7 @@ model invalid_targets {
 }
 ";
 const TWO_DIMENSIONAL: &str = r"
-model planar_parameter_box {
+model planar_parameter_box() {
   parameter extent: m = 2;
   domain body = box(-1, extent, extent, 6);
   relation retain on body {

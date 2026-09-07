@@ -1,4 +1,4 @@
-model Main {
+model Main() {
   domain left = box(0, 0.5, 0, 1);
   domain left_x_lower = boundary(left, axis = 0, side = lower);
   domain left_x_upper = boundary(left, axis = 0, side = upper);
@@ -28,67 +28,67 @@ model Main {
   }
 
   instance left_balance: solid.IsotropicBalanceWithPotential2d(
-    support body = left,
-    field displacement = left_displacement,
-    field load_potential = left_load_potential,
+    body = left,
+    displacement = left_displacement,
+    load_potential = left_load_potential,
     mu = mu_left,
     lambda = 0
   );
   instance right_balance: solid.IsotropicBalanceWithPotential2d(
-    support body = right,
-    field displacement = right_displacement,
-    field load_potential = right_load_potential,
+    body = right,
+    displacement = right_displacement,
+    load_potential = right_load_potential,
     mu = mu_right,
     lambda = 0
   );
   instance left_boundary: solid.IsotropicMechanicalInterface2d(
-    support body = left,
-    support exterior = boundaries(
+    body = left,
+    exterior = boundaries(
       left_x_lower,
       left_x_upper,
       left_y_lower,
       left_y_upper
     ),
-    field displacement = left_displacement,
+    displacement = left_displacement,
     mu = mu_left,
     lambda = 0
   );
   instance right_boundary: solid.IsotropicMechanicalInterface2d(
-    support body = right,
-    support exterior = boundaries(
+    body = right,
+    exterior = boundaries(
       right_x_lower,
       right_x_upper,
       right_y_lower,
       right_y_upper
     ),
-    field displacement = right_displacement,
+    displacement = right_displacement,
     mu = mu_right,
     lambda = 0
   );
 
   instance fixed: solid.FixedDisplacement2d(
-    support body = left,
-    support face = left_x_lower
+    body = left,
+    face = left_x_lower
   );
   instance left_y_lower_free: solid.ZeroTraction2d(
-    support body = left,
-    support face = left_y_lower
+    body = left,
+    face = left_y_lower
   );
   instance left_y_upper_free: solid.ZeroTraction2d(
-    support body = left,
-    support face = left_y_upper
+    body = left,
+    face = left_y_upper
   );
   instance right_x_upper_free: solid.ZeroTraction2d(
-    support body = right,
-    support face = right_x_upper
+    body = right,
+    face = right_x_upper
   );
   instance right_y_lower_free: solid.ZeroTraction2d(
-    support body = right,
-    support face = right_y_lower
+    body = right,
+    face = right_y_lower
   );
   instance right_y_upper_free: solid.ZeroTraction2d(
-    support body = right,
-    support face = right_y_upper
+    body = right,
+    face = right_y_upper
   );
 
   connect conserving left_boundary.mechanical[boundary = left_x_lower],

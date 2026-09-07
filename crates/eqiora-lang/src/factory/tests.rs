@@ -20,7 +20,8 @@ fn path(segments: &[&str]) -> NamePath {
 }
 
 fn private_model(name: &str, items: Vec<Item>) -> crate::ModelDecl {
-    SourceAstFactory::model(VisibilitySyntax::Private, name, items, range(0, 0)).expect("model")
+    SourceAstFactory::model(VisibilitySyntax::Private, name, vec![], items, range(0, 0))
+        .expect("model")
 }
 
 #[test]
@@ -53,6 +54,8 @@ fn owned_flat_model_formats_and_parses_identically() {
     let output = SourceAstFactory::port(
         "output",
         PortSyntax::Signal {
+            domain: None,
+            activation: ActivationSyntax::Continuous,
             direction: SignalDirectionSyntax::Output,
             value_type: crate::ValueTypeSyntax::real(dimension()),
         },
@@ -62,6 +65,8 @@ fn owned_flat_model_formats_and_parses_identically() {
     let input = SourceAstFactory::port(
         "input",
         PortSyntax::Signal {
+            domain: None,
+            activation: ActivationSyntax::Continuous,
             direction: SignalDirectionSyntax::Input,
             value_type: crate::ValueTypeSyntax::real(dimension()),
         },
@@ -106,9 +111,7 @@ fn owned_flat_model_formats_and_parses_identically() {
         range(0, 0),
     )
     .expect("Connection");
-    let boundary =
-        SourceAstFactory::boundary(vec![path(&["input"])], range(0, 0)).expect("boundary");
-    let binding = SourceAstFactory::parameter_binding(
+    let binding = SourceAstFactory::named_binding(
         "gain",
         SourceAstFactory::expression(ExprKind::Number(3.0), range(0, 0)).expect("binding value"),
         range(0, 0),
@@ -120,6 +123,7 @@ fn owned_flat_model_formats_and_parses_identically() {
     let model = SourceAstFactory::model(
         VisibilitySyntax::Private,
         "constructed",
+        vec![],
         vec![
             Item::Domain(domain),
             Item::Field(field),
@@ -129,7 +133,6 @@ fn owned_flat_model_formats_and_parses_identically() {
             Item::Clock(clock),
             Item::Relation(relation),
             Item::Connection(connection),
-            Item::Boundary(boundary),
             Item::Instance(instance),
         ],
         range(0, 0),
@@ -168,7 +171,8 @@ fn owned_declaration_only_document_preserves_package_visibility() {
     let component = SourceAstFactory::component(
         VisibilitySyntax::Public,
         "Resistor",
-        vec![ComponentItem::Parameter(resistance)],
+        vec![crate::SignatureItem::Parameter(resistance)],
+        vec![],
         range(0, 0),
     )
     .expect("component");
@@ -271,18 +275,22 @@ fn owned_support_slots_and_bindings_format_and_parse_identically() {
         VisibilitySyntax::Private,
         "BoundaryState",
         vec![
-            ComponentItem::Support(body),
-            ComponentItem::Support(interface),
+            crate::SignatureItem::Support(body),
+            crate::SignatureItem::Support(interface),
         ],
+        vec![],
         range(0, 0),
     )
     .expect("component");
-    let support =
-        SourceAstFactory::support_binding("body", "fluid", range(0, 0)).expect("support binding");
-    let instance = SourceAstFactory::instance_with_support_bindings(
+    let support = SourceAstFactory::named_binding(
+        "body",
+        SourceAstFactory::expression(ExprKind::Name("fluid".into()), range(0, 0)).unwrap(),
+        range(0, 0),
+    )
+    .expect("support binding");
+    let instance = SourceAstFactory::instance(
         "probe",
         path(&["BoundaryState"]),
-        Vec::new(),
         vec![support],
         range(0, 0),
     )
@@ -300,8 +308,10 @@ fn owned_support_slots_and_bindings_format_and_parse_identically() {
     let Item::Instance(instance) = &reparsed.models()[0].items()[0] else {
         panic!("model member is an instance");
     };
-    assert!(instance.bindings().is_empty());
-    assert_eq!(instance.support_bindings()[0].target(), "fluid");
+    assert_eq!(instance.bindings().len(), 1);
+    assert!(
+        matches!(instance.bindings()[0].value().kind(), ExprKind::Name(name) if name == "fluid")
+    );
 }
 
 #[test]
@@ -335,22 +345,29 @@ fn owned_field_slots_and_bindings_format_and_parse_identically() {
         VisibilitySyntax::Private,
         "StateLaw",
         vec![
-            ComponentItem::Support(body),
-            ComponentItem::FieldRequirement(state),
+            crate::SignatureItem::Support(body),
+            crate::SignatureItem::Field(state),
         ],
+        vec![],
         range(0, 0),
     )
     .expect("component");
-    let support =
-        SourceAstFactory::support_binding("body", "region", range(0, 0)).expect("support binding");
-    let field = SourceAstFactory::field_binding("state", "temperature", range(0, 0))
-        .expect("Field binding");
-    let instance = SourceAstFactory::instance_with_slot_bindings(
+    let support = SourceAstFactory::named_binding(
+        "body",
+        SourceAstFactory::expression(ExprKind::Name("region".into()), range(0, 0)).unwrap(),
+        range(0, 0),
+    )
+    .expect("support binding");
+    let field = SourceAstFactory::named_binding(
+        "state",
+        SourceAstFactory::expression(ExprKind::Name("temperature".into()), range(0, 0)).unwrap(),
+        range(0, 0),
+    )
+    .expect("Field binding");
+    let instance = SourceAstFactory::instance(
         "law",
         path(&["StateLaw"]),
-        Vec::new(),
-        vec![support],
-        vec![field],
+        vec![support, field],
         range(0, 0),
     )
     .expect("slot-aware instance");
@@ -364,14 +381,16 @@ fn owned_field_slots_and_bindings_format_and_parse_identically() {
         .expect("factory Field-slot source parses");
 
     assert_eq!(format(&reparsed), source);
-    let ComponentItem::FieldRequirement(slot) = &reparsed.components()[0].items()[1] else {
+    let crate::SignatureItem::Field(slot) = &reparsed.components()[0].signature()[1] else {
         panic!("second component member is a Field slot");
     };
     assert_eq!(slot.domain(), Some("body"));
     let Item::Instance(instance) = &reparsed.models()[0].items()[0] else {
         panic!("model member is an instance");
     };
-    assert_eq!(instance.field_bindings()[0].target(), "temperature");
+    assert!(
+        matches!(instance.bindings()[1].value().kind(), ExprKind::Name(name) if name == "temperature")
+    );
 }
 
 #[test]
@@ -481,6 +500,7 @@ fn factory_constructs_closed_field_physical_source_shapes() {
     let model = SourceAstFactory::model(
         VisibilitySyntax::Private,
         "coupled",
+        vec![],
         vec![Item::Field(field), Item::Port(port)],
         range(0, 0),
     )
@@ -593,9 +613,11 @@ fn factory_constructs_complete_exterior_families_and_roundtrips() {
         VisibilitySyntax::Private,
         "BoundaryLaw",
         vec![
-            ComponentItem::Support(body),
-            ComponentItem::Support(exterior),
-            ComponentItem::PortFamily(port_family),
+            crate::SignatureItem::Support(body),
+            crate::SignatureItem::Support(exterior),
+            crate::SignatureItem::PortFamily(port_family),
+        ],
+        vec![
             ComponentItem::RelationFamily(relation_family),
             ComponentItem::BoundaryConnection(connection),
         ],
@@ -605,24 +627,31 @@ fn factory_constructs_complete_exterior_families_and_roundtrips() {
 
     let members = ["x_lower", "x_upper", "y_lower", "y_upper"]
         .into_iter()
-        .map(|member| {
-            SourceAstFactory::boundary_set_member(member, range(0, 0)).expect("boundary member")
-        })
+        .map(|name| SourceAstFactory::expression(ExprKind::Name(name.into()), range(0, 0)).unwrap())
         .collect();
-    let exterior_binding = SourceAstFactory::boundary_set_binding("exterior", members, range(0, 0))
-        .expect("boundary-set binding");
-    let instance = SourceAstFactory::instance_with_boundary_set_bindings(
-        "law",
-        path(&["BoundaryLaw"]),
-        Vec::new(),
-        vec![
-            SourceAstFactory::support_binding("body", "fluid", range(0, 0)).expect("body binding"),
-        ],
-        vec![exterior_binding],
-        Vec::new(),
+    let exterior = SourceAstFactory::expression(
+        ExprKind::Call {
+            callee: path(&["boundaries"]),
+            arguments: members,
+        },
         range(0, 0),
     )
-    .expect("family-aware instance");
+    .unwrap();
+    let instance = SourceAstFactory::instance(
+        "law",
+        path(&["BoundaryLaw"]),
+        vec![
+            SourceAstFactory::named_binding(
+                "body",
+                SourceAstFactory::expression(ExprKind::Name("fluid".into()), range(0, 0)).unwrap(),
+                range(0, 0),
+            )
+            .unwrap(),
+            SourceAstFactory::named_binding("exterior", exterior, range(0, 0)).unwrap(),
+        ],
+        range(0, 0),
+    )
+    .unwrap();
     let model = private_model("coupled", vec![Item::Instance(instance)]);
     let document =
         SourceAstFactory::document(Vec::new(), vec![component], vec![model]).expect("document");
@@ -635,12 +664,16 @@ fn factory_constructs_complete_exterior_families_and_roundtrips() {
     let Item::Instance(instance) = &reparsed.models()[0].items()[0] else {
         panic!("model member is an instance");
     };
-    assert_eq!(instance.boundary_set_bindings()[0].members().len(), 4);
+    assert!(
+        matches!(instance.bindings()[1].value().kind(), ExprKind::Call { arguments, .. } if arguments.len() == 4)
+    );
 
     let signal_port = SourceAstFactory::component_port(
         VisibilitySyntax::Public,
         "signal",
         PortSyntax::Signal {
+            domain: None,
+            activation: ActivationSyntax::Continuous,
             direction: SignalDirectionSyntax::Input,
             value_type: crate::ValueTypeSyntax::real(dimension()),
         },
@@ -676,7 +709,17 @@ fn construction_rejects_unrepresentable_source_shapes() {
         )
         .is_err()
     );
-    assert!(SourceAstFactory::support_binding("body", "not-valid", range(0, 0)).is_err());
+    assert!(
+        SourceAstFactory::named_binding(
+            "body",
+            crate::Expr {
+                kind: ExprKind::Name("not-valid".into()),
+                range: range(0, 0)
+            },
+            range(0, 0)
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -694,6 +737,7 @@ fn spatial_periodic_connection_is_closed_model_only() {
     let error = SourceAstFactory::component(
         VisibilitySyntax::Private,
         "InvalidPeriodicComponent",
+        vec![],
         vec![ComponentItem::BoundaryConnection(connection)],
         range(0, 0),
     )

@@ -11,10 +11,9 @@ public component PeriodicTransportSide2d(
   support face: boundary(parent = body),
   variable concentration: K on body,
   variable flow_potential: m ^ 2 / s on body,
+  parameter diffusivity: m ^ 2 / s,
+  port transport: conserving ScalarTransportBoundary over face
 ) {
-  public parameter diffusivity: m ^ 2 / s;
-  public port transport: conserving ScalarTransportBoundary over face;
-
   relation periodic_binding on face {
     trace(concentration) - trace(transport) = 0;
     normal(
@@ -24,7 +23,7 @@ public component PeriodicTransportSide2d(
   }
 }
 
-model Main {
+model Main() {
   domain body = box(0, 1, 0, 1);
   domain x_lower = boundary(body, axis = 0, side = lower);
   domain x_upper = boundary(body, axis = 0, side = upper);
@@ -45,17 +44,17 @@ model Main {
       - div(diffusivity * grad(concentration)) = 0;
   }
   instance x_lower_periodic: PeriodicTransportSide2d(
-    support body = body,
-    support face = x_lower,
-    field concentration = concentration,
-    field flow_potential = flow_potential,
+    body = body,
+    face = x_lower,
+    concentration = concentration,
+    flow_potential = flow_potential,
     diffusivity = diffusivity
   );
   instance x_upper_periodic: PeriodicTransportSide2d(
-    support body = body,
-    support face = x_upper,
-    field concentration = concentration,
-    field flow_potential = flow_potential,
+    body = body,
+    face = x_upper,
+    concentration = concentration,
+    flow_potential = flow_potential,
     diffusivity = diffusivity
   );
   relation y_lower_trace on y_lower {

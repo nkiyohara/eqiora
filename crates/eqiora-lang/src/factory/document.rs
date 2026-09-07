@@ -16,13 +16,16 @@ impl SourceAstFactory {
     pub fn model(
         visibility: VisibilitySyntax,
         name: impl Into<String>,
+        signature: Vec<crate::SignatureItem>,
         items: Vec<Item>,
         range: TextRange,
     ) -> Result<ModelDecl, AstConstructionError> {
+        super::signature::validate_signature(&signature)?;
         Ok(ModelDecl {
             comments: Default::default(),
             visibility,
             name: checked_identifier(name, "model")?,
+            signature,
             items,
             range: checked_range(range)?,
         })
@@ -201,7 +204,7 @@ mod tests {
     #[test]
     fn checked_factory_adds_one_canonical_module_import_prefix() {
         let range = TextRange::new(0, 0);
-        let document = parse("main.eqi", "model Main {}")
+        let document = parse("main.eqi", "model Main() {}")
             .into_document()
             .expect("base document");
         let document = SourceAstFactory::with_import(
@@ -213,7 +216,7 @@ mod tests {
         .expect("checked import");
         assert_eq!(
             format(&document),
-            "import library.parts as lib;\n\nmodel Main {\n}\n"
+            "import library.parts as lib;\n\nmodel Main() {\n}\n"
         );
 
         assert!(
@@ -227,7 +230,9 @@ mod tests {
         );
 
         let implicit = SourceAstFactory::with_import(
-            parse("main.eqi", "model Main {}").into_document().unwrap(),
+            parse("main.eqi", "model Main() {}")
+                .into_document()
+                .unwrap(),
             NamePath::from_segments(["org", "example", "parts"], range).unwrap(),
             None,
             range,
@@ -235,7 +240,7 @@ mod tests {
         .expect("implicit final-segment alias");
         assert_eq!(
             format(&implicit),
-            "import org.example.parts;\n\nmodel Main {\n}\n"
+            "import org.example.parts;\n\nmodel Main() {\n}\n"
         );
     }
 }

@@ -2,50 +2,16 @@
 
 use crate::ast::formulation::FormulationDecl;
 use crate::ast::{
-    ComponentDecl, ComponentItem, ConnectionSyntax, Expr, InstanceDecl, TextRange, VisibilitySyntax,
+    ComponentDecl, ComponentItem, ConnectionSyntax, Expr, TextRange, VisibilitySyntax,
 };
 
 use super::{
     AstConstructionError, SourceAstFactory, checked_identifier, checked_range,
     validate_boundary_connection, validate_boundary_family_binder, validate_expression,
-    validate_identifier, validate_port_syntax,
+    validate_port_syntax,
 };
 
 impl SourceAstFactory {
-    /// Construct an exact borrowed-clock binding.
-    ///
-    /// # Errors
-    /// Rejects malformed slot and target identifiers or byte ranges.
-    pub fn clock_binding(
-        slot: impl Into<String>,
-        target: impl Into<String>,
-        range: TextRange,
-    ) -> Result<crate::ClockBindingDecl, AstConstructionError> {
-        Ok(crate::ClockBindingDecl {
-            comments: Default::default(),
-            slot: checked_identifier(slot, "Clock binding slot")?,
-            target: checked_identifier(target, "Clock binding target")?,
-            range: checked_range(range)?,
-        })
-    }
-
-    /// Attach the complete exact-clock binding list to an instance.
-    ///
-    /// # Errors
-    /// Rejects malformed identifiers or byte ranges.
-    pub fn bind_clocks(
-        mut instance: InstanceDecl,
-        bindings: Vec<crate::ClockBindingDecl>,
-    ) -> Result<InstanceDecl, AstConstructionError> {
-        for binding in &bindings {
-            validate_identifier(binding.slot(), "Clock binding slot")?;
-            validate_identifier(binding.target(), "Clock binding target")?;
-            checked_range(binding.range())?;
-        }
-        instance.clock_bindings = bindings;
-        Ok(instance)
-    }
-
     /// Construct one borrowed exact-clock requirement without declaring a period.
     ///
     /// # Errors
@@ -68,9 +34,11 @@ impl SourceAstFactory {
     pub fn component(
         visibility: VisibilitySyntax,
         name: impl Into<String>,
+        signature: Vec<crate::SignatureItem>,
         items: Vec<ComponentItem>,
         range: TextRange,
     ) -> Result<ComponentDecl, AstConstructionError> {
+        super::signature::validate_signature(&signature)?;
         for item in &items {
             validate_component_item(item)?;
         }
@@ -78,9 +46,9 @@ impl SourceAstFactory {
             comments: Default::default(),
             visibility,
             name: checked_identifier(name, "component")?,
+            signature,
             items,
             formulations: Vec::new(),
-            property_requirements: Vec::new(),
             range: checked_range(range)?,
         })
     }
@@ -92,11 +60,13 @@ impl SourceAstFactory {
     pub fn component_with_primal_form(
         visibility: VisibilitySyntax,
         name: impl Into<String>,
+        signature: Vec<crate::SignatureItem>,
         items: Vec<ComponentItem>,
         relation: impl Into<String>,
         equality: (Expr, Expr, TextRange),
         range: TextRange,
     ) -> Result<ComponentDecl, AstConstructionError> {
+        super::signature::validate_signature(&signature)?;
         for item in &items {
             validate_component_item(item)?;
         }
@@ -110,6 +80,7 @@ impl SourceAstFactory {
             comments: Default::default(),
             visibility,
             name: checked_identifier(name, "component")?,
+            signature,
             items,
             formulations: vec![FormulationDecl {
                 comments: Default::default(),
@@ -118,7 +89,6 @@ impl SourceAstFactory {
                 right,
                 range: formulation_range,
             }],
-            property_requirements: Vec::new(),
             range,
         })
     }
@@ -127,19 +97,30 @@ impl SourceAstFactory {
 fn validate_component_item(item: &ComponentItem) -> Result<(), AstConstructionError> {
     let range = match item {
         ComponentItem::Let(declaration) => declaration.range(),
-        ComponentItem::Parameter(declaration) => declaration.range(),
-        ComponentItem::Port(declaration) => declaration.range(),
+        ComponentItem::Parameter(declaration) => {
+            if declaration.visibility() == VisibilitySyntax::Public {
+                return Err(AstConstructionError::new(
+                    "public parameters belong in the signature",
+                ));
+            }
+            declaration.range()
+        }
+        ComponentItem::Port(declaration) => {
+            if declaration.visibility() == VisibilitySyntax::Public {
+                return Err(AstConstructionError::new(
+                    "public ports belong in the signature",
+                ));
+            }
+            declaration.range()
+        }
         ComponentItem::PortFamily(declaration) => {
             validate_port_syntax(declaration.port().syntax())?;
             validate_boundary_family_binder(declaration.binder())?;
             declaration.range()
         }
-        ComponentItem::Support(declaration) => declaration.range(),
-        ComponentItem::FieldRequirement(declaration) => declaration.range(),
         ComponentItem::Field(declaration) => declaration.range(),
         ComponentItem::Initial(declaration) => declaration.range(),
         ComponentItem::Clock(declaration) => declaration.range(),
-        ComponentItem::ClockRequirement(declaration) => declaration.range(),
         ComponentItem::Relation(declaration) => declaration.range(),
         ComponentItem::RelationFamily(declaration) => {
             validate_boundary_family_binder(declaration.binder())?;
@@ -179,6 +160,7 @@ mod tests {
         let component = SourceAstFactory::component_with_primal_form(
             VisibilitySyntax::Private,
             "C",
+            source.signature().to_vec(),
             source.items().to_vec(),
             "balance",
             (left.clone(), right.clone(), range),

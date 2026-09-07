@@ -5,11 +5,11 @@ public connector RotationalFlange = scalar_physical(
   through = kg * m ^ 2 / s ^ 2
 );
 
-public component ControlledVoltageSource() {
-  public port positive: conserving on electrical.Pin;
-  public port negative: conserving on electrical.Pin;
-  public port command: signal input kg * m ^ 2 / (s ^ 3 * A);
-
+public component ControlledVoltageSource(
+  port positive: conserving on electrical.Pin,
+  port negative: conserving on electrical.Pin,
+  input command: kg * m ^ 2 / (s ^ 3 * A)
+) {
   variable applied_voltage: kg * m ^ 2 / (s ^ 3 * A);
 
   relation law {
@@ -19,14 +19,14 @@ public component ControlledVoltageSource() {
   }
 }
 
-public component PermanentMagnetDcMotor() {
-  public parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2);
-  public parameter inductance: kg * m ^ 2 / (s ^ 2 * A ^ 2);
-  public parameter motor_constant: kg * m ^ 2 / (s ^ 2 * A);
-  public port positive: conserving on electrical.Pin;
-  public port negative: conserving on electrical.Pin;
-  public port shaft: conserving on RotationalFlange;
-
+public component PermanentMagnetDcMotor(
+  parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2),
+  parameter inductance: kg * m ^ 2 / (s ^ 2 * A ^ 2),
+  parameter motor_constant: kg * m ^ 2 / (s ^ 2 * A),
+  port positive: conserving on electrical.Pin,
+  port negative: conserving on electrical.Pin,
+  port shaft: conserving on RotationalFlange
+) {
   state current: A;
   variable speed: 1 / s;
   variable electromagnetic_torque: kg * m ^ 2 / s ^ 2;
@@ -48,11 +48,11 @@ public component PermanentMagnetDcMotor() {
   }
 }
 
-public component InertialLoad() {
-  public parameter inertia: kg * m ^ 2;
-  public parameter damping: kg * m ^ 2 / s;
-  public port shaft: conserving on RotationalFlange;
-
+public component InertialLoad(
+  parameter inertia: kg * m ^ 2,
+  parameter damping: kg * m ^ 2 / s,
+  port shaft: conserving on RotationalFlange
+) {
   state speed: 1 / s;
   variable reaction_torque: kg * m ^ 2 / s ^ 2;
 
@@ -67,10 +67,10 @@ public component InertialLoad() {
   }
 }
 
-public component SpeedSensor() {
-  public port shaft: conserving on RotationalFlange;
-  public port speed: signal output 1 / s;
-
+public component SpeedSensor(
+  port shaft: conserving on RotationalFlange,
+  output speed: 1 / s
+) {
   relation measurement {
     through(shaft) = 0;
     speed - across(shaft) = 0;

@@ -1,32 +1,71 @@
-//! The admitted Component requirements share existing exact interface owners.
-
-use super::Parser;
-use crate::ast::{ClockRequirementDecl, ComponentItem, TextRange, VisibilitySyntax};
-use crate::lexer::TokenKind;
+//! Shared Component and Model external interface parsing.
+use super::*;
+use crate::ast::{ClockRequirementDecl, SignatureItem};
 
 impl Parser<'_> {
-    pub(super) fn parse_component_signature(&mut self) -> Option<Vec<ComponentItem>> {
+    pub(super) fn parse_signature(&mut self) -> Option<Vec<SignatureItem>> {
         self.expect(
             TokenKind::LeftParen,
-            "`(` before Component signature (use `()` when empty)",
+            "`(` before signature (use `()` when empty)",
         )?;
         let mut requirements = Vec::new();
         while !self.at(TokenKind::RightParen) && !self.at(TokenKind::Eof) {
             let start = self.current().range().start();
             let requirement = if self.at_keyword("support") {
-                ComponentItem::Support(self.parse_support_slot(start, VisibilitySyntax::Public)?)
+                SignatureItem::Support(self.parse_support_slot(start, VisibilitySyntax::Public)?)
             } else if self.at_keyword("variable") || self.at_keyword("state") {
-                ComponentItem::FieldRequirement(self.parse_field(false)?)
+                SignatureItem::Field(self.parse_field(false)?)
+            } else if self.at_keyword("input") {
+                SignatureItem::Input(self.parse_field(false)?)
+            } else if self.at_keyword("output") {
+                SignatureItem::Output(self.parse_field(false)?)
+            } else if self.at_keyword("parameter") {
+                SignatureItem::Parameter(self.parse_component_parameter(
+                    start,
+                    VisibilitySyntax::Public,
+                    false,
+                )?)
+            } else if self.at_keyword("port") {
+                match self.parse_component_port(start, VisibilitySyntax::Public, false)? {
+                    ParsedComponentPort::Ordinary(port) => {
+                        if matches!(port.syntax(), PortSyntax::Signal { .. }) {
+                            self.error_here("causal interfaces use input/output signature entries");
+                            return None;
+                        }
+                        SignatureItem::Port(port)
+                    }
+                    ParsedComponentPort::Family(port) => SignatureItem::PortFamily(port),
+                }
+            } else if self.at_keyword("property") {
+                self.bump();
+                let name = self
+                    .expect_identifier("property requirement name")?
+                    .text()
+                    .to_owned();
+                self.expect(TokenKind::Colon, "`:` before property contract")?;
+                let contract = self.parse_name_path("property contract name")?;
+                let range = TextRange::new(start, contract.range().end());
+                SignatureItem::Property(crate::ast_property::ComponentPropertyDecl {
+                    comments: Default::default(),
+                    name,
+                    contract,
+                    range,
+                })
             } else if self.at_keyword("clock") {
                 self.bump();
-                let token = self.expect_identifier("required clock name")?;
-                ComponentItem::ClockRequirement(ClockRequirementDecl {
+                let name = self
+                    .expect_identifier("required clock name")?
+                    .text()
+                    .to_owned();
+                self.expect(TokenKind::Colon, "`:` before periodic clock contract")?;
+                let end = self.expect_keyword("periodic")?.range().end();
+                SignatureItem::Clock(ClockRequirementDecl {
                     comments: Default::default(),
-                    name: token.text().to_owned(),
-                    range: TextRange::new(start, token.range().end()),
+                    name,
+                    range: TextRange::new(start, end),
                 })
             } else {
-                self.error_here("expected support, variable, state, or clock requirement");
+                self.error_here("expected parameter, support, variable, state, clock, input, output, port, or property signature entry");
                 return None;
             };
             requirements.push(requirement);
@@ -35,7 +74,7 @@ impl Parser<'_> {
             }
             self.bump();
         }
-        self.expect(TokenKind::RightParen, "`)` after Component signature")?;
+        self.expect(TokenKind::RightParen, "`)` after signature")?;
         Some(requirements)
     }
 }

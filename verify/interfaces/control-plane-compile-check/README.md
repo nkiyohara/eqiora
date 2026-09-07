@@ -25,17 +25,16 @@ The focused product tests check these boundaries:
   oversized caller content or publishing partial diagnostics.
 
 Compiling the accepted source twice through control and once through
-`ModelDocument::compile` intentionally produces distinct occurrence identity
-and artifact digests. The structural fingerprint is
-equal across all three compilations, while each accepted response is checked
-only against the document returned by its own execution.
+`ModelDocument::compile` produces equal canonical occurrence identities, artifact
+digests and structural fingerprints. Each accepted response is also checked
+against the document returned by its own execution.
 
 The Python adapter is a separate consumer of the same operation. After its
 own filename/source admission it invokes `ModelDocument::compile` directly on
 a detached native path, without constructing a control request or importing a
 control DTO. Independently accepted Python, control-v2, and direct
-compilations have pairwise-distinct Model IDs and artifact digests but the
-same current-generation structural fingerprint. Ordinary rejected compilation is
+compilations of the same source have equal canonical Model IDs, artifact digests
+and current-generation structural fingerprints. Ordinary rejected compilation is
 normalized across all three paths; control-envelope overflow behavior is not
 a cross-adapter claim.
 

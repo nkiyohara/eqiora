@@ -18,7 +18,7 @@ use eqiora::{
 const POISSON: &str = include_str!("../../../verify/numerics/poisson-fem-fvm/models/poisson.eqi");
 
 const SCALAR_PHYSICAL: &str = r#"
-model scalar_physical_with_spatial_field {
+model scalar_physical_with_spatial_field() {
   domain interval = box(0, 1);
   domain lower_end = boundary(interval, axis = 0, side = lower);
   domain upper_end = boundary(interval, axis = 0, side = upper);
@@ -58,8 +58,8 @@ public connector MechanicalBoundary = field_physical(
 public component BoundarySide(
   support body: volume(ambient_dimension = 2),
   support interface: boundary(parent = body),
+  port mechanical: conserving MechanicalBoundary over interface
 ) {
-  public port mechanical: conserving MechanicalBoundary over interface;
 
   relation carrier on interface {
     trace(mechanical) - trace(mechanical) = 0;
@@ -67,7 +67,7 @@ public component BoundarySide(
   }
 }
 
-model field_boundary_with_spatial_field {
+model field_boundary_with_spatial_field() {
   domain area = box(0, 1, 0, 1);
   domain left = boundary(area, axis = 0, side = lower);
   domain right = boundary(area, axis = 0, side = upper);
@@ -77,12 +77,12 @@ model field_boundary_with_spatial_field {
 
   variable potential: 1 on area;
   instance side_a: BoundarySide(
-    support body = area,
-    support interface = left
+    body = area,
+    interface = left
   );
   instance side_b: BoundarySide(
-    support body = area,
-    support interface = left
+    body = area,
+    interface = left
   );
 
   connect conserving side_a.mechanical, side_b.mechanical;

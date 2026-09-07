@@ -3,6 +3,7 @@ public component SteadyStokesWithPotential2d(
   variable force_potential: kg / (m * s ^ 2) on body,
   variable pressure: kg / (m * s ^ 2) on body,
   variable velocity: vector<m / s, 2> on body,
+  parameter dynamic_viscosity: kg / (m * s)
 ) {
   relation incompressibility on body {
     div(velocity) = 0;
@@ -13,5 +14,4 @@ public component SteadyStokesWithPotential2d(
       - isotropic_lift(pressure)
     ) - grad(force_potential) = 0;
   }
-  public parameter dynamic_viscosity: kg / (m * s);
 }

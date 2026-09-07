@@ -139,7 +139,7 @@ impl WireNode {
             .into()),
             WireNodeDefinition::Connection { connection } => Ok(ConnectionDef::new(
                 self.id.typed::<kinds::Connection>()?,
-                connection.decode(),
+                connection.decode()?,
             )
             .into()),
             WireNodeDefinition::ClockDomain { clock } => {

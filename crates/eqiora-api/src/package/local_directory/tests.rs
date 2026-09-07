@@ -110,7 +110,7 @@ fn local_project_locks_deterministically_and_reopens_offline() {
 
     let library_sources = author_sources(
         "org.example.Library",
-        "public model Shared { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
+        "public model Shared() { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
         vec![],
     );
     let library_release =
@@ -119,7 +119,7 @@ fn local_project_locks_deterministically_and_reopens_offline() {
 
     let auxiliary_sources = author_sources(
         "org.example.Auxiliary",
-        "public model Other {}",
+        "public model Other() {}",
         vec![exact_dependency(&library_release)],
     );
     let auxiliary_release = prepare_package_release_v1(
@@ -136,7 +136,7 @@ fn local_project_locks_deterministically_and_reopens_offline() {
 
     let root_sources = author_sources(
         "org.example.Root",
-        "import org.example.Library.main as library; model Local {}",
+        "import org.example.Library.main as library; model Local() {}",
         vec![
             exact_dependency(&library_release),
             exact_dependency(&auxiliary_release),
@@ -192,7 +192,7 @@ fn local_project_editor_analysis_is_read_only_and_accepts_source_overrides() {
     let library_release =
         prepare_package_release_v1(library_sources.clone(), &[]).expect("library release");
     write_package(&library_path, "src", &library_sources, &[]);
-    let root_source = "import org.example.EditorLibrary.main as library; model Main { instance load: library.Resistor(); }";
+    let root_source = "import org.example.EditorLibrary.main as library; model Main() { instance load: library.Resistor(); }";
     let root_sources = author_sources(
         "org.example.EditorRoot",
         root_source,
@@ -235,7 +235,7 @@ fn local_project_editor_analysis_is_read_only_and_accepts_source_overrides() {
 #[test]
 fn path_loaded_and_in_memory_source_have_identical_declaration_documentation() {
     let fixture = TestDirectory::create("documentation");
-    let source = "// 🧪\r\n/// Model explanation.\r\nmodel Main {\r\n/// State explanation.\r\nvariable x:1; relation balance { x=0; }\r\n}\r\n";
+    let source = "// 🧪\r\n/// Model explanation.\r\nmodel Main() {\r\n/// State explanation.\r\nvariable x:1; relation balance { x=0; }\r\n}\r\n";
     let sources = author_sources("org.example.Documentation", source, vec![]);
     write_package(&fixture.0, "src", &sources, &[]);
     let (workspace, paths) =
@@ -264,14 +264,14 @@ fn changed_local_content_generates_a_new_exact_identity() {
 
     let admitted_sources = author_sources(
         "org.example.Dependency",
-        "public model Shared { parameter gain: 1 = 1; }",
+        "public model Shared() { parameter gain: 1 = 1; }",
         vec![],
     );
     let admitted_release =
         prepare_package_release_v1(admitted_sources, &[]).expect("expected dependency release");
     let root_sources = author_sources(
         "org.example.Root",
-        "model Local {}",
+        "model Local() {}",
         vec![exact_dependency(&admitted_release)],
     );
     write_package(
@@ -282,7 +282,7 @@ fn changed_local_content_generates_a_new_exact_identity() {
     );
     let admitted_sources = author_sources(
         "org.example.Dependency",
-        "public model Shared { parameter gain: 1 = 1; }",
+        "public model Shared() { parameter gain: 1 = 1; }",
         vec![],
     );
     write_package(&dependency_path, "src", &admitted_sources, &[]);
@@ -292,7 +292,7 @@ fn changed_local_content_generates_a_new_exact_identity() {
 
     let changed_sources = author_sources(
         "org.example.Dependency",
-        "public model Shared { parameter gain: 1 = 2; }",
+        "public model Shared() { parameter gain: 1 = 2; }",
         vec![],
     );
     fs::write(
@@ -379,12 +379,12 @@ fn external_dependency_rejects_intermediate_symlinks() {
 fn failed_reresolution_preserves_the_accepted_lock() {
     let fixture = TestDirectory::create("preserve-lock");
     let store = fixture.child("store");
-    let sources = author_sources("org.example.Root", "model Main {}", vec![]);
+    let sources = author_sources("org.example.Root", "model Main() {}", vec![]);
     write_package(&fixture.0, "src", &sources, &[]);
     resolve_local_package_project_v1(&fixture.0, &store).expect("initial resolution");
     let accepted = fs::read(fixture.0.join(PROJECT_LOCK)).expect("accepted lock");
 
-    fs::write(fixture.0.join("src/Main.eqi"), "model Other {}")
+    fs::write(fixture.0.join("src/Main.eqi"), "model Other() {}")
         .expect("write portable case collision");
     assert!(resolve_local_package_project_v1(&fixture.0, &store).is_err());
     assert_eq!(
@@ -398,8 +398,8 @@ fn local_dependency_cycle_is_rejected_before_lock() {
     let fixture = TestDirectory::create("cycle");
     let child = fixture.child("child");
     let store = fixture.child("store");
-    let root = author_sources("org.example.Root", "model Main {}", vec![]);
-    let dependency = author_sources("org.example.Child", "public model Shared {}", vec![]);
+    let root = author_sources("org.example.Root", "model Main() {}", vec![]);
+    let dependency = author_sources("org.example.Child", "public model Shared() {}", vec![]);
     write_package(&fixture.0, "src", &root, &[]);
     write_package(&child, "src", &dependency, &[]);
     fs::write(
@@ -423,7 +423,7 @@ fn partial_lock_write_preserves_the_accepted_project_pair() {
     let store_path = fixture.child("store");
     let sources = author_sources(
         "org.example.Root",
-        "model Main { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
+        "model Main() { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
         vec![],
     );
     write_package(&fixture.0, "src", &sources, &[]);
@@ -433,7 +433,7 @@ fn partial_lock_write_preserves_the_accepted_project_pair() {
     let lock = fs::read(fixture.0.join(PROJECT_LOCK)).expect("accepted lock");
     fs::write(
         fixture.0.join("src/main.eqi"),
-        "model Main { parameter gain: 1 = 3; relation law { gain - 3 = 0; } }",
+        "model Main() { parameter gain: 1 = 3; relation law { gain - 3 = 0; } }",
     )
     .expect("changed source");
     let candidate = prepare_local_package_project(
@@ -488,7 +488,7 @@ fn proposed_dependency_changes_are_validated_without_publishing() {
     let library_path = fixture.child("library");
     let root = author_sources(
         "org.example.Root",
-        "model Main { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
+        "model Main() { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
         vec![],
     );
     let library = author_sources(
@@ -620,8 +620,8 @@ fn dependency_cannot_replace_an_ancestor_from_another_directory() {
     let child = fixture.child("child");
     let duplicate = fixture.child("duplicate");
     let store = fixture.child("store");
-    let root_sources = author_sources("org.example.Root", "model Main {}", vec![]);
-    let child_sources = author_sources("org.example.Child", "model Main {}", vec![]);
+    let root_sources = author_sources("org.example.Root", "model Main() {}", vec![]);
+    let child_sources = author_sources("org.example.Child", "model Main() {}", vec![]);
     let root_release = prepare_package_release_v1(root_sources.clone(), &[]).unwrap();
     let child_release = prepare_package_release_v1(child_sources.clone(), &[]).unwrap();
     write_package(
@@ -649,7 +649,7 @@ fn project_preparation_and_lock_publication_retain_the_opened_directory() {
     let fixture = TestDirectory::create("retained-project");
     let original = fixture.child("project");
     let moved = fixture.0.join("moved");
-    let root = author_sources("org.example.Original", "model Main {}", vec![]);
+    let root = author_sources("org.example.Original", "model Main() {}", vec![]);
     write_package(&original, "src", &root, &[]);
     let directory = open_project_root(&original).unwrap();
     fs::rename(&original, &moved).unwrap();
@@ -701,12 +701,12 @@ fn manifest_entry_selects_a_nested_module_during_offline_replay() {
     ).expect("manifest");
     fs::write(
         fixture.0.join("sources/models/selected.eqi"),
-        "model Main { parameter selected: 1 = 2; relation law { selected - 2 = 0; } }",
+        "model Main() { parameter selected: 1 = 2; relation law { selected - 2 = 0; } }",
     )
     .expect("selected module");
     fs::write(
         fixture.0.join("sources/main.eqi"),
-        "model Main { parameter decoy: 1 = 3; relation law { decoy - 3 = 0; } }",
+        "model Main() { parameter decoy: 1 = 3; relation law { decoy - 3 = 0; } }",
     )
     .expect("decoy module");
     let resolution =
@@ -724,7 +724,7 @@ fn manifest_entry_selects_a_nested_module_during_offline_replay() {
 fn source_root_rejects_an_intermediate_symlink() {
     let fixture = TestDirectory::create("source-link");
     let store = fixture.child("store");
-    let sources = author_sources("org.example.Root", "model Main {}", vec![]);
+    let sources = author_sources("org.example.Root", "model Main() {}", vec![]);
     write_package(&fixture.0, "actual/src", &sources, &[]);
     std::os::unix::fs::symlink("actual", fixture.0.join("linked"))
         .expect("create intermediate symlink");

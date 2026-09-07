@@ -136,13 +136,13 @@ fn over_depth_source() -> String {
         } else {
             writeln!(
                 source,
-                "component C{index:02}() {{ instance child: C{:02}; }}",
+                "component C{index:02}() {{ instance child: C{:02}(); }}",
                 index + 1
             )
             .expect("write fixture");
         }
     }
-    source.push_str("model Empty {}\n");
+    source.push_str("model Empty() {}\n");
     source
 }
 

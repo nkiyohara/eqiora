@@ -55,6 +55,7 @@ fn connection_port_contract(contract: &PortContract) -> ScalarPortContract<&Phys
         PortContract::Signal {
             direction,
             value_type,
+            ..
         } => ScalarPortContract::Signal {
             direction: match direction {
                 SignalDirectionSyntax::Input => SignalDirection::Input,

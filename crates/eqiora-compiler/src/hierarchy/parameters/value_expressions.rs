@@ -8,8 +8,9 @@ pub(super) fn evaluate(
     expression: &Expr,
     context: ExpressionContext,
     resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
+    resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
 ) -> Result<EvaluatedParameter, Diagnostic> {
-    evaluate_with_target(file, expression, context, resolve, None)
+    evaluate_with_target(file, expression, context, resolve, None, resolve_clock)
 }
 
 pub(super) fn evaluate_with_target(
@@ -18,6 +19,7 @@ pub(super) fn evaluate_with_target(
     context: ExpressionContext,
     resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
     target: Option<&ValueType>,
+    resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
 ) -> Result<EvaluatedParameter, Diagnostic> {
     let error = |message: String| {
         source_error(
@@ -47,8 +49,15 @@ pub(super) fn evaluate_with_target(
                         resolve,
                         target.clone(),
                         "declaration initializer",
+                        resolve_clock,
                     ),
-                    None => evaluate_parameter_expression(file, element, context, resolve),
+                    None => evaluate_parameter_expression(
+                        file,
+                        element,
+                        context,
+                        resolve,
+                        resolve_clock,
+                    ),
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             let types = operands
@@ -79,8 +88,10 @@ pub(super) fn evaluate_with_target(
             (operands, value_type, lowered, value)
         }
         ExprKind::Index { value, index } => {
-            let operand = evaluate_parameter_expression(file, value, context, resolve)?;
-            let index_value = evaluate_parameter_expression(file, index, context, resolve)?;
+            let operand =
+                evaluate_parameter_expression(file, value, context, resolve, resolve_clock)?;
+            let index_value =
+                evaluate_parameter_expression(file, index, context, resolve, resolve_clock)?;
             let index = checked_index(file, index.range(), &index_value)?;
             let value_type = ExpressionType::index(
                 ExpressionType::<()>::new(operand.value_type.value_type().clone(), None),
@@ -140,8 +151,9 @@ pub(super) fn evaluate_with_target(
                     resolve,
                     target.clone(),
                     "declaration initializer",
+                    resolve_clock,
                 ),
-                None => evaluate_parameter_expression(file, value, context, resolve),
+                None => evaluate_parameter_expression(file, value, context, resolve, resolve_clock),
             };
             let real = evaluate(real)?;
             let imag = evaluate(imag)?;

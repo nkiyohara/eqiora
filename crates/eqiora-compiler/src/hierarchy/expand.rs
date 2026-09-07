@@ -41,6 +41,8 @@ mod binding_locations;
 mod cartesian;
 mod connector_domain;
 mod external;
+mod input_bindings;
+mod model_items;
 mod model_lets;
 mod names;
 
@@ -51,8 +53,8 @@ use super::preflight::{
 };
 use super::scope::{
     ActiveBoundaryMember, FlatSymbol, InstanceInterface, Scope, SymbolKind,
-    resolve_boundary_port_reference, resolve_local_kind, resolve_ports, resolve_visible_ports,
-    rewrite_equations, rewrite_field_scope, rewrite_model_port, rewrite_relation,
+    resolve_boundary_port_reference, resolve_local_kind, resolve_ports, rewrite_equations,
+    rewrite_field_scope, rewrite_model_port, rewrite_relation,
 };
 use super::supports::{
     CompleteExteriorMembershipBudget, ResolvedBoundaryTarget, ResolvedSupportBindings,
@@ -425,7 +427,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             internal_name: internal_name(registration.identity.full),
             display_name: registration.display_name.clone(),
             full_identity: registration.identity.full,
-            kind: SymbolKind::Port,
+            kind: SymbolKind::Port(eqiora_lang::ActivationSyntax::Continuous),
         };
         scope.insert_port_family_member(
             registration.file,
@@ -559,16 +561,28 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         Ok(())
     }
 
-    pub(super) fn expand(mut self) -> Result<ExpandedBlueprint, Vec<Diagnostic>> {
+    pub(super) fn expand(self) -> Result<ExpandedBlueprint, Vec<Diagnostic>> {
+        self.expand_bound(&[], &[])
+    }
+
+    pub(super) fn expand_bound(
+        mut self,
+        supports: &[crate::external::ExternalGeometrySupportBinding],
+        clocks: &[(String, eqiora_schema::kernel::ClockDomainDef)],
+    ) -> Result<ExpandedBlueprint, Vec<Diagnostic>> {
         let model = self.model.clone();
         let mut root_scope = Scope::default();
         root_scope.set_pure_operators(self.elaborator.visible_pure_operators(&model.namespace));
+        self.allocate_external_clocks(&mut root_scope, clocks)
+            .map_err(one_diagnostic)?;
+        self.allocate_external_supports(&mut root_scope, supports)
+            .map_err(one_diagnostic)?;
         let identities = match self.allocate_model_scope(&mut root_scope) {
             Ok(value) => value,
             Err(error) => return Err(vec![error]),
         };
 
-        for item in model.items() {
+        for item in model.owned_items() {
             if let Item::Instance(instance) = item {
                 let component = self
                     .elaborator
@@ -602,7 +616,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         self.allocate_runtime_lets(
             &mut root_scope,
             self.model.file,
-            model.items().iter().filter_map(|item| match item {
+            model.owned_items().filter_map(|item| match item {
                 Item::Let(d) => Some(d),
                 _ => None,
             }),
@@ -629,7 +643,15 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
     fn allocate_model_scope(&mut self, scope: &mut Scope) -> Result<ScopeIdentities, Diagnostic> {
         let model = self.model.clone();
         let mut identities = ScopeIdentities::default();
-        for item in model.items() {
+        let parameters =
+            super::parameters::resolve_model_parameters(model.file, model.declaration, |name| {
+                super::clocks::occurrence(scope, name)
+                    .or_else(|| super::clocks::model(model.file, model.declaration, name))
+            })
+            .map_err(|mut errors| errors.remove(0))?;
+        let mut owned_items = model.owned_items().collect::<Vec<_>>();
+        owned_items.sort_by_key(|item| !matches!(item, Item::Clock(_)));
+        for item in owned_items {
             let (name, kind, symbol_kind, parameter_value, range) = match item {
                 Item::Domain(value) => (
                     value.name(),
@@ -646,7 +668,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     value.range(),
                 ),
                 Item::Parameter(declaration) => {
-                    let value = crate::units::parameter_literal(self.model.file, declaration)?;
+                    let value = parameters[declaration.name()].value.clone();
                     (
                         declaration.name(),
                         EntityKind::Parameter,
@@ -658,14 +680,22 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 Item::Port(value) => (
                     value.name(),
                     EntityKind::Port,
-                    SymbolKind::Port,
+                    SymbolKind::Port(super::scope::port_activation(
+                        model.file,
+                        value.syntax(),
+                        value.range(),
+                        scope,
+                    )?),
                     None,
                     value.range(),
                 ),
                 Item::Clock(value) => (
                     value.name(),
                     EntityKind::ClockDomain,
-                    SymbolKind::Clock,
+                    SymbolKind::Clock(
+                        crate::units::lower_clock(self.model.file, value.period(), value.phase())?
+                            .0,
+                    ),
                     None,
                     value.range(),
                 ),
@@ -698,7 +728,6 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 Item::Initial(_)
                 | Item::Connection(_)
                 | Item::BoundaryConnection(_)
-                | Item::Boundary(_)
                 | Item::Let(_)
                 | Item::Instance(_) => continue,
                 _ => {
@@ -739,7 +768,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             identities.entities.insert(name.to_owned(), identity);
         }
         self.allocate_model_lets(scope, &model)?;
-        for item in model.items() {
+        for item in model.owned_items() {
             let Item::Domain(declaration) = item else {
                 continue;
             };
@@ -765,7 +794,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             }
         }
         self.allocate_cartesian_boundaries(scope, &identities)?;
-        for item in model.items() {
+        for item in model.owned_items() {
             let Item::Field(declaration) = item else {
                 continue;
             };
@@ -795,7 +824,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 )));
             }
         }
-        for item in model.items() {
+        for item in model.owned_items() {
             let Item::Port(declaration) = item else {
                 continue;
             };
@@ -842,8 +871,19 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             &component,
             instance,
             |name| parent_scope.parameter(name).cloned(),
+            |name| super::clocks::occurrence(parent_scope, name),
         )
-        .and_then(ParameterResolver::resolve_all)
+        .and_then(|resolver| {
+            resolver.resolve_all(|name| {
+                super::clocks::component_occurrence(
+                    component.file,
+                    component.declaration,
+                    instance,
+                    parent_scope,
+                    name,
+                )
+            })
+        })
         .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
         let support_interface = component_support_interface(component.file, component.declaration)
             .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
@@ -896,14 +936,20 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         normalize_binding_locations(&mut bindings);
         let mut forwarded_field_resolution_bindings =
             parent_scope.forwarded_field_resolution_bindings().to_vec();
-        forwarded_field_resolution_bindings
-            .extend(field_forwarding_locations(instance_file, instance));
+        forwarded_field_resolution_bindings.extend(field_forwarding_locations(
+            instance_file,
+            instance,
+            component.declaration,
+        ));
         normalize_binding_locations(&mut forwarded_field_resolution_bindings);
         let mut forwarded_parameter_resolution_bindings = parent_scope
             .forwarded_parameter_resolution_bindings()
             .to_vec();
-        forwarded_parameter_resolution_bindings
-            .extend(parameter_forwarding_locations(instance_file, instance));
+        forwarded_parameter_resolution_bindings.extend(parameter_forwarding_locations(
+            instance_file,
+            instance,
+            component.declaration,
+        ));
         normalize_binding_locations(&mut forwarded_parameter_resolution_bindings);
         let mut forwarded_boundary_set_resolution_bindings = parent_scope
             .forwarded_boundary_set_resolution_bindings()
@@ -969,17 +1015,24 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             |name| {
                 parent_scope
                     .symbol(name)
-                    .filter(|symbol| matches!(symbol.kind, SymbolKind::Clock))
+                    .filter(|symbol| matches!(symbol.kind, SymbolKind::Clock(_)))
                     .map(|symbol| symbol.internal_name.clone())
             },
         )
         .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
-        for binding in instance.clock_bindings() {
+        for binding in instance
+            .bindings()
+            .iter()
+            .filter(|binding| clocks.contains_key(binding.name()))
+        {
+            let eqiora_lang::ExprKind::Name(target) = binding.value().kind() else {
+                unreachable!("validated nominal clock reference")
+            };
             let symbol = parent_scope
-                .symbol(binding.target())
+                .symbol(target)
                 .expect("validated clock binding")
                 .clone();
-            scope.insert_symbol(binding.slot().to_owned(), symbol);
+            scope.insert_symbol(binding.name().to_owned(), symbol);
         }
 
         let field_interface =
@@ -993,7 +1046,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             |name| {
                 parent_scope
                     .symbol(name)
-                    .filter(|symbol| matches!(symbol.kind, SymbolKind::Clock))
+                    .filter(|symbol| matches!(symbol.kind, SymbolKind::Clock(_)))
                     .map(|symbol| symbol.internal_name.clone())
             },
             |slot| scope.spatial_support(slot).cloned(),
@@ -1046,7 +1099,15 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             scope.insert_field_type(slot, field_type);
         }
 
-        for item in component.items() {
+        for item in component
+            .owned_items()
+            .filter(|item| matches!(item, ComponentItem::Clock(_)))
+            .chain(
+                component
+                    .owned_items()
+                    .filter(|item| !matches!(item, ComponentItem::Clock(_))),
+            )
+        {
             match item {
                 ComponentItem::Parameter(declaration) => {
                     let resolved = parameters[declaration.name()].clone();
@@ -1104,7 +1165,15 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         display_child(&display_prefix, declaration.name()),
                         declaration.name(),
                         &identity,
-                        SymbolKind::Port,
+                        SymbolKind::Port(
+                            super::scope::port_activation(
+                                component.file,
+                                declaration.syntax(),
+                                declaration.range(),
+                                &scope,
+                            )
+                            .map_err(one_diagnostic)?,
+                        ),
                         &mut scope,
                     )
                     .map_err(one_diagnostic)?;
@@ -1182,14 +1251,22 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                             .insert((declaration.name().to_owned(), boundary), identity);
                     }
                 }
-                ComponentItem::Support(_) => {}
                 ComponentItem::Field(declaration) => {
                     let support = declaration
                         .domain()
                         .and_then(|domain| scope.spatial_support(domain).cloned());
                     scope.field_evolution.insert(
                         declaration.name().to_owned(),
-                        (declaration.role(), declaration.activation().clone()),
+                        (
+                            declaration.role(),
+                            super::scope::rewrite_activation(
+                                component.file,
+                                declaration.activation(),
+                                declaration.range(),
+                                &scope,
+                            )
+                            .map_err(one_diagnostic)?,
+                        ),
                     );
                     let field_type = field_expression_type(component.file, declaration, support)
                         .map_err(one_diagnostic)?;
@@ -1249,7 +1326,15 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         display_child(&display_prefix, declaration.name()),
                         declaration.name(),
                         &identity,
-                        SymbolKind::Clock,
+                        SymbolKind::Clock(
+                            crate::units::lower_clock(
+                                component.file,
+                                declaration.period(),
+                                declaration.phase(),
+                            )
+                            .map_err(one_diagnostic)?
+                            .0,
+                        ),
                         &mut scope,
                     )
                     .map_err(one_diagnostic)?;
@@ -1346,8 +1431,6 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 }
                 ComponentItem::Let(_)
                 | ComponentItem::Initial(_)
-                | ComponentItem::ClockRequirement(_)
-                | ComponentItem::FieldRequirement(_)
                 | ComponentItem::Connection(_)
                 | ComponentItem::BoundaryConnection(_)
                 | ComponentItem::Instance(_) => {}
@@ -1362,7 +1445,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             }
         }
 
-        for item in component.items() {
+        for item in component.owned_items() {
             if let ComponentItem::Field(field) = item {
                 let activation = super::scope::rewrite_activation(
                     component.file,
@@ -1377,7 +1460,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             }
         }
 
-        for item in component.items() {
+        for item in component.owned_items() {
             match item {
                 ComponentItem::Port(declaration)
                     if matches!(
@@ -1447,7 +1530,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         self.allocate_component_lets(&mut scope, &component)
             .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
 
-        for item in component.items() {
+        for item in component.owned_items() {
             if let ComponentItem::Instance(child) = item {
                 let child_component = self
                     .elaborator
@@ -1479,7 +1562,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         self.allocate_runtime_lets(
             &mut scope,
             component.file,
-            component.items().iter().filter_map(|item| match item {
+            component.owned_items().filter_map(|item| match item {
                 ComponentItem::Let(d) => Some(d),
                 _ => None,
             }),
@@ -1500,8 +1583,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         .map_err(|error| vec![contextualize_diagnostic(error, &instance_path)])?;
 
         let public_ports = component
-            .items()
-            .iter()
+            .owned_items()
             .filter_map(|item| match item {
                 ComponentItem::Port(port) if port.visibility() == VisibilitySyntax::Public => scope
                     .symbol(port.name())
@@ -1511,8 +1593,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             })
             .collect();
         let public_port_families = component
-            .items()
-            .iter()
+            .owned_items()
             .filter_map(|item| match item {
                 ComponentItem::PortFamily(family)
                     if family.port().visibility() == VisibilitySyntax::Public =>
@@ -1541,7 +1622,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         let component = occurrence.definition;
         let instance = occurrence.instance;
         let mut initial_duplicates = BTreeMap::<String, usize>::new();
-        for item in component.items() {
+        for item in component.owned_items() {
             match item {
                 ComponentItem::Initial(declaration) => {
                     let name = crate::source_identity::initial_declaration_name(declaration)?;
@@ -1637,9 +1718,6 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         });
                     }
                 }
-                ComponentItem::Support(_)
-                | ComponentItem::ClockRequirement(_)
-                | ComponentItem::FieldRequirement(_) => {}
                 ComponentItem::Field(declaration) => {
                     let identity = identities.entities[declaration.name()].clone();
                     let (domain, activation) =
@@ -1659,6 +1737,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 ComponentItem::Clock(declaration) => {
                     let identity = identities.entities[declaration.name()].clone();
                     self.items.push(FlatItemBlueprint::Clock {
+                        supplied_id: None,
                         name: internal_name(identity.full),
                         period: declaration.period().clone(),
                         phase: declaration.phase().clone(),
@@ -1820,7 +1899,28 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         )?;
                     }
                 }
-                ComponentItem::Instance(_) => {}
+                ComponentItem::Instance(child) => {
+                    self.add_input_bindings(
+                        child,
+                        scope,
+                        occurrence.instance_path,
+                        definition_path(
+                            &component.namespace,
+                            "component",
+                            component.name(),
+                            "input_binding",
+                        ),
+                        &component.namespace,
+                        ConnectionOrigin {
+                            instance: SourceLocation::new(
+                                occurrence.instance_file,
+                                instance.range(),
+                            ),
+                            bindings: scope.occurrence_bindings().to_vec(),
+                            definition_file: component.file.to_owned(),
+                        },
+                    )?;
+                }
                 _ => {
                     return Err(source_error(
                         codes::LANGUAGE_LOWERING_ERROR,
@@ -1841,14 +1941,13 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         scope: &Scope,
     ) -> Result<(LoweringPortContract, Option<PhysicalPortMaterialization>), Diagnostic> {
         match declaration.syntax() {
-            PortSyntax::Signal {
-                direction,
-                value_type,
-            } => Ok((
-                LoweringPortContract::Source(PortSyntax::Signal {
-                    direction: *direction,
-                    value_type: value_type.clone(),
-                }),
+            PortSyntax::Signal { .. } => Ok((
+                LoweringPortContract::Source(rewrite_model_port(
+                    component.file,
+                    declaration.syntax(),
+                    declaration.range(),
+                    scope,
+                )?),
                 None,
             )),
             PortSyntax::ScalarPhysicalConnector { connector } => {
@@ -1959,207 +2058,6 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 },
             },
         ))
-    }
-
-    fn materialize_model_items(
-        &mut self,
-        scope: &Scope,
-        identities: &ScopeIdentities,
-    ) -> Result<(), Diagnostic> {
-        let model = self.model.clone();
-        let mut initial_duplicates = BTreeMap::<String, usize>::new();
-        for item in model.items() {
-            match item {
-                Item::Initial(declaration) => {
-                    let name = crate::source_identity::initial_declaration_name(declaration)?;
-                    let duplicate = initial_duplicates.entry(name.clone()).or_default();
-                    let name = format!("{name}-{duplicate}");
-                    *duplicate += 1;
-                    let identity = self.relation_identity(
-                        &self.root_path,
-                        definition_path(&self.model.namespace, "model", self.model.name(), &name),
-                        SourceLocation::new(self.model.file, declaration.range()),
-                        SourceLocation::new(self.model.file, self.model.range()),
-                        Vec::new(),
-                    )?;
-                    let equations =
-                        rewrite_equations(self.model.file, declaration.equations(), scope, None)?;
-                    self.items.push(FlatItemBlueprint::Relation {
-                        name: internal_name(identity.entity.full),
-                        activation: eqiora_lang::ActivationSyntax::Continuous,
-                        domain: None,
-                        equations,
-                        initial: true,
-                        range: declaration.range(),
-                        identity,
-                    });
-                }
-
-                Item::Domain(declaration) => {
-                    let identity = identities.entities[declaration.name()].clone();
-                    let syntax = match declaration.syntax() {
-                        DomainSyntax::CartesianBox(bounds) => {
-                            DomainSyntax::CartesianBox(bounds.clone())
-                        }
-                        DomainSyntax::Boundary { parent, axis, side } => {
-                            let parent = resolve_local_kind(
-                                self.model.file,
-                                declaration.range(),
-                                scope,
-                                parent,
-                                |kind| matches!(kind, SymbolKind::Domain),
-                                "boundary parent Domain",
-                            )?;
-                            DomainSyntax::Boundary {
-                                parent: parent.internal_name.clone(),
-                                axis: *axis,
-                                side: *side,
-                            }
-                        }
-                        DomainSyntax::ScalarPhysical {
-                            across_type,
-                            through_type,
-                        } => DomainSyntax::ScalarPhysical {
-                            across_type: across_type.clone(),
-                            through_type: through_type.clone(),
-                        },
-                        _ => {
-                            return Err(source_error(
-                                codes::LANGUAGE_LOWERING_ERROR,
-                                self.model.file,
-                                declaration.range(),
-                                "Domain syntax is newer than hierarchy elaboration",
-                            ));
-                        }
-                    };
-                    self.items.push(FlatItemBlueprint::Domain {
-                        name: internal_name(identity.full),
-                        contract: LoweringDomainContract::Source(syntax),
-                        range: declaration.range(),
-                        identity,
-                    });
-                }
-                Item::Field(declaration) => {
-                    let identity = identities.entities[declaration.name()].clone();
-                    let (domain, activation) =
-                        rewrite_field_scope(self.model.file, declaration, scope)?;
-                    let representation = self.add_support_representation(domain.as_deref())?;
-                    self.items.push(FlatItemBlueprint::Field {
-                        name: internal_name(identity.full),
-                        domain,
-                        representation,
-                        value_type: declaration.value_type().clone(),
-                        role: declaration.role(),
-                        activation,
-                        range: declaration.range(),
-                        identity,
-                    });
-                }
-                Item::Parameter(declaration) => {
-                    let identity = identities.entities[declaration.name()].clone();
-                    self.items.push(FlatItemBlueprint::Parameter {
-                        name: internal_name(identity.full),
-                        value_type: declaration.value_type().clone(),
-                        value: crate::units::parameter_literal(self.model.file, declaration)?,
-                        range: declaration.range(),
-                        identity,
-                    });
-                }
-                Item::Port(declaration) => {
-                    let identity = identities.entities[declaration.name()].clone();
-                    let syntax = rewrite_model_port(
-                        self.model.file,
-                        declaration.syntax(),
-                        declaration.range(),
-                        scope,
-                    )?;
-                    self.items.push(FlatItemBlueprint::Port {
-                        name: internal_name(identity.full),
-                        contract: LoweringPortContract::Source(syntax),
-                        range: declaration.range(),
-                        identity,
-                    });
-                }
-                Item::Clock(declaration) => {
-                    let identity = identities.entities[declaration.name()].clone();
-                    self.items.push(FlatItemBlueprint::Clock {
-                        name: internal_name(identity.full),
-                        period: declaration.period().clone(),
-                        phase: declaration.phase().clone(),
-                        range: declaration.range(),
-                        identity,
-                    });
-                }
-                Item::Relation(declaration) => {
-                    let identity = identities.relations[declaration.name()].clone();
-                    let (activation, domain, equations) =
-                        rewrite_relation(self.model.file, declaration, scope)?;
-                    self.record_physical_relation_owners(
-                        self.model.file,
-                        declaration.range(),
-                        identity.entity.full,
-                        &equations,
-                    )?;
-                    self.items.push(FlatItemBlueprint::Relation {
-                        initial: false,
-                        name: internal_name(identity.entity.full),
-                        activation,
-                        domain,
-                        equations,
-                        range: declaration.range(),
-                        identity,
-                    });
-                }
-                Item::Connection(declaration) => {
-                    self.add_connection(
-                        declaration,
-                        scope,
-                        &self.root_path.clone(),
-                        definition_path(&self.model.namespace, "model", self.model.name(), "net"),
-                        ConnectionOrigin {
-                            instance: SourceLocation::new(self.model.file, self.model.range()),
-                            bindings: Vec::new(),
-                            definition_file: self.model.file.to_owned(),
-                        },
-                    )?;
-                }
-                Item::BoundaryConnection(declaration) => {
-                    self.add_boundary_connection(
-                        declaration,
-                        scope,
-                        None,
-                        &self.root_path.clone(),
-                        definition_path(&self.model.namespace, "model", self.model.name(), "net"),
-                        ConnectionOrigin {
-                            instance: SourceLocation::new(self.model.file, self.model.range()),
-                            bindings: Vec::new(),
-                            definition_file: self.model.file.to_owned(),
-                        },
-                    )?;
-                }
-                Item::Boundary(declaration) => {
-                    let ports =
-                        resolve_visible_ports(self.model.file, declaration.port_paths(), scope)?
-                            .into_iter()
-                            .map(|symbol| symbol.internal_name.clone())
-                            .collect();
-                    self.items.push(FlatItemBlueprint::Boundary {
-                        ports,
-                        range: declaration.range(),
-                    });
-                }
-                Item::Let(_) | Item::Instance(_) => {}
-                _ => {
-                    return Err(source_error(
-                        codes::LANGUAGE_LOWERING_ERROR,
-                        self.model.file,
-                        self.model.range(),
-                        "model item is newer than hierarchy elaboration",
-                    ));
-                }
-            }
-        }
-        Ok(())
     }
 
     fn add_connection(

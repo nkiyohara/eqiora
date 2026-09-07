@@ -291,8 +291,8 @@ impl ModelDocument {
             .iter()
             .find_map(|(name, &id)| (id == target).then_some(name.as_str()))
             .map_or_else(
-                || format!("set model value {target}"),
-                |name| format!("set model value {name}"),
+                || format!("set model value() {target}"),
+                |name| format!("set model value() {name}"),
             )
     }
 }

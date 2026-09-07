@@ -19,14 +19,14 @@ public component PytorchDifferentiatedPoisson(
   support x_lower: boundary(parent = square),
   support x_upper: boundary(parent = square),
   support y_lower: boundary(parent = square),
-  support y_upper: boundary(parent = square)
+  support y_upper: boundary(parent = square),
+  parameter diffusion: 1,
+  parameter wave_number: 1 / m,
+  parameter source_scale: 1 / m ^ 2,
+  parameter boundary_offset: 1
 ) {
 
   variable potential: 1 on square;
-  public parameter diffusion: 1;
-  public parameter wave_number: 1 / m;
-  public parameter source_scale: 1 / m ^ 2;
-  public parameter boundary_offset: 1;
   relation balance on square {
     -div(diffusion * grad(potential))
       - source_scale * math.sin(wave_number * coordinate(0))
@@ -76,11 +76,17 @@ def differentiable_program(method) -> eqiora.DifferentiableProgram:
     model = eqiora.compile(
         source=POISSON,
         geometry=geometry,
-        parameters={
-            "diffusion": 1.0,
-            "wave_number": np.pi,
-            "source_scale": 2.0 * np.pi**2,
-            "boundary_offset": 0.0,
+        entry='PytorchDifferentiatedPoisson',
+        bindings={
+            'square': geometry.selection('square'),
+            'x_lower': (geometry.selection('x_lower'), geometry.selection('square')),
+            'x_upper': (geometry.selection('x_upper'), geometry.selection('square')),
+            'y_lower': (geometry.selection('y_lower'), geometry.selection('square')),
+            'y_upper': (geometry.selection('y_upper'), geometry.selection('square')),
+            'diffusion': 1.0,
+            'wave_number': np.pi,
+            'source_scale': 2.0 * np.pi ** 2,
+            'boundary_offset': 0.0,
         },
     )
     spatial = (

@@ -1,6 +1,6 @@
-model Valid {}
+model Valid() {}
 
-model Invalid {
+model Invalid() {
   domain left = box(0, 1);
   domain right = box(0, 1);
   variable a: 1 on left;

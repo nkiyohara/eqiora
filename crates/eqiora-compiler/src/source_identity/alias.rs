@@ -110,7 +110,7 @@ mod tests {
             eqiora_lang::parse(
                 "alias.eqi",
                 &format!(
-                    "public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body)) {{   public port p: conserving {alias}.Boundary over wall; }}"
+                    "public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body), port p: conserving {alias}.Boundary over wall) {{    }}"
                 ),
             )
             .into_document()
@@ -143,7 +143,7 @@ mod tests {
     fn admitted_targets_encode_kind_owner_and_module_without_collisions() {
         let document = eqiora_lang::parse(
             "alias.eqi",
-            "model Main { instance value: dependency.Component; }",
+            "model Main() { instance value: dependency.Component(); }",
         )
         .into_document()
         .expect("alias source");

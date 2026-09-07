@@ -2,7 +2,7 @@
 
 use super::*;
 
-pub(super) fn relation_support(
+pub(in crate::lower) fn relation_support(
     file: &str,
     range: TextRange,
     name: &str,
@@ -109,9 +109,11 @@ fn expression_type_cached(
             }
             Some(Binding::Port(_, contract)) => {
                 match resolve_port_contract(file, expression.range(), contract, bindings)? {
-                    ResolvedPortContract::Signal { value_type, .. } => {
-                        Ok(ExpressionType::new(value_type, None))
-                    }
+                    ResolvedPortContract::Signal {
+                        value_type,
+                        support,
+                        ..
+                    } => Ok(ExpressionType::new(value_type, support)),
                     ResolvedPortContract::ScalarPhysical { .. } => Err(source_error(
                         codes::LANGUAGE_TYPE_ERROR,
                         file,
@@ -270,6 +272,24 @@ fn expression_type_cached(
                     "time operator requires one Field name",
                 ));
             }
+            if callee == "period" {
+                if !matches!(argument.node.as_ref(),LoweringExpressionNode::Name(name) if matches!(bindings.get(name),Some(Binding::Clock(..))))
+                {
+                    return Err(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        argument.range(),
+                        "period requires one clock name",
+                    ));
+                }
+                return Ok(ExpressionType::new(
+                    eqiora_core::ValueType::scalar(
+                        eqiora_core::ScalarDomain::Real,
+                        crate::dimensions::time_dimension(),
+                    ),
+                    None,
+                ));
+            }
             let operand = infer(argument)?;
             match callee.as_str() {
                 "grad" => typing::gradient(&operand),
@@ -281,7 +301,7 @@ fn expression_type_cached(
                 "math.sin" => typing::unary_math(UnaryMathFunction::Sin, &operand),
                 "math.sqrt" => typing::unary_math(UnaryMathFunction::Sqrt, &operand),
                 "derivative" => typing::time_derivative(&operand),
-                "pre" | "next" => Ok(operand),
+                "pre" | "next" | "hold" => Ok(operand),
                 _ => {
                     return Err(source_error(
                         codes::LANGUAGE_TYPE_ERROR,
@@ -293,6 +313,7 @@ fn expression_type_cached(
             }
             .map_err(violation)
         }
+        LoweringExpressionNode::Sample { value, .. } => infer(value),
         LoweringExpressionNode::PureOperator {
             definition,
             arguments,

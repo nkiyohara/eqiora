@@ -164,17 +164,23 @@ impl Parser<'_> {
             };
             if self.at(TokenKind::LeftParen) {
                 self.bump();
+                let mut arguments = Vec::new();
+                let mut child_depth = 0;
                 if self.at(TokenKind::RightParen) {
-                    self.error_here("operator call requires at least one argument");
-                    return None;
-                }
-                let (first, mut child_depth) = self.parse_expression_with_depth(0)?;
-                let mut arguments = vec![first];
-                while self.at(TokenKind::Comma) {
-                    self.bump();
-                    let (argument, depth) = self.parse_expression_with_depth(0)?;
-                    child_depth = child_depth.max(depth);
-                    arguments.push(argument);
+                    if path.as_str() != "boundaries" {
+                        self.error_here("operator call requires at least one argument");
+                        return None;
+                    }
+                } else {
+                    loop {
+                        let (argument, depth) = self.parse_expression_with_depth(0)?;
+                        child_depth = child_depth.max(depth);
+                        arguments.push(argument);
+                        if !self.at(TokenKind::Comma) {
+                            break;
+                        }
+                        self.bump();
+                    }
                 }
                 let depth = self.parent_depth(child_depth)?;
                 let end = self

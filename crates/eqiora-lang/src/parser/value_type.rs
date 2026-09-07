@@ -108,7 +108,7 @@ mod tests {
             "array<array<V, 2>, 3>",
             "array<vector<complex<V>, 2>, 3>",
         ] {
-            let source = format!("model Types {{ parameter value: {value_type} = 0; }}");
+            let source = format!("model Types() {{ parameter value: {value_type} = 0; }}");
             let parsed = parse("types.eqi", &source);
             let document = parsed.document().expect(value_type);
             let canonical = format(document);
@@ -122,7 +122,7 @@ mod tests {
     fn arrays_retain_their_element_type_instead_of_becoming_spatial_axes() {
         let document = parse(
             "array.eqi",
-            "model M { parameter channels: array<vector<complex<V>, 2>, 3> = 0; }",
+            "model M() { parameter channels: array<vector<complex<V>, 2>, 3> = 0; }",
         )
         .into_document()
         .unwrap();
@@ -156,16 +156,16 @@ mod tests {
             "array<V, 65537>",
             "array<array<V, 256>, 257>",
         ] {
-            let source = format!("model M {{ parameter invalid: {value_type} = 0; }}");
+            let source = format!("model M() {{ parameter invalid: {value_type} = 0; }}");
             assert!(
                 parse("invalid.eqi", &source).into_document().is_err(),
                 "{value_type}"
             );
         }
-        let limit = "model M { parameter values: array<V, 65536> = 0; }";
+        let limit = "model M() { parameter values: array<V, 65536> = 0; }";
         assert!(parse("limit.eqi", limit).into_document().is_ok());
         let nested = format!(
-            "model M {{ parameter values: {}V{} = 0; }}",
+            "model M() {{ parameter values: {}V{} = 0; }}",
             "array<".repeat(256),
             ", 1>".repeat(256)
         );

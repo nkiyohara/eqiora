@@ -28,8 +28,8 @@ public component BoundaryWrapper(
   support interface: boundary(parent = body),
 ) {
   instance inner: BoundaryState(
-    support body = body,
-    support interface = interface
+    body = body,
+    interface = interface
   );
 }
 "#;
@@ -121,12 +121,12 @@ fn packaged_model(components: &PackageReleaseV1, alias: &str) -> PackagedModelDo
         r#"
 import Eqiora.Verify.SpatialSupport.model as {alias};
 
-model Main {{
+model Main() {{
   domain fluid = box(0, 1, 0, 1);
   domain wall = boundary(fluid, axis = 0, side = lower);
   instance probe: {alias}.BoundaryWrapper(
-    support body = fluid,
-    support interface = wall
+    body = fluid,
+    interface = wall
   );
 }}
 "#
@@ -220,9 +220,9 @@ component BoundaryState(
         (
             "missing",
             r#"
-model M {
+model M() {
   domain fluid = box(0, 1, 0, 1);
-  instance c: BoundaryState(support body = fluid);
+  instance c: BoundaryState(body = fluid);
 }
 "#,
             "has no binding for required support slot `interface`",
@@ -230,40 +230,40 @@ model M {
         (
             "unknown",
             r#"
-model M {
+model M() {
   domain fluid = box(0, 1, 0, 1);
   domain wall = boundary(fluid, axis = 0, side = lower);
   instance c: BoundaryState(
-    support body = fluid,
-    support interface = wall,
-    support ghost = wall
+    body = fluid,
+    interface = wall,
+    ghost = wall
   );
 }
 "#,
-            "unknown support slot `ghost`",
+            "`ghost` is not a public requirement of `BoundaryState`",
         ),
         (
             "duplicate",
             r#"
-model M {
+model M() {
   domain fluid = box(0, 1, 0, 1);
   domain wall = boundary(fluid, axis = 0, side = lower);
   instance c: BoundaryState(
-    support body = fluid,
-    support body = fluid,
-    support interface = wall
+    body = fluid,
+    body = fluid,
+    interface = wall
   );
 }
 "#,
-            "duplicate binding for support slot `body`",
+            "duplicate named binding `body`",
         ),
         (
             "volume-to-boundary",
             r#"
-model M {
+model M() {
   domain fluid = box(0, 1, 0, 1);
   domain wall = boundary(fluid, axis = 0, side = lower);
-  instance c: BoundaryState(support body = wall, support interface = wall);
+  instance c: BoundaryState(body = wall, interface = wall);
 }
 "#,
             "support slot `body` requires volume support, found boundary",
@@ -271,9 +271,9 @@ model M {
         (
             "boundary-to-volume",
             r#"
-model M {
+model M() {
   domain fluid = box(0, 1, 0, 1);
-  instance c: BoundaryState(support body = fluid, support interface = fluid);
+  instance c: BoundaryState(body = fluid, interface = fluid);
 }
 "#,
             "support slot `interface` requires boundary support, found volume",
@@ -281,11 +281,11 @@ model M {
         (
             "wrong-parent",
             r#"
-model M {
+model M() {
   domain fluid = box(0, 1, 0, 1);
   domain other = box(0, 1, 0, 1);
   domain wall = boundary(other, axis = 0, side = lower);
-  instance c: BoundaryState(support body = fluid, support interface = wall);
+  instance c: BoundaryState(body = fluid, interface = wall);
 }
 "#,
             "is not BoundaryOf its exact bound parent slot `body`",
@@ -293,10 +293,10 @@ model M {
         (
             "ambient-dimension",
             r#"
-model M {
+model M() {
   domain line = box(0, 1);
   domain point = boundary(line, axis = 0, side = lower);
-  instance c: BoundaryState(support body = line, support interface = point);
+  instance c: BoundaryState(body = line, interface = point);
 }
 "#,
             "requires ambient dimension 2",
@@ -304,11 +304,11 @@ model M {
         (
             "boundary-of-boundary",
             r#"
-model M {
+model M() {
   domain fluid = box(0, 1, 0, 1);
   domain wall = boundary(fluid, axis = 0, side = lower);
   domain edge = boundary(wall, axis = 1, side = lower);
-  instance c: BoundaryState(support body = fluid, support interface = edge);
+  instance c: BoundaryState(body = fluid, interface = edge);
 }
 "#,
             "Cartesian boundary parent must be a Cartesian box Domain",
@@ -332,9 +332,9 @@ component C(
 ) {
   relation law on body { coordinate(2) = 0; }
 }
-model M {
+model M() {
   domain fluid = box(0, 1, 0, 1);
-  instance c: C(support body = fluid);
+  instance c: C(body = fluid);
 }
 "#;
     let diagnostics = compile("coordinate.eqi", coordinate).expect_err("axis two is outside 2D");
@@ -347,17 +347,17 @@ model M {
     for (name, source, expected) in [
         (
             "private-support.eqi",
-            "component C() { support body: volume(ambient_dimension = 2); } model M {}",
+            "component C() { support body: volume(ambient_dimension = 2); } model M() {}",
             "expected parameter, port, variable, state, initial, clock, relation, connect, or instance in component",
         ),
         (
             "zero-dimension-support.eqi",
-            "component C(support body: volume(ambient_dimension = 0)) {} model M {}",
+            "component C(support body: volume(ambient_dimension = 0)) {} model M() {}",
             "requires a positive ambient dimension",
         ),
         (
             "unknown-parent-support.eqi",
-            "component C(support wall: boundary(parent = body)) {} model M {}",
+            "component C(support wall: boundary(parent = body)) {} model M() {}",
             "refers to unknown parent slot `body`",
         ),
     ] {

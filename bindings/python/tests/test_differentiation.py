@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 import eqiora
+from _signature_bindings import support_bindings
 
 
 POISSON = """
@@ -12,14 +13,14 @@ public component PythonDifferentiatedPoisson(
   support x_lower: boundary(parent = square),
   support x_upper: boundary(parent = square),
   support y_lower: boundary(parent = square),
-  support y_upper: boundary(parent = square)
+  support y_upper: boundary(parent = square),
+  parameter diffusion: 1,
+  parameter wave_number: 1 / m,
+  parameter source_scale: 1 / m ^ 2,
+  parameter boundary_offset: 1
 ) {
 
   variable potential: 1 on square;
-  public parameter diffusion: 1;
-  public parameter wave_number: 1 / m;
-  public parameter source_scale: 1 / m ^ 2;
-  public parameter boundary_offset: 1;
   relation balance on square {
     -div(diffusion * grad(potential))
       - source_scale * math.sin(wave_number * coordinate(0))
@@ -38,12 +39,11 @@ public component MixedBoundaryElasticity(
   support left: boundary(parent = region),
   support right: boundary(parent = region),
   support bottom: boundary(parent = region),
-  support top: boundary(parent = region)
+  support top: boundary(parent = region),
+  parameter mu: kg / (m * s ^ 2),
+  parameter lambda: kg / (m * s ^ 2),
+  parameter length_scale: m
 ) {
-
-  public parameter mu: kg / (m * s ^ 2);
-  public parameter lambda: kg / (m * s ^ 2);
-  public parameter length_scale: m;
 
   variable displacement: vector<m, 2> on region;
   variable load_potential: kg / (m * s ^ 2) on region;
@@ -87,16 +87,7 @@ def model_and_plan(method, *, diffusion: float = 1.0):
     request = eqiora.meshing.CartesianMesher(cells=(4, 4))
     mesh_plan = eqiora.meshing.resolve(geometry, request)
     mesh = eqiora.meshing.generate(mesh_plan)
-    model = eqiora.compile(
-        source=POISSON,
-        geometry=geometry,
-        parameters={
-            "diffusion": diffusion,
-            "wave_number": np.pi,
-            "source_scale": 2.0 * np.pi**2,
-            "boundary_offset": 0.0,
-        },
-    )
+    model = eqiora.compile(source=POISSON, geometry=geometry, entry='PythonDifferentiatedPoisson', bindings={**support_bindings(geometry, ['square'], [('x_lower', 'square'), ('x_upper', 'square'), ('y_lower', 'square'), ('y_upper', 'square')]), **{'diffusion': diffusion, 'wave_number': np.pi, 'source_scale': 2.0 * np.pi ** 2, 'boundary_offset': 0.0}})
     spatial = (
         eqiora.fem.Q1()
         if method == eqiora.fem.Q1()
@@ -152,11 +143,7 @@ def elasticity_model_and_plan():
     mesh_request = eqiora.meshing.CartesianMesher(cells=(4, 4))
     mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
     mesh = eqiora.meshing.generate(mesh_plan)
-    model = eqiora.compile(
-        source=ELASTICITY,
-        geometry=geometry,
-        parameters={"mu": 2.0, "lambda": 3.0, "length_scale": 1.0},
-    )
+    model = eqiora.compile(source=ELASTICITY, geometry=geometry, entry='MixedBoundaryElasticity', bindings={**support_bindings(geometry, ['region'], [('left', 'region'), ('right', 'region'), ('bottom', 'region'), ('top', 'region')]), **{'mu': 2.0, 'lambda': 3.0, 'length_scale': 1.0}})
     plan = eqiora.resolve(
         model,
         mesh=mesh,

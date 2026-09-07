@@ -1,11 +1,9 @@
-component Offset() {
-  public parameter input: 1;
-  public parameter offset: 1 = 1;
+component Offset(parameter input: 1, parameter offset: 1 = 1) {
   variable output: 1;
   relation value { output - input - offset = 0; }
 }
 
-model TwoOffsets {
+model TwoOffsets() {
   instance first: Offset(input = 2);
   instance second: Offset(input = 5, offset = 3);
 }

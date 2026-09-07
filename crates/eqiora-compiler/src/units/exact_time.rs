@@ -162,7 +162,7 @@ mod tests {
     use super::*;
 
     fn clock(period: &str, phase: &str) -> Result<(RationalTime, RationalTime), Diagnostic> {
-        let source = format!("model M {{ clock tick = periodic({period}, phase = {phase}); }}");
+        let source = format!("model M() {{ clock tick = periodic({period}, phase = {phase}); }}");
         let document = eqiora_lang::parse("clock.eqi", &source)
             .into_document()
             .expect("clock syntax");

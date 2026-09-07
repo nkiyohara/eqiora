@@ -1,9 +1,9 @@
 public component A() {
-  instance b: B;
+  instance b: B();
 }
 
 public component B() {
-  instance a: A;
+  instance a: A();
 }
 
-model Empty {}
+model Empty() {}

@@ -347,7 +347,7 @@ fn e1_scaffold_source(sealed: &SealedE1Input) -> Result<String, Diagnostic> {
     let [a2, a4] = sealed.design_coefficients();
     let half_width = 10.0 * area_radius_m;
     Ok(format!(
-        r"model stokes_e1_dissipation_profile {{
+        r"model stokes_e1_dissipation_profile() {{
   domain fluid = box({lower:?}, {upper:?}, {lower:?}, {upper:?});
   domain body = boundary(fluid, axis = 0, side = lower);
   domain outer_x_minus = boundary(fluid, axis = 0, side = lower);

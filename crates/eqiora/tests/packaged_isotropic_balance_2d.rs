@@ -7,7 +7,7 @@ use eqiora::artifact::{
     ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelope,
     RealizationEnvelopeV1, RunManifestV2,
 };
-use eqiora::language::{ComponentItem, DomainSyntax, Item};
+use eqiora::language::{ComponentItem, DomainSyntax, Item, SignatureItem};
 use eqiora::meshing::QuadratureRule;
 use eqiora::package::{
     BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
@@ -237,28 +237,28 @@ fn assert_component_boundary() {
         .iter()
         .find(|component| component.name() == "IsotropicBalanceWithPotential2d")
         .expect("current package contains the balance component");
-    assert_eq!(component.items().len(), 6);
+    assert_eq!(component.signature().len() + component.items().len(), 6);
     assert_eq!(
         component
-            .items()
+            .signature()
             .iter()
-            .filter(|item| matches!(item, ComponentItem::Support(_)))
+            .filter(|item| matches!(item, SignatureItem::Support(_)))
             .count(),
         1
     );
     assert_eq!(
         component
-            .items()
+            .signature()
             .iter()
-            .filter(|item| matches!(item, ComponentItem::FieldRequirement(_)))
+            .filter(|item| matches!(item, SignatureItem::Field(_)))
             .count(),
         2
     );
     assert_eq!(
         component
-            .items()
+            .signature()
             .iter()
-            .filter(|item| matches!(item, ComponentItem::Parameter(_)))
+            .filter(|item| matches!(item, SignatureItem::Parameter(_)))
             .count(),
         2
     );

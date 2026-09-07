@@ -10,11 +10,11 @@ use crate::source_identity::LocalSourceIdentity;
 #[test]
 fn model_let_alias_expands_without_a_kernel_entity() {
     let source = r#"
-component Law() {
-  public parameter phase: 1;
+component Law(parameter phase: 1) {
+
   relation balance { phase - 1 = 0; }
 }
-model Derived {
+model Derived() {
   parameter length: m = 2;
   let phase: 1 = wave_number * length;
   let wave_number: 1 / m = math.pi / length;
@@ -46,7 +46,7 @@ model Derived {
 #[test]
 fn model_let_alias_infers_known_dimensions_without_changing_model_meaning() {
     let annotated = r#"
-model Derived {
+model Derived() {
   let length: m = 2;
   let wave_number: 1 / m = math.pi / length;
   let unitless: 1 = 1;
@@ -68,12 +68,14 @@ model Derived {
         "annotated.eqi",
         &annotated_document.models()[0],
         &mut annotated_values,
+        |name| super::clocks::model("annotated.eqi", &annotated_document.models()[0], name),
     )
     .expect("annotated aliases resolve");
     super::parameters::resolve_model_lets(
         "inferred.eqi",
         &inferred_document.models()[0],
         &mut inferred_values,
+        |name| super::clocks::model("inferred.eqi", &inferred_document.models()[0], name),
     )
     .expect("known dimensions infer");
     assert_eq!(
@@ -103,22 +105,22 @@ fn model_let_alias_rejects_cycles_unknown_names_and_dimension_mismatches() {
     let invalid = [
         (
             "unknown",
-            "model M { let first: 1 = missing; }",
+            "model M() { let first: 1 = missing; }",
             "unresolved expression symbol `missing`",
         ),
         (
             "dimension",
-            "model M { parameter length: m = 2; let wrong: s = math.pi / length; }",
+            "model M() { parameter length: m = 2; let wrong: s = math.pi / length; }",
             "let alias has dimension",
         ),
         (
             "cycle",
-            "model M { let self_reference: 1 = self_reference; }",
+            "model M() { let self_reference: 1 = self_reference; }",
             "let alias dependency cycle: self_reference -> self_reference",
         ),
         (
             "shadow",
-            "model M { parameter value: 1 = 2; let value: 1 = 3; }",
+            "model M() { parameter value: 1 = 2; let value: 1 = 3; }",
             "duplicate name `value`",
         ),
     ];
@@ -136,43 +138,82 @@ fn model_let_alias_rejects_cycles_unknown_names_and_dimension_mismatches() {
 }
 
 const EXTERNAL_SPATIAL_COMPONENT: &str = r#"
-public component BoundaryLaw(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body)) {
+public component BoundaryLaw(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body), parameter value: 1) {
 
 
-  public parameter value: 1;
+
   variable state: 1 on body; initial { state = 0; }
   relation volume_law on body { state - value = 0; }
   relation wall_law on wall { trace(state) = 0; }
 }
 "#;
 
-fn external_binding() -> crate::external::ExternalComponentBinding {
-    let digest = eqiora_schema::kernel::GeometryDigest::new([0x11; 32]);
-    crate::external::ExternalComponentBinding::new(
-        "BoundModel",
-        "BoundaryLaw",
-        vec![
-            crate::external::ExternalGeometrySupportBinding::region("body", digest, "fluid", 2),
-            crate::external::ExternalGeometrySupportBinding::boundary(
-                "wall", digest, "walls", "body",
-            ),
-        ],
-        vec![crate::external::ExternalParameterBinding::new(
-            "value",
-            eqiora_core::ValueLiteral::try_from(DynQuantity::new(2.0, DimExponents::DIMENSIONLESS))
-                .unwrap(),
-        )],
+fn external_geometry() -> eqiora_geometry::CanonicalGeometryV1 {
+    let graph = eqiora_geometry::GeometryGraph::new();
+    let rectangle = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
+    graph
+        .build(
+            &rectangle,
+            &std::collections::BTreeMap::from([
+                ("fluid".into(), vec![rectangle.region().into()]),
+                (
+                    "walls".into(),
+                    rectangle
+                        .boundaries()
+                        .iter()
+                        .map(|boundary| (*boundary).into())
+                        .collect(),
+                ),
+            ]),
+        )
+        .unwrap()
+}
+
+fn external_supports(
+    geometry: &eqiora_geometry::CanonicalGeometryV1,
+) -> Vec<(&'static str, crate::StaticBindingValue<'_>)> {
+    let region = geometry.entity_set("fluid").unwrap();
+    vec![
+        (
+            "body",
+            crate::StaticBindingValue::GeometrySupport {
+                geometry,
+                selection: region,
+                parent: None,
+            },
+        ),
+        (
+            "wall",
+            crate::StaticBindingValue::GeometrySupport {
+                geometry,
+                selection: geometry.entity_set("walls").unwrap(),
+                parent: Some(region),
+            },
+        ),
+    ]
+}
+
+fn external_value(value: f64) -> eqiora_lang::Expr {
+    eqiora_lang::SourceAstFactory::expression(
+        eqiora_lang::ExprKind::Number(value),
+        Default::default(),
     )
+    .unwrap()
 }
 
 #[test]
 fn external_geometry_supports_enter_the_ordinary_component_lowerer() {
     use eqiora_schema::kernel::{DomainKind, ExprNode, SymbolRef};
 
-    let compiled = super::compile_external_component(
+    let geometry = external_geometry();
+    let value = external_value(2.0);
+    let mut bindings = external_supports(&geometry);
+    bindings.push(("value", crate::StaticBindingValue::Expression(&value)));
+    let compiled = crate::CompiledModel::compile_selected(
         "boundary-law.eqi",
         EXTERNAL_SPATIAL_COMPONENT,
-        &external_binding(),
+        "BoundaryLaw",
+        &bindings,
     )
     .expect("external supports close one Component occurrence");
     assert!(compiled.symbols().get("body").is_some());
@@ -184,6 +225,7 @@ fn external_geometry_supports_enter_the_ordinary_component_lowerer() {
         .expect("external value is retained as a root Parameter");
     assert_eq!(compiled.symbols().get("definition.value"), Some(parameter));
 
+    let geometry_digest = geometry.digest_bytes();
     let mut region = 0;
     let mut boundary = 0;
     let mut parameters = 0;
@@ -199,7 +241,7 @@ fn external_geometry_supports_enter_the_ordinary_component_lowerer() {
                     entity_set,
                 } => {
                     region += 1;
-                    assert_eq!(geometry.bytes(), [0x11; 32]);
+                    assert_eq!(geometry.bytes(), geometry_digest);
                     assert_eq!(entity_set, "fluid");
                 }
                 DomainKind::GeometryBoundary { entity_set } => {
@@ -240,19 +282,16 @@ fn external_geometry_supports_enter_the_ordinary_component_lowerer() {
 fn omitted_external_parameter_default_remains_an_expression_constant() {
     use eqiora_schema::kernel::{ExprNode, SymbolRef};
 
-    let source = EXTERNAL_SPATIAL_COMPONENT.replace(
-        "public parameter value: 1;",
-        "public parameter value: 1 = 3;",
-    );
-    let complete = external_binding();
-    let binding = crate::external::ExternalComponentBinding::new(
-        complete.model(),
-        complete.component(),
-        complete.supports().to_vec(),
-        Vec::new(),
-    );
-    let compiled = super::compile_external_component("default.eqi", &source, &binding)
-        .expect("omitted public default closes the occurrence");
+    let source =
+        EXTERNAL_SPATIAL_COMPONENT.replace("parameter value: 1)", "parameter value: 1 = 3)");
+    let geometry = external_geometry();
+    let compiled = crate::CompiledModel::compile_selected(
+        "default.eqi",
+        &source,
+        "BoundaryLaw",
+        &external_supports(&geometry),
+    )
+    .expect("omitted public default closes the occurrence");
     assert!(compiled.symbols().get("value").is_none());
     assert!(compiled.symbols().get("definition.value").is_none());
     assert!(compiled.transaction().ops().iter().all(|operation| {
@@ -280,75 +319,36 @@ fn omitted_external_parameter_default_remains_an_expression_constant() {
 
 #[test]
 fn external_geometry_binding_inventory_fails_before_a_transaction_exists() {
-    let digest = eqiora_schema::kernel::GeometryDigest::new([0x11; 32]);
-    let region =
-        || crate::external::ExternalGeometrySupportBinding::region("body", digest, "fluid", 2);
-    let boundary = || {
-        crate::external::ExternalGeometrySupportBinding::boundary("wall", digest, "walls", "body")
+    let geometry = external_geometry();
+    let foreign = external_geometry();
+    let value = external_value(2.0);
+    let mut valid = external_supports(&geometry);
+    valid.push(("value", crate::StaticBindingValue::Expression(&value)));
+    let mut duplicate = valid.clone();
+    duplicate.push(valid[0]);
+    let mut missing = valid.clone();
+    missing.remove(0);
+    let mut foreign_parent = valid.clone();
+    foreign_parent[1].1 = crate::StaticBindingValue::GeometrySupport {
+        geometry: &geometry,
+        selection: geometry.entity_set("walls").unwrap(),
+        parent: Some(foreign.entity_set("fluid").unwrap()),
     };
-    let parameter = || {
-        crate::external::ExternalParameterBinding::new(
-            "value",
-            eqiora_core::ValueLiteral::try_from(DynQuantity::new(2.0, DimExponents::DIMENSIONLESS))
-                .unwrap(),
-        )
-    };
-    let mut foreign_boundary = boundary();
-    let crate::external::ExternalGeometrySupportBinding::Boundary {
-        geometry: digest, ..
-    } = &mut foreign_boundary
-    else {
-        unreachable!()
-    };
-    *digest = eqiora_schema::kernel::GeometryDigest::new([0x22; 32]);
-    let mut duplicate_boundary = boundary();
-    let crate::external::ExternalGeometrySupportBinding::Boundary { entity_set, .. } =
-        &mut duplicate_boundary
-    else {
-        unreachable!()
-    };
-    *entity_set = "fluid".to_owned();
-    let cases = [
-        (
-            crate::external::ExternalComponentBinding::new(
-                "Missing",
-                "BoundaryLaw",
-                vec![region()],
-                vec![parameter()],
-            ),
-            "no binding for required support slot `wall`",
-        ),
-        (
-            crate::external::ExternalComponentBinding::new(
-                "Foreign",
-                "BoundaryLaw",
-                vec![region(), foreign_boundary],
-                vec![parameter()],
-            ),
-            "one exact Geometry identity",
-        ),
-        (
-            crate::external::ExternalComponentBinding::new(
-                "Duplicate",
-                "BoundaryLaw",
-                vec![region(), duplicate_boundary],
-                vec![parameter()],
-            ),
-            "bound to more than one support slot",
-        ),
-    ];
-    for (binding, expected) in cases {
-        let diagnostics = super::compile_external_component(
-            "boundary-law.eqi",
+    for (bindings, expected) in [
+        (duplicate, "duplicate"),
+        (missing, "requires binding `body`"),
+        (foreign_parent, "foreign or stale parent"),
+    ] {
+        let errors = crate::CompiledModel::compile_selected(
+            "inventory.eqi",
             EXTERNAL_SPATIAL_COMPONENT,
-            &binding,
+            "BoundaryLaw",
+            &bindings,
         )
         .unwrap_err();
         assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message().contains(expected)),
-            "missing `{expected}` in {diagnostics:#?}"
+            errors.iter().any(|e| e.message().contains(expected)),
+            "{expected}: {errors:?}"
         );
     }
 }
@@ -362,143 +362,88 @@ fn external_dimensioned_parameter_failures_are_typed() {
         ))
         .is_err()
     );
-    let (value, expected) = (
-        DynQuantity::new(
+    let geometry = external_geometry();
+    let value = eqiora_lang::SourceAstFactory::value_literal(
+        &eqiora_core::ValueLiteral::try_from(DynQuantity::new(
             2.0,
-            DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
-        ),
-        "has dimension",
-    );
-    let mut binding = external_binding();
-    binding = crate::external::ExternalComponentBinding::new(
-        "Rejected",
+            DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
+        ))
+        .unwrap(),
+        Default::default(),
+    )
+    .unwrap();
+    let mut bindings = external_supports(&geometry);
+    bindings.push(("value", crate::StaticBindingValue::Expression(&value)));
+    let errors = crate::CompiledModel::compile_selected(
+        "dimension.eqi",
+        EXTERNAL_SPATIAL_COMPONENT,
         "BoundaryLaw",
-        binding.supports().to_vec(),
-        vec![crate::external::ExternalParameterBinding::new(
-            "value",
-            eqiora_core::ValueLiteral::try_from(value).unwrap(),
-        )],
-    );
-    let diagnostics =
-        super::compile_external_component("boundary-law.eqi", EXTERNAL_SPATIAL_COMPONENT, &binding)
-            .unwrap_err();
+        &bindings,
+    )
+    .unwrap_err();
     assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message().contains(expected)),
-        "missing `{expected}` in {diagnostics:#?}",
+        errors.iter().any(|e| e.message().contains("dimension")),
+        "{errors:?}"
     );
 }
 
 #[test]
 fn external_occurrence_rejects_closed_binding_and_source_failures() {
-    let assert_rejected = |source: &str,
-                           binding: crate::external::ExternalComponentBinding,
-                           expected: &str| {
-        let diagnostics =
-            super::compile_external_component("boundary-law.eqi", source, &binding).unwrap_err();
+    let geometry = external_geometry();
+    let value = external_value(2.0);
+    let mut valid = external_supports(&geometry);
+    valid.push(("value", crate::StaticBindingValue::Expression(&value)));
+    let reject = |source: &str,
+                  entry: &str,
+                  bindings: &[(&str, crate::StaticBindingValue<'_>)],
+                  expected: &str| {
+        let errors = crate::CompiledModel::compile_selected("source.eqi", source, entry, bindings)
+            .unwrap_err();
         assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message().contains(expected)),
-            "missing `{expected}` in {diagnostics:#?}",
+            errors.iter().any(|e| e.message().contains(expected)),
+            "{expected}: {errors:?}"
         );
     };
-
-    let valid = external_binding();
-    assert_rejected("not valid eqiora source", valid.clone(), "expected");
-    assert_rejected("model Root {}", valid.clone(), "definitions-only source");
-    assert_rejected(
+    reject("not valid eqiora source", "BoundaryLaw", &valid, "expected");
+    reject(EXTERNAL_SPATIAL_COMPONENT, "Absent", &valid, "Absent");
+    reject(
         &EXTERNAL_SPATIAL_COMPONENT.replacen("public component", "component", 1),
-        valid.clone(),
+        "BoundaryLaw",
+        &valid,
         "must be declared public",
     );
-
-    let no_parameters = crate::external::ExternalComponentBinding::new(
-        "MissingParameter",
+    reject(
+        EXTERNAL_SPATIAL_COMPONENT,
         "BoundaryLaw",
-        valid.supports().to_vec(),
-        Vec::new(),
+        &valid[..2],
+        "requires binding `value`",
     );
-    assert_rejected(
+    let mut duplicate = valid.clone();
+    duplicate.push(valid[2]);
+    reject(
         EXTERNAL_SPATIAL_COMPONENT,
-        no_parameters,
-        "required Parameter `value` has no instance binding",
+        "BoundaryLaw",
+        &duplicate,
+        "duplicate",
     );
-
-    let parameter = valid.parameters()[0].clone();
-    for (parameters, expected) in [
-        (
-            vec![parameter.clone(), parameter.clone()],
-            "duplicate binding for Parameter `value`",
-        ),
-        (
-            vec![
-                parameter.clone(),
-                crate::external::ExternalParameterBinding::new(
-                    "extra",
-                    eqiora_core::ValueLiteral::try_from(DynQuantity::new(
-                        1.0,
-                        DimExponents::DIMENSIONLESS,
-                    ))
-                    .unwrap(),
-                ),
-            ],
-            "unknown public Parameter `extra`",
-        ),
-    ] {
-        assert_rejected(
-            EXTERNAL_SPATIAL_COMPONENT,
-            crate::external::ExternalComponentBinding::new(
-                "RejectedParameter",
-                "BoundaryLaw",
-                valid.supports().to_vec(),
-                parameters,
-            ),
-            expected,
-        );
-    }
-
-    let digest = eqiora_schema::kernel::GeometryDigest::new([0x11; 32]);
-    let extra =
-        crate::external::ExternalGeometrySupportBinding::boundary("extra", digest, "inlet", "body");
-    let mut supports = valid.supports().to_vec();
-    supports.push(extra);
-    assert_rejected(
+    let mut unknown = valid.clone();
+    unknown.push(("extra", valid[2].1));
+    reject(
         EXTERNAL_SPATIAL_COMPONENT,
-        crate::external::ExternalComponentBinding::new(
-            "ExtraSupport",
-            "BoundaryLaw",
-            supports,
-            valid.parameters().to_vec(),
-        ),
-        "unknown support slot `extra`",
+        "BoundaryLaw",
+        &unknown,
+        "no binding target `extra`",
     );
-
-    let mut wrong_parent = valid.supports().to_vec();
-    let crate::external::ExternalGeometrySupportBinding::Boundary { parent_slot, .. } =
-        &mut wrong_parent[1]
-    else {
-        unreachable!()
-    };
-    *parent_slot = "absent".to_owned();
-    assert_rejected(
+    let mut unknown_support = valid.clone();
+    unknown_support.push(("extra", valid[0].1));
+    reject(
         EXTERNAL_SPATIAL_COMPONENT,
-        crate::external::ExternalComponentBinding::new(
-            "WrongParent",
-            "BoundaryLaw",
-            wrong_parent,
-            valid.parameters().to_vec(),
-        ),
-        "has no region parent binding `absent`",
+        "BoundaryLaw",
+        &unknown_support,
+        "no binding target `extra`",
     );
-
     let excessive = " ".repeat(16 * 1_024 * 1_024 + 1);
-    assert_rejected(
-        &excessive,
-        valid,
-        "exceeding the 16777216 byte hierarchy limit",
-    );
+    reject(&excessive, "BoundaryLaw", &valid, "16777216");
 }
 
 const RESISTOR_SOURCE: &str = r#"
@@ -507,10 +452,10 @@ connector Pin = scalar_physical(
   through = A
 );
 
-component Resistor() {
-  public parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2);
-  public port positive: conserving on Pin;
-  public port negative: conserving on Pin;
+component Resistor(parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2), port positive: conserving on Pin, port negative: conserving on Pin) {
+
+
+
 
   relation voltage {
     across(positive) - across(negative) - resistance * through(positive) = 0;
@@ -518,7 +463,7 @@ component Resistor() {
   }
 }
 
-model parallel {
+model parallel() {
   instance r2: Resistor(resistance = 2[Ohm]);
   instance r4: Resistor(resistance = 4[Ohm]);
   connect conserving r2.positive, r4.positive;
@@ -578,16 +523,16 @@ fn elaborates_repeated_component_instances_to_distinct_flat_entities() {
 fn semantic_declaration_order_and_source_location_do_not_change_ids() {
     let reordered = r#"
 connector Pin = scalar_physical(across = kg * m ^ 2 / (s ^ 3 * A), through = A);
-component Resistor() {
-  public port negative: conserving on Pin;
+component Resistor(port negative: conserving on Pin, port positive: conserving on Pin, parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2)) {
+
   relation voltage {
     across(positive) - across(negative) - resistance * through(positive) = 0;
     through(positive) + through(negative) = 0;
   }
-  public port positive: conserving on Pin;
-  public parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2);
+
+
 }
-model parallel {
+model parallel() {
   connect conserving r2.negative, r4.negative;
   instance r4: Resistor(resistance = 4[Ohm]);
   connect conserving r4.positive, r2.positive;
@@ -612,9 +557,9 @@ model parallel {
 fn nested_instances_are_elaborated_recursively() {
     let source = r#"
 connector Pin = scalar_physical(across = 1, through = 1);
-component Leaf() {
-  public port left: conserving on Pin;
-  public port right: conserving on Pin;
+component Leaf(port left: conserving on Pin, port right: conserving on Pin) {
+
+
   relation law {
     across(left) - across(right) = 0;
     through(left) + through(right) = 0;
@@ -622,12 +567,12 @@ component Leaf() {
 }
 
 component Pair() {
-  instance first: Leaf;
-  instance second: Leaf;
+  instance first: Leaf();
+  instance second: Leaf();
   connect conserving first.left, second.left;
   connect conserving first.right, second.right;
 }
-model nested { instance pair: Pair; }
+model nested() { instance pair: Pair(); }
 "#;
     let mut compiled = crate::compile("nested.eqi", source).unwrap();
     let compiled = compiled.pop().unwrap();
@@ -648,10 +593,10 @@ component Law(variable state: K on body, support body: volume(ambient_dimension 
 
   relation balance on body { state = 0; }
 }
-model Coupled {
+model Coupled() {
   domain body = box(0, 1, 0, 1);
   variable state: K on body; initial { state = 0; }
-  instance law: Law(support body = body, field state = state);
+  instance law: Law(body = body, state = state);
 }
 "#;
     let mut compiled = crate::compile("field-alias.eqi", source).expect("exact Field binding");
@@ -704,11 +649,11 @@ fn occurrence_bound_parameter_is_one_exact_non_materialized_identity() {
     use eqiora_schema::kernel::{ExprNode, SymbolRef};
 
     let source = r#"
-component Law() {
-  public parameter coefficient: 1;
+component Law(parameter coefficient: 1) {
+
   relation balance { coefficient - 1 = 0; }
 }
-model Coupled {
+model Coupled() {
   parameter material: 1 = 2;
   instance first: Law(coefficient = material);
   instance second: Law(coefficient = material);
@@ -754,11 +699,11 @@ fn equal_valued_parameters_remain_distinct_through_arithmetic_bindings() {
     use eqiora_schema::kernel::{ExprNode, SymbolRef};
 
     let source = r#"
-component Law() {
-  public parameter coefficient: 1;
+component Law(parameter coefficient: 1) {
+
   relation balance { coefficient - 1 = 0; }
 }
-model Coupled {
+model Coupled() {
   parameter first_material: 1 = 2;
   parameter second_material: 1 = 2;
   instance first: Law(coefficient = 3 * first_material);
@@ -809,7 +754,7 @@ model Coupled {
 fn literal_parameter_bindings_normalize_negative_zero_without_a_direction() {
     let source = |literal: &str| {
         format!(
-            "component Law() {{ public parameter coefficient: 1; relation balance {{ coefficient = 0; }} }} model Coupled {{ instance law: Law(coefficient = {literal}); }}"
+            "component Law(parameter coefficient: 1) {{  relation balance {{ coefficient = 0; }} }} model Coupled() {{ instance law: Law(coefficient = {literal}); }}"
         )
     };
     let mut positive = crate::compile("zero.eqi", &source("0.0")).unwrap();
@@ -843,12 +788,12 @@ component Inner(variable state: K on body, support body: volume(ambient_dimensio
 component Outer(variable state: K on body, support body: volume(ambient_dimension = 2)) {
 
 
-  instance inner: Inner(support body = body, field state = state);
+  instance inner: Inner(body = body, state = state);
 }
-model Coupled {
+model Coupled() {
   domain body = box(0, 1, 0, 1);
   variable state: K on body; initial { state = 0; }
-  instance outer: Outer(support body = body, field state = state);
+  instance outer: Outer(body = body, state = state);
 }
 "#;
     let mut compiled =
@@ -901,11 +846,11 @@ component Law(variable state: vector<K, 2> on body, support body: volume(ambient
 
   relation balance on body { state = 0; }
 }
-model Coupled {
+model Coupled() {
   domain left = box(0, 1, 0, 1);
   domain right = box(1, 2, 0, 1);
   variable state: vector<K, 2> on right;
-  instance law: Law(support body = left, field state = state);
+  instance law: Law(body = left, state = state);
 }
 "#;
     let diagnostics = crate::compile("field-support-mismatch.eqi", base)
@@ -930,7 +875,7 @@ model Coupled {
             .contains("disagree in array and spatial axis roles")
     }));
 
-    let missing = base.replace(", field state = state", "");
+    let missing = base.replace(", state = state", "");
     let diagnostics = crate::compile("field-missing.eqi", &missing)
         .expect_err("required Field slot cannot default");
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -944,14 +889,14 @@ model Coupled {
 fn transitive_physical_fragments_emit_one_canonical_connection() {
     let nary = r#"
 connector Pin = scalar_physical(across = 1, through = 1);
-component Terminal() {
-  public port p: conserving on Pin;
+component Terminal(port p: conserving on Pin) {
+
   relation owner { across(p) = 0; }
 }
-model Network {
-  instance a: Terminal;
-  instance b: Terminal;
-  instance c: Terminal;
+model Network() {
+  instance a: Terminal();
+  instance b: Terminal();
+  instance c: Terminal();
   connect conserving a.p, b.p, c.p;
 }
 "#;
@@ -986,19 +931,19 @@ model Network {
 fn redundant_ancestor_fragment_owns_one_connection_and_preserves_both_origins() {
     let source = r#"
 connector Pin = scalar_physical(across = 1, through = 1);
-component ClosedLeaf() {
-  public port a: conserving on Pin;
-  public port b: conserving on Pin;
+component ClosedLeaf(port a: conserving on Pin, port b: conserving on Pin) {
+
+
   relation law {
     across(a) + across(b) = 0;
   }
   connect conserving a, b;
 }
 component Parent() {
-  instance leaf: ClosedLeaf;
+  instance leaf: ClosedLeaf();
   connect conserving leaf.a, leaf.b;
 }
-model Network { instance parent: Parent; }
+model Network() { instance parent: Parent(); }
 "#;
     let document = eqiora_lang::parse("ancestor-reconnection.eqi", source)
         .into_document()
@@ -1051,18 +996,18 @@ model Network { instance parent: Parent; }
 fn ownerless_public_port_is_eliminated_without_fabricating_an_entity_alias() {
     let source = r#"
 connector Pin = scalar_physical(across = 1, through = 1);
-component Leaf() {
-  public port p: conserving on Pin;
+component Leaf(port p: conserving on Pin) {
+
   relation owner { across(p) = 0; }
 }
-component Wrapper() {
-  public port p: conserving on Pin;
-  instance leaf: Leaf;
+component Wrapper(port p: conserving on Pin) {
+
+  instance leaf: Leaf();
   connect conserving p, leaf.p;
 }
-model Network {
-  instance left: Wrapper;
-  instance right: Leaf;
+model Network() {
+  instance left: Wrapper();
+  instance right: Leaf();
   connect conserving left.p, right.p;
 }
 "#;
@@ -1140,24 +1085,24 @@ model Network {
 fn nested_physical_exposures_retain_distinct_occurrence_cuts() {
     let source = r#"
 connector Pin = scalar_physical(across = 1, through = 1);
-component Leaf() {
-  public port p: conserving on Pin;
+component Leaf(port p: conserving on Pin) {
+
   relation owner { across(p) = 0; }
 }
-component Inner() {
-  public port p: conserving on Pin;
-  instance leaf: Leaf;
+component Inner(port p: conserving on Pin) {
+
+  instance leaf: Leaf();
   connect conserving p, leaf.p;
 }
-component Outer() {
-  public port p: conserving on Pin;
-  instance inner: Inner;
-  instance sibling: Leaf;
+component Outer(port p: conserving on Pin) {
+
+  instance inner: Inner();
+  instance sibling: Leaf();
   connect conserving p, inner.p, sibling.p;
 }
-model Network {
-  instance outer: Outer;
-  instance right: Leaf;
+model Network() {
+  instance outer: Outer();
+  instance right: Leaf();
   connect conserving outer.p, right.p;
 }
 "#;
@@ -1205,12 +1150,12 @@ model Network {
 
     let reordered = source
         .replace(
-            "  instance inner: Inner;\n  instance sibling: Leaf;\n  connect conserving p, inner.p, sibling.p;",
-            "  instance sibling: Leaf;\n  connect conserving sibling.p, inner.p, p;\n  instance inner: Inner;",
+            "  instance inner: Inner();\n  instance sibling: Leaf();\n  connect conserving p, inner.p, sibling.p;",
+            "  instance sibling: Leaf();\n  connect conserving sibling.p, inner.p, p;\n  instance inner: Inner();",
         )
         .replace(
-            "  instance outer: Outer;\n  instance right: Leaf;\n  connect conserving outer.p, right.p;",
-            "  connect conserving right.p, outer.p;\n  instance right: Leaf;\n  instance outer: Outer;",
+            "  instance outer: Outer();\n  instance right: Leaf();\n  connect conserving outer.p, right.p;",
+            "  connect conserving right.p, outer.p;\n  instance right: Leaf();\n  instance outer: Outer();",
         );
     let mut reordered = crate::compile("nested-reordered.eqi", &reordered).unwrap();
     let reordered = reordered.pop().unwrap();
@@ -1224,21 +1169,21 @@ model Network {
 
 const DISTINCT_EXPOSURE_CUTS: &str = r#"
 connector Pin = scalar_physical(across = 1, through = 1);
-component Leaf() {
-  public port p: conserving on Pin;
+component Leaf(port p: conserving on Pin) {
+
   relation owner { across(p) = 0; }
 }
-component Pair() {
-  public port p: conserving on Pin;
-  public port q: conserving on Pin;
-  instance left: Leaf;
-  instance right: Leaf;
+component Pair(port p: conserving on Pin, port q: conserving on Pin) {
+
+
+  instance left: Leaf();
+  instance right: Leaf();
   connect conserving p, left.p;
   connect conserving q, right.p;
 }
-model Network {
-  instance pair: Pair;
-  instance outside: Leaf;
+model Network() {
+  instance pair: Pair();
+  instance outside: Leaf();
   connect conserving pair.p, pair.q, outside.p;
 }
 "#;
@@ -1327,23 +1272,23 @@ fn physical_exposure_projection_resources_fail_closed_independently() {
 fn parameter_bindings_are_closed_typed_and_fail_before_lowering() {
     let cases = [
         (
-            "component C() { public parameter p: 1; } model m { instance c: C; }",
+            "component C(parameter p: 1) {  } model m() { instance c: C(); }",
             "required Parameter `p` has no instance binding",
         ),
         (
-            "component C() { public parameter p: 1 = 1; } model m { instance c: C(q = 2); }",
-            "unknown public Parameter `q`",
+            "component C(parameter p: 1 = 1) {  } model m() { instance c: C(q = 2); }",
+            "`q` is not a public requirement",
         ),
         (
-            "component C() { parameter p: 1 = 1; } model m { instance c: C(p = 2); }",
-            "private Parameter `p` cannot be bound",
+            "component C() { parameter p: 1 = 1; } model m() { instance c: C(p = 2); }",
+            "`p` is not a public requirement",
         ),
         (
-            "component C() { public parameter p: m = 1; } model m { parameter q: s = 2; instance c: C(p = q); }",
+            "component C(parameter p: m = 1) {  } model m() { parameter q: s = 2; instance c: C(p = q); }",
             "Parameter binding has dimension",
         ),
         (
-            "component C() { public parameter p: 1; } model m { parameter exponent: 1 = 2; instance c: C(p = 3 ^ exponent); }",
+            "component C(parameter p: 1) {  } model m() { parameter exponent: 1 = 2; instance c: C(p = 3 ^ exponent); }",
             "power exponent cannot depend on a live Parameter",
         ),
     ];
@@ -1360,7 +1305,7 @@ fn parameter_bindings_are_closed_typed_and_fail_before_lowering() {
 
 #[test]
 fn recursion_and_private_member_selection_fail_closed() {
-    let recursive = "component A() { instance b: B; } component B() { instance a: A; } model m { instance a: A; }";
+    let recursive = "component A() { instance b: B(); } component B() { instance a: A(); } model m() { instance a: A(); }";
     let diagnostics = crate::compile("recursive.eqi", recursive).unwrap_err();
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -1370,10 +1315,10 @@ fn recursion_and_private_member_selection_fail_closed() {
 
     let private = r#"
 component C() { port hidden: signal input 1; }
-model m {
+model m() {
   port source: signal output 1;
-  instance c: C;
-  connect signal source -> c.hidden;
+  instance c: C();
+  connect source -> c.hidden;
 }
 "#;
     let diagnostics = crate::compile("private.eqi", private).unwrap_err();
@@ -1384,7 +1329,7 @@ model m {
     }));
 
     let invalid_member =
-        "component C() { relation bad { missing = 0; } } model m { instance c: C; }";
+        "component C() { relation bad { missing = 0; } } model m() { instance c: C(); }";
     let diagnostics = crate::compile("instance-context.eqi", invalid_member).unwrap_err();
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message().contains("`missing`") && diagnostic.source_span().is_some()
@@ -1392,23 +1337,50 @@ model m {
 }
 
 #[test]
-fn one_port_boundary_remains_valid_in_hierarchy_lowering() {
+fn one_exposed_output_remains_valid_in_hierarchy_lowering() {
     let source = r#"
 component Empty() {}
-model bounded {
-  port input: signal input 1;
-  relation law { input = 0; }
-  boundary input;
+model bounded(output value: 1) {
+  relation law { value = 0; }
 }
 "#;
     let compiled = crate::compile("boundary.eqi", source).unwrap();
     assert_eq!(compiled.len(), 1);
-    assert!(compiled[0].symbols().get("input").is_some());
+    assert!(compiled[0].symbols().get("value").is_some());
+    assert_eq!(
+        compiled[0]
+            .transaction()
+            .ops()
+            .iter()
+            .filter(|op| matches!(
+                op,
+                Op::DefineKernelNode {
+                    node: KernelNode::Port(_)
+                }
+            ))
+            .count(),
+        1
+    );
+    assert_eq!(
+        compiled[0]
+            .transaction()
+            .ops()
+            .iter()
+            .filter(|op| matches!(
+                op,
+                Op::DefineKernelNode {
+                    node: KernelNode::Relation(_)
+                }
+            ))
+            .count(),
+        1
+    );
 }
 
 #[test]
 fn preflight_enforces_depth_staging_and_provenance_limits() {
-    let nested = "component B() {} component A() { instance b: B; } model m { instance a: A; }";
+    let nested =
+        "component B() {} component A() { instance b: B(); } model m() { instance a: A(); }";
     let document = eqiora_lang::parse("limits.eqi", nested)
         .into_document()
         .unwrap();
@@ -1425,7 +1397,7 @@ fn preflight_enforces_depth_staging_and_provenance_limits() {
             .contains("requires 3 Model-relative instance depth, exceeding the 2 limit")
     }));
 
-    let one_parameter = "component Empty() {} model m { parameter p: 1 = 1; }";
+    let one_parameter = "component Empty() {} model m() { parameter p: 1 = 1; }";
     let document = eqiora_lang::parse("limits.eqi", one_parameter)
         .into_document()
         .unwrap();
@@ -1473,20 +1445,20 @@ public connector MechanicalBoundary = field_physical(
   frame = spatial,
   pairing = euclidean_boundary_duality
 );
-public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body)) {
+public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body), port interface: conserving MechanicalBoundary over wall) {
 
 
-  public port interface: conserving MechanicalBoundary over wall;
+
   relation load on wall { flux(interface) = 0; }
 }
 
-model Coupled {
+model Coupled() {
   domain left_body = box(0, 1, 0, 1);
   domain left_wall = boundary(left_body, axis = 0, side = upper);
   domain right_body = box(1, 2, 0, 1);
   domain right_wall = boundary(right_body, axis = 0, side = lower);
-  instance left: Side(support body = left_body, support wall = left_wall);
-  instance right: Side(support body = right_body, support wall = right_wall);
+  instance left: Side(body = left_body, wall = left_wall);
+  instance right: Side(body = right_body, wall = right_wall);
   connect conserving left.interface, right.interface;
 }
 "#;
@@ -1545,19 +1517,19 @@ public connector TransportBoundary = field_physical(
   frame = invariant,
   pairing = euclidean_boundary_duality
 );
-public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body)) {
+public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body), port interface: conserving TransportBoundary over wall) {
 
 
-  public port interface: conserving TransportBoundary over wall;
+
   relation owner on wall { flux(interface) = 0; }
 }
 
-model Periodic {
+model Periodic() {
   domain body = box(0, 2, -1, 1);
   domain lower = boundary(body, axis = 0, side = lower);
   domain upper = boundary(body, axis = 0, side = upper);
-  instance lower_side: Side(support body = body, support wall = lower);
-  instance upper_side: Side(support body = body, support wall = upper);
+  instance lower_side: Side(body = body, wall = lower);
+  instance upper_side: Side(body = body, wall = upper);
   connect periodic upper_side.interface, lower_side.interface;
 }
 "#;
@@ -1599,26 +1571,26 @@ public connector MechanicalBoundary = field_physical(
   frame = spatial,
   pairing = euclidean_boundary_duality
 );
-public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body)) {
+public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body), port interface: conserving MechanicalBoundary over wall) {
 
 
-  public port interface: conserving MechanicalBoundary over wall;
+
   relation load on wall { flux(interface) = 0; }
 }
-public component Wrapper(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body)) {
+public component Wrapper(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body), port interface: conserving MechanicalBoundary over wall) {
 
 
-  public port interface: conserving MechanicalBoundary over wall;
-  instance side: Side(support body = body, support wall = wall);
+
+  instance side: Side(body = body, wall = wall);
   connect conserving interface, side.interface;
 }
-model Coupled {
+model Coupled() {
   domain left_body = box(0, 1, 0, 1);
   domain left_wall = boundary(left_body, axis = 0, side = upper);
   domain right_body = box(1, 2, 0, 1);
   domain right_wall = boundary(right_body, axis = 0, side = lower);
-  instance left: Wrapper(support body = left_body, support wall = left_wall);
-  instance right: Side(support body = right_body, support wall = right_wall);
+  instance left: Wrapper(body = left_body, wall = left_wall);
+  instance right: Side(body = right_body, wall = right_wall);
   connect conserving left.interface, right.interface;
 }
 "#;
@@ -1672,20 +1644,20 @@ public connector B = field_physical(
   trace = u: 1, flux = f: 1, shape = spatial_vector,
   frame = spatial, pairing = euclidean_boundary_duality
 );
-public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body)) {
+public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body), port p: conserving B over wall) {
 
 
-  public port p: conserving B over wall;
+
   relation owner on wall { flux(p) = 0; }
 }
 
-model M {
+model M() {
   domain a = box(0, 1, 0, 1);
   domain aw = boundary(a, axis = 0, side = upper);
   domain b = box(2, 3, 0, 1);
   domain bw = boundary(b, axis = 0, side = lower);
-  instance left: Side(support body = a, support wall = aw);
-  instance right: Side(support body = b, support wall = bw);
+  instance left: Side(body = a, wall = aw);
+  instance right: Side(body = b, wall = bw);
   connect conserving left.p, right.p;
 }
 "#;
@@ -1704,12 +1676,12 @@ public connector Bad = field_physical(
   trace = u: 1, flux = f: 1, shape = [2, 3],
   frame = spatial, pairing = euclidean_boundary_duality
 );
-public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body)) {
+public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body), port p: conserving Bad over wall) {
 
 
-  public port p: conserving Bad over wall;
+
 }
-model Empty {}
+model Empty() {}
 "#;
     let diagnostics = crate::compile("shape-mismatch.eqi", source).unwrap_err();
     assert!(diagnostics.iter().any(|diagnostic| {

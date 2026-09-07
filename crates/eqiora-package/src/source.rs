@@ -365,7 +365,7 @@ mod tests {
         let source = SourceFileV1::new(
             NormalizedRelativePath::parse("src/basic.eqi").expect("path"),
             BundleRoleV1::ModelSource,
-            b"model Basic {}\n".to_vec(),
+            b"model Basic() {}\n".to_vec(),
         );
         let docs = SourceFileV1::new(
             NormalizedRelativePath::parse("README.md").expect("path"),
@@ -392,7 +392,7 @@ mod tests {
                 SourceFileV1::new(
                     NormalizedRelativePath::parse("src/basic.eqi").expect("path"),
                     BundleRoleV1::ModelSource,
-                    b"model  Basic {}\n".to_vec(),
+                    b"model  Basic() {}\n".to_vec(),
                 ),
             ],
         )
@@ -445,7 +445,7 @@ mod tests {
         let source = SourceFileV1::new(
             NormalizedRelativePath::parse("src/basic.eqi").expect("path"),
             BundleRoleV1::ModelSource,
-            b"model Basic {}\n".to_vec(),
+            b"model Basic() {}\n".to_vec(),
         );
         let docs = SourceFileV1::new(
             NormalizedRelativePath::parse("README.md").expect("path"),

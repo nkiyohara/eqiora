@@ -1,7 +1,7 @@
-model Main {
+model Main() {
   instance source: components.IdealVoltageSource(voltage = 12[V]);
   instance load: components.ResistiveBranch(resistance = 2[kg * m^2 / (s^3 * A^2)]);
-  instance ground: components.Ground;
+  instance ground: components.Ground();
 
   connect conserving source.positive, load.positive;
   connect conserving source.negative, load.negative;

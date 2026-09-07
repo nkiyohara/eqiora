@@ -36,12 +36,13 @@ fn typed_material_composition_runs_as_the_same_effective_multi_property_law() {
     let composed_release = release("org.example.ComposedDiffusion", &composed_source, &[]);
     let composed = compile_root_component(&composed_release, "ExecutableDiffusion", &geometry)
         .expect("material-composed Component compiles");
-    let direct = ModelDocument::compile_with_geometry(
+    let compile_parameters = parameter_expressions();
+    let compile_bindings = spatial_bindings(&geometry, &compile_parameters);
+    let direct = ModelDocument::compile_selected(
         "direct-material-law.eqi",
         &material_source(false, 2, 4, false),
-        &geometry,
-        Some("ExecutableDiffusion"),
-        &parameter_expressions(),
+        "ExecutableDiffusion",
+        &compile_bindings,
     )
     .expect("direct multi-parameter Law compiles");
 
@@ -49,8 +50,8 @@ fn typed_material_composition_runs_as_the_same_effective_multi_property_law() {
     assert_eq!(bindings.len(), 2);
     assert!(bindings.iter().all(|binding| binding.0.is_some()));
     let direct_property_source = composed_source.replace(
-        "material = ReferenceMaterial",
-        "property conductivity = ConductivityValue, property capacity = CapacityValue",
+        "conductivity = ReferenceMaterial.conductivity, capacity = ReferenceMaterial.capacity",
+        "conductivity = ConductivityValue, capacity = CapacityValue",
     );
     let direct_property_release = release(
         "org.example.ComposedDiffusion",
@@ -136,12 +137,13 @@ public material composition MaterialA {
     let consumer = release(
         "org.example.MaterialConsumer",
         r#"
-public component Law() {
-  public property conductivity: props.Conductivity;
-  public property capacity: props.Capacity;
+public component Law(
+  property conductivity: props.Conductivity,
+  property capacity: props.Capacity
+) {
   relation law { conductivity / capacity = 0; }
 }
-public model Main { instance law: Law(material = props.MaterialA); }
+public model Main() { instance law: Law(conductivity = props.MaterialA.conductivity, capacity = props.MaterialA.capacity); }
 "#,
         &[("props", &properties)],
     );
@@ -169,12 +171,13 @@ fn one_exact_release_runs_through_two_independent_common_scalar_consumers() {
     for consumer in [Consumer::Potential, Consumer::Temperature] {
         let property = compile_property_consumer(&properties, consumer, &geometry)
             .expect("exact property-bound Component compiles against caller Geometry");
-        let direct = ModelDocument::compile_with_geometry(
+        let compile_parameters = parameter_expressions();
+        let compile_bindings = spatial_bindings(&geometry, &compile_parameters);
+        let direct = ModelDocument::compile_selected(
             "direct-scalar-consumer.eqi",
             &consumer.source(false),
-            &geometry,
-            Some(consumer.wrapper()),
-            &parameter_expressions(),
+            consumer.wrapper(),
+            &compile_bindings,
         )
         .expect("direct Parameter Component compiles against the same Geometry");
 
@@ -328,18 +331,12 @@ impl Consumer {
 
     fn source(self, property: bool) -> String {
         let coefficient_declaration = if property {
-            format!(
-                "  public property {}: props.Diffusivity;",
-                self.requirement()
-            )
+            format!("  property {}: props.Diffusivity,", self.requirement())
         } else {
-            format!("  public parameter {}: 1;", self.requirement())
+            format!("  parameter {}: 1,", self.requirement())
         };
         let coefficient_binding = if property {
-            format!(
-                "property {} = props.ReferenceDiffusivity",
-                self.requirement()
-            )
+            format!("{} = props.ReferenceDiffusivity", self.requirement())
         } else {
             format!("{} = {NORMALIZED_DIFFUSIVITY}", self.requirement())
         };
@@ -351,13 +348,12 @@ public component {core}(
   support x_upper: boundary(parent = square),
   support y_lower: boundary(parent = square),
   support y_upper: boundary(parent = square),
-) {{
-
-  variable {field}: 1 on square;
 {coefficient_declaration}
-  public parameter wave_number: 1 / m;
-  public parameter source_scale: 1 / m ^ 2;
-  public parameter boundary_offset: 1;
+  parameter wave_number: 1 / m,
+  parameter source_scale: 1 / m ^ 2,
+  parameter boundary_offset: 1
+) {{
+  variable {field}: 1 on square;
   relation balance on square {{
     -div({coefficient} * grad({field}))
       - source_scale * math.sin(wave_number * coordinate(0))
@@ -375,16 +371,16 @@ public component {wrapper}(
   support x_upper: boundary(parent = square),
   support y_lower: boundary(parent = square),
   support y_upper: boundary(parent = square),
+  parameter wave_number: 1 / m,
+  parameter source_scale: 1 / m ^ 2,
+  parameter boundary_offset: 1
 ) {{
-  public parameter wave_number: 1 / m;
-  public parameter source_scale: 1 / m ^ 2;
-  public parameter boundary_offset: 1;
   instance equation: {core}(
-    support square = square,
-    support x_lower = x_lower,
-    support x_upper = x_upper,
-    support y_lower = y_lower,
-    support y_upper = y_upper,
+    square = square,
+    x_lower = x_lower,
+    x_upper = x_upper,
+    y_lower = y_lower,
+    y_upper = y_upper,
     {coefficient_binding},
     wave_number = wave_number,
     source_scale = source_scale,
@@ -453,14 +449,10 @@ fn compile_property_consumer(
         .insert(properties)
         .map_err(|error| error.to_string())?;
     store.insert(&root).map_err(|error| error.to_string())?;
-    PackagedModelDocument::compile_locked_with_geometry(
-        &store,
-        &resolution,
-        consumer.wrapper(),
-        geometry,
-        &parameter_expressions(),
-    )
-    .map_err(|error| error.to_string())
+    let parameters = parameter_expressions();
+    let bindings = spatial_bindings(geometry, &parameters);
+    PackagedModelDocument::compile_selected(&store, &resolution, consumer.wrapper(), &bindings)
+        .map_err(|error| error.to_string())
 }
 
 fn compile_root_component(
@@ -472,24 +464,21 @@ fn compile_root_component(
         ResolutionRecordV1::from_exact_releases(root, &[]).map_err(|error| error.to_string())?;
     let mut store = InMemoryPackageStore::default();
     store.insert(root).map_err(|error| error.to_string())?;
-    PackagedModelDocument::compile_locked_with_geometry(
-        &store,
-        &resolution,
-        component,
-        geometry,
-        &parameter_expressions(),
-    )
-    .map_err(|error| error.to_string())
+    let parameters = parameter_expressions();
+    let bindings = spatial_bindings(geometry, &parameters);
+    PackagedModelDocument::compile_selected(&store, &resolution, component, &bindings)
+        .map_err(|error| error.to_string())
 }
 
 fn material_source(composed: bool, conductivity: u32, capacity: u32, reverse: bool) -> String {
     let coefficient_declarations = if composed {
-        "  public property conductivity: Conductivity;\n  public property capacity: Capacity;"
+        "  property conductivity: Conductivity,\n  property capacity: Capacity,"
     } else {
-        "  public parameter conductivity: 1;\n  public parameter capacity: 1;"
+        "  parameter conductivity: 1,\n  parameter capacity: 1,"
     };
     let coefficient_bindings = if composed {
-        "material = ReferenceMaterial".to_owned()
+        "conductivity = ReferenceMaterial.conductivity, capacity = ReferenceMaterial.capacity"
+            .to_owned()
     } else {
         format!("conductivity = {conductivity}, capacity = {capacity}")
     };
@@ -526,13 +515,12 @@ public component DiffusionLaw(
   support x_upper: boundary(parent = square),
   support y_lower: boundary(parent = square),
   support y_upper: boundary(parent = square),
-) {{
-
-  variable potential: 1 on square;
+  parameter wave_number: 1 / m,
+  parameter source_scale: 1 / m ^ 2,
+  parameter boundary_offset: 1,
 {coefficient_declarations}
-  public parameter wave_number: 1 / m;
-  public parameter source_scale: 1 / m ^ 2;
-  public parameter boundary_offset: 1;
+) {{
+  variable potential: 1 on square;
   relation balance on square {{
     -div((conductivity / capacity) * grad(potential))
       - source_scale * math.sin(wave_number * coordinate(0))
@@ -550,16 +538,16 @@ public component ExecutableDiffusion(
   support x_upper: boundary(parent = square),
   support y_lower: boundary(parent = square),
   support y_upper: boundary(parent = square),
+  parameter wave_number: 1 / m,
+  parameter source_scale: 1 / m ^ 2,
+  parameter boundary_offset: 1
 ) {{
-  public parameter wave_number: 1 / m;
-  public parameter source_scale: 1 / m ^ 2;
-  public parameter boundary_offset: 1;
   instance equation: DiffusionLaw(
-    support square = square,
-    support x_lower = x_lower,
-    support x_upper = x_upper,
-    support y_lower = y_lower,
-    support y_upper = y_upper,
+    square = square,
+    x_lower = x_lower,
+    x_upper = x_upper,
+    y_lower = y_lower,
+    y_upper = y_upper,
     {coefficient_bindings},
     wave_number = wave_number,
     source_scale = source_scale,
@@ -711,6 +699,38 @@ fn assert_same_scalar_result(left: &CommonResult, right: &CommonResult) {
     assert_eq!(left.0, right.0);
     assert_eq!(left.1, right.1);
     assert_eq!(left.2, right.2);
+}
+
+fn spatial_bindings<'a>(
+    geometry: &'a CanonicalGeometryV1,
+    parameters: &'a [(&'static str, eqiora::language::Expr)],
+) -> Vec<(&'static str, eqiora::compiler::StaticBindingValue<'a>)> {
+    use eqiora::compiler::StaticBindingValue;
+    let square = geometry.entity_set("square").unwrap();
+    let mut bindings = vec![(
+        "square",
+        StaticBindingValue::GeometrySupport {
+            geometry,
+            selection: square,
+            parent: None,
+        },
+    )];
+    for name in ["x_lower", "x_upper", "y_lower", "y_upper"] {
+        bindings.push((
+            name,
+            StaticBindingValue::GeometrySupport {
+                geometry,
+                selection: geometry.entity_set(name).unwrap(),
+                parent: Some(square),
+            },
+        ));
+    }
+    bindings.extend(
+        parameters
+            .iter()
+            .map(|(name, value)| (*name, StaticBindingValue::Expression(value))),
+    );
+    bindings
 }
 
 fn parameter_expressions() -> Vec<(&'static str, eqiora::language::Expr)> {

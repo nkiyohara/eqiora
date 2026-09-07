@@ -12,7 +12,7 @@ pub struct InitialState {
 }
 
 impl InitialState {
-    /// Scalar Field values in exact occurrence identity order.
+    /// Initialized scalar Field values; clocked algebraic Variables are absent before ticks.
     #[must_use]
     pub const fn fields(&self) -> &BTreeMap<RawId, f64> {
         &self.fields
@@ -68,9 +68,14 @@ pub(super) fn solve_initialization(
         .union(&plan.initial_relations)
         .copied()
         .collect();
-    // Every Field exposed by the scalar reference execution must be determined;
+    // Every continuous Field and State memory must be determined;
+    // clocked algebraic Variables have no value before their own activation.
     // an unused algebraic declaration is legal mathematics, not an implicit zero.
-    let fields = plan.fields.clone();
+    let fields = plan
+        .fields
+        .iter()
+        .copied()
+        .filter(|field| !is_clocked_variable(program, *field));
     let mut derivatives = plan.differential_fields.clone();
     for relation in &plan.initial_relations {
         for symbol in relation_symbols(program, *relation)? {

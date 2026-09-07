@@ -233,7 +233,7 @@ mod tests {
     }
 
     fn unit(source: &str) -> Expr {
-        let source = format!("model M {{ let value = 1 [{source}]; }}");
+        let source = format!("model M() {{ let value = 1 [{source}]; }}");
         let document = parse("unit.eqi", &source).into_document().unwrap();
         let Item::Let(binding) = &document.models()[0].items()[0] else {
             panic!("let")
@@ -253,7 +253,7 @@ mod tests {
         // specified by its bits, not by multiplying two rounded f64 values.
         let compiled = crate::compile(
             "single-rounding.eqi",
-            "model M { parameter length: m = 0.1[nm]; relation r { length - length = 0; } }",
+            "model M() { parameter length: m = 0.1[nm]; relation r { length - length = 0; } }",
         )
         .unwrap();
         let value = compiled[0]
@@ -297,7 +297,7 @@ mod tests {
 
         let compiled = crate::compile(
             "complex-units.eqi",
-            "model M { parameter length: complex<m> = math.complex(0.1[nm], -0.1[nm]); relation r { length - length = 0; } }",
+            "model M() { parameter length: complex<m> = math.complex(0.1[nm], -0.1[nm]); relation r { length - length = 0; } }",
         ).unwrap();
         let value = compiled[0]
             .transaction()
@@ -323,7 +323,7 @@ mod tests {
             ("1e400[nm ^ 20]", 1e220),
             ("0[nm ^ 100]", 0.0),
         ] {
-            let source = format!("model M {{ let value = {literal}; }}");
+            let source = format!("model M() {{ let value = {literal}; }}");
             let document = parse("scaled.eqi", &source).into_document().unwrap();
             let Item::Let(binding) = &document.models()[0].items()[0] else {
                 panic!("let")
@@ -366,11 +366,11 @@ mod tests {
 
         let source = r#"
 dimension Duration = s;
-component Delay() {
-  public parameter duration: Duration = 10 [ms];
+component Delay(parameter duration: Duration = 10 [ms]) {
+  
   relation balance { duration - 0.01 [s] = 0; }
 }
-model Quantities {
+model Quantities() {
   parameter duration: Duration = -10[ms];
   let ms: m = 3[m];
   let positive: Duration = 10 [ms];
@@ -421,11 +421,11 @@ model Quantities {
                 literal
             };
             let source = format!(
-                "component C() {{
-                    public parameter density: kg / m ^ 3 = {literal};
+                "component C(parameter density: kg / m ^ 3 = {literal}) {{
+                    
                     relation r {{ density - density = 0; }}
                 }}
-                model M {{
+                model M() {{
                     parameter p: kg / m ^ 3 = {literal};
                     variable f: kg / m ^ 3; initial {{ f = {initial}; }}
                     let alias: kg / m ^ 3 = {literal};
@@ -495,7 +495,7 @@ model Quantities {
         }
         assert!(quantity(f64::MAX, &unit("km")).is_err());
         assert!(
-            parse("invalid-unit.eqi", "model M { let value = 1 [µF]; }")
+            parse("invalid-unit.eqi", "model M() { let value = 1 [µF]; }")
                 .into_document()
                 .is_err()
         );

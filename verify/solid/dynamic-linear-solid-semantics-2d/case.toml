@@ -20,7 +20,7 @@ shear_modulus_pa = 3.0
 first_lame_parameter_pa = 4.0
 
 [canonical_contract]
-model_wire = 13
+model_wire = 14
 volume_fields = 3
 volume_relations = 3
 boundary_members = 4

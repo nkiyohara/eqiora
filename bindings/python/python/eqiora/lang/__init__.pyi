@@ -3,6 +3,8 @@
 Authority: ``bindings/python/python/eqiora/lang/__init__.py``.
 """
 
+import builtins as _builtins
+
 from collections.abc import Mapping, Sequence
 from fractions import Fraction
 from decimal import Decimal
@@ -82,7 +84,7 @@ class MaterialComposition:
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::MaterialComposition``.
     """
 
-    ...
+    def __getitem__(self, name: str) -> PropertyRelease: ...
 
 @final
 class Relation:
@@ -147,7 +149,7 @@ class Component:
         self,
         name: str,
         *,
-        on: Support,
+        on: Support | None = None,
         value_type: ValueType,
         role: FieldRole,
         at: Clock | None = None,
@@ -157,7 +159,7 @@ class Component:
         self,
         name: str,
         *,
-        on: Support,
+        on: Support | None = None,
         left: Expression | int | float | complex,
         right: Expression | int | float | complex,
         at: Clock | None = None,
@@ -172,16 +174,23 @@ class Component:
         doc: str | None = None,
     ) -> None: ...
     def instance(
-        self,
-        name: str,
-        *,
-        component: Component,
-        supports: Mapping[Support, Support],
-        parameters: Mapping[Expression, Expression | int | float | complex],
-        properties: Mapping[Expression, PropertyRelease] | None = None,
-        material: MaterialComposition | None = None,
-        doc: str | None = None,
-    ) -> None: ...
+        self, name: str, *, component: Component,
+        bindings: Mapping[object, object], doc: str | None = None,
+    ) -> Mapping[Expression, Expression]: ...
+    def clock_requirement(self, name: str, *, doc: str | None = None) -> Clock: ...
+    def field_requirement(
+        self, name: str, *, value_type: ValueType, role: FieldRole,
+        on: Support | None = None, at: Clock | None = None, doc: str | None = None,
+    ) -> Expression: ...
+    def set_default(self, parameter: Expression, value: Expression | int | float | complex) -> None: ...
+    def input(
+        self, name: str, *, value_type: ValueType, on: Support | None = None,
+        at: Clock | None = None, doc: str | None = None,
+    ) -> Expression: ...
+    def output(
+        self, name: str, *, value_type: ValueType, on: Support | None = None,
+        at: Clock | None = None, doc: str | None = None,
+    ) -> Expression: ...
 
 @final
 class Source:
@@ -197,6 +206,7 @@ class Source:
         *,
         doc: str | None = None,
     ) -> Component: ...
+    def model(self, name: str, *, doc: str | None = None) -> Component: ...
     def property_contract(
         self,
         name: str,
@@ -230,11 +240,11 @@ class _Math:
     pi: Final[Expression]
     i: Final[Expression]
     @staticmethod
-    def complex(real: Expression | float | int | complex, imaginary: Expression | float | int | complex) -> Expression: ...
+    def complex(real: Expression | float | int | _builtins.complex, imaginary: Expression | float | int | _builtins.complex) -> Expression: ...
     @staticmethod
-    def sin(value: Expression | float | int | complex) -> Expression: ...
+    def sin(value: Expression | float | int | _builtins.complex) -> Expression: ...
     @staticmethod
-    def sqrt(value: Expression | float | int | complex) -> Expression: ...
+    def sqrt(value: Expression | float | int | _builtins.complex) -> Expression: ...
 
 #: Exact language constants used by Source expressions.
 #:

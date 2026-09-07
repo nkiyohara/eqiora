@@ -1,4 +1,4 @@
-model explicit_parallel_dc {
+model explicit_parallel_dc() {
   domain electrical = scalar_physical(
     across = kg * m ^ 2 / (s ^ 3 * A),
     through = A

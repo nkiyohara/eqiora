@@ -60,7 +60,14 @@ def solve(cells: int = 16) -> Solution:
     mesh = eqiora.meshing.generate(eqiora.meshing.resolve(
         geometry, eqiora.meshing.CartesianMesher(cells=(cells,))
     ))
-    model = eqiora.compile(source=SOURCE, geometry=geometry)
+    model = eqiora.compile(
+        source=SOURCE, geometry=geometry, entry="CoupledScalar",
+        bindings={
+            "body": geometry.selection("body"),
+            "left": (geometry.selection("left"), geometry.selection("body")),
+            "right": (geometry.selection("right"), geometry.selection("body")),
+        },
+    )
     plan = eqiora.resolve(
         model,
         mesh=mesh,

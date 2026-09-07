@@ -19,7 +19,7 @@ import pathlib
 import tempfile
 
 source = """
-model result_decay {
+model result_decay() {
   state x: 1;
   initial { x = 1; }
   parameter rate: 1 / s = 1;

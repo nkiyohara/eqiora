@@ -15,7 +15,7 @@ mod scalar;
 mod tetrahedron;
 mod validation;
 
-const MIXED: &str = "model Mixed {
+const MIXED: &str = "model Mixed() {
  domain body = box(0, 1, 0, 1);
 
  parameter density: kg / m ^ 3 = 3;
@@ -28,7 +28,7 @@ const MIXED: &str = "model Mixed {
  relation constraint on body { div(v) = 0; }
 }";
 
-const ELIMINATED: &str = "model Elastic {
+const ELIMINATED: &str = "model Elastic() {
  domain body = box(0, 1, 0, 1);
 
  parameter density: kg / m ^ 3 = 3;
@@ -362,7 +362,7 @@ fn mini_bubble_mass_and_mixed_blocks_use_exact_barycentric_integrals() {
 #[test]
 fn derivative_of_eliminated_state_uses_rate_without_unused_previous_coefficients() {
     let form = derive(
-        "model Kinematic {
+        "model Kinematic() {
         domain body = box(0, 1, 0, 1);
         parameter drag: kg / (m ^ 3 * s) = 3;
         state d: vector<m, 2> on body;

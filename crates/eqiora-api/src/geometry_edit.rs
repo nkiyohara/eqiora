@@ -392,14 +392,14 @@ mod tests {
     const BASE_BOX: &str = "box(-0.5, 0.5, -0.5, 0.5, -0.5, 0.5)";
     const TARGET_BOX: &str = "box(-0.6, 0.6, -0.5, 0.5, -0.5, 0.5)";
     const TWO_DIMENSIONAL: &str = r"
-model Plane {
+model Plane() {
   domain body = box(-0.5, 0.5, -0.5, 0.5);
   variable witness: 1 on body;
   relation retain_body on body { witness = 0; }
 }
 ";
     const MULTI_BODY: &str = r"
-model Pair {
+model Pair() {
   domain body = box(-0.5, 0.5, -0.5, 0.5, -0.5, 0.5);
   domain peer = box(1.0, 2.0, -0.5, 0.5, -0.5, 0.5);
   variable witness: 1 on body;

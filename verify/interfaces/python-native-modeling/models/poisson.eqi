@@ -1,4 +1,4 @@
-model native_poisson {
+model native_poisson() {
   domain interval = box(0, 1);
   domain lower_end = boundary(interval, axis = 0, side = lower);
   domain upper_end = boundary(interval, axis = 0, side = upper);

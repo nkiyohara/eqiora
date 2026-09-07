@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_lang::{ComponentItem, SupportSlotSyntax};
+use eqiora_lang::{ComponentItem, SignatureItem, SupportSlotSyntax};
 use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};
 
 use crate::diagnostics::source_error;
@@ -78,6 +78,7 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
     }
 
     fn validate(&mut self) {
+        self.bind_borrowed_interfaces();
         self.bind_complete_exteriors();
         self.bind_interfaces();
         if let Err(errors) = super::expression::validate_aliases(
@@ -98,8 +99,8 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
     }
 
     fn bind_complete_exteriors(&mut self) {
-        for item in self.definition.declaration.items() {
-            let ComponentItem::Support(declaration) = item else {
+        for item in self.definition.declaration.signature() {
+            let SignatureItem::Support(declaration) = item else {
                 continue;
             };
             let SupportSlotSyntax::CompleteExterior { parent } = declaration.syntax() else {
@@ -131,8 +132,73 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
         }
     }
 
+    fn bind_borrowed_interfaces(&mut self) {
+        for item in self.definition.declaration.signature() {
+            match item {
+                SignatureItem::Support(declaration) => {
+                    if matches!(
+                        declaration.syntax(),
+                        SupportSlotSyntax::CompleteExterior { .. }
+                    ) {
+                        continue;
+                    }
+                    let Some(contract) = self.supports.get(declaration.name()) else {
+                        self.diagnostics.push(source_error(
+                            codes::LANGUAGE_LOWERING_ERROR,
+                            self.definition.file,
+                            declaration.range(),
+                            format!(
+                                "typed support interface is missing slot `{}`",
+                                declaration.name()
+                            ),
+                        ));
+                        continue;
+                    };
+                    self.scope.symbols.insert(
+                        declaration.name().to_owned(),
+                        SymbolContract::Support(contract.support().clone()),
+                    );
+                }
+                SignatureItem::Input(value) | SignatureItem::Output(value) => {
+                    self.scope.exposed_signals.insert(value.name().to_owned());
+                }
+                SignatureItem::Clock(declaration) => {
+                    self.scope
+                        .borrowed_clocks
+                        .insert(declaration.name().to_owned());
+                    self.scope
+                        .symbols
+                        .insert(declaration.name().to_owned(), SymbolContract::Clock);
+                }
+                SignatureItem::Field(declaration) => {
+                    let Some(contract) = self.fields.field(declaration.name()) else {
+                        self.diagnostics.push(source_error(
+                            codes::LANGUAGE_LOWERING_ERROR,
+                            self.definition.file,
+                            declaration.range(),
+                            format!(
+                                "typed Field interface is missing slot `{}`",
+                                declaration.name()
+                            ),
+                        ));
+                        continue;
+                    };
+                    self.scope.symbols.insert(
+                        declaration.name().to_owned(),
+                        SymbolContract::Field(
+                            contract.value().clone(),
+                            declaration.role(),
+                            declaration.activation().clone(),
+                        ),
+                    );
+                }
+                _ => {}
+            }
+        }
+    }
+
     fn bind_interfaces(&mut self) {
-        for item in self.definition.declaration.items() {
+        for item in self.definition.owned_items() {
             match item {
                 ComponentItem::Let(declaration) => {
                     if let Some(value) = self.compile_time_values.get(declaration.name()) {
@@ -212,57 +278,6 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                         Err(mut errors) => self.diagnostics.append(&mut errors),
                     }
                 }
-                ComponentItem::Support(declaration) => {
-                    if matches!(
-                        declaration.syntax(),
-                        SupportSlotSyntax::CompleteExterior { .. }
-                    ) {
-                        continue;
-                    }
-                    let Some(contract) = self.supports.get(declaration.name()) else {
-                        self.diagnostics.push(source_error(
-                            codes::LANGUAGE_LOWERING_ERROR,
-                            self.definition.file,
-                            declaration.range(),
-                            format!(
-                                "typed support interface is missing slot `{}`",
-                                declaration.name()
-                            ),
-                        ));
-                        continue;
-                    };
-                    self.scope.symbols.insert(
-                        declaration.name().to_owned(),
-                        SymbolContract::Support(contract.support().clone()),
-                    );
-                }
-                ComponentItem::ClockRequirement(declaration) => {
-                    self.scope
-                        .symbols
-                        .insert(declaration.name().to_owned(), SymbolContract::Clock);
-                }
-                ComponentItem::FieldRequirement(declaration) => {
-                    let Some(contract) = self.fields.field(declaration.name()) else {
-                        self.diagnostics.push(source_error(
-                            codes::LANGUAGE_LOWERING_ERROR,
-                            self.definition.file,
-                            declaration.range(),
-                            format!(
-                                "typed Field interface is missing slot `{}`",
-                                declaration.name()
-                            ),
-                        ));
-                        continue;
-                    };
-                    self.scope.symbols.insert(
-                        declaration.name().to_owned(),
-                        SymbolContract::Field(
-                            contract.value().clone(),
-                            declaration.role(),
-                            declaration.activation().clone(),
-                        ),
-                    );
-                }
                 ComponentItem::Field(declaration) => {
                     let support = declaration
                         .domain()
@@ -297,31 +312,7 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                         SymbolContract::Relation,
                     );
                 }
-                ComponentItem::Instance(instance) => {
-                    if let Ok(child) = self.scope.elaborator.resolve_component(
-                        &self.definition.namespace,
-                        instance.definition(),
-                        self.definition.file,
-                        instance.range(),
-                    ) {
-                        self.proof.children.insert(
-                            instance.name().to_owned(),
-                            ChildInstanceProof {
-                                definition: DefinitionKey {
-                                    namespace: child.namespace.clone(),
-                                    name: child.declaration.name().to_owned(),
-                                },
-                                range: instance.range(),
-                            },
-                        );
-                        self.scope
-                            .children
-                            .insert(instance.name().to_owned(), child);
-                        self.scope
-                            .child_instances
-                            .insert(instance.name().to_owned(), instance);
-                    }
-                }
+                ComponentItem::Instance(_) => {}
                 ComponentItem::Initial(_)
                 | ComponentItem::Connection(_)
                 | ComponentItem::BoundaryConnection(_) => {}
@@ -333,10 +324,37 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                 )),
             }
         }
+        for item in self.definition.declaration.items() {
+            if let ComponentItem::Instance(instance) = item
+                && let Ok(child) = self.scope.elaborator.resolve_component(
+                    &self.definition.namespace,
+                    instance.definition(),
+                    self.definition.file,
+                    instance.range(),
+                )
+            {
+                self.proof.children.insert(
+                    instance.name().to_owned(),
+                    ChildInstanceProof {
+                        definition: DefinitionKey {
+                            namespace: child.namespace.clone(),
+                            name: child.declaration.name().to_owned(),
+                        },
+                        range: instance.range(),
+                    },
+                );
+                self.scope
+                    .children
+                    .insert(instance.name().to_owned(), child);
+                self.scope
+                    .child_instances
+                    .insert(instance.name().to_owned(), instance);
+            }
+        }
     }
 
     fn validate_declarations(&mut self) {
-        for item in self.definition.declaration.items() {
+        for item in self.definition.owned_items() {
             match item {
                 ComponentItem::Initial(declaration) => {
                     if let Err(errors) =
@@ -348,10 +366,7 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                 ComponentItem::Let(_)
                 | ComponentItem::Parameter(_)
                 | ComponentItem::Port(_)
-                | ComponentItem::PortFamily(_)
-                | ComponentItem::Support(_)
-                | ComponentItem::ClockRequirement(_)
-                | ComponentItem::FieldRequirement(_) => {}
+                | ComponentItem::PortFamily(_) => {}
                 ComponentItem::Field(declaration) => {
                     if let eqiora_lang::ActivationSyntax::Periodic(clock) = declaration.activation()
                         && !matches!(self.scope.symbols.get(clock), Some(SymbolContract::Clock))
@@ -454,7 +469,16 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                         Err(error) => self.diagnostics.push(error),
                     }
                 }
-                ComponentItem::Instance(_) => {}
+                ComponentItem::Instance(instance) => {
+                    if let Err(error) = super::scope::validate_input_bindings(
+                        &self.scope,
+                        instance,
+                        &mut self.connected_ports,
+                        self.proof.connection_limits,
+                    ) {
+                        self.diagnostics.push(error);
+                    }
+                }
                 _ => {}
             }
         }
@@ -490,8 +514,13 @@ mod tests {
                 (definition.declaration.name() == name).then(|| definition.clone())
             })
             .expect("selected Component exists");
-        let compile_time_values =
-            resolve_component_parameters_symbolically(definition.file, definition.declaration)?;
+        let compile_time_values = resolve_component_parameters_symbolically(
+            definition.file,
+            definition.declaration,
+            |name| {
+                crate::hierarchy::clocks::component(definition.file, definition.declaration, name)
+            },
+        )?;
         let supports = component_support_interface(definition.file, definition.declaration)?;
         let fields = component_field_interface(definition.file, definition.declaration, &supports)?;
         validate(
@@ -517,9 +546,9 @@ public connector BoundaryScalar = field_physical(
     fn complete_exterior_family_is_checked_once_with_a_synthetic_member_identity() {
         let source = format!(
             r#"{SCALAR_CONNECTOR}
-component BoundaryLaw(support exterior: complete_exterior(parent = body), support body: volume(ambient_dimension = 2)) {{
-  public port natural[boundary in exterior]: conserving BoundaryScalar over boundary;
-  public port coupled[boundary in exterior]: conserving BoundaryScalar over boundary;
+component BoundaryLaw(support exterior: complete_exterior(parent = body), support body: volume(ambient_dimension = 2), port natural[boundary in exterior]: conserving BoundaryScalar over boundary, port coupled[boundary in exterior]: conserving BoundaryScalar over boundary) {{
+  
+  
 
 
   relation natural_law[boundary in exterior] on boundary {{
@@ -542,13 +571,13 @@ component BoundaryLaw(support exterior: complete_exterior(parent = body), suppor
     fn binderless_exact_boundary_connection_retains_its_component_class() {
         let source = format!(
             r#"{SCALAR_CONNECTOR}
-component Coupler(support left_body: volume(ambient_dimension = 2), support left_face: boundary(parent = left_body), support right_body: volume(ambient_dimension = 2), support right_face: boundary(parent = right_body)) {{
+component Coupler(support left_body: volume(ambient_dimension = 2), support left_face: boundary(parent = left_body), support right_body: volume(ambient_dimension = 2), support right_face: boundary(parent = right_body), port left: conserving BoundaryScalar over left_face, port right: conserving BoundaryScalar over right_face) {{
 
 
 
 
-  public port left: conserving BoundaryScalar over left_face;
-  public port right: conserving BoundaryScalar over right_face;
+  
+  
   relation left_law on left_face {{ trace(left) = 0; flux(left) = 0; }}
   relation right_law on right_face {{ trace(right) = 0; flux(right) = 0; }}
   connect conserving left, right;
@@ -585,10 +614,10 @@ component Coupler(support left_body: volume(ambient_dimension = 2), support left
             };
             let source = format!(
                 r#"{SCALAR_CONNECTOR}
-component BoundaryLaw(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body)) {{
+component BoundaryLaw(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body), port natural[boundary in exterior]: conserving BoundaryScalar over boundary) {{
 
 
-  public port natural[boundary in exterior]: conserving BoundaryScalar over boundary;
+  
   relation law[boundary in {relation_set}] on boundary {{
     flux(natural[boundary = {target}]) = 0;
   }}
@@ -622,11 +651,11 @@ public connector B = field_physical(
   frame = invariant,
   pairing = euclidean_boundary_duality
 );
-component InvalidConnection(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body)) {
+component InvalidConnection(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body), port left[boundary in exterior]: conserving A over boundary, port right[boundary in exterior]: conserving B over boundary) {
 
 
-  public port left[boundary in exterior]: conserving A over boundary;
-  public port right[boundary in exterior]: conserving B over boundary;
+  
+  
   connect conserving [boundary in exterior]
     left[boundary = boundary], right[boundary = boundary];
 }
@@ -644,21 +673,21 @@ component InvalidConnection(support body: volume(ambient_dimension = 2), support
     fn child_port_family_requires_explicit_complete_exterior_forwarding() {
         let prefix = format!(
             r#"{SCALAR_CONNECTOR}
-component Leaf(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body)) {{
+component Leaf(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body), port mechanical[side in exterior]: conserving BoundaryScalar over side) {{
 
 
-  public port mechanical[side in exterior]: conserving BoundaryScalar over side;
+  
 }}
 "#
         );
         let parent = |forwarding: &str| {
             format!(
                 r#"{prefix}
-component Parent(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body)) {{
+component Parent(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body), port mechanical[boundary in exterior]: conserving BoundaryScalar over boundary) {{
 
 
-  public port mechanical[boundary in exterior]: conserving BoundaryScalar over boundary;
-  instance child: Leaf(support body = body{forwarding});
+  
+  instance child: Leaf(body = body{forwarding});
   connect conserving [boundary in exterior]
     child.mechanical[side = boundary], mechanical[boundary = boundary];
 }}
@@ -666,7 +695,7 @@ component Parent(support body: volume(ambient_dimension = 2), support exterior: 
             )
         };
 
-        validate_component(&parent(", support exterior = exterior"), "Parent")
+        validate_component(&parent(", exterior = exterior"), "Parent")
             .expect("child family is mapped through one explicit set forwarding");
         let diagnostics = validate_component(&parent(""), "Parent")
             .expect_err("a child family cannot capture an unrelated active binder");

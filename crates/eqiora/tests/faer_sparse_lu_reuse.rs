@@ -24,7 +24,7 @@ use eqiora_numerics::scalar::{
     lower_scalar_elliptic_cartesian,
 };
 
-const SOURCE: &str = r#"model faer_sparse_lu_reuse {
+const SOURCE: &str = r#"model faer_sparse_lu_reuse() {
   domain interval = box(0, 1);
   domain lower_end = boundary(interval, axis = 0, side = lower);
   domain upper_end = boundary(interval, axis = 0, side = upper);

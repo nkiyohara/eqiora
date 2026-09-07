@@ -215,7 +215,7 @@ fn vector_field_error_uses_value_and_frobenius_gradient_contracts() {
 #[test]
 fn canonical_potential_jvp_drives_load_and_full_reaction_balance() {
     let source = r#"
-model potential_probe {
+model potential_probe() {
   domain body = box(0, 1, 0, 1);
   domain x_lower = boundary(body, axis = 0, side = lower);
   domain x_upper = boundary(body, axis = 0, side = upper);

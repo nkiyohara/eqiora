@@ -22,20 +22,21 @@ mod instance;
 mod limits;
 mod model;
 mod property;
+mod signature;
 mod value_type;
 mod visibility;
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_lang::{
-    ActivationSyntax, BinaryOp, BoundaryConnectionDecl, BoundaryDecl, BoundaryFamilyBinderSyntax,
+    ActivationSyntax, BinaryOp, BoundaryConnectionDecl, BoundaryFamilyBinderSyntax,
     BoundaryPairingSyntax, BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax,
     BoundarySideSyntax, CartesianCoordinateSyntax, ClockDecl, ComponentDecl, ComponentItem,
     ComponentParameterDecl, ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl,
     ConnectionSyntax, ConnectorDecl, ConnectorSyntax, Document, DomainDecl, DomainSyntax, Expr,
     ExprKind, FieldDecl, FrameSyntax, Item, NamePath, ParameterDecl, PortDecl, PortSyntax,
     PureOperatorDecl, RelationDecl, RelationFamilyDecl, SignalDirectionSyntax, SupportSlotDecl,
-    SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, VisibilitySyntax,
+    SupportSlotSyntax, UnaryOp, ValueShapeSyntax, VisibilitySyntax,
 };
 use sha2::{Digest, Sha256};
 
@@ -56,7 +57,7 @@ use property::{encode_material_composition, encode_property_contract, encode_pro
 use visibility::encode_visibility;
 
 const MAGIC: &[u8; 8] = b"EQIORASU";
-const CANONICAL_VERSION: u16 = 5;
+const CANONICAL_VERSION: u16 = 6;
 const COMPONENT_CONNECTION_ITEM_TAG: u16 = 6;
 const MODEL_CONNECTION_ITEM_TAG: u16 = 8;
 const COMPONENT_PORT_FAMILY_ITEM_TAG: u16 = 11;
@@ -299,7 +300,7 @@ fn encode_component(
     let member_count = declaration
         .items()
         .len()
-        .checked_add(declaration.property_requirement_syntax().len())
+        .checked_add(declaration.signature().len())
         .ok_or_else(|| source_identity_error("component member count overflows usize"))?;
     budget.account_members(member_count, "component")?;
     let members = encode_container_records(
@@ -319,25 +320,8 @@ fn encode_component(
             encode_visibility(encoder, declaration.visibility())
         })?;
     }
-    let property_syntax = declaration
-        .property_requirement_syntax()
-        .collect::<Vec<_>>();
-    if !property_syntax.is_empty() {
-        let properties =
-            encode_sorted_records(&property_syntax, budget, encode_component_property)?;
-        encoder.field(4, |encoder| encoder.records(&properties))?;
-    }
-    encoder.finish()
-}
-
-fn encode_component_property(
-    declaration: &(&str, &NamePath, TextRange),
-    budget: &mut Budget,
-) -> Result<Vec<u8>, Diagnostic> {
-    let (name, contract, _) = *declaration;
-    let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
-    encoder.field(1, |encoder| encode_name(encoder, name, budget))?;
-    encoder.field(2, |encoder| encode_type_path(encoder, contract, budget))?;
+    let signature = signature::encode_signature(declaration.signature(), budget)?;
+    encoder.field(4, |encoder| encoder.records(&signature))?;
     encoder.finish()
 }
 
@@ -537,10 +521,6 @@ fn encode_model_item(item: &Item, budget: &mut Budget) -> Result<Vec<u8>, Diagno
             })?;
             encode_boundary_connection(&mut encoder, declaration, budget)?;
         }
-        Item::Boundary(declaration) => {
-            encoder.u16(9)?;
-            encode_boundary(&mut encoder, declaration, budget)?;
-        }
         Item::Instance(declaration) => {
             encoder.u16(10)?;
             encode_instance(&mut encoder, declaration, budget)?;
@@ -640,14 +620,6 @@ fn encode_support_slot(
     })
 }
 
-fn encode_field_slot(
-    encoder: &mut Encoder,
-    declaration: &FieldDecl,
-    budget: &mut Budget,
-) -> Result<(), Diagnostic> {
-    encode_field(encoder, declaration, budget)
-}
-
 fn encode_activation(
     encoder: &mut Encoder,
     activation: &ActivationSyntax,
@@ -711,6 +683,8 @@ fn encode_port_syntax(
         PortSyntax::Signal {
             direction,
             value_type,
+            domain,
+            activation,
         } => {
             encoder.u16(1)?;
             encoder.field(1, |encoder| {
@@ -721,7 +695,11 @@ fn encode_port_syntax(
             })?;
             encoder.field(2, |encoder| {
                 value_type::encode_value_type(encoder, value_type, budget, 1)
-            })
+            })?;
+            encoder.field(3, |encoder| {
+                encode_optional_name(encoder, domain.as_deref(), budget)
+            })?;
+            encoder.field(4, |encoder| encode_activation(encoder, activation, budget))
         }
         PortSyntax::ScalarPhysical { domain } => {
             encoder.u16(3)?;
@@ -896,16 +874,6 @@ fn encode_boundary_port_selector(
 ) -> Result<(), Diagnostic> {
     encoder.field(1, |encoder| encode_name(encoder, selector.member(), budget))?;
     encoder.field(2, |encoder| encode_name(encoder, selector.target(), budget))
-}
-
-fn encode_boundary(
-    encoder: &mut Encoder,
-    declaration: &BoundaryDecl,
-    budget: &mut Budget,
-) -> Result<(), Diagnostic> {
-    budget.check_connection_members(declaration.port_paths().len(), "Boundary")?;
-    let paths = encode_sorted_paths(declaration.port_paths(), budget)?;
-    encoder.field(1, |encoder| encoder.records(&paths))
 }
 
 fn encode_optional_name(
@@ -1296,14 +1264,14 @@ public pure operator outer(left: spatial[1], right: spatial[1]) -> spatial[2]
   = component(left, 0) * component(right, 1);
 private pure operator scale(value: scalar) -> scalar
   = rational(2, 1) * component(value);
-model M { parameter p: 1 = 1; }
+model M() { parameter p: 1 = 1; }
 "#;
         let renamed_and_reordered = r#"
 private pure operator scale(x: scalar) -> scalar
   = rational(2, 1) * component(x);
 public pure operator outer(a: spatial[1], b: spatial[1]) -> spatial[2]
   = component(a, 0) * component(b, 1);
-model M { parameter p: 1 = 1; }
+model M() { parameter p: 1 = 1; }
 "#;
         let changed_body = renamed_and_reordered.replace(
             "component(a, 0) * component(b, 1)",
@@ -1319,40 +1287,38 @@ model M { parameter p: 1 = 1; }
         let first = r#"
 connector Pin = scalar_physical(across = 1, through = A);
 connector Heat = scalar_physical(across = K, through = kg * m ^ 2 / (s ^ 3 * K));
-component Pair() {
-  public parameter resistance: 1 = 2;
-  public parameter scale: 1 = 3;
-  public port positive: conserving on Pin;
-  public port negative: conserving on Pin;
+component Pair(parameter resistance: 1 = 2, parameter scale: 1 = 3, port positive: conserving on Pin, port negative: conserving on Pin) {
+  
+  
+  
+  
   instance inner: Library.Resistor(resistance = resistance, scale = scale);
   relation law { across(positive) - across(negative) = 0; }
   connect conserving positive, inner.positive, negative;
 }
 component Empty() {}
-model circuit {
+model circuit() {
   instance right: Pair(scale = 4, resistance = 5);
   instance left: Pair(resistance = 2, scale = 3);
   connect conserving left.positive, right.negative, right.positive;
-  boundary right.positive, left.negative;
 }
-model auxiliary {}
+model auxiliary() {}
 "#;
         let permuted = r#"
 connector Heat = scalar_physical(across = K, through = kg * m ^ 2 / (s ^ 3 * K));
 connector Pin = scalar_physical(across = 1, through = A);
 component Empty() {}
-component Pair() {
+component Pair(port negative: conserving on Pin, port positive: conserving on Pin, parameter scale: 1 = 3, parameter resistance: 1 = 2) {
   connect conserving negative, positive, inner.positive;
   relation law { across(positive) - across(negative) = 0; }
   instance inner: Library.Resistor(scale = scale, resistance = resistance);
-  public port negative: conserving on Pin;
-  public port positive: conserving on Pin;
-  public parameter scale: 1 = 3;
-  public parameter resistance: 1 = 2;
+  
+  
+  
+  
 }
-model auxiliary {}
-model circuit {
-  boundary left.negative, right.positive;
+model auxiliary() {}
+model circuit() {
   connect conserving right.positive, left.positive, right.negative;
   instance left: Pair(scale = 3, resistance = 2);
   instance right: Pair(resistance = 5, scale = 4);
@@ -1369,11 +1335,11 @@ component C(support body: volume(ambient_dimension = 2), support wall: boundary(
 
 
 }
-model M {
+model M() {
   domain volume = box(0, 1, 0, 1);
   domain left = boundary(volume, axis = 0, side = lower);
   domain right = boundary(volume, axis = 0, side = upper);
-  instance c: C(support body = volume, support wall = left);
+  instance c: C(body = volume, wall = left);
 }
 "#;
         let permuted = r#"
@@ -1381,14 +1347,14 @@ component C(support wall: boundary(parent = body), support body: volume(ambient_
 
 
 }
-model M {
-  instance c: C(support wall = left, support body = volume);
+model M() {
+  instance c: C(wall = left, body = volume);
   domain right = boundary(volume, axis = 0, side = upper);
   domain left = boundary(volume, axis = 0, side = lower);
   domain volume = box(0, 1, 0, 1);
 }
 "#;
-        let rebound = permuted.replace("support wall = left", "support wall = right");
+        let rebound = permuted.replace("wall = left", "wall = right");
 
         assert_eq!(identity(body_first), identity(permuted));
         assert_ne!(identity(body_first), identity(&rebound));
@@ -1402,15 +1368,15 @@ component Law(variable displacement: vector<m, 2> on body, variable potential: K
 
 
 }
-model M {
+model M() {
   domain body = box(0, 1, 0, 1);
   variable displacement: vector<m, 2> on body;
   variable potential: K on body; initial { potential = 0; }
   variable other: K on body; initial { other = 0; }
   instance law: Law(
-    support body = body,
-    field displacement = displacement,
-    field potential = potential
+    body = body,
+    displacement = displacement,
+    potential = potential
   );
 }
 "#;
@@ -1420,11 +1386,11 @@ component Law(variable potential: K on body, variable displacement: vector<m, 2>
 
 
 }
-model M {
+model M() {
   instance law: Law(
-    field potential = potential,
-    field displacement = displacement,
-    support body = body
+    potential = potential,
+    displacement = displacement,
+    body = body
   );
   variable other: K on body; initial { other = 0; }
   variable potential: K on body; initial { potential = 0; }
@@ -1432,7 +1398,7 @@ model M {
   domain body = box(0, 1, 0, 1);
 }
 "#;
-        let rebound = permuted.replace("field potential = potential", "field potential = other");
+        let rebound = permuted.replace("potential = potential", "potential = other");
 
         assert_eq!(identity(slot_first), identity(permuted));
         assert_ne!(identity(slot_first), identity(&rebound));
@@ -1448,25 +1414,25 @@ public connector MechanicalBoundary = field_physical(
   frame = spatial,
   pairing = euclidean_boundary_duality
 );
-public component SurfaceLaw(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body)) {
+public component SurfaceLaw(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body), port mechanical[boundary in exterior]:
+    conserving MechanicalBoundary over boundary) {
 
 
-  public port mechanical[boundary in exterior]:
-    conserving MechanicalBoundary over boundary;
+  
   relation carrier[boundary in exterior] on boundary {
     trace(mechanical[boundary = boundary])
       - trace(mechanical[boundary = boundary]) = 0;
   }
 }
-model M {
+model M() {
   domain body = box(0, 1, 0, 1);
   domain x_lower = boundary(body, axis = 0, side = lower);
   domain x_upper = boundary(body, axis = 0, side = upper);
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
   instance surface: SurfaceLaw(
-    support body = body,
-    support exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
+    body = body,
+    exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
   );
   connect conserving
     surface.mechanical[boundary = x_lower],
@@ -1499,15 +1465,15 @@ component SurfaceLaw(support body: volume(ambient_dimension = 2), support exteri
 
 
 }
-model M {
+model M() {
   domain body = box(0, 1, 0, 1);
   domain x_lower = boundary(body, axis = 0, side = lower);
   domain x_upper = boundary(body, axis = 0, side = upper);
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
   instance surface: SurfaceLaw(
-    support body = body,
-    support exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
+    body = body,
+    exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
   );
 }
 "#,
@@ -1529,15 +1495,15 @@ model M {
     fn parameter_support_and_field_bindings_share_one_limit() {
         let document = document(
             r#"
-component Law(variable state: 1 on body, support body: volume(ambient_dimension = 1)) {
-  public parameter gain: 1;
+component Law(variable state: 1 on body, support body: volume(ambient_dimension = 1), parameter gain: 1) {
+  
 
 
 }
-model M {
+model M() {
   domain body = box(0, 1);
   variable state: 1 on body; initial { state = 0; }
-  instance law: Law(gain = 1, support body = body, field state = state);
+  instance law: Law(gain = 1, body = body, state = state);
 }
 "#,
         );
@@ -1547,14 +1513,14 @@ model M {
         };
         let error = LocalSourceIdentity::from_document_with_limits(&document, limits)
             .expect_err("all three binding families share one checked budget");
-        assert!(error.message().contains("3 bindings"));
+        assert!(error.message().contains("binding count exceeds"));
     }
 
     #[test]
     fn retired_scalar_shape_spelling_is_not_an_identity_alias() {
         let retired = eqiora_lang::parse(
             "retired.eqi",
-            "model M { variable x: 1 shape []; initial { x = 0; } relation r { x = 0; } }",
+            "model M() { variable x: 1 shape []; initial { x = 0; } relation r { x = 0; } }",
         )
         .into_document();
         assert!(retired.is_err());
@@ -1562,33 +1528,33 @@ model M {
 
     #[test]
     fn conserving_fragments_have_definition_local_equivalence_identity() {
-        let component_nary = "component C() { connect conserving a, b, c; } model Empty {}";
+        let component_nary = "component C() { connect conserving a, b, c; } model Empty() {}";
         let component_chain =
-            "component C() { connect conserving a, b; connect conserving b, c; } model Empty {}";
+            "component C() { connect conserving a, b; connect conserving b, c; } model Empty() {}";
         assert_eq!(identity(component_nary), identity(component_chain));
 
-        let model_nary = "model M { connect conserving a, b, c; }";
-        let model_chain = "model M { connect conserving a, b; connect conserving b, c; }";
+        let model_nary = "model M() { connect conserving a, b, c; }";
+        let model_chain = "model M() { connect conserving a, b; connect conserving b, c; }";
         assert_eq!(identity(model_nary), identity(model_chain));
     }
 
     #[test]
     fn duplicate_conserving_fragments_are_identity_idempotent() {
-        let component_once = "component C() { connect conserving a, b; } model Empty {}";
+        let component_once = "component C() { connect conserving a, b; } model Empty() {}";
         let component_twice =
-            "component C() { connect conserving a, b; connect conserving b, a; } model Empty {}";
+            "component C() { connect conserving a, b; connect conserving b, a; } model Empty() {}";
         assert_eq!(identity(component_once), identity(component_twice));
 
-        let model_once = "model M { connect conserving a, b; }";
-        let model_twice = "model M { connect conserving a, b; connect conserving b, a; }";
+        let model_once = "model M() { connect conserving a, b; }";
+        let model_twice = "model M() { connect conserving a, b; connect conserving b, a; }";
         assert_eq!(identity(model_once), identity(model_twice));
     }
 
     #[test]
     fn spatial_periodic_pair_identity_is_endpoint_order_invariant_but_not_conserving() {
-        let lower_upper = "model M { connect periodic lower.p, upper.p; }";
-        let upper_lower = "model M { connect periodic upper.p, lower.p; }";
-        let conserving = "model M { connect conserving lower.p, upper.p; }";
+        let lower_upper = "model M() { connect periodic lower.p, upper.p; }";
+        let upper_lower = "model M() { connect periodic upper.p, lower.p; }";
+        let conserving = "model M() { connect conserving lower.p, upper.p; }";
 
         assert_eq!(identity(lower_upper), identity(upper_lower));
         assert_ne!(identity(lower_upper), identity(conserving));
@@ -1597,8 +1563,8 @@ model M {
     #[test]
     fn disjoint_conserving_and_signal_records_keep_the_legacy_bytes() {
         let document = document(
-            "component C() { connect conserving a, b; connect signal out -> in_b, in_a; connect conserving c, d; } \
-             model M { connect conserving w, x; connect signal source -> sink_b, sink_a; connect conserving y, z; }",
+            "component C() { connect conserving a, b; connect out -> in_b, in_a; connect conserving c, d; } \
+             model M() { connect conserving w, x; connect source -> sink_b, sink_a; connect conserving y, z; }",
         );
         let limits = LocalSourceIdentityLimits::default();
 
@@ -1642,7 +1608,7 @@ model M {
     #[test]
     fn normalized_conserving_sets_cannot_evade_connection_member_limits() {
         let document = document(
-            "component C() { connect conserving a, b; connect conserving b, c; } model Empty {}",
+            "component C() { connect conserving a, b; connect conserving b, c; } model Empty() {}",
         );
         let limits = LocalSourceIdentityLimits {
             max_connection_members: 2,
@@ -1660,9 +1626,9 @@ model M {
 
     #[test]
     fn signal_output_is_positional_but_inputs_are_canonical_members() {
-        let base = "model m { port o: signal output 1; port a: signal input 1; port b: signal input 1; connect signal o -> a, b; }";
-        let inputs_permuted = "model m { port o: signal output 1; port a: signal input 1; port b: signal input 1; connect signal o -> b, a; }";
-        let different_output = "model m { port o: signal output 1; port a: signal input 1; port b: signal input 1; connect signal a -> o, b; }";
+        let base = "model m() { port o: signal output 1; port a: signal input 1; port b: signal input 1; connect o -> a, b; }";
+        let inputs_permuted = "model m() { port o: signal output 1; port a: signal input 1; port b: signal input 1; connect o -> b, a; }";
+        let different_output = "model m() { port o: signal output 1; port a: signal input 1; port b: signal input 1; connect a -> o, b; }";
 
         assert_eq!(identity(base), identity(inputs_permuted));
         assert_ne!(identity(base), identity(different_output));
@@ -1670,10 +1636,10 @@ model M {
 
     #[test]
     fn semantic_structure_and_exact_values_change_identity() {
-        let base = "model m { parameter p: 1 = 2; relation r { p + 1 = 0; } }";
-        let changed_value = "model m { parameter p: 1 = 3; relation r { p + 1 = 0; } }";
-        let changed_operator = "model m { parameter p: 1 = 2; relation r { p - 1 = 0; } }";
-        let changed_activation = "model m { clock c = periodic(1[s] / 1, phase = 0[s] / 1); parameter p: 1 = 2; relation r at c { p + 1 = 0; } }";
+        let base = "model m() { parameter p: 1 = 2; relation r { p + 1 = 0; } }";
+        let changed_value = "model m() { parameter p: 1 = 3; relation r { p + 1 = 0; } }";
+        let changed_operator = "model m() { parameter p: 1 = 2; relation r { p - 1 = 0; } }";
+        let changed_activation = "model m() { clock c = periodic(1[s] / 1, phase = 0[s] / 1); parameter p: 1 = 2; relation r at c { p + 1 = 0; } }";
 
         assert_ne!(identity(base), identity(changed_value));
         assert_ne!(identity(base), identity(changed_operator));
@@ -1682,11 +1648,11 @@ model M {
 
     #[test]
     fn canonical_identity_is_structural_not_algebraic_equivalence() {
-        let folded = "model m { parameter p: 1 = 2; relation r { p + 2 = 0; } }";
-        let unfolded = "model m { parameter p: 1 = 2; relation r { p + (1 + 1) = 0; } }";
+        let folded = "model m() { parameter p: 1 = 2; relation r { p + 2 = 0; } }";
+        let unfolded = "model m() { parameter p: 1 = 2; relation r { p + (1 + 1) = 0; } }";
         let multiplied_dimension =
-            "model m { parameter area: m * m = 1; relation r { area = 0; } }";
-        let powered_dimension = "model m { parameter area: m ^ 2 = 1; relation r { area = 0; } }";
+            "model m() { parameter area: m * m = 1; relation r { area = 0; } }";
+        let powered_dimension = "model m() { parameter area: m ^ 2 = 1; relation r { area = 0; } }";
 
         assert_ne!(identity(folded), identity(unfolded));
         assert_ne!(identity(multiplied_dimension), identity(powered_dimension));
@@ -1694,18 +1660,22 @@ model M {
 
     #[test]
     fn interface_visibility_defaults_ports_bindings_and_domains_are_semantic() {
-        let public_default = "component C() { public parameter p: 1 = 2; public port s: signal input 1; } model m { instance x: C(p = 2); }";
-        let private_default = "component C() { parameter p: 1 = 2; public port s: signal input 1; } model m { instance x: C(p = 2); }";
-        let required = "component C() { public parameter p: 1; public port s: signal input 1; } model m { instance x: C(p = 2); }";
-        let output_port = "component C() { public parameter p: 1 = 2; public port s: signal output 1; } model m { instance x: C(p = 2); }";
-        let changed_binding = "component C() { public parameter p: 1 = 2; public port s: signal input 1; } model m { instance x: C(p = 3); }";
+        let public_default =
+            "component C(parameter p: 1 = 2, input s: 1) {   } model m() { instance x: C(p = 2); }";
+        let private_default =
+            "component C(input s: 1) { parameter p: 1 = 2;  } model m() { instance x: C(p = 2); }";
+        let required =
+            "component C(parameter p: 1, input s: 1) {   } model m() { instance x: C(p = 2); }";
+        let output_port = "component C(parameter p: 1 = 2, output s: 1) {   } model m() { instance x: C(p = 2); }";
+        let changed_binding =
+            "component C(parameter p: 1 = 2, input s: 1) {   } model m() { instance x: C(p = 3); }";
         assert_ne!(identity(public_default), identity(private_default));
         assert_ne!(identity(public_default), identity(required));
         assert_ne!(identity(public_default), identity(output_port));
         assert_ne!(identity(public_default), identity(changed_binding));
 
-        let on_domain = "model m { domain d = box(0, 1); relation r on d { 1 = 0; } }";
-        let without_domain = "model m { domain d = box(0, 1); relation r { 1 = 0; } }";
+        let on_domain = "model m() { domain d = box(0, 1); relation r on d { 1 = 0; } }";
+        let without_domain = "model m() { domain d = box(0, 1); relation r { 1 = 0; } }";
         assert_ne!(identity(on_domain), identity(without_domain));
     }
 
@@ -1722,9 +1692,9 @@ model M {
         assert_ne!(identity(private), identity(public_component));
         assert_ne!(identity(public_connector), identity(public_component));
 
-        let private_model = "model Main {}";
-        let explicit_private_model = "private model Main {}";
-        let public_model = "public model Main {}";
+        let private_model = "model Main() {}";
+        let explicit_private_model = "private model Main() {}";
+        let public_model = "public model Main() {}";
         assert_eq!(identity(private_model), identity(explicit_private_model));
         assert_ne!(identity(private_model), identity(public_model));
 
@@ -1746,25 +1716,25 @@ model M {
     #[test]
     fn residual_root_order_is_preserved() {
         let first =
-            "model m { parameter a: 1 = 1; parameter b: 1 = 2; relation r { a = 0; b = 0; } }";
+            "model m() { parameter a: 1 = 1; parameter b: 1 = 2; relation r { a = 0; b = 0; } }";
         let reversed =
-            "model m { parameter a: 1 = 1; parameter b: 1 = 2; relation r { b = 0; a = 0; } }";
+            "model m() { parameter a: 1 = 1; parameter b: 1 = 2; relation r { b = 0; a = 0; } }";
 
         assert_ne!(identity(first), identity(reversed));
     }
 
     #[test]
     fn negative_zero_is_normalized_to_positive_zero() {
-        let positive = "model m { parameter p: 1 = 0; }";
-        let negative = "model m { parameter p: 1 = -0; }";
+        let positive = "model m() { parameter p: 1 = 0; }";
+        let negative = "model m() { parameter p: 1 = -0; }";
 
         assert_eq!(identity(positive), identity(negative));
     }
 
     #[test]
     fn negative_zero_has_one_source_transaction_and_model_meaning() {
-        let positive = "connector Pin = scalar_physical(across = 1, through = 1); model m { domain d = box(0, 1); variable x: 1 on d; initial { x = 0; } parameter p: 1 = 0; relation r on d { x + p + 0 = 0; } }";
-        let negative = "connector Pin = scalar_physical(across = 1, through = 1); model m { domain d = box(-0, 1); variable x: 1 on d; initial { x = -0; } parameter p: 1 = -0; relation r on d { x + p + -0 = 0; } }";
+        let positive = "connector Pin = scalar_physical(across = 1, through = 1); model m() { domain d = box(0, 1); variable x: 1 on d; initial { x = 0; } parameter p: 1 = 0; relation r on d { x + p + 0 = 0; } }";
+        let negative = "connector Pin = scalar_physical(across = 1, through = 1); model m() { domain d = box(-0, 1); variable x: 1 on d; initial { x = -0; } parameter p: 1 = -0; relation r on d { x + p + -0 = 0; } }";
 
         assert_eq!(identity(positive), identity(negative));
         let mut positive = crate::compile("zero.eqi", positive).unwrap();
@@ -1777,10 +1747,10 @@ model M {
 
     #[test]
     fn cartesian_coordinate_sources_preserve_exact_root_declaration_identity() {
-        let parameter = "model m { parameter extent: m = 2; parameter other: m = 2; domain body = box(-1, extent, extent, 6); relation r on body { coordinate(0) - coordinate(0) = 0; } }";
-        let declarations_permuted = "model m { domain body = box(-1, extent, extent, 6); relation r on body { coordinate(0) - coordinate(0) = 0; } parameter other: m = 2; parameter extent: m = 2; }";
-        let fixed = "model m { parameter extent: m = 2; parameter other: m = 2; domain body = box(-1, 2, 2, 6); relation r on body { coordinate(0) - coordinate(0) = 0; } }";
-        let other_root = "model m { parameter extent: m = 2; parameter other: m = 2; domain body = box(-1, other, other, 6); relation r on body { coordinate(0) - coordinate(0) = 0; } }";
+        let parameter = "model m() { parameter extent: m = 2; parameter other: m = 2; domain body = box(-1, extent, extent, 6); relation r on body { coordinate(0) - coordinate(0) = 0; } }";
+        let declarations_permuted = "model m() { domain body = box(-1, extent, extent, 6); relation r on body { coordinate(0) - coordinate(0) = 0; } parameter other: m = 2; parameter extent: m = 2; }";
+        let fixed = "model m() { parameter extent: m = 2; parameter other: m = 2; domain body = box(-1, 2, 2, 6); relation r on body { coordinate(0) - coordinate(0) = 0; } }";
+        let other_root = "model m() { parameter extent: m = 2; parameter other: m = 2; domain body = box(-1, other, other, 6); relation r on body { coordinate(0) - coordinate(0) = 0; } }";
 
         assert_eq!(identity(parameter), identity(declarations_permuted));
         assert_ne!(identity(parameter), identity(fixed));
@@ -1789,7 +1759,7 @@ model M {
 
     #[test]
     fn resource_limits_fail_closed() {
-        let base_document = document("model m { parameter p: 1 = 2; relation r { p + 1 = 0; } }");
+        let base_document = document("model m() { parameter p: 1 = 2; relation r { p + 1 = 0; } }");
         let top_level = LocalSourceIdentityLimits {
             max_top_level_declarations: 0,
             ..LocalSourceIdentityLimits::default()
@@ -1819,8 +1789,8 @@ model M {
         );
 
         let mixed_bindings = document(
-            "component C(support d: volume(ambient_dimension = 1)) { public parameter p: 1;  } \
-             model M { domain d = box(0, 1); instance c: C(p = 1, support d = d); }",
+            "component C(support d: volume(ambient_dimension = 1), parameter p: 1) {   } \
+             model M() { domain d = box(0, 1); instance c: C(p = 1, d = d); }",
         );
         let bindings = LocalSourceIdentityLimits {
             max_bindings_per_instance: 1,

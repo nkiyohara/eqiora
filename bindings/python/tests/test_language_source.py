@@ -4,6 +4,7 @@ from fractions import Fraction
 import pytest
 
 import eqiora
+from _signature_bindings import support_bindings
 
 
 q = eqiora.lang
@@ -73,10 +74,10 @@ def test_input_quantities_compile_from_python_and_emitted_source(tmp_path: Path)
         right=0, left=length - q.math.sqrt(q.quantity(4, u.m.prefixed("m") ** 2)),
     )
     assert "4 [(mm ^ 2)]" in source.to_eqi()
-    direct = eqiora.compile(source=source, geometry=rectangle_geometry())
+    direct = eqiora.compile(source=source, geometry=(_binding_geometry := rectangle_geometry()), entry='RootLength', bindings={**support_bindings(_binding_geometry, ['region'], []), **{}})
     path = tmp_path / "quantity.eqi"
     source.write_eqi(path)
-    emitted = eqiora.compile(path=path, geometry=rectangle_geometry())
+    emitted = eqiora.compile(path=path, geometry=(_binding_geometry := rectangle_geometry()), entry='RootLength', bindings={**support_bindings(_binding_geometry, ['region'], []), **{}})
     assert direct.digest == emitted.digest
     assert eqiora.Model.from_bytes(direct.to_bytes()).digest == direct.digest
     for unit in [u.kg, u.one, u.s.prefixed("m"), u.m / u.s]:
@@ -279,19 +280,7 @@ def scalar_property_source(*, doc: str = "Reference scalar diffusivity release."
     root_bottom = root.boundary("bottom", parent=root_region)
     root_top = root.boundary("top", parent=root_region)
     root_source_scale = root.parameter("source_scale", value_type=eqiora.ValueType.real(eqiora.Dimension(length=-2)))
-    root.instance(
-        "equation",
-        component=law,
-        supports={
-            law_region: root_region,
-            law_left: root_left,
-            law_right: root_right,
-            law_bottom: root_bottom,
-            law_top: root_top,
-        },
-        parameters={law_source_scale: root_source_scale if binding is None else binding},
-        properties={diffusivity: release},
-    )
+    root.instance('equation', component=law, bindings={law_region: root_region, law_left: root_left, law_right: root_right, law_bottom: root_bottom, law_top: root_top, law_source_scale: root_source_scale if binding is None else binding, diffusivity: release})
     return source
 
 
@@ -331,13 +320,7 @@ def material_composition_source() -> q.Source:
     )
     root = source.component("UseMaterial")
     root_region = root.volume("region", dimensions=2)
-    root.instance(
-        "law",
-        component=law,
-        supports={region: root_region},
-        parameters={},
-        material=material,
-    )
+    root.instance('law', component=law, bindings={region: root_region, conductivity: material['conductivity'], capacity: material['capacity']})
     return source
 
 
@@ -440,11 +423,7 @@ def test_python_source_emits_and_fresh_compile_inspects_scalar_primal_form(
     assert text.count("math.sin") == 2
     assert not hasattr(q, "sin")
 
-    model = eqiora.compile(
-        source=source,
-        geometry=rectangle_geometry(),
-        parameters={"diffusion": 1.0, "wave_number": 2.0, "source_scale": 2.0},
-    )
+    model = eqiora.compile(source=source, geometry=(_binding_geometry := rectangle_geometry()), entry='ScalarDiffusion', bindings={**support_bindings(_binding_geometry, ['region'], []), **{'diffusion': 1.0, 'wave_number': 2.0, 'source_scale': 2.0}})
     assert len(model.authored_formulations) == 1
     form = model.authored_formulations[0]
     assert form.kind == "primal"
@@ -454,11 +433,7 @@ def test_python_source_emits_and_fresh_compile_inspects_scalar_primal_form(
 
     path = tmp_path / "scalar-primal.eqi"
     source.write_eqi(path)
-    emitted = eqiora.compile(
-        path=path,
-        geometry=rectangle_geometry(),
-        parameters={"diffusion": 1.0, "wave_number": 2.0, "source_scale": 2.0},
-    )
+    emitted = eqiora.compile(path=path, geometry=(_binding_geometry := rectangle_geometry()), entry='ScalarDiffusion', bindings={**support_bindings(_binding_geometry, ['region'], []), **{'diffusion': 1.0, 'wave_number': 2.0, 'source_scale': 2.0}})
     assert emitted.digest == model.digest
 
     replayed = eqiora.Model.from_bytes(model.to_bytes())
@@ -478,10 +453,10 @@ def test_uninitialized_scalar_field_compiles_from_source_and_emitted_file(
     assert "variable potential: 1 on region;" in text
     assert "variable potential: 1 =" not in text
 
-    direct = eqiora.compile(source=source, geometry=rectangle_geometry())
+    direct = eqiora.compile(source=source, geometry=(_binding_geometry := rectangle_geometry()), entry='AlgebraicField', bindings={**support_bindings(_binding_geometry, ['region'], []), **{}})
     path = tmp_path / "uninitialized-scalar.eqi"
     source.write_eqi(path)
-    emitted = eqiora.compile(path=path, geometry=rectangle_geometry())
+    emitted = eqiora.compile(path=path, geometry=(_binding_geometry := rectangle_geometry()), entry='AlgebraicField', bindings={**support_bindings(_binding_geometry, ['region'], []), **{}})
     assert direct.digest == emitted.digest
 
 
@@ -494,42 +469,35 @@ def test_source_is_deterministic_and_direct_file_compilation_has_one_identity(
     assert "/// Equations-only steady incompressible flow component." in first.to_eqi()
 
     geometry = cylinder_geometry()
-    direct = eqiora.compile(
-        source=first,
-        geometry=geometry,
-        parameters=PARAMETERS,
-    )
+    direct = eqiora.compile(source=first, geometry=geometry, entry='SteadyFlowPastCylinder', bindings={**support_bindings(geometry, ['fluid'], [('inlet', 'fluid'), ('outlet', 'fluid'), ('walls', 'fluid'), ('cylinder', 'fluid')]), **PARAMETERS})
     path = tmp_path / "steady-flow-past-cylinder.eqi"
     first.write_eqi(path)
     assert path.read_text(encoding="utf-8") == first.to_eqi()
-    emitted = eqiora.compile(path=path, geometry=geometry, parameters=PARAMETERS)
-    other_comments = eqiora.compile(
-        source=cylinder_source(doc="Different presentation-only documentation."),
-        geometry=geometry,
-        parameters=PARAMETERS,
-    )
+    emitted = eqiora.compile(path=path, geometry=geometry, entry='SteadyFlowPastCylinder', bindings={**support_bindings(geometry, ['fluid'], [('inlet', 'fluid'), ('outlet', 'fluid'), ('walls', 'fluid'), ('cylinder', 'fluid')]), **PARAMETERS})
+    other_comments = eqiora.compile(source=cylinder_source(doc='Different presentation-only documentation.'), geometry=geometry, entry='SteadyFlowPastCylinder', bindings={**support_bindings(geometry, ['fluid'], [('inlet', 'fluid'), ('outlet', 'fluid'), ('walls', 'fluid'), ('cylinder', 'fluid')]), **PARAMETERS})
     assert direct.digest == emitted.digest == other_comments.digest
 
 
-def test_scalar_property_source_emits_for_the_exact_package_path(
+def test_scalar_property_source_compiles_with_same_source_release(
     tmp_path: Path,
 ) -> None:
     first = scalar_property_source()
     second = scalar_property_source()
     assert first.to_eqi() == second.to_eqi()
     assert "public property contract Diffusivity" in first.to_eqi()
-    assert "property diffusivity = ReferenceDiffusivity" in first.to_eqi()
+    assert "diffusivity = ReferenceDiffusivity" in first.to_eqi()
 
-    with pytest.raises(q.SourceError, match="requires an exact Model Package"):
-        eqiora.compile(
-            source=first,
-            geometry=rectangle_geometry(),
-            component="PoissonRectangle",
-            parameters={"source_scale": 1.0},
-        )
+    geometry = rectangle_geometry()
+    bindings = {
+        **support_bindings(geometry, ["region"], [(side, "region") for side in ("left", "right", "bottom", "top")]),
+        "source_scale": 1.0,
+    }
+    direct = eqiora.compile(source=first, geometry=geometry, entry="PoissonRectangle", bindings=bindings)
     path = tmp_path / "property-poisson.eqi"
     first.write_eqi(path)
     assert path.read_text(encoding="utf-8") == first.to_eqi()
+    emitted = eqiora.compile(path=path, geometry=geometry, entry="PoissonRectangle", bindings=bindings)
+    assert direct.digest == emitted.digest
     assert scalar_property_source(doc="Different release documentation.").to_eqi().replace(
         "/// Different release documentation.\n", ""
     ) == first.to_eqi().replace("/// Reference scalar diffusivity release.\n", "")
@@ -541,7 +509,8 @@ def test_material_composition_emits_one_ordered_typed_binding_set() -> None:
     assert text.index("property capacity = CapacityA") < text.index(
         "property conductivity = ConductivityA"
     )
-    assert "material = MaterialA" in text
+    assert "conductivity = MaterialA.conductivity" in text
+    assert "capacity = MaterialA.capacity" in text
     with pytest.raises(TypeError):
         q.MaterialComposition()
 
@@ -588,6 +557,12 @@ def test_scalar_property_source_owns_exact_handles_and_complete_binding() -> Non
         release.value = 1
 
     foreign = q.Source()
+    foreign_contract = foreign.property_contract("Diffusivity", value_type=eqiora.ValueType.real())
+    foreign_release = foreign.property_release(
+        "ReferenceDiffusivity", implements=foreign_contract, value=25,
+        source_unit=u.one, source_scale=0.001,
+        citation="org.example.measurement", license="spdx.CC0_1_0",
+    )
     foreign_component = foreign.component("Foreign")
     with pytest.raises(q.SourceError, match="belong to this Source"):
         foreign_component.property("diffusivity", contract=contract)
@@ -595,22 +570,12 @@ def test_scalar_property_source_owns_exact_handles_and_complete_binding() -> Non
     consumer = source.component("Consumer")
     requirement = consumer.property("diffusivity", contract=contract)
     root = source.component("Root")
-    with pytest.raises(q.SourceError, match="property bindings must be complete"):
-        root.instance(
-            "equation",
-            component=consumer,
-            supports={},
-            parameters={},
-            properties={},
-        )
-    root.instance(
-        "equation",
-        component=consumer,
-        supports={},
-        parameters={},
-        properties={requirement: release},
-    )
-    assert "property diffusivity = ReferenceDiffusivity" in source.to_eqi()
+    with pytest.raises(q.SourceError, match="bindings must satisfy the exact required signature"):
+        root.instance('equation', component=consumer, bindings={})
+    with pytest.raises(q.SourceError, match="Source|contract"):
+        root.instance("equation", component=consumer, bindings={requirement: foreign_release})
+    root.instance('equation', component=consumer, bindings={requirement: release})
+    assert "diffusivity = ReferenceDiffusivity" in source.to_eqi()
     with pytest.raises(q.SourceError):
         source.component("Third")
 
@@ -679,11 +644,7 @@ def test_source_owns_handles_limits_and_atomic_output(tmp_path: Path) -> None:
 
 def test_canonical_compiler_owns_expression_shape_diagnostics() -> None:
     with pytest.raises(eqiora.ValidationError) as error:
-        eqiora.compile(
-            source=cylinder_source(velocity_type=eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1))),
-            geometry=cylinder_geometry(),
-            parameters=PARAMETERS,
-        )
+        eqiora.compile(source=cylinder_source(velocity_type=eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1))), geometry=(_binding_geometry := cylinder_geometry()), entry='SteadyFlowPastCylinder', bindings={**support_bindings(_binding_geometry, ['fluid'], [('inlet', 'fluid'), ('outlet', 'fluid'), ('walls', 'fluid'), ('cylinder', 'fluid')]), **PARAMETERS})
     assert error.value.diagnostics
     assert any(
         diagnostic.source_span is not None
@@ -745,14 +706,14 @@ def test_static_alias_compiles_without_required_binding_or_edit_target(tmp_path)
     value = component.field("value", on=region, role=eqiora.FieldRole.Variable,
                             value_type=eqiora.ValueType.real())
     component.relation("balance", on=region, left=value, right=doubled)
-    model = eqiora.compile(source=source, geometry=rectangle_geometry(), parameters={"supplied": 3.0})
+    model = eqiora.compile(source=source, geometry=(_binding_geometry := rectangle_geometry()), entry='StaticAlias', bindings={**support_bindings(_binding_geometry, ['region'], []), **{'supplied': 3.0}})
     assert len(model.parameter_ids) == 1
     assert len(model.field_ids) == 1
     with pytest.raises(eqiora.EqioraError, match="Parameter"):
         model.preview_value_edit("doubled", 9.0)
     path = tmp_path / "static-alias.eqi"
     source.write_eqi(path)
-    replay = eqiora.compile(path=path, geometry=rectangle_geometry(), parameters={"supplied": 3.0})
+    replay = eqiora.compile(path=path, geometry=(_binding_geometry := rectangle_geometry()), entry='StaticAlias', bindings={**support_bindings(_binding_geometry, ['region'], []), **{'supplied': 3.0}})
     assert replay.structural_fingerprint == model.structural_fingerprint
 
 
@@ -770,16 +731,13 @@ def test_static_alias_nested_parameter_binding_uses_expression_rhs():
     supplied = parent.parameter("source_scale", value_type=eqiora.ValueType.real())
     adjusted = parent.let_alias("adjusted_source", supplied * 2)
     for parameters in ({}, {required: adjusted, private: 1}):
-        with pytest.raises(q.SourceError, match="Parameter bindings must be complete and exact"):
-            parent.instance("child", component=child, supports={child_region: parent_region},
-                            parameters=parameters)
-    parent.instance("child", component=child, supports={child_region: parent_region},
-                    parameters={required: adjusted})
+        with pytest.raises(q.SourceError, match="bindings must satisfy the exact required signature"):
+            parent.instance('child', component=child, bindings={child_region: parent_region, **parameters})
+    parent.instance('child', component=child, bindings={child_region: parent_region, required: adjusted})
     text = source.to_eqi()
     assert "let adjusted_source = source_scale * 2;" in text
     assert "source_scale = adjusted_source" in text
-    model = eqiora.compile(source=source, geometry=rectangle_geometry(), component="Parent",
-                           parameters={"source_scale": 3.0})
+    model = eqiora.compile(source=source, geometry=(_binding_geometry := rectangle_geometry()), entry='Parent', bindings={**support_bindings(_binding_geometry, ['region'], []), **{'source_scale': 3.0}})
     for name in ("adjusted_source", "child.child_source"):
         with pytest.raises(eqiora.EqioraError, match="Parameter"):
             model.preview_value_edit(name, 9.0)
@@ -792,9 +750,9 @@ def test_static_alias_authoring_cannot_bind_private_alias_as_parameter():
     private = child.let_alias("private", required * 2)
     root = source.component("Root")
     rhs = root.let_alias("rhs", 3)
-    with pytest.raises(q.SourceError, match="Parameter bindings must be complete and exact"):
-        root.instance("child", component=child, supports={}, parameters={required: rhs, private: 1})
-    root.instance("child", component=child, supports={}, parameters={required: rhs})
+    with pytest.raises(q.SourceError, match="bindings must satisfy the exact required signature"):
+        root.instance('child', component=child, bindings={required: rhs, private: 1})
+    root.instance('child', component=child, bindings={required: rhs})
 
 
 @pytest.mark.parametrize("kind", ["parameter", "alias", "compound", "trace", "property"])
@@ -832,8 +790,7 @@ def test_static_alias_authoring_rejects_same_source_sibling_capture(kind):
         lambda: foreign + right_parameter,
         lambda: right.primal_form(right_relation, left=q.integrate(left_region, foreign),
                                   right=q.integrate(right_region, right_parameter)),
-        lambda: right.instance("child", component=left, supports={left_region: right_region},
-                               parameters={left_parameter: foreign}, properties={left_property: release}),
+        lambda: right.instance('child', component=left, bindings={left_region: right_region, left_parameter: foreign, left_property: release}),
     ):
         with pytest.raises(q.SourceError, match="Component"):
             operation()
@@ -862,11 +819,15 @@ def test_component_hierarchy_retains_total_output_byte_bound():
     source.component("StillOpenAfterRejectedEmission")
 
 
-def test_property_hierarchy_still_requires_exact_model_package():
+def test_property_hierarchy_allows_unselected_local_definitions():
     source = scalar_property_source()
     source.component("Additional")
-    with pytest.raises(q.SourceError, match="requires an exact Model Package"):
-        eqiora.compile(source=source, geometry=rectangle_geometry(), component="PoissonRectangle")
+    geometry = rectangle_geometry()
+    model = eqiora.compile(source=source, geometry=geometry, entry="PoissonRectangle", bindings={
+        **support_bindings(geometry, ["region"], [(side, "region") for side in ("left", "right", "bottom", "top")]),
+        "source_scale": 1.0,
+    })
+    assert model.digest
 
 
 def runtime_arithmetic_alias_source(*, aliases=True):
@@ -916,19 +877,19 @@ def test_runtime_alias_authoring_preserves_field_and_gradient_expressions():
     assert "-div(heatflux) - forcing = 0;" in asserted
 
 
-@pytest.mark.parametrize("factory, parameters, alias_names", [
-    (runtime_arithmetic_alias_source, {"supplied": 3.0}, ("doubled", "shifted")),
-    (runtime_heatflux_alias_source, {"coefficient": 2.0, "forcing": 3.0}, ("heatflux",)),
+@pytest.mark.parametrize("factory, parameters, alias_names, entry, boundaries", [
+    (runtime_arithmetic_alias_source, {"supplied": 3.0}, ("doubled", "shifted"), "RuntimeArithmetic", []),
+    (runtime_heatflux_alias_source, {"coefficient": 2.0, "forcing": 3.0}, ("heatflux",), "RuntimeHeatFlux", [("left", "region")]),
 ])
 def test_runtime_aliases_compile_like_expanded_expressions_without_storage(
-    tmp_path, factory, parameters, alias_names,
+    tmp_path, factory, parameters, alias_names, entry, boundaries,
 ):
     source = factory()
-    model = eqiora.compile(source=source, geometry=rectangle_geometry(), parameters=parameters)
+    model = eqiora.compile(source=source, geometry=(_binding_geometry := rectangle_geometry()), entry=entry, bindings={**support_bindings(_binding_geometry, ['region'], boundaries), **parameters})
     path = tmp_path / "runtime-alias.eqi"
     source.write_eqi(path)
-    from_file = eqiora.compile(path=path, geometry=rectangle_geometry(), parameters=parameters)
-    expanded = eqiora.compile(source=factory(aliases=False), geometry=rectangle_geometry(), parameters=parameters)
+    from_file = eqiora.compile(path=path, geometry=(_binding_geometry := rectangle_geometry()), entry=entry, bindings={**support_bindings(_binding_geometry, ['region'], boundaries), **parameters})
+    expanded = eqiora.compile(source=factory(aliases=False), geometry=(_binding_geometry := rectangle_geometry()), entry=entry, bindings={**support_bindings(_binding_geometry, ['region'], boundaries), **parameters})
     assert model.structural_fingerprint == from_file.structural_fingerprint
     assert model.structural_fingerprint == expanded.structural_fingerprint
     assert len(model.field_ids) == len(expanded.field_ids) == 1
@@ -953,10 +914,9 @@ def test_transitive_runtime_alias_cannot_supply_child_parameter_binding():
     first = parent.let_alias("first", value * 2)
     transitive = parent.let_alias("transitive", first + 1)
     parent.relation("balance", on=region, left=value - 1, right=0)
-    parent.instance("child", component=child, supports={child_region: region},
-                    parameters={required: transitive})
+    parent.instance('child', component=child, bindings={child_region: region, required: transitive})
     with pytest.raises(eqiora.ValidationError, match="static|runtime|[Pp]arameter"):
-        eqiora.compile(source=source, geometry=rectangle_geometry(), component="Parent")
+        eqiora.compile(source=source, geometry=(_binding_geometry := rectangle_geometry()), entry='Parent', bindings={**support_bindings(_binding_geometry, ['region'], []), **{}})
 
 
 def test_alias_support_authoring_preserves_type_documentation_and_freeze():
@@ -997,12 +957,11 @@ def test_alias_support_authoring_rejects_foreign_support_before_mutation(foreign
 def test_alias_support_heatflux_compiles_like_expanded_expression(tmp_path):
     source = runtime_heatflux_alias_source(assert_support=True)
     parameters = {"coefficient": 2.0, "forcing": 3.0}
-    model = eqiora.compile(source=source, geometry=rectangle_geometry(), parameters=parameters)
+    model = eqiora.compile(source=source, geometry=(_binding_geometry := rectangle_geometry()), entry='RuntimeHeatFlux', bindings={**support_bindings(_binding_geometry, ['region'], [('left', 'region')]), **parameters})
     path = tmp_path / "supported-heatflux.eqi"
     source.write_eqi(path)
-    from_file = eqiora.compile(path=path, geometry=rectangle_geometry(), parameters=parameters)
-    expanded = eqiora.compile(source=runtime_heatflux_alias_source(aliases=False),
-                              geometry=rectangle_geometry(), parameters=parameters)
+    from_file = eqiora.compile(path=path, geometry=(_binding_geometry := rectangle_geometry()), entry='RuntimeHeatFlux', bindings={**support_bindings(_binding_geometry, ['region'], [('left', 'region')]), **parameters})
+    expanded = eqiora.compile(source=runtime_heatflux_alias_source(aliases=False), geometry=(_binding_geometry := rectangle_geometry()), entry='RuntimeHeatFlux', bindings={**support_bindings(_binding_geometry, ['region'], [('left', 'region')]), **parameters})
     assert model.structural_fingerprint == from_file.structural_fingerprint
     assert model.structural_fingerprint == expanded.structural_fingerprint
     assert len(model.field_ids) == len(expanded.field_ids) == 1
@@ -1042,7 +1001,7 @@ def test_alias_support_assertion_rejects_inference_or_context_changes(kind):
     component.let_alias("invalid", expression, on=support)
     component.relation("balance", on=region, left=value, right=0)
     with pytest.raises(eqiora.ValidationError, match="support|scope|context|trace"):
-        eqiora.compile(source=source, geometry=geometry, component=entry)
+        eqiora.compile(source=source, geometry=geometry, entry=entry, bindings={**support_bindings(geometry, ['region'], [('left', 'region'), ('right', 'region')] if kind == 'boundary_trace' else []), **{}})
 
 
 def clocked_alias_source(*, aliases=True, wrong_clock=False):
@@ -1175,11 +1134,11 @@ def test_clock_authoring_initial_uses_existing_declaration_and_expression_bounds
 
 def test_clocked_alias_source_compiles_like_expanded_current_read(tmp_path):
     source = clocked_alias_source()
-    model = eqiora.compile(source=source, geometry=rectangle_geometry())
+    model = eqiora.compile(source=source, geometry=(_binding_geometry := rectangle_geometry()), entry='Clocked', bindings={**support_bindings(_binding_geometry, ['region'], []), **{}})
     path = tmp_path / "clocked-alias.eqi"
     source.write_eqi(path)
-    from_file = eqiora.compile(path=path, geometry=rectangle_geometry())
-    expanded = eqiora.compile(source=clocked_alias_source(aliases=False), geometry=rectangle_geometry())
+    from_file = eqiora.compile(path=path, geometry=(_binding_geometry := rectangle_geometry()), entry='Clocked', bindings={**support_bindings(_binding_geometry, ['region'], []), **{}})
+    expanded = eqiora.compile(source=clocked_alias_source(aliases=False), geometry=(_binding_geometry := rectangle_geometry()), entry='Clocked', bindings={**support_bindings(_binding_geometry, ['region'], []), **{}})
     assert model.structural_fingerprint == from_file.structural_fingerprint
     assert model.structural_fingerprint == expanded.structural_fingerprint
     assert len(model.field_ids) == len(expanded.field_ids) == 2
@@ -1190,7 +1149,7 @@ def test_clocked_alias_source_compiles_like_expanded_current_read(tmp_path):
 
 def test_clocked_alias_rejects_distinct_equal_period_clock_assertion():
     with pytest.raises(eqiora.ValidationError, match="clock|activation"):
-        eqiora.compile(source=clocked_alias_source(wrong_clock=True), geometry=rectangle_geometry())
+        eqiora.compile(source=clocked_alias_source(wrong_clock=True), geometry=(_binding_geometry := rectangle_geometry()), entry='Clocked', bindings={**support_bindings(_binding_geometry, ['region'], []), **{}})
 
 
 def test_clock_authoring_tick_expressions_retain_depth_bound_and_doc_validation():
@@ -1281,13 +1240,163 @@ def test_typed_parameter_geometry_input_preserves_complex_channel_index(tmp_path
                             value_type=eqiora.ValueType.complex())
     component.relation("law", on=region, left=field, right=parameter[1])
     parameters = {"coefficients": [1 + 2j, 3 - 4j]}
-    model = eqiora.compile(source=source, geometry=rectangle_geometry(), parameters=parameters)
+    model = eqiora.compile(source=source, geometry=(_binding_geometry := rectangle_geometry()), entry='TypedInputs', bindings={**support_bindings(_binding_geometry, ['region'], []), **parameters})
     path = tmp_path / "typed-inputs.eqi"
     source.write_eqi(path)
-    from_file = eqiora.compile(path=path, geometry=rectangle_geometry(), parameters=parameters)
+    from_file = eqiora.compile(path=path, geometry=(_binding_geometry := rectangle_geometry()), entry='TypedInputs', bindings={**support_bindings(_binding_geometry, ['region'], []), **parameters})
     assert model.structural_fingerprint == from_file.structural_fingerprint
     changed = model.commit(model.preview_value_edit("coefficients", [1 + 2j, 3 - 7j]))
     assert changed.digest != model.digest
     assert eqiora.Model.from_bytes(changed.to_bytes()).digest == changed.digest
     with pytest.raises(eqiora.ValidationError):
-        eqiora.compile(source=source, geometry=rectangle_geometry(), parameters={"coefficients": [1 + 2j]})
+        eqiora.compile(source=source, geometry=(_binding_geometry := rectangle_geometry()), entry='TypedInputs', bindings={**support_bindings(_binding_geometry, ['region'], []), **{'coefficients': [1 + 2j]}})
+
+
+def sampled_source():
+    source = q.Source()
+    model = source.model("Sampled")
+    tick = model.clock_requirement("tick", doc="Caller-owned nominal clock.")
+    drive = model.input("drive", value_type=eqiora.ValueType.real(), at=tick)
+    observed = model.output("observed", value_type=eqiora.ValueType.real(), at=tick)
+    memory = model.field("memory", value_type=eqiora.ValueType.real(), role=eqiora.FieldRole.State, at=tick)
+    model.initial(q.pre(memory))
+    model.relation("update", at=tick, left=q.next(memory), right=q.pre(memory) + drive)
+    model.relation("observe", at=tick, left=observed, right=q.pre(memory))
+    return source
+
+
+def test_source_model_sampled_signature_and_exact_snapshot_resume(tmp_path):
+    source = sampled_source()
+    text = source.to_eqi()
+    assert "public model Sampled(" in text
+    assert "clock tick: periodic," in text
+    assert "input drive: 1 at tick," in text
+    assert "output observed: 1 at tick," in text
+    assert "state memory: 1 at tick;" in text
+    clock = eqiora.ClockDomain(period_s=Fraction(1, 10))
+    model = eqiora.compile(source=source, entry="Sampled", bindings={"tick": clock})
+    path = tmp_path / "sampled.eqi"
+    source.write_eqi(path)
+    emitted = eqiora.compile(path=path, entry="Sampled", bindings={"tick": clock})
+    assert emitted.digest == model.digest
+    session = model.sampled_session(end_time_s=0.2, max_step_s=0.01,
+                                    inputs={"drive": ("tick", [1.0, 2.0, 3.0])})
+    assert session.output("observed", 0) is None
+    assert session.next_tick == Fraction(0)
+    assert session.advance_ticks(1) == 1
+    assert session.output("observed", 0) == (Fraction(0), 0.0)
+    assert session.field("memory") == 1.0
+    snapshot = session.checkpoint()
+    resumed = emitted.resume_sampled(snapshot)
+    assert session.advance_ticks(2) == resumed.advance_ticks(2) == 2
+    assert resumed.field("memory") == session.field("memory") == 6.0
+    assert resumed.output("observed", 1) == (Fraction(1, 10), 1.0)
+    assert resumed.output("observed", 2) == (Fraction(1, 5), 3.0)
+    assert resumed.output("observed", 3) is None
+    changed = eqiora.compile(source=text, entry="Sampled",
+                             bindings={"tick": eqiora.ClockDomain(period_s=Fraction(1, 10))})
+    with pytest.raises(eqiora.EqioraError):
+        changed.resume_sampled(snapshot)
+
+
+def test_source_signature_borrowing_and_forward_defaults_use_exact_handles():
+    source = q.Source()
+    child = source.component("Increment")
+    tick = child.clock_requirement("tick")
+    borrowed = child.field_requirement("memory", value_type=eqiora.ValueType.real(),
+                                      role=eqiora.FieldRole.State, at=tick)
+    amount = child.parameter("amount", value_type=eqiora.ValueType.real())
+    factor = child.parameter("factor", value_type=eqiora.ValueType.real())
+    child.set_default(amount, factor * 2)
+    child.set_default(factor, 1)
+    child.relation("increment", at=tick, left=q.next(borrowed), right=q.pre(borrowed) + amount)
+    root = source.model("Root")
+    root_tick = root.clock("tick", period_s=Fraction(1, 10))
+    memory = root.field("memory", value_type=eqiora.ValueType.real(),
+                        role=eqiora.FieldRole.State, at=root_tick)
+    root.initial(q.pre(memory))
+    with pytest.raises(q.SourceError, match="exact required signature"):
+        root.instance("child", component=child, bindings={tick: root_tick})
+    with pytest.raises(q.SourceError, match="enclosing Field"):
+        root.instance("child", component=child, bindings={tick: root_tick, borrowed: borrowed})
+    root.instance("child", component=child, bindings={tick: root_tick, borrowed: memory})
+    text = source.to_eqi()
+    assert "parameter amount: 1 = factor * 2," in text
+    assert "memory = memory" in text
+    assert "field memory =" not in text
+    compiled = eqiora.compile(source=source, entry="Root")
+    assert len(compiled.field_ids) == 1
+    session = compiled.sampled_session(end_time_s=0.1, max_step_s=0.01, inputs={})
+    assert session.advance_ticks(2) == 2
+    assert session.field("memory") == 4.0
+
+
+def test_clock_domain_identity_is_nominal_and_exact():
+    first = eqiora.ClockDomain(period_s=Fraction(2, 6), phase_s=Fraction(1, 7))
+    second = eqiora.ClockDomain(period_s=Fraction(1, 3), phase_s=Fraction(1, 7))
+    assert first.period_s == second.period_s == Fraction(1, 3)
+    assert first.phase_s == Fraction(1, 7)
+    assert first != second
+    assert first.id != second.id
+    clocks = {first: "first", second: "second"}
+    assert clocks[first] == "first"
+    assert len(clocks) == 2
+    assert first.id in repr(first)
+    assert "period_s=Fraction(1, 3)" in repr(first)
+    for invalid in (True, 0.1, -1, 0):
+        with pytest.raises((TypeError, ValueError, OverflowError)):
+            eqiora.ClockDomain(period_s=invalid)
+    for invalid in (None, True, 0.1, -1):
+        with pytest.raises((TypeError, ValueError, OverflowError)):
+            eqiora.ClockDomain(period_s=1, phase_s=invalid)
+    with pytest.raises(AttributeError):
+        first.period_s = 1
+
+
+def test_signature_authoring_preserves_output_ownership_and_forward_default_bounds():
+    source = q.Source()
+    child = source.component("Child")
+    input_value = child.input("supplied", value_type=eqiora.ValueType.real())
+    output = child.output("result", value_type=eqiora.ValueType.real())
+    child.relation("evaluate", left=output, right=input_value * 2)
+    parent = source.model("Parent")
+    required = parent.parameter("required", value_type=eqiora.ValueType.real())
+    later = parent.parameter("later", value_type=eqiora.ValueType.real())
+    parent.set_default(required, later + 1)
+    parent.set_default(later, 2)
+    instance = parent.instance("child", component=child, bindings={input_value: required})
+    observed = parent.output("observed", value_type=eqiora.ValueType.real())
+    parent.relation("observe", left=observed, right=instance[output])
+    with pytest.raises(TypeError):
+        instance[output] = required
+    with pytest.raises(q.SourceError, match="belong to this Component"):
+        child.relation("foreign", left=output, right=instance[output])
+    with pytest.raises(q.SourceError, match="Parameter requirement"):
+        child.set_default(required, 1)
+    text = source.to_eqi()
+    assert "parameter required: 1 = later + 1," in text
+    assert "observed = child.result;" in text
+    assert "variable result" not in text
+    assert "input supplied: 1," in text
+    assert "output observed: 1," in text
+    with pytest.raises(q.SourceError, match="frozen"):
+        parent.set_default(later, 3)
+
+
+def test_external_clock_alias_assertion_compares_nominal_identity():
+    source = q.Source()
+    owner = source.model("Clocks")
+    first = owner.clock_requirement("first")
+    second = owner.clock_requirement("second")
+    memory = owner.field("memory", value_type=eqiora.ValueType.real(), role=eqiora.FieldRole.State, at=first)
+    observed = owner.output("observed", value_type=eqiora.ValueType.real(), at=first)
+    owner.initial(q.pre(memory) - 1)
+    owner.relation("hold", at=first, left=q.next(memory), right=q.pre(memory))
+    alias = owner.let_alias("current", memory, at=second)
+    owner.relation("observe", at=first, left=observed, right=alias)
+    shared = eqiora.ClockDomain(period_s=Fraction(1, 10))
+    assert eqiora.compile(source=source, entry="Clocks", bindings={"first": shared, "second": shared}).digest
+    with pytest.raises(eqiora.EqioraError, match="clock|activation"):
+        eqiora.compile(source=source, entry="Clocks", bindings={
+            "first": shared, "second": eqiora.ClockDomain(period_s=Fraction(1, 10)),
+        })

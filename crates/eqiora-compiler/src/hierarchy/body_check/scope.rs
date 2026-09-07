@@ -1,3 +1,8 @@
+mod ports;
+pub(super) use ports::{component_port_contract, model_port_contract};
+mod child_ports;
+mod input_bindings;
+pub(super) use input_bindings::validate_input_bindings;
 mod diagnostics;
 pub(super) use diagnostics::unresolved;
 mod scalar_connection;
@@ -45,6 +50,8 @@ pub(super) enum PortContract {
     Signal {
         direction: SignalDirectionSyntax,
         value_type: eqiora_core::ValueType,
+        support: Option<SpatialSupport<String>>,
+        activation: eqiora_lang::ActivationSyntax,
     },
     Physical {
         nominal: PhysicalNominal,
@@ -160,7 +167,11 @@ impl BoundaryFamilyScope {
 impl PortContract {
     pub(super) fn expression_type(&self) -> Option<ExpressionType<String>> {
         match self {
-            Self::Signal { value_type, .. } => Some(ExpressionType::new(value_type.clone(), None)),
+            Self::Signal {
+                value_type,
+                support,
+                ..
+            } => Some(ExpressionType::new(value_type.clone(), support.clone())),
             Self::Physical { .. } => None,
             Self::BoundaryPhysical { .. } => None,
         }
@@ -214,6 +225,8 @@ pub(super) struct DefinitionScope<'e, 'd> {
     pub(super) namespace: DefinitionNamespace,
     pub(super) file: &'d str,
     pub(super) symbols: BTreeMap<String, SymbolContract>,
+    pub(super) exposed_signals: BTreeSet<String>,
+    pub(super) borrowed_clocks: BTreeSet<String>,
     pub(super) static_values: crate::hierarchy::parameters::SymbolicParameterMap,
     pub(super) children: BTreeMap<String, ComponentDefinition<'d>>,
     pub(super) child_instances: BTreeMap<String, &'d InstanceDecl>,
@@ -230,10 +243,21 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
             namespace,
             file,
             symbols: BTreeMap::new(),
+            exposed_signals: BTreeSet::new(),
+            borrowed_clocks: BTreeSet::new(),
             static_values: BTreeMap::new(),
             children: BTreeMap::new(),
             child_instances: BTreeMap::new(),
         }
+    }
+
+    pub(super) fn activation_matches(
+        &self,
+        left: &eqiora_lang::ActivationSyntax,
+        right: &eqiora_lang::ActivationSyntax,
+    ) -> bool {
+        left == right
+            || matches!((left, right), (eqiora_lang::ActivationSyntax::Periodic(a), eqiora_lang::ActivationSyntax::Periodic(b)) if self.borrowed_clocks.contains(a) || self.borrowed_clocks.contains(b))
     }
 
     pub(super) fn spatial_support(&self, name: &str) -> Option<SpatialSupport<String>> {
@@ -290,9 +314,7 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
                     return Err(self.invalid_public_port_selection(path));
                 };
                 let port = child
-                    .declaration
-                    .items()
-                    .iter()
+                    .owned_items()
                     .find_map(|item| match item {
                         ComponentItem::Port(port)
                             if port.name() == *member
@@ -304,7 +326,9 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
                     })
                     .ok_or_else(|| self.invalid_public_port_selection(path))?;
                 component_port_contract(self.elaborator, child, port)
-                    .map(SymbolContract::Port)
+                    .map(|contract| {
+                        SymbolContract::Port(self.specialize_child_port(instance, contract))
+                    })
                     .map_err(|mut errors| {
                         errors.pop().unwrap_or_else(|| {
                             source_error(
@@ -388,8 +412,8 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
                 let Some(occurrence) = self.child_instances.get(*instance) else {
                     return Err(self.invalid_public_port_selection(port));
                 };
-                if occurrence.support_bindings().iter().any(|binding| {
-                    binding.slot() == family.binder.set() && binding.target() == active.binder.set()
+                if occurrence.bindings().iter().any(|binding| {
+                    binding.name() == family.binder.set() && matches!(binding.value().kind(),eqiora_lang::ExprKind::Name(target) if target==active.binder.set())
                 }) {
                     Ok(())
                 } else {
@@ -429,9 +453,7 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
                     .get(*instance)
                     .ok_or_else(|| self.invalid_public_port_selection(path))?;
                 let family = child
-                    .declaration
-                    .items()
-                    .iter()
+                    .owned_items()
                     .find_map(|item| match item {
                         ComponentItem::PortFamily(family)
                             if family.port().name() == *member
@@ -489,110 +511,6 @@ pub(in crate::hierarchy) fn field_expression_type<I>(
     let value_type =
         crate::value_types::lower_value_type(file, declaration.value_type(), support.as_ref())?;
     Ok(ExpressionType::new(value_type, support))
-}
-
-pub(super) fn component_port_contract(
-    elaborator: &Elaborator<'_>,
-    owner: &ComponentDefinition<'_>,
-    declaration: &ComponentPortDecl,
-) -> Result<PortContract, Vec<Diagnostic>> {
-    let file = owner.file;
-    match declaration.syntax() {
-        PortSyntax::Signal {
-            direction,
-            value_type,
-        } => crate::value_types::lower_value_type::<()>(file, value_type, None)
-            .map(|value_type| PortContract::Signal {
-                direction: *direction,
-                value_type,
-            })
-            .map_err(|error| vec![error]),
-        PortSyntax::ScalarPhysicalConnector { connector } => {
-            let connector = elaborator
-                .resolve_connector(&owner.namespace, connector, file, declaration.range())
-                .map_err(|error| vec![error])?;
-            let eqiora_lang::ConnectorSyntax::ScalarPhysical {
-                across_type,
-                through_type,
-            } = connector.declaration.syntax()
-            else {
-                return Err(vec![source_error(
-                    codes::LANGUAGE_LOWERING_ERROR,
-                    connector.file,
-                    connector.declaration.range(),
-                    "Connector syntax is newer than definition-body validation",
-                )]);
-            };
-            let mut diagnostics = Vec::new();
-            let across_type = crate::value_types::lower_scalar_type(connector.file, across_type)
-                .map_err(|error| diagnostics.push(error))
-                .ok();
-            let through_type = crate::value_types::lower_scalar_type(connector.file, through_type)
-                .map_err(|error| diagnostics.push(error))
-                .ok();
-            match (across_type, through_type) {
-                (Some(across_type), Some(through_type)) => Ok(PortContract::Physical {
-                    nominal: PhysicalNominal::Connector(DefinitionKey {
-                        namespace: connector.namespace,
-                        name: connector.declaration.name().to_owned(),
-                    }),
-                    across_type,
-                    through_type,
-                }),
-                _ => Err(diagnostics),
-            }
-        }
-        PortSyntax::FieldPhysical { connector, support } => {
-            let connector = elaborator
-                .resolve_connector(&owner.namespace, connector, file, declaration.range())
-                .map_err(|error| vec![error])?;
-            let ConnectorSyntax::FieldPhysical {
-                trace,
-                flux,
-                shape,
-                frame,
-                pairing,
-            } = connector.declaration.syntax()
-            else {
-                return Err(vec![source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    file,
-                    declaration.range(),
-                    "field-physical Port requires a field-physical Connector",
-                )]);
-            };
-            let interface =
-                super::super::supports::component_support_interface(file, owner.declaration)?;
-            let support_contract =
-                interface.visible_support(support).cloned().ok_or_else(|| {
-                    vec![source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        file,
-                        declaration.range(),
-                        format!(
-                            "field-physical Port support `{support}` is not a public support slot"
-                        ),
-                    )]
-                })?;
-            boundary_port_contract(
-                connector,
-                support_contract,
-                file,
-                declaration.range(),
-                trace,
-                flux,
-                shape,
-                *frame,
-                *pairing,
-            )
-        }
-        _ => Err(vec![source_error(
-            codes::LANGUAGE_TYPE_ERROR,
-            file,
-            declaration.range(),
-            "component Port must be an explicit signal or nominal Connector interface",
-        )]),
-    }
 }
 
 pub(super) fn component_port_family_contract(
@@ -663,10 +581,12 @@ fn synthetic_component_family_support(
 ) -> Result<SpatialSupport<String>, Diagnostic> {
     let exterior = owner
         .declaration
-        .items()
+        .signature()
         .iter()
         .find_map(|item| match item {
-            ComponentItem::Support(declaration) if declaration.name() == binder.set() => {
+            eqiora_lang::SignatureItem::Support(declaration)
+                if declaration.name() == binder.set() =>
+            {
                 Some(declaration)
             }
             _ => None,
@@ -689,10 +609,10 @@ fn synthetic_component_family_support(
     };
     let parent_declaration = owner
         .declaration
-        .items()
+        .signature()
         .iter()
         .find_map(|item| match item {
-            ComponentItem::Support(declaration) if declaration.name() == parent => {
+            eqiora_lang::SignatureItem::Support(declaration) if declaration.name() == parent => {
                 Some(declaration)
             }
             _ => None,
@@ -923,61 +843,6 @@ pub(super) fn validate_model_boundary_connection(
     Ok(deferred_memberships)
 }
 
-pub(super) fn model_port_contract(
-    scope: &DefinitionScope<'_, '_>,
-    declaration: &PortDecl,
-) -> Result<PortContract, Diagnostic> {
-    match declaration.syntax() {
-        PortSyntax::Signal {
-            direction,
-            value_type,
-        } => Ok(PortContract::Signal {
-            direction: *direction,
-            value_type: crate::value_types::lower_value_type::<()>(scope.file, value_type, None)?,
-        }),
-        PortSyntax::ScalarPhysical { domain } => match scope.symbols.get(domain) {
-            Some(SymbolContract::Domain(DomainContract::Physical {
-                across_type,
-                through_type,
-            })) => Ok(PortContract::Physical {
-                nominal: PhysicalNominal::ModelDomain(domain.clone()),
-                across_type: across_type.clone(),
-                through_type: through_type.clone(),
-            }),
-            Some(_) => Err(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                scope.file,
-                declaration.range(),
-                format!("physical Port Domain `{domain}` is not scalar physical"),
-            )),
-            None => Err(unresolved(
-                scope.file,
-                declaration.range(),
-                domain,
-                "scalar physical Domain",
-            )),
-        },
-        PortSyntax::ScalarPhysicalConnector { .. } => Err(source_error(
-            codes::LANGUAGE_TYPE_ERROR,
-            scope.file,
-            declaration.range(),
-            "model-level Port cannot use a component Connector declaration directly",
-        )),
-        PortSyntax::FieldPhysical { .. } => Err(source_error(
-            codes::LANGUAGE_TYPE_ERROR,
-            scope.file,
-            declaration.range(),
-            "model-level field-physical Port requires hierarchy specialization",
-        )),
-        _ => Err(source_error(
-            codes::LANGUAGE_LOWERING_ERROR,
-            scope.file,
-            declaration.range(),
-            "Port syntax is newer than definition-body validation",
-        )),
-    }
-}
-
 pub(super) fn validate_connection(
     scope: &DefinitionScope<'_, '_>,
     declaration: &ConnectionDecl,
@@ -988,7 +853,17 @@ pub(super) fn validate_connection(
     let mut contracts = Vec::with_capacity(declaration.port_paths().len());
     for path in declaration.port_paths() {
         keys.push(path.segments().map(str::to_owned).collect::<Vec<_>>());
-        contracts.push(scope.resolve_port(path)?);
+        let mut contract = scope.resolve_port(path)?;
+        if declaration.syntax() == ConnectionSyntax::Signal
+            && scope.exposed_signals.contains(path.as_str())
+            && let PortContract::Signal { direction, .. } = &mut contract
+        {
+            *direction = match direction {
+                SignalDirectionSyntax::Input => SignalDirectionSyntax::Output,
+                SignalDirectionSyntax::Output => SignalDirectionSyntax::Input,
+            };
+        }
+        contracts.push(contract);
     }
     if keys.iter().collect::<BTreeSet<_>>().len() != keys.len() {
         return Err(source_error(
@@ -1048,7 +923,12 @@ pub(super) fn validate_connection(
             .map(Some)
             .map_err(|error| connection_fragment_error(scope.file, declaration.range(), error));
     }
-    if let Some(key) = keys
+    let members = if declaration.syntax() == ConnectionSyntax::Signal {
+        &keys[1..]
+    } else {
+        &keys[..]
+    };
+    if let Some(key) = members
         .iter()
         .find(|key| connected_ports.contains(key.as_slice()))
     {
@@ -1063,7 +943,7 @@ pub(super) fn validate_connection(
         ));
     }
     validate_connection_contract(declaration, &contracts, scope.file)?;
-    connected_ports.extend(keys);
+    connected_ports.extend(members.iter().cloned());
     Ok(None)
 }
 

@@ -1,5 +1,5 @@
 // Two unknown branch amounts closed by conservation and an equal-split law.
-model split {
+model split() {
   parameter supplied: 1 = 1;
   variable branch_a: 1;
   variable branch_b: 1;

@@ -2,7 +2,9 @@
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_lang::{ComponentItem, DocComment, Document, Item, TextRange, format, parse};
+use eqiora_lang::{
+    ComponentItem, DocComment, Document, Item, SignatureItem, TextRange, format, parse,
+};
 
 mod workspace;
 
@@ -481,9 +483,10 @@ fn document_symbols(document: &Document) -> Vec<EditorSymbol> {
             declaration.name(),
             declaration.range(),
             declaration
-                .items()
+                .signature()
                 .iter()
-                .filter_map(model_item_symbol)
+                .filter_map(signature_item_symbol)
+                .chain(declaration.items().iter().filter_map(model_item_symbol))
                 .collect(),
         )
     }));
@@ -503,8 +506,9 @@ fn document_symbols(document: &Document) -> Vec<EditorSymbol> {
 
 fn component_symbol(component: &eqiora_lang::ComponentDecl) -> EditorSymbol {
     let mut children = component
-        .property_requirement_syntax()
-        .map(|(name, _, range)| EditorSymbol::leaf(EditorSymbolKind::Property, name, range))
+        .signature()
+        .iter()
+        .filter_map(signature_item_symbol)
         .collect::<Vec<_>>();
     children.extend(component.items().iter().filter_map(component_item_symbol));
     EditorSymbol::branch(
@@ -513,6 +517,22 @@ fn component_symbol(component: &eqiora_lang::ComponentDecl) -> EditorSymbol {
         component.range(),
         children,
     )
+}
+
+fn signature_item_symbol(item: &SignatureItem) -> Option<EditorSymbol> {
+    let kind = match item {
+        SignatureItem::Parameter(_) => EditorSymbolKind::Parameter,
+        SignatureItem::Support(_) => EditorSymbolKind::Support,
+        SignatureItem::Field(_) => EditorSymbolKind::Field,
+        SignatureItem::Clock(_) => EditorSymbolKind::Clock,
+        SignatureItem::Property(_) => EditorSymbolKind::Property,
+        SignatureItem::Input(_)
+        | SignatureItem::Output(_)
+        | SignatureItem::Port(_)
+        | SignatureItem::PortFamily(_) => EditorSymbolKind::Port,
+        _ => return None,
+    };
+    Some(EditorSymbol::leaf(kind, item.name(), item.range()))
 }
 
 fn component_item_symbol(item: &ComponentItem) -> Option<EditorSymbol> {
@@ -526,17 +546,8 @@ fn component_item_symbol(item: &ComponentItem) -> Option<EditorSymbol> {
         ComponentItem::PortFamily(value) => {
             EditorSymbol::leaf(EditorSymbolKind::Port, value.port().name(), value.range())
         }
-        ComponentItem::Support(value) => {
-            EditorSymbol::leaf(EditorSymbolKind::Support, value.name(), value.range())
-        }
-        ComponentItem::FieldRequirement(value) => {
-            EditorSymbol::leaf(EditorSymbolKind::Field, value.name(), value.range())
-        }
         ComponentItem::Field(value) => {
             EditorSymbol::leaf(EditorSymbolKind::Field, value.name(), value.range())
-        }
-        ComponentItem::ClockRequirement(value) => {
-            EditorSymbol::leaf(EditorSymbolKind::Clock, value.name(), value.range())
         }
         ComponentItem::Clock(value) => {
             EditorSymbol::leaf(EditorSymbolKind::Clock, value.name(), value.range())
@@ -588,7 +599,7 @@ fn model_item_symbol(item: &Item) -> Option<EditorSymbol> {
         Item::Instance(value) => {
             EditorSymbol::leaf(EditorSymbolKind::Instance, value.name(), value.range())
         }
-        Item::Connection(_) | Item::BoundaryConnection(_) | Item::Boundary(_) => return None,
+        Item::Connection(_) | Item::BoundaryConnection(_) => return None,
         _ => return None,
     };
     Some(symbol)

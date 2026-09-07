@@ -2,7 +2,7 @@ use eqiora_lang::{ComponentItem, ExprKind, Item, SourceAstFactory, TextRange};
 
 #[test]
 fn support_assertions_round_trip_in_both_containers_with_source_ownership() {
-    for container in ["model M", "component C()"] {
+    for container in ["model M()", "component C()"] {
         for head in ["let q on body", "let q: vector<W / m^2, 2> on body"] {
             let source =
                 format!("{container} {{\n/// heat flux\n{head} // support\n = flux; // value\n}}");
@@ -39,7 +39,7 @@ fn support_assertions_round_trip_in_both_containers_with_source_ownership() {
 
 #[test]
 fn support_assertions_reject_duplicate_reordered_or_missing_clauses() {
-    for container in ["model M", "component C()"] {
+    for container in ["model M()", "component C()"] {
         for head in [
             "let q on body on other",
             "let q on body: W",
@@ -82,13 +82,14 @@ fn factory_support_assertion_survives_dimension_rewrite_and_reparse() {
     .unwrap();
     let mut document = eqiora_lang::parse(
         "base.eqi",
-        "component C() { let q: Length on body at sample = flux; } model M { let q: Length on body at sample = flux; }",
+        "component C() { let q: Length on body at sample = flux; } model M() { let q: Length on body at sample = flux; }",
     )
     .into_document()
     .unwrap();
     let component = SourceAstFactory::component(
         eqiora_lang::VisibilitySyntax::Private,
         "C",
+        vec![],
         vec![ComponentItem::Let(alias.clone())],
         range,
     )
@@ -96,6 +97,7 @@ fn factory_support_assertion_survives_dimension_rewrite_and_reparse() {
     let model = SourceAstFactory::model(
         eqiora_lang::VisibilitySyntax::Private,
         "M",
+        vec![],
         vec![Item::Let(alias)],
         range,
     )

@@ -25,7 +25,7 @@ exact_solution = "u = (x - x^2 / (2 ell), 0)"
 
 [canonical_contract]
 spatial_dimension = 2
-model_wire = 13
+model_wire = 14
 boundary_inventory = "TraceZero | FluxZero | PortBinding"
 direct_and_package_inventory_equal = true
 package_dispatch = false

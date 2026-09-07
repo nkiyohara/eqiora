@@ -9,7 +9,7 @@ const SOURCE: &str = r#"
 public pure operator scalar_flux(value: scalar) -> spatial[1]
   = component(value);
 
-model Main {
+model Main() {
   domain interval = box(0, 1);
   domain lower = boundary(interval, axis = 0, side = lower);
   domain upper = boundary(interval, axis = 0, side = upper);

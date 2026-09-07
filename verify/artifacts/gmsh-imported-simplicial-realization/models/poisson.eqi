@@ -1,4 +1,4 @@
-model gmsh_imported_simplicial_poisson {
+model gmsh_imported_simplicial_poisson() {
   domain square = box(0, 1, 0, 1);
   domain x_lower = boundary(square, axis = 0, side = lower);
   domain x_upper = boundary(square, axis = 0, side = upper);

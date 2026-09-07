@@ -2,4 +2,4 @@ public component Broken() {
   parameter hidden: s;
 }
 
-model Empty {}
+model Empty() {}

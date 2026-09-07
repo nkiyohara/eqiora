@@ -4,7 +4,7 @@ use eqiora_compiler::compile;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 
 const SOURCE: &str = r#"
-model Boundaries {
+model Boundaries() {
  domain body = box(0, 1);
  domain left = boundary(body, axis = 0, side = lower);
  domain right = boundary(body, axis = 0, side = upper);

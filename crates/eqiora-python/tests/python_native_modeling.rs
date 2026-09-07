@@ -202,7 +202,7 @@ spatial_model = eqiora.Model.define(
         let source_scalar = eqiora::api::ModelDocument::compile(
             "source-decay.eqi",
             r#"
-model source_decay {
+model source_decay() {
   parameter coefficient: 1 / s = 1;
   state state: 1;
   initial { state = 1; }
@@ -221,7 +221,7 @@ model source_decay {
         let source_physical = eqiora::api::ModelDocument::compile(
             "source-physical.eqi",
             r#"
-model source_physical {
+model source_physical() {
   domain pin = scalar_physical(
     across = kg * m ^ 2 / (s ^ 3 * A),
     through = A

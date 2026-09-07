@@ -35,6 +35,9 @@ from ._eqiora import (
     CapabilityError,
     CompatibilityError,
     Connection,
+    ClockDomain,
+    SampledSession,
+    SampledCheckpoint,
     ConservingPort,
     ConvergenceReason,
     DerivativeImplementation,
@@ -146,6 +149,9 @@ __all__ = [
     "CapabilityError",
     "CompatibilityError",
     "Connection",
+    "ClockDomain",
+    "SampledSession",
+    "SampledCheckpoint",
     "ConservingPort",
     "ConvergenceReason",
     "DerivativeImplementation",
@@ -251,18 +257,13 @@ def compile(
     source=None,
     filename=None,
     geometry=None,
-    parameters=None,
-    component=None,
+    bindings=None,
+    entry=None,
 ):
     """Compile text, a path, or one :class:`eqiora.lang.Source` canonically."""
 
     if isinstance(source, lang.Source):
         text = source.to_eqi()
-        if source._requires_package_compilation():
-            raise lang.SourceError(
-                "a property-bearing Source requires an exact Model Package; "
-                "emit it with to_eqi() or write_eqi() and compile the locked package"
-            )
         source = text
         if filename is None:
             filename = "<python-source>"
@@ -271,8 +272,8 @@ def compile(
         source=source,
         filename=filename,
         geometry=geometry,
-        parameters=parameters,
-        component=component,
+        bindings=bindings,
+        entry=entry,
     )
 
 

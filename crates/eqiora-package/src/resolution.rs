@@ -714,10 +714,10 @@ mod tests {
 
     #[test]
     fn exact_graph_resolves_offline_and_is_order_independent() {
-        let leaf = release("org.example.Leaf", vec![], "model Main {}\n");
+        let leaf = release("org.example.Leaf", vec![], "model Main() {}\n");
         let leaf_id = leaf.package_identity().expect("identity");
         let dependency = PackageDependencyV1::new(leaf_id.clone());
-        let root = release("org.example.Root", vec![dependency], "model Main {}\n");
+        let root = release("org.example.Root", vec![dependency], "model Main() {}\n");
         let root_id = root.package_identity().expect("identity");
         assert!(
             exact_release_shape_with_limits(
@@ -775,7 +775,7 @@ mod tests {
         assert!(
             ResolutionRecordV1::from_exact_releases(&root, &[leaf.clone(), leaf.clone()]).is_err()
         );
-        let extra = release("org.example.Extra", vec![], "model Main {}\n");
+        let extra = release("org.example.Extra", vec![], "model Main() {}\n");
         assert!(ResolutionRecordV1::from_exact_releases(&root, &[leaf.clone(), extra]).is_err());
         let graph = ExactResolver.resolve(&first, &store).expect("resolve");
         let borrowed = ExactResolver
@@ -787,7 +787,7 @@ mod tests {
                 .is_err(),
             "the explicit root cannot be replaced by a dependency"
         );
-        let unrecorded = release("org.example.Unrecorded", vec![], "model Main {}\n");
+        let unrecorded = release("org.example.Unrecorded", vec![], "model Main() {}\n");
         assert!(
             ExactResolver
                 .resolve_releases(&first, &root, &[leaf.clone(), unrecorded])
@@ -800,7 +800,7 @@ mod tests {
             vec![SourceFileV1::new(
                 NormalizedRelativePath::parse("src/package.eqi").expect("path"),
                 BundleRoleV1::ModelSource,
-                b"model  Main {}\n".to_vec(),
+                b"model  Main() {}\n".to_vec(),
             )],
         )
         .expect("same-semantic source variant");
@@ -834,8 +834,8 @@ mod tests {
 
     #[test]
     fn graph_rejects_duplicate_missing_cyclic_and_unreachable_nodes() {
-        let a = release("org.example.A", vec![], "model Main {}\n");
-        let b = release("org.example.B", vec![], "model Main {}\n");
+        let a = release("org.example.A", vec![], "model Main() {}\n");
+        let b = release("org.example.B", vec![], "model Main() {}\n");
         let a_id = a.package_identity().expect("identity");
         let b_id = b.package_identity().expect("identity");
         let a_node = ResolutionNodeV1::new(a_id.clone(), a.source_digest().expect("source"));
@@ -865,7 +865,7 @@ mod tests {
 
     #[test]
     fn resolver_rejects_missing_and_digest_mismatched_store_entries() {
-        let root_release = release("org.example.Root", vec![], "model Main {}\n");
+        let root_release = release("org.example.Root", vec![], "model Main() {}\n");
         let identity = root_release.package_identity().expect("identity");
         let source = root_release.source_digest().expect("source");
         let record = ResolutionRecordV1::new(
@@ -881,7 +881,7 @@ mod tests {
             ExactResolver.resolve(&record, &InMemoryPackageStore::default()),
             Err(ResolutionError::MissingBundle(_))
         ));
-        let different = release("org.example.Other", vec![], "model Main {}\n");
+        let different = release("org.example.Other", vec![], "model Main() {}\n");
         let mut store = InMemoryPackageStore::default();
         store.insert_unchecked(source, different.canonical_json().expect("JSON"));
         assert!(matches!(
@@ -913,7 +913,7 @@ mod tests {
 
     #[test]
     fn graph_rejects_ambiguous_name_and_exact_version() {
-        let release = release("org.example.Root", vec![], "model Main {}\n");
+        let release = release("org.example.Root", vec![], "model Main() {}\n");
         let first = release.package_identity().expect("identity");
         let second = ModelPackageIdentityV1::new(
             first.name.clone(),

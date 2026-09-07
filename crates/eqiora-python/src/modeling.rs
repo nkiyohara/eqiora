@@ -589,6 +589,13 @@ impl PyExpression {
 
 #[pymethods]
 impl PyExpression {
+    fn __getitem__(&self, index: &Bound<'_, PyAny>) -> PyResult<Self> {
+        if index.is_instance_of::<PyBool>() {
+            return Err(PyTypeError::new_err("index must be a nonnegative integer"));
+        }
+        Ok(Self::new(self.value.clone().index(index.extract::<u32>()?)))
+    }
+
     fn __neg__(&self) -> Self {
         Self::new(-self.value.clone())
     }

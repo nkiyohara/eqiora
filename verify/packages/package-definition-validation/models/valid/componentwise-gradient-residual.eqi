@@ -1,4 +1,4 @@
-model ComponentwiseGradientResidual {
+model ComponentwiseGradientResidual() {
   domain line = box(0, 1);
   variable displacement: m on line;
   relation equilibrium on line { grad(displacement) = 0; }

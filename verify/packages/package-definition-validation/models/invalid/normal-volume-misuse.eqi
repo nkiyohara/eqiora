@@ -1,6 +1,6 @@
-model Valid {}
+model Valid() {}
 
-model Invalid {
+model Invalid() {
   domain line = box(0, 1);
   variable displacement: m on line;
   relation invalid on line { normal(grad(displacement)) = 0; }

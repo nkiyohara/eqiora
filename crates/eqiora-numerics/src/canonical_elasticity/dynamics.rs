@@ -569,7 +569,7 @@ mod tests {
     use crate::canonical_elasticity::{ElasticityIntegrationMeasure, IsotropicElasticityReduction};
 
     const SOURCE_3D: &str = r#"
-model dynamic_solid_3d {
+model dynamic_solid_3d() {
   domain solid = box(0, 1, -1, 1, -2, 2);
   domain x_lower = boundary(solid, axis = 0, side = lower);
   domain x_upper = boundary(solid, axis = 0, side = upper);

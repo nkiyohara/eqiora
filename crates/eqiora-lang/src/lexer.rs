@@ -275,7 +275,7 @@ mod tests {
 
     #[test]
     fn lexer_retains_every_source_byte() {
-        let source = "model thermal { // state\n variable t: K; }";
+        let source = "model thermal() { // state\n variable t: K; }";
         let result = lex("thermal.eqi", source);
         let reconstructed = result.tokens().iter().map(Token::text).collect::<String>();
 

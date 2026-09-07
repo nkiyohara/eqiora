@@ -4,14 +4,14 @@ public component ExteriorContract(
 ) {
 }
 
-model Main {
+model Main() {
   domain body = box(0, 1, 0, 1);
   domain x_lower = boundary(body, axis = 0, side = lower);
   domain x_upper = boundary(body, axis = 0, side = upper);
   domain y_lower = boundary(body, axis = 1, side = lower);
 
   instance contains_volume: ExteriorContract(
-    support body = body,
-    support exterior = boundaries(x_lower, x_upper, y_lower, body)
+    body = body,
+    exterior = boundaries(x_lower, x_upper, y_lower, body)
   );
 }

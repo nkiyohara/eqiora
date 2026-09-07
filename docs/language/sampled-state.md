@@ -1,9 +1,8 @@
 # Specimen: UnitDelay and sampled integration
 
-This is a complete target-language model with explicit external clock and input requirements,
-following the [core rules](core.md). The converged signatures, initial equations, and supplied-clock
-component workflow are specified here; the full source below is not yet an executable compiler
-example. The standard components use these same equations.
+These ordinary source components declare explicit clock and input requirements, following the
+[core rules](core.md). The open model below requires a caller to supply its clock and drive its
+inputs before execution. Each component owns its output and private initialized memory.
 
 ## Inspect the components
 
@@ -55,8 +54,8 @@ model SampledPair(
   output delayed: V at tick,
   output integrated: V at tick
 ) {
-  instance delay: UnitDelay(clock tick = tick, initial_value = 5 [V]);
-  instance integrator: DiscreteIntegrator(clock tick = tick, initial_value = 1 [V]);
+  instance delay: UnitDelay(tick = tick, initial_value = 5 [V]);
+  instance integrator: DiscreteIntegrator(tick = tick, initial_value = 1 [V]);
 
   connect sample -> delay.u;
   connect rate -> integrator.rate;
@@ -80,7 +79,9 @@ would be a different component contract, not an execution optimization.
 
 Both states are lumped. There is no spatial domain or boundary condition. Inputs and outputs
 are clocked and have no continuous value between ticks. A continuous consumer must use an
-explicit hold with its own pre-first-tick value. Memory retention alone is not a hold adapter.
+explicit `hold(memory)` of a directly named periodic State with an explicit initial equation.
+That equation supplies the value before the first tick; after each accepted tick, the hold reads
+the committed memory. A clocked output Port by itself is not a hold operand.
 
 ## Use packaged definitions
 
@@ -96,8 +97,8 @@ model SampledPair(
   output delayed: V at tick,
   output integrated: V at tick
 ) {
-  instance delay: discrete.UnitDelay(clock tick = tick, initial_value = 5 [V]);
-  instance integrator: discrete.DiscreteIntegrator(clock tick = tick, initial_value = 1 [V]);
+  instance delay: discrete.UnitDelay(tick = tick, initial_value = 5 [V]);
+  instance integrator: discrete.DiscreteIntegrator(tick = tick, initial_value = 1 [V]);
   connect sample -> delay.u;
   connect rate -> integrator.rate;
   relation expose at tick {
@@ -154,3 +155,20 @@ Permuting equations in either update relation must preserve each tick's simultan
 A rejected solve must not partially update one component. Calling an observer between attempts
 must not advance clock progress or state. These checks belong to the existing clocked runtime
 and component tests; the specimen adds no separate executor or evidence registry.
+
+## Independent memories under one clock
+
+Two occurrences of `UnitDelay` share a 0.25 s clock but own distinct memories. Bind the first
+input to a constant 2 V with initial memory 5 V, and the second input to a constant 7 V with
+initial memory -3 V. Bind `DiscreteIntegrator` to the same clock, initial memory 1 V, and
+constant rate 2 V/s.
+
+| Tick time | First delay output | Second delay output | Integrator output |
+|---|---|---|---|
+| 0 s | 5 V | -3 V | 1.5 V |
+| 0.25 s | 2 V | 7 V | 2 V |
+| 0.5 s | 2 V | 7 V | 2.5 V |
+
+Each delay publishes its own pre-tick value. Each integrator tick adds exactly
+`0.25 s * 2 V/s = 0.5 V`, including the tick at zero. This table follows directly from the
+recurrences above; it does not depend on an execution trace or a component-name convention.

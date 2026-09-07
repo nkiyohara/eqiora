@@ -96,7 +96,14 @@ replayed_field, replayed_plan = resolve(replayed)
 assert replayed_plan.identity == plan.identity
 assert replayed_plan.model_digest == model.digest
 
-other = eqiora.compile(source=SOURCE)
+recompiled = eqiora.compile(source=SOURCE)
+_, recompiled_plan = resolve(recompiled)
+assert recompiled_plan.identity == plan.identity
+assert recompiled_plan.model_digest == plan.model_digest
+
+other_source = SOURCE.replace("parameter rate: 1 / s = 1;", "parameter rate: 1 / s = 2;")
+assert other_source != SOURCE
+other = eqiora.compile(source=other_source)
 other_field, other_plan = resolve(other)
 assert other_plan.model_digest != plan.model_digest
 foreign_temporal = eqiora.time.Tsitouras45(

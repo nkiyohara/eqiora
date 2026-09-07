@@ -14,21 +14,21 @@ mod formulation;
 mod instance;
 mod operator;
 mod property;
+mod recovery;
 mod relation;
 mod signature;
 mod value_type;
 
 use crate::ast::{
-    BinaryOp, BoundaryConnectionDecl, BoundaryDecl, BoundaryFamilyBinderSyntax,
-    BoundaryPairingSyntax, BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax,
-    BoundarySetBindingDecl, BoundarySetMemberSyntax, BoundarySideSyntax, ComponentItem,
+    BinaryOp, BoundaryConnectionDecl, BoundaryFamilyBinderSyntax, BoundaryPairingSyntax,
+    BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax, BoundarySideSyntax, ComponentItem,
     ComponentParameterDecl, ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl,
     ConnectionSyntax, ConnectorDecl, ConnectorQuantitySyntax, ConnectorSyntax, Document,
-    DomainDecl, DomainSyntax, ExactIntegerSyntax, Expr, ExprKind, FieldBindingDecl, FieldDecl,
-    FrameSyntax, InstanceDecl, Item, NamePath, ParameterBindingDecl, PortDecl, PortSyntax,
-    PureOperatorBinaryOp, PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind,
-    PureOperatorFormal, PureValueClassSyntax, SignalDirectionSyntax, SupportBindingDecl,
-    SupportSlotDecl, SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, VisibilitySyntax,
+    DomainDecl, DomainSyntax, ExactIntegerSyntax, Expr, ExprKind, FieldDecl, FrameSyntax,
+    InstanceDecl, Item, NamePath, NamedBindingDecl, PortDecl, PortSyntax, PureOperatorBinaryOp,
+    PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal,
+    PureValueClassSyntax, SignalDirectionSyntax, SupportSlotDecl, SupportSlotSyntax, TextRange,
+    UnaryOp, ValueShapeSyntax, VisibilitySyntax,
 };
 use crate::lexer::{Token, TokenKind, lex};
 use relation::ParsedRelation;
@@ -228,8 +228,6 @@ impl Parser<'_> {
                     ParsedConnection::Ordinary(connection) => Item::Connection(connection),
                     ParsedConnection::Boundary(connection) => Item::BoundaryConnection(connection),
                 })
-        } else if self.at_keyword("boundary") {
-            self.parse_boundary().map(Item::Boundary)
         } else if self.at_keyword("instance") {
             self.parse_instance().map(Item::Instance)
         } else {
@@ -408,7 +406,9 @@ impl Parser<'_> {
     }
 
     fn parse_field(&mut self, terminated: bool) -> Option<FieldDecl> {
-        let role = if self.at_keyword("variable") {
+        let role = if self.at_keyword("variable")
+            || (!terminated && (self.at_keyword("input") || self.at_keyword("output")))
+        {
             crate::ast::FieldRoleSyntax::Variable
         } else if self.at_keyword("state") {
             crate::ast::FieldRoleSyntax::State
@@ -459,6 +459,7 @@ impl Parser<'_> {
         &mut self,
         start: u32,
         visibility: VisibilitySyntax,
+        terminated: bool,
     ) -> Option<ComponentParameterDecl> {
         self.expect_keyword("parameter")?;
         let name = self
@@ -473,10 +474,13 @@ impl Parser<'_> {
         } else {
             None
         };
-        let end = self
-            .expect(TokenKind::Semicolon, "`;` after component Parameter")?
-            .range()
-            .end();
+        let end = if terminated {
+            self.expect(TokenKind::Semicolon, "`;` after component Parameter")?
+                .range()
+                .end()
+        } else {
+            self.previous_significant_range().end()
+        };
         Some(ComponentParameterDecl {
             comments: Default::default(),
             visibility,
@@ -611,6 +615,7 @@ impl Parser<'_> {
         &mut self,
         start: u32,
         visibility: VisibilitySyntax,
+        terminated: bool,
     ) -> Option<ParsedComponentPort> {
         self.expect_keyword("port")?;
         let name = self
@@ -646,10 +651,13 @@ impl Parser<'_> {
             self.error_here("expected `signal` or `conserving on Connector` Port contract");
             return None;
         };
-        let end = self
-            .expect(TokenKind::Semicolon, "`;` after component Port")?
-            .range()
-            .end();
+        let end = if terminated {
+            self.expect(TokenKind::Semicolon, "`;` after component Port")?
+                .range()
+                .end()
+        } else {
+            self.previous_significant_range().end()
+        };
         let port = ComponentPortDecl {
             comments: Default::default(),
             visibility,
@@ -688,16 +696,32 @@ impl Parser<'_> {
             self.error_here("expected `input` or `output` after `signal`");
             return None;
         };
+        let value_type = self.parse_value_type()?;
+        let domain = if self.at_keyword("on") {
+            self.bump();
+            Some(self.expect_identifier("signal support")?.text().to_owned())
+        } else {
+            None
+        };
+        let activation = if self.at_keyword("at") {
+            self.bump();
+            crate::ActivationSyntax::Periodic(
+                self.expect_identifier("signal clock")?.text().to_owned(),
+            )
+        } else {
+            crate::ActivationSyntax::Continuous
+        };
         Some(PortSyntax::Signal {
             direction,
-            value_type: self.parse_value_type()?,
+            value_type,
+            domain,
+            activation,
         })
     }
 
     fn parse_connection(&mut self, allow_family: bool) -> Option<ParsedConnection> {
         let start = self.expect_keyword("connect")?.range().start();
-        if self.at_keyword("signal") {
-            self.bump();
+        if !self.at_keyword("conserving") && !self.at_keyword("periodic") {
             let mut ports = vec![self.parse_name_path("signal output Port")?];
             self.expect(TokenKind::Arrow, "`->` after signal output")?;
             ports.extend(self.parse_name_path_list("signal input Port")?);
@@ -720,7 +744,9 @@ impl Parser<'_> {
         } else if self.at_keyword("periodic") {
             ConnectionSyntax::SpatialPeriodic
         } else {
-            self.error_here("expected `signal`, `conserving`, or `periodic` after `connect`");
+            self.error_here(
+                "expected directed Port connection, `conserving`, or `periodic` after `connect`",
+            );
             return None;
         };
         self.bump();
@@ -769,20 +795,6 @@ impl Parser<'_> {
             ports,
             range: TextRange::new(start, end),
         }))
-    }
-
-    fn parse_boundary(&mut self) -> Option<BoundaryDecl> {
-        let start = self.expect_keyword("boundary")?.range().start();
-        let ports = self.parse_name_path_list("boundary Port")?;
-        let end = self
-            .expect(TokenKind::Semicolon, "`;` after boundary")?
-            .range()
-            .end();
-        Some(BoundaryDecl {
-            comments: Default::default(),
-            ports,
-            range: TextRange::new(start, end),
-        })
     }
 
     fn parse_name_path_list(&mut self, expected: &str) -> Option<Vec<NamePath>> {
@@ -927,28 +939,6 @@ impl Parser<'_> {
                 self.error_token(token, "numeric literal must be a finite f64 value");
                 None
             }
-        }
-    }
-
-    fn recover_item(&mut self) {
-        while !self.at(TokenKind::Eof) && !self.at(TokenKind::RightBrace) {
-            if self.at(TokenKind::Semicolon) {
-                self.bump();
-                return;
-            }
-            self.bump();
-        }
-    }
-
-    fn recover_top_level(&mut self) {
-        while !self.at(TokenKind::Eof)
-            && !self.at_keyword("property")
-            && !self.at_keyword("connector")
-            && !self.at_keyword("component")
-            && !self.at_keyword("pure")
-            && !self.at_keyword("model")
-        {
-            self.bump();
         }
     }
 

@@ -118,6 +118,7 @@ fn thermal_fixture() -> ThermalFixture {
     let plant_input = Id::<kinds::Port>::new();
     let plant_relation = Id::<kinds::Relation>::new();
     let controller_relation = Id::<kinds::Relation>::new();
+    let held_relation = Id::<kinds::Relation>::new();
     let continuous = Id::<kinds::Activation>::new();
     let periodic = Id::<kinds::Activation>::new();
     let controller_clock = Id::<kinds::ClockDomain>::new();
@@ -161,6 +162,9 @@ fn thermal_fixture() -> ThermalFixture {
     let sampled_temperature = controller
         .symbol(SymbolRef::Field(temperature))
         .expect("sampled temperature");
+    let sampled_temperature = controller
+        .sample(sampled_temperature, controller_clock)
+        .unwrap();
     let error = controller
         .sub(setpoint_value, sampled_temperature)
         .expect("control error");
@@ -171,10 +175,11 @@ fn thermal_fixture() -> ThermalFixture {
         .mul(proportional_gain, error)
         .expect("control law");
     let update = controller.sub(next_command, control).expect("state update");
-    let output = controller
-        .symbol(SymbolRef::Port(controller_output))
-        .expect("controller output");
-    let expose = controller.sub(output, next_command).expect("output update");
+    let mut held = ExprDagBuilder::new();
+    let output = held.symbol(SymbolRef::Port(controller_output)).unwrap();
+    let memory = held.symbol(SymbolRef::Field(command)).unwrap();
+    let retained = held.hold(memory).unwrap();
+    let expose = held.sub(output, retained).unwrap();
 
     let nodes = [
         KernelNode::from(FieldDef::new(
@@ -266,7 +271,11 @@ fn thermal_fixture() -> ThermalFixture {
         )),
         KernelNode::from(RelationDef::new(
             controller_relation,
-            controller.finish([update, expose]).expect("controller DAG"),
+            controller.finish([update]).expect("controller DAG"),
+        )),
+        KernelNode::from(RelationDef::new(
+            held_relation,
+            held.finish([expose]).unwrap(),
         )),
         KernelNode::from(ActivationDef::continuous(continuous)),
         KernelNode::from(ActivationDef::periodic(periodic)),
@@ -278,7 +287,12 @@ fn thermal_fixture() -> ThermalFixture {
             )
             .expect("periodic clock"),
         ),
-        KernelNode::from(ConnectionDef::new(signal, ConnectionSemantics::Signal)),
+        KernelNode::from(ConnectionDef::new(
+            signal,
+            ConnectionSemantics::Signal {
+                driver: controller_output,
+            },
+        )),
     ];
 
     let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();
@@ -303,9 +317,19 @@ fn thermal_fixture() -> ThermalFixture {
             temperature.erase(),
             setpoint.erase(),
             controller_gain.erase(),
-            controller_output.erase(),
+            controller_clock.erase(),
         ],
     );
+    connect_dependencies(
+        &mut transaction,
+        held_relation.erase(),
+        [command.erase(), controller_output.erase()],
+    );
+    transaction.push(Op::Connect {
+        from: continuous.erase(),
+        to: held_relation.erase(),
+        edge: EdgeKind::Activates,
+    });
     transaction.push(Op::Connect {
         from: command.erase(),
         to: controller_clock.erase(),
@@ -318,7 +342,7 @@ fn thermal_fixture() -> ThermalFixture {
             edge: EdgeKind::HasPort,
         })
         .push(Op::Connect {
-            from: controller_relation.erase(),
+            from: held_relation.erase(),
             to: controller_output.erase(),
             edge: EdgeKind::HasPort,
         })
@@ -375,4 +399,27 @@ fn connect_dependencies<const N: usize>(
             edge: EdgeKind::DependsOn,
         });
     }
+}
+
+#[test]
+fn controlled_reference_cancels_only_after_an_accepted_boundary() {
+    struct Stop;
+    impl eqiora_sem::ExecutionObserver for Stop {
+        fn observe(&mut self, _: eqiora_sem::ExecutionProgress) -> std::ops::ControlFlow<()> {
+            std::ops::ControlFlow::Break(())
+        }
+    }
+    let fixture = thermal_fixture();
+    let outcome = Interpreter::new()
+        .run_controlled(
+            &fixture.program,
+            ReferenceConfig::new(1., 0.1).unwrap(),
+            &mut Stop,
+        )
+        .unwrap();
+    let eqiora_sem::ExecutionOutcome::Cancelled(progress) = outcome else {
+        panic!("observer requested cancellation");
+    };
+    assert_eq!(progress.model_time(), 0.);
+    assert_eq!(progress.accepted_steps(), 1);
 }

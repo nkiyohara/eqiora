@@ -5,7 +5,7 @@ use eqiora_lang::{ComponentItem, Document, parse};
 use super::*;
 
 fn document(source: &str) -> Document {
-    let source = format!("{source}\nmodel Root {{}}\n");
+    let source = format!("{source}\nmodel Root() {{}}\n");
     parse("parameters.eqi", &source)
         .into_compilation_document()
         .expect("test source parses")
@@ -27,17 +27,15 @@ fn length(exponent: i32) -> DimExponents {
 fn required_public_parameters_are_typed_free_variables() {
     let document = document(
         r#"
-component Symbolic() {
-  public parameter base: m;
-  public parameter exponent: 1;
-  public parameter area: m ^ 2 = base ^ exponent;
-  parameter offset: m = 2;
+component Symbolic(parameter base: m, parameter exponent: 1, parameter area: m ^ 2 = base ^ exponent) {
+parameter offset: m = 2;
 }
 "#,
     );
     let parameters = resolve_component_parameters_symbolically(
         "parameters.eqi",
         component(&document, "Symbolic"),
+        |_| None,
     )
     .expect("open typed interface resolves");
 
@@ -67,6 +65,7 @@ fn required_private_parameter_has_no_symbolic_witness() {
     let diagnostics = resolve_component_parameters_symbolically(
         "parameters.eqi",
         component(&document, "Invalid"),
+        |_| None,
     )
     .expect_err("private required Parameter is uninhabitable");
 
@@ -81,14 +80,10 @@ fn required_private_parameter_has_no_symbolic_witness() {
 fn nested_instance_validates_symbolic_parent_bindings_with_cached_child() {
     let document = document(
         r#"
-component Child() {
-  public parameter base: m;
-  public parameter exponent: 1;
-  public parameter area: m ^ 2 = base ^ exponent;
+component Child(parameter base: m, parameter exponent: 1, parameter area: m ^ 2 = base ^ exponent) {
 }
-component Parent() {
-  public parameter length: m;
-  instance child: Child(base = length, exponent = 2);
+component Parent(parameter length: m) {
+instance child: Child(base = length, exponent = 2);
 }
 "#,
     );
@@ -102,10 +97,12 @@ component Parent() {
             _ => None,
         })
         .expect("nested instance exists");
-    let parent_parameters = resolve_component_parameters_symbolically("parameters.eqi", parent)
-        .expect("parent interface resolves");
-    let child_interface = resolve_component_parameters_symbolically("parameters.eqi", child)
-        .expect("child interface resolves once");
+    let parent_parameters =
+        resolve_component_parameters_symbolically("parameters.eqi", parent, |_| None)
+            .expect("parent interface resolves");
+    let child_interface =
+        resolve_component_parameters_symbolically("parameters.eqi", child, |_| None)
+            .expect("child interface resolves once");
     validate_instance_parameters_symbolically(
         "parameters.eqi",
         "parameters.eqi",
@@ -113,6 +110,7 @@ component Parent() {
         instance,
         &parent_parameters,
         &child_interface,
+        |_| None,
     )
     .expect("cached interface validates the definition edge");
 }
@@ -121,13 +119,11 @@ component Parent() {
 fn symbolic_instances_preserve_binding_diagnostics() {
     let document = document(
         r#"
-component Child() {
-  public parameter required: m;
-  parameter hidden: m = 1;
+component Child(parameter required: m) {
+parameter hidden: m = 1;
 }
-component Parent() {
-  public parameter length: m;
-  instance missing: Child;
+component Parent(parameter length: m) {
+instance missing: Child();
   instance unknown: Child(other = length);
   instance private: Child(hidden = length);
   instance duplicate: Child(required = length, required = length);
@@ -136,10 +132,12 @@ component Parent() {
     );
     let parent = component(&document, "Parent");
     let child = component(&document, "Child");
-    let parent_parameters = resolve_component_parameters_symbolically("parameters.eqi", parent)
-        .expect("parent interface resolves");
-    let child_interface = resolve_component_parameters_symbolically("parameters.eqi", child)
-        .expect("child interface resolves once");
+    let parent_parameters =
+        resolve_component_parameters_symbolically("parameters.eqi", parent, |_| None)
+            .expect("parent interface resolves");
+    let child_interface =
+        resolve_component_parameters_symbolically("parameters.eqi", child, |_| None)
+            .expect("child interface resolves once");
     let instances = parent
         .items()
         .iter()
@@ -154,10 +152,7 @@ component Parent() {
             "missing",
             "required Parameter `required` has no instance binding",
         ),
-        (
-            "unknown",
-            "unknown public Parameter `other` on component `Child`",
-        ),
+        ("unknown", "`other` is not a public requirement of `Child`"),
         (
             "private",
             "private Parameter `hidden` cannot be bound on instance `private`",
@@ -175,6 +170,7 @@ component Parent() {
             instances[instance],
             &parent_parameters,
             &child_interface,
+            |_| None,
         )
         .expect_err("invalid binding fails closed");
         assert!(
@@ -201,6 +197,7 @@ fn ten_thousand_parameter_chains_and_cycles_are_iterative() {
     let parameters = resolve_component_parameters_symbolically(
         "parameters.eqi",
         component(&chain_document, "Chain"),
+        |_| None,
     )
     .expect("deep acyclic graph resolves without recursive calls");
     assert_eq!(parameters.len(), COUNT);
@@ -227,6 +224,7 @@ fn ten_thousand_parameter_chains_and_cycles_are_iterative() {
     let diagnostics = resolve_component_parameters_symbolically(
         "parameters.eqi",
         component(&cycle_document, "Cycle"),
+        |_| None,
     )
     .expect_err("one large SCC fails without recursive calls");
     assert_eq!(diagnostics.len(), 1);
@@ -243,9 +241,12 @@ fn ten_thousand_parameter_chains_and_cycles_are_iterative() {
 #[test]
 fn parameter_self_loop_has_one_source_spanned_type_diagnostic() {
     let document = document("component Loop() { parameter value: 1 = value; }");
-    let diagnostics =
-        resolve_component_parameters_symbolically("parameters.eqi", component(&document, "Loop"))
-            .expect_err("self dependency is a cycle");
+    let diagnostics = resolve_component_parameters_symbolically(
+        "parameters.eqi",
+        component(&document, "Loop"),
+        |_| None,
+    )
+    .expect_err("self dependency is a cycle");
 
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(diagnostics[0].code(), codes::LANGUAGE_TYPE_ERROR);
@@ -281,12 +282,18 @@ component Ordered() {
 "#,
     );
 
-    let forward =
-        resolve_component_parameters_symbolically("parameters.eqi", component(&forward, "Ordered"))
-            .expect("forward declarations resolve");
-    let reverse =
-        resolve_component_parameters_symbolically("parameters.eqi", component(&reverse, "Ordered"))
-            .expect("reverse declarations resolve");
+    let forward = resolve_component_parameters_symbolically(
+        "parameters.eqi",
+        component(&forward, "Ordered"),
+        |_| None,
+    )
+    .expect("forward declarations resolve");
+    let reverse = resolve_component_parameters_symbolically(
+        "parameters.eqi",
+        component(&reverse, "Ordered"),
+        |_| None,
+    )
+    .expect("reverse declarations resolve");
     assert_eq!(forward, reverse);
     assert_eq!(
         forward["scaled"]

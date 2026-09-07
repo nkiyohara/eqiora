@@ -27,7 +27,7 @@ fn admit(source: &str) -> (KernelProgram, ModelSymbols) {
 }
 
 const MIXED_CLOCKS: &str = r#"
-model M {
+model M() {
   clock a = periodic(1[s] / 1, phase = 1[s] / 1);
   clock b = periodic(1[s] / 1, phase = 1[s] / 1);
   state first: 1 at a;
@@ -115,13 +115,17 @@ fn alias_hidden_evolution_operators_keep_the_exact_context_checks() {
         "let composite = 2*x; relation r at a { next(composite) = 0; }",
     ] {
         assert!(
-            compile("bad-context.eqi", &format!("model M {{ {prefix} {body} }}")).is_err(),
+            compile(
+                "bad-context.eqi",
+                &format!("model M() {{ {prefix} {body} }}")
+            )
+            .is_err(),
             "{body}"
         );
     }
     // Initialization reads each memory's initial value without selecting one update clock.
     let source = format!(
-        "model M {{ {prefix} state y: 1 at b; let old_x = pre(x); let old_y = pre(y); initial {{ old_x = 2; old_y = 3; }} }}"
+        "model M() {{ {prefix} state y: 1 at b; let old_x = pre(x); let old_y = pre(y); initial {{ old_x = 2; old_y = 3; }} }}"
     );
     let explicit = source
         .replace("let old_x = pre(x); let old_y = pre(y);", "")
@@ -134,9 +138,10 @@ fn alias_hidden_evolution_operators_keep_the_exact_context_checks() {
 #[test]
 fn runtime_polynomial_aliases_preserve_unknown_and_parameter_chain_rules_per_occurrence() {
     let aliased = r#"
-component Polynomial() {
-  public parameter target: 1;
-  public parameter y: 1;
+component Polynomial(
+  parameter target: 1,
+  parameter y: 1
+) {
   variable x: 1;
   variable output: 1;
   let f = z * y;
@@ -144,7 +149,7 @@ component Polynomial() {
   relation fix { x = target; }
   relation result { output = f; }
 }
-model M {
+model M() {
   parameter y1: 1 = 3;
   parameter y2: 1 = -2;
   instance first: Polynomial(target = 2, y = y1);

@@ -193,6 +193,45 @@ pub(super) fn collect_reference_locations(
     let mut diagnostics = Vec::new();
 
     for unit in units {
+        let resolve = |path: &NamePath, kind| {
+            resolve_reference(&unit.module, path, kind, &alias_index, &declaration_index)
+        };
+        let instance_properties = |instance: &eqiora_lang::InstanceDecl| {
+            let Some(index) = resolve(instance.definition(), CanonicalDeclarationKind::Component)
+            else {
+                return Vec::new();
+            };
+            let target = &declarations[index];
+            units
+                .iter()
+                .flat_map(|unit| {
+                    unit.document
+                        .components()
+                        .iter()
+                        .map(move |component| (unit, component))
+                })
+                .find(|(unit, component)| {
+                    unit.module.owner() == target.namespace()
+                        && canonical_declaration_path(&unit.module, component.name())
+                            == target.path()
+                })
+                .map(|(_, component)| {
+                    component
+                        .signature()
+                        .iter()
+                        .filter_map(|item| match item {
+                            eqiora_lang::SignatureItem::Property(value) => {
+                                Some(value.name().to_owned())
+                            }
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default()
+        };
+        let is_composition = |path: &NamePath| {
+            resolve(path, CanonicalDeclarationKind::MaterialComposition).is_some()
+        };
         let mut push = |path: &NamePath, kind| match resolve_reference(
             &unit.module,
             path,
@@ -218,16 +257,25 @@ pub(super) fn collect_reference_locations(
             }
         }
         for component in unit.document.components() {
-            for (_, contract, _) in component.property_requirement_syntax() {
-                push(contract, CanonicalDeclarationKind::PropertyContract);
-            }
+            collect_signature_references(component.signature(), &mut push);
             for item in component.items() {
-                collect_component_item_references(item, &mut push);
+                collect_component_item_references(
+                    item,
+                    &mut push,
+                    &instance_properties,
+                    &is_composition,
+                );
             }
         }
         for model in unit.document.models() {
+            collect_signature_references(model.signature(), &mut push);
             for item in model.items() {
-                collect_model_item_references(item, &mut push);
+                collect_model_item_references(
+                    item,
+                    &mut push,
+                    &instance_properties,
+                    &is_composition,
+                );
             }
         }
     }
@@ -243,11 +291,15 @@ pub(super) fn collect_reference_locations(
 fn collect_component_item_references(
     item: &ComponentItem,
     push: &mut impl FnMut(&NamePath, CanonicalDeclarationKind),
+    properties: &impl Fn(&eqiora_lang::InstanceDecl) -> Vec<String>,
+    is_composition: &impl Fn(&NamePath) -> bool,
 ) {
     match item {
         ComponentItem::Port(port) => collect_port_reference(port.syntax(), push),
         ComponentItem::PortFamily(family) => collect_port_reference(family.port().syntax(), push),
-        ComponentItem::Instance(instance) => collect_instance_references(instance, push),
+        ComponentItem::Instance(instance) => {
+            collect_instance_references(instance, push, properties, is_composition)
+        }
         _ => {}
     }
 }
@@ -255,10 +307,14 @@ fn collect_component_item_references(
 fn collect_model_item_references(
     item: &Item,
     push: &mut impl FnMut(&NamePath, CanonicalDeclarationKind),
+    properties: &impl Fn(&eqiora_lang::InstanceDecl) -> Vec<String>,
+    is_composition: &impl Fn(&NamePath) -> bool,
 ) {
     match item {
         Item::Port(port) => collect_port_reference(port.syntax(), push),
-        Item::Instance(instance) => collect_instance_references(instance, push),
+        Item::Instance(instance) => {
+            collect_instance_references(instance, push, properties, is_composition)
+        }
         _ => {}
     }
 }
@@ -276,16 +332,58 @@ fn collect_port_reference(
     }
 }
 
+fn collect_signature_references(
+    signature: &[eqiora_lang::SignatureItem],
+    push: &mut impl FnMut(&NamePath, CanonicalDeclarationKind),
+) {
+    for item in signature {
+        match item {
+            eqiora_lang::SignatureItem::Property(value) => {
+                push(value.contract(), CanonicalDeclarationKind::PropertyContract)
+            }
+            eqiora_lang::SignatureItem::Port(port) => collect_port_reference(port.syntax(), push),
+            eqiora_lang::SignatureItem::PortFamily(family) => {
+                collect_port_reference(family.port().syntax(), push)
+            }
+            _ => {}
+        }
+    }
+}
+
 fn collect_instance_references(
     instance: &eqiora_lang::InstanceDecl,
     push: &mut impl FnMut(&NamePath, CanonicalDeclarationKind),
+    properties: &impl Fn(&eqiora_lang::InstanceDecl) -> Vec<String>,
+    is_composition: &impl Fn(&NamePath) -> bool,
 ) {
     push(instance.definition(), CanonicalDeclarationKind::Component);
-    for (_, release, _) in instance.property_binding_syntax() {
-        push(release, CanonicalDeclarationKind::PropertyRelease);
-    }
-    if let Some(material) = instance.material_binding_syntax() {
-        push(material, CanonicalDeclarationKind::MaterialComposition);
+    let properties = properties(instance);
+    for binding in instance
+        .bindings()
+        .iter()
+        .filter(|binding| properties.iter().any(|name| name == binding.name()))
+    {
+        let path = match binding.value().kind() {
+            eqiora_lang::ExprKind::Name(name) => {
+                NamePath::from_segments([name.as_str()], binding.value().range())
+                    .expect("parsed name")
+            }
+            eqiora_lang::ExprKind::Path(path) => path.clone(),
+            _ => continue, // Property elaboration already rejects non-reference values.
+        };
+        let segments = path.segments().collect::<Vec<_>>();
+        if segments.len() > 1 {
+            let prefix = NamePath::from_segments(
+                segments[..segments.len() - 1].iter().copied(),
+                path.range(),
+            )
+            .expect("parsed path");
+            if is_composition(&prefix) {
+                push(&prefix, CanonicalDeclarationKind::MaterialComposition);
+                continue;
+            }
+        }
+        push(&path, CanonicalDeclarationKind::PropertyRelease);
     }
 }
 

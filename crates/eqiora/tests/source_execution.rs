@@ -19,7 +19,7 @@ fn compile_program(source: &str) -> (KernelProgram, eqiora::compiler::ModelSymbo
 #[test]
 fn uninitialized_algebraic_field_runs_without_a_model_owned_value() {
     let (program, symbols) = compile_program(
-        "model algebraic { variable pressure: 1; relation balance { pressure - 2 = 0; } }",
+        "model algebraic() { variable pressure: 1; relation balance { pressure - 2 = 0; } }",
     );
     let pressure = symbols.get("pressure").expect("pressure ID");
     assert_eq!(program.value(pressure), None);
@@ -42,7 +42,7 @@ fn uninitialized_algebraic_field_runs_without_a_model_owned_value() {
 #[test]
 fn uninitialized_differential_field_fails_at_execution_admission() {
     let (program, symbols) = compile_program(
-        "model transient { state state: 1; parameter rate: 1 / s = 1; relation evolution { derivative(state) + rate * state = 0; } }",
+        "model transient() { state state: 1; parameter rate: 1 / s = 1; relation evolution { derivative(state) + rate * state = 0; } }",
     );
     assert_eq!(program.value(symbols.get("state").expect("state ID")), None);
 
@@ -62,7 +62,7 @@ fn uninitialized_differential_field_fails_at_execution_admission() {
 #[test]
 fn uninitialized_discrete_field_fails_at_execution_admission() {
     let (program, symbols) = compile_program(
-        "model discrete { state state: 1 at tick; clock tick = periodic(1[s] / 1, phase = 0[s] / 1); relation update at tick { next(state) - pre(state) = 0; } }",
+        "model discrete() { state state: 1 at tick; clock tick = periodic(1[s] / 1, phase = 0[s] / 1); relation update at tick { next(state) - pre(state) = 0; } }",
     );
     assert_eq!(program.value(symbols.get("state").expect("state ID")), None);
 
@@ -81,7 +81,7 @@ fn uninitialized_discrete_field_fails_at_execution_admission() {
 #[test]
 fn source_lowers_to_the_reference_thermal_controller_trajectory() {
     let source = r#"
-model thermal_controller {
+model thermal_controller() {
   state temperature: K; initial { temperature = 293[K]; }
   state command: 1 at control; initial { command = 0; }
   parameter ambient: K = 293;
@@ -99,12 +99,15 @@ model thermal_controller {
       - ((ambient - temperature) / tau + heating_gain * control_in) = 0;
   }
 
-  relation controller at control {
-    next(command) - controller_gain * (setpoint - temperature) = 0;
-    control_out - next(command) = 0;
+  relation held_command {
+    control_out - hold(command) = 0;
   }
 
-  connect signal control_out -> control_in;
+  relation controller at control {
+    next(command) - controller_gain * (setpoint - sample(temperature, control)) = 0;
+  }
+
+  connect control_out -> control_in;
 }
 "#;
     let mut models = compile("thermal_controller.eqi", source).expect("typed source");

@@ -16,11 +16,10 @@ public component PoissonRectangle(
   support left: boundary(parent = region),
   support right: boundary(parent = region),
   support bottom: boundary(parent = region),
-  support top: boundary(parent = region)
+  support top: boundary(parent = region),
+  parameter wave_number: 1 / m,
+  parameter source_scale: 1 / m ^ 2
 ) {
-
-  public parameter wave_number: 1 / m;
-  public parameter source_scale: 1 / m ^ 2;
 
   variable potential: 1 on region;
   relation balance on region {
@@ -43,12 +42,11 @@ public component MixedBoundaryElasticity(
   support left: boundary(parent = region),
   support right: boundary(parent = region),
   support bottom: boundary(parent = region),
-  support top: boundary(parent = region)
+  support top: boundary(parent = region),
+  parameter mu: kg / (m * s ^ 2),
+  parameter lambda: kg / (m * s ^ 2),
+  parameter length_scale: m
 ) {
-
-  public parameter mu: kg / (m * s ^ 2);
-  public parameter lambda: kg / (m * s ^ 2);
-  public parameter length_scale: m;
 
   variable displacement: vector<m, 2> on region;
   variable load_potential: kg / (m * s ^ 2) on region;
@@ -162,15 +160,46 @@ fn scalar_document_from_source(
         ),
     ]
     .map(|(name, value)| (name, eqiora::ValueLiteral::try_from(value).unwrap()));
-    ModelDocument::compile_external_component(
-        "python-common-plan.eqi",
-        component,
-        geometry,
-        "PoissonRectangleModel",
-        "PoissonRectangle",
-        &supports,
-        &parameters,
-    )
+    {
+        let expressions = parameters
+            .iter()
+            .map(|(name, value)| {
+                (
+                    *name,
+                    eqiora::language::SourceAstFactory::value_literal(
+                        value,
+                        eqiora::language::TextRange::default(),
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let mut bindings = supports
+            .iter()
+            .map(|(name, selection, parent)| {
+                (
+                    *name,
+                    eqiora::compiler::StaticBindingValue::GeometrySupport {
+                        geometry,
+                        selection,
+                        parent: parent.map(|(_, selection)| selection),
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+        bindings.extend(expressions.iter().map(|(name, value)| {
+            (
+                *name,
+                eqiora::compiler::StaticBindingValue::Expression(value),
+            )
+        }));
+        ModelDocument::compile_selected(
+            "python-common-plan.eqi",
+            component,
+            "PoissonRectangle",
+            &bindings,
+        )
+    }
     .unwrap()
 }
 
@@ -234,15 +263,46 @@ fn stokes_document_with_speed(geometry: &CanonicalGeometryV1, inlet_speed: f64) 
         ),
     ]
     .map(|(name, value)| (name, eqiora::ValueLiteral::try_from(value).unwrap()));
-    ModelDocument::compile_external_component(
-        "steady-flow-past-cylinder.eqi",
-        STOKES_COMPONENT,
-        geometry,
-        "SteadyFlowPastCylinderModel",
-        "SteadyFlowPastCylinder",
-        &supports,
-        &parameters,
-    )
+    {
+        let expressions = parameters
+            .iter()
+            .map(|(name, value)| {
+                (
+                    *name,
+                    eqiora::language::SourceAstFactory::value_literal(
+                        value,
+                        eqiora::language::TextRange::default(),
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let mut bindings = supports
+            .iter()
+            .map(|(name, selection, parent)| {
+                (
+                    *name,
+                    eqiora::compiler::StaticBindingValue::GeometrySupport {
+                        geometry,
+                        selection,
+                        parent: parent.map(|(_, selection)| selection),
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+        bindings.extend(expressions.iter().map(|(name, value)| {
+            (
+                *name,
+                eqiora::compiler::StaticBindingValue::Expression(value),
+            )
+        }));
+        ModelDocument::compile_selected(
+            "steady-flow-past-cylinder.eqi",
+            STOKES_COMPONENT,
+            "SteadyFlowPastCylinder",
+            &bindings,
+        )
+    }
     .unwrap()
 }
 
@@ -316,15 +376,46 @@ fn transient_cylinder_document_with_speed(
         ),
     ]
     .map(|(name, value)| (name, eqiora::ValueLiteral::try_from(value).unwrap()));
-    ModelDocument::compile_external_component(
-        "transient-flow-past-cylinder.eqi",
-        TRANSIENT_CYLINDER_COMPONENT,
-        geometry,
-        "TransientFlowPastCylinderModel",
-        "TransientFlowPastCylinder",
-        &supports,
-        &parameters,
-    )
+    {
+        let expressions = parameters
+            .iter()
+            .map(|(name, value)| {
+                (
+                    *name,
+                    eqiora::language::SourceAstFactory::value_literal(
+                        value,
+                        eqiora::language::TextRange::default(),
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let mut bindings = supports
+            .iter()
+            .map(|(name, selection, parent)| {
+                (
+                    *name,
+                    eqiora::compiler::StaticBindingValue::GeometrySupport {
+                        geometry,
+                        selection,
+                        parent: parent.map(|(_, selection)| selection),
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+        bindings.extend(expressions.iter().map(|(name, value)| {
+            (
+                *name,
+                eqiora::compiler::StaticBindingValue::Expression(value),
+            )
+        }));
+        ModelDocument::compile_selected(
+            "transient-flow-past-cylinder.eqi",
+            TRANSIENT_CYLINDER_COMPONENT,
+            "TransientFlowPastCylinder",
+            &bindings,
+        )
+    }
     .unwrap()
 }
 
@@ -1668,19 +1759,9 @@ geometry = graph.build(rectangle, named_topology={
 mesher = package.meshing.CartesianMesher(cells=(2, 3))
 mesh_plan = package.meshing.resolve(geometry, mesher)
 mesh = package.meshing.generate(mesh_plan)
-model = package.compile(
-    source=elasticity_source,
-    filename="elasticity.eqi",
-    geometry=geometry,
-    parameters={"mu": 3.0, "lambda": 0.0, "length_scale": 1.0},
-)
+model = package.compile(source=elasticity_source, filename='elasticity.eqi', geometry=geometry, entry='MixedBoundaryElasticity', bindings={'region': geometry.selection('region'), 'left': (geometry.selection('left'), geometry.selection('region')), 'right': (geometry.selection('right'), geometry.selection('region')), 'bottom': (geometry.selection('bottom'), geometry.selection('region')), 'top': (geometry.selection('top'), geometry.selection('region')), **{'mu': 3.0, 'lambda': 0.0, 'length_scale': 1.0}})
 replayed = package.Model.from_bytes(model.to_bytes())
-alternate = package.compile(
-    source=elasticity_source,
-    filename="alternate-elasticity.eqi",
-    geometry=geometry,
-    parameters={"mu": 4.0, "lambda": 0.0, "length_scale": 1.0},
-)
+alternate = package.compile(source=elasticity_source, filename='alternate-elasticity.eqi', geometry=geometry, entry='MixedBoundaryElasticity', bindings={'region': geometry.selection('region'), 'left': (geometry.selection('left'), geometry.selection('region')), 'right': (geometry.selection('right'), geometry.selection('region')), 'bottom': (geometry.selection('bottom'), geometry.selection('region')), 'top': (geometry.selection('top'), geometry.selection('region')), **{'mu': 4.0, 'lambda': 0.0, 'length_scale': 1.0}})
 linear = package.solve.Linear(relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=10000)
 plan = package.resolve(model, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
 replayed_plan = package.resolve(replayed, mesh=mesh, spatial=package.fem.Q1(), solve=linear)

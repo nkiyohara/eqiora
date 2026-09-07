@@ -902,7 +902,7 @@ fn assert_current_tool_schema(tool: &Value) {
     }
     assert_eq!(
         advertised["properties"]["structuralFingerprint"]["properties"]["generation"]["enum"],
-        json!([SemanticFingerprintGeneration::V8.as_str()])
+        json!([SemanticFingerprintGeneration::V9.as_str()])
     );
 }
 
@@ -1032,7 +1032,7 @@ fn accepted_and_rejected_calls_preserve_direct_operation_meaning() {
     let direct_fingerprint = direct.structural_fingerprint().unwrap();
     assert_eq!(
         direct_fingerprint.generation(),
-        SemanticFingerprintGeneration::V8
+        SemanticFingerprintGeneration::V9
     );
     let mut client = Client::spawn();
     client.send_value(&list_request(json!("parity-tool")));
@@ -1066,8 +1066,8 @@ fn accepted_and_rejected_calls_preserve_direct_operation_meaning() {
         model["structuralFingerprint"]["digest"],
         direct_fingerprint.digest()
     );
-    assert_ne!(model["modelId"], direct_reference.model().to_string());
-    assert_ne!(model["digest"], direct_reference.artifact().as_str());
+    assert_eq!(model["modelId"], direct_reference.model().to_string());
+    assert_eq!(model["digest"], direct_reference.artifact().as_str());
     let direct_rejected = ModelDocument::compile("empty.eqi", "").unwrap_err();
     client.send_value(&call_request(
         json!("rejected-parity"),

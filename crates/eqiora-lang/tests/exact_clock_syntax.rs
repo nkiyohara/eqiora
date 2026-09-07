@@ -2,7 +2,7 @@ use eqiora_lang::{ComponentItem, ExprKind, Item, SourceAstFactory, TextRange};
 
 #[test]
 fn exact_clock_expressions_and_default_phase_round_trip() {
-    for container in ["model M", "component C()"] {
+    for container in ["model M()", "component C()"] {
         for args in [
             "10[ms]",
             "1[s] / 3",
@@ -57,7 +57,7 @@ fn exact_clock_expressions_and_default_phase_round_trip() {
 
 #[test]
 fn bare_clock_leaves_are_exact_but_ordinary_numbers_are_unchanged() {
-    let source = "model M { clock c = periodic(1[s] / 18446744073709551615); let ordinary = 2; }";
+    let source = "model M() { clock c = periodic(1[s] / 18446744073709551615); let ordinary = 2; }";
     let document = eqiora_lang::parse("clock.eqi", source)
         .into_document()
         .unwrap();
@@ -76,7 +76,7 @@ fn bare_clock_leaves_are_exact_but_ordinary_numbers_are_unchanged() {
     assert!(matches!(alias.value().kind(), ExprKind::Number(2.0)));
     let failed = eqiora_lang::parse(
         "recover.eqi",
-        "model M { clock c = periodic(1 + ); let ordinary = 2; }",
+        "model M() { clock c = periodic(1 + ); let ordinary = 2; }",
     );
     let alias = failed.document().unwrap().models()[0]
         .items()
@@ -102,7 +102,7 @@ fn retired_clock_labels_and_unbounded_expressions_reject() {
         assert!(
             eqiora_lang::parse(
                 "invalid.eqi",
-                &format!("model M {{ clock c = periodic({args}); }}")
+                &format!("model M() {{ clock c = periodic({args}); }}")
             )
             .into_document()
             .is_err()
@@ -115,7 +115,7 @@ fn retired_clock_labels_and_unbounded_expressions_reject() {
         assert!(
             eqiora_lang::parse(
                 "bounded.eqi",
-                &format!("model M {{ clock c = periodic({value}); }}")
+                &format!("model M() {{ clock c = periodic({value}); }}")
             )
             .into_document()
             .is_err()

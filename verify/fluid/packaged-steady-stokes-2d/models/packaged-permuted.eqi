@@ -1,12 +1,12 @@
-model Main {
+model Main() {
   relation y_upper_value on y_upper { trace(velocity) = 0; }
   relation x_lower_value on x_lower { trace(velocity) = 0; }
   instance fluid_law: fluid.SteadyStokesWithPotential2d(
     dynamic_viscosity = dynamic_viscosity,
-    field force_potential = force_potential,
-    field pressure = pressure,
-    field velocity = velocity,
-    support body = body
+    force_potential = force_potential,
+    pressure = pressure,
+    velocity = velocity,
+    body = body
   );
   relation force_definition on body {
     force_potential

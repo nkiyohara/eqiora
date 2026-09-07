@@ -98,7 +98,7 @@ fn bind_socket_entry(root: &TestDirectory) -> std::os::unix::net::UnixListener {
 #[test]
 fn reads_only_inventory_and_rejects_invalid_entries() {
     let directory = TestDirectory::create("inventory");
-    write_source(&directory, "src/main.eqi", b"model Main {}");
+    write_source(&directory, "src/main.eqi", b"model Main() {}");
     write_manifest(&directory, &["src/main.eqi"]);
     let package = PackageDirectory::open_ambient(&directory.0).expect("open evidence root");
     let expected = package.read_sources().expect("read evidence sources");
@@ -177,7 +177,7 @@ fn rejects_symlink_redirection_and_retains_its_root() {
     );
 
     let final_link = TestDirectory::create("final-symlink");
-    write_source(&final_link, "target.eqi", b"model Main {}");
+    write_source(&final_link, "target.eqi", b"model Main() {}");
     symlink("target.eqi", final_link.0.join("main.eqi")).expect("create final symlink");
     write_manifest(&final_link, &["main.eqi"]);
     assert!(
@@ -188,7 +188,7 @@ fn rejects_symlink_redirection_and_retains_its_root() {
     );
 
     let intermediate_link = TestDirectory::create("intermediate-symlink");
-    write_source(&intermediate_link, "target/main.eqi", b"model Main {}");
+    write_source(&intermediate_link, "target/main.eqi", b"model Main() {}");
     symlink("target", intermediate_link.0.join("src")).expect("create intermediate symlink");
     write_manifest(&intermediate_link, &["src/main.eqi"]);
     assert!(
@@ -199,14 +199,14 @@ fn rejects_symlink_redirection_and_retains_its_root() {
     );
 
     let retained = TestDirectory::create("retained-root");
-    write_source(&retained, "main.eqi", b"model Original {}");
+    write_source(&retained, "main.eqi", b"model Original() {}");
     write_manifest(&retained, &["main.eqi"]);
     let package = PackageDirectory::open_ambient(&retained.0).expect("retain root");
     let expected = package.read_sources().expect("read original root");
     let moved = retained.0.with_extension("moved");
     fs::rename(&retained.0, &moved).expect("move retained root");
     fs::create_dir(&retained.0).expect("create replacement root");
-    write_source(&retained, "main.eqi", b"model Replacement {}");
+    write_source(&retained, "main.eqi", b"model Replacement() {}");
     write_manifest(&retained, &["main.eqi"]);
     assert_eq!(
         package.read_sources().expect("read retained root"),

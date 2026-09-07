@@ -226,8 +226,8 @@ mod tests {
     #[test]
     fn discovers_sorted_eqi_sources_and_ignores_regular_decoys() {
         let root = TestDirectory::create("inventory");
-        root.write("z/main.eqi", b"model Main {}");
-        root.write("a/part.eqi", b"public component Part {}");
+        root.write("z/main.eqi", b"model Main() {}");
+        root.write("a/part.eqi", b"public component Part() {}");
         root.write("a/notes.txt", b"not Eqiora source");
 
         let sources = PackageDirectory::open_ambient(&root.0)
@@ -246,7 +246,7 @@ mod tests {
         use std::os::unix::fs::symlink;
 
         let root = TestDirectory::create("symlink");
-        root.write("target.eqi", b"model Hidden {}");
+        root.write("target.eqi", b"model Hidden() {}");
         symlink("target.eqi", root.0.join("main.eqi")).expect("create source symlink");
 
         assert!(matches!(

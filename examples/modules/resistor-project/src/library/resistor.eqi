@@ -1,11 +1,11 @@
-public component Resistor() {
-  public parameter resistance: 1;
-
+public component Resistor(
+  parameter resistance: 1
+) {
   relation law {
     resistance - 2 = 0;
   }
 }
 
-public model ResistorCheck {
+public model ResistorCheck() {
   instance load: Resistor(resistance = 2);
 }

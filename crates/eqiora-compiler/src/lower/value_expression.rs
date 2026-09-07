@@ -81,6 +81,13 @@ impl LoweringExpression {
         }
     }
 
+    pub(crate) fn sample(value: Self, clock: String, range: TextRange) -> Self {
+        Self {
+            node: Arc::new(LoweringExpressionNode::Sample { value, clock }),
+            range,
+        }
+    }
+
     pub(crate) fn pure_operator(
         definition: PureOperatorDefinition,
         arguments: Vec<Self>,

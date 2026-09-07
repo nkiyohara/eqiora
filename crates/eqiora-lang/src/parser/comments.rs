@@ -203,7 +203,7 @@ mod tests {
 
     #[test]
     fn same_gap_keeps_previous_child_trailing_before_enclosing_detached_docs() {
-        let source = "model M {\nvariable a:1; // tail a\n/// detached\n\nvariable b:1;\n}\n";
+        let source = "model M() {\nvariable a:1; // tail a\n/// detached\n\nvariable b:1;\n}\n";
         let document = parse("docs.eqi", source).into_document().unwrap();
         let text = format(&document);
         let mut reparsed = parse("formatted.eqi", &text).into_document().unwrap();
@@ -215,7 +215,7 @@ mod tests {
 
     #[test]
     fn ordinary_prose_before_detached_docs_remains_in_the_enclosing_scope() {
-        let source = "model M {\n// context\n/// detached\n\n/// B.\nvariable b:1;\n}\n";
+        let source = "model M() {\n// context\n/// detached\n\n/// B.\nvariable b:1;\n}\n";
         let document = parse("docs.eqi", source).into_document().unwrap();
         let text = format(&document);
         assert!(text.find("// context").unwrap() < text.find("/// detached").unwrap());
@@ -233,7 +233,7 @@ mod tests {
 
     #[test]
     fn edited_owner_preserves_detached_gaps_and_exact_child_comments() {
-        let source = "model M {\n/// A.\nvariable a:1;\n/// detached\n\nvariable b:1;\n/// C.\nvariable c:1;\n// footer\n}\n";
+        let source = "model M() {\n/// A.\nvariable a:1;\n/// detached\n\nvariable b:1;\n/// C.\nvariable c:1;\n// footer\n}\n";
         let mut document = parse("docs.eqi", source).into_document().unwrap();
         document.models[0].items.remove(1);
         document.models[0].items.swap(0, 1);

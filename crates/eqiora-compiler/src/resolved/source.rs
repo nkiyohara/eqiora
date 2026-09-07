@@ -24,6 +24,7 @@ pub(super) fn analyze_source_unit(
         module,
         file: provenance_file,
         source_bytes: unit.source.len(),
+        authored_document: std::sync::Arc::new(document.clone()),
         document,
     })
 }

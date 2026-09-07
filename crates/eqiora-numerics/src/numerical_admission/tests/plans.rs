@@ -4,9 +4,9 @@ const POISSON_INTERVAL: &str = r#"
 public component PoissonInterval(
   support body: volume(ambient_dimension = 1),
   support left: boundary(parent = body),
-  support right: boundary(parent = body)
+  support right: boundary(parent = body),
+  parameter source_scale: 1 / m ^ 2
 ) {
-  public parameter source_scale: 1 / m ^ 2;
   variable potential: 1 on body;
   relation balance on body {
     -div(grad(potential)) - source_scale = 0;
@@ -24,9 +24,9 @@ public component PoissonBox(
   support y_lower: boundary(parent = body),
   support y_upper: boundary(parent = body),
   support z_lower: boundary(parent = body),
-  support z_upper: boundary(parent = body)
+  support z_upper: boundary(parent = body),
+  parameter source_scale: 1 / m ^ 2
 ) {
-  public parameter source_scale: 1 / m ^ 2;
   variable potential: 1 on body;
   relation balance on body {
     -div(grad(potential)) - source_scale = 0;
@@ -67,7 +67,6 @@ fn cartesian_interval() -> CanonicalGeometryV1 {
 fn scalar_box_model(
     geometry: &CanonicalGeometryV1,
     source: &str,
-    model: &str,
     component: &str,
     boundaries: &[&str],
 ) -> ModelEnvelope {
@@ -84,7 +83,6 @@ fn scalar_box_model(
         "poisson-box.eqi",
         source,
         geometry,
-        model,
         component,
         &supports,
         &[(
@@ -155,7 +153,6 @@ fn common_scalar_plan_executes_exact_one_and_three_dimensional_meshes() {
     let interval_model = scalar_box_model(
         &interval,
         POISSON_INTERVAL,
-        "PoissonIntervalModel",
         "PoissonInterval",
         &["left", "right"],
     );
@@ -165,7 +162,6 @@ fn common_scalar_plan_executes_exact_one_and_three_dimensional_meshes() {
     let box_model = scalar_box_model(
         &box_3d,
         POISSON_BOX,
-        "PoissonBoxModel",
         "PoissonBox",
         &[
             "x_lower", "x_upper", "y_lower", "y_upper", "z_lower", "z_upper",
@@ -760,7 +756,6 @@ fn scalar_interval_parameter_point_uses_point_boundary_facets() {
     let model = scalar_box_model(
         &geometry,
         POISSON_INTERVAL,
-        "PoissonIntervalModel",
         "PoissonInterval",
         &["left", "right"],
     );
@@ -792,9 +787,9 @@ fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_field_results(
             "public component Coupled(
   support body: volume(ambient_dimension = 1),
   support left: boundary(parent = body),
-  support right: boundary(parent = body)
+  support right: boundary(parent = body),
+  parameter source_scale: 1 / m ^ 2
 ) {
-  public parameter source_scale: 1 / m ^ 2;
   \n",
         );
         for row in 0..count {
@@ -818,13 +813,7 @@ fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_field_results(
         }
         source += "}";
         let geometry = cartesian_interval();
-        let model = scalar_box_model(
-            &geometry,
-            &source,
-            "CoupledModel",
-            "Coupled",
-            &["left", "right"],
-        );
+        let model = scalar_box_model(&geometry, &source, "Coupled", &["left", "right"]);
         let plan = resolve_scalar_box(
             &model,
             cartesian_box_resources(&geometry, &[2]),

@@ -5,7 +5,7 @@ use eqiora::language::{DraftExpression, DraftField, DraftRelation, ModelDraft};
 use serde_json::Value;
 
 const SCALAR_SOURCE: &str = r#"
-model decay {
+model decay() {
   state x: 1; initial { x = 1; }
   relation hold {
     derivative(x) = 0;

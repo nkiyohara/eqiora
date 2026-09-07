@@ -19,7 +19,7 @@ use eqiora_sem::KernelProgram;
 use eqiora_solver::ScalarType;
 
 const MODEL: &str = r#"
-model Main {
+model Main() {
   domain fluid = box(0, 1, 0, 1);
   domain fluid_x_lower = boundary(fluid, axis = 0, side = lower);
   domain fluid_x_upper = boundary(fluid, axis = 0, side = upper);

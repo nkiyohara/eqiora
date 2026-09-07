@@ -3,9 +3,8 @@ public component SteadyStokesWithPotential2d(
   variable velocity: vector<m / s, 2> on body,
   variable pressure: kg / (m * s ^ 2) on body,
   variable force_potential: kg / (m * s ^ 2) on body,
+  parameter dynamic_viscosity: kg / (m * s)
 ) {
-  public parameter dynamic_viscosity: kg / (m * s);
-
   relation momentum on body {
     -div(
       2 * dynamic_viscosity * symmetric_part(grad(velocity))

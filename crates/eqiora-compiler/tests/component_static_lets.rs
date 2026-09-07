@@ -5,14 +5,14 @@ use eqiora_schema::kernel::{ExprNode, KernelNode, SymbolRef};
 #[test]
 fn occurrence_aliases_feed_nested_bindings_without_new_parameters() {
     let source = r#"
-component Leaf() { public parameter gain: 1; relation law { gain = 1; } }
-component Parent() {
-  public parameter p: 1;
+component Leaf(parameter gain: 1) {  relation law { gain = 1; } }
+component Parent(parameter p: 1) {
+
   let f = z * p;
   let z = p * p;
   instance leaf: Leaf(gain = f);
 }
-model M {
+model M() {
   parameter a: 1 = 2;
   parameter b: 1 = 3;
   instance first: Parent(p = a);
@@ -88,18 +88,18 @@ model M {
 
 #[test]
 fn unused_components_still_reject_invalid_static_aliases() {
-    for body in [
-        "let a = b; let b = a;",
-        "let a = a;",
-        "let a = missing;",
-        "let a = derivative(x);",
-        "let a: m = 1[s];",
-        "public parameter p: 1; let p = 2;",
-        "let a = 1; let a = 2;",
-        "public parameter p: 1 = a; let a = 1;",
-        "let a = other.p;",
+    for (signature, body) in [
+        ("", "let a = b; let b = a;"),
+        ("", "let a = a;"),
+        ("", "let a = missing;"),
+        ("", "let a = derivative(x);"),
+        ("", "let a: m = 1[s];"),
+        ("parameter p: 1", "let p = 2;"),
+        ("", "let a = 1; let a = 2;"),
+        ("parameter p: 1 = a", "let a = 1;"),
+        ("", "let a = other.p;"),
     ] {
-        let source = format!("component Unused() {{ {body} }} model M {{}}");
+        let source = format!("component Unused({signature}) {{ {body} }} model M() {{}}");
         assert!(compile("bad.eqi", &source).is_err(), "{body}");
     }
 }
@@ -107,8 +107,8 @@ fn unused_components_still_reject_invalid_static_aliases() {
 #[test]
 fn alias_names_are_neither_binding_targets_nor_parent_captures() {
     for source in [
-        "component C() { let a = 1; } model M { instance c: C(a = 2); }",
-        "component C() { let a = p; } model M { parameter p: 1 = 2; instance c: C; }",
+        "component C() { let a = 1; } model M() { instance c: C(a = 2); }",
+        "component C() { let a = p; } model M() { parameter p: 1 = 2; instance c: C(); }",
     ] {
         assert!(compile("scope.eqi", source).is_err(), "{source}");
     }
@@ -116,6 +116,6 @@ fn alias_names_are_neither_binding_targets_nor_parent_captures() {
 
 #[test]
 fn component_alias_assertions_use_common_dimension_resolution() {
-    let source = "dimension Length = m; component C() { let distance: Length = 2; relation law { distance = 2[m]; } } model M { instance c: C; }";
+    let source = "dimension Length = m; component C() { let distance: Length = 2; relation law { distance = 2[m]; } } model M() { instance c: C(); }";
     compile("dimension.eqi", source).unwrap();
 }

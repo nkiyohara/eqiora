@@ -4,15 +4,15 @@ const CLOCKS: &str =
     "clock a=periodic(1[s] / 1, phase = 0[s] / 1); clock b=periodic(1[s] / 1, phase = 0[s] / 1);";
 
 fn accepted(body: &str) {
-    let source = format!("model M {{ {CLOCKS} {body} }}");
+    let source = format!("model M() {{ {CLOCKS} {body} }}");
     compile("activation.eqi", &source).unwrap_or_else(|errors| panic!("{source}\n{errors:?}"));
 }
 
 fn rejected_in_both(body: &str, message: &str) {
     for source in [
-        format!("model M {{ {CLOCKS} {body} }}"),
+        format!("model M() {{ {CLOCKS} {body} }}"),
         format!(
-            "component Unused() {{ {CLOCKS} {body} }} model M {{ variable seed:1; relation r {{ seed=0; }} }}"
+            "component Unused() {{ {CLOCKS} {body} }} model M() {{ variable seed:1; relation r {{ seed=0; }} }}"
         ),
     ] {
         eqiora_lang::parse("activation.eqi", &source)
@@ -33,7 +33,7 @@ fn clock_profiles_propagate_forward_with_static_neutral_dependencies() {
         "parameter p:1=2; state x:1 at a; let result at a=identity+p; let identity at a=x; relation r { result=0; }",
     );
     let source = format!(
-        "component Unused() {{ {CLOCKS} state x:1 at a; let result at a=identity+2; let identity=x; }} model M {{ variable seed:1; relation r {{ seed=0; }} }}"
+        "component Unused() {{ {CLOCKS} state x:1 at a; let result at a=identity+2; let identity=x; }} model M() {{ variable seed:1; relation r {{ seed=0; }} }}"
     );
     compile("activation.eqi", &source).unwrap();
 }
@@ -90,7 +90,7 @@ fn assertions_do_not_create_read_fences_or_relax_evolution_obligations() {
 #[test]
 fn component_clock_assertions_follow_nested_binding_identity() {
     let source = format!(
-        "component Delay(clock tick,state value:1 at tick) {{ let old at tick=pre(value); relation r at tick {{ next(value)=old; }} }} component Forward(clock tick,state value:1 at tick) {{ let read at tick=value; instance d:Delay(clock tick=tick,field value=value); }} model M {{ {CLOCKS} state x:1 at a; instance f:Forward(clock tick=a,field value=x); }}"
+        "component Delay(clock tick: periodic,state value:1 at tick) {{ let old at tick=pre(value); relation r at tick {{ next(value)=old; }} }} component Forward(clock tick: periodic,state value:1 at tick) {{ let read at tick=value; instance d:Delay(tick =tick,value =value); }} model M() {{ {CLOCKS} state x:1 at a; instance f:Forward(tick =a,value =x); }}"
     );
     compile("activation.eqi", &source).unwrap();
 }
@@ -102,7 +102,7 @@ fn current_ports_contribute_continuous_dependencies() {
         "exact declared dependency clock",
     );
     let source = format!(
-        "component Child() {{ public port output:signal output 1; relation r {{ output=2; }} }} model M {{ {CLOCKS} instance child:Child; let read at a=child.output; relation r {{ read=2; }} }}"
+        "component Child(output output:1) {{ relation r {{ output=2; }} }} model M() {{ {CLOCKS} instance child: Child(); let read at a=child.output; relation r {{ read=2; }} }}"
     );
     let errors = compile("activation.eqi", &source).unwrap_err();
     assert!(

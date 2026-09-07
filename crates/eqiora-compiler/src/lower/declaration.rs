@@ -11,10 +11,12 @@ pub(super) fn lower_port(
         ResolvedPortContract::Signal {
             direction: SignalDirectionSyntax::Input,
             value_type,
+            ..
         } => Ok(PortDef::signal(id, SignalDirection::Input, value_type)),
         ResolvedPortContract::Signal {
             direction: SignalDirectionSyntax::Output,
             value_type,
+            ..
         } => Ok(PortDef::signal(id, SignalDirection::Output, value_type)),
         ResolvedPortContract::ScalarPhysical { domain, .. } => {
             Ok(PortDef::scalar_physical(id, domain))

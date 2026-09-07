@@ -10,7 +10,7 @@ pub(super) fn component_local_footprint(
     let mut declarations = 0_usize;
     let mut connections = 0_usize;
     let mut local_connectors = BTreeSet::new();
-    for item in definition.declaration.items() {
+    for item in definition.owned_items() {
         match item {
             ComponentItem::Parameter(_)
             | ComponentItem::Port(_)
@@ -117,10 +117,24 @@ pub(super) fn component_local_footprint(
                     );
                 }
             }
-            ComponentItem::Let(_)
-            | ComponentItem::Support(_)
-            | ComponentItem::FieldRequirement(_)
-            | ComponentItem::Instance(_) => {}
+            ComponentItem::Let(_) => {}
+            ComponentItem::Instance(instance) => {
+                let count = input_binding_count(
+                    elaborator,
+                    &definition.namespace,
+                    definition.file,
+                    instance,
+                    diagnostics,
+                );
+                checked_local_add(
+                    &mut connections,
+                    count,
+                    definition.file,
+                    instance.range(),
+                    "Input connections",
+                    diagnostics,
+                );
+            }
             _ => {}
         }
         let port = match item {
@@ -165,10 +179,10 @@ fn complete_exterior_cardinality(
 ) -> Option<usize> {
     let support = definition
         .declaration
-        .items()
+        .signature()
         .iter()
         .find_map(|item| match item {
-            ComponentItem::Support(support) if support.name() == set => Some(support),
+            eqiora_lang::SignatureItem::Support(support) if support.name() == set => Some(support),
             _ => None,
         });
     let Some(support) = support else {
@@ -192,10 +206,12 @@ fn complete_exterior_cardinality(
     let parent_name = parent;
     let parent = definition
         .declaration
-        .items()
+        .signature()
         .iter()
         .find_map(|item| match item {
-            ComponentItem::Support(parent_support) if parent_support.name() == parent_name => {
+            eqiora_lang::SignatureItem::Support(parent_support)
+                if parent_support.name() == parent_name =>
+            {
                 Some(parent_support)
             }
             _ => None,
@@ -233,11 +249,12 @@ fn complete_exterior_cardinality(
 }
 
 pub(super) fn model_local_footprint(
+    elaborator: &Elaborator<'_>,
     definition: &ModelDefinition<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> LocalFootprint {
     let mut footprint = LocalFootprint::default();
-    for item in definition.declaration.items() {
+    for item in definition.owned_items() {
         match item {
             Item::Field(field) => checked_local_add(
                 &mut footprint.declarations,
@@ -263,7 +280,24 @@ pub(super) fn model_local_footprint(
                 "Connection",
                 diagnostics,
             ),
-            Item::Boundary(_) | Item::Instance(_) | Item::Let(_) => {}
+            Item::Let(_) => {}
+            Item::Instance(instance) => {
+                let count = input_binding_count(
+                    elaborator,
+                    &definition.namespace,
+                    definition.file,
+                    instance,
+                    diagnostics,
+                );
+                checked_local_add(
+                    &mut footprint.connections,
+                    count,
+                    definition.file,
+                    instance.range(),
+                    "Input connections",
+                    diagnostics,
+                );
+            }
             _ => checked_local_add(
                 &mut footprint.declarations,
                 1,
@@ -293,5 +327,18 @@ fn checked_local_add(
             range,
             format!("local {resource} count overflows usize"),
         )),
+    }
+}
+
+fn input_binding_count(
+    elaborator: &Elaborator<'_>,
+    namespace: &super::super::preflight::DefinitionNamespace,
+    file: &str,
+    instance: &eqiora_lang::InstanceDecl,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> usize {
+    match elaborator.resolve_component(namespace, instance.definition(), file, instance.range()) {
+        Ok(child) => instance.bindings().iter().filter(|binding| child.signature().iter().any(|item| matches!(item, eqiora_lang::SignatureItem::Input(input) if input.name() == binding.name()))).count(),
+        Err(error) => { diagnostics.push(error); 0 }
     }
 }

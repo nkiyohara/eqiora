@@ -2,6 +2,8 @@
 
 pub(crate) mod geometry_admission;
 mod relation_admission;
+mod signal_activation;
+pub(crate) mod signal_connections;
 mod snapshot_admission;
 use relation_admission::validate_relations;
 mod spatial_domains;
@@ -366,11 +368,15 @@ fn require_no_clocks(
 fn validate_connections(
     nodes: &BTreeMap<RawId, KernelNode>,
     edges: &[Edge],
+    boundary: &BTreeSet<RawId>,
     cartesian_bounds: &BTreeMap<RawId, Vec<AxisBounds>>,
     geometry_boundary_junctions: &BTreeMap<RawId, GeometryBoundaryJunction>,
     geometry_boundary_embeddings: &BTreeMap<RawId, GeometryBoundaryEmbedding>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if let Err(errors) = signal_connections::sources(nodes, edges, boundary) {
+        diagnostics.extend(errors);
+    }
     let mut memberships = BTreeMap::new();
     for (&id, node) in nodes {
         let KernelNode::Connection(connection) = node else {
@@ -378,7 +384,8 @@ fn validate_connections(
         };
         let ports = edge_targets(edges, id, EdgeKind::Connects);
         for &port in &ports {
-            if let Some(previous) = memberships.insert(port, id) {
+            let signal_source = matches!(connection.semantics(), ConnectionSemantics::Signal { driver } if driver.erase() == port);
+            if !signal_source && let Some(previous) = memberships.insert(port, id) {
                 diagnostics.push(kernel_error(
                     id,
                     format!(
@@ -462,7 +469,7 @@ fn validate_connections(
                         diagnostics.push(spatial_periodic_connection_error(id, violation));
                     }
                 }
-                ConnectionSemantics::Signal => diagnostics.push(kernel_error(
+                ConnectionSemantics::Signal { .. } => diagnostics.push(kernel_error(
                     id,
                     "boundary-physical Ports require conserving or spatial-periodic Connection semantics",
                 )),
@@ -475,7 +482,7 @@ fn validate_connections(
         }
 
         let kind = match connection.semantics() {
-            ConnectionSemantics::Signal => ScalarConnectionKind::Signal,
+            ConnectionSemantics::Signal { .. } => ScalarConnectionKind::Signal,
             ConnectionSemantics::Conserving => ScalarConnectionKind::Conserving,
             ConnectionSemantics::SpatialPeriodic => {
                 diagnostics.push(kernel_error(
@@ -494,7 +501,19 @@ fn validate_connections(
         };
         let Some(contracts) = definitions
             .iter()
-            .map(|port| semantic_scalar_port_contract(port))
+            .map(|port| {
+                let mut contract = semantic_scalar_port_contract(port)?;
+                if let ConnectionSemantics::Signal { driver } = connection.semantics()
+                    && let ScalarPortContract::Signal { direction, .. } = &mut contract
+                {
+                    *direction = if port.id() == driver {
+                        eqiora_schema::kernel::SignalDirection::Output
+                    } else {
+                        eqiora_schema::kernel::SignalDirection::Input
+                    };
+                }
+                Some(contract)
+            })
             .collect::<Option<Vec<_>>>()
         else {
             diagnostics.push(kernel_error(
@@ -503,6 +522,21 @@ fn validate_connections(
             ));
             continue;
         };
+        if kind == ScalarConnectionKind::Signal
+            && let Some(first) = definitions.first()
+        {
+            let first = first.id().erase();
+            for definition in &definitions[1..] {
+                let other = definition.id().erase();
+                if edge_targets(edges, first, EdgeKind::ClockedBy)
+                    != edge_targets(edges, other, EdgeKind::ClockedBy)
+                    || edge_targets(edges, first, EdgeKind::DefinedOn)
+                        != edge_targets(edges, other, EdgeKind::DefinedOn)
+                {
+                    diagnostics.push(kernel_error(id, "signal Connection requires the same exact activation and spatial support; use an explicit transition"));
+                }
+            }
+        }
         if let Err(violation) = validate_scalar_connection(kind, &contracts) {
             diagnostics.push(scalar_connection_error(id, violation));
             continue;
@@ -661,6 +695,7 @@ fn validate_expression(
         .iter()
         .filter_map(|node| match node {
             ExprNode::Symbol(symbol) => symbol_id(*symbol),
+            ExprNode::Sample { clock, .. } => Some(clock.erase()),
             _ => None,
         })
         .collect();
@@ -810,7 +845,12 @@ fn symbol_type(
         SymbolRef::Port(id) => match nodes.get(&id.erase()) {
             Some(KernelNode::Port(port)) => port
                 .signal_contract()
-                .map(|(_, value_type)| ExpressionType::new(value_type.clone(), None))
+                .map(|(_, value_type)| {
+                    ExpressionType::new(
+                        value_type.clone(),
+                        field_support(id.erase(), edges, spatial_supports),
+                    )
+                })
                 .ok_or(SymbolTypeError::WrongPortContract),
             _ => Err(SymbolTypeError::Missing),
         },

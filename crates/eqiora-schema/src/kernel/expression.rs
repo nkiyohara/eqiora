@@ -102,6 +102,13 @@ pub enum ExprNode {
     Index { value: ExprId, index: u32 },
     /// Construct a complex scalar from real and imaginary scalar expressions.
     Complex { real: ExprId, imag: ExprId },
+    /// Explicit continuous-to-clocked value observation at the exact supplied clock.
+    Sample {
+        value: ExprId,
+        clock: Id<kinds::ClockDomain>,
+    },
+    /// Continuous read of an explicitly initialized and updated clocked State.
+    Hold(ExprId),
     /// Unary negation.
     Neg(ExprId),
     /// Addition.
@@ -145,7 +152,9 @@ impl ExprNode {
     ) -> Result<(), E> {
         match self {
             Self::Array { elements } => elements.iter().copied().try_for_each(visit),
-            Self::Index { value, .. }
+            Self::Sample { value, .. }
+            | Self::Hold(value)
+            | Self::Index { value, .. }
             | Self::Neg(value)
             | Self::PowI(value, _)
             | Self::UnaryMath(_, value)
@@ -285,6 +294,22 @@ impl ExprDagBuilder {
     /// Construct a complex scalar; typing checks both real scalar operands.
     pub fn complex(&mut self, real: ExprId, imag: ExprId) -> Result<ExprId, Diagnostic> {
         self.push(ExprNode::Complex { real, imag })
+    }
+
+    /// Sample a continuous expression on one exact nominal clock.
+    /// Semantic admission checks the clock and owning activation.
+    pub fn sample(
+        &mut self,
+        value: ExprId,
+        clock: Id<kinds::ClockDomain>,
+    ) -> Result<ExprId, Diagnostic> {
+        self.push(ExprNode::Sample { value, clock })
+    }
+
+    /// Hold an explicitly owned clocked State; no memory or initial value is invented.
+    /// Semantic admission requires a direct State symbol with initialization and updates.
+    pub fn hold(&mut self, value: ExprId) -> Result<ExprId, Diagnostic> {
+        self.push(ExprNode::Hold(value))
     }
 
     /// Add a checked constant; a numerical quantity supplies an explicit real scalar type.

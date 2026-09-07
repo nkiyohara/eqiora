@@ -2165,12 +2165,12 @@ mod tests {
                 "      solid_x_lower, solid_x_upper, solid_y_lower, solid_y_upper,\n      solid_z_lower, solid_z_upper\n",
             ),
             (
-                "  instance fluid_y_upper_zero: ZeroVelocity2d(\n    support body = fluid, support face = fluid_y_upper\n  );",
-                "  instance fluid_y_upper_zero: ZeroVelocity2d(\n    support body = fluid, support face = fluid_y_upper\n  );\n  instance fluid_z_lower_zero: ZeroVelocity2d(\n    support body = fluid, support face = fluid_z_lower\n  );\n  instance fluid_z_upper_zero: ZeroVelocity2d(\n    support body = fluid, support face = fluid_z_upper\n  );",
+                "  instance fluid_y_upper_zero: ZeroVelocity2d(\n    body = fluid, face = fluid_y_upper\n  );",
+                "  instance fluid_y_upper_zero: ZeroVelocity2d(\n    body = fluid, face = fluid_y_upper\n  );\n  instance fluid_z_lower_zero: ZeroVelocity2d(\n    body = fluid, face = fluid_z_lower\n  );\n  instance fluid_z_upper_zero: ZeroVelocity2d(\n    body = fluid, face = fluid_z_upper\n  );",
             ),
             (
-                "  instance solid_y_upper_zero: ZeroVelocity2d(\n    support body = solid, support face = solid_y_upper\n  );",
-                "  instance solid_y_upper_zero: ZeroVelocity2d(\n    support body = solid, support face = solid_y_upper\n  );\n  instance solid_z_lower_zero: ZeroVelocity2d(\n    support body = solid, support face = solid_z_lower\n  );\n  instance solid_z_upper_zero: ZeroVelocity2d(\n    support body = solid, support face = solid_z_upper\n  );",
+                "  instance solid_y_upper_zero: ZeroVelocity2d(\n    body = solid, face = solid_y_upper\n  );",
+                "  instance solid_y_upper_zero: ZeroVelocity2d(\n    body = solid, face = solid_y_upper\n  );\n  instance solid_z_lower_zero: ZeroVelocity2d(\n    body = solid, face = solid_z_lower\n  );\n  instance solid_z_upper_zero: ZeroVelocity2d(\n    body = solid, face = solid_z_upper\n  );",
             ),
             (
                 "  connect conserving\n    fluid_boundary.mechanical[boundary = fluid_y_upper],\n    fluid_y_upper_zero.mechanical;",

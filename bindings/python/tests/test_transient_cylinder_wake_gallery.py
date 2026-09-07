@@ -47,7 +47,9 @@ PRESENTATION_CALLS = {
     "eqiora.InitialField": 2,
     "result.trajectory.state": 1,
     "accepted.curl": 1,
-    "geometry.selection": 1,
+    # Three source call sites bind the volume and each boundary's exact parent;
+    # the fourth selects the cylinder for the existing force observation.
+    "geometry.selection": 4,
     "accepted.boundary_force": 1,
     "accepted.sample": 2,
     "vorticity.values": 1,

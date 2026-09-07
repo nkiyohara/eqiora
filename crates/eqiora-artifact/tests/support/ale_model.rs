@@ -42,14 +42,14 @@ public connector Mechanical = field_physical(
 public component Side(
   support body: volume(ambient_dimension = DIM),
   support face: boundary(parent = body),
+  port mechanical: conserving Mechanical over face,
 ) {
-  public port mechanical: conserving Mechanical over face;
   relation retain on face {
     trace(mechanical) = 0;
     flux(mechanical) = 0;
   }
 }
-model Main {
+model Main() {
   domain fluid = box(BOX);
   domain solid = box(1, 2, REST);
   domain fluid_face = boundary(fluid, axis = 0, side = upper);
@@ -61,8 +61,8 @@ model Main {
   variable displacement: vector<m, DIM> on solid;
   relation fluid_relation on fluid { fluid_velocity = 0; pressure = 0; }
   relation solid_relation on solid { solid_velocity = 0; displacement = 0; }
-  instance left: Side(support body = fluid, support face = fluid_face);
-  instance right: Side(support body = solid, support face = solid_face);
+  instance left: Side(body = fluid, face = fluid_face);
+  instance right: Side(body = solid, face = solid_face);
   connect conserving left.mechanical, right.mechanical;
 }
 "#

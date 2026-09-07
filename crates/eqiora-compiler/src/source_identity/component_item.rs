@@ -28,10 +28,6 @@ pub(super) fn encode_component_item(
             encoder.u16(15)?;
             encode_initial(&mut encoder, declaration, budget)?;
         }
-        ComponentItem::ClockRequirement(declaration) => {
-            encoder.u16(16)?;
-            encode_name(&mut encoder, declaration.name(), budget)?;
-        }
         ComponentItem::Field(declaration) => {
             encoder.u16(3)?;
             encode_field(&mut encoder, declaration, budget)?;
@@ -68,14 +64,6 @@ pub(super) fn encode_component_item(
             encoder.u16(7)?;
             encode_instance(&mut encoder, declaration, budget)?;
         }
-        ComponentItem::Support(declaration) => {
-            encoder.u16(9)?;
-            encode_support_slot(&mut encoder, declaration, budget)?;
-        }
-        ComponentItem::FieldRequirement(declaration) => {
-            encoder.u16(10)?;
-            encode_field_slot(&mut encoder, declaration, budget)?;
-        }
         _ => {
             return Err(source_identity_error(
                 "component item is newer than source identity v1",
@@ -101,7 +89,7 @@ mod tests {
     fn alias_item_tags_separate_containers_and_declaration_roles() {
         let doc = eqiora_lang::parse(
             "tags.eqi",
-            "component C() { let a = 1; } model M { let a = 1; }",
+            "component C() { let a = 1; } model M() { let a = 1; }",
         )
         .into_document()
         .unwrap();
@@ -159,7 +147,8 @@ mod tests {
         })
         .collect();
         let component =
-            SourceAstFactory::component(VisibilitySyntax::Private, "C", aliases, range).unwrap();
+            SourceAstFactory::component(VisibilitySyntax::Private, "C", Vec::new(), aliases, range)
+                .unwrap();
         let factory = SourceAstFactory::document(vec![], vec![component], vec![]).unwrap();
         assert_eq!(
             expected,

@@ -1,7 +1,7 @@
 //! Intrinsic alias types and shared, use-context evolution obligations.
 
 mod activation;
-use activation::DependencyActivation;
+pub(in crate::hierarchy) use activation::DependencyActivation;
 
 use super::*;
 use std::collections::BTreeSet;
@@ -14,6 +14,7 @@ pub(in crate::hierarchy::body_check) struct AliasContract {
     activation: DependencyActivation,
     dependencies: Vec<Arc<AliasContract>>,
     evolution: Vec<EvolutionRequirement>,
+    contextual: Vec<Expr>,
     endpoints: PhysicalEndpointSelections,
 }
 
@@ -63,6 +64,8 @@ pub(in crate::hierarchy::body_check) fn validate_aliases<'a>(
             intrinsic: true,
             alias_dependencies: Vec::new(),
             evolution: Vec::new(),
+            contextual: Vec::new(),
+            sampling: false,
         };
         let inferred = match checker.check(declaration.value()).and_then(|inferred| {
             if let Some(domain) = declaration.domain() {
@@ -120,6 +123,7 @@ pub(in crate::hierarchy::body_check) fn validate_aliases<'a>(
             field_target,
             dependencies: checker.alias_dependencies,
             evolution: checker.evolution,
+            contextual: checker.contextual,
             endpoints: checker.physical_endpoints,
         };
         scope.symbols.insert(
@@ -160,6 +164,9 @@ impl ExpressionChecker<'_, '_, '_> {
                 .expect("retained source name and range");
                 self.check_evolution(&requirement.operator, &argument, &argument)?;
             }
+            for expression in &alias.contextual {
+                self.check(expression)?;
+            }
             pending.extend(alias.dependencies.iter().cloned());
         }
         Ok(inferred)
@@ -171,6 +178,14 @@ impl ExpressionChecker<'_, '_, '_> {
         expression: &Expr,
         argument: &Expr,
     ) -> Result<ExpressionType<String>, Diagnostic> {
+        if self.sampling {
+            return Err(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                self.scope.file,
+                expression.range(),
+                "sample operand cannot contain an evolution operator",
+            ));
+        }
         let ExprKind::Name(name) = argument.kind() else {
             return Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
@@ -208,7 +223,9 @@ impl ExpressionChecker<'_, '_, '_> {
                 }
                 if matches!(callee_name, "pre" | "next")
                     && (!matches!(activation, ActivationSyntax::Periodic(_))
-                        || (!self.intrinsic && !self.initial && activation != self.activation)
+                        || (!self.intrinsic
+                            && !self.initial
+                            && !self.scope.activation_matches(activation, self.activation))
                         || (!self.intrinsic && self.initial && callee_name == "next"))
                 {
                     return Err(source_error(

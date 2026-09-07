@@ -1,4 +1,4 @@
-model elastic_relation {
+model elastic_relation() {
   domain body = box(0, 1, 0, 1);
   variable displacement: vector<m, 2> on body;
   parameter mu: kg / (m * s ^ 2) = 2;

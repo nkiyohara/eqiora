@@ -11,7 +11,7 @@ use std::path::Path;
 use std::process::Command;
 
 const SOURCE: &str = r#"
-model decay {
+model decay() {
   state x: 1;
   initial { x = 1; }
   parameter rate: 1 / s = 1;
@@ -81,7 +81,7 @@ fn python_compile_contract_is_claim_local_and_transport_neutral() -> PyResult<()
             .call1((module.getattr("compile")?,))?;
         assert_eq!(
             signature.str()?.to_str()?,
-            "(*, path=None, source=None, filename=None, geometry=None, parameters=None, component=None)"
+            "(*, path=None, source=None, filename=None, geometry=None, bindings=None, entry=None)"
         );
         Ok(())
     })
@@ -127,8 +127,8 @@ fn assert_stub_compile_contract(py: Python<'_>) -> PyResult<()> {
             "source".to_owned(),
             "filename".to_owned(),
             "geometry".to_owned(),
-            "parameters".to_owned(),
-            "component".to_owned(),
+            "bindings".to_owned(),
+            "entry".to_owned(),
         ]
     );
     assert!(arguments.getattr("vararg")?.is_none());
@@ -158,12 +158,12 @@ fn argument_names(arguments: &Bound<'_, PyAny>) -> PyResult<Vec<String>> {
 }
 
 #[test]
-fn independent_python_control_and_direct_compilations_share_only_structure() -> PyResult<()> {
+fn independent_python_control_and_direct_compilations_share_canonical_identity() -> PyResult<()> {
     Python::initialize();
     Python::attach(|py| {
         let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
         let module = native.bind(py);
-        let filename = "three-independent-occurrences.eqi";
+        let filename = "three-canonical-routes.eqi";
 
         let kwargs = PyDict::new(py);
         kwargs.set_item("filename", filename)?;
@@ -177,10 +177,10 @@ fn independent_python_control_and_direct_compilations_share_only_structure() -> 
             panic!("control-v2 rejected the accepted frozen source")
         };
         let control_reference = control_document.artifact_reference().unwrap();
-        assert_eq!(model.schema(), "eqiora.model-envelope/v13");
+        assert_eq!(model.schema(), "eqiora.model-envelope/v14");
         assert_eq!(
             model.transaction_schema(),
-            "eqiora.model-transaction-envelope/v13"
+            "eqiora.model-transaction-envelope/v14"
         );
         assert_eq!(model.model_id(), control_reference.model().to_string());
         assert_eq!(model.digest(), control_reference.artifact().as_str());
@@ -203,8 +203,15 @@ fn independent_python_control_and_direct_compilations_share_only_structure() -> 
             control_reference.artifact().to_string(),
             direct_reference.artifact().to_string(),
         ];
-        assert_pairwise_distinct(&ids);
-        assert_pairwise_distinct(&digests);
+        assert_eq!(ids[0], ids[1]);
+        assert_eq!(ids[1], ids[2]);
+        assert_eq!(digests[0], digests[1]);
+        assert_eq!(digests[1], digests[2]);
+        let changed_source =
+            SOURCE.replace("parameter rate: 1 / s = 1;", "parameter rate: 1 / s = 2;");
+        assert_ne!(changed_source, SOURCE);
+        let changed = ModelDocument::compile(filename, &changed_source).unwrap();
+        assert_ne!(changed.digest().unwrap(), direct.digest().unwrap());
 
         let python_fingerprint = python.getattr("structural_fingerprint")?;
         let python_fingerprint = (
@@ -229,7 +236,7 @@ fn independent_python_control_and_direct_compilations_share_only_structure() -> 
 
 #[test]
 fn rejected_python_control_and_direct_compilations_preserve_ordinary_diagnostics() -> PyResult<()> {
-    const REJECTED: &str = "model broken { field ; }";
+    const REJECTED: &str = "model broken() { field ; }";
     const FILENAME: &str = "three-path-rejection.eqi";
 
     let direct = ModelDocument::compile(FILENAME, REJECTED).unwrap_err();
@@ -464,7 +471,7 @@ fn python_control_plane_preserves_identity_and_fails_closed() -> PyResult<()> {
         )?;
 
         let invalid_kwargs = PyDict::new(py);
-        invalid_kwargs.set_item("source", "model broken { field ; }")?;
+        invalid_kwargs.set_item("source", "model broken() { field ; }")?;
         let invalid_source = module
             .getattr("compile")?
             .call((), Some(&invalid_kwargs))
@@ -671,12 +678,6 @@ fn collect_rust_sources(directory: &Path, output: &mut Vec<std::path::PathBuf>) 
             output.push(path);
         }
     }
-}
-
-fn assert_pairwise_distinct<T: std::fmt::Debug + PartialEq>(values: &[T; 3]) {
-    assert_ne!(&values[0], &values[1]);
-    assert_ne!(&values[0], &values[2]);
-    assert_ne!(&values[1], &values[2]);
 }
 
 fn model_bytes(model: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {

@@ -1,4 +1,4 @@
-model Network {
+model Network() {
   domain physical = scalar_physical(across = 1, through = 1);
   port a: conserving on physical;
   port b: conserving on physical;

@@ -1,4 +1,4 @@
-model resistor {
+model resistor() {
   domain electrical = scalar_physical(
     across = kg * m ^ 2 / (s ^ 3 * A),
     through = A

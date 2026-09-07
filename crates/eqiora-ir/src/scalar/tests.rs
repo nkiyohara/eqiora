@@ -366,3 +366,24 @@ fn bound_affine_rejects_nonlinear_dependence_and_nonfinite_arithmetic() {
         Err(BoundAffineFailure::NonFiniteArithmetic { .. })
     ));
 }
+
+#[test]
+fn scalar_transition_projection_reuses_values_and_remaps_subsequent_operands() {
+    let field = Id::<kinds::Field>::new();
+    let clock = Id::<kinds::ClockDomain>::new();
+    let mut expression = ExprDagBuilder::new();
+    let memory = expression.symbol(SymbolRef::Field(field)).unwrap();
+    let held = expression.hold(memory).unwrap();
+    let sampled = expression.sample(held, clock).unwrap();
+    let two = expression
+        .constant(DynQuantity::new(2., DimExponents::DIMENSIONLESS))
+        .unwrap();
+    let scaled = expression.mul(sampled, two).unwrap();
+    let residual = expression.sub(scaled, held).unwrap();
+    let ir =
+        ScalarOperatorIr::lower(&expression.finish([held, sampled, residual]).unwrap()).unwrap();
+    // One read, one constant, multiply and subtract; transitions add no arithmetic.
+    assert_eq!(ir.instruction_count(), 4);
+    assert_eq!(ir.symbols(), &[SymbolRef::Field(field)]);
+    assert_eq!(ir.evaluate(&[3.]).unwrap(), vec![3., 3., 3.]);
+}

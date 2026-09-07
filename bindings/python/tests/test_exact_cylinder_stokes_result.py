@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 import eqiora
+from _signature_bindings import support_bindings
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
@@ -43,16 +44,7 @@ def geometry_and_mesh() -> tuple[eqiora.geometry.Geometry, eqiora.meshing.Mesh]:
 
 def accepted() -> tuple[eqiora.geometry.Geometry, eqiora.Model, eqiora.Plan, eqiora.Result]:
     geometry, mesh = geometry_and_mesh()
-    model = eqiora.compile(
-        path=files(eqiora).joinpath("examples", "steady-flow-past-cylinder.eqi"),
-        geometry=geometry,
-        parameters={
-            "dynamic_viscosity": 1.0e-3,
-            "zero_pressure": 0.0,
-            "inlet_speed": 0.3,
-            "channel_height": geometry.bounds[1][1] - geometry.bounds[1][0],
-        },
-    )
+    model = eqiora.compile(path=files(eqiora).joinpath('examples', 'steady-flow-past-cylinder.eqi'), geometry=geometry, entry='SteadyFlowPastCylinder', bindings={**support_bindings(geometry, ['fluid'], [('inlet', 'fluid'), ('outlet', 'fluid'), ('walls', 'fluid'), ('cylinder', 'fluid')]), **{'dynamic_viscosity': 0.001, 'zero_pressure': 0.0, 'inlet_speed': 0.3, 'channel_height': geometry.bounds[1][1] - geometry.bounds[1][0]}})
     plan = eqiora.resolve(
         model,
         mesh=mesh,
@@ -127,7 +119,7 @@ def test_displaced_fluid_lifecycle_is_absent_and_cross_physics_fails() -> None:
         assert name not in eqiora.fluid.__all__
 
     ode = eqiora.compile(source="""
-model decay {
+model decay() {
   state x: 1;
   initial { x = 1; }
   parameter rate: 1 / s = 1;

@@ -111,7 +111,12 @@ component.relation(
 )
 
 text = source.to_eqi()
-model = eqiora.compile(source=source, geometry=geometry, parameters={"length": 1.0})
+model = eqiora.compile(
+    source=source,
+    entry="Diffusion",
+    geometry=geometry,
+    bindings={"body": geometry.selection("body"), "length": 1.0},
+)
 ```
 
 Source Relations require an ordered `left=` and `right=` pair, including an
@@ -126,7 +131,7 @@ failure does not publish a partly written source file.
 
 A Source can contain multiple Components within its existing declaration bound.
 Use `parent.instance(...)` to bind a child's requirements explicitly, and select the
-entry with `eqiora.compile(source=source, component="Parent", ...)` when the source
+entry with `eqiora.compile(source=source, entry="Parent", ...)` when the source
 contains multiple public Components. A Source containing property contracts still
 requires the exact Model Package compilation path described below.
 
@@ -222,25 +227,25 @@ root_body = root.volume("body", dimensions=2)
 root.instance(
     "equation",
     component=law,
-    supports={law_body: root_body},
-    parameters={},
-    material=material,
+    bindings={law_body: root_body, diffusivity: material["diffusivity"]},
 )
 source.write_eqi("src/property-diffusion.eqi")
 ```
 
-The composition mapping may contain several releases. The emitted instance uses
-`material = ReferenceMaterial`; compilation checks
-that the composition supplies every Component property exactly once and that
-each release implements the required nominal contract.
+The composition mapping may contain several releases. Each instance binding
+selects a member explicitly, such as `diffusivity = ReferenceMaterial.diffusivity`.
+Compilation checks that every required property is supplied exactly once and
+that each release implements the required nominal contract.
 
-Property contracts and releases are package-nominal. Passing this Source to
-ordinary `eqiora.compile(source=...)` therefore fails with a focused
-`SourceError`: that path has no exact package namespace. Emit the `.eqi` into an
-exact Model Package and use `compile_package` after the package has been locked.
-Python does not synthesize package lineage, normalize the release, or evaluate
-the property. The locked Rust compiler remains the owner, and its resulting
-Model exposes the existing immutable `property_bindings` inspection.
+Contracts and releases authored in the same Source can compile locally through
+`eqiora.compile(source=source, entry=..., bindings=...)`. The shared Rust compiler
+checks each exact release or composition member against its nominal contract;
+a same-spelled handle from another Source is rejected before emission.
+
+To retain exact package provenance, emit the `.eqi` into a Model Package, lock
+it, and use `compile_package`. That route exposes the existing immutable
+`property_bindings` inspection. Local compilation does not synthesize package
+lineage, and Python does not normalize or evaluate the property itself.
 
 The complete current vocabulary and steady-cylinder Component are shown in
 [`examples/python/steady_cylinder_source.py`](../../examples/python/steady_cylinder_source.py).
@@ -319,7 +324,7 @@ assert eqiora.open_project(".", store_root) == resolution
 model = eqiora.compile_package(
     store_root,
     resolution,
-    entry_model="materials.Calibration",
+    entry="materials.Calibration",
 )
 ```
 
@@ -405,7 +410,9 @@ Concurrent project writes are rejected; retry after the other operation finishes
 
 Python can bind an existing content-addressed package's public Component to
 caller-owned Geometry and produce the same ordinary immutable `Model` used by
-local source compilation:
+local source compilation. Here `support_bindings` explicitly maps every support
+name in the selected signature to a Geometry selection; each boundary maps to
+`(boundary_selection, parent_selection)`:
 
 ```python
 from pathlib import Path
@@ -418,8 +425,8 @@ model = eqiora.compile_package(
     store_root,
     resolution,
     geometry=geometry,
-    component="PoissonRectangle",
-    parameters={"wave_number": 3.14159, "source_scale": 19.7392},
+    entry="PoissonRectangle",
+    bindings={**support_bindings, "wave_number": 3.14159, "source_scale": 19.7392},
 )
 
 print(model.digest)
@@ -430,11 +437,11 @@ for binding in model.property_bindings:
 ```
 
 The caller selects one explicit store directory and supplies the exact bytes
-from `ResolutionRecordV1.canonical_json()`. Exactly one compile mode is selected:
-`entry_model=` names a root-local or directly imported public Model, while
-`geometry=` plus `component=` binds one root-package public Component to
-caller-owned Geometry and optional parameter values. Rust verifies the complete
-locked closure and uses the same compiler-owned graph in both modes.
+from `ResolutionRecordV1.canonical_json()`. The required `entry=` names the
+selected public Model or Component. `bindings=` explicitly supplies its required
+signature inputs, with `geometry=` authenticating any Geometry selections. Rust
+verifies the complete locked closure and uses the same compiler-owned graph
+for both declaration kinds.
 Human-formatted, reordered, newline-terminated, duplicate-key, or
 store-mismatched resolution bytes fail closed. Missing or ambiguous support
 bindings fail instead of matching Geometry by bounds, coordinates, or digest.
@@ -582,8 +589,14 @@ from importlib.resources import files
 
 model = eqiora.compile(
     path=files(eqiora).joinpath("examples", "steady-flow-past-cylinder.eqi"),
+    entry="SteadyFlowPastCylinder",
     geometry=geometry,
-    parameters={
+    bindings={
+        "fluid": geometry.selection("fluid"),
+        **{
+            name: (geometry.selection(name), geometry.selection("fluid"))
+            for name in ("inlet", "outlet", "walls", "cylinder")
+        },
         "dynamic_viscosity": 1.0e-3,
         "zero_pressure": 0.0,
         "inlet_speed": 0.3,
@@ -698,8 +711,16 @@ mesh_plan = eqiora.meshing.resolve(
 mesh = eqiora.meshing.generate(mesh_plan)
 model = eqiora.compile(
     path=files(eqiora).joinpath("examples", "mixed-boundary-elasticity.eqi"),
+    entry="MixedBoundaryElasticity2d",
     geometry=geometry,
-    parameters={"mu": 3.0, "lambda": 0.0, "length_scale": 1.0},
+    bindings={
+        "body": geometry.selection("body"),
+        **{
+            name: (geometry.selection(name), geometry.selection("body"))
+            for name in ("x_lower", "x_upper", "y_lower", "y_upper")
+        },
+        "mu": 3.0, "lambda": 0.0, "length_scale": 1.0,
+    },
 )
 plan = eqiora.resolve(
     model,
@@ -761,8 +782,18 @@ then supplies exact Model-bound spatial scopes:
 model = eqiora.compile(
     path=files(eqiora).joinpath("examples", "fixed-reference-fsi.eqi"),
     geometry=geometry,
-    component="FixedReferenceFsi2d",
-    parameters=parameters,
+    entry="FixedReferenceFsi2d",
+    bindings={
+        **parameters,
+        **{region: geometry.selection(region) for region in ("fluid", "solid")},
+        **{
+            f"{region}_{side}": (
+                geometry.selection(f"{region}_{side}"), geometry.selection(region)
+            )
+            for region in ("fluid", "solid")
+            for side in ("x_lower", "x_upper", "y_lower", "y_upper")
+        },
+    },
 )
 plan = eqiora.resolve(
     model,
@@ -973,7 +1004,7 @@ assert same.revision == child.revision
 ```
 
 The canonical bytes still expose the persisted
-`eqiora.model-envelope/v13` schema, but callers do not select that suffix.
+`eqiora.model-envelope/v14` schema, but callers do not select that suffix.
 `.eqi` remains source text; `.eqmodel` is the canonical compiled Model artifact.
 Only the current schema is accepted; decoding never sniffs, retries, or silently
 migrates an older artifact.
@@ -985,10 +1016,9 @@ comparison:
 ```python
 source_model = eqiora.compile(
     source="""
-    model decay {
+    model decay(parameter rate: 1 / s = 1) {
       state x: 1;
       initial { x = 1; }
-      parameter rate: 1 / s = 1;
       relation flow {
         derivative(x) + rate * x = 0;
       }

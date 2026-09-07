@@ -19,17 +19,16 @@ public component FixedReferenceFsi2d(
   support solid_x_lower: boundary(parent = solid),
   support solid_x_upper: boundary(parent = solid),
   support solid_y_lower: boundary(parent = solid),
-  support solid_y_upper: boundary(parent = solid)
+  support solid_y_upper: boundary(parent = solid),
+  // Material properties and the reference pressure are compile-time Model inputs.
+  parameter fluid_density: kg / m ^ 3,
+  parameter fluid_viscosity: kg / (m * s),
+  parameter solid_density: kg / m ^ 3,
+  parameter solid_mu: kg / (m * s ^ 2),
+  parameter solid_lambda: kg / (m * s ^ 2),
+  parameter zero_pressure: kg / (m * s ^ 2)
 ) {
   // Each 2D volume owns four boundary roles; the touching pair becomes the interface.
-
-  // Material properties and the reference pressure are compile-time Model inputs.
-  public parameter fluid_density: kg / m ^ 3;
-  public parameter fluid_viscosity: kg / (m * s);
-  public parameter solid_density: kg / m ^ 3;
-  public parameter solid_mu: kg / (m * s ^ 2);
-  public parameter solid_lambda: kg / (m * s ^ 2);
-  public parameter zero_pressure: kg / (m * s ^ 2);
 
   // Unknown continuum fields are scoped explicitly to the fluid or solid support.
 

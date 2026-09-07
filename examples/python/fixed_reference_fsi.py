@@ -38,8 +38,16 @@ def solve() -> eqiora.Result:
     model = eqiora.compile(
         path=files(eqiora).joinpath("examples", "fixed-reference-fsi.eqi"),
         geometry=geometry,
-        component="FixedReferenceFsi2d",
-        parameters={
+        entry="FixedReferenceFsi2d",
+        bindings={
+            **{region: geometry.selection(region) for region in ("fluid", "solid")},
+            **{
+                f"{region}_{side}": (
+                    geometry.selection(f"{region}_{side}"), geometry.selection(region)
+                )
+                for region in ("fluid", "solid")
+                for side in ("x_lower", "x_upper", "y_lower", "y_upper")
+            },
             "fluid_density": 2.0,
             "fluid_viscosity": 0.5,
             "solid_density": 3.0,

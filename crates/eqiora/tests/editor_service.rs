@@ -2,14 +2,14 @@ use eqiora::api::{EditorPosition, EditorService, EditorSymbolKind};
 
 #[test]
 fn public_facade_analyzes_one_versioned_source_snapshot() {
-    let source = "// μ\nmodel Demo { variable state: 1; relation balance { state = 0; } }\n";
+    let source = "// μ\nmodel Demo() { variable state: 1; relation balance { state = 0; } }\n";
     let service = EditorService::new("demo.eqi", 11, source);
     let snapshot = service.snapshot(11).expect("current source version");
 
     assert!(snapshot.diagnostics().is_empty());
     let formatted = concat!(
         "// μ\n",
-        "model Demo {\n",
+        "model Demo() {\n",
         "  variable state: 1;\n",
         "  relation balance {\n",
         "    state = 0;\n",

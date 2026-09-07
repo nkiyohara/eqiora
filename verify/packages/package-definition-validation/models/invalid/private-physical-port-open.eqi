@@ -4,4 +4,4 @@ component Broken() {
   port terminal: conserving on Pin;
 }
 
-model Main {}
+model Main() {}

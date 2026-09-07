@@ -1,16 +1,21 @@
 //! Deterministic reference execution for scalar continuous/periodic models.
 
+mod clocked_variables;
+use clocked_variables::{clear_clocked_variables, is_clocked_variable};
 mod event_localization;
 mod execution_plan;
 mod initialization;
 pub use initialization::InitialState;
 use initialization::solve_initialization;
+mod sampled;
 mod samples;
+pub use sampled::SampledSession;
 
 use event_localization::{crossing_events, locate_event_time};
 use samples::record_samples;
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::ops::ControlFlow;
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, DynQuantity, GraphPath, RawId};
@@ -84,23 +89,14 @@ fn accepted_progress(time: f64, steps: usize, config: ReferenceConfig) -> Execut
     ExecutionProgress::new(time, config.end_time, steps, config.max_steps)
 }
 
-/// Control-plane decision returned only at an accepted execution boundary.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ExecutionDirective {
-    /// Continue from the accepted state.
-    Continue,
-    /// Stop and return the accepted boundary without producing a trajectory.
-    Cancel,
-}
-
 /// Synchronous observer for accepted semantic-execution boundaries.
 ///
 /// Implementations must remain bounded. Presentation adapters should
 /// coalesce progress before crossing an IPC boundary; this callback is not a
 /// numerical inner-loop extension point.
 pub trait ExecutionObserver {
-    /// Inspect one accepted boundary and decide whether execution continues.
-    fn observe(&mut self, progress: ExecutionProgress) -> ExecutionDirective;
+    /// Inspect one accepted boundary; Break cancels without a trajectory.
+    fn observe(&mut self, progress: ExecutionProgress) -> ControlFlow<()>;
 }
 
 /// Terminal outcome of explicitly controlled reference execution.
@@ -116,8 +112,8 @@ pub enum ExecutionOutcome {
 struct Uninterrupted;
 
 impl ExecutionObserver for Uninterrupted {
-    fn observe(&mut self, _progress: ExecutionProgress) -> ExecutionDirective {
-        ExecutionDirective::Continue
+    fn observe(&mut self, _progress: ExecutionProgress) -> ControlFlow<()> {
+        ControlFlow::Continue(())
     }
 }
 
@@ -355,10 +351,11 @@ impl Interpreter {
     /// Evaluate a validated model with deterministic reference numerics.
     ///
     /// Periodic activations at the same exact rational instant are solved as
-    /// one simultaneous system. At an activation instant, `Field` and `Pre`
-    /// read the pre-activation state while `Next` values commit atomically.
-    /// Causal signal inputs alias their one output and periodic outputs hold
-    /// their value between ticks.
+    /// one simultaneous system. At an activation instant, State reads and `Pre`
+    /// use accepted memory while `Next` commits atomically. Clocked Variables
+    /// are current-tick algebraic unknowns and have no value between ticks.
+    /// Causal inputs resolve their exact directed source; continuous retention
+    /// requires an explicit Hold of initialized State memory.
     ///
     /// # Errors
     /// Returns structured diagnostics for missing initial/input values,
@@ -468,9 +465,7 @@ impl Interpreter {
         let mut zero_time_events = 0_usize;
 
         let progress = accepted_progress(time, steps, config);
-        if time < config.end_time
-            && matches!(observer.observe(progress), ExecutionDirective::Cancel)
-        {
+        if time < config.end_time && matches!(observer.observe(progress), ControlFlow::Break(())) {
             return Ok(ExecutionOutcome::Cancelled(progress));
         }
 
@@ -494,7 +489,7 @@ impl Interpreter {
                 unconstrained_target = config.end_time;
             }
             let next_tick = plan.next_tick().filter(|tick| {
-                tick.as_seconds_f64() <= config.end_time
+                sampled::within_horizon(*tick, config.end_time)
                     && tick.as_seconds_f64() <= unconstrained_target + time_tolerance
             });
             let hits_tick = next_tick.is_some();
@@ -631,7 +626,7 @@ impl Interpreter {
                     steps += 1;
                     if time < config.end_time {
                         let progress = accepted_progress(time, steps, config);
-                        if matches!(observer.observe(progress), ExecutionDirective::Cancel) {
+                        if matches!(observer.observe(progress), ControlFlow::Break(())) {
                             return Ok(ExecutionOutcome::Cancelled(progress));
                         }
                     }
@@ -661,7 +656,7 @@ impl Interpreter {
             steps += 1;
             if time < config.end_time {
                 let progress = accepted_progress(time, steps, config);
-                if matches!(observer.observe(progress), ExecutionDirective::Cancel) {
+                if matches!(observer.observe(progress), ControlFlow::Break(())) {
                     return Ok(ExecutionOutcome::Cancelled(progress));
                 }
             }
@@ -674,7 +669,7 @@ impl Interpreter {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct ExecutionPlan {
     initial_relations: BTreeSet<RawId>,
     continuous_relations: BTreeSet<RawId>,
@@ -699,13 +694,19 @@ impl ExecutionPlan {
         for task in self.periodic.iter_mut().filter(|task| task.next == instant) {
             relations.extend(&task.relations);
             task.next = task.next.checked_add(task.period)?;
+            task.tick_index = task
+                .tick_index
+                .checked_add(1)
+                .ok_or_else(|| config_error("periodic tick index overflow"))?;
         }
         Ok(relations)
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct PeriodicTask {
+    clock: RawId,
+    tick_index: u64,
     relations: BTreeSet<RawId>,
     period: RationalTime,
     next: RationalTime,
@@ -725,7 +726,7 @@ impl RuntimeState {
         let mut ports = BTreeMap::new();
         for node in program.nodes() {
             match node {
-                KernelNode::Field(field) => {
+                KernelNode::Field(field) if !is_clocked_variable(program, field.id().erase()) => {
                     let id = field.id().erase();
                     fields.insert(id, 0.0);
                 }
@@ -882,6 +883,7 @@ fn solve_continuous_step(
     }
     commit_solution(&variables, &solution, state);
     state.derivatives.extend(candidates.derivatives);
+    clear_clocked_variables(program, state);
     Ok(())
 }
 
@@ -899,17 +901,20 @@ fn execute_due_tick(
             time,
         ));
     };
-    let relations = plan.take_due_relations(instant)?;
+    let mut candidate_plan = plan.clone();
+    let relations = candidate_plan.take_due_relations(instant)?;
     execute_activated_relations(
         program,
-        plan,
+        &candidate_plan,
         state,
         time,
         &relations,
         "periodic-activation",
         config,
         backend,
-    )
+    )?;
+    *plan = candidate_plan;
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -923,14 +928,22 @@ fn execute_activated_relations(
     config: ReferenceConfig,
     backend: &impl ExpressionBackend,
 ) -> Result<(), Diagnostic> {
+    let mut accepted_candidate = state.clone();
+    clear_clocked_variables(program, &mut accepted_candidate);
     let mut variables = BTreeSet::new();
     for &relation in relations {
         for symbol in relation_symbols(program, relation)? {
             match symbol {
+                SymbolRef::Field(field) if is_clocked_variable(program, field.erase()) => {
+                    variables.insert(Variable::Field(field.erase()));
+                }
                 SymbolRef::Next(field) => {
                     variables.insert(Variable::NextField(field.erase()));
                 }
-                SymbolRef::Port(port) if is_output_port(program, port.erase()) => {
+                SymbolRef::Port(port)
+                    if is_output_port(program, port.erase())
+                        && !plan.signal_sources.contains_key(&port.erase()) =>
+                {
                     variables.insert(Variable::Port(port.erase()));
                 }
                 _ => {}
@@ -938,34 +951,51 @@ fn execute_activated_relations(
         }
     }
     let variables = variables.into_iter().collect::<Vec<_>>();
-    let initial = variables
-        .iter()
-        .map(|variable| variable_value(*variable, state))
-        .collect();
-    let solution = solver::solve(
-        initial,
-        config.nonlinear_settings(),
-        execution_path(phase, time),
-        |values| {
-            let candidates = candidate_maps(&variables, values, state);
-            evaluate_relations(
-                program,
-                relations,
-                time,
-                state,
-                &candidates.fields,
-                &candidates.derivatives,
-                &candidates.next_fields,
-                &candidates.ports,
-                &candidates.physical,
-                &plan.signal_sources,
-                &[],
-                backend,
-            )
-        },
+    let (initial, check_rank) =
+        clocked_variables::solve_seed(program, &variables, &accepted_candidate, config);
+    let residual = |values: &[f64]| {
+        let candidates = candidate_maps(&variables, values, &accepted_candidate);
+        evaluate_relations(
+            program,
+            relations,
+            time,
+            &accepted_candidate,
+            &candidates.fields,
+            &candidates.derivatives,
+            &candidates.next_fields,
+            &candidates.ports,
+            &candidates.physical,
+            &plan.signal_sources,
+            &[],
+            backend,
+        )
+    };
+    let solution = if check_rank {
+        solver::solve_initial(
+            initial,
+            config.nonlinear_settings(),
+            execution_path(phase, time),
+            residual,
+        )
+    } else {
+        solver::solve(
+            initial,
+            config.nonlinear_settings(),
+            execution_path(phase, time),
+            residual,
+        )
+    }?;
+    commit_solution(&variables, &solution, &mut accepted_candidate);
+    solve_consistency(
+        program,
+        plan,
+        &mut accepted_candidate,
+        time,
+        config,
+        backend,
     )?;
-    commit_solution(&variables, &solution, state);
-    solve_consistency(program, plan, state, time, config, backend)
+    *state = accepted_candidate;
+    Ok(())
 }
 
 struct CandidateMaps {
@@ -1143,43 +1173,6 @@ fn physical_systems(program: &KernelProgram) -> Result<Vec<ComposedResidualSyste
             .or_insert(system);
     }
     Ok(systems.into_values().collect())
-}
-
-fn signal_sources(program: &KernelProgram) -> Result<BTreeMap<RawId, RawId>, Diagnostic> {
-    let mut sources = BTreeMap::new();
-    for node in program.nodes() {
-        let KernelNode::Connection(connection) = node else {
-            continue;
-        };
-        let id = connection.id().erase();
-        match connection.semantics() {
-            ConnectionSemantics::Signal => {
-                let ports = edge_targets(program, id, eqiora_graph::EdgeKind::Connects);
-                let Some(output) = ports
-                    .iter()
-                    .find(|port| is_output_port(program, **port))
-                    .copied()
-                else {
-                    return Err(execution_error(
-                        "signal Connection has no validated output Port",
-                        0.0,
-                    ));
-                };
-                for input in ports.into_iter().filter(|port| *port != output) {
-                    sources.insert(input, output);
-                }
-            }
-            ConnectionSemantics::Conserving | ConnectionSemantics::SpatialPeriodic => {}
-            _ => {
-                return Err(Diagnostic::error(
-                    codes::NOT_IMPLEMENTED,
-                    "Connection semantics are newer than this reference interpreter",
-                )
-                .with_graph_path(kernel_path(id)));
-            }
-        }
-    }
-    Ok(sources)
 }
 
 fn is_output_port(program: &KernelProgram, port: RawId) -> bool {

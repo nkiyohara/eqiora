@@ -1,10 +1,9 @@
 # References
 
 The semantic reference is the accepted transport-neutral operation
-`eqiora::api::ModelDocument::compile(&str, &str)` at protected predecessor
-`280ccfe3046d7b7279f821d68f19f38b7b5a9fcd`. The oracle calls that operation
-independently; it does not copy compiler logic or compare identities from two
-fresh Model occurrences.
+`eqiora::api::ModelDocument::compile(&str, &str)`. The oracle calls that operation
+independently and compares the canonical identity of repeated source compilation.
+A changed Parameter value must change the exact artifact digest.
 
 The exact command, stream, resource, containment, architecture, and
 installed-candidate rules are frozen by the accepted cumulative CLI

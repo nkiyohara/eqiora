@@ -1,7 +1,7 @@
 public pure operator dyadic(left: spatial[1], right: spatial[1]) -> spatial[2]
   = component(left, 0) * component(right, 1);
 
-model elastic_relation {
+model elastic_relation() {
   domain body = box(0, 1, 0, 1);
   variable displacement: vector<m, 2> on body;
   parameter mu: kg / (m * s ^ 2) = 2;

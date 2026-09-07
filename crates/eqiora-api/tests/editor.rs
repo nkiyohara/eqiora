@@ -11,11 +11,12 @@ use eqiora_core::diagnostic::codes;
 fn snapshot_combines_recovery_formatting_symbols_and_semantic_diagnostics() {
     let source = r#"// authored note
 dimension Scalar = 1;
-component Source() {
-  public parameter gain: Scalar;
+component Source(
+  parameter gain: Scalar
+) {
   relation law { gain = 0; }
 }
-model Demo {
+model Demo() {
   parameter input: Scalar = 1;
   variable state: Scalar;
   instance source: Source(gain = input);
@@ -76,7 +77,7 @@ model Demo {
     let invalid = EditorService::new(
         "invalid.eqi",
         1,
-        "model M { variable x: m; relation r { x + 1 = 0; } }",
+        "model M() { variable x: m; relation r { x + 1 = 0; } }",
     );
     assert!(
         invalid
@@ -90,7 +91,7 @@ model Demo {
     let recovering = EditorService::new(
         "broken.eqi",
         1,
-        "model M { variable retained: 1; nonsense; }",
+        "model M() { variable retained: 1; nonsense; }",
     );
     assert!(!recovering.current().diagnostics().is_empty());
     assert!(recovering.current().formatted().is_none());
@@ -102,7 +103,7 @@ fn documentation_uses_exact_resolved_files_after_a_declaration_is_renamed() {
     for left_name in ["Part", "Renamed"] {
         let owner = CompilationNamespaceId::new(["docs"]).unwrap();
         let main = format!(
-            "import docs.left as left;\nimport docs.right as right;\nmodel Main {{ instance a: left.{left_name}(); instance b: right.Part(); }}\n"
+            "import docs.left as left;\nimport docs.right as right;\nmodel Main() {{ instance a: left.{left_name}(); instance b: right.Part(); }}\n"
         );
         let left = format!("// 🧪\n/// Left declaration.\npublic component {left_name}() {{}}\n");
         let right = "/// Right declaration.\npublic component Part() {}\n";
@@ -146,7 +147,7 @@ fn documentation_uses_exact_resolved_files_after_a_declaration_is_renamed() {
 
 #[test]
 fn recovered_signature_symbols_keep_only_their_own_documentation() {
-    let source = "/// Component summary.\ncomponent C() {\n/// Gain summary.\npublic parameter gain:1;\n/// Broken summary.\nfield ;\nvariable retained:1;\n}\n";
+    let source = "/// Component summary.\ncomponent C(\n  /// Gain summary.\n  parameter gain:1\n) {\n/// Broken summary.\nfield ;\nvariable retained:1;\n}\n";
     let service = EditorService::new("docs.eqi", 1, source);
     let snapshot = service.current();
     assert!(!snapshot.diagnostics().is_empty());
@@ -172,7 +173,7 @@ fn recovered_signature_symbols_keep_only_their_own_documentation() {
 
 #[test]
 fn positions_round_trip_utf8_utf16_and_line_endings() {
-    let source = "// 🧪\r\nmodel M {}\n";
+    let source = "// 🧪\r\nmodel M() {}\n";
     let service = EditorService::new("unicode.eqi", 3, source);
     let snapshot = service.current();
 
@@ -187,17 +188,17 @@ fn positions_round_trip_utf8_utf16_and_line_endings() {
 
 #[test]
 fn service_rejects_stale_and_unknown_versions_without_mutation() {
-    let mut service = EditorService::new("versioned.eqi", 4, "model Four {}");
+    let mut service = EditorService::new("versioned.eqi", 4, "model Four() {}");
 
     let stale = service
-        .replace(4, "model Replaced {}")
+        .replace(4, "model Replaced() {}")
         .expect_err("equal version is stale");
     assert_eq!(stale.code(), codes::PRECONDITION_FAILED);
     assert_eq!(service.current().version(), 4);
     assert_eq!(service.current().symbols()[0].name(), "Four");
 
     service
-        .replace(5, "model Five {}")
+        .replace(5, "model Five() {}")
         .expect("newer version is accepted");
     assert_eq!(service.current().version(), 5);
     assert!(service.snapshot(4).is_err());
@@ -214,7 +215,7 @@ fn workspace_cancellation_publishes_no_partial_snapshot() {
         ResolvedHierarchyInput::new(
             owner.clone(),
             vec![
-                ResolvedSourceUnit::new(owner.clone(), "src/main.eqi", "model Main {}")
+                ResolvedSourceUnit::new(owner.clone(), "src/main.eqi", "model Main() {}")
                     .expect("main source path"),
                 ResolvedSourceUnit::new(owner, "src/broken.eqi", "not valid source")
                     .expect("broken source path"),
@@ -234,9 +235,11 @@ fn workspace_cancellation_publishes_no_partial_snapshot() {
 #[test]
 fn workspace_uses_compiler_resolved_module_identities_and_locations() {
     let owner = CompilationNamespaceId::new(["editor_test"]).expect("namespace");
-    let main = "// 🧪\nimport editor_test.library.parts as lib;\nmodel Main { instance load: lib.Resistor(); }\n";
+    let main = "// 🧪\nimport editor_test.library.parts as lib;\nmodel Main() { instance load: lib.Resistor(); }\n";
     let library = r#"public connector Pin = scalar_physical(across = 1, through = A);
-public component Socket() { public port terminal: conserving on Pin; }
+public component Socket(
+  port terminal: conserving on Pin
+) { }
 public component Resistor() {}
 "#;
     let input = ResolvedHierarchyInput::new(
@@ -419,7 +422,7 @@ public component Resistor() {}
 #[test]
 fn invalid_workspace_retains_recovered_documents_and_diagnostics() {
     let owner = CompilationNamespaceId::new(["editor_recovery"]).expect("namespace");
-    let main = "import editor_recovery.library.parts as lib;\nmodel Main { instance load: lib.Resistor(); }\n";
+    let main = "import editor_recovery.library.parts as lib;\nmodel Main() { instance load: lib.Resistor(); }\n";
     let broken = "public component Resistor() { nonsense; }\n";
     let input = ResolvedHierarchyInput::new(
         owner.clone(),
@@ -470,4 +473,33 @@ fn invalid_workspace_retains_recovered_documents_and_diagnostics() {
             .source_span()
             .is_none_or(|span| workspace.document(&span.file).is_some())
     }));
+}
+
+#[test]
+fn model_and_component_signature_entries_remain_editor_children() {
+    let signature = "parameter gain: 1, support body: volume(ambient_dimension = 2), variable shared: 1 on body, clock tick: periodic, input drive: 1 at tick, output observed: 1 at tick";
+    let source = format!("component Interface({signature}) {{}}\nmodel Root({signature}) {{}}\n");
+    let service = EditorService::new("signature.eqi", 1, source);
+    let snapshot = service.current();
+    assert!(
+        snapshot.formatted().is_some(),
+        "signature source must parse"
+    );
+    for definition in snapshot.symbols() {
+        assert_eq!(
+            definition
+                .children()
+                .iter()
+                .map(|child| (child.kind(), child.name()))
+                .collect::<Vec<_>>(),
+            vec![
+                (EditorSymbolKind::Parameter, "gain"),
+                (EditorSymbolKind::Support, "body"),
+                (EditorSymbolKind::Field, "shared"),
+                (EditorSymbolKind::Clock, "tick"),
+                (EditorSymbolKind::Port, "drive"),
+                (EditorSymbolKind::Port, "observed"),
+            ],
+        );
+    }
 }

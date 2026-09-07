@@ -20,6 +20,8 @@ use super::flat::SourceLocation;
 
 use super::supports::ResolvedBoundarySet;
 
+mod activation;
+pub(super) use activation::port_activation;
 mod external;
 mod lets;
 
@@ -36,20 +38,20 @@ pub(super) enum SymbolKind {
     Domain,
     Field,
     Parameter,
-    Port,
-    Clock,
+    Port(ActivationSyntax),
+    Clock(eqiora_schema::kernel::RationalTime),
     Relation,
 }
 
 impl FlatSymbol {
     fn is_port(&self) -> bool {
-        matches!(self.kind, SymbolKind::Port)
+        matches!(self.kind, SymbolKind::Port(_))
     }
 }
 
 #[derive(Debug, Clone)]
 pub(super) struct InstanceInterface {
-    public_ports: BTreeMap<String, FlatSymbol>,
+    pub(super) public_ports: BTreeMap<String, FlatSymbol>,
     public_port_families: BTreeMap<String, BoundaryPortFamilyIndex>,
 }
 
@@ -362,7 +364,7 @@ pub(super) fn rewrite_activation(
             range,
             scope,
             name,
-            |kind| matches!(kind, SymbolKind::Clock),
+            |kind| matches!(kind, SymbolKind::Clock(_)),
             "Field ClockDomain",
         )
         .map(|symbol| ActivationSyntax::Periodic(symbol.internal_name.clone())),
@@ -385,9 +387,26 @@ pub(super) fn rewrite_model_port(
         PortSyntax::Signal {
             direction,
             value_type,
+            domain,
+            activation,
         } => Ok(PortSyntax::Signal {
             direction: *direction,
             value_type: value_type.clone(),
+            domain: domain
+                .as_deref()
+                .map(|name| {
+                    resolve_local_kind(
+                        file,
+                        range,
+                        scope,
+                        name,
+                        |kind| matches!(kind, SymbolKind::Domain),
+                        "signal support",
+                    )
+                    .map(|symbol| symbol.internal_name.clone())
+                })
+                .transpose()?,
+            activation: rewrite_activation(file, activation, range, scope)?,
         }),
         PortSyntax::ScalarPhysical { domain } => {
             let domain = resolve_local_kind(
@@ -430,7 +449,7 @@ pub(super) fn rewrite_relation(
                 declaration.range(),
                 scope,
                 clock,
-                |kind| matches!(kind, SymbolKind::Clock),
+                |kind| matches!(kind, SymbolKind::Clock(_)),
                 "periodic ClockDomain",
             )?;
             ActivationSyntax::Periodic(clock.internal_name.clone())
@@ -583,6 +602,70 @@ pub(super) fn rewrite_expression_with_boundary_member(
             rewrite_expression_with_boundary_member(file, right, scope, active)?,
             expression.range(),
         ),
+        ExprKind::Call { callee, arguments } if callee.as_str() == "period" => {
+            let [argument] = arguments.as_slice() else {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    expression.range(),
+                    "period requires one clock name",
+                ));
+            };
+            let ExprKind::Name(name) = argument.kind() else {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    argument.range(),
+                    "period requires one clock name",
+                ));
+            };
+            let clock = resolve_local_kind(
+                file,
+                argument.range(),
+                scope,
+                name,
+                |kind| matches!(kind, SymbolKind::Clock(_)),
+                "period clock",
+            )?;
+            let SymbolKind::Clock(period) = clock.kind else {
+                unreachable!("checked clock")
+            };
+            LoweringExpression::quantity(
+                DynQuantity::new(period.as_seconds_f64(), crate::dimensions::time_dimension()),
+                expression.range(),
+            )
+        }
+        ExprKind::Call { callee, arguments } if callee.as_str() == "sample" => {
+            let [value, clock] = arguments.as_slice() else {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    expression.range(),
+                    "sample requires a value and one clock name",
+                ));
+            };
+            let ExprKind::Name(clock_name) = clock.kind() else {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    clock.range(),
+                    "sample requires one clock name",
+                ));
+            };
+            let clock = resolve_local_kind(
+                file,
+                clock.range(),
+                scope,
+                clock_name,
+                |kind| matches!(kind, SymbolKind::Clock(_)),
+                "sample clock",
+            )?;
+            LoweringExpression::sample(
+                rewrite_expression_with_boundary_member(file, value, scope, active)?,
+                clock.internal_name.clone(),
+                expression.range(),
+            )
+        }
         ExprKind::Call { callee, arguments } if is_builtin_operator(callee) => {
             let [argument] = arguments.as_slice() else {
                 return Err(source_error(

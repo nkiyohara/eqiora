@@ -52,13 +52,19 @@ def cylinder():
     mesh_plan = eqiora.meshing.resolve(geometry, request)
     mesh = eqiora.meshing.generate(mesh_plan)
     model = eqiora.compile(
-        path=files(eqiora).joinpath("examples", "steady-flow-past-cylinder.eqi"),
+        path=files(eqiora).joinpath('examples', 'steady-flow-past-cylinder.eqi'),
         geometry=geometry,
-        parameters={
-            "dynamic_viscosity": 0.001,
-            "zero_pressure": 0.0,
-            "inlet_speed": 0.3,
-            "channel_height": geometry.bounds[1][1] - geometry.bounds[1][0],
+        entry='SteadyFlowPastCylinder',
+        bindings={
+            'fluid': geometry.selection('fluid'),
+            'inlet': (geometry.selection('inlet'), geometry.selection('fluid')),
+            'outlet': (geometry.selection('outlet'), geometry.selection('fluid')),
+            'walls': (geometry.selection('walls'), geometry.selection('fluid')),
+            'cylinder': (geometry.selection('cylinder'), geometry.selection('fluid')),
+            'dynamic_viscosity': 0.001,
+            'zero_pressure': 0.0,
+            'inlet_speed': 0.3,
+            'channel_height': geometry.bounds[1][1] - geometry.bounds[1][0],
         },
     )
     plan = eqiora.resolve(
@@ -92,9 +98,19 @@ def elasticity() -> tuple[eqiora.Plan, eqiora.Result]:
     mesh_plan = eqiora.meshing.resolve(geometry, request)
     mesh = eqiora.meshing.generate(mesh_plan)
     model = eqiora.compile(
-        path=files(eqiora).joinpath("examples", "mixed-boundary-elasticity.eqi"),
+        path=files(eqiora).joinpath('examples', 'mixed-boundary-elasticity.eqi'),
         geometry=geometry,
-        parameters={"mu": 3.0, "lambda": 0.0, "length_scale": 1.0},
+        entry='MixedBoundaryElasticity2d',
+        bindings={
+            'body': geometry.selection('body'),
+            'x_lower': (geometry.selection('x_lower'), geometry.selection('body')),
+            'x_upper': (geometry.selection('x_upper'), geometry.selection('body')),
+            'y_lower': (geometry.selection('y_lower'), geometry.selection('body')),
+            'y_upper': (geometry.selection('y_upper'), geometry.selection('body')),
+            'mu': 3.0,
+            'lambda': 0.0,
+            'length_scale': 1.0,
+        },
     )
     plan = eqiora.resolve(
         model,
@@ -124,14 +140,20 @@ def scalar(cylinder_case) -> tuple[eqiora.Plan, eqiora.Result]:
 def transient_vorticity(cylinder_case):
     geometry, mesh, steady_plan, steady_result = cylinder_case
     model = eqiora.compile(
-        path=files(eqiora).joinpath("examples", "transient-flow-past-cylinder.eqi"),
+        path=files(eqiora).joinpath('examples', 'transient-flow-past-cylinder.eqi'),
         geometry=geometry,
-        parameters={
-            "density": 1.0,
-            "dynamic_viscosity": 0.001,
-            "zero_pressure": 0.0,
-            "inlet_speed": 0.3,
-            "channel_height": geometry.bounds[1][1] - geometry.bounds[1][0],
+        entry='TransientFlowPastCylinder',
+        bindings={
+            'fluid': geometry.selection('fluid'),
+            'inlet': (geometry.selection('inlet'), geometry.selection('fluid')),
+            'outlet': (geometry.selection('outlet'), geometry.selection('fluid')),
+            'walls': (geometry.selection('walls'), geometry.selection('fluid')),
+            'cylinder': (geometry.selection('cylinder'), geometry.selection('fluid')),
+            'density': 1.0,
+            'dynamic_viscosity': 0.001,
+            'zero_pressure': 0.0,
+            'inlet_speed': 0.3,
+            'channel_height': geometry.bounds[1][1] - geometry.bounds[1][0],
         },
     )
     linear = eqiora.solve.Linear(

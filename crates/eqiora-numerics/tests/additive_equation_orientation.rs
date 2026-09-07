@@ -5,7 +5,7 @@ use eqiora_schema::kernel::BoundarySide;
 use eqiora_sem::KernelProgram;
 
 const SOURCE: &str = r#"
-model additive_poisson {
+model additive_poisson() {
   domain body = box(0, 1, 0, 1);
   domain x_lower = boundary(body, axis = 0, side = lower);
   domain x_upper = boundary(body, axis = 0, side = upper);

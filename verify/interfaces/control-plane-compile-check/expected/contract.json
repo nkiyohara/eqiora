@@ -91,15 +91,14 @@
     "compilations": [
       {"label": "control-first", "route": "execute_compile_v2"},
       {"label": "control-second", "route": "execute_compile_v2"},
-      {"label": "ordinary-flat", "route": "ModelDocument::compile"}
+      {"label": "ordinary-closed", "route": "ModelDocument::compile"}
     ],
-    "pairwiseDistinctFields": ["modelId", "digest"],
-    "equalFields": ["structuralSemanticFingerprint"],
-    "fingerprintGeneration": "eqiora.structural-semantic-fingerprint/v4",
+    "equalFields": ["modelId", "digest", "structuralSemanticFingerprint"],
+    "fingerprintGeneration": "eqiora.structural-semantic-fingerprint/v9",
     "semanticRevision": 1,
     "frozenFingerprintDigest": false,
     "frozenOccurrenceIdentity": false,
-    "reason": "flat source compilation allocates fresh occurrence ULIDs; the generation-v4 projection alpha-normalizes them and covers this witness's scalar meaning"
+    "reason": "closed and selected source compilation share canonical occurrence identity; equal source has equal exact artifacts and current structural meaning"
   },
   "dispatcherNullDiagnosticFields": ["graphPath", "span", "patch"],
   "rejections": [

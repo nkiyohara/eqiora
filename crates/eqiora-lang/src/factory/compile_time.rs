@@ -1,13 +1,13 @@
 use super::{
-    AstConstructionError, Expr, LetDecl, ParameterBindingDecl, ParameterDecl, SourceAstFactory,
+    AstConstructionError, Expr, LetDecl, NamedBindingDecl, ParameterDecl, SourceAstFactory,
     TextRange, checked_identifier, checked_range, validate_expression, validate_identifier,
 };
 use crate::ast::DimensionDecl;
 
-pub(super) fn validate_parameter_binding(
-    binding: &ParameterBindingDecl,
+pub(super) fn validate_named_binding(
+    binding: &NamedBindingDecl,
 ) -> Result<(), AstConstructionError> {
-    validate_identifier(binding.parameter(), "Parameter binding")?;
+    validate_identifier(binding.name(), "Parameter binding")?;
     checked_range(binding.range())?;
     validate_expression(binding.value())
 }
@@ -89,7 +89,7 @@ mod tests {
         let range = TextRange::new(0, 0);
         let expression = SourceAstFactory::expression(ExprKind::Name("m".to_owned()), range)
             .expect("dimension expression");
-        let model = parse("model.eqi", "model M { variable x: Length; }")
+        let model = parse("model.eqi", "model M() { variable x: Length; }")
             .into_document()
             .expect("model source")
             .models()[0]
@@ -105,7 +105,7 @@ mod tests {
 
         assert_eq!(
             format(&document),
-            "dimension Length = m;\n\nmodel M {\n  variable x: Length;\n}\n"
+            "dimension Length = m;\n\nmodel M() {\n  variable x: Length;\n}\n"
         );
     }
 

@@ -34,12 +34,12 @@ fn forward_shared_aliases_preserve_the_explicit_parameter_expression() {
             "let f = z * y; let z = x * x; let shared = f + z;",
             "let z = x * x; let shared = f + z; let f = z * y;",
         ] {
-            let source = format!("model M {{ {aliases} }}");
+            let source = format!("model M() {{ {aliases} }}");
             let document = eqiora_lang::parse("alias.eqi", &source)
                 .into_document()
                 .unwrap();
             let mut values = BTreeMap::from([parameter("x", x), parameter("y", y)]);
-            resolve_model_lets("alias.eqi", &document.models()[0], &mut values).unwrap();
+            resolve_model_lets("alias.eqi", &document.models()[0], &mut values, |_| None).unwrap();
             // The exact retained polynomial is (x*x)*y, not a literal value or a new symbol.
             // Existing differentiation therefore receives the original Parameter dependencies.
             let name = |name: &str| LoweringExpression::name(name.to_owned(), TextRange::new(0, 0));
@@ -85,7 +85,7 @@ fn cycle_diagnostics_point_to_an_actual_cycle_reference() {
             "b;",
         ),
     ] {
-        let source = format!("model M {{ {declarations} }}");
+        let source = format!("model M() {{ {declarations} }}");
         let errors = crate::compile("cycle.eqi", &source).unwrap_err();
         let error = errors
             .iter()
@@ -105,7 +105,7 @@ fn cycle_diagnostics_point_to_an_actual_cycle_reference() {
 
 #[test]
 fn forward_chain_uses_existing_symbolic_term_bound() {
-    let mut source = String::from("model M {");
+    let mut source = String::from("model M() {");
     for index in 0..255 {
         source.push_str(&format!("let a{index} = a{};", index + 1));
     }
@@ -114,7 +114,7 @@ fn forward_chain_uses_existing_symbolic_term_bound() {
         .into_document()
         .unwrap();
     let mut values = BTreeMap::new();
-    resolve_model_lets("chain.eqi", &document.models()[0], &mut values).unwrap();
+    resolve_model_lets("chain.eqi", &document.models()[0], &mut values, |_| None).unwrap();
     assert_eq!(
         values["a0"]
             .value
@@ -145,14 +145,16 @@ fn forward_chain_uses_existing_symbolic_term_bound() {
 #[test]
 fn component_aliases_preserve_parameter_interface_and_symbolic_polynomial() {
     use crate::hierarchy::parameters::resolve_component_parameters_symbolically;
-    let source = "component C() { public parameter x: 1; public parameter y: 1; let f = z * y; let z = x * x; }";
+    let source = "component C(parameter x: 1, parameter y: 1) {
+let f = z * y; let z = x * x; }";
     let document = eqiora_lang::parse("component.eqi", source)
         .into_document()
         .unwrap();
     let component = &document.components()[0];
-    let parameters = resolve_component_parameters_symbolically("component.eqi", component).unwrap();
+    let parameters =
+        resolve_component_parameters_symbolically("component.eqi", component, |_| None).unwrap();
     let mut symbolic = parameters.clone();
-    resolve_component_lets("component.eqi", component, &mut symbolic).unwrap();
+    resolve_component_lets("component.eqi", component, &mut symbolic, |_| None).unwrap();
     assert_eq!(
         parameters.keys().map(String::as_str).collect::<Vec<_>>(),
         ["x", "y"]
@@ -169,7 +171,7 @@ fn component_aliases_preserve_parameter_interface_and_symbolic_polynomial() {
             );
             parameter.expression = Some(name(key));
         }
-        resolve_component_lets("component.eqi", component, &mut values).unwrap();
+        resolve_component_lets("component.eqi", component, &mut values, |_| None).unwrap();
         let mul = |left, right| {
             LoweringExpression::binary(BinaryOp::Mul, left, right, TextRange::new(0, 0))
         };
@@ -194,7 +196,7 @@ fn component_aliases_preserve_parameter_interface_and_symbolic_polynomial() {
 
 #[test]
 fn unused_component_aliases_consume_the_existing_symbolic_term_budget() {
-    let source = "component C() { let a = b; let b = c; let c = 1; } model M {}";
+    let source = "component C() { let a = b; let b = c; let c = 1; } model M() {}";
     let document = eqiora_lang::parse("bounded.eqi", source)
         .into_document()
         .unwrap();
@@ -217,7 +219,7 @@ fn unused_component_aliases_consume_the_existing_symbolic_term_budget() {
 
 #[test]
 fn runtime_alias_terms_are_counted_before_effect_classification() {
-    let source = "component C() { state x:1; let a=x; let b=a; let c=b; } model M {}";
+    let source = "component C() { state x:1; let a=x; let b=a; let c=b; } model M() {}";
     let document = eqiora_lang::parse("runtime-budget.eqi", source)
         .into_document()
         .unwrap();

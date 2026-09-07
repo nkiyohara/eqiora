@@ -15,12 +15,12 @@ public component ReleaseSmokePoisson(
   support x_upper: boundary(parent = square),
   support y_lower: boundary(parent = square),
   support y_upper: boundary(parent = square),
+  parameter diffusion: 1,
+  parameter wave_number: 1 / m,
+  parameter source_scale: 1 / m ^ 2,
+  parameter boundary_offset: 1,
 ) {
   variable potential: 1 on square;
-  public parameter diffusion: 1;
-  public parameter wave_number: 1 / m;
-  public parameter source_scale: 1 / m ^ 2;
-  public parameter boundary_offset: 1;
   relation balance on square {
     -div(diffusion * grad(potential))
       - source_scale * math.sin(wave_number * coordinate(0))
@@ -34,10 +34,9 @@ public component ReleaseSmokePoisson(
 """
 
 DECAY = """
-model decay {
+model decay(parameter rate: 1 / s = 1) {
   state x: 1;
   initial { x = 1; }
-  parameter rate: 1 / s = 1;
   relation flow {
     derivative(x) + rate * x = 0;
   }
@@ -81,8 +80,14 @@ def differentiable_program(eqiora):
     mesh = eqiora.meshing.generate(mesh_plan)
     model = eqiora.compile(
         source=POISSON,
+        entry="ReleaseSmokePoisson",
         geometry=geometry,
-        parameters={
+        bindings={
+            "square": geometry.selection("square"),
+            **{
+                name: (geometry.selection(name), geometry.selection("square"))
+                for name in ("x_lower", "x_upper", "y_lower", "y_upper")
+            },
             "diffusion": 1.0,
             "wave_number": 3.141592653589793,
             "source_scale": 19.739208802178716,

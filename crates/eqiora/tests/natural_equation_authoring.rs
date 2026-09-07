@@ -154,7 +154,7 @@ fn compile(source: &str) -> ModelDocument {
 
 fn statements(body: &str) -> String {
     format!(
-        "// α\r\nmodel probe {{ variable x: 1; variable y: 1; variable z: 1; parameter zero: 1 = 0; relation r {{ {body} }} }}"
+        "// α\r\nmodel probe() {{ variable x: 1; variable y: 1; variable z: 1; parameter zero: 1 = 0; relation r {{ {body} }} }}"
     )
 }
 
@@ -364,7 +364,7 @@ fn zero_cannot_erase_an_unchecked_operand_or_underflow() {
         "0e-999[m]",
     ] {
         let source =
-            format!("model typed {{ variable force: m; relation r {{ force = {rhs}; }} }}");
+            format!("model typed() {{ variable force: m; relation r {{ force = {rhs}; }} }}");
         assert_eq!(compiled_roots(&compile(&source)), vec![n("force")]);
     }
     // All denials reach the source-owned boundary after a positive of the same
@@ -416,7 +416,7 @@ fn zero_cannot_erase_an_unchecked_operand_or_underflow() {
             "after equation",
         ),
     ] {
-        let source = format!("// α\nmodel bad {{ {body} }}");
+        let source = format!("// α\nmodel bad() {{ {body} }}");
         let diagnostics = ModelDocument::compile("negative.eqi", &source).unwrap_err();
         let diagnostic = diagnostics
             .iter()
@@ -434,7 +434,7 @@ fn zero_cannot_erase_an_unchecked_operand_or_underflow() {
         );
     }
     // Nonzero representable subnormal is not treated as exact zero.
-    let subnormal = compile("model M { variable x: 1; relation r { x = 5e-324; } }");
+    let subnormal = compile("model M() { variable x: 1; relation r { x = 5e-324; } }");
     assert_eq!(
         compiled_roots(&subnormal),
         vec![sub(n("x"), number(f64::from_bits(1)))]

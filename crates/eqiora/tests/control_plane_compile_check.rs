@@ -84,11 +84,11 @@ fn accepted_fixture_links_one_execution_and_preserves_structural_meaning() {
     for document in documents {
         assert_eq!(
             document.structural_fingerprint().unwrap().generation(),
-            eqiora::api::SemanticFingerprintGeneration::V8
+            eqiora::api::SemanticFingerprintGeneration::V9
         );
     }
-    assert_pairwise_distinct(documents.map(|value| value.digest().unwrap()));
-    assert_pairwise_distinct(documents.map(|value| value.program().model()));
+    assert_all_equal(documents.map(|value| value.digest().unwrap()));
+    assert_all_equal(documents.map(|value| value.program().model()));
     assert_eq!(
         document.structural_fingerprint().unwrap(),
         second_document.structural_fingerprint().unwrap()
@@ -100,12 +100,8 @@ fn accepted_fixture_links_one_execution_and_preserves_structural_meaning() {
     assert_eq!(relation["request"], accepted["request"]);
     assert_eq!(relation["semanticRevision"], model.semantic_revision());
     assert_eq!(
-        relation["pairwiseDistinctFields"],
-        serde_json::json!(["modelId", "digest"])
-    );
-    assert_eq!(
         relation["equalFields"],
-        serde_json::json!(["structuralSemanticFingerprint"])
+        serde_json::json!(["modelId", "digest", "structuralSemanticFingerprint"])
     );
 
     let response: Value =
@@ -142,9 +138,13 @@ fn one_transport_neutral_operation_owns_both_adapters() {
         1,
         "Python compile must invoke the transport-neutral operation exactly once"
     );
-    let detached_call = rust_call_expression(python, "py.detach");
+    let compact_python = python
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect::<String>();
+    let detached_call = rust_call_expression(&compact_python, "py.detach");
     assert_eq!(
-        detached_call.matches("ModelDocument::compile").count(),
+        detached_call.matches("ModelDocument::compile(").count(),
         1,
         "the py.detach call expression itself must own the operation invocation"
     );
@@ -380,10 +380,10 @@ fn frozen_diagnostic_overflow_is_one_closed_decodable_response() {
     );
 }
 
-fn assert_pairwise_distinct<T: std::fmt::Debug + PartialEq>(values: [T; 3]) {
-    assert_ne!(&values[0], &values[1]);
-    assert_ne!(&values[0], &values[2]);
-    assert_ne!(&values[1], &values[2]);
+fn assert_all_equal<T: std::fmt::Debug + PartialEq>(values: [T; 3]) {
+    assert_eq!(&values[0], &values[1]);
+    assert_eq!(&values[0], &values[2]);
+    assert_eq!(&values[1], &values[2]);
 }
 
 fn rust_function<'a>(source: &'a str, signature: &str) -> &'a str {

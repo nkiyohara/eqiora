@@ -618,7 +618,7 @@ mod tests {
     #[test]
     fn publication_is_atomic_idempotent_and_canonical() {
         let directory = TestDirectory::create();
-        let release = test_release("model Main {}\n");
+        let release = test_release("model Main() {}\n");
         let digest = release.source_digest().expect("digest");
         let installer =
             DirectoryPackageInstaller::open_ambient(&directory.0).expect("open installer");
@@ -681,7 +681,7 @@ mod tests {
     #[test]
     fn ambient_and_caller_owned_installation_capabilities_are_equivalent() {
         let directory = TestDirectory::create();
-        let release = test_release("model Main {}\n");
+        let release = test_release("model Main() {}\n");
         let digest = release.source_digest().expect("digest");
         let root = Dir::open_ambient_dir(&directory.0, ambient_authority())
             .expect("caller opens installation root");
@@ -715,7 +715,7 @@ mod tests {
     #[test]
     fn failed_stage_write_never_creates_an_exact_entry() {
         let directory = TestDirectory::create();
-        let release = test_release("model Main {}\n");
+        let release = test_release("model Main() {}\n");
         let digest = release.source_digest().expect("digest");
         let installer =
             DirectoryPackageInstaller::open_ambient(&directory.0).expect("open installer");
@@ -743,7 +743,7 @@ mod tests {
     #[test]
     fn concurrent_equal_installers_converge_without_replacement() {
         let directory = TestDirectory::create();
-        let release = test_release("model Main {}\n");
+        let release = test_release("model Main() {}\n");
         let digest = release.source_digest().expect("digest");
         let installer =
             DirectoryPackageInstaller::open_ambient(&directory.0).expect("open installer");
@@ -803,7 +803,7 @@ mod tests {
     #[test]
     fn committed_cleanup_failure_is_visible_in_the_receipt_and_retry_is_idempotent() {
         let directory = TestDirectory::create();
-        let release = test_release("model Main {}\n");
+        let release = test_release("model Main() {}\n");
         let digest = release.source_digest().expect("digest");
         let installer =
             DirectoryPackageInstaller::open_ambient(&directory.0).expect("open installer");
@@ -843,7 +843,7 @@ mod tests {
     #[test]
     fn target_appearing_after_preflight_is_reclassified_without_overwrite() {
         let equal_directory = TestDirectory::create();
-        let release = test_release("model Main {}\n");
+        let release = test_release("model Main() {}\n");
         let digest = release.source_digest().expect("digest");
         let canonical = release.canonical_json().expect("canonical release");
         let equal_installer = DirectoryPackageInstaller::open_ambient(&equal_directory.0)
@@ -867,7 +867,7 @@ mod tests {
         );
 
         let different_directory = TestDirectory::create();
-        let different = test_release("model Main { relation x = 1; }\n")
+        let different = test_release("model Main() { relation x = 1; }\n")
             .canonical_json()
             .expect("different canonical release");
         let different_installer = DirectoryPackageInstaller::open_ambient(&different_directory.0)
@@ -897,7 +897,7 @@ mod tests {
     #[test]
     fn occupied_invalid_or_different_content_fails_closed() {
         let malformed_directory = TestDirectory::create();
-        let release = test_release("model Main {}\n");
+        let release = test_release("model Main() {}\n");
         let digest = release.source_digest().expect("digest");
         fs::write(
             malformed_directory.0.join(format!("{digest}.json")),
@@ -913,7 +913,7 @@ mod tests {
         ));
 
         let collision_directory = TestDirectory::create();
-        let different = test_release("model Main { relation x = 1; }\n");
+        let different = test_release("model Main() { relation x = 1; }\n");
         fs::write(
             collision_directory.0.join(format!("{digest}.json")),
             different.canonical_json().expect("different release bytes"),
@@ -937,7 +937,7 @@ mod tests {
     fn retained_installation_root_cannot_be_redirected_by_path_replacement() {
         let directory = TestDirectory::create();
         let moved = directory.0.with_extension("moved");
-        let release = test_release("model Main {}\n");
+        let release = test_release("model Main() {}\n");
         let digest = release.source_digest().expect("digest");
         let installer =
             DirectoryPackageInstaller::open_ambient(&directory.0).expect("retain installer root");

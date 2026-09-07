@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 import eqiora
+from _signature_bindings import support_bindings
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
@@ -37,11 +38,7 @@ def geometry_and_mesh() -> tuple[eqiora.geometry.Geometry, eqiora.meshing.Mesh]:
 
 def accepted() -> tuple[eqiora.Model, eqiora.Plan, eqiora.Result]:
     geometry, mesh = geometry_and_mesh()
-    model = eqiora.compile(
-        path=files(eqiora).joinpath("examples", "mixed-boundary-elasticity.eqi"),
-        geometry=geometry,
-        parameters={"mu": 3.0, "lambda": 0.0, "length_scale": 1.0},
-    )
+    model = eqiora.compile(path=files(eqiora).joinpath('examples', 'mixed-boundary-elasticity.eqi'), geometry=geometry, entry='MixedBoundaryElasticity2d', bindings={**support_bindings(geometry, ['body'], [('x_lower', 'body'), ('x_upper', 'body'), ('y_lower', 'body'), ('y_upper', 'body')]), **{'mu': 3.0, 'lambda': 0.0, 'length_scale': 1.0}})
     plan = eqiora.resolve(
         model,
         mesh=mesh,
@@ -91,11 +88,7 @@ def test_common_plan_result_and_observation_close_exact_lineage() -> None:
 def test_root_plan_rejects_foreign_model_field_and_observation() -> None:
     model, plan, result = accepted()
     foreign_geometry, foreign_mesh = geometry_and_mesh()
-    foreign = eqiora.compile(
-        path=files(eqiora).joinpath("examples", "mixed-boundary-elasticity.eqi"),
-        geometry=foreign_geometry,
-        parameters={"mu": 4.0, "lambda": 0.0, "length_scale": 1.0},
-    )
+    foreign = eqiora.compile(path=files(eqiora).joinpath('examples', 'mixed-boundary-elasticity.eqi'), geometry=foreign_geometry, entry='MixedBoundaryElasticity2d', bindings={**support_bindings(foreign_geometry, ['body'], [('x_lower', 'body'), ('x_upper', 'body'), ('y_lower', 'body'), ('y_upper', 'body')]), **{'mu': 4.0, 'lambda': 0.0, 'length_scale': 1.0}})
     foreign_plan = eqiora.resolve(
         foreign,
         mesh=foreign_mesh,

@@ -247,7 +247,7 @@ fn initial_pre_is_a_clocked_unknown_and_next_is_not_an_initial_condition() {
 }
 
 #[test]
-fn unused_algebraic_field_with_clock_and_unused_state_with_two_clocks_fail_admission() {
+fn unused_fields_of_either_role_with_two_clocks_fail_admission() {
     for role in [FieldRole::Variable, FieldRole::State] {
         let field = Id::new();
         let mut nodes = vec![
@@ -262,7 +262,7 @@ fn unused_algebraic_field_with_clock_and_unused_state_with_two_clocks_fail_admis
         let unused = Id::new();
         nodes.push(scalar(unused, role));
         let mut edges = Vec::new();
-        for _ in 0..if role == FieldRole::State { 2 } else { 1 } {
+        for _ in 0..2 {
             let clock = ClockDomainDef::periodic(
                 Id::new(),
                 RationalTime::new(1, 10).unwrap(),
@@ -276,7 +276,7 @@ fn unused_algebraic_field_with_clock_and_unused_state_with_two_clocks_fail_admis
         assert!(
             errors
                 .iter()
-                .any(|error| error.message().contains("only a state Field"))
+                .any(|error| error.message().contains("at most one exact ClockDomain"))
         );
     }
 }

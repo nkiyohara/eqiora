@@ -24,11 +24,17 @@ impl SourceAstFactory {
             rewrite_connector(&mut connector.syntax, &mut rewrite);
         }
         for component in &mut document.components {
+            for item in &mut component.signature {
+                rewrite_signature(item, &mut rewrite);
+            }
             for item in &mut component.items {
                 rewrite_component_item(item, &mut rewrite);
             }
         }
         for model in &mut document.models {
+            for item in &mut model.signature {
+                rewrite_signature(item, &mut rewrite);
+            }
             for item in &mut model.items {
                 rewrite_item(item, &mut rewrite);
             }
@@ -68,19 +74,13 @@ fn rewrite_component_item(item: &mut ComponentItem, rewrite: &mut impl FnMut(&Ex
         ComponentItem::PortFamily(declaration) => {
             rewrite_port(&mut declaration.port.syntax, rewrite);
         }
-        ComponentItem::FieldRequirement(declaration) => {
-            let dimension = declaration.value_type.dimension_mut();
-            *dimension = rewrite(dimension);
-        }
         ComponentItem::Field(declaration) => {
             let dimension = declaration.value_type.dimension_mut();
             *dimension = rewrite(dimension);
         }
         ComponentItem::Instance(_)
-        | ComponentItem::Support(_)
         | ComponentItem::Initial(_)
         | ComponentItem::Clock(_)
-        | ComponentItem::ClockRequirement(_)
         | ComponentItem::Relation(_)
         | ComponentItem::RelationFamily(_)
         | ComponentItem::Connection(_)
@@ -120,7 +120,6 @@ fn rewrite_item(item: &mut Item, rewrite: &mut impl FnMut(&Expr) -> Expr) {
         | Item::Relation(_)
         | Item::Connection(_)
         | Item::BoundaryConnection(_)
-        | Item::Boundary(_)
         | Item::Instance(_) => {}
     }
 }
@@ -129,5 +128,23 @@ fn rewrite_port(syntax: &mut PortSyntax, rewrite: &mut impl FnMut(&Expr) -> Expr
     if let PortSyntax::Signal { value_type, .. } = syntax {
         let dimension = value_type.dimension_mut();
         *dimension = rewrite(dimension);
+    }
+}
+
+fn rewrite_signature(item: &mut crate::SignatureItem, rewrite: &mut impl FnMut(&Expr) -> Expr) {
+    match item {
+        crate::SignatureItem::Parameter(value) => {
+            *value.value_type.dimension_mut() = rewrite(value.value_type.dimension());
+        }
+        crate::SignatureItem::Input(value)
+        | crate::SignatureItem::Output(value)
+        | crate::SignatureItem::Field(value) => {
+            *value.value_type.dimension_mut() = rewrite(value.value_type.dimension());
+        }
+        crate::SignatureItem::Port(value) => rewrite_port(&mut value.syntax, rewrite),
+        crate::SignatureItem::PortFamily(value) => rewrite_port(&mut value.port.syntax, rewrite),
+        crate::SignatureItem::Support(_)
+        | crate::SignatureItem::Clock(_)
+        | crate::SignatureItem::Property(_) => {}
     }
 }

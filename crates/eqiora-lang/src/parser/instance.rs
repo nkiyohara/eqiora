@@ -1,155 +1,31 @@
+//! Category-free named occurrence arguments.
 use super::*;
-
 impl Parser<'_> {
     pub(super) fn parse_instance(&mut self) -> Option<InstanceDecl> {
         let start = self.expect_keyword("instance")?.range().start();
         let name = self.expect_identifier("instance name")?.text().to_owned();
         self.expect(TokenKind::Colon, "`:` before component definition")?;
         let definition = self.parse_name_path("component definition name")?;
+        self.expect(TokenKind::LeftParen, "`(` before named bindings")?;
         let mut bindings = Vec::new();
-        let mut support_bindings = Vec::new();
-        let mut boundary_set_bindings = Vec::new();
-        let mut field_bindings = Vec::new();
-        let mut clock_bindings = Vec::new();
-        let mut property_bindings = Vec::new();
-        let mut material_binding = None;
-        if self.at(TokenKind::LeftParen) {
-            self.bump();
-            if !self.at(TokenKind::RightParen) {
-                loop {
-                    let binding_start = self.current().range().start();
-                    if self.at_support_binding() {
-                        self.bump();
-                        let slot = self
-                            .expect_identifier("public support-slot binding name")?
-                            .text()
-                            .to_owned();
-                        self.expect(TokenKind::Equal, "`=` in support binding")?;
-                        if self.at_keyword("boundaries") {
-                            self.bump();
-                            self.expect(TokenKind::LeftParen, "`(` after `boundaries`")?;
-                            let mut members = Vec::new();
-                            if !self.at(TokenKind::RightParen) {
-                                loop {
-                                    let member =
-                                        self.expect_identifier("boundary Domain member")?;
-                                    members.push(BoundarySetMemberSyntax {
-                                        target: member.text().to_owned(),
-                                        range: member.range(),
-                                    });
-                                    if !self.at(TokenKind::Comma) {
-                                        break;
-                                    }
-                                    self.bump();
-                                }
-                            }
-                            let close =
-                                self.expect(TokenKind::RightParen, "`)` after boundary members")?;
-                            boundary_set_bindings.push(BoundarySetBindingDecl {
-                                comments: Default::default(),
-                                slot,
-                                members,
-                                range: TextRange::new(binding_start, close.range().end()),
-                            });
-                        } else {
-                            let target =
-                                self.expect_identifier("enclosing Domain or support-slot name")?;
-                            support_bindings.push(SupportBindingDecl {
-                                comments: Default::default(),
-                                slot,
-                                target: target.text().to_owned(),
-                                range: TextRange::new(binding_start, target.range().end()),
-                            });
-                        }
-                        if !self.at(TokenKind::Comma) {
-                            break;
-                        }
-                        self.bump();
-                        continue;
-                    }
-                    if self.at_field_binding() {
-                        self.bump();
-                        let slot = self
-                            .expect_identifier("public Field-slot binding name")?
-                            .text()
-                            .to_owned();
-                        self.expect(TokenKind::Equal, "`=` in Field binding")?;
-                        let target =
-                            self.expect_identifier("enclosing Field or Field-slot name")?;
-                        field_bindings.push(FieldBindingDecl {
-                            comments: Default::default(),
-                            slot,
-                            target: target.text().to_owned(),
-                            range: TextRange::new(binding_start, target.range().end()),
-                        });
-                        if !self.at(TokenKind::Comma) {
-                            break;
-                        }
-                        self.bump();
-                        continue;
-                    }
-                    if self.at_keyword("clock") {
-                        self.bump();
-                        let slot = self
-                            .expect_identifier("public Clock requirement binding name")?
-                            .text()
-                            .to_owned();
-                        self.expect(TokenKind::Equal, "`=` in Clock binding")?;
-                        let target =
-                            self.expect_identifier("enclosing Clock or Clock requirement name")?;
-                        clock_bindings.push(crate::ast::ClockBindingDecl {
-                            comments: Default::default(),
-                            slot,
-                            target: target.text().to_owned(),
-                            range: TextRange::new(binding_start, target.range().end()),
-                        });
-                        if !self.at(TokenKind::Comma) {
-                            break;
-                        }
-                        self.bump();
-                        continue;
-                    }
-                    if self.at_keyword("property") {
-                        property_bindings.push(self.parse_property_binding(binding_start)?);
-                        if !self.at(TokenKind::Comma) {
-                            break;
-                        }
-                        self.bump();
-                        continue;
-                    }
-                    if self.at_keyword("material") {
-                        self.bump();
-                        self.expect(TokenKind::Equal, "`=` in material composition binding")?;
-                        let composition = self.parse_name_path("material composition name")?;
-                        if material_binding.replace(composition).is_some() {
-                            self.error_here("an instance has at most one material composition");
-                        }
-                        if !self.at(TokenKind::Comma) {
-                            break;
-                        }
-                        self.bump();
-                        continue;
-                    }
-                    let parameter = self
-                        .expect_identifier("public Parameter binding name")?
-                        .text()
-                        .to_owned();
-                    self.expect(TokenKind::Equal, "`=` in Parameter binding")?;
-                    let value = self.parse_expression(0)?;
-                    bindings.push(ParameterBindingDecl {
-                        comments: Default::default(),
-                        parameter,
-                        range: TextRange::new(binding_start, value.range().end()),
-                        value,
-                    });
-                    if !self.at(TokenKind::Comma) {
-                        break;
-                    }
-                    self.bump();
-                }
+        while !self.at(TokenKind::RightParen) && !self.at(TokenKind::Eof) {
+            let token = self.expect_identifier("target signature name")?;
+            let name = token.text().to_owned();
+            let binding_start = token.range().start();
+            self.expect(TokenKind::Equal, "`=` in named binding")?;
+            let value = self.parse_expression(0)?;
+            bindings.push(NamedBindingDecl {
+                comments: Default::default(),
+                name,
+                range: TextRange::new(binding_start, value.range().end()),
+                value,
+            });
+            if !self.at(TokenKind::Comma) {
+                break;
             }
-            self.expect(TokenKind::RightParen, "`)` after Parameter bindings")?;
+            self.bump();
         }
+        self.expect(TokenKind::RightParen, "`)` after named bindings")?;
         let end = self
             .expect(TokenKind::Semicolon, "`;` after instance")?
             .range()
@@ -159,12 +35,6 @@ impl Parser<'_> {
             name,
             definition,
             bindings,
-            support_bindings,
-            boundary_set_bindings,
-            field_bindings,
-            clock_bindings,
-            property_bindings,
-            material_binding,
             range: TextRange::new(start, end),
         })
     }

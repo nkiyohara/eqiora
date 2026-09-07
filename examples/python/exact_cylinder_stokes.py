@@ -35,7 +35,13 @@ def solve() -> tuple[eqiora.Result, eqiora.FieldRef, eqiora.geometry.Geometry]:
     model = eqiora.compile(
         path=source_path,
         geometry=geometry,
-        parameters={
+        entry="SteadyFlowPastCylinder",
+        bindings={
+            "fluid": geometry.selection("fluid"),
+            **{
+                side: (geometry.selection(side), geometry.selection("fluid"))
+                for side in ("inlet", "outlet", "walls", "cylinder")
+            },
             "dynamic_viscosity": 1.0e-3,
             "zero_pressure": 0.0,
             "inlet_speed": 0.3,

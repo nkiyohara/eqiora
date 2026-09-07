@@ -339,7 +339,7 @@ mod tests {
 
     use super::*;
 
-    const MODEL: &str = r#"model cad_semantic_selection {
+    const MODEL: &str = r#"model cad_semantic_selection() {
   domain body = box(-0.5, 0.5, -0.5, 0.5, -0.5, 0.5);
   domain x_lower = boundary(body, axis = 0, side = lower);
   domain x_upper = boundary(body, axis = 0, side = upper);

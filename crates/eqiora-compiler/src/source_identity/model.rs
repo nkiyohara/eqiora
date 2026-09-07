@@ -10,7 +10,14 @@ pub(super) fn encode_model(
     declaration: &ModelDecl,
     budget: &mut Budget,
 ) -> Result<Vec<u8>, Diagnostic> {
-    budget.account_members(declaration.items().len(), "model")?;
+    budget.account_members(
+        declaration
+            .items()
+            .len()
+            .checked_add(declaration.signature().len())
+            .ok_or_else(|| super::source_identity_error("model member count overflow"))?,
+        "model",
+    )?;
     let members = encode_container_records(
         declaration.items(),
         budget,
@@ -28,6 +35,8 @@ pub(super) fn encode_model(
             encode_visibility(encoder, declaration.visibility())
         })?;
     }
+    let signature = super::signature::encode_signature(declaration.signature(), budget)?;
+    encoder.field(4, |encoder| encoder.records(&signature))?;
     encoder.finish()
 }
 

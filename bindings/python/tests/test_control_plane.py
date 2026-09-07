@@ -9,7 +9,7 @@ import pytest
 
 
 SOURCE = """
-model decay {
+model decay() {
   state x: 1;
   initial { x = 1; }
   parameter rate: 1 / s = 1;
@@ -49,7 +49,7 @@ def test_compile_contract_is_claim_local_at_runtime_and_in_the_stub() -> None:
 
     assert str(inspect.signature(eqiora.compile)) == (
         "(*, path=None, source=None, filename=None, geometry=None, "
-        "parameters=None, component=None)"
+        "bindings=None, entry=None)"
     )
 
     stub = Path(eqiora.__file__).with_name("__init__.pyi")
@@ -68,8 +68,8 @@ def test_compile_contract_is_claim_local_at_runtime_and_in_the_stub() -> None:
         "source",
         "filename",
         "geometry",
-        "parameters",
-        "component",
+        "bindings",
+        "entry",
     ]
     assert declaration.args.vararg is None
     assert declaration.args.kwarg is None
@@ -243,7 +243,7 @@ def test_exception_taxonomy_keeps_structured_diagnostics() -> None:
     import eqiora
 
     with pytest.raises(eqiora.ValidationError) as validation:
-        eqiora.compile(source="model broken { field ; }", filename="broken.eqi")
+        eqiora.compile(source='model broken() { field ; }', filename="broken.eqi")
     assert isinstance(validation.value, eqiora.EqioraError)
     assert validation.value.category == "validation"
     assert validation.value.diagnostics[0].source_span is not None

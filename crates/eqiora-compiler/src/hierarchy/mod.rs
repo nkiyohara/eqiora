@@ -24,17 +24,21 @@ use crate::source_identity::LocalSourceIdentity;
 
 mod body_check;
 mod check;
+mod clocks;
 mod complete_exterior;
 mod definition_graph;
 mod expand;
 mod exposure_cuts;
 mod field_slots;
 mod flat;
+mod named_bindings;
 mod occurrence_connections;
 mod parameters;
 mod physical_closure;
 mod preflight;
+pub(crate) use preflight::owned_model_items;
 mod scope;
+pub(crate) mod selected;
 mod supports;
 
 pub(crate) use definition_graph::CheckedDefinitionGraph;
@@ -155,100 +159,6 @@ impl Default for HierarchyLimits {
     }
 }
 
-pub(crate) fn compile_hierarchy(
-    file: &str,
-    source_bytes: usize,
-    document: &Document,
-) -> Result<Vec<CompiledModel>, Vec<Diagnostic>> {
-    compile_hierarchy_with_limits(file, source_bytes, document, HierarchyLimits::default())
-}
-
-/// Compile one local Component definition as an ephemeral root occurrence
-/// bound to exact external Geometry supports.
-///
-/// The external root is compiler-owned structure: no Cartesian stand-in,
-/// formatted source, transaction rewrite, or second lowerer is constructed.
-///
-/// # Errors
-/// Returns accumulated source, binding, hierarchy, or typed-lowering
-/// diagnostics. No partial transaction is returned.
-pub(crate) fn compile_external_component(
-    file: &str,
-    source: &str,
-    binding: &ExternalComponentBinding,
-) -> Result<CompiledModel, Vec<Diagnostic>> {
-    let limits = HierarchyLimits::default();
-    if source.len() > limits.max_source_bytes {
-        return Err(vec![source_error(
-            codes::LANGUAGE_LOWERING_ERROR,
-            file,
-            TextRange::new(0, u32::try_from(source.len()).unwrap_or(u32::MAX)),
-            format!(
-                "source requires {} bytes, exceeding the {} byte hierarchy limit",
-                source.len(),
-                limits.max_source_bytes
-            ),
-        )]);
-    }
-    let document = parse(file, source).into_document()?;
-    if !document.models().is_empty() {
-        return Err(vec![source_error(
-            codes::LANGUAGE_TYPE_ERROR,
-            file,
-            TextRange::default(),
-            "external Component binding requires a definitions-only source without a root Model",
-        )]);
-    }
-    validate_external_support_inventory(file, binding.supports())?;
-
-    let source_identity =
-        LocalSourceIdentity::from_document(&document).map_err(|error| vec![error])?;
-    let document = crate::dimensions::elaborate_dimension_aliases(file, &document)?;
-    let elaborator = Elaborator::new(
-        file,
-        source.len(),
-        document.as_ref(),
-        source_identity,
-        limits,
-    )?;
-    let checked = check::validate(&elaborator)?;
-    let range = TextRange::default();
-    let component_path = NamePath::from_segments([binding.component()], range)
-        .map_err(|error| vec![hierarchy_error(error.message())])?;
-    let component = elaborator
-        .resolve_component(
-            &preflight::DefinitionNamespace::Local,
-            &component_path,
-            file,
-            range,
-        )
-        .map_err(|error| vec![error])?;
-    compile_external_component_from_definition(&elaborator, &checked, component, binding, limits)
-}
-
-pub(crate) fn compile_resolved_external_component(
-    analysis: &AnalyzedResolvedHierarchy,
-    checked: &CheckedDefinitionGraph,
-    binding: &ExternalComponentBinding,
-    limits: HierarchyLimits,
-) -> Result<CompiledModel, Vec<Diagnostic>> {
-    let file = analysis
-        .units
-        .iter()
-        .find(|unit| unit.module == analysis.root)
-        .map_or("<resolved-package>", |unit| unit.file.as_str());
-    validate_external_support_inventory(file, binding.supports())?;
-    let elaborator = Elaborator::new_resolved(analysis, limits)?;
-    let range = TextRange::default();
-    let component_path = NamePath::from_segments([binding.component()], range)
-        .map_err(|error| vec![hierarchy_error(error.message())])?;
-    let namespace = preflight::DefinitionNamespace::Resolved(analysis.root.clone());
-    let component = elaborator
-        .resolve_component(&namespace, &component_path, file, range)
-        .map_err(|error| vec![error])?;
-    compile_external_component_from_definition(&elaborator, checked, component, binding, limits)
-}
-
 fn compile_external_component_from_definition<'a>(
     elaborator: &Elaborator<'a>,
     checked: &CheckedDefinitionGraph,
@@ -311,7 +221,7 @@ fn compile_external_component_from_definition<'a>(
         .map(|parameter| (parameter.parameter(), parameter))
         .collect::<std::collections::BTreeMap<_, _>>();
     let mut root_items = Vec::new();
-    for item in component.items() {
+    for item in component.owned_items() {
         let ComponentItem::Parameter(declaration) = item else {
             continue;
         };
@@ -336,21 +246,42 @@ fn compile_external_component_from_definition<'a>(
                 ExprKind::Name(parameter.parameter().to_owned()),
                 range,
             )?;
-            SourceAstFactory::parameter_binding(parameter.parameter(), value, range)
+            SourceAstFactory::named_binding(parameter.parameter(), value, range)
         })
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| vec![hierarchy_error(error.message())])?;
     let support_bindings = binding
         .supports()
         .iter()
-        .map(|support| SourceAstFactory::support_binding(support.slot(), support.slot(), range))
+        .map(|support| {
+            SourceAstFactory::named_binding(
+                support.slot(),
+                SourceAstFactory::expression(ExprKind::Name(support.slot().to_owned()), range)?,
+                range,
+            )
+        })
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| vec![hierarchy_error(error.message())])?;
-    let instance = SourceAstFactory::instance_with_support_bindings(
+    let clock_bindings = binding
+        .clocks
+        .iter()
+        .map(|(name, _)| {
+            SourceAstFactory::named_binding(
+                name,
+                SourceAstFactory::expression(ExprKind::Name(name.clone()), range)?,
+                range,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| vec![hierarchy_error(error.message())])?;
+    let instance = SourceAstFactory::instance(
         "definition",
         component_path,
-        parameter_bindings,
-        support_bindings,
+        parameter_bindings
+            .into_iter()
+            .chain(support_bindings)
+            .chain(clock_bindings)
+            .collect(),
         range,
     )
     .map_err(|error| vec![hierarchy_error(error.message())])?;
@@ -358,11 +289,13 @@ fn compile_external_component_from_definition<'a>(
     let root = SourceAstFactory::model(
         eqiora_lang::VisibilitySyntax::Private,
         binding.model(),
+        Vec::new(),
         root_items,
         range,
     )
     .map_err(|error| vec![hierarchy_error(error.message())])?;
     let model = preflight::ModelDefinition {
+        owned_interfaces: std::sync::Arc::from([]),
         namespace: component.namespace.clone(),
         file,
         declaration: &root,
@@ -376,7 +309,7 @@ fn compile_external_component_from_definition<'a>(
         },
     )
     .map_err(|error| vec![error])?
-    .expand_external(component, binding.supports())?
+    .expand_external(component, binding.supports(), &binding.clocks)?
     .compile(limits)
 }
 
@@ -407,6 +340,7 @@ fn validate_external_parameters(
     let interface = parameters::resolve_component_parameters_symbolically(
         component.file,
         component.declaration,
+        |name| clocks::component(file, component.declaration, name),
     )?;
     let mut diagnostics = Vec::new();
     for binding in bindings {
@@ -435,136 +369,14 @@ fn validate_external_parameters(
     }
 }
 
-fn validate_external_support_inventory(
-    file: &str,
-    supports: &[ExternalGeometrySupportBinding],
-) -> Result<(), Vec<Diagnostic>> {
-    let mut diagnostics = Vec::new();
-    let mut slots = std::collections::BTreeSet::new();
-    let mut entity_sets = std::collections::BTreeSet::new();
-    let geometry = supports
-        .first()
-        .map(ExternalGeometrySupportBinding::geometry);
-    for support in supports {
-        if !slots.insert(support.slot()) {
-            diagnostics.push(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                file,
-                TextRange::default(),
-                format!(
-                    "duplicate external support binding for slot `{}`",
-                    support.slot()
-                ),
-            ));
-        }
-        if !entity_sets.insert(support.entity_set()) {
-            diagnostics.push(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                file,
-                TextRange::default(),
-                format!(
-                    "external Geometry entity set `{}` is bound to more than one support slot",
-                    support.entity_set()
-                ),
-            ));
-        }
-        if Some(support.geometry()) != geometry {
-            diagnostics.push(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                file,
-                TextRange::default(),
-                "external support bindings must name one exact Geometry identity",
-            ));
-        }
-        if let ExternalGeometrySupportBinding::Region {
-            ambient_dimension, ..
-        } = support
-            && *ambient_dimension == 0
-        {
-            diagnostics.push(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                file,
-                TextRange::default(),
-                format!(
-                    "external region support `{}` has zero ambient dimension",
-                    support.slot()
-                ),
-            ));
-        }
-    }
-    for support in supports {
-        let ExternalGeometrySupportBinding::Boundary { parent_slot, .. } = support else {
-            continue;
-        };
-        if !supports.iter().any(|candidate| {
-            matches!(candidate, ExternalGeometrySupportBinding::Region { slot, .. } if slot == parent_slot)
-        }) {
-            diagnostics.push(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                file,
-                TextRange::default(),
-                format!(
-                    "external boundary support `{}` has no region parent binding `{parent_slot}`",
-                    support.slot()
-                ),
-            ));
-        }
-    }
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
-}
-
+#[cfg(test)]
 fn compile_hierarchy_with_limits(
     file: &str,
     source_bytes: usize,
     document: &Document,
     limits: HierarchyLimits,
 ) -> Result<Vec<CompiledModel>, Vec<Diagnostic>> {
-    if source_bytes > limits.max_source_bytes {
-        return Err(vec![source_error(
-            codes::LANGUAGE_LOWERING_ERROR,
-            file,
-            TextRange::new(0, u32::try_from(source_bytes).unwrap_or(u32::MAX)),
-            format!(
-                "source requires {source_bytes} bytes, exceeding the {} byte hierarchy limit",
-                limits.max_source_bytes
-            ),
-        )]);
-    }
-    let source_identity =
-        LocalSourceIdentity::from_document(document).map_err(|error| vec![error])?;
-    let document = crate::dimensions::elaborate_dimension_aliases(file, document)?;
-    let elaborator = Elaborator::new(
-        file,
-        source_bytes,
-        document.as_ref(),
-        source_identity,
-        limits,
-    )?;
-    let checked = check::validate(&elaborator)?;
-    let mut compiled = Vec::new();
-    let mut diagnostics = Vec::new();
-    for model in document.models() {
-        let model = elaborator.local_model(model);
-        let result = checked_model_expansion_size(&checked, &model)
-            .and_then(|size| {
-                RootExpansion::new(&elaborator, model, size).map_err(|error| vec![error])
-            })
-            .and_then(RootExpansion::expand)
-            .and_then(|blueprint| blueprint.compile(limits));
-        match result {
-            Ok(model) => compiled.push(model),
-            Err(mut errors) => diagnostics.append(&mut errors),
-        }
-    }
-    if diagnostics.is_empty() {
-        Ok(compiled)
-    } else {
-        Err(diagnostics)
-    }
+    selected::local_document(file, source_bytes, document.clone(), None, &[], limits)
 }
 
 pub(crate) fn compile_resolved_hierarchy(
@@ -630,4 +442,16 @@ pub(crate) use parameters::closed_value;
 
 pub(crate) fn closed_index(expression: &eqiora_lang::Expr) -> Result<u32, Diagnostic> {
     parameters::static_index("", expression, &Default::default())
+}
+
+/// Native drafts retain fresh IDs but share source-independent definition validation.
+pub(crate) fn validate_native_model(
+    file: &str,
+    model: &eqiora_lang::ModelDecl,
+) -> Result<(), Vec<Diagnostic>> {
+    let document = SourceAstFactory::document(Vec::new(), Vec::new(), vec![model.clone()])
+        .map_err(|error| vec![hierarchy_error(error.message())])?;
+    let identity = LocalSourceIdentity::from_document(&document).map_err(|error| vec![error])?;
+    let elaborator = Elaborator::new(file, 0, &document, identity, HierarchyLimits::default())?;
+    check::validate(&elaborator).map(|_| ())
 }

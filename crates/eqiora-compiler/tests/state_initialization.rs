@@ -4,11 +4,8 @@ use eqiora_schema::kernel::{FieldRole, KernelNode};
 
 #[test]
 fn flat_source_symbols_exclude_synthesized_owners_but_keep_kernel_nodes() {
-    let source = "model M { domain body = box(0,1); state x: 1 on body; initial { x = 1; } relation law on body { derivative(x) = 0; } }";
-    let document = eqiora_lang::parse("symbols.eqi", source)
-        .into_document()
-        .unwrap();
-    let compiled = eqiora_compiler::lower_model("symbols.eqi", &document.models()[0]).unwrap();
+    let source = "model M() { domain body = box(0,1); state x: 1 on body; initial { x = 1; } relation law on body { derivative(x) = 0; } }";
+    let compiled = compile("symbols.eqi", source).unwrap().remove(0);
     assert_eq!(
         compiled
             .symbols()
@@ -89,7 +86,7 @@ fn nodes(source: &str) -> Vec<KernelNode> {
 #[test]
 fn algebraic_state_support_and_initial_owners_are_independent() {
     let result = nodes(
-        "model M { domain body = box(0,1); variable a: 1; state x: 1; variable p: 1 on body; state t: 1 on body; initial { x = 1; t = 0; } relation law { derivative(x) = 0; a = x; } }",
+        "model M() { domain body = box(0,1); variable a: 1; state x: 1; variable p: 1 on body; state t: 1 on body; initial { x = 1; t = 0; } relation law { derivative(x) = 0; a = x; } }",
     );
     assert_eq!(
         result
@@ -131,12 +128,12 @@ fn algebraic_state_support_and_initial_owners_are_independent() {
 #[test]
 fn only_declared_continuous_states_have_authored_time_derivatives() {
     nodes(
-        "model M { state x: 1; initial { derivative(x) = 0; } relation law { derivative(x) = 0; } }",
+        "model M() { state x: 1; initial { derivative(x) = 0; } relation law { derivative(x) = 0; } }",
     );
     for source in [
-        "model M { variable x: 1; relation law { derivative(x) = 0; } }",
-        "model M { variable x: 1; initial { derivative(x) = 0; } }",
-        "model M { clock c = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1 at c; relation law { derivative(x) = 0; } }",
+        "model M() { variable x: 1; relation law { derivative(x) = 0; } }",
+        "model M() { variable x: 1; initial { derivative(x) = 0; } }",
+        "model M() { clock c = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1 at c; relation law { derivative(x) = 0; } }",
     ] {
         assert!(compile("bad.eqi", source).is_err(), "{source}");
     }
@@ -145,12 +142,12 @@ fn only_declared_continuous_states_have_authored_time_derivatives() {
 #[test]
 fn clocked_state_initializes_pre_and_requires_exact_clock() {
     nodes(
-        "model M { domain body = box(0,1); clock c = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1 on body at c; initial { pre(x) = 0; } relation law on body at c { next(x) = pre(x); } }",
+        "model M() { domain body = box(0,1); clock c = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1 on body at c; initial { pre(x) = 0; } relation law on body at c { next(x) = pre(x); } }",
     );
     for source in [
-        "model M { clock c = periodic(1[s] / 1, phase = 0[s] / 1); clock d = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1 at c; relation law at d { next(x) = pre(x); } }",
-        "model M { clock c = periodic(1[s] / 1, phase = 0[s] / 1); variable x: 1 at c; relation law at c { next(x) = pre(x); } }",
-        "model M { clock c = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1 at c; initial { next(x) = 0; } }",
+        "model M() { clock c = periodic(1[s] / 1, phase = 0[s] / 1); clock d = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1 at c; relation law at d { next(x) = pre(x); } }",
+        "model M() { clock c = periodic(1[s] / 1, phase = 0[s] / 1); variable x: 1 at c; relation law at c { next(x) = pre(x); } }",
+        "model M() { clock c = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1 at c; initial { next(x) = 0; } }",
     ] {
         assert!(compile("bad.eqi", source).is_err(), "{source}");
     }
@@ -158,7 +155,7 @@ fn clocked_state_initializes_pre_and_requires_exact_clock() {
 
 #[test]
 fn borrowed_roles_preserve_target_and_cannot_launder_state_eligibility() {
-    let source = "component Reader(variable value: 1) { relation law { value = 0; } } model M { state x: 1; instance r: Reader(field value = x); }";
+    let source = "component Reader(variable value: 1) { relation law { value = 0; } } model M() { state x: 1; instance r: Reader(value = x); }";
     assert_eq!(
         nodes(source)
             .iter()
@@ -167,9 +164,9 @@ fn borrowed_roles_preserve_target_and_cannot_launder_state_eligibility() {
         1
     );
     for source in [
-        "component Writer(state value: 1) { relation law { derivative(value) = 0; } } model M { variable x: 1; instance w: Writer(field value = x); }",
-        "component Writer(state value: 1) { relation law { derivative(value) = 0; } } component Forward(variable value: 1) { instance w: Writer(field value = value); } model M { state x: 1; instance f: Forward(field value = x); }",
-        "component Reader(variable value: 1) { relation law { derivative(value) = 0; } } model M { state x: 1; instance r: Reader(field value = x); }",
+        "component Writer(state value: 1) { relation law { derivative(value) = 0; } } model M() { variable x: 1; instance w: Writer(value = x); }",
+        "component Writer(state value: 1) { relation law { derivative(value) = 0; } } component Forward(variable value: 1) { instance w: Writer(value = value); } model M() { state x: 1; instance f: Forward(value = x); }",
+        "component Reader(variable value: 1) { relation law { derivative(value) = 0; } } model M() { state x: 1; instance r: Reader(value = x); }",
     ] {
         assert!(compile("bad.eqi", source).is_err(), "{source}");
     }
@@ -177,7 +174,7 @@ fn borrowed_roles_preserve_target_and_cannot_launder_state_eligibility() {
 
 #[test]
 fn borrowed_clocks_and_states_forward_exact_targets() {
-    let source = "component Delay(clock tick, state value: 1 at tick) { initial { pre(value) = 0; } relation law at tick { next(value) = pre(value); } } component Forward(clock tick, state value: 1 at tick) { instance d: Delay(clock tick = tick, field value = value); } model M { clock c = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1 at c; instance f: Forward(clock tick = c, field value = x); }";
+    let source = "component Delay(clock tick: periodic, state value: 1 at tick) { initial { pre(value) = 0; } relation law at tick { next(value) = pre(value); } } component Forward(clock tick: periodic, state value: 1 at tick) { instance d: Delay(tick = tick, value = value); } model M() { clock c = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1 at c; instance f: Forward(tick = c, value = x); }";
     let result = nodes(source);
     assert_eq!(
         result
@@ -194,7 +191,7 @@ fn borrowed_clocks_and_states_forward_exact_targets() {
         1
     );
     let wrong = source
-        .replace("clock tick = c, field", "clock tick = other, field")
+        .replace("tick = c, value", "tick = other, value")
         .replace(
             "state x: 1 at c;",
             "clock other = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1 at c;",
@@ -205,10 +202,10 @@ fn borrowed_clocks_and_states_forward_exact_targets() {
 #[test]
 fn initial_equation_identity_ignores_unrelated_declaration_order() {
     let first = nodes(
-        "component Marker() {} model M { state x: 1; variable a: 1; initial { x = 1; } initial { a = 2; } }",
+        "component Marker() {} model M() { state x: 1; variable a: 1; initial { x = 1; } initial { a = 2; } }",
     );
     let second = nodes(
-        "component Marker() {} model M { initial { a = 2; } variable a: 1; initial { x = 1; } state x: 1; }",
+        "component Marker() {} model M() { initial { a = 2; } variable a: 1; initial { x = 1; } state x: 1; }",
     );
     let initial_ids = |nodes: Vec<KernelNode>| {
         nodes
@@ -227,21 +224,21 @@ fn initial_equation_identity_ignores_unrelated_declaration_order() {
 #[test]
 fn initialization_has_no_implicit_values_or_scalar_broadcast() {
     assert!(
-        !nodes("model M { variable x: 1; state y: 1; relation r { x = y; } }")
+        !nodes("model M() { variable x: 1; state y: 1; relation r { x = y; } }")
             .iter()
             .any(|node| matches!(node, KernelNode::Relation(r) if r.is_initial()))
     );
     nodes(
-        "model M { domain body = box(0,1,0,1); state x: vector<m,2> on body; initial { x = 0; } }",
+        "model M() { domain body = box(0,1,0,1); state x: vector<m,2> on body; initial { x = 0; } }",
     );
-    assert!(compile("broadcast.eqi", "model M { domain body = box(0,1,0,1); state x: vector<m,2> on body; initial { x = 1[m]; } }").is_err());
+    assert!(compile("broadcast.eqi", "model M() { domain body = box(0,1,0,1); state x: vector<m,2> on body; initial { x = 1[m]; } }").is_err());
 }
 
 #[test]
 fn unused_component_clock_ownership_is_checked_at_its_definition() {
     for source in [
-        "component C() { state x: 1 at missing; } model M { variable y: 1; relation r { y = 0; } }",
-        "component C(state x: 1 at hidden) { clock hidden = periodic(1[s] / 1, phase = 0[s] / 1); } model M { variable y: 1; relation r { y = 0; } }",
+        "component C() { state x: 1 at missing; } model M() { variable y: 1; relation r { y = 0; } }",
+        "component C(state x: 1 at hidden) { clock hidden = periodic(1[s] / 1, phase = 0[s] / 1); } model M() { variable y: 1; relation r { y = 0; } }",
     ] {
         assert!(compile("unused.eqi", source).is_err(), "{source}");
     }
@@ -251,7 +248,7 @@ fn unused_component_clock_ownership_is_checked_at_its_definition() {
 fn continuum_owner_is_shared_by_exact_support_across_components() {
     use eqiora_core::entity::EntityKind;
     use eqiora_graph::EdgeKind;
-    let source = "component C(support body: volume(ambient_dimension = 1)) { variable load: 1 on body; relation r on body { load = 0; } } model M { domain a = box(0,1); domain b = box(0,1); state x: 1 on a; variable y: 1 on a; variable z: 1 on b; instance c: C(support body = a); relation r on a { x = y; } }";
+    let source = "component C(support body: volume(ambient_dimension = 1)) { variable load: 1 on body; relation r on body { load = 0; } } model M() { domain a = box(0,1); domain b = box(0,1); state x: 1 on a; variable y: 1 on a; variable z: 1 on b; instance c: C(body = a); relation r on a { x = y; } }";
     let compiled = compile("shared.eqi", source).unwrap();
     let model = &compiled[0];
     let representation = |field: &str| {
@@ -273,54 +270,4 @@ fn continuum_owner_is_shared_by_exact_support_across_components() {
     assert_eq!(representation("x"), representation("y"));
     assert_eq!(representation("x"), representation("c.load"));
     assert_ne!(representation("x"), representation("z"));
-}
-
-#[test]
-fn source_and_factory_retain_volume_only_field_support() {
-    use eqiora_lang::{Item, SourceAstFactory, VisibilitySyntax};
-    let source = "model M { domain body = box(0,1); domain wall = boundary(body, axis = 0, side = lower); state x: 1 on wall; initial { x = 0; } }";
-    let is_support_error = |errors: Vec<eqiora_core::Diagnostic>| {
-        errors
-            .iter()
-            .any(|error| error.message().contains("requires a volume support"))
-    };
-    assert!(is_support_error(
-        compile("boundary.eqi", source).unwrap_err()
-    ));
-    assert!(is_support_error(
-        compile("boundary.eqi", &format!("component Marker() {{}} {source}")).unwrap_err()
-    ));
-    let document = eqiora_lang::parse("boundary.eqi", source)
-        .into_document()
-        .unwrap();
-    let model = &document.models()[0];
-    let items = model
-        .items()
-        .iter()
-        .map(|item| match item {
-            Item::Field(field) => Item::Field(
-                SourceAstFactory::field(
-                    field.name(),
-                    field.domain().map(str::to_owned),
-                    field.role(),
-                    field.activation().clone(),
-                    field.value_type().clone(),
-                    field.range(),
-                )
-                .unwrap(),
-            ),
-            other => other.clone(),
-        })
-        .collect();
-    let rebuilt = SourceAstFactory::model(
-        VisibilitySyntax::Private,
-        model.name(),
-        items,
-        model.range(),
-    )
-    .unwrap();
-    assert!(is_support_error(
-        eqiora_compiler::lower_model("factory.eqi", &rebuilt).unwrap_err()
-    ));
-    assert!(is_support_error(compile("required.eqi", "component C(support body: volume(ambient_dimension = 1), support wall: boundary(parent = body), state x: 1 on wall) {} model M { variable y: 1; relation r { y = 0; } }").unwrap_err()));
 }

@@ -47,7 +47,7 @@ fn validate_expression_depth(expression: &Expr, depth: usize) -> Result<(), AstC
         }
         ExprKind::Call { callee, arguments } => {
             validate_name_path(callee)?;
-            if arguments.is_empty() {
+            if arguments.is_empty() && callee.to_string() != "boundaries" {
                 return Err(AstConstructionError::new(
                     "an expression operator call requires at least one argument",
                 ));

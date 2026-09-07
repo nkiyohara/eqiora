@@ -441,7 +441,7 @@ mod tests {
     }
 
     fn write_valid_package(root: &TestDirectory) {
-        write_entry(root, "src/main.eqi", b"model Main {}");
+        write_entry(root, "src/main.eqi", b"model Main() {}");
         write_manifest(root, &[("src/main.eqi", BundleRoleV1::ModelSource)]);
     }
 
@@ -627,7 +627,7 @@ mod tests {
     #[test]
     fn malformed_manifest_never_reaches_inventory_reads() {
         let directory = TestDirectory::create("malformed-manifest");
-        write_entry(&directory, "main.eqi", b"model Main {}");
+        write_entry(&directory, "main.eqi", b"model Main() {}");
         fs::write(
             directory.0.join(MANIFEST_PATH),
             br#"{"schema":"eqiora.package-manifest.v1","name":"org.example.Bad","version":"1.0.0","dependencies":[],"bundle":[{"path":"main.eqi","role":"executable_plugin"}]}"#,
@@ -647,7 +647,7 @@ mod tests {
         use std::os::unix::fs::symlink;
 
         let manifest_link = TestDirectory::create("manifest-symlink");
-        write_entry(&manifest_link, "main.eqi", b"model Main {}");
+        write_entry(&manifest_link, "main.eqi", b"model Main() {}");
         let manifest_bytes = manifest(&[("main.eqi", BundleRoleV1::ModelSource)])
             .canonical_json()
             .expect("manifest bytes");
@@ -663,7 +663,7 @@ mod tests {
         );
 
         let final_link = TestDirectory::create("final-symlink");
-        write_entry(&final_link, "target.eqi", b"model Main {}");
+        write_entry(&final_link, "target.eqi", b"model Main() {}");
         symlink("target.eqi", final_link.0.join("main.eqi")).expect("create final symlink");
         write_manifest(&final_link, &[("main.eqi", BundleRoleV1::ModelSource)]);
         assert!(
@@ -676,7 +676,7 @@ mod tests {
         let intermediate_link = TestDirectory::create("intermediate-symlink");
         let target = intermediate_link.0.join("target");
         fs::create_dir(&target).expect("create target directory");
-        fs::write(target.join("main.eqi"), b"model Main {}").expect("write target source");
+        fs::write(target.join("main.eqi"), b"model Main() {}").expect("write target source");
         symlink("target", intermediate_link.0.join("src")).expect("create intermediate symlink");
         write_manifest(
             &intermediate_link,
@@ -722,7 +722,7 @@ mod tests {
 
         fs::rename(&directory.0, &moved).expect("move retained root");
         fs::create_dir(&directory.0).expect("create replacement root");
-        write_entry(&directory, "src/main.eqi", b"model Replacement {}");
+        write_entry(&directory, "src/main.eqi", b"model Replacement() {}");
         write_manifest(&directory, &[("src/main.eqi", BundleRoleV1::ModelSource)]);
         assert_eq!(package.read_sources().expect("retained package"), expected);
 

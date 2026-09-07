@@ -221,12 +221,11 @@ fn package_preparation_replays_transitive_closure_independent_of_input_order() {
     );
     let middle = inline_release(
         "org.example.Middle",
-        "import org.example.Leaf.main as leaf; public component Branch() { instance load: leaf.Resistor; }",
+        "import org.example.Leaf.main as leaf; public component Branch() { instance load: leaf.Resistor(); }",
         &[("leaf", &leaf)],
         std::slice::from_ref(&leaf),
     );
-    let root_source =
-        "import org.example.Middle.main as middle; model Main { instance branch: middle.Branch; }";
+    let root_source = "import org.example.Middle.main as middle; model Main() { instance branch: middle.Branch(); }";
     let first = prepare_package_release_v1(
         inline_sources("org.example.Root", root_source, &[("middle", &middle)]),
         &[leaf.clone(), middle.clone()],

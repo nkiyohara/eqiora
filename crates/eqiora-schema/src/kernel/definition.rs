@@ -438,8 +438,11 @@ impl ActivationDef {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ConnectionSemantics {
-    /// Causal signal; a discrete source is held between activation instants.
-    Signal,
+    /// Directed causal signal requiring equal exact activation and support.
+    Signal {
+        /// Exact connected source endpoint, including an interface relay.
+        driver: Id<kinds::Port>,
+    },
     /// Acausal connection enforcing equality and conservation laws.
     Conserving,
     /// Field-valued conserving pair identified by a derived Cartesian

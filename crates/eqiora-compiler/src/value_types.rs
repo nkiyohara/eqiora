@@ -86,7 +86,7 @@ mod tests {
     use eqiora_lang::{Item, parse};
 
     fn syntax(value: &str) -> ValueTypeSyntax {
-        let source = format!("model M {{ parameter value: {value} = 0; }}");
+        let source = format!("model M() {{ parameter value: {value} = 0; }}");
         let document = parse("types.eqi", &source).into_document().unwrap();
         let Item::Parameter(parameter) = &document.models()[0].items()[0] else {
             panic!("parameter");

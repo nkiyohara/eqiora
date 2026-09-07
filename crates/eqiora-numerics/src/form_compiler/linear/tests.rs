@@ -35,7 +35,7 @@ fn derive(source: &str) -> Result<CompiledLinearBlockForm, Diagnostic> {
 fn source(reaction: &[Vec<f64>], reverse: bool) -> String {
     let count = reaction.len();
     let mut source = String::from(
-        "model Linear { domain body = box(0, 2); domain left = boundary(body, axis = 0, side = lower); domain right = boundary(body, axis = 0, side = upper); parameter unit: 1 / m ^ 2 = 1;\n",
+        "model Linear() { domain body = box(0, 2); domain left = boundary(body, axis = 0, side = lower); domain right = boundary(body, axis = 0, side = upper); parameter unit: 1 / m ^ 2 = 1;\n",
     );
     let order = if reverse {
         (0..count).rev().collect::<Vec<_>>()

@@ -17,9 +17,8 @@ public connector MechanicalBoundary = field_physical(
 public component ExteriorLaw(
   support body: volume(ambient_dimension = 2),
   support exterior: complete_exterior(parent = body),
+  port mechanical[boundary in exterior]: conserving MechanicalBoundary over boundary
 ) {
-  public port mechanical[boundary in exterior]:
-    conserving MechanicalBoundary over boundary;
   relation boundary_law[boundary in exterior] on boundary {
     trace(mechanical[boundary = boundary])
       - trace(mechanical[boundary = boundary]) = 0;
@@ -41,15 +40,15 @@ import mechanics_package.main as {alias};
 public component BoundaryTerminal(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
+  port mechanical: conserving {alias}.MechanicalBoundary over face
 ) {{
-  public port mechanical: conserving {alias}.MechanicalBoundary over face;
   relation terminal_law on face {{
     trace(mechanical) - trace(mechanical) = 0;
     flux(mechanical) - flux(mechanical) = 0;
   }}
 }}
 
-model Main {{
+model Main() {{
   domain body = box(0, 1, 0, 1);
   domain x_lower = boundary(body, axis = 0, side = lower);
   domain x_upper = boundary(body, axis = 0, side = upper);
@@ -57,24 +56,24 @@ model Main {{
   domain y_upper = boundary(body, axis = 1, side = upper);
 
   instance solid: {alias}.ExteriorLaw(
-    support body = body,
-    support exterior = boundaries(y_upper, x_lower, y_lower, x_upper)
+    body = body,
+    exterior = boundaries(y_upper, x_lower, y_lower, x_upper)
   );
   instance x_lower_terminal: BoundaryTerminal(
-    support body = body,
-    support face = x_lower
+    body = body,
+    face = x_lower
   );
   instance x_upper_terminal: BoundaryTerminal(
-    support body = body,
-    support face = x_upper
+    body = body,
+    face = x_upper
   );
   instance y_lower_terminal: BoundaryTerminal(
-    support body = body,
-    support face = y_lower
+    body = body,
+    face = y_lower
   );
   instance y_upper_terminal: BoundaryTerminal(
-    support body = body,
-    support face = y_upper
+    body = body,
+    face = y_upper
   );
 
   connect conserving solid.mechanical[boundary = x_lower],

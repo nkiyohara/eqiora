@@ -150,6 +150,9 @@ pub(super) fn analyze_resolved_hierarchy_with_cancellation(
         stable_sort(&mut diagnostics);
         return Err(diagnostics);
     }
+    for unit in &mut analysis.units {
+        unit.authored_document = std::sync::Arc::new(unit.document.clone());
+    }
     analysis.property_bindings =
         crate::property::validate_and_elaborate(&mut analysis.units, &analysis.aliases)?;
     if is_cancelled() {

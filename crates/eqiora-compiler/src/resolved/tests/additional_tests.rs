@@ -11,7 +11,7 @@ fn canonical_declarations_ignore_files_formatting_and_input_order() {
                 &package,
                 "parts.component",
                 "z/component.eqi",
-                "public component C() { public parameter p: 1 = 2; public parameter q: 1 = 3; }",
+                "public component C(parameter p: 1 = 2, parameter q: 1 = 3) {   }",
             ),
             module_unit(
                 &package,
@@ -37,7 +37,7 @@ fn canonical_declarations_ignore_files_formatting_and_input_order() {
                 &package,
                 "parts.component",
                 "elsewhere/c.eqi",
-                "public component C() {\n public parameter q: 1=3;\n public parameter p: 1=2;\n}",
+                "public component C(parameter q: 1=3, parameter p: 1=2) {\n \n \n}",
             ),
         ],
         vec![],
@@ -72,7 +72,7 @@ fn compiler_owned_math_root_cannot_be_a_package_alias() {
             unit(
                 &root,
                 "root.eqi",
-                "import dependency.main as math; model Main {}",
+                "import dependency.main as math; model Main() {}",
             ),
             unit(&dependency, "dependency.eqi", "public component C() {}"),
         ],
@@ -89,8 +89,8 @@ fn compiler_owned_math_root_cannot_be_a_package_alias() {
 #[test]
 fn compiler_owned_math_root_cannot_be_a_property_declaration() {
     for source in [
-        "public property contract math(): 1 { derivatives value_only; } model Main {}",
-        "public property contract C(): 1 { derivatives value_only; } public property release math implements C { value = 1; source_unit: 1 = 1; validity = unconditional; citation = org.example; license = spdx.CC0_1_0; } model Main {}",
+        "public property contract math(): 1 { derivatives value_only; } model Main() {}",
+        "public property contract C(): 1 { derivatives value_only; } public property release math implements C { value = 1; source_unit: 1 = 1; validity = unconditional; citation = org.example; license = spdx.CC0_1_0; } model Main() {}",
     ] {
         let root = namespace("root");
         let input = ResolvedHierarchyInput::new(

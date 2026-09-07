@@ -62,6 +62,17 @@ impl ExecutionPlan {
                 ));
             }
             if let KernelNode::Port(port) = node
+                && program.edges().iter().any(|edge| {
+                    edge.from() == port.id().erase()
+                        && edge.kind() == eqiora_graph::EdgeKind::DefinedOn
+                })
+            {
+                return Err(Diagnostic::error(
+                    codes::NOT_IMPLEMENTED,
+                    "reference execution does not realize distributed Ports",
+                ));
+            }
+            if let KernelNode::Port(port) = node
                 && let Some((_, value_type)) = port.signal_contract()
                 && (value_type.scalar_domain() != eqiora_core::ScalarDomain::Real
                     || !value_type.shape().is_scalar())
@@ -116,6 +127,8 @@ impl ExecutionPlan {
                     };
                     periodic_clocks.insert(clock_id);
                     periodic.push(PeriodicTask {
+                        clock: clock_id,
+                        tick_index: 0,
                         relations,
                         period,
                         next: phase,
@@ -166,18 +179,38 @@ impl ExecutionPlan {
 
         let mut discrete_fields = BTreeSet::new();
         let mut discrete_ports = BTreeSet::new();
-        for relation in periodic
+        for (relation, is_event) in periodic
             .iter()
-            .flat_map(|task| &task.relations)
-            .chain(events.iter().flat_map(|task| &task.relations))
+            .flat_map(|task| task.relations.iter().map(|relation| (relation, false)))
+            .chain(
+                events
+                    .iter()
+                    .flat_map(|task| task.relations.iter().map(|relation| (relation, true))),
+            )
         {
             for symbol in relation_symbols(program, *relation)? {
                 match symbol {
                     SymbolRef::Next(field) => {
                         discrete_fields.insert(field.erase());
                     }
-                    SymbolRef::Port(port) if is_output_port(program, port.erase()) => {
-                        discrete_ports.insert(port.erase());
+                    SymbolRef::Port(port) => {
+                        let source = signal_sources
+                            .get(&port.erase())
+                            .copied()
+                            .unwrap_or_else(|| port.erase());
+                        // Reading a continuous source inside Sample does not change
+                        // its activation or remove its continuous defining equation.
+                        if is_output_port(program, source)
+                            && (is_event
+                                || !edge_targets(
+                                    program,
+                                    source,
+                                    eqiora_graph::EdgeKind::ClockedBy,
+                                )
+                                .is_empty())
+                        {
+                            discrete_ports.insert(source);
+                        }
                     }
                     _ => {}
                 }
@@ -252,4 +285,13 @@ impl ExecutionPlan {
             fields,
         })
     }
+}
+
+fn signal_sources(program: &KernelProgram) -> Result<BTreeMap<RawId, RawId>, Diagnostic> {
+    crate::program::signal_connections::program_sources(program).map_err(|errors| {
+        errors
+            .into_iter()
+            .next()
+            .expect("failed validation has diagnostic")
+    })
 }

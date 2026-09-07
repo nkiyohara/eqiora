@@ -1,3 +1,5 @@
+mod interfaces;
+pub(crate) use interfaces::model_items as owned_model_items;
 use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::Diagnostic;
@@ -73,6 +75,7 @@ pub(super) struct ComponentDefinition<'a> {
     pub(super) namespace: DefinitionNamespace,
     pub(super) file: &'a str,
     pub(super) declaration: &'a ComponentDecl,
+    owned_interfaces: std::sync::Arc<[ComponentItem]>,
 }
 
 impl core::ops::Deref for ComponentDefinition<'_> {
@@ -88,6 +91,7 @@ pub(super) struct ModelDefinition<'a> {
     pub(super) namespace: DefinitionNamespace,
     pub(super) file: &'a str,
     pub(super) declaration: &'a ModelDecl,
+    pub(super) owned_interfaces: std::sync::Arc<[Item]>,
 }
 
 #[derive(Clone)]
@@ -267,6 +271,14 @@ impl<'a> Elaborator<'a> {
     }
 
     pub(super) fn entry_model(&self, path: &str) -> Result<ModelDefinition<'a>, String> {
+        self.find_entry_model(path)?
+            .ok_or_else(|| format!("unresolved entry Model `{path}`"))
+    }
+
+    pub(super) fn find_entry_model(
+        &self,
+        path: &str,
+    ) -> Result<Option<ModelDefinition<'a>>, String> {
         let (namespace, name, imported) = match path.split_once('.') {
             None if !path.is_empty() => (self.root_namespace.clone(), path, false),
             Some((alias, name)) if !alias.is_empty() && !name.is_empty() && !name.contains('.') => {
@@ -284,29 +296,21 @@ impl<'a> Elaborator<'a> {
                 ));
             }
         };
-        let definition = self
+        let Some(definition) = self
             .models
             .get(&DefinitionKey {
                 namespace,
                 name: name.to_owned(),
             })
             .cloned()
-            .ok_or_else(|| format!("unresolved entry Model `{path}`"))?;
+        else {
+            return Ok(None);
+        };
         if imported && definition.declaration.visibility() != eqiora_lang::VisibilitySyntax::Public
         {
             return Err(format!("private Model `{path}` cannot be imported"));
         }
-        Ok(definition)
-    }
-
-    pub(super) fn local_model(&self, model: &'a ModelDecl) -> ModelDefinition<'a> {
-        self.models
-            .get(&DefinitionKey {
-                namespace: DefinitionNamespace::Local,
-                name: model.name().to_owned(),
-            })
-            .expect("local Model was indexed")
-            .clone()
+        Ok(Some(definition))
     }
 
     pub(super) fn connectors(
@@ -497,13 +501,22 @@ impl<'a> Elaborator<'a> {
             let component = definition.declaration;
             let file = definition.file;
             let mut names = BTreeMap::<&str, TextRange>::new();
+            for requirement in component.signature() {
+                let (name, range) = (requirement.name(), requirement.range());
+                validate_identifier(file, name, range, self.limits, diagnostics);
+                if names.insert(name, range).is_some() {
+                    diagnostics.push(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        range,
+                        format!("duplicate signature name `{name}`"),
+                    ));
+                }
+            }
             for item in component.items() {
                 let named = match item {
                     ComponentItem::Let(value) => Some((value.name(), value.range())),
                     ComponentItem::Parameter(value) => Some((value.name(), value.range())),
-                    ComponentItem::Support(value) => Some((value.name(), value.range())),
-                    ComponentItem::ClockRequirement(value) => Some((value.name(), value.range())),
-                    ComponentItem::FieldRequirement(value) => Some((value.name(), value.range())),
                     ComponentItem::Port(value) => Some((value.name(), value.range())),
                     ComponentItem::PortFamily(value) => Some((value.port().name(), value.range())),
                     ComponentItem::Field(value) => Some((value.name(), value.range())),
@@ -578,6 +591,18 @@ impl<'a> Elaborator<'a> {
             let model = definition.declaration;
             let file = definition.file;
             let mut names = BTreeMap::<&str, TextRange>::new();
+            for requirement in model.signature() {
+                let (name, range) = (requirement.name(), requirement.range());
+                validate_identifier(file, name, range, self.limits, diagnostics);
+                if names.insert(name, range).is_some() {
+                    diagnostics.push(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        range,
+                        format!("duplicate signature name `{name}`"),
+                    ));
+                }
+            }
             for item in model.items() {
                 let named = match item {
                     Item::Domain(value) => Some((value.name(), value.range())),
@@ -588,7 +613,7 @@ impl<'a> Elaborator<'a> {
                     Item::Clock(value) => Some((value.name(), value.range())),
                     Item::Relation(value) => Some((value.name(), value.range())),
                     Item::Instance(value) => Some((value.name(), value.range())),
-                    Item::Connection(_) | Item::BoundaryConnection(_) | Item::Boundary(_) => None,
+                    Item::Connection(_) | Item::BoundaryConnection(_) => None,
                     _ => None,
                 };
                 if let Some((name, range)) = named {
@@ -717,6 +742,7 @@ fn index_unit<'a>(
             .insert(
                 key,
                 ComponentDefinition {
+                    owned_interfaces: interfaces::component_items(declaration),
                     namespace: namespace.clone(),
                     file,
                     declaration,
@@ -748,6 +774,7 @@ fn index_unit<'a>(
             .insert(
                 key,
                 ModelDefinition {
+                    owned_interfaces: interfaces::model_items(declaration),
                     namespace: namespace.clone(),
                     file,
                     declaration,
@@ -797,61 +824,28 @@ fn validate_identifier(
 fn validate_binding_names(file: &str, instance: &InstanceDecl, diagnostics: &mut Vec<Diagnostic>) {
     let mut names = BTreeSet::new();
     for binding in instance.bindings() {
-        if !names.insert(binding.parameter()) {
+        if !names.insert(binding.name()) {
             diagnostics.push(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 file,
                 binding.range(),
                 format!(
-                    "duplicate binding for Parameter `{}` in instance `{}`",
-                    binding.parameter(),
+                    "duplicate named binding `{}` in instance `{}`",
+                    binding.name(),
                     instance.name()
                 ),
             ));
         }
     }
-    let mut support_slots = BTreeSet::new();
-    for binding in instance.support_bindings() {
-        if !support_slots.insert(binding.slot()) {
-            diagnostics.push(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                file,
-                binding.range(),
-                format!(
-                    "duplicate binding for support slot `{}` in instance `{}`",
-                    binding.slot(),
-                    instance.name()
-                ),
-            ));
-        }
+}
+
+impl ComponentDefinition<'_> {
+    pub(super) fn owned_items(&self) -> impl Iterator<Item = &ComponentItem> {
+        self.owned_interfaces.iter().chain(self.declaration.items())
     }
-    for binding in instance.boundary_set_bindings() {
-        if !support_slots.insert(binding.slot()) {
-            diagnostics.push(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                file,
-                binding.range(),
-                format!(
-                    "duplicate binding for support slot `{}` in instance `{}`",
-                    binding.slot(),
-                    instance.name()
-                ),
-            ));
-        }
-    }
-    let mut field_slots = BTreeSet::new();
-    for binding in instance.field_bindings() {
-        if !field_slots.insert(binding.slot()) {
-            diagnostics.push(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                file,
-                binding.range(),
-                format!(
-                    "duplicate binding for Field slot `{}` in instance `{}`",
-                    binding.slot(),
-                    instance.name()
-                ),
-            ));
-        }
+}
+impl ModelDefinition<'_> {
+    pub(super) fn owned_items(&self) -> impl Iterator<Item = &Item> {
+        self.owned_interfaces.iter().chain(self.declaration.items())
     }
 }
