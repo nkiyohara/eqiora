@@ -50,8 +50,7 @@ def test_installed_path_and_loaded_source_have_one_model_meaning() -> None:
 def test_source_shape_and_argument_admission_fail_closed(tmp_path: Path) -> None:
     root_source = """
 model Main {
-  state x: 1;
-  initial { x = 1; }
+  variable x: 1;
   relation balance { x - 1 = 0; }
 }
 """
