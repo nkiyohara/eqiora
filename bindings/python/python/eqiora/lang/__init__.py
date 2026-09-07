@@ -997,7 +997,7 @@ class Component:
 
 
 class Source:
-    """A bounded language draft that freezes on its first emission."""
+    """Author a bounded Component hierarchy and freeze it on first emission."""
 
     __slots__ = (
         "_components",
@@ -1043,15 +1043,6 @@ class Source:
         doc: str | None = None,
     ) -> Component:
         self._ensure_open()
-        maximum = 2 if self._contracts else 1
-        if len(self._components) >= maximum:
-            if maximum == 1:
-                raise SourceError(
-                    "Source admits a second Component only for scalar property binding"
-                )
-            raise SourceError(
-                "the scalar property Source vocabulary admits exactly two Components"
-            )
         doc_lines = _doc(doc)
         admitted = self._add_top_name(name)
         component = Component(_CREATE, self, admitted, doc_lines)
@@ -1165,13 +1156,13 @@ class Source:
         if self._frozen_text is None:
             if not self._components:
                 raise SourceError(
-                    "Source requires one public Component before emission"
+                    "Source requires at least one public Component before emission"
                 )
             declarations: list[str] = []
             if self._contracts:
-                if not self._releases or len(self._components) != 2:
+                if not self._releases:
                     raise SourceError(
-                        "property Source requires releases, one consumer, and one root Component"
+                        "property Source requires releases"
                     )
                 for contract in self._contracts:
                     declarations.extend(_comment(contract._doc, ""))
@@ -1207,17 +1198,18 @@ class Source:
                         )
                     declarations.append("}")
                     declarations.append("")
-            declarations.append(
-                "\n\n".join(
-                    component._render().rstrip("\n")
-                    for component in self._components
-                )
-            )
+            rendered_components: list[str] = []
+            emitted_bytes = sum(len(line.encode("utf-8")) + 1 for line in declarations) + 1
+            for component in self._components:
+                rendered = component._render().rstrip("\n")
+                emitted_bytes += len(rendered.encode("utf-8")) + (2 if rendered_components else 0)
+                if emitted_bytes > _MAX_OUTPUT_BYTES:
+                    raise SourceError(
+                        f"emitted source exceeds the {_MAX_OUTPUT_BYTES}-byte limit"
+                    )
+                rendered_components.append(rendered)
+            declarations.append("\n\n".join(rendered_components))
             text = "\n".join(declarations) + "\n"
-            if len(text.encode("utf-8")) > _MAX_OUTPUT_BYTES:
-                raise SourceError(
-                    f"emitted source exceeds the {_MAX_OUTPUT_BYTES}-byte limit"
-                )
             self._frozen_text = text
         return self._frozen_text
 
