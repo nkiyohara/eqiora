@@ -168,7 +168,7 @@ test('JavaScript-disabled core remains navigable and mathematically complete', a
   }
   await page.goto('/gallery/exact-cylinder-steady-stokes/');
   await assertSemanticStages(page);
-  await expect(page.getByRole('img', { name: /Pressure in pascals for a 2D steady-Stokes exact-cylinder/i })).toBeVisible();
+  await expect(page.getByRole('img', { name: /Steady Stokes pressure around a cylinder/i })).toBeVisible();
   expect(await page.locator('math').count()).toBeGreaterThanOrEqual(2);
   expect(await page.locator('.katex-html').count()).toBeGreaterThanOrEqual(2);
   await assertVisibleSourceFallback(page);
