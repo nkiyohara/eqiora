@@ -34,7 +34,7 @@ mod value_types;
 pub use formulation::{
     AuthoredFormExpressionV1, AuthoredFormulationProjection, CompiledAuthoredFormulation,
 };
-pub use lower::{CompiledModel, ModelSymbols, lower_draft, lower_model};
+pub use lower::{CompiledModel, ModelSymbols, lower_draft};
 pub use resolved::{
     AnalyzedResolvedHierarchy, CanonicalDeclarationIdentity, CanonicalDeclarationKind,
     CompilationNamespaceId, ResolvedDependency, ResolvedHierarchyInput, ResolvedSourceUnit,

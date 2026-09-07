@@ -443,3 +443,15 @@ pub(crate) use parameters::closed_value;
 pub(crate) fn closed_index(expression: &eqiora_lang::Expr) -> Result<u32, Diagnostic> {
     parameters::static_index("", expression, &Default::default())
 }
+
+/// Native drafts retain fresh IDs but share source-independent definition validation.
+pub(crate) fn validate_native_model(
+    file: &str,
+    model: &eqiora_lang::ModelDecl,
+) -> Result<(), Vec<Diagnostic>> {
+    let document = SourceAstFactory::document(Vec::new(), Vec::new(), vec![model.clone()])
+        .map_err(|error| vec![hierarchy_error(error.message())])?;
+    let identity = LocalSourceIdentity::from_document(&document).map_err(|error| vec![error])?;
+    let elaborator = Elaborator::new(file, 0, &document, identity, HierarchyLimits::default())?;
+    check::validate(&elaborator).map(|_| ())
+}

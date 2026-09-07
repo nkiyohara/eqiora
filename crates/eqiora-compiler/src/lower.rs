@@ -185,7 +185,8 @@ pub fn lower_draft(draft: &ModelDraft) -> Result<CompiledModel, Vec<Diagnostic>>
 /// # Errors
 /// Returns source-spanned name, dimension, clock, connection, or DAG
 /// diagnostics. No partial transaction is returned.
-pub fn lower_model(file: &str, model: &ModelDecl) -> Result<CompiledModel, Vec<Diagnostic>> {
+pub(crate) fn lower_model(file: &str, model: &ModelDecl) -> Result<CompiledModel, Vec<Diagnostic>> {
+    crate::hierarchy::validate_native_model(file, model)?;
     lower_model_with_identities(file, model, &mut FreshLoweringIdentities)
 }
 
