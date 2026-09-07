@@ -50,13 +50,13 @@ fn support_assertions_change_identity_in_both_containers() {
 }
 
 #[test]
-fn omitted_support_keeps_the_existing_three_field_record_contract() {
+fn omitted_activation_keeps_the_existing_record_contract() {
     use crate::source_identity::{
         Budget, Encoder, LocalSourceIdentityLimits, compile_time, encode_expression, encode_name,
         value_type,
     };
-    for annotation in ["", ": m"] {
-        let source = format!("model M {{ let q{annotation} = value; }}");
+    for (annotation, support) in [("", ""), (": m", ""), ("", " on body"), (": m", " on body")] {
+        let source = format!("model M {{ let q{annotation}{support} = value; }}");
         let document = eqiora_lang::parse("omitted.eqi", &source)
             .into_document()
             .unwrap();
@@ -66,7 +66,7 @@ fn omitted_support_keeps_the_existing_three_field_record_contract() {
         let limits = LocalSourceIdentityLimits::default();
         let mut actual = Encoder::new(limits.max_canonical_bytes);
         compile_time::encode_let(&mut actual, alias, &mut Budget::new(limits)).unwrap();
-        // Existing alias record: name=1, optional type=2, expression=3.
+        // Existing alias record: name=1, optional type=2, expression=3, optional support=4.
         // Absence of the new assertion must emit no tag or sentinel.
         let mut expected = Encoder::new(limits.max_canonical_bytes);
         let mut budget = Budget::new(limits);
@@ -85,6 +85,31 @@ fn omitted_support_keeps_the_existing_three_field_record_contract() {
                 encode_expression(encoder, alias.value(), &mut budget, 1)
             })
             .unwrap();
+        if !support.is_empty() {
+            expected
+                .field(4, |encoder| encode_name(encoder, "body", &mut budget))
+                .unwrap();
+        }
         assert_eq!(actual.finish().unwrap(), expected.finish().unwrap());
+    }
+}
+
+#[test]
+fn activation_assertions_change_identity_in_both_containers() {
+    for container in ["model M", "component C()"] {
+        for support in ["", " on body"] {
+            let omitted = format!("{container} {{ let q: m{support} = value; }}");
+            let asserted = format!("{container} {{ let q: m{support} at sample = value; }}");
+            let other = format!("{container} {{ let q: m{support} at other = value; }}");
+            assert_ne!(identity(&omitted), identity(&asserted));
+            assert_ne!(identity(&asserted), identity(&other));
+            let document = eqiora_lang::parse("asserted.eqi", &asserted)
+                .into_document()
+                .unwrap();
+            assert_eq!(
+                identity(&asserted),
+                identity(&eqiora_lang::format(&document))
+            );
+        }
     }
 }

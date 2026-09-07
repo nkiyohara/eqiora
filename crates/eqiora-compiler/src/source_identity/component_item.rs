@@ -150,6 +150,7 @@ mod tests {
                     name,
                     None,
                     None,
+                    None,
                     SourceAstFactory::expression(kind, range).unwrap(),
                     range,
                 )

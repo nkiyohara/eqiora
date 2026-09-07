@@ -42,6 +42,9 @@ pub(super) fn format_let(
     if let Some(domain) = &declaration.domain {
         write!(output, " on {domain}").expect("String write");
     }
+    if let Some(activation) = &declaration.activation {
+        write!(output, " at {activation}").expect("String write");
+    }
     output.push_str(" = ");
     format_expression(&declaration.value, 0, output);
     output.push_str(";\n");
