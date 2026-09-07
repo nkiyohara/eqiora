@@ -179,6 +179,9 @@ mod tests {
         let resolved = resolve(&links, &[0], false).unwrap();
         assert_eq!(resolved.len(), 511);
         assert_eq!(resolved.values().collect::<BTreeSet<_>>().len(), 1);
+        // Replace the external ingress with a back-edge: one incoming driver
+        // per member, so cycle identity does not depend on connection ID order.
+        links.remove(0);
         links.push((511, 1));
         let errors = resolve(&links, &[0], false).unwrap_err();
         assert_eq!(

@@ -179,10 +179,14 @@ impl ExecutionPlan {
 
         let mut discrete_fields = BTreeSet::new();
         let mut discrete_ports = BTreeSet::new();
-        for relation in periodic
+        for (relation, is_event) in periodic
             .iter()
-            .flat_map(|task| &task.relations)
-            .chain(events.iter().flat_map(|task| &task.relations))
+            .flat_map(|task| task.relations.iter().map(|relation| (relation, false)))
+            .chain(
+                events
+                    .iter()
+                    .flat_map(|task| task.relations.iter().map(|relation| (relation, true))),
+            )
         {
             for symbol in relation_symbols(program, *relation)? {
                 match symbol {
@@ -194,7 +198,17 @@ impl ExecutionPlan {
                             .get(&port.erase())
                             .copied()
                             .unwrap_or_else(|| port.erase());
-                        if is_output_port(program, source) {
+                        // Reading a continuous source inside Sample does not change
+                        // its activation or remove its continuous defining equation.
+                        if is_output_port(program, source)
+                            && (is_event
+                                || !edge_targets(
+                                    program,
+                                    source,
+                                    eqiora_graph::EdgeKind::ClockedBy,
+                                )
+                                .is_empty())
+                        {
                             discrete_ports.insert(source);
                         }
                     }
