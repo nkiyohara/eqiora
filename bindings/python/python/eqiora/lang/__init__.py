@@ -1238,9 +1238,6 @@ class Source:
         if self._frozen_text is not None:
             raise SourceError("Source is frozen after emission or compilation")
 
-    def _requires_package_compilation(self) -> bool:
-        return bool(self._contracts)
-
     def _add_top_name(self, name: object) -> str:
         admitted = _name(name)
         if admitted in self._top_names:

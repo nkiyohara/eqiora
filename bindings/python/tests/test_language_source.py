@@ -478,7 +478,7 @@ def test_source_is_deterministic_and_direct_file_compilation_has_one_identity(
     assert direct.digest == emitted.digest == other_comments.digest
 
 
-def test_scalar_property_source_emits_for_the_exact_package_path(
+def test_scalar_property_source_compiles_with_same_source_release(
     tmp_path: Path,
 ) -> None:
     first = scalar_property_source()
@@ -487,11 +487,17 @@ def test_scalar_property_source_emits_for_the_exact_package_path(
     assert "public property contract Diffusivity" in first.to_eqi()
     assert "diffusivity = ReferenceDiffusivity" in first.to_eqi()
 
-    with pytest.raises(q.SourceError, match="requires an exact Model Package"):
-        eqiora.compile(source=first, geometry=(_binding_geometry := rectangle_geometry()), entry='PoissonRectangle', bindings={**support_bindings(_binding_geometry, ['region'], [('left', 'region'), ('right', 'region'), ('bottom', 'region'), ('top', 'region')]), **{'source_scale': 1.0}})
+    geometry = rectangle_geometry()
+    bindings = {
+        **support_bindings(geometry, ["region"], [(side, "region") for side in ("left", "right", "bottom", "top")]),
+        "source_scale": 1.0,
+    }
+    direct = eqiora.compile(source=first, geometry=geometry, entry="PoissonRectangle", bindings=bindings)
     path = tmp_path / "property-poisson.eqi"
     first.write_eqi(path)
     assert path.read_text(encoding="utf-8") == first.to_eqi()
+    emitted = eqiora.compile(path=path, geometry=geometry, entry="PoissonRectangle", bindings=bindings)
+    assert direct.digest == emitted.digest
     assert scalar_property_source(doc="Different release documentation.").to_eqi().replace(
         "/// Different release documentation.\n", ""
     ) == first.to_eqi().replace("/// Reference scalar diffusivity release.\n", "")
@@ -551,6 +557,12 @@ def test_scalar_property_source_owns_exact_handles_and_complete_binding() -> Non
         release.value = 1
 
     foreign = q.Source()
+    foreign_contract = foreign.property_contract("Diffusivity", value_type=eqiora.ValueType.real())
+    foreign_release = foreign.property_release(
+        "ReferenceDiffusivity", implements=foreign_contract, value=25,
+        source_unit=u.one, source_scale=0.001,
+        citation="org.example.measurement", license="spdx.CC0_1_0",
+    )
     foreign_component = foreign.component("Foreign")
     with pytest.raises(q.SourceError, match="belong to this Source"):
         foreign_component.property("diffusivity", contract=contract)
@@ -560,6 +572,8 @@ def test_scalar_property_source_owns_exact_handles_and_complete_binding() -> Non
     root = source.component("Root")
     with pytest.raises(q.SourceError, match="bindings must satisfy the exact required signature"):
         root.instance('equation', component=consumer, bindings={})
+    with pytest.raises(q.SourceError, match="Source|contract"):
+        root.instance("equation", component=consumer, bindings={requirement: foreign_release})
     root.instance('equation', component=consumer, bindings={requirement: release})
     assert "diffusivity = ReferenceDiffusivity" in source.to_eqi()
     with pytest.raises(q.SourceError):
@@ -805,11 +819,15 @@ def test_component_hierarchy_retains_total_output_byte_bound():
     source.component("StillOpenAfterRejectedEmission")
 
 
-def test_property_hierarchy_still_requires_exact_model_package():
+def test_property_hierarchy_allows_unselected_local_definitions():
     source = scalar_property_source()
     source.component("Additional")
-    with pytest.raises(q.SourceError, match="requires an exact Model Package"):
-        eqiora.compile(source=source, geometry=(_binding_geometry := rectangle_geometry()), entry='PoissonRectangle', bindings={**support_bindings(_binding_geometry, ['region'], [('left', 'region'), ('right', 'region'), ('bottom', 'region'), ('top', 'region')]), **{}})
+    geometry = rectangle_geometry()
+    model = eqiora.compile(source=source, geometry=geometry, entry="PoissonRectangle", bindings={
+        **support_bindings(geometry, ["region"], [(side, "region") for side in ("left", "right", "bottom", "top")]),
+        "source_scale": 1.0,
+    })
+    assert model.digest
 
 
 def runtime_arithmetic_alias_source(*, aliases=True):
