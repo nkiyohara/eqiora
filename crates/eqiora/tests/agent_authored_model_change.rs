@@ -299,7 +299,7 @@ fn stale_foreign_forged_and_unsupported_inputs_fail_closed() {
         .unwrap();
     let left_plan = left
         .document()
-        .preview_value_edit(probe, scalar_edit_value(&left.document(), probe, 1.0))
+        .preview_value_edit(probe, scalar_edit_value(left.document(), probe, 1.0))
         .unwrap();
     let right_plan = right
         .document()
