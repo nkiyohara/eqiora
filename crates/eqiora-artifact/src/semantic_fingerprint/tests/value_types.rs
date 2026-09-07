@@ -466,9 +466,10 @@ fn model_and_transaction_limits_charge_all_typed_payload_occurrences() {
         target: parameter.erase(),
         expected: value.clone(),
     });
+    let changed = ValueLiteral::new(value.value_type().clone(), [(1.0, 5.0), (3.0, 4.0)]).unwrap();
     transaction.push(Op::SetValue {
         target: parameter.erase(),
-        value,
+        value: changed.clone(),
     });
     let bytes = ModelTransactionEnvelope::from_transaction(&transaction)
         .unwrap()
@@ -484,7 +485,30 @@ fn model_and_transaction_limits_charge_all_typed_payload_occurrences() {
         )
         .is_err()
     );
-    ModelTransactionEnvelope::from_json(&bytes, limits).unwrap();
+    let decoded = ModelTransactionEnvelope::from_json(&bytes, limits)
+        .unwrap()
+        .to_transaction()
+        .unwrap();
+    assert_eq!(decoded.ops(), transaction.ops());
+    assert_eq!(decoded.preconditions(), transaction.preconditions());
+    let (seed, model) = ModelEnvelope::from_program(&program)
+        .unwrap()
+        .to_transaction()
+        .unwrap();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(seed).unwrap();
+    store.commit(decoded).unwrap();
+    let edited = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    assert_eq!(edited.typed_value(parameter.erase()), Some(&changed));
+    let replay = ModelEnvelope::from_program(&edited)
+        .unwrap()
+        .to_program()
+        .unwrap();
+    assert_eq!(replay.typed_value(parameter.erase()), Some(&changed));
+    assert_ne!(
+        StructuralSemanticFingerprint::from_program(&program).unwrap(),
+        StructuralSemanticFingerprint::from_program(&replay).unwrap()
+    );
 }
 
 #[test]
