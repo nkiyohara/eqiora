@@ -165,7 +165,10 @@ fn selected_property_values_require_the_exact_release_owner() {
             )
             .unwrap_or_else(|errors| panic!("{errors:?}"));
         }
-        for kind in [ExprKind::Number(2.0), ExprKind::Name("Wrong".to_owned())] {
+        for kind in [
+            ExprKind::Number(eqiora_lang::DecimalLiteral::parse("2.0").expect("exact literal")),
+            ExprKind::Name("Wrong".to_owned()),
+        ] {
             let value = F::expression(kind, range).unwrap();
             assert!(
                 CompiledModel::compile_selected(

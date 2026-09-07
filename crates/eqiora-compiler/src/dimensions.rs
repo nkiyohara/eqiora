@@ -30,7 +30,9 @@ fn lower_dimension_with_aliases(
     declared_names: Option<&BTreeSet<String>>,
 ) -> Result<DimExponents, Diagnostic> {
     match expression.kind() {
-        ExprKind::Number(value) if *value == 1.0 => Ok(DimExponents::DIMENSIONLESS),
+        ExprKind::Number(value) if value.to_i64().ok() == Some(1) => {
+            Ok(DimExponents::DIMENSIONLESS)
+        }
         ExprKind::Name(name) => coherent_dimension(name)
             .or_else(|| aliases.get(name).copied())
             .ok_or_else(|| {
@@ -169,7 +171,7 @@ fn rewrite_alias_uses(expression: &Expr, aliases: &BTreeMap<String, DimExponents
             }
             ExprKind::Name(name.clone())
         }
-        ExprKind::Number(value) => ExprKind::Number(*value),
+        ExprKind::Number(value) => ExprKind::Number(value.clone()),
         ExprKind::Unary { op, value } => ExprKind::Unary {
             op: *op,
             value: Box::new(rewrite_alias_uses(value, aliases)),
@@ -199,7 +201,10 @@ pub(crate) fn dimension_expression(dimension: DimExponents, range: TextRange) ->
             name
         } else {
             let magnitude = SourceAstFactory::expression(
-                ExprKind::Number(f64::from(numerator.unsigned_abs())),
+                ExprKind::Number(
+                    eqiora_lang::DecimalLiteral::parse(&numerator.unsigned_abs().to_string())
+                        .expect("bounded dimension"),
+                ),
                 range,
             )
             .expect("bounded exponent");
@@ -224,7 +229,10 @@ pub(crate) fn dimension_expression(dimension: DimExponents, range: TextRange) ->
                         left: Box::new(exponent),
                         right: Box::new(
                             SourceAstFactory::expression(
-                                ExprKind::Number(f64::from(denominator)),
+                                ExprKind::Number(
+                                    eqiora_lang::DecimalLiteral::parse(&denominator.to_string())
+                                        .expect("bounded dimension"),
+                                ),
                                 range,
                             )
                             .expect("positive dimension denominator"),
@@ -258,8 +266,11 @@ pub(crate) fn dimension_expression(dimension: DimExponents, range: TextRange) ->
         });
     }
     expression.unwrap_or_else(|| {
-        SourceAstFactory::expression(ExprKind::Number(1.0), range)
-            .expect("dimensionless expression")
+        SourceAstFactory::expression(
+            ExprKind::Number(eqiora_lang::DecimalLiteral::parse("1.0").expect("exact literal")),
+            range,
+        )
+        .expect("dimensionless expression")
     })
 }
 
@@ -277,18 +288,17 @@ pub(crate) fn rational_literal(expression: &Expr) -> Option<(i32, i32)> {
 
 pub(crate) fn integer_literal(expression: &Expr) -> Option<i32> {
     let value = match expression.kind() {
-        ExprKind::Number(value) => *value,
+        ExprKind::Number(value) => value.to_i64().ok()?,
         ExprKind::Unary {
             op: UnaryOp::Neg,
             value,
         } => match value.kind() {
-            ExprKind::Number(value) => -*value,
+            ExprKind::Number(value) => value.to_i64().ok()?.checked_neg()?,
             _ => return None,
         },
         _ => return None,
     };
-    (value.fract() == 0.0 && value >= f64::from(i32::MIN) && value <= f64::from(i32::MAX))
-        .then_some(value as i32)
+    i32::try_from(value).ok()
 }
 
 pub(crate) const fn time_dimension() -> DimExponents {

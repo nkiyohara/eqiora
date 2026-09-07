@@ -125,7 +125,7 @@ fn lower_unit(expression: &Expr, depth: usize) -> Result<Unit, &'static str> {
         return Err("input-unit expression exceeds depth 256");
     }
     match expression.kind() {
-        ExprKind::Number(value) if *value == 1.0 => Ok(Unit {
+        ExprKind::Number(value) if value.to_i64().ok() == Some(1) => Ok(Unit {
             dimension: DimExponents::DIMENSIONLESS,
             decimal_power: 0,
         }),

@@ -203,7 +203,9 @@ mod tests {
     #[test]
     fn unified_count_fails_before_source_or_binding_allocation() {
         let value = eqiora_lang::SourceAstFactory::expression(
-            eqiora_lang::ExprKind::Number(1.0),
+            eqiora_lang::ExprKind::Number(
+                eqiora_lang::DecimalLiteral::parse("1.0").expect("exact literal"),
+            ),
             TextRange::default(),
         )
         .unwrap();

@@ -128,7 +128,10 @@ mod tests {
         assert_eq!(expected, identity(&eqiora_lang::format(&document)));
         let range = TextRange::new(0, 0);
         let aliases = [
-            ("a", ExprKind::Number(1.0)),
+            (
+                "a",
+                ExprKind::Number(eqiora_lang::DecimalLiteral::parse("1.0").expect("exact literal")),
+            ),
             ("b", ExprKind::Name("a".to_owned())),
         ]
         .into_iter()

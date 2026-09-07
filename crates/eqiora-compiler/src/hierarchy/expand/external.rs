@@ -308,7 +308,9 @@ fn time_expression(
                 unit: Box::new(
                     F::expression(
                         if unit == "1" {
-                            ExprKind::Number(1.0)
+                            ExprKind::Number(
+                                eqiora_lang::DecimalLiteral::parse("1.0").expect("exact literal"),
+                            )
                         } else {
                             ExprKind::Name(unit.to_owned())
                         },

@@ -148,7 +148,13 @@ fn parameter_expression_identity_matches_native_factory_and_preserves_signed_lit
         let range = TextRange::new(0, 0);
         let value = if initializer == "-2" {
             // Old native signed-literal representation retains the same identity.
-            SourceAstFactory::expression(ExprKind::Number(-2.0), range).unwrap()
+            SourceAstFactory::expression(
+                ExprKind::Number(
+                    eqiora_lang::DecimalLiteral::parse("-2.0").expect("exact literal"),
+                ),
+                range,
+            )
+            .unwrap()
         } else if initializer == "-2[V]" {
             let unit = SourceAstFactory::expression(ExprKind::Name("V".into()), range).unwrap();
             SourceAstFactory::expression(
@@ -239,5 +245,21 @@ fn negative_dimensioned_constructor_values_match_native_and_formatted_identity()
     assert_ne!(
         identity("model M() { let x=-(1[m]+2[m]); }"),
         identity("model M() { let x=-3[m]; }")
+    );
+}
+
+#[test]
+fn exact_numeric_identity_retains_adjacent_large_decimals_and_literal_sign() {
+    assert_ne!(
+        identity("model M() { let n=9007199254740993; }"),
+        identity("model M() { let n=9007199254740992; }")
+    );
+    assert_eq!(
+        identity("model M() { let n=9007199254740993; }"),
+        identity("model M() { let n=9007199254740993.0; }")
+    );
+    assert_eq!(
+        identity("model M() { let n=-0; }"),
+        identity("model M() { let n=0; }")
     );
 }

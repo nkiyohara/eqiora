@@ -73,25 +73,35 @@ pub(super) fn evaluate_parameter_expression(
         );
     }
     let evaluated = match expression.kind() {
-        ExprKind::Number(value) => EvaluatedParameter {
-            value: Some(
-                ValueLiteral::from_real(
-                    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
-                    normalize_zero(*value),
+        ExprKind::Number(literal) => {
+            let value = literal.to_f64().map_err(|error| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    expression.range(),
+                    error.message(),
                 )
-                .expect("finite source literal"),
-            ),
-            value_type: EvaluatedType::Known(ValueType::scalar(
-                ScalarDomain::Real,
-                DimExponents::DIMENSIONLESS,
-            )),
-            bare_literal: true,
-            expression: Some(LoweringExpression::quantity(
-                DynQuantity::new(normalize_zero(*value), DimExponents::DIMENSIONLESS),
-                expression.range(),
-            )),
-            lineage: Some(ParameterLineage::Constant),
-        },
+            })?;
+            EvaluatedParameter {
+                value: Some(
+                    ValueLiteral::from_real(
+                        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+                        normalize_zero(value),
+                    )
+                    .expect("finite source literal"),
+                ),
+                value_type: EvaluatedType::Known(ValueType::scalar(
+                    ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                )),
+                bare_literal: true,
+                expression: Some(LoweringExpression::quantity(
+                    DynQuantity::new(normalize_zero(value), DimExponents::DIMENSIONLESS),
+                    expression.range(),
+                )),
+                lineage: Some(ParameterLineage::Constant),
+            }
+        }
         ExprKind::Quantity { value, unit } => {
             let quantity = crate::units::quantity(value, unit).map_err(|message| {
                 source_error(

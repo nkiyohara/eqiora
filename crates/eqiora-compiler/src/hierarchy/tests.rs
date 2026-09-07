@@ -195,7 +195,7 @@ fn external_supports(
 
 fn external_value(value: f64) -> eqiora_lang::Expr {
     eqiora_lang::SourceAstFactory::expression(
-        eqiora_lang::ExprKind::Number(value),
+        eqiora_lang::ExprKind::Number(eqiora_lang::DecimalLiteral::from_f64(value).unwrap()),
         Default::default(),
     )
     .unwrap()

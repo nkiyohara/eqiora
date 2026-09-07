@@ -83,12 +83,17 @@ pub(super) fn from_source(expression: &Expr) -> LoweringExpression {
             Ok(value) => return LoweringExpression::quantity(value, expression.range()),
             Err(message) => LoweringExpressionNode::InvalidValue(message),
         },
-        ExprKind::Number(value) => {
-            return LoweringExpression::quantity(
-                DynQuantity::new(*value, DimExponents::DIMENSIONLESS),
-                expression.range(),
-            );
-        }
+        ExprKind::Number(value) => match value.to_f64() {
+            Ok(value) => {
+                return LoweringExpression::quantity(
+                    DynQuantity::new(value, DimExponents::DIMENSIONLESS),
+                    expression.range(),
+                );
+            }
+            Err(_) => LoweringExpressionNode::InvalidValue(
+                "real literal exceeds the finite binary64 range",
+            ),
+        },
         ExprKind::Path(path) => match crate::math::constant(path) {
             Some(value) => {
                 return LoweringExpression::quantity(
