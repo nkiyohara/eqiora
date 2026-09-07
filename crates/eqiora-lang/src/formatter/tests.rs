@@ -1,4 +1,4 @@
-use crate::{TextRange, parse};
+use crate::{BinaryOp, Expr, ExprKind, TextRange, UnaryOp, parse};
 
 use super::*;
 
