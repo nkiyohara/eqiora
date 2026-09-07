@@ -1384,7 +1384,7 @@ def test_external_clock_alias_assertion_compares_nominal_identity():
     first = owner.clock_requirement("first")
     second = owner.clock_requirement("second")
     memory = owner.field("memory", value_type=eqiora.ValueType.real(), role=eqiora.FieldRole.State, at=first)
-    observed = owner.field("observed", value_type=eqiora.ValueType.real(), role=eqiora.FieldRole.Variable, at=first)
+    observed = owner.output("observed", value_type=eqiora.ValueType.real(), at=first)
     owner.initial(q.pre(memory) - 1)
     owner.relation("hold", at=first, left=q.next(memory), right=q.pre(memory))
     alias = owner.let_alias("current", memory, at=second)
