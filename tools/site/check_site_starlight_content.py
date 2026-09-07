@@ -23,7 +23,7 @@ MODELING_FOUNDATION_CHAPTERS = (
     ("constitutive-laws", "Constitutive laws", "Illustrative"),
     ("fields-spatial-domains", "Fields and spatial domains", "Illustrative"),
     ("models-not-simulations", "Models are not simulations", "Illustrative"),
-    ("ordinary-differential-equations", "Ordinary differential equations", "Checked"),
+    ("ordinary-differential-equations", "Ordinary differential equations", "independently derived closed form"),
     ("quantities-dimensions-units", "Quantities, dimensions, and units", "Illustrative"),
 )
 STAGES = (

@@ -46,14 +46,14 @@ public component NoSlip2d {
   public port mechanical:
     conserving mechanics.VelocityTractionBoundary over face;
 
-  relation prescribed_velocity continuous on face {
+  relation prescribed_velocity on face {
     trace(mechanical) = 0;
   }
 }
 
 public component TractionFree2d {
   // same support and port structure
-  relation prescribed_traction continuous on face {
+  relation prescribed_traction on face {
     flux(mechanical) = 0;
   }
 }
@@ -86,7 +86,7 @@ computes the trace and which computes the flux.
 The package interface components connect the interior field to a boundary port:
 
 ```eqiora
-relation boundary_interface[boundary in exterior] continuous on boundary {
+relation boundary_interface[boundary in exterior] on boundary {
   trace(velocity)
     - trace(mechanical[boundary = boundary]) = 0;
   normal(

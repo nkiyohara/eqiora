@@ -60,10 +60,10 @@ model split {
   field branch_a: 1 = 0;
   field branch_b: 1 = 0;
 
-  relation conservation continuous {
+  relation conservation {
     branch_a + branch_b - supplied = 0;
   }
-  relation equal_split continuous {
+  relation equal_split {
     branch_a - branch_b = 0;
   }
 }

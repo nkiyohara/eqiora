@@ -76,11 +76,11 @@ checks, and both must make sense.
 The model uses these roles directly:
 
 ```eqiora
-relation incompressibility continuous on fluid {
+relation incompressibility on fluid {
   div(velocity) = 0;
 }
 
-relation wall_velocity continuous on walls {
+relation wall_velocity on walls {
   trace(velocity) = 0;
 }
 ```

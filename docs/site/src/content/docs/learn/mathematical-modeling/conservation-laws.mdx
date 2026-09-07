@@ -62,7 +62,7 @@ regularity and a clear orientation; it is not a change of numerical method.
 For constant-density incompressible flow, mass conservation reduces to
 
 ```eqiora
-relation incompressibility continuous on body {
+relation incompressibility on body {
   div(velocity) = 0;
 }
 ```
@@ -73,7 +73,7 @@ outflow. It does not determine the velocity by itself.
 The same standard package writes a steady momentum balance as
 
 ```eqiora
-relation momentum continuous on body {
+relation momentum on body {
   -div(
     2 * dynamic_viscosity * symmetric_part(grad(velocity))
     - isotropic_lift(pressure)

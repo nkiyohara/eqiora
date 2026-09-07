@@ -67,7 +67,7 @@ Both strain measures are dimensionless. The Lamé parameters $\mu_s$ and
 $\lambda$ therefore have stress dimension. Eqiora expresses the balance as:
 
 ```eqiora
-relation balance continuous on body {
+relation balance on body {
   -div(
     2 * shear_modulus * symmetric_part(grad(displacement))
     + first_lame_parameter * isotropic_lift(div(displacement))
