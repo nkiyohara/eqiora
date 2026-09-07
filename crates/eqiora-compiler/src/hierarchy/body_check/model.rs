@@ -81,6 +81,65 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
     }
 
     fn bind_non_boundary_interfaces(&mut self) {
+        let signature = self.definition.declaration.signature();
+        let supports =
+            super::super::supports::signature_support_interface(self.scope.file, signature);
+        match supports {
+            Ok(supports) => {
+                for (name, contract) in supports.iter() {
+                    self.scope.symbols.insert(
+                        name.to_owned(),
+                        SymbolContract::Support(contract.support().clone()),
+                    );
+                }
+                match super::super::field_slots::signature_field_interface(
+                    self.scope.file,
+                    signature,
+                    &supports,
+                ) {
+                    Ok(fields) => {
+                        for item in signature {
+                            if let eqiora_lang::SignatureItem::Field(field) = item {
+                                if let Some(contract) = fields.field(field.name()) {
+                                    self.scope.symbols.insert(
+                                        field.name().to_owned(),
+                                        SymbolContract::Field(
+                                            contract.value().clone(),
+                                            field.role(),
+                                            field.activation().clone(),
+                                        ),
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    Err(errors) => self.diagnostics.extend(errors),
+                }
+            }
+            Err(errors) => self.diagnostics.extend(errors),
+        }
+        for item in signature {
+            match item {
+                eqiora_lang::SignatureItem::Clock(value) => {
+                    self.scope
+                        .symbols
+                        .insert(value.name().to_owned(), SymbolContract::Clock);
+                }
+                eqiora_lang::SignatureItem::Parameter(value) => {
+                    if let Some(value_type) = self.compile_time_values.get(value.name()) {
+                        self.scope.symbols.insert(
+                            value.name().to_owned(),
+                            SymbolContract::Parameter(ExpressionType::new(
+                                value_type.value_type.clone(),
+                                None,
+                            )),
+                        );
+                    }
+                }
+                _ => {}
+            }
+        }
+
         for item in self.definition.declaration.items() {
             if let Item::Instance(instance) = item {
                 if let Ok(child) = self.scope.elaborator.resolve_component(

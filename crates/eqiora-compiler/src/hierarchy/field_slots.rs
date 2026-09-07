@@ -84,14 +84,22 @@ pub(super) fn component_field_interface(
     component: &ComponentDecl,
     supports: &SupportInterface,
 ) -> Result<FieldInterface, Vec<Diagnostic>> {
+    signature_field_interface(file, component.signature(), supports)
+}
+
+pub(super) fn signature_field_interface(
+    file: &str,
+    signature: &[SignatureItem],
+    supports: &SupportInterface,
+) -> Result<FieldInterface, Vec<Diagnostic>> {
     let mut slots = BTreeMap::new();
     let mut diagnostics = Vec::new();
-    for item in component.signature() {
+    for item in signature {
         let SignatureItem::Field(declaration) = item else {
             continue;
         };
         if let eqiora_lang::ActivationSyntax::Periodic(clock) = declaration.activation()
-            && !component.signature().iter().any(|item| matches!(item, SignatureItem::Clock(requirement) if requirement.name() == clock)) {
+            && !signature.iter().any(|item| matches!(item, SignatureItem::Clock(requirement) if requirement.name() == clock)) {
                 diagnostics.push(source_error(codes::LANGUAGE_TYPE_ERROR, file, declaration.range(), "required field clock must name a clock requirement in the signature"));
                 continue;
             }

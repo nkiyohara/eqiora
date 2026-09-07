@@ -454,7 +454,7 @@ fn observe_external_name(
     clippy::type_complexity,
     reason = "the closed tuple avoids a second public selection lifecycle"
 )]
-fn validate_geometry_bindings(
+pub(crate) fn validate_geometry_bindings(
     file: &str,
     geometry: &CanonicalGeometryV1,
     supports: &[(&str, &NamedEntitySet, Option<(&str, &NamedEntitySet)>)],
@@ -715,5 +715,33 @@ mod tests {
             observe_external_name("aggregate.eqi", "support slot", "ab", limits, &mut total)
                 .unwrap_err();
         assert!(diagnostics[0].message().contains("aggregate name limit"));
+    }
+}
+
+impl CompiledModel {
+    /// Compile one explicitly selected Model or public Component with named static arguments.
+    ///
+    /// # Errors
+    /// Rejects unknown, duplicate, missing or incorrectly typed signature bindings.
+    pub fn compile_selected(
+        file: &str,
+        source: &str,
+        entry: &str,
+        bindings: &[(&str, crate::StaticBindingValue<'_>)],
+    ) -> Result<Self, Vec<Diagnostic>> {
+        crate::hierarchy::selected::local(file, source, entry, bindings)
+    }
+}
+impl ValidatedResolvedHierarchy {
+    /// Compile one selected root or directly imported definition with named static arguments.
+    ///
+    /// # Errors
+    /// Returns signature binding, hierarchy, or mathematical lowering diagnostics.
+    pub fn compile_selected(
+        &self,
+        entry: &str,
+        bindings: &[(&str, crate::StaticBindingValue<'_>)],
+    ) -> Result<CompiledModel, Vec<Diagnostic>> {
+        crate::hierarchy::selected::resolved(self, entry, bindings)
     }
 }

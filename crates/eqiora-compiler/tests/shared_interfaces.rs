@@ -49,3 +49,89 @@ fn borrowed_clock_period_projects_time_without_an_extra_parameter() {
         "component Driver(clock tick:periodic, output y:1/s at tick) {relation drive at tick {y=1[1/s];}} component Acc(clock tick:periodic, input u:1/s at tick, output y:1 at tick) { state memory:1 at tick; initial {memory=0;} relation update at tick {y=pre(memory); next(memory)=pre(memory)+period(tick)*u;} } model M() { clock tick=periodic(0.25[s]); instance driver:Driver(tick=tick); instance acc:Acc(tick=tick); connect driver.y -> acc.u; } ",
     );
 }
+
+#[test]
+fn selected_root_keeps_exact_external_clock_identity() {
+    use eqiora_compiler::{CompiledModel, StaticBindingValue};
+    use eqiora_graph::Op;
+    use eqiora_schema::kernel::{ClockDomainDef, KernelNode, RationalTime};
+    let tick = ClockDomainDef::periodic(
+        eqiora_core::Id::new(),
+        RationalTime::new(1, 4).unwrap(),
+        RationalTime::ZERO,
+    )
+    .unwrap();
+    for source in [
+        "model M(clock tick:periodic, input u:1 at tick, output y:1 at tick) { state memory:1 at tick; initial {memory=0;} relation update at tick {y=pre(memory);next(memory)=u;} }",
+        "public component M(clock tick:periodic, input u:1 at tick, output y:1 at tick) { state memory:1 at tick; initial {memory=0;} relation update at tick {y=pre(memory);next(memory)=u;} }",
+    ] {
+        let model = CompiledModel::compile_selected(
+            "selected.eqi",
+            source,
+            "M",
+            &[("tick", StaticBindingValue::Clock(&tick))],
+        )
+        .unwrap_or_else(|errors| panic!("{errors:?}"));
+        assert_eq!(model.transaction().ops().iter().filter(|op|matches!(op,Op::DefineKernelNode {node: KernelNode::ClockDomain(clock)} if clock.id()==tick.id())).count(),1);
+    }
+}
+
+#[test]
+fn selected_shared_clock_aliases_and_conflicting_payloads_are_exact() {
+    use eqiora_compiler::{CompiledModel, StaticBindingValue};
+    use eqiora_schema::kernel::{ClockDomainDef, RationalTime};
+    let shared = ClockDomainDef::periodic(
+        eqiora_core::Id::new(),
+        RationalTime::new(1, 4).unwrap(),
+        RationalTime::ZERO,
+    )
+    .unwrap();
+    let source = "model M(clock a:periodic,clock b:periodic,input u:1 at b,output y:1 at b) {relation equation at b {y=u;}}";
+    let model = CompiledModel::compile_selected(
+        "shared.eqi",
+        source,
+        "M",
+        &[
+            ("a", StaticBindingValue::Clock(&shared)),
+            ("b", StaticBindingValue::Clock(&shared)),
+        ],
+    )
+    .unwrap();
+    assert_eq!(model.symbols().get("a"), Some(shared.id().erase()));
+    assert_eq!(model.symbols().get("b"), Some(shared.id().erase()));
+    let conflict = ClockDomainDef::periodic(
+        shared.id(),
+        RationalTime::new(1, 2).unwrap(),
+        RationalTime::ZERO,
+    )
+    .unwrap();
+    assert!(
+        CompiledModel::compile_selected(
+            "shared.eqi",
+            source,
+            "M",
+            &[
+                ("a", StaticBindingValue::Clock(&shared)),
+                ("b", StaticBindingValue::Clock(&conflict))
+            ]
+        )
+        .is_err()
+    );
+    let distinct = ClockDomainDef::periodic(
+        eqiora_core::Id::new(),
+        RationalTime::new(1, 4).unwrap(),
+        RationalTime::ZERO,
+    )
+    .unwrap();
+    let model = CompiledModel::compile_selected(
+        "shared.eqi",
+        source,
+        "M",
+        &[
+            ("a", StaticBindingValue::Clock(&shared)),
+            ("b", StaticBindingValue::Clock(&distinct)),
+        ],
+    )
+    .unwrap();
+    assert_ne!(model.symbols().get("a"), model.symbols().get("b"));
+}

@@ -38,6 +38,7 @@ mod physical_closure;
 mod preflight;
 pub(crate) use preflight::owned_model_items;
 mod scope;
+pub(crate) mod selected;
 mod supports;
 
 pub(crate) use definition_graph::CheckedDefinitionGraph;

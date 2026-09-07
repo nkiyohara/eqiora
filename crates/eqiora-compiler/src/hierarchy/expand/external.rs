@@ -188,7 +188,20 @@ impl RootExpansion<'_, '_> {
                         "one supplied clock identity has conflicting definitions",
                     ));
                 }
-                scope.insert_symbol(slot.clone(), symbol.clone());
+                if scope.insert_symbol(slot.clone(), symbol.clone()).is_some()
+                    || self
+                        .display_symbols
+                        .insert(
+                            slot.clone(),
+                            DisplayIdentity {
+                                full: symbol.full_identity,
+                                kind: EntityKind::ClockDomain,
+                            },
+                        )
+                        .is_some()
+                {
+                    return Err(hierarchy_error("duplicate selected clock binding name"));
+                }
                 continue;
             }
             let eqiora_schema::kernel::ClockKind::Periodic { period, phase } = clock.kind() else {

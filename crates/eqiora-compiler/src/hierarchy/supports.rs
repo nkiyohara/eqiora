@@ -104,8 +104,14 @@ pub(super) fn component_support_interface(
     file: &str,
     component: &ComponentDecl,
 ) -> Result<SupportInterface, Vec<Diagnostic>> {
-    let declarations = component
-        .signature()
+    signature_support_interface(file, component.signature())
+}
+
+pub(super) fn signature_support_interface(
+    file: &str,
+    signature: &[SignatureItem],
+) -> Result<SupportInterface, Vec<Diagnostic>> {
+    let declarations = signature
         .iter()
         .filter_map(|item| match item {
             SignatureItem::Support(declaration) => {
@@ -272,7 +278,11 @@ pub(super) fn model_spatial_supports(
     file: &str,
     model: &ModelDecl,
 ) -> Result<BTreeMap<String, SpatialSupport<String>>, Vec<Diagnostic>> {
-    let mut supports = BTreeMap::new();
+    let interface = signature_support_interface(file, model.signature())?;
+    let mut supports = interface
+        .iter()
+        .map(|(name, contract)| (name.to_owned(), contract.support().clone()))
+        .collect::<BTreeMap<_, _>>();
     let mut boundaries = Vec::new();
     for item in model.items() {
         let Item::Domain(declaration) = item else {

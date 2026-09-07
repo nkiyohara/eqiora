@@ -559,10 +559,22 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         Ok(())
     }
 
-    pub(super) fn expand(mut self) -> Result<ExpandedBlueprint, Vec<Diagnostic>> {
+    pub(super) fn expand(self) -> Result<ExpandedBlueprint, Vec<Diagnostic>> {
+        self.expand_bound(&[], &[])
+    }
+
+    pub(super) fn expand_bound(
+        mut self,
+        supports: &[crate::external::ExternalGeometrySupportBinding],
+        clocks: &[(String, eqiora_schema::kernel::ClockDomainDef)],
+    ) -> Result<ExpandedBlueprint, Vec<Diagnostic>> {
         let model = self.model.clone();
         let mut root_scope = Scope::default();
         root_scope.set_pure_operators(self.elaborator.visible_pure_operators(&model.namespace));
+        self.allocate_external_clocks(&mut root_scope, clocks)
+            .map_err(one_diagnostic)?;
+        self.allocate_external_supports(&mut root_scope, supports)
+            .map_err(one_diagnostic)?;
         let identities = match self.allocate_model_scope(&mut root_scope) {
             Ok(value) => value,
             Err(error) => return Err(vec![error]),
