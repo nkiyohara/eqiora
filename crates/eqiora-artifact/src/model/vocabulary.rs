@@ -248,6 +248,13 @@ pub(crate) enum WireActivationKind {
 }
 
 impl WireActivationKind {
+    pub(crate) fn literal_component_count(&self) -> Result<usize, Diagnostic> {
+        match self {
+            Self::Event { guard, .. } | Self::Guard { guard } => guard.literal_component_count(),
+            Self::Continuous | Self::Periodic => Ok(0),
+        }
+    }
+
     pub(crate) fn ensure_value_shape_limits(
         &self,
         limits: ModelDecoderLimits,

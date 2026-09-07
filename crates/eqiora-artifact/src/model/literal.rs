@@ -1,0 +1,152 @@
+//! Complete typed literal payloads, with a unique compact spelling of zero.
+
+use eqiora_core::{Diagnostic, ValueLiteral};
+use serde::{Deserialize, Serialize};
+
+use super::{ModelDecoderLimits, require_decoder_count, value_type::WireValueType};
+use crate::invalid_artifact;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct WireValueLiteral {
+    value_type: WireValueType,
+    pub(super) components: WireComponents,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+pub(super) enum WireComponents {
+    Zero,
+    Dense { values: Vec<(f64, f64)> },
+}
+
+impl WireValueLiteral {
+    pub(crate) fn encode(value: &ValueLiteral) -> Result<Self, Diagnostic> {
+        Ok(Self {
+            value_type: WireValueType::encode(value.value_type())?,
+            components: if value.is_zero() {
+                WireComponents::Zero
+            } else {
+                WireComponents::Dense {
+                    values: value.components().collect(),
+                }
+            },
+        })
+    }
+
+    pub(crate) fn decode(&self) -> Result<ValueLiteral, Diagnostic> {
+        let value_type = self.value_type.decode()?;
+        let result = match &self.components {
+            WireComponents::Zero => ValueLiteral::from_real(value_type, 0.0),
+            WireComponents::Dense { values } => {
+                if values.iter().any(|(real, imaginary)| {
+                    !real.is_finite()
+                        || !imaginary.is_finite()
+                        || (*real == 0.0 && real.is_sign_negative())
+                        || (*imaginary == 0.0 && imaginary.is_sign_negative())
+                }) {
+                    return Err(invalid_artifact(
+                        "literal components require finite values and canonical positive zero",
+                    ));
+                }
+                if values.iter().all(|component| *component == (0.0, 0.0)) {
+                    return Err(invalid_artifact(
+                        "all-zero literal requires compact zero payload",
+                    ));
+                }
+                ValueLiteral::new(value_type, values.iter().copied())
+            }
+        };
+        result.map_err(|error| invalid_artifact(error.to_string()))
+    }
+
+    pub(crate) fn component_payload_count(&self) -> usize {
+        match &self.components {
+            WireComponents::Zero => 0,
+            WireComponents::Dense { values } => values.len(),
+        }
+    }
+
+    pub(crate) fn ensure_limits(&self, limits: ModelDecoderLimits) -> Result<(), Diagnostic> {
+        self.value_type.ensure_limits(limits)?;
+        require_decoder_count(
+            "literal component payload",
+            self.component_payload_count(),
+            limits.max_value_literal_components,
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use eqiora_core::{DimExponents, ScalarDomain, ValueType};
+
+    fn complex_pair() -> ValueType {
+        ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+            .array(2)
+            .unwrap()
+    }
+
+    #[test]
+    fn wire_contains_ordered_real_and_imaginary_channels() {
+        let value = ValueLiteral::new(complex_pair(), [(1.0, -2.0), (3.0, 4.0)]).unwrap();
+        let wire = WireValueLiteral::encode(&value).unwrap();
+        // The expected payload is independently specified by the two input pairs.
+        assert_eq!(
+            serde_json::to_value(&wire).unwrap()["components"],
+            serde_json::json!({"kind":"dense","values":[[1.0,-2.0],[3.0,4.0]]})
+        );
+        assert_eq!(wire.decode().unwrap(), value);
+    }
+
+    #[test]
+    fn huge_zero_does_not_expand_and_consumes_no_component_payload() {
+        let ty = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+            .array(1_000_000_000)
+            .unwrap();
+        let value = ValueLiteral::from_real(ty, 0.0).unwrap();
+        let wire = WireValueLiteral::encode(&value).unwrap();
+        assert_eq!(wire.component_payload_count(), 0);
+        assert_eq!(
+            serde_json::to_value(&wire).unwrap()["components"],
+            serde_json::json!({"kind":"zero"})
+        );
+        let limits = ModelDecoderLimits {
+            max_value_shape_components: 1_000_000_000,
+            max_value_literal_components: 0,
+            ..Default::default()
+        };
+        wire.ensure_limits(limits).unwrap();
+        assert_eq!(wire.decode().unwrap(), value);
+    }
+
+    #[test]
+    fn malformed_payloads_have_no_second_canonical_spelling() {
+        let mut wire =
+            WireValueLiteral::encode(&ValueLiteral::from_real(complex_pair(), 0.0).unwrap())
+                .unwrap();
+        for values in [
+            vec![],
+            vec![(1.0, 2.0)],
+            vec![(0.0, 0.0); 2],
+            vec![(-0.0, 1.0); 2],
+            vec![(1.0, -0.0); 2],
+            vec![(f64::INFINITY, 0.0); 2],
+            vec![(0.0, f64::NAN); 2],
+        ] {
+            wire.components = WireComponents::Dense { values };
+            assert!(wire.decode().is_err());
+        }
+        wire.value_type = WireValueType::encode(
+            &ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                .array(2)
+                .unwrap(),
+        )
+        .unwrap();
+        wire.components = WireComponents::Dense {
+            values: vec![(1.0, 2.0); 2],
+        };
+        assert!(wire.decode().is_err());
+    }
+}

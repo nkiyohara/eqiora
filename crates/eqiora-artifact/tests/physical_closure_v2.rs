@@ -73,10 +73,12 @@ fn closure_transaction(ids: ClosureIds, unrelated: bool, reversed: bool) -> Tran
         .into(),
         ParameterDef::new(
             ids.parameter,
-            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension),
-            2.0,
+            eqiora_core::ValueLiteral::from_real(
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension),
+                2.0,
+            )
+            .unwrap(),
         )
-        .unwrap()
         .into(),
         ActivationDef::continuous(ids.activation).into(),
         ConnectionDef::new(ids.joined_connections[0], ConnectionSemantics::Conserving).into(),

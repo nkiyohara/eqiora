@@ -52,9 +52,11 @@ fn typed_initial_equations_survive_source_and_model_replay() {
 fn parameter_program(value_type: ValueType) -> KernelProgram {
     let parameter = Id::new();
     typed_symbol_program(
-        eqiora_schema::kernel::ParameterDef::new(parameter, value_type, 0.0)
-            .unwrap()
-            .into(),
+        eqiora_schema::kernel::ParameterDef::new(
+            parameter,
+            eqiora_core::ValueLiteral::from_real(value_type, 0.0).unwrap(),
+        )
+        .into(),
         SymbolRef::Parameter(parameter),
     )
 }
@@ -153,7 +155,7 @@ fn constant_types_survive_model_replay_and_change_structural_identity() {
         let model = OntologyId::new();
         let mut builder = ExprDagBuilder::new();
         let root = builder
-            .constant(eqiora_core::ValueLiteral::new(value_type, 0.0).unwrap())
+            .constant(eqiora_core::ValueLiteral::from_real(value_type, 0.0).unwrap())
             .unwrap();
         let nodes = [
             KernelNode::from(RelationDef::new(relation, builder.finish([root]).unwrap())),
@@ -380,5 +382,188 @@ model Typed {{
             })
             .unwrap();
         assert_eq!(field.value_type().scalar_domain(), expected_domain);
+    }
+}
+
+#[test]
+fn literal_projection_preserves_imaginary_channel_order_and_type() {
+    fn project(value: &eqiora_core::ValueLiteral) -> Vec<u8> {
+        let mut encoder = Encoder::new(4096);
+        encode_literal(&mut encoder, value).unwrap();
+        encoder.finish().unwrap()
+    }
+    let complex = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+        .array(2)
+        .unwrap();
+    let baseline = project(
+        &eqiora_core::ValueLiteral::new(complex.clone(), [(1.0, 2.0), (3.0, 4.0)]).unwrap(),
+    );
+    let mut expected_tail = vec![1]; // nonzero dense payload
+    expected_tail.extend_from_slice(&2_u64.to_be_bytes());
+    for component in [1.0_f64, 2.0, 3.0, 4.0] {
+        expected_tail.extend_from_slice(&component.to_bits().to_be_bytes());
+    }
+    assert!(baseline.ends_with(&expected_tail));
+    for values in [
+        [(1.0, 5.0), (3.0, 4.0)],
+        [(3.0, 4.0), (1.0, 2.0)],
+        [(2.0, 1.0), (3.0, 4.0)],
+    ] {
+        assert_ne!(
+            baseline,
+            project(&eqiora_core::ValueLiteral::new(complex.clone(), values).unwrap())
+        );
+    }
+    let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+        .array(2)
+        .unwrap();
+    let values = [(1.0, 0.0), (3.0, 0.0)];
+    assert_ne!(
+        project(&eqiora_core::ValueLiteral::new(real, values).unwrap()),
+        project(&eqiora_core::ValueLiteral::new(complex, values).unwrap())
+    );
+    let huge = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+        .array(1_000_000_000)
+        .unwrap();
+    assert!(project(&eqiora_core::ValueLiteral::from_real(huge, 0.0).unwrap()).len() < 128);
+}
+
+#[test]
+fn model_and_transaction_limits_charge_all_typed_payload_occurrences() {
+    use crate::ModelTransactionEnvelope;
+    use eqiora_core::ValueLiteral;
+    use eqiora_graph::Precondition;
+    let parameter = Id::new();
+    let ty = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+        .array(2)
+        .unwrap();
+    let value = ValueLiteral::new(ty, [(1.0, 2.0), (3.0, 4.0)]).unwrap();
+    let program = typed_symbol_program(
+        eqiora_schema::kernel::ParameterDef::new(parameter, value.clone()).into(),
+        SymbolRef::Parameter(parameter),
+    );
+    let bytes = ModelEnvelope::from_program(&program)
+        .unwrap()
+        .canonical_json()
+        .unwrap();
+    let limits = ModelDecoderLimits {
+        max_value_literal_components: 3,
+        ..Default::default()
+    };
+    // Definition and current value each own two component pairs: total four.
+    assert!(ModelEnvelope::from_json(&bytes, limits).is_err());
+    let limits = ModelDecoderLimits {
+        max_value_literal_components: 4,
+        ..limits
+    };
+    let replay = ModelEnvelope::from_json(&bytes, limits)
+        .unwrap()
+        .to_program()
+        .unwrap();
+    assert_eq!(replay.typed_value(parameter.erase()), Some(&value));
+    let mut transaction = Transaction::new("typed before and after");
+    transaction.require(Precondition::ValueEquals {
+        target: parameter.erase(),
+        expected: value.clone(),
+    });
+    transaction.push(Op::SetValue {
+        target: parameter.erase(),
+        value,
+    });
+    let bytes = ModelTransactionEnvelope::from_transaction(&transaction)
+        .unwrap()
+        .canonical_json()
+        .unwrap();
+    assert!(
+        ModelTransactionEnvelope::from_json(
+            &bytes,
+            ModelDecoderLimits {
+                max_value_literal_components: 3,
+                ..limits
+            }
+        )
+        .is_err()
+    );
+    ModelTransactionEnvelope::from_json(&bytes, limits).unwrap();
+}
+
+#[test]
+fn typed_expression_edges_and_sharing_affect_structural_identity() {
+    fn model(reverse: bool, selection: u32, swap_complex: bool, duplicate: bool) -> KernelProgram {
+        let mut builder = ExprDagBuilder::new();
+        let one = builder
+            .constant(DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))
+            .unwrap();
+        let two = builder
+            .constant(DynQuantity::new(2.0, DimExponents::DIMENSIONLESS))
+            .unwrap();
+        let repeated = if duplicate {
+            builder
+                .constant(DynQuantity::new(2.0, DimExponents::DIMENSIONLESS))
+                .unwrap()
+        } else {
+            two
+        };
+        let array = builder
+            .array(if reverse {
+                [two, one, repeated]
+            } else {
+                [one, two, repeated]
+            })
+            .unwrap();
+        let selected = builder.index(array, selection).unwrap();
+        let root = if swap_complex {
+            builder.complex(two, selected)
+        } else {
+            builder.complex(selected, two)
+        }
+        .unwrap();
+        let relation = Id::new();
+        let activation = Id::new();
+        let model = OntologyId::new();
+        let nodes = [
+            KernelNode::from(RelationDef::new(relation, builder.finish([root]).unwrap())),
+            KernelNode::from(ActivationDef::continuous(activation)),
+        ];
+        let view = ModelView::new(model, nodes.iter().map(KernelNode::id), []).unwrap();
+        let mut transaction = Transaction::new("typed DAG");
+        for node in nodes {
+            transaction.push(Op::DefineKernelNode { node });
+        }
+        transaction.push(Op::Connect {
+            from: activation.erase(),
+            to: relation.erase(),
+            edge: EdgeKind::Activates,
+        });
+        transaction.push(Op::DefineOntologyView { view: view.into() });
+        let mut store = InMemoryGraphStore::new();
+        store.commit(transaction).unwrap();
+        KernelProgram::from_snapshot(&store.snapshot(), model).unwrap()
+    }
+    let baseline =
+        StructuralSemanticFingerprint::from_program(&model(false, 0, false, false)).unwrap();
+    assert_eq!(
+        baseline,
+        StructuralSemanticFingerprint::from_program(&model(false, 0, false, false)).unwrap()
+    );
+    for variant in [
+        (true, 0, false, false),
+        (false, 1, false, false),
+        (false, 0, true, false),
+        (false, 0, false, true),
+    ] {
+        let changed = model(variant.0, variant.1, variant.2, variant.3);
+        assert_ne!(
+            baseline,
+            StructuralSemanticFingerprint::from_program(&changed).unwrap()
+        );
+        let replay = ModelEnvelope::from_program(&changed)
+            .unwrap()
+            .to_program()
+            .unwrap();
+        assert_eq!(
+            StructuralSemanticFingerprint::from_program(&changed).unwrap(),
+            StructuralSemanticFingerprint::from_program(&replay).unwrap()
+        );
     }
 }

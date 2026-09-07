@@ -9,17 +9,17 @@ use eqiora_sem::KernelProgram;
 use serde::{Deserialize, Serialize};
 
 use crate::model::{
-    WireEdge, WireId, WireNode, WireQuantity, WireValue, checked_count_sum, parse_ulid,
+    WireEdge, WireId, WireNode, WireValue, WireValueLiteral, checked_count_sum, parse_ulid,
     require_decoder_count,
 };
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, ModelDecoderLimits, check_json_limits, invalid_artifact,
 };
 
-const MODEL_SCHEMA: &str = "eqiora.model-envelope/v12";
+const MODEL_SCHEMA: &str = "eqiora.model-envelope/v13";
 const MODEL_LABEL: &str = "current Model";
 const ENVELOPE_LABEL: &str = "current Model envelope";
-const DECODE_LABEL: &str = "decode eqiora.model-envelope/v12";
+const DECODE_LABEL: &str = "decode eqiora.model-envelope/v13";
 
 /// Canonical serialization of the single current Semantic Model contract.
 #[derive(Debug, Clone, PartialEq)]
@@ -41,12 +41,14 @@ impl ModelEnvelope {
         let values = program
             .nodes()
             .filter_map(|node| {
-                program.value(node.id()).map(|value| WireValue {
-                    target: WireId::from_raw(node.id()),
-                    value: WireQuantity::encode(value),
+                program.typed_value(node.id()).map(|value| {
+                    Ok(WireValue {
+                        target: WireId::from_raw(node.id()),
+                        value: WireValueLiteral::encode(value)?,
+                    })
                 })
             })
-            .collect();
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
         let edges = program
             .edges()
             .iter()
@@ -331,11 +333,32 @@ impl ModelEnvelope {
             node.canonicalize_pure_operator_definitions()?;
         }
 
+        let literal_components = checked_count_sum(
+            self.wire
+                .nodes
+                .iter()
+                .map(WireNode::literal_component_count)
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .chain(
+                    self.wire
+                        .values
+                        .iter()
+                        .map(|value| value.value.component_payload_count()),
+                ),
+            "literal component payload",
+        )?;
+        require_decoder_count(
+            "literal component payload",
+            literal_components,
+            limits.max_value_literal_components,
+        )?;
         for node in &self.wire.nodes {
             node.ensure_value_shape_limits(limits)?;
             node.decode()?;
         }
         for value in &self.wire.values {
+            value.value.ensure_limits(limits)?;
             value.value.decode()?;
         }
         let ids = self

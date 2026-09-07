@@ -29,13 +29,23 @@ pub(crate) struct WireExpression {
 }
 
 impl WireExpression {
+    pub(crate) fn literal_component_count(&self) -> Result<usize, Diagnostic> {
+        checked_count_sum(
+            self.nodes.iter().map(|node| match node {
+                WireExpressionNode::Constant { value } => value.component_payload_count(),
+                _ => 0,
+            }),
+            "literal component payload",
+        )
+    }
+
     pub(crate) fn ensure_value_shape_limits(
         &self,
         limits: ModelDecoderLimits,
     ) -> Result<(), Diagnostic> {
         for node in &self.nodes {
-            if let WireExpressionNode::Constant { value_type, .. } = node {
-                value_type.ensure_limits(limits)?;
+            if let WireExpressionNode::Constant { value } = node {
+                value.ensure_limits(limits)?;
             }
         }
         Ok(())
@@ -247,8 +257,18 @@ impl PureOperatorWireCounts {
 #[serde(tag = "op", rename_all = "kebab-case", deny_unknown_fields)]
 pub(crate) enum WireExpressionNode {
     Constant {
-        value_type: super::value_type::WireValueType,
-        literal: f64,
+        value: WireValueLiteral,
+    },
+    Array {
+        elements: Vec<u32>,
+    },
+    Index {
+        value: u32,
+        index: u32,
+    },
+    Complex {
+        real: u32,
+        imag: u32,
     },
     Symbol {
         symbol: WireSymbol,
@@ -311,8 +331,18 @@ impl WireExpressionNode {
     pub(crate) fn encode(node: &ExprNode) -> Result<Self, Diagnostic> {
         Ok(match node {
             ExprNode::Constant(value) => Self::Constant {
-                value_type: super::value_type::WireValueType::encode(value.value_type())?,
-                literal: value.literal(),
+                value: WireValueLiteral::encode(value)?,
+            },
+            ExprNode::Array { elements } => Self::Array {
+                elements: elements.iter().map(|id| id.index()).collect(),
+            },
+            ExprNode::Index { value, index } => Self::Index {
+                value: value.index(),
+                index: *index,
+            },
+            ExprNode::Complex { real, imag } => Self::Complex {
+                real: real.index(),
+                imag: imag.index(),
             },
             ExprNode::Symbol(symbol) => Self::Symbol {
                 symbol: WireSymbol::encode(*symbol)?,
@@ -386,18 +416,16 @@ impl WireExpressionNode {
         definitions: &BTreeMap<String, PureOperatorDefinition>,
     ) -> Result<ExprId, Diagnostic> {
         let result = match self {
-            Self::Constant {
-                value_type,
-                literal,
-            } => {
-                if *literal == 0.0 && literal.is_sign_negative() {
-                    return Err(invalid_artifact(
-                        "constant literal requires canonical positive zero",
-                    ));
-                }
-                let value = eqiora_core::ValueLiteral::new(value_type.decode()?, *literal)
-                    .map_err(|error| invalid_artifact(error.to_string()))?;
-                builder.constant(value)
+            Self::Constant { value } => builder.constant(value.decode()?),
+            Self::Array { elements } => builder.array(
+                elements
+                    .iter()
+                    .map(|id| operand(ids, *id))
+                    .collect::<Result<Vec<_>, _>>()?,
+            ),
+            Self::Index { value, index } => builder.index(operand(ids, *value)?, *index),
+            Self::Complex { real, imag } => {
+                builder.complex(operand(ids, *real)?, operand(ids, *imag)?)
             }
             Self::Symbol { symbol } => builder.symbol(symbol.decode()?),
             Self::Neg { value } => builder.neg(operand(ids, *value)?),
@@ -575,7 +603,7 @@ impl WireUnaryMath {
 #[serde(deny_unknown_fields)]
 pub(crate) struct WireValue {
     pub(crate) target: WireId,
-    pub(crate) value: WireQuantity,
+    pub(crate) value: WireValueLiteral,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -583,4 +611,53 @@ pub(crate) struct WireValue {
 pub(crate) struct WireQuantity {
     pub(crate) value: f64,
     pub(crate) dimension: WireDimension,
+}
+
+#[cfg(test)]
+mod typed_operation_tests {
+    use super::*;
+    use eqiora_core::{DimExponents, ScalarDomain, ValueLiteral, ValueType};
+
+    #[test]
+    fn array_index_and_complex_preserve_order_and_shared_operands() {
+        let ty = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+        let mut builder = ExprDagBuilder::new();
+        let one = builder
+            .constant(ValueLiteral::from_real(ty.clone(), 1.0).unwrap())
+            .unwrap();
+        let two = builder
+            .constant(ValueLiteral::from_real(ty, 2.0).unwrap())
+            .unwrap();
+        let array = builder.array([two, one, two]).unwrap();
+        let selected = builder.index(array, 1).unwrap();
+        let complex = builder.complex(selected, two).unwrap();
+        let expression = builder.finish([complex]).unwrap();
+        let wire = WireExpression::encode(&expression).unwrap();
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(
+            json["nodes"][2],
+            serde_json::json!({"op":"array","elements":[1,0,1]})
+        );
+        assert_eq!(
+            json["nodes"][3],
+            serde_json::json!({"op":"index","value":2,"index":1})
+        );
+        assert_eq!(
+            json["nodes"][4],
+            serde_json::json!({"op":"complex","real":3,"imag":1})
+        );
+        assert_eq!(wire.decode().unwrap(), expression);
+        for bad in [
+            WireExpressionNode::Array { elements: vec![2] },
+            WireExpressionNode::Index { value: 2, index: 0 },
+            WireExpressionNode::Complex { real: 0, imag: 2 },
+        ] {
+            let mut malformed = wire.clone();
+            malformed.nodes[2] = bad;
+            assert!(
+                malformed.decode().is_err(),
+                "forward/self operands must be rejected"
+            );
+        }
+    }
 }

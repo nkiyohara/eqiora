@@ -32,6 +32,9 @@ pub struct ModelDecoderLimits {
     pub max_value_shape_rank: usize,
     /// Maximum checked scalar components in one Semantic Model value shape.
     pub max_value_shape_components: usize,
+    /// Maximum real/imaginary component pairs actually stored across all literals.
+    /// Compact zero payloads consume no component-pair budget.
+    pub max_value_literal_components: usize,
     /// Maximum ordered operations in one Model transaction.
     pub max_transaction_ops: usize,
     /// Maximum atomic preconditions in one Model transaction.
@@ -54,6 +57,7 @@ impl Default for ModelDecoderLimits {
             max_model_boundary: 100_000,
             max_value_shape_rank: 8,
             max_value_shape_components: 4_096,
+            max_value_literal_components: 1_000_000,
             max_transaction_ops: 1_000_000,
             max_transaction_preconditions: 100_000,
         }
@@ -93,12 +97,14 @@ pub(crate) struct WireNode {
 }
 
 mod expression;
+mod literal;
 mod node;
 mod primitive;
 mod value_type;
 mod vocabulary;
 
 pub(crate) use expression::PureOperatorWireCounts;
-pub(crate) use expression::{WireQuantity, WireValue};
+pub(crate) use expression::WireValue;
+pub(crate) use literal::WireValueLiteral;
 pub(crate) use node::WireNodeDefinition;
 pub(crate) use primitive::{WireEdge, WireEdgeKind, WireId, parse_ulid};

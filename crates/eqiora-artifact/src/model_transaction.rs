@@ -5,7 +5,7 @@ use eqiora_graph::{EdgeKind, Op, Precondition, Revision};
 use eqiora_schema::{Model, ModelView};
 use serde::{Deserialize, Serialize};
 
-use crate::model::{WireEdgeKind, WireId, WireNode, WireQuantity, parse_ulid};
+use crate::model::{WireEdgeKind, WireId, WireNode, WireValueLiteral, parse_ulid};
 use crate::{ModelDecoderLimits, invalid_artifact};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -16,7 +16,7 @@ pub(crate) enum WireModelOp {
     },
     SetValue {
         target: WireId,
-        value: WireQuantity,
+        value: WireValueLiteral,
     },
     Connect {
         from: WireId,
@@ -47,7 +47,7 @@ impl WireModelOp {
                 }
                 Ok(Self::SetValue {
                     target: WireId::from_raw(*target),
-                    value: WireQuantity::encode(*value),
+                    value: WireValueLiteral::encode(value)?,
                 })
             }
             Op::Connect { from, to, edge } => {
@@ -191,12 +191,21 @@ impl WireModelOp {
         }
     }
 
+    pub(crate) fn literal_component_count(&self) -> Result<usize, Diagnostic> {
+        match self {
+            Self::DefineKernelNode { node } => node.literal_component_count(),
+            Self::SetValue { value, .. } => Ok(value.component_payload_count()),
+            _ => Ok(0),
+        }
+    }
+
     pub(crate) fn ensure_value_shape_limits(
         &self,
         limits: ModelDecoderLimits,
     ) -> Result<(), Diagnostic> {
         match self {
             Self::DefineKernelNode { node } => node.ensure_value_shape_limits(limits),
+            Self::SetValue { value, .. } => value.ensure_limits(limits),
             _ => Ok(()),
         }
     }
@@ -221,7 +230,7 @@ fn operation_edge_permitted(edge: EdgeKind, from: EntityKind, to: EntityKind) ->
 pub(crate) enum WireModelPrecondition {
     ValueEquals {
         target: WireId,
-        expected: WireQuantity,
+        expected: WireValueLiteral,
     },
     RevisionIs {
         revision: u64,
@@ -229,13 +238,29 @@ pub(crate) enum WireModelPrecondition {
 }
 
 impl WireModelPrecondition {
+    pub(crate) fn literal_component_count(&self) -> usize {
+        match self {
+            Self::ValueEquals { expected, .. } => expected.component_payload_count(),
+            _ => 0,
+        }
+    }
+    pub(crate) fn ensure_value_shape_limits(
+        &self,
+        limits: crate::ModelDecoderLimits,
+    ) -> Result<(), Diagnostic> {
+        match self {
+            Self::ValueEquals { expected, .. } => expected.ensure_limits(limits),
+            _ => Ok(()),
+        }
+    }
+
     pub(crate) fn encode(precondition: &Precondition) -> Result<Self, Diagnostic> {
         match precondition {
             Precondition::ValueEquals { target, expected } => {
                 require_semantic_id(*target, "ValueEquals target")?;
                 Ok(Self::ValueEquals {
                     target: WireId::from_raw(*target),
-                    expected: WireQuantity::encode(*expected),
+                    expected: WireValueLiteral::encode(expected)?,
                 })
             }
             Precondition::RevisionIs(revision) => Ok(Self::RevisionIs {
