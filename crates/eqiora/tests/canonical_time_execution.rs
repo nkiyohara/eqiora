@@ -20,6 +20,8 @@ use eqiora::time::{
 };
 use eqiora::{DimExponents, DynQuantity, Id};
 
+mod support;
+
 #[test]
 fn canonical_relation_lowers_structurally_and_runs_through_diffsol() {
     let (kernel, relation, x, integral) = canonical_decay_with_integral();
@@ -34,13 +36,16 @@ fn canonical_relation_lowers_structurally_and_runs_through_diffsol() {
     let lowering = assert_lowering_artifact_round_trip(&kernel, &system);
 
     assert_eq!(system.state_fields(), &[x, integral]);
-    assert_eq!(system.initial_state(), &[1.0, 0.0]);
+    let initial = system
+        .initialize(eqiora::sem::ReferenceConfig::new(0.0, 1.0).unwrap())
+        .unwrap();
+    assert_eq!(initial.state(), &[1.0, 0.0]);
 
     let mut rhs = [f64::NAN; 2];
-    system.rhs(0.0, system.initial_state(), &mut rhs).unwrap();
+    system.rhs(0.0, initial.state(), &mut rhs).unwrap();
     assert_eq!(rhs, [-2.0, 1.0]);
     system
-        .rhs_jvp(0.0, system.initial_state(), &[0.25, -0.4], &mut rhs)
+        .rhs_jvp(0.0, initial.state(), &[0.25, -0.4], &mut rhs)
         .unwrap();
     assert_eq!(rhs, [-0.5, 0.25]);
 
@@ -75,7 +80,10 @@ fn canonical_algebraic_row_lowers_to_a_rank_deficient_mass_matrix() {
     let lowering = assert_lowering_artifact_round_trip(&kernel, &system);
 
     assert_eq!(system.state_fields(), &[differential, algebraic]);
-    assert_eq!(system.initial_state(), &[0.0, 0.0]);
+    let initial = system
+        .initialize(eqiora::sem::ReferenceConfig::new(0.0, 1.0).unwrap())
+        .unwrap();
+    assert_eq!(initial.state(), &[0.0, 1.0]);
     assert_eq!(
         system.equation_class(),
         TimeEquationClass::MassMatrix {
@@ -191,6 +199,13 @@ fn canonical_dense_singular_mass_matrix_has_no_zero_row_shortcut() {
     let cpu = CpuProgram::lower(&kernel).expect("scalar Operator IR");
     let system = FirstOrderProgram::lower(&cpu, relation).expect("proven singular mass matrix");
     let lowering = assert_lowering_artifact_round_trip(&kernel, &system);
+    let initial = system
+        .initialize(eqiora::sem::ReferenceConfig::new(0.0, 1.0).unwrap())
+        .unwrap();
+    // Subtraction gives x=y; its tangent gives x'=y'. With x(0)=1
+    // the two regular rows independently imply both derivatives equal -1.
+    assert_eq!(initial.state(), &[1.0, 1.0]);
+    assert_eq!(initial.derivative(), &[-1.0, -1.0]);
 
     assert_eq!(system.state_fields(), &[x, y]);
     assert_eq!(
@@ -458,34 +473,20 @@ fn canonical_decay_with_integral() -> (
     let x_residual = expression.sub(negative_x_derivative, decay).unwrap();
     let residuals = expression.finish([integral_residual, x_residual]).unwrap();
 
-    let nodes = [
-        KernelNode::from(
-            FieldDef::new(
-                x,
-                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time),
-            )
-            .with_initial(
-                DynQuantity::new(1.0, inverse_time)
-                    .try_into()
-                    .expect("finite real initial value"),
-            )
-            .unwrap(),
-        ),
-        KernelNode::from(
-            FieldDef::new(
-                integral,
-                eqiora_core::ValueType::scalar(
-                    eqiora_core::ScalarDomain::Real,
-                    DimExponents::DIMENSIONLESS,
-                ),
-            )
-            .with_initial(
-                DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)
-                    .try_into()
-                    .expect("finite real initial value"),
-            )
-            .unwrap(),
-        ),
+    let mut nodes = vec![
+        KernelNode::from(FieldDef::new(
+            x,
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time),
+            eqiora::kernel::FieldRole::State,
+        )),
+        KernelNode::from(FieldDef::new(
+            integral,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
+            eqiora::kernel::FieldRole::State,
+        )),
         KernelNode::from(
             ParameterDef::new(
                 rate,
@@ -497,11 +498,17 @@ fn canonical_decay_with_integral() -> (
         KernelNode::from(RelationDef::new(relation, residuals)),
         KernelNode::from(ActivationDef::continuous(continuous)),
     ];
+    nodes.push(support::initial_value(
+        x,
+        DynQuantity::new(1.0, inverse_time),
+    ));
+    nodes.push(support::initial_value(
+        integral,
+        DynQuantity::new(0.0, DimExponents::DIMENSIONLESS),
+    ));
     let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();
     let mut transaction = Transaction::new("canonical decay with integral");
-    for node in nodes {
-        transaction.push(Op::DefineKernelNode { node });
-    }
+    support::define_nodes(&mut transaction, nodes);
     for dependency in [x.erase(), integral.erase(), rate.erase()] {
         transaction.push(Op::Connect {
             from: relation.erase(),
@@ -544,22 +551,15 @@ fn state_dependent_mass_relation() -> (eqiora::sem::KernelProgram, Id<kinds::Rel
     let decay = expression.mul(rate_value, state_value).unwrap();
     let residual = expression.add(weighted_derivative, decay).unwrap();
 
-    let nodes = [
-        KernelNode::from(
-            FieldDef::new(
-                state,
-                eqiora_core::ValueType::scalar(
-                    eqiora_core::ScalarDomain::Real,
-                    DimExponents::DIMENSIONLESS,
-                ),
-            )
-            .with_initial(
-                DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)
-                    .try_into()
-                    .expect("finite real initial value"),
-            )
-            .unwrap(),
-        ),
+    let mut nodes = vec![
+        KernelNode::from(FieldDef::new(
+            state,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
+            eqiora::kernel::FieldRole::State,
+        )),
         KernelNode::from(
             ParameterDef::new(
                 rate,
@@ -574,11 +574,13 @@ fn state_dependent_mass_relation() -> (eqiora::sem::KernelProgram, Id<kinds::Rel
         )),
         KernelNode::from(ActivationDef::continuous(continuous)),
     ];
+    nodes.push(support::initial_value(
+        state,
+        DynQuantity::new(1.0, DimExponents::DIMENSIONLESS),
+    ));
     let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();
     let mut transaction = Transaction::new("state-dependent derivative coefficient");
-    for node in nodes {
-        transaction.push(Op::DefineKernelNode { node });
-    }
+    support::define_nodes(&mut transaction, nodes);
     for dependency in [state.erase(), rate.erase()] {
         transaction.push(Op::Connect {
             from: relation.erase(),
@@ -637,37 +639,23 @@ fn canonical_index_one_dae() -> (
     let constraint_sum = expression.add(differential_value, algebraic_value).unwrap();
     let algebraic_residual = expression.sub(constraint_sum, one).unwrap();
 
-    let nodes = [
-        KernelNode::from(
-            FieldDef::new(
-                differential,
-                eqiora_core::ValueType::scalar(
-                    eqiora_core::ScalarDomain::Real,
-                    DimExponents::DIMENSIONLESS,
-                ),
-            )
-            .with_initial(
-                DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)
-                    .try_into()
-                    .expect("finite real initial value"),
-            )
-            .unwrap(),
-        ),
-        KernelNode::from(
-            FieldDef::new(
-                algebraic,
-                eqiora_core::ValueType::scalar(
-                    eqiora_core::ScalarDomain::Real,
-                    DimExponents::DIMENSIONLESS,
-                ),
-            )
-            .with_initial(
-                DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)
-                    .try_into()
-                    .expect("finite real initial value"),
-            )
-            .unwrap(),
-        ),
+    let mut nodes = vec![
+        KernelNode::from(FieldDef::new(
+            differential,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
+            eqiora::kernel::FieldRole::State,
+        )),
+        KernelNode::from(FieldDef::new(
+            algebraic,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
+            eqiora::kernel::FieldRole::Variable,
+        )),
         KernelNode::from(
             ParameterDef::new(
                 rate,
@@ -684,11 +672,13 @@ fn canonical_index_one_dae() -> (
         )),
         KernelNode::from(ActivationDef::continuous(continuous)),
     ];
+    nodes.push(support::initial_value(
+        differential,
+        DynQuantity::new(0.0, DimExponents::DIMENSIONLESS),
+    ));
     let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();
     let mut transaction = Transaction::new("canonical index-one mass-matrix DAE");
-    for node in nodes {
-        transaction.push(Op::DefineKernelNode { node });
-    }
+    support::define_nodes(&mut transaction, nodes);
     for dependency in [differential.erase(), algebraic.erase(), rate.erase()] {
         transaction.push(Op::Connect {
             from: relation.erase(),
@@ -761,37 +751,23 @@ fn canonical_dense_mass_matrix(
         (first, second)
     };
 
-    let nodes = [
-        KernelNode::from(
-            FieldDef::new(
-                x,
-                eqiora_core::ValueType::scalar(
-                    eqiora_core::ScalarDomain::Real,
-                    DimExponents::DIMENSIONLESS,
-                ),
-            )
-            .with_initial(
-                DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)
-                    .try_into()
-                    .expect("finite real initial value"),
-            )
-            .unwrap(),
-        ),
-        KernelNode::from(
-            FieldDef::new(
-                y,
-                eqiora_core::ValueType::scalar(
-                    eqiora_core::ScalarDomain::Real,
-                    DimExponents::DIMENSIONLESS,
-                ),
-            )
-            .with_initial(
-                DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)
-                    .try_into()
-                    .expect("finite real initial value"),
-            )
-            .unwrap(),
-        ),
+    let mut nodes = vec![
+        KernelNode::from(FieldDef::new(
+            x,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
+            eqiora::kernel::FieldRole::State,
+        )),
+        KernelNode::from(FieldDef::new(
+            y,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
+            eqiora::kernel::FieldRole::State,
+        )),
         KernelNode::from(
             ParameterDef::new(
                 rate,
@@ -808,15 +784,23 @@ fn canonical_dense_mass_matrix(
         )),
         KernelNode::from(ActivationDef::continuous(continuous)),
     ];
+    nodes.push(support::initial_value(
+        x,
+        DynQuantity::new(1.0, DimExponents::DIMENSIONLESS),
+    ));
+    if !singular {
+        nodes.push(support::initial_value(
+            y,
+            DynQuantity::new(1.0, DimExponents::DIMENSIONLESS),
+        ));
+    }
     let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();
     let mut transaction = Transaction::new(if singular {
         "canonical dense singular mass matrix"
     } else {
         "canonical dense full mass matrix"
     });
-    for node in nodes {
-        transaction.push(Op::DefineKernelNode { node });
-    }
+    support::define_nodes(&mut transaction, nodes);
     for dependency in [x.erase(), y.erase(), rate.erase()] {
         transaction.push(Op::Connect {
             from: relation.erase(),
@@ -899,31 +883,17 @@ fn canonical_bouncing_ball() -> CanonicalBouncingBall {
         let height_value = expression.symbol(SymbolRef::Field(height)).unwrap();
         expression.finish([height_value]).unwrap()
     };
-    let nodes = vec![
-        KernelNode::from(
-            FieldDef::new(
-                height,
-                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, length),
-            )
-            .with_initial(
-                DynQuantity::new(1.0, length)
-                    .try_into()
-                    .expect("finite real initial value"),
-            )
-            .unwrap(),
-        ),
-        KernelNode::from(
-            FieldDef::new(
-                velocity,
-                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, velocity_dimension),
-            )
-            .with_initial(
-                DynQuantity::new(0.0, velocity_dimension)
-                    .try_into()
-                    .expect("finite real initial value"),
-            )
-            .unwrap(),
-        ),
+    let mut nodes = vec![
+        KernelNode::from(FieldDef::new(
+            height,
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, length),
+            eqiora::kernel::FieldRole::State,
+        )),
+        KernelNode::from(FieldDef::new(
+            velocity,
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, velocity_dimension),
+            eqiora::kernel::FieldRole::State,
+        )),
         KernelNode::from(
             ParameterDef::new(
                 gravity,
@@ -982,11 +952,17 @@ fn canonical_bouncing_ball() -> CanonicalBouncingBall {
             .unwrap(),
         ),
     ];
+    nodes.push(support::initial_value(
+        height,
+        DynQuantity::new(1.0, length),
+    ));
+    nodes.push(support::initial_value(
+        velocity,
+        DynQuantity::new(0.0, velocity_dimension),
+    ));
     let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();
     let mut transaction = Transaction::new("canonical registered bouncing ball");
-    for node in nodes {
-        transaction.push(Op::DefineKernelNode { node });
-    }
+    support::define_nodes(&mut transaction, nodes);
     connect_relation_dependencies(
         &mut transaction,
         flow.erase(),

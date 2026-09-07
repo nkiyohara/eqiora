@@ -7,6 +7,39 @@ use eqiora::ontology::{Model, ModelView, OntologyId};
 use eqiora::{DimExponents, DynQuantity, Id};
 
 #[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
+pub(crate) fn initial_value(field: Id<kinds::Field>, value: DynQuantity) -> KernelNode {
+    let mut expression = ExprDagBuilder::new();
+    let field_value = expression.symbol(SymbolRef::Field(field)).unwrap();
+    let prescribed = expression.constant(value).unwrap();
+    let residual = expression.sub(field_value, prescribed).unwrap();
+    RelationDef::initial(Id::new(), expression.finish([residual]).unwrap()).into()
+}
+
+#[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
+pub(crate) fn define_nodes(transaction: &mut Transaction, nodes: Vec<KernelNode>) {
+    let mut dependencies = Vec::new();
+    for node in nodes {
+        if let KernelNode::Relation(relation) = &node
+            && relation.is_initial()
+        {
+            for expression in relation.residuals().nodes() {
+                if let eqiora::kernel::ExprNode::Symbol(SymbolRef::Field(field)) = expression {
+                    dependencies.push((relation.id().erase(), field.erase()));
+                }
+            }
+        }
+        transaction.push(Op::DefineKernelNode { node });
+    }
+    for (from, to) in dependencies {
+        transaction.push(Op::Connect {
+            from,
+            to,
+            edge: EdgeKind::DependsOn,
+        });
+    }
+}
+
+#[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
 pub(crate) mod exact_package;
 
 #[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
@@ -57,37 +90,23 @@ pub(crate) fn canonical_state_dependent_mass_dae() -> CanonicalStateDependentMas
         .unwrap();
     let algebraic_residual = expression.sub(algebraic_value, square).unwrap();
 
-    let nodes = [
-        KernelNode::from(
-            FieldDef::new(
-                differential,
-                eqiora_core::ValueType::scalar(
-                    eqiora_core::ScalarDomain::Real,
-                    DimExponents::DIMENSIONLESS,
-                ),
-            )
-            .with_initial(
-                DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)
-                    .try_into()
-                    .expect("finite real initial value"),
-            )
-            .unwrap(),
-        ),
-        KernelNode::from(
-            FieldDef::new(
-                algebraic,
-                eqiora_core::ValueType::scalar(
-                    eqiora_core::ScalarDomain::Real,
-                    DimExponents::DIMENSIONLESS,
-                ),
-            )
-            .with_initial(
-                DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)
-                    .try_into()
-                    .expect("finite real initial value"),
-            )
-            .unwrap(),
-        ),
+    let mut nodes = vec![
+        KernelNode::from(FieldDef::new(
+            differential,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
+            eqiora::kernel::FieldRole::State,
+        )),
+        KernelNode::from(FieldDef::new(
+            algebraic,
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::DIMENSIONLESS,
+            ),
+            eqiora::kernel::FieldRole::Variable,
+        )),
         KernelNode::from(
             ParameterDef::new(
                 rate,
@@ -104,11 +123,13 @@ pub(crate) fn canonical_state_dependent_mass_dae() -> CanonicalStateDependentMas
         )),
         KernelNode::from(ActivationDef::continuous(continuous)),
     ];
+    nodes.push(initial_value(
+        differential,
+        DynQuantity::new(1.0, DimExponents::DIMENSIONLESS),
+    ));
     let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();
     let mut transaction = Transaction::new("canonical state-dependent-mass index-one DAE");
-    for node in nodes {
-        transaction.push(Op::DefineKernelNode { node });
-    }
+    define_nodes(&mut transaction, nodes);
     for dependency in [differential.erase(), algebraic.erase(), rate.erase()] {
         transaction.push(Op::Connect {
             from: relation.erase(),
