@@ -624,10 +624,7 @@ impl KernelNode {
     #[must_use]
     pub fn value_dimension(&self) -> Option<DimExponents> {
         match self {
-            Self::Parameter(value) => match value.real_scalar_value() {
-                Some(value) => Some(value.dim()),
-                None => None,
-            },
+            Self::Parameter(value) => value.real_scalar_value().map(|value| value.dim()),
             _ => None,
         }
     }
