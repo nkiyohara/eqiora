@@ -22,9 +22,8 @@ use crate::ast::{
     ExactIntegerSyntax, Expr, ExprKind, FieldBindingDecl, FieldDecl, InstanceDecl, Item, LetDecl,
     NamePath, ParameterBindingDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl,
     PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax,
-    RationalSyntax, RelationDecl, RelationFamilyDecl, RepresentationDecl, RepresentationSyntax,
-    SupportBindingDecl, SupportSlotDecl, SupportSlotSyntax, TextRange, ValueShapeSyntax,
-    VisibilitySyntax,
+    RationalSyntax, RelationDecl, RelationFamilyDecl, SupportBindingDecl, SupportSlotDecl,
+    SupportSlotSyntax, TextRange, ValueShapeSyntax, VisibilitySyntax,
 };
 use domain_validation::validate_domain_syntax;
 
@@ -229,23 +228,6 @@ impl SourceAstFactory {
         Ok(DomainDecl {
             comments: Default::default(),
             name: checked_identifier(name, "Domain")?,
-            syntax,
-            range: checked_range(range)?,
-        })
-    }
-
-    /// Construct a Representation declaration.
-    ///
-    /// # Errors
-    /// Returns an error for an invalid source identifier or byte range.
-    pub fn representation(
-        name: impl Into<String>,
-        syntax: RepresentationSyntax,
-        range: TextRange,
-    ) -> Result<RepresentationDecl, AstConstructionError> {
-        Ok(RepresentationDecl {
-            comments: Default::default(),
-            name: checked_identifier(name, "Representation")?,
             syntax,
             range: checked_range(range)?,
         })
@@ -552,6 +534,7 @@ impl SourceAstFactory {
             support_bindings,
             boundary_set_bindings,
             field_bindings,
+            clock_bindings: Vec::new(),
             property_bindings: Vec::new(),
             material_binding: None,
             range: checked_range(range)?,
@@ -867,7 +850,6 @@ fn validate_component_item(item: &ComponentItem) -> Result<(), AstConstructionEr
         }
         ComponentItem::Support(declaration) => declaration.range(),
         ComponentItem::FieldRequirement(declaration) => declaration.range(),
-        ComponentItem::Representation(declaration) => declaration.range(),
         ComponentItem::Field(declaration) => declaration.range(),
         ComponentItem::Initial(declaration) => declaration.range(),
         ComponentItem::Clock(declaration) => declaration.range(),

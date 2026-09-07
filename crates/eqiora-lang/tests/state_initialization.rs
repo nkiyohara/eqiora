@@ -64,6 +64,7 @@ fn declarations_cannot_encode_initial_conditions_or_representation_aliases() {
         "model Bad { variable x: 1 = 0; }",
         "model Bad { field x: 1; }",
         "model Bad { state x on region as continuum: 1; }",
+        "model Bad { representation space = continuum; }",
         "model Bad { initial {} }",
     ] {
         assert!(
@@ -71,6 +72,54 @@ fn declarations_cannot_encode_initial_conditions_or_representation_aliases() {
             "{source}"
         );
     }
+}
+
+#[test]
+fn borrowed_clocks_roundtrip_with_exact_target_and_comment_owner() {
+    let source = "component Delay(clock tick, state memory: V at tick) {}\nmodel Root { clock sample = periodic(period = 1 / 1, phase = 2 / 1); state held: V at sample; instance delay: Delay(\n/// 同じクロック\nclock tick = sample, field memory = held); }";
+    let document = parse("clocks.eqi", source).into_document().unwrap();
+    let Item::Instance(instance) = &document.models()[0].items()[2] else {
+        panic!("instance");
+    };
+    let binding = &instance.clock_bindings()[0];
+    assert_eq!(binding.slot(), "tick");
+    assert_eq!(binding.target(), "sample");
+    assert_eq!(
+        &source[binding.range().start() as usize..binding.range().end() as usize],
+        "clock tick = sample"
+    );
+    assert_eq!(
+        document.doc_comment(binding.range()).unwrap().summary(),
+        "同じクロック"
+    );
+    let formatted = format(&document);
+    assert_eq!(
+        format(&parse("clocks.eqi", &formatted).into_document().unwrap()),
+        formatted
+    );
+
+    let range = eqiora_lang::TextRange::new(0, 0);
+    let instance = eqiora_lang::SourceAstFactory::instance(
+        "clock_only",
+        eqiora_lang::NamePath::from_segments(["Delay"], range).unwrap(),
+        vec![],
+        range,
+    )
+    .unwrap();
+    let instance = eqiora_lang::SourceAstFactory::bind_clocks(
+        instance,
+        vec![eqiora_lang::SourceAstFactory::clock_binding("tick", "sample", range).unwrap()],
+    )
+    .unwrap();
+    let model = eqiora_lang::SourceAstFactory::model(
+        eqiora_lang::VisibilitySyntax::Private,
+        "M",
+        vec![Item::Instance(instance)],
+        range,
+    )
+    .unwrap();
+    let document = eqiora_lang::SourceAstFactory::flat_document(vec![model]).unwrap();
+    assert!(format(&document).contains("Delay(clock tick = sample)"));
 }
 
 #[test]

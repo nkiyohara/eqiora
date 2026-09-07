@@ -18,8 +18,8 @@ use crate::ast::{
     ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorSyntax, Document,
     DomainSyntax, Expr, ExprKind, FieldDecl, FrameSyntax, InstanceDecl, Item, PortSyntax,
     PureOperatorBinaryOp, PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind,
-    PureValueClassSyntax, RepresentationSyntax, SignalDirectionSyntax, SupportSlotSyntax, UnaryOp,
-    ValueShapeSyntax, VisibilitySyntax,
+    PureValueClassSyntax, SignalDirectionSyntax, SupportSlotSyntax, UnaryOp, ValueShapeSyntax,
+    VisibilitySyntax,
 };
 use cartesian::format_cartesian_coordinate;
 use compile_time::{format_let, format_parameter};
@@ -261,9 +261,6 @@ fn format_component_item(
         | ComponentItem::ClockRequirement(_) => {
             unreachable!("requirements are rendered only in the Component signature");
         }
-        ComponentItem::Representation(declaration) => {
-            format_representation(declaration, indent, output);
-        }
         ComponentItem::Field(declaration) => format_field(declaration, indent, output),
         ComponentItem::Initial(declaration) => format_initial(declaration, indent, output),
         ComponentItem::Clock(declaration) => format_clock(declaration, indent, output),
@@ -315,9 +312,6 @@ fn format_item(item: &Item, indent: usize, output: &mut crate::formatter::commen
             }
             output.push_str(";\n");
         }
-        Item::Representation(declaration) => {
-            format_representation(declaration, indent, output);
-        }
         Item::Field(declaration) => format_field(declaration, indent, output),
         Item::Initial(declaration) => format_initial(declaration, indent, output),
         Item::Parameter(declaration) => format_parameter(declaration, indent, output),
@@ -343,19 +337,6 @@ fn format_item(item: &Item, indent: usize, output: &mut crate::formatter::commen
         Item::Instance(declaration) => format_instance(declaration, indent, output),
     }
     output.end();
-}
-
-fn format_representation(
-    declaration: &crate::ast::RepresentationDecl,
-    indent: usize,
-    output: &mut crate::formatter::comments::Output,
-) {
-    write_indent(output, indent);
-    write!(output, "representation {} = ", declaration.name).expect("String write");
-    match declaration.syntax {
-        RepresentationSyntax::Continuum => output.push_str("continuum"),
-    }
-    output.push_str(";\n");
 }
 
 fn format_field(
@@ -637,6 +618,15 @@ fn format_instance(
             }
             output.begin(&binding.comments);
             write!(output, "field {} = {}", binding.slot, binding.target).expect("String write");
+            output.end();
+            separated = true;
+        }
+        for (index, binding) in declaration.clock_bindings.iter().enumerate() {
+            if separated || index != 0 {
+                output.push_str(", ");
+            }
+            output.begin(&binding.comments);
+            write!(output, "clock {} = {}", binding.slot, binding.target).expect("String write");
             output.end();
             separated = true;
         }

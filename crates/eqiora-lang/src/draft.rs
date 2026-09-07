@@ -8,7 +8,7 @@ use std::collections::{HashMap, HashSet};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::ast::{BinaryOp, Expr, ExprKind, ModelDecl, NamePath, TextRange, UnaryOp};
-use crate::draft_spatial::{DraftRepresentation, DraftSpatialDomain, DraftSpatialDomainKind};
+use crate::draft_spatial::{DraftSpatialDomain, DraftSpatialDomainKind};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, DimExponents, GraphPath, ValueType};
 
@@ -56,7 +56,6 @@ impl ModelDraft {
         let mut value_symbols = HashSet::new();
         let mut domain_symbols = HashSet::new();
         let mut spatial_domain_symbols = HashSet::new();
-        let mut representation_symbols = HashSet::new();
         let mut ports = HashMap::new();
 
         if !is_language_identifier(&self.name) {
@@ -113,31 +112,29 @@ impl ModelDraft {
                 DraftDeclaration::SpatialDomain(value) => {
                     spatial_domain_symbols.insert(value.symbol().clone());
                 }
-                DraftDeclaration::Representation(value) => {
-                    representation_symbols.insert(value.symbol.clone());
-                }
                 DraftDeclaration::ConservingPort(value) => {
                     ports.insert(value.symbol.clone(), value);
                 }
-                DraftDeclaration::Relation(_) | DraftDeclaration::ConservingConnection(_) => {}
+                DraftDeclaration::Relation(_)
+                | DraftDeclaration::Initial(_)
+                | DraftDeclaration::ConservingConnection(_) => {}
             }
-            if let DraftDeclaration::Relation(relation) = declaration {
-                if relation.residuals.is_empty() {
+            if let Some((path, residuals)) = declaration.equations() {
+                if residuals.is_empty() {
                     diagnostics.push(native_diagnostic(
                         &self.name,
-                        relation.name(),
-                        "Relation requires at least one residual",
+                        path,
+                        "equation group requires at least one residual",
                     ));
                 }
-                if relation
-                    .residuals
+                if residuals
                     .iter()
                     .any(DraftExpression::contains_non_finite_constant)
                 {
                     diagnostics.push(native_diagnostic(
                         &self.name,
-                        relation.name(),
-                        "Relation contains a non-finite numeric literal",
+                        path,
+                        "equation group contains a non-finite numeric literal",
                     ));
                 }
             }
@@ -200,17 +197,6 @@ impl ModelDraft {
                     ),
                 ));
             }
-            if !representation_symbols.contains(&scope.representation.symbol) {
-                diagnostics.push(native_diagnostic(
-                    &self.name,
-                    field.name(),
-                    format!(
-                        "spatial Field `{}` references foreign or omitted Representation `{}`",
-                        field.name(),
-                        scope.representation.name()
-                    ),
-                ));
-            }
         }
 
         for declaration in &self.declarations {
@@ -250,11 +236,11 @@ impl ModelDraft {
         }
 
         for declaration in &self.declarations {
-            let DraftDeclaration::Relation(relation) = declaration else {
+            let Some((path, residuals)) = declaration.equations() else {
                 continue;
             };
             let mut referenced = Vec::new();
-            for residual in &relation.residuals {
+            for residual in residuals {
                 residual.references(&mut referenced);
             }
             for reference in referenced {
@@ -264,10 +250,9 @@ impl ModelDraft {
                     {
                         diagnostics.push(native_diagnostic(
                             &self.name,
-                            relation.name(),
+                            path,
                             format!(
-                                "Relation `{}` references foreign or omitted {} `{}`",
-                                relation.name(),
+                                "equation group `{path}` references foreign or omitted {} `{}`",
                                 reference.kind.label(),
                                 reference.name
                             ),
@@ -278,10 +263,9 @@ impl ModelDraft {
                     {
                         diagnostics.push(native_diagnostic(
                             &self.name,
-                            relation.name(),
+                            path,
                             format!(
-                                "Relation `{}` references foreign or omitted conserving Port `{}`",
-                                relation.name(),
+                                "equation group `{path}` references foreign or omitted conserving Port `{}`",
                                 reference.name
                             ),
                         ));
@@ -366,8 +350,6 @@ pub enum DraftDeclaration {
     SpatialDomain(DraftSpatialDomain),
     /// Nominal scalar physical Domain.
     PhysicalDomain(DraftPhysicalDomain),
-    /// Continuous pre-discretization Representation.
-    Representation(DraftRepresentation),
     /// Mutable scalar state.
     Field(DraftField),
     /// Revision-local scalar design value.
@@ -376,6 +358,12 @@ pub enum DraftDeclaration {
     ConservingPort(DraftConservingPort),
     /// Continuous implicit residual group.
     Relation(DraftRelation),
+    /// Simultaneous fresh-initialization residuals, each equal to zero.
+    ///
+    /// These are mathematical conditions, separate from numerical guesses.
+    /// Empty groups, non-finite constants, and foreign references are rejected
+    /// when closing the draft. Types are checked by the common compiler.
+    Initial(Vec<DraftExpression>),
     /// Anonymous N-ary conserving connection net.
     ConservingConnection(DraftConservingConnection),
 }
@@ -385,12 +373,11 @@ impl DraftDeclaration {
         match self {
             Self::SpatialDomain(value) => Some(value.name()),
             Self::PhysicalDomain(value) => Some(value.name()),
-            Self::Representation(value) => Some(value.name()),
             Self::Field(value) => Some(value.name()),
             Self::Parameter(value) => Some(value.name()),
             Self::ConservingPort(value) => Some(value.name()),
             Self::Relation(value) => Some(value.name()),
-            Self::ConservingConnection(_) => None,
+            Self::Initial(_) | Self::ConservingConnection(_) => None,
         }
     }
 
@@ -398,12 +385,20 @@ impl DraftDeclaration {
         match self {
             Self::SpatialDomain(_) => "SpatialDomain",
             Self::PhysicalDomain(_) => "PhysicalDomain",
-            Self::Representation(_) => "Representation",
             Self::Field(_) => "Field",
             Self::Parameter(_) => "Parameter",
             Self::ConservingPort(_) => "ConservingPort",
             Self::Relation(_) => "Relation",
+            Self::Initial(_) => "Initial",
             Self::ConservingConnection(_) => "ConservingConnection",
+        }
+    }
+
+    fn equations(&self) -> Option<(&str, &[DraftExpression])> {
+        match self {
+            Self::Relation(relation) => Some((relation.name(), &relation.residuals)),
+            Self::Initial(residuals) => Some(("initial", residuals)),
+            _ => None,
         }
     }
 }
@@ -417,12 +412,6 @@ impl From<DraftSpatialDomain> for DraftDeclaration {
 impl From<DraftPhysicalDomain> for DraftDeclaration {
     fn from(value: DraftPhysicalDomain) -> Self {
         Self::PhysicalDomain(value)
-    }
-}
-
-impl From<DraftRepresentation> for DraftDeclaration {
-    fn from(value: DraftRepresentation) -> Self {
-        Self::Representation(value)
     }
 }
 
@@ -578,7 +567,6 @@ pub struct DraftField {
 #[derive(Debug, Clone)]
 struct DraftSpatialScope {
     domain: DraftSpatialDomain,
-    representation: DraftRepresentation,
 }
 
 impl DraftField {
@@ -598,13 +586,11 @@ impl DraftField {
         }
     }
 
-    /// Declare one typed Field over an exact draft-local Domain and
-    /// continuum Representation.
+    /// Declare one typed unknown over an exact draft-local Domain.
     #[must_use]
     pub fn spatial(
         name: impl Into<String>,
         domain: &DraftSpatialDomain,
-        representation: &DraftRepresentation,
         value_type: ValueType,
         role: crate::ast::FieldRoleSyntax,
     ) -> Self {
@@ -615,7 +601,6 @@ impl DraftField {
             role,
             spatial_scope: Some(DraftSpatialScope {
                 domain: domain.clone(),
-                representation: representation.clone(),
             }),
         }
     }
@@ -648,14 +633,6 @@ impl DraftField {
     #[must_use]
     pub fn domain(&self) -> Option<&DraftSpatialDomain> {
         self.spatial_scope.as_ref().map(|scope| &scope.domain)
-    }
-
-    /// Exact draft-local continuum Representation, when distributed.
-    #[must_use]
-    pub fn representation(&self) -> Option<&DraftRepresentation> {
-        self.spatial_scope
-            .as_ref()
-            .map(|scope| &scope.representation)
     }
 
     /// Use this Field as a scalar expression.

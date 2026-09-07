@@ -25,9 +25,9 @@ use crate::ast::{
     DomainDecl, DomainSyntax, ExactIntegerSyntax, Expr, ExprKind, FieldBindingDecl, FieldDecl,
     FrameSyntax, InstanceDecl, Item, NamePath, ParameterBindingDecl, PortDecl, PortSyntax,
     PureOperatorBinaryOp, PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind,
-    PureOperatorFormal, PureValueClassSyntax, RationalSyntax, RepresentationDecl,
-    RepresentationSyntax, SignalDirectionSyntax, SupportBindingDecl, SupportSlotDecl,
-    SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, VisibilitySyntax,
+    PureOperatorFormal, PureValueClassSyntax, RationalSyntax, SignalDirectionSyntax,
+    SupportBindingDecl, SupportSlotDecl, SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax,
+    VisibilitySyntax,
 };
 use crate::lexer::{Token, TokenKind, lex};
 use relation::ParsedRelation;
@@ -236,9 +236,7 @@ impl Parser<'_> {
                 &token,
                 "only `parameter` and `port` body declarations may be public; support and unknown requirements belong in the signature",
             );
-            if self.at_keyword("representation") {
-                self.parse_representation()?;
-            } else if self.at_keyword("variable") || self.at_keyword("state") {
+            if self.at_keyword("variable") || self.at_keyword("state") {
                 self.parse_field(true)?;
             } else if self.at_keyword("clock") {
                 self.parse_clock()?;
@@ -254,10 +252,7 @@ impl Parser<'_> {
             return Some(ParsedComponentItem::Discarded);
         }
 
-        let item = if self.at_keyword("representation") {
-            self.parse_representation()
-                .map(ComponentItem::Representation)
-        } else if self.at_keyword("variable") || self.at_keyword("state") {
+        let item = if self.at_keyword("variable") || self.at_keyword("state") {
             self.parse_field(true).map(ComponentItem::Field)
         } else if self.at_keyword("initial") {
             self.parse_initial().map(ComponentItem::Initial)
@@ -281,7 +276,7 @@ impl Parser<'_> {
             self.parse_instance().map(ComponentItem::Instance)
         } else {
             self.error_here(
-                "expected parameter, port, support, representation, field, clock, relation, connect, or instance in component",
+                "expected parameter, port, variable, state, initial, clock, relation, connect, or instance in component",
             );
             None
         }?;
@@ -291,8 +286,6 @@ impl Parser<'_> {
     fn parse_item(&mut self) -> Option<Item> {
         if self.at_keyword("domain") {
             self.parse_domain().map(Item::Domain)
-        } else if self.at_keyword("representation") {
-            self.parse_representation().map(Item::Representation)
         } else if self.at_keyword("variable") || self.at_keyword("state") {
             self.parse_field(true).map(Item::Field)
         } else if self.at_keyword("initial") {
@@ -319,7 +312,7 @@ impl Parser<'_> {
             self.parse_instance().map(Item::Instance)
         } else {
             self.error_here(
-                "expected domain, representation, field, parameter, let, port, clock, relation, connect, boundary, or instance",
+                "expected domain, variable, state, initial, parameter, let, port, clock, relation, connect, boundary, or instance",
             );
             None
         }
@@ -490,26 +483,6 @@ impl Parser<'_> {
         } else {
             Some(ValueShapeSyntax::Exact(extents))
         }
-    }
-
-    fn parse_representation(&mut self) -> Option<RepresentationDecl> {
-        let start = self.expect_keyword("representation")?.range().start();
-        let name = self
-            .expect_identifier("Representation name")?
-            .text()
-            .to_owned();
-        self.expect(TokenKind::Equal, "`=` before Representation family")?;
-        self.expect_keyword("continuum")?;
-        let end = self
-            .expect(TokenKind::Semicolon, "`;` after Representation")?
-            .range()
-            .end();
-        Some(RepresentationDecl {
-            comments: Default::default(),
-            name,
-            syntax: RepresentationSyntax::Continuum,
-            range: TextRange::new(start, end),
-        })
     }
 
     fn parse_field(&mut self, terminated: bool) -> Option<FieldDecl> {

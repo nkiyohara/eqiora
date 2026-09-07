@@ -10,6 +10,7 @@ impl Parser<'_> {
         let mut support_bindings = Vec::new();
         let mut boundary_set_bindings = Vec::new();
         let mut field_bindings = Vec::new();
+        let mut clock_bindings = Vec::new();
         let mut property_bindings = Vec::new();
         let mut material_binding = None;
         if self.at(TokenKind::LeftParen) {
@@ -87,6 +88,27 @@ impl Parser<'_> {
                         self.bump();
                         continue;
                     }
+                    if self.at_keyword("clock") {
+                        self.bump();
+                        let slot = self
+                            .expect_identifier("public Clock requirement binding name")?
+                            .text()
+                            .to_owned();
+                        self.expect(TokenKind::Equal, "`=` in Clock binding")?;
+                        let target =
+                            self.expect_identifier("enclosing Clock or Clock requirement name")?;
+                        clock_bindings.push(crate::ast::ClockBindingDecl {
+                            comments: Default::default(),
+                            slot,
+                            target: target.text().to_owned(),
+                            range: TextRange::new(binding_start, target.range().end()),
+                        });
+                        if !self.at(TokenKind::Comma) {
+                            break;
+                        }
+                        self.bump();
+                        continue;
+                    }
                     if self.at_keyword("property") {
                         property_bindings.push(self.parse_property_binding(binding_start)?);
                         if !self.at(TokenKind::Comma) {
@@ -140,6 +162,7 @@ impl Parser<'_> {
             support_bindings,
             boundary_set_bindings,
             field_bindings,
+            clock_bindings,
             property_bindings,
             material_binding,
             range: TextRange::new(start, end),

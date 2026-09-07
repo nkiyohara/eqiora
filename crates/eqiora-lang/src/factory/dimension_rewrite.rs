@@ -71,7 +71,6 @@ fn rewrite_component_item(item: &mut ComponentItem, rewrite: &mut impl FnMut(&Ex
         }
         ComponentItem::Instance(_)
         | ComponentItem::Support(_)
-        | ComponentItem::Representation(_)
         | ComponentItem::Initial(_)
         | ComponentItem::Clock(_)
         | ComponentItem::ClockRequirement(_)
@@ -109,8 +108,7 @@ fn rewrite_item(item: &mut Item, rewrite: &mut impl FnMut(&Expr) -> Expr) {
             }
         }
         Item::Port(declaration) => rewrite_port(&mut declaration.syntax, rewrite),
-        Item::Representation(_)
-        | Item::Initial(_)
+        Item::Initial(_)
         | Item::Clock(_)
         | Item::Relation(_)
         | Item::Connection(_)

@@ -468,8 +468,6 @@ pub enum ComponentItem {
     FieldRequirement(FieldDecl),
     /// Exact nominal clock requirement in the Component signature.
     ClockRequirement(ClockRequirementDecl),
-    /// Private canonical field representation.
-    Representation(RepresentationDecl),
     /// Private mutable state.
     Field(FieldDecl),
     /// Simultaneous fresh initialization, owned by this occurrence.
@@ -494,8 +492,6 @@ pub enum ComponentItem {
 pub enum Item {
     /// Continuous spatial region or one oriented boundary portion.
     Domain(DomainDecl),
-    /// Canonical field representation before discretization.
-    Representation(RepresentationDecl),
     /// Mutable model state.
     Field(FieldDecl),
     /// Simultaneous fresh initialization, separate from numerical guesses.
@@ -530,6 +526,7 @@ pub struct InstanceDecl {
     pub(crate) support_bindings: Vec<SupportBindingDecl>,
     pub(crate) boundary_set_bindings: Vec<BoundarySetBindingDecl>,
     pub(crate) field_bindings: Vec<FieldBindingDecl>,
+    pub(crate) clock_bindings: Vec<ClockBindingDecl>,
     pub(crate) property_bindings: Vec<PropertyBindingDecl>,
     pub(crate) material_binding: Option<NamePath>,
     pub(crate) range: TextRange,
@@ -570,6 +567,12 @@ impl InstanceDecl {
     #[must_use]
     pub fn field_bindings(&self) -> &[FieldBindingDecl] {
         &self.field_bindings
+    }
+
+    /// Named exact-clock bindings in source order.
+    #[must_use]
+    pub fn clock_bindings(&self) -> &[ClockBindingDecl] {
+        &self.clock_bindings
     }
 
     /// Full instance declaration range.
@@ -716,6 +719,35 @@ impl FieldBindingDecl {
     }
 }
 
+/// One named exact Clock binding in a component instantiation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClockBindingDecl {
+    pub(crate) comments: crate::ast::comments::SourceComments,
+    pub(crate) slot: String,
+    pub(crate) target: String,
+    pub(crate) range: TextRange,
+}
+
+impl ClockBindingDecl {
+    /// Signature Clock requirement name in the selected component definition.
+    #[must_use]
+    pub fn slot(&self) -> &str {
+        &self.slot
+    }
+
+    /// Enclosing owned Clock or forwarded Clock requirement name.
+    #[must_use]
+    pub fn target(&self) -> &str {
+        &self.target
+    }
+
+    /// Complete binding range, including the `clock` discriminator.
+    #[must_use]
+    pub const fn range(&self) -> TextRange {
+        self.range
+    }
+}
+
 /// Named semantic Domain declaration.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DomainDecl {
@@ -770,35 +802,6 @@ pub enum DomainSyntax {
     },
 }
 
-/// Canonical Representation declaration.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RepresentationDecl {
-    pub(crate) comments: crate::ast::comments::SourceComments,
-    pub(crate) name: String,
-    pub(crate) syntax: RepresentationSyntax,
-    pub(crate) range: TextRange,
-}
-
-impl RepresentationDecl {
-    /// Source name.
-    #[must_use]
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Representation family.
-    #[must_use]
-    pub const fn syntax(&self) -> RepresentationSyntax {
-        self.syntax
-    }
-
-    /// Full declaration range.
-    #[must_use]
-    pub const fn range(&self) -> TextRange {
-        self.range
-    }
-}
-
 /// Borrowed exact clock requirement; it does not declare another period or phase.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClockRequirementDecl {
@@ -819,14 +822,6 @@ impl ClockRequirementDecl {
     pub const fn range(&self) -> TextRange {
         self.range
     }
-}
-
-/// Source representation family.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum RepresentationSyntax {
-    /// Continuous field before a discrete function space is selected.
-    Continuum,
 }
 
 /// Author-declared mathematical evolution role.
