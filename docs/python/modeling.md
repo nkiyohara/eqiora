@@ -85,7 +85,7 @@ component = source.component("Diffusion")
 body = component.volume("body", dimensions=2)
 value = component.field("value", on=body, role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
 length = component.parameter("length", value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
-wave_number = q.math.pi / length
+wave_number = component.let_alias("wave_number", q.math.pi / length)
 component.relation(
     "balance",
     on=body,
@@ -106,6 +106,20 @@ documentation. A blank paragraph is emitted as an empty `///` line, keeping the
 block attached to its declaration. Documentation is bounded to 16,384 UTF-8 bytes.
 `write_eqi(path)` uses same-directory staging and atomic replacement, so an I/O
 failure does not publish a partly written source file.
+
+A Source can contain multiple Components within its existing declaration bound.
+Use `parent.instance(...)` to bind a child's requirements explicitly, and select the
+entry with `eqiora.compile(source=source, component="Parent", ...)` when the source
+contains multiple public Components. A Source containing property contracts still
+requires the exact Model Package compilation path described below.
+
+`component.let_alias(name, expression)` declares a private static expression alias.
+Its type is inferred, or asserted with `value_type=`. Aliases can use the component's
+Parameters and other static aliases, including as nested-instance argument expressions;
+they do not become required parameters, independent edit targets, unknowns, or equations.
+Each occurrence retains its original Parameter dependencies, so later Parameter edits and
+differentiation pass through the expression. Runtime state-dependent aliases and `on`/`at`
+assertions remain outside this authoring slice.
 
 Source values do not type-check or lower equations in Python. Direct compile
 materializes `source.to_eqi()` and enters the same Rust parser, type checker,

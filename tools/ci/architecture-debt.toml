@@ -155,14 +155,8 @@ reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
-path = "crates/eqiora-compiler/src/hierarchy/definition_graph.rs"
-ceiling = 1213
-reason = "predates the predicate; not yet triaged"
-removal = "split by responsibility in the lane that next modifies it"
-
-[[file_lines]]
 path = "crates/eqiora-compiler/src/hierarchy/expand.rs"
-ceiling = 2693
+ceiling = 2682
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -180,7 +174,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-compiler/src/source_identity.rs"
-ceiling = 1933
+ceiling = 1859
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -198,7 +192,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-lang/src/ast.rs"
-ceiling = 1178
+ceiling = 1115
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -209,14 +203,8 @@ reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
-path = "crates/eqiora-lang/src/factory.rs"
-ceiling = 1022
-reason = "predates the predicate; not yet triaged"
-removal = "split by responsibility in the lane that next modifies it"
-
-[[file_lines]]
 path = "crates/eqiora-lang/src/parser.rs"
-ceiling = 1149
+ceiling = 1069
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -477,12 +465,12 @@ ceiling = 47
 
 [[public_surface]]
 crate = "eqiora-lang"
-ceiling = 86
+ceiling = 87
 # #857 adds ValueTypeSyntax and its closed syntax kind. Parsed and native ASTs
 # need one range-bearing recursive constructor tree; ValueShapeSyntax still
 # serves pure-operator shape patterns and is not a substitute for that tree.
-reason = "the Cartesian endpoint syntax retains typed coordinate ranges; #864 adds Equation as the single ordered lhs/rhs AST shared by parsed source, native authoring, formatting, hierarchy rewriting, and checked lowering, replacing the residual-sentinel representation"
-removal = "lower the ceiling when general coordinate expressions subsume the closed endpoint grammar, or when an accepted equation representation replaces Equation; retain no parallel compatibility AST"
+reason = "the Cartesian endpoint syntax retains typed coordinate ranges; #864 adds Equation as the single ordered lhs/rhs AST shared by parsed source, native authoring, formatting, hierarchy rewriting, and checked lowering, replacing the residual-sentinel representation; #865 exposes the existing LetDecl as the shared SourceAstFactory result consumed by both Model and Component AST containers, replacing the model-only Item return without a parallel component factory"
+removal = "lower the ceiling when general coordinate expressions subsume the closed endpoint grammar, or when an accepted equation representation replaces Equation; retain no parallel compatibility AST; lower this allowance if a common declaration representation subsumes LetDecl while preserving typed source ranges and both container consumers"
 
 [[public_surface]]
 crate = "eqiora-meshing"

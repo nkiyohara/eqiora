@@ -53,6 +53,12 @@ fn rewrite_connector(syntax: &mut ConnectorSyntax, rewrite: &mut impl FnMut(&Exp
 
 fn rewrite_component_item(item: &mut ComponentItem, rewrite: &mut impl FnMut(&Expr) -> Expr) {
     match item {
+        ComponentItem::Let(declaration) => {
+            if let Some(value_type) = &mut declaration.value_type {
+                let dimension = value_type.dimension_mut();
+                *dimension = rewrite(dimension);
+            }
+        }
         ComponentItem::Parameter(declaration) => {
             let dimension = declaration.value_type.dimension_mut();
             *dimension = rewrite(dimension);

@@ -1,5 +1,6 @@
 use crate::{
-    BinaryOp, BoundaryPairingSyntax, FrameSyntax, Item, SignalDirectionSyntax, format, parse,
+    BinaryOp, BoundaryPairingSyntax, ComponentItem, FrameSyntax, Item, SignalDirectionSyntax,
+    format, parse,
 };
 
 use super::*;

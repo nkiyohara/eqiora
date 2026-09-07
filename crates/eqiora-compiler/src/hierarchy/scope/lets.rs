@@ -39,16 +39,16 @@ impl Scope {
         value: SymbolicParameterValue,
     ) -> Result<(), &'static str> {
         let (Some(scalar), Some(expression)) = (value.value, value.expression) else {
-            return Err("model let alias did not resolve to a closed expression");
+            return Err("static let alias did not resolve to a closed expression");
         };
         let resolved = ResolvedParameter {
             value: eqiora_core::ValueLiteral::new(value.value_type, scalar)
-                .map_err(|_| "model let alias has an invalid typed literal")?,
+                .map_err(|_| "static let alias has an invalid typed literal")?,
             expression,
             lineage: ParameterLineage::Derived,
         };
         if self.parameters.insert(name, resolved).is_some() {
-            Err("model let alias collides with a compile-time value")
+            Err("static let alias collides with a compile-time value")
         } else {
             Ok(())
         }

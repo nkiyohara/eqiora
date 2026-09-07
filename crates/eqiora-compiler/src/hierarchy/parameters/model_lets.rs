@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_lang::{Item, ModelDecl};
+use eqiora_lang::{ComponentDecl, ComponentItem, Item, LetDecl, ModelDecl};
 
 use crate::diagnostics::{source_error, stable_sort};
 use crate::value_types::lower_value_type;
@@ -21,13 +21,38 @@ pub(in crate::hierarchy) fn resolve_model_lets(
     model: &ModelDecl,
     values: &mut SymbolicParameterMap,
 ) -> Result<(), Vec<Diagnostic>> {
-    let declarations = model
-        .items()
-        .iter()
-        .filter_map(|item| match item {
-            Item::Let(declaration) => Some((declaration.name().to_owned(), declaration)),
+    resolve_lets(
+        file,
+        model.items().iter().filter_map(|item| match item {
+            Item::Let(declaration) => Some(declaration),
             _ => None,
-        })
+        }),
+        values,
+    )
+}
+
+pub(in crate::hierarchy) fn resolve_component_lets(
+    file: &str,
+    component: &ComponentDecl,
+    values: &mut SymbolicParameterMap,
+) -> Result<(), Vec<Diagnostic>> {
+    resolve_lets(
+        file,
+        component.items().iter().filter_map(|item| match item {
+            ComponentItem::Let(declaration) => Some(declaration),
+            _ => None,
+        }),
+        values,
+    )
+}
+
+fn resolve_lets<'a>(
+    file: &str,
+    declarations: impl Iterator<Item = &'a LetDecl>,
+    values: &mut SymbolicParameterMap,
+) -> Result<(), Vec<Diagnostic>> {
+    let declarations = declarations
+        .map(|declaration| (declaration.name().to_owned(), declaration))
         .collect::<BTreeMap<_, _>>();
     let mut definitions = BTreeMap::new();
     let mut diagnostics = Vec::new();

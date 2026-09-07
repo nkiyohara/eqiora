@@ -231,6 +231,7 @@ fn format_component_item(
 ) {
     output.begin(item.source_comments());
     match item {
+        ComponentItem::Let(declaration) => format_let(declaration, indent, output),
         ComponentItem::Parameter(declaration) => {
             write_indent(output, indent);
             if declaration.visibility == VisibilitySyntax::Public {

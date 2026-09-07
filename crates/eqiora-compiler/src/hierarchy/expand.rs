@@ -18,8 +18,8 @@ use crate::connection_sets::ConnectionFragment;
 use crate::diagnostics::source_error;
 use crate::dimensions::lower_dimension;
 use crate::identity::{
-    DeclarationPath, ElaborationIdentityLimits, ElaborationKey, FullElaborationIdentity,
-    GeneratedRole, IdentityNamespace, InstancePath, ModelViewKey,
+    DeclarationPath, ElaborationKey, FullElaborationIdentity, GeneratedRole, IdentityNamespace,
+    InstancePath, ModelViewKey,
 };
 use crate::lower::{LoweringDomainContract, LoweringEquation, LoweringPortContract};
 
@@ -62,7 +62,7 @@ use binding_locations::{
     boundary_set_forwarding_locations, field_forwarding_locations, instance_binding_locations,
     normalize_binding_locations, parameter_forwarding_locations,
 };
-use names::{boundary_family_display, display_child, internal_name};
+use names::{boundary_family_display, child_instance_path, display_child, internal_name};
 
 fn one_diagnostic(error: Diagnostic) -> Vec<Diagnostic> {
     vec![error]
@@ -1334,7 +1334,8 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                             .insert((declaration.name().to_owned(), boundary), identity);
                     }
                 }
-                ComponentItem::Initial(_)
+                ComponentItem::Let(_)
+                | ComponentItem::Initial(_)
                 | ComponentItem::ClockRequirement(_)
                 | ComponentItem::FieldRequirement(_)
                 | ComponentItem::Connection(_)
@@ -1432,6 +1433,9 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 _ => {}
             }
         }
+
+        self.allocate_component_lets(&mut scope, &component)
+            .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
 
         for item in component.items() {
             if let ComponentItem::Instance(child) = item {
@@ -1544,7 +1548,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     });
                 }
 
-                ComponentItem::Parameter(_) => {}
+                ComponentItem::Parameter(_) | ComponentItem::Let(_) => {}
                 ComponentItem::Port(declaration) => {
                     let identity = identities.entities[declaration.name()].clone();
                     let (contract, materialization) =
@@ -2653,21 +2657,6 @@ fn compare_physical_connection_origins(
                 .end()
                 .cmp(&right.source.definition.range.end())
         })
-}
-
-fn child_instance_path(
-    parent: &InstancePath,
-    child: &str,
-    limits: ElaborationIdentityLimits,
-) -> Result<InstancePath, Diagnostic> {
-    InstancePath::with_limits(
-        parent
-            .segments()
-            .iter()
-            .map(String::as_str)
-            .chain(core::iter::once(child)),
-        limits,
-    )
 }
 
 fn boundary_family_bindings(

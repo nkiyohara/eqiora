@@ -109,6 +109,14 @@ class Component:
         value_type: ValueType,
         doc: str | None = None,
     ) -> Expression: ...
+    def let_alias(
+        self,
+        name: str,
+        expression: Expression | int | float,
+        *,
+        value_type: ValueType | None = None,
+        doc: str | None = None,
+    ) -> Expression: ...
     def property(
         self,
         name: str,
@@ -156,7 +164,7 @@ class Component:
 
 @final
 class Source:
-    """Own one baseline or scalar-property draft and freeze it on emission.
+    """Own a bounded Component hierarchy and freeze it on emission.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Source``.
     """

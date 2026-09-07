@@ -690,3 +690,180 @@ def test_canonical_compiler_owns_expression_shape_diagnostics() -> None:
         and diagnostic.source_span[0] == "<python-source>"
         for diagnostic in error.value.diagnostics
     )
+
+
+def test_static_alias_authoring_emits_private_typed_immutable_expressions():
+    source = q.Source()
+    component = source.component("Aliases")
+    pressure = eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2))
+    supplied = component.parameter("supplied", value_type=pressure)
+    doubled = component.let_alias("doubled", supplied * 2, value_type=pressure,
+                                  doc="Twice the supplied pressure.")
+    component.let_alias("opposite", -doubled)
+    assert type(doubled) is q.Expression
+    with pytest.raises(AttributeError):
+        doubled.name = "changed"
+    text = source.to_eqi()
+    assert f"/// Twice the supplied pressure.\n  let doubled: {pressure.to_eqi()} = supplied * 2;" in text
+    assert "let opposite = -doubled;" in text
+    assert "public parameter doubled" not in text
+    with pytest.raises(q.SourceError, match="frozen"):
+        component.let_alias("late", 1)
+
+
+def test_static_alias_authoring_rejects_foreign_values_and_invalid_assertions():
+    component = q.Source().component("Owner")
+    foreign = q.Source().component("Foreign").parameter("input", value_type=eqiora.ValueType.real())
+    with pytest.raises(q.SourceError, match="this Component"):
+        component.let_alias("foreign", foreign + 1)
+    with pytest.raises(TypeError, match="eqiora.ValueType"):
+        component.let_alias("invalid", 1, value_type=u.one)
+    with pytest.raises(q.SourceError, match="finite"):
+        component.let_alias("invalid", float("nan"))
+    component.let_alias("invalid", 1)
+    with pytest.raises(q.SourceError, match="duplicate"):
+        component.parameter("invalid", value_type=eqiora.ValueType.real())
+
+
+def test_static_alias_authoring_bounds_total_expression_nodes():
+    component = q.Source().component("BoundedAliases")
+    expression = q.math.pi
+    for _ in range(11):
+        expression = expression + expression
+    component.let_alias("large", expression)
+    component.let_alias("last", 0)
+    with pytest.raises(q.SourceError, match="alias expressions exceed the 4096-node limit"):
+        component.let_alias("overflow", 0)
+
+
+def test_static_alias_compiles_without_required_binding_or_edit_target(tmp_path):
+    source = q.Source()
+    component = source.component("StaticAlias")
+    region = component.volume("region", dimensions=2)
+    supplied = component.parameter("supplied", value_type=eqiora.ValueType.real())
+    doubled = component.let_alias("doubled", supplied * 2)
+    value = component.field("value", on=region, role=eqiora.FieldRole.Variable,
+                            value_type=eqiora.ValueType.real())
+    component.relation("balance", on=region, left=value, right=doubled)
+    model = eqiora.compile(source=source, geometry=rectangle_geometry(), parameters={"supplied": 3.0})
+    assert len(model.parameter_ids) == 1
+    assert len(model.field_ids) == 1
+    with pytest.raises(eqiora.EqioraError, match="Parameter"):
+        model.preview_value_edit("doubled", 9.0)
+    path = tmp_path / "static-alias.eqi"
+    source.write_eqi(path)
+    replay = eqiora.compile(path=path, geometry=rectangle_geometry(), parameters={"supplied": 3.0})
+    assert replay.structural_fingerprint == model.structural_fingerprint
+
+
+def test_static_alias_nested_parameter_binding_uses_expression_rhs():
+    source = q.Source()
+    child = source.component("Child")
+    child_region = child.volume("region", dimensions=2)
+    required = child.parameter("source_scale", value_type=eqiora.ValueType.real())
+    private = child.let_alias("child_source", required * 3)
+    value = child.field("value", on=child_region, role=eqiora.FieldRole.Variable,
+                        value_type=eqiora.ValueType.real())
+    child.relation("balance", on=child_region, left=value, right=private)
+    parent = source.component("Parent")
+    parent_region = parent.volume("region", dimensions=2)
+    supplied = parent.parameter("source_scale", value_type=eqiora.ValueType.real())
+    adjusted = parent.let_alias("adjusted_source", supplied * 2)
+    for parameters in ({}, {required: adjusted, private: 1}):
+        with pytest.raises(q.SourceError, match="Parameter bindings must be complete and exact"):
+            parent.instance("child", component=child, supports={child_region: parent_region},
+                            parameters=parameters)
+    parent.instance("child", component=child, supports={child_region: parent_region},
+                    parameters={required: adjusted})
+    text = source.to_eqi()
+    assert "let adjusted_source = source_scale * 2;" in text
+    assert "source_scale = adjusted_source" in text
+    model = eqiora.compile(source=source, geometry=rectangle_geometry(), component="Parent",
+                           parameters={"source_scale": 3.0})
+    for name in ("adjusted_source", "child.child_source"):
+        with pytest.raises(eqiora.EqioraError, match="Parameter"):
+            model.preview_value_edit(name, 9.0)
+
+
+def test_static_alias_authoring_cannot_bind_private_alias_as_parameter():
+    source = q.Source()
+    child = source.component("Child")
+    required = child.parameter("required", value_type=eqiora.ValueType.real())
+    private = child.let_alias("private", required * 2)
+    root = source.component("Root")
+    rhs = root.let_alias("rhs", 3)
+    with pytest.raises(q.SourceError, match="Parameter bindings must be complete and exact"):
+        root.instance("child", component=child, supports={}, parameters={required: rhs, private: 1})
+    root.instance("child", component=child, supports={}, parameters={required: rhs})
+
+
+@pytest.mark.parametrize("kind", ["parameter", "alias", "compound", "trace", "property"])
+def test_static_alias_authoring_rejects_same_source_sibling_capture(kind):
+    source = q.Source()
+    contract = source.scalar_property_contract("Scalar", unit=u.one)
+    release = source.scalar_property_release(
+        "Unit", implements=contract, value=1, source_unit=u.one, source_scale=1,
+        citation="org.example.unit", license="spdx.CC0_1_0",
+    )
+    left = source.component("Left")
+    left_region = left.volume("region", dimensions=2)
+    left_parameter = left.parameter("supplied", value_type=eqiora.ValueType.real())
+    left_alias = left.let_alias("derived", left_parameter * 2)
+    left_field = left.field("value", on=left_region, role=eqiora.FieldRole.Variable,
+                           value_type=eqiora.ValueType.real())
+    left_property = left.property("coefficient", contract=contract)
+    right = source.component("Right")
+    right_region = right.volume("region", dimensions=2)
+    right_parameter = right.parameter("supplied", value_type=eqiora.ValueType.real())
+    right.let_alias("derived", right_parameter * 3)
+    right.property("coefficient", contract=contract)
+    right_relation = right.relation("own", on=right_region, left=right_parameter, right=0)
+    foreign = {
+        "parameter": left_parameter,
+        "alias": left_alias,
+        "compound": -(left_alias + 1) * 2,
+        "trace": q.trace(left_field),
+        "property": left_property,
+    }[kind]
+    for operation in (
+        lambda: right.let_alias("captured", foreign),
+        lambda: right.relation("captured", on=right_region, left=foreign, right=0),
+        lambda: q.integrate(right_region, foreign),
+        lambda: foreign + right_parameter,
+        lambda: right.primal_form(right_relation, left=q.integrate(left_region, foreign),
+                                  right=q.integrate(right_region, right_parameter)),
+        lambda: right.instance("child", component=left, supports={left_region: right_region},
+                               parameters={left_parameter: foreign}, properties={left_property: release}),
+    ):
+        with pytest.raises(q.SourceError, match="Component"):
+            operation()
+
+
+def test_component_hierarchy_uses_shared_top_level_bound_and_freezes():
+    source = q.Source()
+    for index in range(256):
+        source.component(f"Component{index}")
+    with pytest.raises(q.SourceError, match="256-declaration limit"):
+        source.component("Overflow")
+    assert source.to_eqi().count("public component ") == 256
+    with pytest.raises(q.SourceError, match="frozen"):
+        source.component("Late")
+
+
+def test_component_hierarchy_retains_total_output_byte_bound():
+    source = q.Source()
+    doc = "x" * 16_384
+    for index in range(130):
+        component = source.component(f"Component{index}", doc=doc)
+        for alias_index in range(3):
+            component.let_alias(f"alias{alias_index}", 1, doc=doc)
+    with pytest.raises(q.SourceError, match="8388608-byte limit"):
+        source.to_eqi()
+    source.component("StillOpenAfterRejectedEmission")
+
+
+def test_property_hierarchy_still_requires_exact_model_package():
+    source = scalar_property_source()
+    source.component("Additional")
+    with pytest.raises(q.SourceError, match="requires an exact Model Package"):
+        eqiora.compile(source=source, geometry=rectangle_geometry(), component="PoissonRectangle")

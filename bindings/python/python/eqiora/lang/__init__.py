@@ -235,8 +235,8 @@ math: Final = _Math()
 class _Parameter(Expression):
     __slots__ = ("_component", "_name")
 
-    def __init__(self, owner: object, component: object, name: str) -> None:
-        super().__init__(_CREATE, name, owner, 1, 1, 100)
+    def __init__(self, component: object, name: str) -> None:
+        super().__init__(_CREATE, name, component, 1, 1, 100)
         object.__setattr__(self, "_component", component)
         object.__setattr__(self, "_name", name)
 
@@ -244,8 +244,8 @@ class _Parameter(Expression):
 class _Field(Expression):
     __slots__ = ("_component", "_name")
 
-    def __init__(self, owner: object, component: object, name: str) -> None:
-        super().__init__(_CREATE, name, owner, 1, 1, 100)
+    def __init__(self, component: object, name: str) -> None:
+        super().__init__(_CREATE, name, component, 1, 1, 100)
         object.__setattr__(self, "_component", component)
         object.__setattr__(self, "_name", name)
 
@@ -277,12 +277,11 @@ class _PropertyRequirement(Expression):
 
     def __init__(
         self,
-        owner: object,
         component: object,
         name: str,
         contract: PropertyContract,
     ) -> None:
-        super().__init__(_CREATE, name, owner, 1, 1, 100)
+        super().__init__(_CREATE, name, component, 1, 1, 100)
         object.__setattr__(self, "_component", component)
         object.__setattr__(self, "_name", name)
         object.__setattr__(self, "_contract", contract)
@@ -348,7 +347,7 @@ def _owner(left: Expression, right: Expression) -> object | None:
         and right._owner is not None
         and left._owner is not right._owner
     ):
-        raise SourceError("cannot combine expressions from different Source values")
+        raise SourceError("cannot combine expressions from different Source or Component owners")
     return left._owner if left._owner is not None else right._owner
 
 
@@ -424,12 +423,12 @@ def integrate(domain: Support, integrand: object) -> Expression:
     if not isinstance(domain, Support) or domain._kind != "volume":
         raise SourceError("integrate() requires a volume Support")
     expression = _expression(integrand)
-    if expression._owner is not None and expression._owner is not domain._owner:
-        raise SourceError("integrand and Support must belong to the same Source")
+    if expression._owner is not None and expression._owner is not domain._component:
+        raise SourceError("integrand and Support must belong to the same Component")
     return Expression(
         _CREATE,
         f"integrate({domain._name}, {expression._text})",
-        domain._owner,
+        domain._component,
         expression._depth + 1,
         expression._nodes + 1,
         100,
@@ -515,6 +514,7 @@ class Component:
     """The bounded draft for one public equations-only Component."""
 
     __slots__ = (
+        "_aliases",
         "_component_token",
         "_declaration_count",
         "_doc",
@@ -551,6 +551,7 @@ class Component:
         self._names: set[str] = set()
         self._supports: list[tuple[Support, str, object, tuple[str, ...]]] = []
         self._parameters: list[tuple[_Parameter, str, tuple[str, ...]]] = []
+        self._aliases: list[tuple[str, Expression, str | None, tuple[str, ...]]] = []
         self._properties: list[
             tuple[_PropertyRequirement, PropertyContract, tuple[str, ...]]
         ] = []
@@ -645,9 +646,33 @@ class Component:
             raise TypeError("value_type must be an eqiora.ValueType")
         syntax = value_type.to_eqi()
         admitted = self._add_name(name)
-        parameter = _Parameter(self._owner, self._component_token, admitted)
+        parameter = _Parameter(self._component_token, admitted)
         self._parameters.append((parameter, syntax, _doc(doc)))
         return parameter
+
+    def let_alias(
+        self,
+        name: str,
+        expression: Expression | int | float,
+        *,
+        value_type: ValueType | None = None,
+        doc: str | None = None,
+    ) -> Expression:
+        """Name a private static expression; the compiler owns type admission."""
+        value = _expression(expression)
+        if value._owner is not None and value._owner is not self._component_token:
+            raise SourceError("alias expressions must belong to this Component")
+        if value_type is not None and not isinstance(value_type, ValueType):
+            raise TypeError("value_type must be an eqiora.ValueType")
+        syntax = None if value_type is None else value_type.to_eqi()
+        doc_lines = _doc(doc)
+        if sum(item[1]._nodes for item in self._aliases) + value._nodes > _MAX_EXPRESSION_NODES:
+            raise SourceError(
+                f"Component alias expressions exceed the {_MAX_EXPRESSION_NODES}-node limit"
+            )
+        admitted = self._add_name(name)
+        self._aliases.append((admitted, value, syntax, doc_lines))
+        return Expression(_CREATE, admitted, self._component_token, 1, 1, 100)
 
     def property(
         self,
@@ -660,7 +685,7 @@ class Component:
             raise SourceError("property contract must belong to this Source")
         admitted = self._add_name(name)
         requirement = _PropertyRequirement(
-            self._owner, self._component_token, admitted, contract
+            self._component_token, admitted, contract
         )
         self._properties.append((requirement, contract, _doc(doc)))
         return requirement
@@ -685,7 +710,7 @@ class Component:
         if not isinstance(role, FieldRole):
             raise TypeError("role must be an eqiora.FieldRole")
         admitted = self._add_name(name)
-        expression = _Field(self._owner, self._component_token, admitted)
+        expression = _Field(self._component_token, admitted)
         self._fields.append((expression, on, syntax, role, _doc(doc)))
         return expression
 
@@ -705,13 +730,13 @@ class Component:
                 return Expression(
                     _CREATE,
                     expression._text,
-                    self._owner,
+                    self._component_token,
                     expression._depth,
                     expression._nodes,
                     expression._precedence,
                 )
-            if expression._owner is not self._owner:
-                raise SourceError("relation expressions must belong to this Source")
+            if expression._owner is not self._component_token:
+                raise SourceError("relation expressions must belong to this Component")
             return expression
 
         left_expression = admit(left)
@@ -753,8 +778,8 @@ class Component:
         left_expression = _expression(left)
         right_expression = _expression(right)
         for expression in (left_expression, right_expression):
-            if expression._owner is not self._owner:
-                raise SourceError("form expressions must belong to this Source")
+            if expression._owner is not self._component_token:
+                raise SourceError("form expressions must belong to this Component")
         if self._formulations:
             raise SourceError("the scalar-primal Source vocabulary admits one form")
         total_nodes = (
@@ -842,8 +867,8 @@ class Component:
         parameter_bindings: list[tuple[_Parameter, Expression]] = []
         for target in target_parameters:
             value = _expression(parameters[target])
-            if value._owner is not None and value._owner is not self._owner:
-                raise SourceError("instance Parameter values must belong to this Source")
+            if value._owner is not None and value._owner is not self._component_token:
+                raise SourceError("instance Parameter values must belong to this Component")
             parameter_bindings.append((target, value))
 
         property_bindings: list[tuple[_PropertyRequirement, PropertyRelease]] = []
@@ -889,6 +914,7 @@ class Component:
         if self._properties and (
             self._supports
             or self._parameters
+            or self._aliases
             or self._fields
             or self._relations
             or self._instances
@@ -897,7 +923,13 @@ class Component:
         for parameter, value_type, doc in self._parameters:
             lines.extend(_comment(doc, "  "))
             lines.append(f"  public parameter {parameter._name}: {value_type};")
-        if self._parameters and (self._fields or self._relations or self._instances):
+        if self._parameters and (self._aliases or self._fields or self._relations or self._instances):
+            lines.append("")
+        for name, expression, value_type, doc in self._aliases:
+            lines.extend(_comment(doc, "  "))
+            assertion = "" if value_type is None else f": {value_type}"
+            lines.append(f"  let {name}{assertion} = {expression._text};")
+        if self._aliases and (self._fields or self._relations or self._instances):
             lines.append("")
         if self._fields:
             for field, support, value_type, role, doc in self._fields:
@@ -965,7 +997,7 @@ class Component:
 
 
 class Source:
-    """A bounded language draft that freezes on its first emission."""
+    """Author a bounded Component hierarchy and freeze it on first emission."""
 
     __slots__ = (
         "_components",
@@ -1011,15 +1043,6 @@ class Source:
         doc: str | None = None,
     ) -> Component:
         self._ensure_open()
-        maximum = 2 if self._contracts else 1
-        if len(self._components) >= maximum:
-            if maximum == 1:
-                raise SourceError(
-                    "Source admits a second Component only for scalar property binding"
-                )
-            raise SourceError(
-                "the scalar property Source vocabulary admits exactly two Components"
-            )
         doc_lines = _doc(doc)
         admitted = self._add_top_name(name)
         component = Component(_CREATE, self, admitted, doc_lines)
@@ -1133,13 +1156,13 @@ class Source:
         if self._frozen_text is None:
             if not self._components:
                 raise SourceError(
-                    "Source requires one public Component before emission"
+                    "Source requires at least one public Component before emission"
                 )
             declarations: list[str] = []
             if self._contracts:
-                if not self._releases or len(self._components) != 2:
+                if not self._releases:
                     raise SourceError(
-                        "property Source requires releases, one consumer, and one root Component"
+                        "property Source requires releases"
                     )
                 for contract in self._contracts:
                     declarations.extend(_comment(contract._doc, ""))
@@ -1175,17 +1198,18 @@ class Source:
                         )
                     declarations.append("}")
                     declarations.append("")
-            declarations.append(
-                "\n\n".join(
-                    component._render().rstrip("\n")
-                    for component in self._components
-                )
-            )
+            rendered_components: list[str] = []
+            emitted_bytes = sum(len(line.encode("utf-8")) + 1 for line in declarations) + 1
+            for component in self._components:
+                rendered = component._render().rstrip("\n")
+                emitted_bytes += len(rendered.encode("utf-8")) + (2 if rendered_components else 0)
+                if emitted_bytes > _MAX_OUTPUT_BYTES:
+                    raise SourceError(
+                        f"emitted source exceeds the {_MAX_OUTPUT_BYTES}-byte limit"
+                    )
+                rendered_components.append(rendered)
+            declarations.append("\n\n".join(rendered_components))
             text = "\n".join(declarations) + "\n"
-            if len(text.encode("utf-8")) > _MAX_OUTPUT_BYTES:
-                raise SourceError(
-                    f"emitted source exceeds the {_MAX_OUTPUT_BYTES}-byte limit"
-                )
             self._frozen_text = text
         return self._frozen_text
 

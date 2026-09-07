@@ -499,6 +499,7 @@ impl<'a> Elaborator<'a> {
             let mut names = BTreeMap::<&str, TextRange>::new();
             for item in component.items() {
                 let named = match item {
+                    ComponentItem::Let(value) => Some((value.name(), value.range())),
                     ComponentItem::Parameter(value) => Some((value.name(), value.range())),
                     ComponentItem::Support(value) => Some((value.name(), value.range())),
                     ComponentItem::ClockRequirement(value) => Some((value.name(), value.range())),

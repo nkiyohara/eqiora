@@ -1,11 +1,14 @@
 //! Construction of reusable Component declarations.
 
 use crate::ast::formulation::FormulationDecl;
-use crate::ast::{ComponentDecl, ComponentItem, Expr, InstanceDecl, TextRange, VisibilitySyntax};
+use crate::ast::{
+    ComponentDecl, ComponentItem, ConnectionSyntax, Expr, InstanceDecl, TextRange, VisibilitySyntax,
+};
 
 use super::{
     AstConstructionError, SourceAstFactory, checked_identifier, checked_range,
-    validate_component_item, validate_expression, validate_identifier,
+    validate_boundary_connection, validate_boundary_family_binder, validate_expression,
+    validate_identifier, validate_port_syntax,
 };
 
 impl SourceAstFactory {
@@ -119,6 +122,42 @@ impl SourceAstFactory {
             range,
         })
     }
+}
+
+fn validate_component_item(item: &ComponentItem) -> Result<(), AstConstructionError> {
+    let range = match item {
+        ComponentItem::Let(declaration) => declaration.range(),
+        ComponentItem::Parameter(declaration) => declaration.range(),
+        ComponentItem::Port(declaration) => declaration.range(),
+        ComponentItem::PortFamily(declaration) => {
+            validate_port_syntax(declaration.port().syntax())?;
+            validate_boundary_family_binder(declaration.binder())?;
+            declaration.range()
+        }
+        ComponentItem::Support(declaration) => declaration.range(),
+        ComponentItem::FieldRequirement(declaration) => declaration.range(),
+        ComponentItem::Field(declaration) => declaration.range(),
+        ComponentItem::Initial(declaration) => declaration.range(),
+        ComponentItem::Clock(declaration) => declaration.range(),
+        ComponentItem::ClockRequirement(declaration) => declaration.range(),
+        ComponentItem::Relation(declaration) => declaration.range(),
+        ComponentItem::RelationFamily(declaration) => {
+            validate_boundary_family_binder(declaration.binder())?;
+            declaration.range()
+        }
+        ComponentItem::Connection(declaration) => declaration.range(),
+        ComponentItem::BoundaryConnection(declaration) => {
+            validate_boundary_connection(declaration)?;
+            if declaration.syntax() == ConnectionSyntax::SpatialPeriodic {
+                return Err(AstConstructionError::new(
+                    "a spatial-periodic Connection belongs only to a closed Model",
+                ));
+            }
+            declaration.range()
+        }
+        ComponentItem::Instance(declaration) => declaration.range(),
+    };
+    checked_range(range).map(|_| ())
 }
 
 #[cfg(test)]
