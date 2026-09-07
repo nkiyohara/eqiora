@@ -12,7 +12,7 @@ fn program(source: &str) -> KernelProgram {
     KernelProgram::from_snapshot(&store.snapshot(), model).unwrap()
 }
 
-const DECAY: &str = "model M { state x: 1; parameter k: 1/s=1; initial { x=2; } relation dynamics { derivative(x)+k*x=0; } }";
+const DECAY: &str = "model M() { state x: 1; parameter k: 1/s=1; initial { x=2; } relation dynamics { derivative(x)+k*x=0; } }";
 
 #[test]
 fn current_wire_replays_roles_initial_relations_and_before_tick_values() {
@@ -83,8 +83,8 @@ fn semantic_identity_binds_role_and_initial_mathematics_but_not_numerical_seed()
         StructuralSemanticFingerprint::from_program(&changed).unwrap(),
         identity
     );
-    let variable = program("model M { variable x: 1; relation r { x=0; } }");
-    let state = program("model M { state x: 1; relation r { x=0; } }");
+    let variable = program("model M() { variable x: 1; relation r { x=0; } }");
+    let state = program("model M() { state x: 1; relation r { x=0; } }");
     assert_ne!(
         StructuralSemanticFingerprint::from_program(&variable).unwrap(),
         StructuralSemanticFingerprint::from_program(&state).unwrap()
@@ -154,7 +154,7 @@ fn displaced_versions_payloads_and_unmarked_relations_are_rejected() {
 
 #[test]
 fn initial_block_keeps_independent_supports_without_spatial_execution_claim() {
-    let source = "model M { domain a=box(0,1,0,1); domain b=box(0,2,0,1); state x:1; state u:vector<1,2> on a; state v:vector<1,2> on b; initial { x=1; u=0; v=0; } }";
+    let source = "model M() { domain a=box(0,1,0,1); domain b=box(0,2,0,1); state x:1; state u:vector<1,2> on a; state v:vector<1,2> on b; initial { x=1; u=0; v=0; } }";
     let model = program(source);
     let envelope = ModelEnvelope::from_program(&model).unwrap();
     let replay = envelope.to_program().unwrap();
@@ -178,7 +178,7 @@ fn initial_block_keeps_independent_supports_without_spatial_execution_claim() {
             "{condition}"
         );
     }
-    let scalar = program("model M { domain a=box(0,1); state x:1 on a; initial { x=0; } }");
+    let scalar = program("model M() { domain a=box(0,1); state x:1 on a; initial { x=0; } }");
     let errors = Interpreter::new()
         .initialize(&scalar, ReferenceConfig::new(0.0, 0.1).unwrap())
         .unwrap_err();
@@ -192,7 +192,7 @@ fn initial_block_keeps_independent_supports_without_spatial_execution_claim() {
 #[test]
 fn clocked_state_replay_keeps_pre_first_tick_distinct_from_first_observation() {
     let model = program(
-        "model M { clock tick=periodic(1[s] / 10, phase = 0[s] / 1); state x:1 at tick; initial { pre(x)=3; } relation r at tick { next(x)=pre(x)+1; } }",
+        "model M() { clock tick=periodic(1[s] / 10, phase = 0[s] / 1); state x:1 at tick; initial { pre(x)=3; } relation r at tick { next(x)=pre(x)+1; } }",
     );
     let replay = ModelEnvelope::from_program(&model)
         .unwrap()

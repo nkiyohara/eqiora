@@ -10,7 +10,7 @@ use eqiora_schema::kernel::{
 use eqiora_schema::{Model, ModelView};
 
 const DECAY: &str = r#"
-model decay {
+model decay() {
   state x: 1; initial { x = 1; }
   parameter rate: 1 / s = 1;
   relation flow { derivative(x) + rate * x = 0; }
@@ -31,7 +31,7 @@ fn program(source: &str) -> KernelProgram {
 fn independent_occurrence_ids_and_formatting_do_not_change_the_projection() {
     let first = program(DECAY);
     let second = program(
-        "model renamed { parameter r: 1/s = 1; state state: 1; initial { state = 1; }\nrelation balance { derivative(state)+r*state=0; } }",
+        "model renamed() { parameter r: 1/s = 1; state state: 1; initial { state = 1; }\nrelation balance { derivative(state)+r*state=0; } }",
     );
 
     assert_ne!(first.model(), second.model());
@@ -45,9 +45,9 @@ fn independent_occurrence_ids_and_formatting_do_not_change_the_projection() {
 #[test]
 fn symmetric_graphs_choose_the_same_exact_label_across_fresh_ids_and_order() {
     let first =
-        program("model first { parameter a: 1 = 1; parameter b: 1 = 1; relation r { 0 = 0; } }");
+        program("model first() { parameter a: 1 = 1; parameter b: 1 = 1; relation r { 0 = 0; } }");
     let second = program(
-        "model second { relation balance { 0 = 0; } parameter y: 1 = 1; parameter x: 1 = 1; }",
+        "model second() { relation balance { 0 = 0; } parameter y: 1 = 1; parameter x: 1 = 1; }",
     );
     assert!(structurally_equivalent(&first, &second).unwrap());
     assert_eq!(
@@ -79,9 +79,9 @@ fn value_operator_and_rewiring_changes_are_not_alpha_normalized_away() {
     assert!(!structurally_equivalent(&baseline, &changed_operator).unwrap());
 
     let separate =
-        program("model p { parameter a: 1 = 2; parameter b: 1 = 2; relation r { a-b=0; } }");
+        program("model p() { parameter a: 1 = 2; parameter b: 1 = 2; relation r { a-b=0; } }");
     let aliased =
-        program("model p { parameter a: 1 = 2; parameter b: 1 = 2; relation r { a-a=0; } }");
+        program("model p() { parameter a: 1 = 2; parameter b: 1 = 2; relation r { a-a=0; } }");
     assert!(!structurally_equivalent(&separate, &aliased).unwrap());
 }
 
@@ -89,7 +89,7 @@ fn value_operator_and_rewiring_changes_are_not_alpha_normalized_away() {
 fn nominally_distinct_equal_domains_remain_distinct_vertices() {
     let distinct = program(
         r#"
-model network {
+model network() {
   domain a = scalar_physical(across = 1, through = 1);
   domain b = scalar_physical(across = 1, through = 1);
   port a1: conserving on a;
@@ -105,7 +105,7 @@ model network {
     );
     let shared = program(
         r#"
-model network {
+model network() {
   domain a = scalar_physical(across = 1, through = 1);
   domain b = scalar_physical(across = 1, through = 1);
   port a1: conserving on a;
@@ -136,7 +136,7 @@ fn exact_canonicalization_fails_instead_of_using_occurrence_order() {
     );
 
     let symmetric = program(
-        "model symmetric { parameter a: 1 = 1; parameter b: 1 = 1; relation r { 0 = 0; } }",
+        "model symmetric() { parameter a: 1 = 1; parameter b: 1 = 1; relation r { 0 = 0; } }",
     );
     let error = StructuralSemanticFingerprint::from_program_with_limits(&symmetric, limits)
         .expect_err("ambiguous exact labeling must respect the state limit");

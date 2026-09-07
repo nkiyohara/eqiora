@@ -13,7 +13,7 @@ fn typed_initial_equations_survive_source_and_model_replay() {
         "vector<complex<m>, 2>",
     ] {
         let source = format!(
-            "model M {{ domain body = box(0, 1, 0, 1); state x: {ty} on body; initial {{ x = 0; }} relation r on body {{ x - x = 0; }} }}"
+            "model M() {{ domain body = box(0, 1, 0, 1); state x: {ty} on body; initial {{ x = 0; }} relation r on body {{ x - x = 0; }} }}"
         );
         let original = program(&source);
         let envelope = ModelEnvelope::from_program(&original).unwrap();
@@ -352,7 +352,7 @@ fn source_field_types_reach_semantic_admission_and_exact_model_replay() {
     ] {
         let source = format!(
             r#"
-model Typed {{
+model Typed() {{
   domain body = box(0, 1, 0, 1);
   variable value: {value_type} on body;
   relation balance on body {{ value - value = 0; }}
