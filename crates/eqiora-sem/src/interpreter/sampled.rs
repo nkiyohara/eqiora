@@ -2,7 +2,7 @@
 use super::*;
 use eqiora_core::ValueLiteral;
 
-const MAX_INPUT_SAMPLES: usize = 1_000_000;
+const MAX_SAMPLED_VALUES: usize = 1_000_000;
 
 #[derive(Debug, Clone)]
 struct InputTable {
@@ -13,6 +13,7 @@ struct InputTable {
 
 /// A bounded reference run with complete external tick inputs.
 /// The immutable program, exact calendar, and accepted values remain together.
+/// Complete input tables and retained output samples each have a one-million-value cap.
 #[derive(Debug, Clone)]
 pub struct SampledSession {
     program: KernelProgram,
@@ -101,9 +102,11 @@ impl SampledSession {
                 _ => None,
             })
             .collect::<BTreeSet<_>>();
+        validate_output_budget(program, config, MAX_SAMPLED_VALUES)?;
         let mut inputs = BTreeMap::new();
         let mut sample_count = 0usize;
         for (port, clock, values) in supplied {
+            sample_count = add_sample_count(sample_count, values.len(), MAX_SAMPLED_VALUES)?;
             if !required.contains(&port) || inputs.contains_key(&port) {
                 return Err(config_error(
                     "sampled input is duplicate or is not an exposed input occurrence",
@@ -124,14 +127,6 @@ impl SampledSession {
             {
                 return Err(config_error(
                     "sampled input values must match the complete real scalar Port type",
-                ));
-            }
-            sample_count = sample_count
-                .checked_add(values.len())
-                .ok_or_else(|| config_error("sampled input count overflow"))?;
-            if sample_count > MAX_INPUT_SAMPLES {
-                return Err(config_error(
-                    "sampled input tables exceed one million values",
                 ));
             }
             if values.len() != required_ticks(program, clock, config)? {
@@ -328,6 +323,39 @@ impl SampledSession {
     }
 }
 
+fn add_sample_count(current: usize, additional: usize, limit: usize) -> Result<usize, Diagnostic> {
+    current
+        .checked_add(additional)
+        .filter(|total| *total <= limit)
+        .ok_or_else(|| config_error("sampled values exceed the retention budget"))
+}
+
+fn validate_output_budget(
+    program: &KernelProgram,
+    config: ReferenceConfig,
+    limit: usize,
+) -> Result<(), Diagnostic> {
+    let mut count = 0;
+    let mut ticks_by_clock = BTreeMap::new();
+    for &port in program.boundary() {
+        if !matches!(program.node(port), Some(KernelNode::Port(definition)) if matches!(definition.signal_contract(), Some((SignalDirection::Output, _))))
+        {
+            continue;
+        }
+        let Some(clock) = port_clock(program, port)? else {
+            continue;
+        };
+        let ticks = match ticks_by_clock.entry(clock) {
+            std::collections::btree_map::Entry::Occupied(entry) => *entry.get(),
+            std::collections::btree_map::Entry::Vacant(entry) => {
+                *entry.insert(required_ticks(program, clock, config)?)
+            }
+        };
+        count = add_sample_count(count, ticks, limit)?;
+    }
+    Ok(())
+}
+
 fn port_clock(program: &KernelProgram, port: RawId) -> Result<Option<RawId>, Diagnostic> {
     let clocks = edge_targets(program, port, eqiora_graph::EdgeKind::ClockedBy);
     if clocks.len() > 1 {
@@ -342,16 +370,16 @@ fn required_ticks(
     config: ReferenceConfig,
 ) -> Result<usize, Diagnostic> {
     let Some(KernelNode::ClockDomain(definition)) = program.node(clock) else {
-        return Err(config_error("input clock is not a ClockDomain"));
+        return Err(config_error("sampled clock is not a ClockDomain"));
     };
     let ClockKind::Periodic { period, phase } = definition.kind() else {
-        return Err(config_error("input clock is not periodic"));
+        return Err(config_error("sampled clock is not periodic"));
     };
     let mut next = phase;
     let mut count = 0;
     while within_horizon(next, config.end_time) {
-        if count >= config.max_steps || count >= MAX_INPUT_SAMPLES {
-            return Err(config_error("sampled input calendar exceeds step budget"));
+        if count >= config.max_steps || count >= MAX_SAMPLED_VALUES {
+            return Err(config_error("sampled calendar exceeds step budget"));
         }
         count += 1;
         next = next.checked_add(period)?;
@@ -395,6 +423,72 @@ pub(super) fn within_horizon(tick: RationalTime, horizon: f64) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn retention_budget_counts_each_output_on_a_shared_clock_before_initialization() {
+        use eqiora_core::{Id, OntologyId, ScalarDomain, ValueType, entity::kinds};
+        use eqiora_graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
+        use eqiora_schema::kernel::{ClockDomainDef, RelationDef};
+        use eqiora_schema::{Model, ModelView};
+        let model = OntologyId::<Model>::new();
+        let clock = Id::<kinds::ClockDomain>::new();
+        let outputs = [Id::<kinds::Port>::new(), Id::new()];
+        let field = Id::<kinds::Field>::new();
+        let relation = Id::<kinds::Relation>::new();
+        let ty = ValueType::scalar(ScalarDomain::Real, eqiora_core::DimExponents::DIMENSIONLESS);
+        let mut dag = eqiora_schema::kernel::ExprDagBuilder::new();
+        let value = dag.symbol(SymbolRef::Field(field)).unwrap();
+        let nodes = [
+            KernelNode::from(
+                ClockDomainDef::periodic(
+                    clock,
+                    RationalTime::new(1, 1).unwrap(),
+                    RationalTime::ZERO,
+                )
+                .unwrap(),
+            ),
+            eqiora_schema::kernel::FieldDef::new(
+                field,
+                ty.clone(),
+                eqiora_schema::kernel::FieldRole::State,
+            )
+            .into(),
+            RelationDef::initial(relation, dag.finish([value]).unwrap()).into(),
+            eqiora_schema::kernel::PortDef::signal(outputs[0], SignalDirection::Output, ty.clone())
+                .into(),
+            eqiora_schema::kernel::PortDef::signal(outputs[1], SignalDirection::Output, ty).into(),
+        ];
+        let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();
+        let mut transaction = Transaction::new("shared output retention bound");
+        for node in nodes {
+            transaction.push(Op::DefineKernelNode { node });
+        }
+        transaction.push(Op::Connect {
+            from: relation.erase(),
+            to: field.erase(),
+            edge: EdgeKind::DependsOn,
+        });
+        for output in outputs {
+            transaction.push(Op::Connect {
+                from: output.erase(),
+                to: clock.erase(),
+                edge: EdgeKind::ClockedBy,
+            });
+        }
+        transaction.push(Op::DefineOntologyView {
+            view: ModelView::new(model, members, outputs.map(Id::erase))
+                .unwrap()
+                .into(),
+        });
+        let mut store = InMemoryGraphStore::new();
+        store.commit(transaction).unwrap();
+        let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+        let config = ReferenceConfig::new(1., 1.).unwrap();
+        // Two outputs, each present at t=0 and t=1: exactly four retained values.
+        assert!(validate_output_budget(&program, config, 4).is_ok());
+        assert!(validate_output_budget(&program, config, 3).is_err());
+        assert!(add_sample_count(usize::MAX, 1, usize::MAX).is_err());
+    }
 
     #[test]
     fn exact_horizon_handles_binary64_extremes_without_large_integer_allocation() {
