@@ -5,7 +5,9 @@ mod execution_plan;
 mod initialization;
 pub use initialization::InitialState;
 use initialization::solve_initialization;
+mod sampled;
 mod samples;
+pub use sampled::SampledSession;
 
 use event_localization::{crossing_events, locate_event_time};
 use samples::record_samples;
@@ -674,7 +676,7 @@ impl Interpreter {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct ExecutionPlan {
     initial_relations: BTreeSet<RawId>,
     continuous_relations: BTreeSet<RawId>,
@@ -699,13 +701,19 @@ impl ExecutionPlan {
         for task in self.periodic.iter_mut().filter(|task| task.next == instant) {
             relations.extend(&task.relations);
             task.next = task.next.checked_add(task.period)?;
+            task.tick_index = task
+                .tick_index
+                .checked_add(1)
+                .ok_or_else(|| config_error("periodic tick index overflow"))?;
         }
         Ok(relations)
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct PeriodicTask {
+    clock: RawId,
+    tick_index: u64,
     relations: BTreeSet<RawId>,
     period: RationalTime,
     next: RationalTime,
@@ -899,17 +907,20 @@ fn execute_due_tick(
             time,
         ));
     };
-    let relations = plan.take_due_relations(instant)?;
+    let mut candidate_plan = plan.clone();
+    let relations = candidate_plan.take_due_relations(instant)?;
     execute_activated_relations(
         program,
-        plan,
+        &candidate_plan,
         state,
         time,
         &relations,
         "periodic-activation",
         config,
         backend,
-    )
+    )?;
+    *plan = candidate_plan;
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -930,7 +941,10 @@ fn execute_activated_relations(
                 SymbolRef::Next(field) => {
                     variables.insert(Variable::NextField(field.erase()));
                 }
-                SymbolRef::Port(port) if is_output_port(program, port.erase()) => {
+                SymbolRef::Port(port)
+                    if is_output_port(program, port.erase())
+                        && !plan.signal_sources.contains_key(&port.erase()) =>
+                {
                     variables.insert(Variable::Port(port.erase()));
                 }
                 _ => {}
@@ -964,8 +978,18 @@ fn execute_activated_relations(
             )
         },
     )?;
-    commit_solution(&variables, &solution, state);
-    solve_consistency(program, plan, state, time, config, backend)
+    let mut accepted_candidate = state.clone();
+    commit_solution(&variables, &solution, &mut accepted_candidate);
+    solve_consistency(
+        program,
+        plan,
+        &mut accepted_candidate,
+        time,
+        config,
+        backend,
+    )?;
+    *state = accepted_candidate;
+    Ok(())
 }
 
 struct CandidateMaps {
@@ -1143,43 +1167,6 @@ fn physical_systems(program: &KernelProgram) -> Result<Vec<ComposedResidualSyste
             .or_insert(system);
     }
     Ok(systems.into_values().collect())
-}
-
-fn signal_sources(program: &KernelProgram) -> Result<BTreeMap<RawId, RawId>, Diagnostic> {
-    let mut sources = BTreeMap::new();
-    for node in program.nodes() {
-        let KernelNode::Connection(connection) = node else {
-            continue;
-        };
-        let id = connection.id().erase();
-        match connection.semantics() {
-            ConnectionSemantics::Signal => {
-                let ports = edge_targets(program, id, eqiora_graph::EdgeKind::Connects);
-                let Some(output) = ports
-                    .iter()
-                    .find(|port| is_output_port(program, **port))
-                    .copied()
-                else {
-                    return Err(execution_error(
-                        "signal Connection has no validated output Port",
-                        0.0,
-                    ));
-                };
-                for input in ports.into_iter().filter(|port| *port != output) {
-                    sources.insert(input, output);
-                }
-            }
-            ConnectionSemantics::Conserving | ConnectionSemantics::SpatialPeriodic => {}
-            _ => {
-                return Err(Diagnostic::error(
-                    codes::NOT_IMPLEMENTED,
-                    "Connection semantics are newer than this reference interpreter",
-                )
-                .with_graph_path(kernel_path(id)));
-            }
-        }
-    }
-    Ok(sources)
 }
 
 fn is_output_port(program: &KernelProgram, port: RawId) -> bool {

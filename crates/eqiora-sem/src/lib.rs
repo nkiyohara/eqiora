@@ -33,7 +33,7 @@ pub use conserving::{
 };
 pub use interpreter::{
     ExecutionDirective, ExecutionObserver, ExecutionOutcome, ExecutionProgress, InitialState,
-    ReferenceConfig,
+    ReferenceConfig, SampledSession,
 };
 pub use program::KernelProgram;
 

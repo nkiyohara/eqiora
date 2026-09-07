@@ -60,6 +60,9 @@ pub(crate) fn evaluate_expression(
                 )
                 .with_graph_path(expression_path(owner, index))
             })?,
+            ExprNode::Sample { value, .. } | ExprNode::Hold(value) => {
+                operand(&values, *value, owner)?
+            }
             ExprNode::Neg(value) => -operand(&values, *value, owner)?,
             ExprNode::Add(left, right) => {
                 operand(&values, *left, owner)? + operand(&values, *right, owner)?

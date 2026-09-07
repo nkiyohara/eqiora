@@ -62,6 +62,17 @@ impl ExecutionPlan {
                 ));
             }
             if let KernelNode::Port(port) = node
+                && program.edges().iter().any(|edge| {
+                    edge.from() == port.id().erase()
+                        && edge.kind() == eqiora_graph::EdgeKind::DefinedOn
+                })
+            {
+                return Err(Diagnostic::error(
+                    codes::NOT_IMPLEMENTED,
+                    "reference execution does not realize distributed Ports",
+                ));
+            }
+            if let KernelNode::Port(port) = node
                 && let Some((_, value_type)) = port.signal_contract()
                 && (value_type.scalar_domain() != eqiora_core::ScalarDomain::Real
                     || !value_type.shape().is_scalar())
@@ -116,6 +127,8 @@ impl ExecutionPlan {
                     };
                     periodic_clocks.insert(clock_id);
                     periodic.push(PeriodicTask {
+                        clock: clock_id,
+                        tick_index: 0,
                         relations,
                         period,
                         next: phase,
@@ -252,4 +265,59 @@ impl ExecutionPlan {
             fields,
         })
     }
+}
+
+fn signal_sources(program: &KernelProgram) -> Result<BTreeMap<RawId, RawId>, Diagnostic> {
+    let mut sources = BTreeMap::new();
+    for node in program.nodes() {
+        let KernelNode::Connection(connection) = node else {
+            continue;
+        };
+        let id = connection.id().erase();
+        match connection.semantics() {
+            ConnectionSemantics::Signal => {
+                let ports = edge_targets(program, id, eqiora_graph::EdgeKind::Connects);
+                let Some(output) = ports
+                    .iter()
+                    .find(|port| {
+                        is_output_port(program, **port) != program.boundary().contains(port)
+                    })
+                    .copied()
+                else {
+                    return Err(execution_error(
+                        "signal Connection has no validated output Port",
+                        0.0,
+                    ));
+                };
+                for input in ports.into_iter().filter(|port| *port != output) {
+                    if sources.insert(input, output).is_some() {
+                        return Err(execution_error(
+                            "signal input has more than one driver",
+                            0.0,
+                        ));
+                    }
+                }
+            }
+            ConnectionSemantics::Conserving | ConnectionSemantics::SpatialPeriodic => {}
+            _ => {
+                return Err(Diagnostic::error(
+                    codes::NOT_IMPLEMENTED,
+                    "Connection semantics are newer than this reference interpreter",
+                )
+                .with_graph_path(kernel_path(id)));
+            }
+        }
+    }
+    for input in sources.keys().copied().collect::<Vec<_>>() {
+        let mut source = sources[&input];
+        let mut seen = BTreeSet::from([input]);
+        while let Some(next) = sources.get(&source).copied() {
+            if !seen.insert(source) {
+                return Err(execution_error("signal driver cycle", 0.0));
+            }
+            source = next;
+        }
+        sources.insert(input, source);
+    }
+    Ok(sources)
 }
