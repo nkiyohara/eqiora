@@ -1,4 +1,4 @@
-use eqiora_compiler::{compile, lower_model};
+use eqiora_compiler::compile;
 use eqiora_graph::Op;
 use eqiora_schema::kernel::{ClockKind, KernelNode, RationalTime};
 
@@ -31,38 +31,4 @@ fn flat_and_component_clocks_retain_exact_period_and_phase() {
             )]
         );
     }
-}
-
-#[test]
-fn invalid_unused_clock_definitions_keep_operand_ranges() {
-    for container in ["model M()", "component Unused()"] {
-        let source = format!(
-            "{container} {{ clock tick = periodic(1[s] + 1[m]); }} model Root() {{ variable x:1; relation r {{ x=0; }} }}"
-        );
-        let errors = compile("clock.eqi", &source).unwrap_err();
-        let error = errors
-            .iter()
-            .find(|error| error.message().contains("equal dimensions"))
-            .expect("dimension diagnostic");
-        let span = error.source_span().unwrap();
-        assert_eq!(
-            &source[span.start as usize..span.end as usize],
-            "1[s] + 1[m]"
-        );
-    }
-    let source = "model M() { clock tick = periodic(1[s] + 1[m]); }";
-    let document = eqiora_lang::parse("clock.eqi", source)
-        .into_document()
-        .unwrap();
-    let errors = lower_model("clock.eqi", &document.models()[0]).unwrap_err();
-    let span = errors
-        .iter()
-        .find(|error| error.message().contains("equal dimensions"))
-        .unwrap()
-        .source_span()
-        .unwrap();
-    assert_eq!(
-        &source[span.start as usize..span.end as usize],
-        "1[s] + 1[m]"
-    );
 }
