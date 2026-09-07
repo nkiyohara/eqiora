@@ -1,31 +1,93 @@
 use crate::{DynQuantity, ScalarDomain, ValueType};
 
-/// A finite real literal embedded in a complete mathematical type.
+/// A complete finite mathematical value, with ordered real/imaginary components.
 ///
-/// A shaped value admits only contextual zero. The stored literal is not
-/// permission to extract a complex or shaped value as a real scalar.
+/// Components follow the type's shape in row-major, last-axis-fastest order.
+/// The type alone determines scalar domain, dimensions, shape, and frame.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ValueLiteral {
     value_type: ValueType,
-    literal: f64,
+    payload: Payload,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum Payload {
+    Zero,
+    Components(Box<[(f64, f64)]>),
 }
 
 impl ValueLiteral {
-    /// Embed a real literal, or contextual zero, into the declared type.
+    /// Construct all components of the declared mathematical type.
+    /// Signed zeros normalize to positive zero; all-zero values store no buffer.
+    /// Inputs with unknown length are read at most one past the required count.
     ///
     /// # Errors
-    /// Rejects non-finite values and nonzero literals for shaped types.
-    pub fn new(value_type: ValueType, literal: f64) -> Result<Self, InvalidValueLiteral> {
-        if !literal.is_finite() {
-            return Err(InvalidValueLiteral::NonFinite);
+    /// Rejects incorrect cardinality, non-finite components, imaginary parts in
+    /// real types, or component storage that cannot be allocated.
+    pub fn new(
+        value_type: ValueType,
+        components: impl IntoIterator<Item = (f64, f64)>,
+    ) -> Result<Self, InvalidValueLiteral> {
+        let count = value_type
+            .shape()
+            .component_count()
+            .expect("checked ValueType");
+        let mut input = components.into_iter();
+        let (lower, upper) = input.size_hint();
+        if lower > count || upper.is_some_and(|upper| upper < count) {
+            return Err(InvalidValueLiteral::ComponentCount);
         }
-        if !value_type.shape().is_scalar() && literal != 0.0 {
-            return Err(InvalidValueLiteral::NonzeroShape);
+        let mut values = Vec::new();
+        for index in 0..count {
+            let (real, imaginary) = input.next().ok_or(InvalidValueLiteral::ComponentCount)?;
+            if !real.is_finite() || !imaginary.is_finite() {
+                return Err(InvalidValueLiteral::NonFinite);
+            }
+            if value_type.scalar_domain() == ScalarDomain::Real && imaginary != 0.0 {
+                return Err(InvalidValueLiteral::ImaginaryInReal);
+            }
+            let component = (normalize_zero(real), normalize_zero(imaginary));
+            if !values.is_empty() || component != (0.0, 0.0) {
+                let additional = index + 1 - values.len();
+                values
+                    .try_reserve(additional)
+                    .map_err(|_| InvalidValueLiteral::Allocation)?;
+                values.resize(index, (0.0, 0.0));
+                values.push(component);
+            }
+        }
+        if input.next().is_some() {
+            return Err(InvalidValueLiteral::ComponentCount);
         }
         Ok(Self {
             value_type,
-            literal: if literal == 0.0 { 0.0 } else { literal },
+            payload: if values.is_empty() {
+                Payload::Zero
+            } else {
+                Payload::Components(values.into_boxed_slice())
+            },
         })
+    }
+
+    /// Embed a real scalar or contextual zero into the declared type.
+    /// A shaped contextual zero requires no shape-sized allocation or traversal.
+    ///
+    /// # Errors
+    /// Rejects non-finite values and nonzero scalar broadcasting to shaped types.
+    pub fn from_real(value_type: ValueType, value: f64) -> Result<Self, InvalidValueLiteral> {
+        if !value.is_finite() {
+            return Err(InvalidValueLiteral::NonFinite);
+        }
+        if value == 0.0 {
+            return Ok(Self {
+                value_type,
+                payload: Payload::Zero,
+            });
+        }
+        if !value_type.shape().is_scalar() {
+            return Err(InvalidValueLiteral::NonzeroShape);
+        }
+        Self::new(value_type, [(value, 0.0)])
     }
 
     /// Complete mathematical type, including scalar domain and component roles.
@@ -34,30 +96,61 @@ impl ValueLiteral {
         &self.value_type
     }
 
-    /// Literal used to initialize this value, not an untyped numerical projection.
+    /// Exact number of mathematical components, independent of storage.
     #[must_use]
-    pub const fn literal(&self) -> f64 {
-        self.literal
+    pub fn component_count(&self) -> usize {
+        self.value_type
+            .shape()
+            .component_count()
+            .expect("checked ValueType")
+    }
+
+    /// One ordered real/imaginary pair, or `None` outside the exact shape.
+    #[must_use]
+    pub fn component(&self, index: usize) -> Option<(f64, f64)> {
+        match &self.payload {
+            Payload::Zero => (index < self.component_count()).then_some((0.0, 0.0)),
+            Payload::Components(values) => values.get(index).copied(),
+        }
+    }
+
+    /// Components in row-major, last-axis-fastest order, without materializing zero storage.
+    pub fn components(
+        &self,
+    ) -> impl ExactSizeIterator<Item = (f64, f64)> + DoubleEndedIterator + '_ {
+        (0..self.component_count()).map(|index| self.component(index).expect("in-range component"))
+    }
+
+    /// Whether every real and imaginary component is zero.
+    #[must_use]
+    pub const fn is_zero(&self) -> bool {
+        matches!(self.payload, Payload::Zero)
     }
 
     /// Extract a numerical quantity only for an invariant real scalar.
     #[must_use]
-    pub const fn real_scalar_value(&self) -> Option<DynQuantity> {
-        if matches!(self.value_type.scalar_domain(), ScalarDomain::Real)
+    pub fn real_scalar_value(&self) -> Option<DynQuantity> {
+        if self.value_type.scalar_domain() == ScalarDomain::Real
             && self.value_type.shape().is_scalar()
         {
-            Some(DynQuantity::new(self.literal, self.value_type.dimension()))
+            Some(DynQuantity::new(
+                self.component(0)?.0,
+                self.value_type.dimension(),
+            ))
         } else {
             None
         }
     }
 }
 
+fn normalize_zero(value: f64) -> f64 {
+    if value == 0.0 { 0.0 } else { value }
+}
+
 impl TryFrom<DynQuantity> for ValueLiteral {
     type Error = InvalidValueLiteral;
-
     fn try_from(value: DynQuantity) -> Result<Self, Self::Error> {
-        Self::new(
+        Self::from_real(
             ValueType::scalar(ScalarDomain::Real, value.dim()),
             value.value(),
         )
@@ -67,61 +160,30 @@ impl TryFrom<DynQuantity> for ValueLiteral {
 /// A literal cannot initialize the requested mathematical type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InvalidValueLiteral {
-    /// Mathematical literals must be finite.
+    /// Mathematical components must be finite.
     NonFinite,
-    /// A shaped value needs contextual zero rather than scalar broadcasting.
+    /// Nonzero scalars cannot broadcast to a shape.
     NonzeroShape,
+    /// Supplied components do not exactly fill the type's shape.
+    ComponentCount,
+    /// A real mathematical type cannot contain a nonzero imaginary component.
+    ImaginaryInReal,
+    /// Storage for supplied nonzero components cannot be allocated.
+    Allocation,
 }
 
 impl core::fmt::Display for InvalidValueLiteral {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         formatter.write_str(match self {
-            Self::NonFinite => "mathematical literal must be finite",
-            Self::NonzeroShape => "a shaped value requires a contextual zero literal",
+            Self::NonFinite => "mathematical components must be finite",
+            Self::NonzeroShape => "a shaped value requires contextual zero or complete components",
+            Self::ComponentCount => "component count must exactly match the mathematical type",
+            Self::ImaginaryInReal => "a real mathematical type requires zero imaginary components",
+            Self::Allocation => "mathematical component storage cannot be allocated",
         })
     }
 }
-
 impl std::error::Error for InvalidValueLiteral {}
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::DimExponents;
-
-    #[test]
-    fn literals_preserve_type_and_only_real_scalars_extract_as_quantities() {
-        let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
-        let complex = ValueType::scalar(ScalarDomain::Complex, real.dimension());
-        let scalar = ValueLiteral::new(real.clone(), 2.0).unwrap();
-        assert_eq!(
-            scalar.real_scalar_value(),
-            Some(DynQuantity::new(2.0, real.dimension()))
-        );
-        let embedded = ValueLiteral::new(complex.clone(), 2.0).unwrap();
-        assert_eq!(embedded.value_type(), &complex);
-        assert_eq!(embedded.literal(), 2.0);
-        assert_eq!(embedded.real_scalar_value(), None);
-        for value_type in [complex, real.array(3).unwrap()] {
-            let zero = ValueLiteral::new(value_type.clone(), -0.0).unwrap();
-            assert_eq!(zero.value_type(), &value_type);
-            assert_eq!(zero.literal().to_bits(), 0.0_f64.to_bits());
-            assert_eq!(zero.real_scalar_value(), None);
-        }
-    }
-
-    #[test]
-    fn literals_reject_nonfinite_values_and_scalar_broadcasting() {
-        let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
-        for literal in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-            assert_eq!(
-                ValueLiteral::new(real.clone(), literal),
-                Err(InvalidValueLiteral::NonFinite)
-            );
-        }
-        assert_eq!(
-            ValueLiteral::new(real.array(3).unwrap(), 1.0),
-            Err(InvalidValueLiteral::NonzeroShape),
-        );
-    }
-}
+mod tests;
