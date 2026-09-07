@@ -599,6 +599,15 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             }
         }
 
+        self.allocate_runtime_lets(
+            &mut root_scope,
+            self.model.file,
+            model.items().iter().filter_map(|item| match item {
+                Item::Let(d) => Some(d),
+                _ => None,
+            }),
+        )?;
+
         if let Err(error) = self.materialize_model_items(&root_scope, &identities) {
             return Err(vec![error]);
         }
@@ -786,20 +795,6 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 )));
             }
         }
-        self.allocate_runtime_lets(
-            scope,
-            self.model.file,
-            model.items().iter().filter_map(|item| match item {
-                Item::Let(d) => Some(d),
-                _ => None,
-            }),
-        )
-        .map_err(|errors| {
-            errors
-                .into_iter()
-                .next()
-                .expect("runtime alias failure has a diagnostic")
-        })?;
         for item in model.items() {
             let Item::Port(declaration) = item else {
                 continue;
@@ -1451,15 +1446,6 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
 
         self.allocate_component_lets(&mut scope, &component)
             .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
-        self.allocate_runtime_lets(
-            &mut scope,
-            component.file,
-            component.items().iter().filter_map(|item| match item {
-                ComponentItem::Let(d) => Some(d),
-                _ => None,
-            }),
-        )
-        .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
 
         for item in component.items() {
             if let ComponentItem::Instance(child) = item {
@@ -1489,6 +1475,16 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 scope.insert_child(child.name().to_owned(), child_interface);
             }
         }
+
+        self.allocate_runtime_lets(
+            &mut scope,
+            component.file,
+            component.items().iter().filter_map(|item| match item {
+                ComponentItem::Let(d) => Some(d),
+                _ => None,
+            }),
+        )
+        .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
 
         self.materialize_component_items(
             ComponentOccurrence {

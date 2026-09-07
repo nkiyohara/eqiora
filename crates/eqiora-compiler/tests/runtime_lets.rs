@@ -147,3 +147,13 @@ fn long_identity_chain_preserves_eligibility_without_recursive_expansion() {
     source.push_str("relation r { derivative(a255)=0; } }");
     accepted(&source);
 }
+
+#[test]
+fn runtime_aliases_can_read_public_child_ports_after_child_allocation() {
+    accepted(
+        "component Child() { public port output: signal output 1; relation r { output=2; } } model M { instance child:Child; let observed=child.output; relation r { observed=2; } }",
+    );
+    accepted(
+        "component Child() { public port output: signal output 1; relation r { output=2; } } component Parent() { instance child:Child; let observed=child.output; relation r { observed=2; } } model M { instance parent:Parent; }",
+    );
+}
