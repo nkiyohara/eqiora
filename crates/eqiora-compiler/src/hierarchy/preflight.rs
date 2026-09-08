@@ -132,7 +132,8 @@ impl DefinitionKey {
 }
 
 pub(super) struct Elaborator<'a> {
-    pub(super) finite_spaces: BTreeMap<DefinitionNamespace, BTreeMap<String, crate::nominal::BoundFiniteSpace>>,
+    pub(super) finite_spaces:
+        BTreeMap<DefinitionNamespace, BTreeMap<String, crate::nominal::BoundFiniteSpace>>,
     root_namespace: DefinitionNamespace,
     pub(super) identity_namespace: IdentityNamespace,
     connectors: BTreeMap<DefinitionKey, ConnectorDefinition<'a>>,
@@ -181,7 +182,12 @@ impl<'a> Elaborator<'a> {
             &mut diagnostics,
         );
 
-        let finite_spaces = crate::nominal::finite_spaces(file, document, &source_identity.namespace().map_err(|error| vec![error])?, |_| None)?;
+        let finite_spaces = crate::nominal::finite_spaces(
+            file,
+            document,
+            &source_identity.namespace().map_err(|error| vec![error])?,
+            |_| None,
+        )?;
         let elaborator = Self {
             finite_spaces: BTreeMap::from([(namespace.clone(), finite_spaces)]),
             root_namespace: namespace,

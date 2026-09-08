@@ -144,6 +144,9 @@ pub(in crate::hierarchy) fn alias_order<'a>(
             let mut dependencies = BTreeMap::new();
             let mut pending = vec![d.value()];
             while let Some(e) = pending.pop() {
+                if e.resolved_nominal().is_some() {
+                    continue;
+                }
                 match e.kind() {
                     eqiora_lang::ExprKind::Name(n) => {
                         dependencies.entry(n.clone()).or_insert(e.range());

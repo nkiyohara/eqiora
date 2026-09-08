@@ -23,6 +23,12 @@ pub(super) fn collect_expression_dependencies(
     let mut diagnostics = Vec::new();
     let mut pending = vec![expression];
     while let Some(expression) = pending.pop() {
+        if expression.resolved_nominal().is_some() {
+            if let Err(error) = crate::nominal::literal(file, expression) {
+                diagnostics.push(error);
+            }
+            continue;
+        }
         match expression.kind() {
             ExprKind::Number(_) | ExprKind::Quantity { .. } => {}
             ExprKind::Name(name) => {

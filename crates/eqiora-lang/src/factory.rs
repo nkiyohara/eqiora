@@ -121,7 +121,7 @@ impl SourceAstFactory {
         default: Option<Expr>,
         range: TextRange,
     ) -> Result<ComponentParameterDecl, AstConstructionError> {
-        let value_type = Self::value_type(value_type.kind, value_type.range)?;
+        Self::value_type(value_type.kind.clone(), value_type.range)?;
         if let Some(default) = &default {
             validate_expression(default)?;
         }
@@ -260,7 +260,7 @@ impl SourceAstFactory {
         if let ActivationSyntax::Periodic(clock) = &activation {
             validate_identifier(clock, "unknown clock")?;
         }
-        let value_type = Self::value_type(value_type.kind, value_type.range)?;
+        Self::value_type(value_type.kind.clone(), value_type.range)?;
         Ok(FieldDecl {
             comments: Default::default(),
             name: checked_identifier(name, "unknown")?,
