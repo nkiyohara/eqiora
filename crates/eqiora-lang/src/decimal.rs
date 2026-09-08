@@ -88,7 +88,7 @@ impl DecimalLiteral {
     /// Project this exact decimal into the real scalar domain once.
     ///
     /// # Errors
-    /// Rejects overflow to a non-finite binary64 value.
+    /// Rejects non-finite overflow and nonzero underflow to binary64 zero.
     pub fn to_f64(&self) -> Result<f64, AstConstructionError> {
         let value = self.canonical_text().parse::<f64>().map_err(|_| {
             AstConstructionError::new("decimal literal cannot be represented as a real scalar")
@@ -96,6 +96,11 @@ impl DecimalLiteral {
         if !value.is_finite() {
             return Err(AstConstructionError::new(
                 "real literal exceeds the finite binary64 range",
+            ));
+        }
+        if value == 0.0 && !self.is_zero() {
+            return Err(AstConstructionError::new(
+                "nonzero real literal underflows the binary64 range",
             ));
         }
         Ok(value)
@@ -224,6 +229,36 @@ mod tests {
         assert_eq!(
             DecimalLiteral::parse("1000e-3").unwrap().to_i64().unwrap(),
             1
+        );
+    }
+
+    #[test]
+    fn real_projection_rejects_underflow_without_rejecting_exact_syntax() {
+        for text in ["1e-324", "-1e-324", "1e-999"] {
+            let literal = DecimalLiteral::parse(text).expect("exact source decimal");
+            assert!(!literal.is_zero());
+            assert!(
+                literal
+                    .to_f64()
+                    .unwrap_err()
+                    .to_string()
+                    .contains("underflows")
+            );
+        }
+        for text in ["0", "-0", "0e-999", "-0e-999"] {
+            let literal = DecimalLiteral::parse(text).unwrap();
+            assert!(literal.is_zero());
+            assert_eq!(literal.to_f64().unwrap(), 0.0);
+        }
+        // The smallest positive binary64 value is 2^-1074. Decimal 5e-324
+        // rounds to that value rather than zero; its negative stays negative.
+        assert_eq!(
+            DecimalLiteral::parse("5e-324").unwrap().to_f64().unwrap(),
+            f64::from_bits(1)
+        );
+        assert_eq!(
+            DecimalLiteral::parse("-5e-324").unwrap().to_f64().unwrap(),
+            -f64::from_bits(1)
         );
     }
 

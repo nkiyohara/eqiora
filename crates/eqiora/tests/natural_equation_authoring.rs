@@ -393,13 +393,13 @@ fn zero_cannot_erase_an_unchecked_operand_or_underflow() {
             "incompatible types",
         ),
         (
-            "variable x: m; relation r { x = 1e-324; }",
-            "EQ0602",
+            "variable x: 1; relation r { x = 1e-324; }",
+            "EQ0603",
             "underflows",
         ),
         (
-            "variable x: m; relation r { x = (-1e-324); }",
-            "EQ0602",
+            "variable x: 1; relation r { x = (-1e-324); }",
+            "EQ0603",
             "underflows",
         ),
         (
@@ -408,8 +408,8 @@ fn zero_cannot_erase_an_unchecked_operand_or_underflow() {
             "underflows",
         ),
         (
-            "variable x: m; relation r { x = 1e999; }",
-            "EQ0602",
+            "variable x: 1; relation r { x = 1e999; }",
+            "EQ0603",
             "finite",
         ),
         (
