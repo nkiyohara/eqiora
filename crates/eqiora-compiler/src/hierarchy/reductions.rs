@@ -232,6 +232,9 @@ fn substitute(
             "reduction member expression exceeds the depth limit",
         ));
     }
+    if expression.resolved_enum().is_some() {
+        return Ok(expression.clone());
+    }
     let construct = |kind| {
         SourceAstFactory::expression(kind, expression.range())
             .map_err(|failure| error(file, expression, failure.to_string()))
@@ -277,6 +280,16 @@ fn substitute(
                 value: Box::new(child(value)?),
             }
         }
+        ExprKind::Case { value, arms } => ExprKind::Case {
+            value: Box::new(child(value)?),
+            arms: arms
+                .iter()
+                .map(|arm| {
+                    SourceAstFactory::case_arm_value(arm, child(arm.value())?)
+                        .map_err(|failure| error(file, expression, failure.to_string()))
+                })
+                .collect::<Result<_, _>>()?,
+        },
         ExprKind::Select {
             condition,
             then_value,

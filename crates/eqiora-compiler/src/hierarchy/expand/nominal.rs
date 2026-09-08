@@ -34,6 +34,15 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 });
             }
         }
+        for (name, value) in self.elaborator.visible_enumerations(&self.model.namespace) {
+            self.display_symbols.insert(
+                name,
+                DisplayIdentity {
+                    full: value.key.full_identity()?,
+                    kind: EntityKind::Enum,
+                },
+            );
+        }
         for (namespace, spaces) in &self.elaborator.finite_spaces {
             for (name, space) in spaces {
                 let full = space.key.full_identity()?;

@@ -268,7 +268,7 @@ fn compile(
                 property(hierarchy, &model.namespace, model.file, requirement, value)
             },
         )?;
-        let bound = bind_model(&elaborator, model.declaration, &prepared)?;
+        let bound = bind_model(elaborator, model.declaration, &prepared)?;
         let definition = preflight::ModelDefinition {
             namespace: model.namespace.clone(),
             file: model.file,

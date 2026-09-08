@@ -95,44 +95,18 @@ pub(crate) fn bind_document(
         let ValueTypeSyntaxKind::Named(name) = syntax.kind() else {
             return;
         };
-        if let Some(declaration) = enums.get(name.as_str()) {
-            if let Err(error) = SourceAstFactory::bind_nominal_value_type(
+        if let Some(declaration) = enums.get(name.as_str())
+            && let Err(error) = SourceAstFactory::bind_nominal_value_type(
                 syntax,
                 declaration.definition.value_type(),
-            ) {
-                errors.push(source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    file,
-                    syntax.range(),
-                    error.message(),
-                ));
-            }
-        } else {
-            // Name classification happens here, before ordinary dimension alias expansion.
-            let range = syntax.range();
-            let kind = if name.segments().len() == 1 {
-                ExprKind::Name(name.as_str().to_owned())
-            } else {
-                ExprKind::Path(name.clone())
-            };
-            let converted = SourceAstFactory::expression(kind, range).and_then(|dimension| {
-                SourceAstFactory::value_type(
-                    ValueTypeSyntaxKind::Scalar {
-                        domain: eqiora_core::ScalarDomain::Real,
-                        dimension,
-                    },
-                    range,
-                )
-            });
-            match converted {
-                Ok(value) => *syntax = value,
-                Err(error) => errors.push(source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    file,
-                    range,
-                    error.message(),
-                )),
-            }
+            )
+        {
+            errors.push(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                file,
+                syntax.range(),
+                error.message(),
+            ));
         }
     });
     SourceAstFactory::visit_expressions(document, |_, expression| {

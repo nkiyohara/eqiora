@@ -146,6 +146,24 @@ pub(crate) fn elaborate_dimension_aliases<'a>(
     }
 
     let mut elaborated = document.clone();
+    SourceAstFactory::visit_value_types(&mut elaborated, |_, syntax| {
+        if syntax.resolved_nominal().is_some() {
+            return;
+        }
+        let eqiora_lang::ValueTypeSyntaxKind::Named(name) = syntax.kind() else {
+            return;
+        };
+        if let Some(dimension) = environment.aliases.get(name.as_str()) {
+            *syntax = SourceAstFactory::value_type(
+                eqiora_lang::ValueTypeSyntaxKind::Scalar {
+                    domain: eqiora_core::ScalarDomain::Real,
+                    dimension: dimension_expression(*dimension, syntax.range()),
+                },
+                syntax.range(),
+            )
+            .expect("resolved dimension alias has checked syntax");
+        }
+    });
     SourceAstFactory::rewrite_dimension_expressions(&mut elaborated, |expression| {
         rewrite_alias_uses(expression, &environment.aliases)
     });

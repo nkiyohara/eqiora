@@ -405,6 +405,35 @@ impl<'a> Elaborator<'a> {
         self.pure_operators.iter()
     }
 
+    pub(super) fn visible_enumerations(
+        &self,
+        owner: &DefinitionNamespace,
+    ) -> BTreeMap<String, &crate::enumeration::BoundEnum> {
+        let mut visible = self
+            .enumerations
+            .get(owner)
+            .into_iter()
+            .flat_map(|values| values.iter())
+            .map(|(name, value)| (name.clone(), value))
+            .collect::<BTreeMap<_, _>>();
+        for ((declaring, alias), target) in &self.aliases {
+            if declaring != owner {
+                continue;
+            }
+            for (name, value) in self
+                .enumerations
+                .get(target)
+                .into_iter()
+                .flat_map(|values| values.iter())
+            {
+                if value.visibility == eqiora_lang::VisibilitySyntax::Public {
+                    visible.insert(format!("{alias}.{name}"), value);
+                }
+            }
+        }
+        visible
+    }
+
     /// Pure definitions visible from one declaration namespace, keyed by the
     /// exact source path accepted at that use site.
     pub(super) fn visible_pure_operators(
