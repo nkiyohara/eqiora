@@ -92,6 +92,11 @@ pub(super) fn evaluate(
         target.map(|value| ValueType::scalar(value.scalar_domain(), value.dimension()));
     let mut operands = Vec::with_capacity(leaves.len());
     for leaf in leaves {
+        if has_named_component_reference(leaf) {
+            return Err(error(
+                "tensor_value components must be closed expressions without named value references; bind an already typed tensor value for Parameter arithmetic",
+            ));
+        }
         let operand = match &scalar_target {
             Some(target) if evaluate_values => expression_eval::evaluate_initializer(
                 file,
@@ -122,12 +127,6 @@ pub(super) fn evaluate(
         {
             return Err(error(
                 "tensor_value components require real or complex scalars",
-            ));
-        }
-        // The existing literal owner cannot represent a live tensor-constructor expression.
-        if has_live_reference(leaf, resolve)? {
-            return Err(error(
-                "tensor_value components cannot depend on mutable or unresolved Parameters; bind an already typed tensor value instead",
             ));
         }
         operands.push(operand);
@@ -189,30 +188,25 @@ pub(super) fn evaluate(
     })
 }
 
-fn has_live_reference(
-    expression: &Expr,
-    resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
-) -> Result<bool, Diagnostic> {
+fn has_named_component_reference(expression: &Expr) -> bool {
     let mut pending = vec![expression];
     while let Some(value) = pending.pop() {
         match value.kind() {
-            ExprKind::Name(name) => {
-                let resolved = resolve(name, value.range())?;
-                if !matches!(resolved.lineage, Some(ParameterLineage::Constant)) {
-                    return Ok(true);
-                }
+            ExprKind::Name(_) | ExprKind::Member { .. } => return true,
+            ExprKind::Path(path)
+                if crate::math::constant(path).is_none() && path.as_str() != "math.i" =>
+            {
+                return true;
             }
             ExprKind::Unary { value, .. } => pending.push(value),
             ExprKind::Binary { left, right, .. } => pending.extend([left.as_ref(), right.as_ref()]),
-            ExprKind::Call { callee, arguments } if callee.as_str() != "period" => {
-                pending.extend(arguments)
-            }
+            ExprKind::Call { arguments, .. } => pending.extend(arguments),
             ExprKind::Array(elements) => pending.extend(elements),
             ExprKind::Index { value, index } => pending.extend([value.as_ref(), index.as_ref()]),
             _ => {}
         }
     }
-    Ok(false)
+    false
 }
 
 #[cfg(test)]
@@ -306,6 +300,45 @@ mod tests {
         assert_eq!(complex.value_type().frame(), ValueFrame::SpatialCartesian);
         assert!(construct("[[1+2,2],[3,4]]", Some(&target), false, true).is_err());
     }
+    #[test]
+    fn constant_lineage_does_not_authorize_named_component_folding() {
+        for components in ["[p,0]", "[alias,0]", "[owner.p,0]", "[p[0],0]"] {
+            let error = evaluate(
+                "tensor.eqi",
+                &expression(components),
+                ExpressionContext::Default,
+                &mut |_, _| {
+                    let value = ValueLiteral::from_real(
+                        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+                        2.0,
+                    )
+                    .unwrap();
+                    Ok(SymbolicParameterValue {
+                        value: Some(value.clone()),
+                        value_type: value.value_type().clone(),
+                        expression: Some(LoweringExpression::literal(value, TextRange::new(0, 0))),
+                        lineage: Some(ParameterLineage::Constant),
+                    })
+                },
+                &mut |_| None,
+                &mut |_| {
+                    Some(SpatialSupport::Volume {
+                        domain: "grid".into(),
+                        dimensions: 2,
+                    })
+                },
+                None,
+                true,
+            )
+            .unwrap_err();
+            assert!(
+                error.message().contains("without named value references"),
+                "{components}: {error:?}"
+            );
+        }
+        assert!(construct("[math.pi,1+2]", None, false, true).is_ok());
+    }
+
     #[test]
     fn rejects_wrong_rank_ragged_shape_and_live_components_without_dummy_values() {
         for components in [
