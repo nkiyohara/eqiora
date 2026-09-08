@@ -93,14 +93,22 @@ def test_component_and_parameter_inventory_are_source_owned() -> None:
     ):
         with pytest.raises(eqiora.ValidationError):
             eqiora.compile(source=source_text, geometry=authored, entry="SteadyFlowPastCylinder", bindings=invalid)
-    for invalid in (True, object()):
-        with pytest.raises(TypeError):
-            eqiora.compile(
-                source=source_text,
-                geometry=authored,
-                entry="SteadyFlowPastCylinder",
-                bindings={**values, "inlet_speed": invalid},  # type: ignore[dict-item]
-            )
+    # Boolean is a valid authored value, but cannot become a real velocity.
+    with pytest.raises(eqiora.ValidationError) as mismatch:
+        eqiora.compile(
+            source=source_text,
+            geometry=authored,
+            entry="SteadyFlowPastCylinder",
+            bindings={**values, "inlet_speed": True},
+        )
+    assert mismatch.value.diagnostics[0].code == "EQ0603"
+    with pytest.raises(TypeError):
+        eqiora.compile(
+            source=source_text,
+            geometry=authored,
+            entry="SteadyFlowPastCylinder",
+            bindings={**values, "inlet_speed": object()},  # type: ignore[dict-item]
+        )
     for invalid in (float("nan"), float("inf")):
         with pytest.raises(ValueError, match="finite"):
             eqiora.compile(
