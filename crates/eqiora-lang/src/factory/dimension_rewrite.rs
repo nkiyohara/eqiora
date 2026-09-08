@@ -13,6 +13,16 @@ impl SourceAstFactory {
         document: &mut Document,
         mut rewrite: impl FnMut(&Expr) -> Expr,
     ) {
+        for operator in &mut document.pure_operators {
+            for formal in &mut operator.formals {
+                if let crate::PureValueClassSyntax::Typed(value) = &mut formal.value_class {
+                    value.rewrite_dimension(&mut rewrite);
+                }
+            }
+            if let crate::PureValueClassSyntax::Typed(value) = &mut operator.result {
+                value.rewrite_dimension(&mut rewrite);
+            }
+        }
         for declaration in &mut document.property_contracts {
             declaration.value_type.rewrite_dimension(&mut rewrite);
         }

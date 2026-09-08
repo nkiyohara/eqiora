@@ -63,7 +63,7 @@ impl SourceAstFactory {
                     resolved_nominal: None,
                     kind: ExprKind::Call {
                         callee: NamePath::single("tensor_value".to_owned(), range),
-                        arguments: vec![frame_expression(frame.clone(), range), components],
+                        arguments: tensor_arguments(frame.clone(), components, range),
                     },
                     range,
                 };
@@ -118,7 +118,10 @@ impl SourceAstFactory {
                             ["math".to_owned(), "complex".to_owned()],
                             range,
                         ),
-                        arguments: vec![scalar(real), scalar(imaginary)],
+                        arguments: crate::CallArguments::Positional(vec![
+                            scalar(real),
+                            scalar(imaginary),
+                        ]),
                     }
                 } else {
                     scalar(real).kind
@@ -131,14 +134,14 @@ impl SourceAstFactory {
             let mut expression = Self::expression(
                 ExprKind::Call {
                     callee: NamePath::single(constructor.to_owned(), range),
-                    arguments: vec![
+                    arguments: crate::CallArguments::Positional(vec![
                         Expr {
                             resolved_nominal: None,
                             kind: ExprKind::Path(name.clone()),
                             range,
                         },
                         result,
-                    ],
+                    ]),
                 },
                 range,
             )?;
@@ -176,7 +179,7 @@ impl SourceAstFactory {
         Self::expression(
             ExprKind::Call {
                 callee: NamePath::single("tensor_value".to_owned(), range),
-                arguments: vec![frame_expression(frame, range), components],
+                arguments: tensor_arguments(frame, components, range),
             },
             range,
         )
@@ -446,4 +449,21 @@ mod tests {
             SourceAstFactory::expression(ExprKind::Array(vec![components]), range).unwrap();
         assert!(SourceAstFactory::tensor_value(frame, components, range).is_err());
     }
+}
+
+fn tensor_arguments(frame: NamePath, components: Expr, range: TextRange) -> crate::CallArguments {
+    crate::CallArguments::Named(vec![
+        crate::NamedBindingDecl {
+            comments: Default::default(),
+            name: "frame".to_owned(),
+            value: frame_expression(frame, range),
+            range,
+        },
+        crate::NamedBindingDecl {
+            comments: Default::default(),
+            name: "components".to_owned(),
+            value: components,
+            range,
+        },
+    ])
 }

@@ -84,8 +84,7 @@ impl NamePath {
 
 mod operator;
 pub use operator::{
-    ExactIntegerSyntax, PureOperatorBinaryOp, PureOperatorDecl, PureOperatorExpr,
-    PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax,
+    ExactIntegerSyntax, PureOperatorDecl, PureOperatorFormal, PureValueClassSyntax,
 };
 
 /// A nominal compilation-unit connector family.
@@ -914,4 +913,4 @@ impl BoundaryPortSelectorSyntax {
 }
 
 mod expression;
-pub use expression::{BinaryOp, Expr, ExprKind, ReductionOp, UnaryOp};
+pub use expression::{BinaryOp, CallArguments, Expr, ExprKind, ReductionOp, UnaryOp};

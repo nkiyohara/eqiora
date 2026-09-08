@@ -111,7 +111,7 @@ impl Parser<'_> {
                 } else {
                     self.recover_top_level();
                 }
-            } else if self.at_keyword("pure") {
+            } else if self.at_keyword("operator") {
                 import_prefix_closed = true;
                 declarations_started = true;
                 if models_started {
@@ -146,9 +146,9 @@ impl Parser<'_> {
                 }
             } else {
                 let expected = if import_prefix_closed {
-                    "expected `dimension`, `property`, `connector`, `component`, `pure operator`, or `model` declaration"
+                    "expected `dimension`, `property`, `connector`, `component`, `operator`, or `model` declaration"
                 } else {
-                    "expected `import`, `dimension`, `property`, `connector`, `component`, `pure operator`, or `model` declaration"
+                    "expected `import`, `dimension`, `property`, `connector`, `component`, `operator`, or `model` declaration"
                 };
                 self.error_here(expected);
                 self.recover_top_level();
@@ -316,13 +316,13 @@ mod tests {
         let before = parse("before.eqi", "unexpected");
         assert_eq!(
             before.diagnostics()[0].message(),
-            "expected `import`, `dimension`, `property`, `connector`, `component`, `pure operator`, or `model` declaration"
+            "expected `import`, `dimension`, `property`, `connector`, `component`, `operator`, or `model` declaration"
         );
 
         let after = parse("after.eqi", "model Main() {} unexpected");
         assert_eq!(
             after.diagnostics()[0].message(),
-            "expected `dimension`, `property`, `connector`, `component`, `pure operator`, or `model` declaration"
+            "expected `dimension`, `property`, `connector`, `component`, `operator`, or `model` declaration"
         );
     }
 }

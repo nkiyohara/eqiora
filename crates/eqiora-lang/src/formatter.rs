@@ -19,9 +19,8 @@ use crate::ast::{
     BoundaryConnectionDecl, BoundaryPairingSyntax, BoundaryPortReferenceSyntax, BoundarySideSyntax,
     ClockDecl, ComponentItem, ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax,
     ConnectorSyntax, Document, DomainSyntax, FamilyBinderSyntax, FieldDecl, FrameSyntax,
-    InstanceDecl, Item, PortSyntax, PureOperatorBinaryOp, PureOperatorDecl, PureOperatorExpr,
-    PureOperatorExprKind, PureValueClassSyntax, SignalDirectionSyntax, SupportSlotSyntax,
-    ValueShapeSyntax, VisibilitySyntax,
+    InstanceDecl, Item, PortSyntax, PureOperatorDecl, PureValueClassSyntax, SignalDirectionSyntax,
+    SupportSlotSyntax, ValueShapeSyntax, VisibilitySyntax,
 };
 use cartesian::format_cartesian_coordinate;
 use compile_time::{format_let, format_parameter};
@@ -124,20 +123,20 @@ fn format_pure_operator(
     if declaration.visibility == VisibilitySyntax::Public {
         output.push_str("public ");
     }
-    write!(output, "pure operator {}(", declaration.name).expect("String write");
+    write!(output, "operator {}(", declaration.name).expect("String write");
     for (index, formal) in declaration.formals.iter().enumerate() {
         if index != 0 {
             output.push_str(", ");
         }
         output.begin(&formal.comments);
-        write!(output, "{}: ", formal.name).expect("String write");
+        write!(output, "input {}: ", formal.name).expect("String write");
         format_pure_value_class(&formal.value_class, output);
         output.end();
     }
-    output.push_str(") -> ");
+    output.push_str("): ");
     format_pure_value_class(&declaration.result, output);
     output.push_str(" = ");
-    format_pure_operator_expression(&declaration.body, 0, output);
+    format_expression(&declaration.body, 0, output);
     output.push_str(";\n");
     output.end();
 }
@@ -146,86 +145,11 @@ fn format_pure_value_class(
     output: &mut crate::formatter::comments::Output,
 ) {
     match value_class {
+        PureValueClassSyntax::Typed(value) => value_type::format_value_type(value, output),
         PureValueClassSyntax::Scalar => output.push_str("scalar"),
         PureValueClassSyntax::Spatial { rank } => {
             write!(output, "spatial[{}]", rank.value).expect("String write");
         }
-    }
-}
-fn format_pure_operator_expression(
-    expression: &PureOperatorExpr,
-    parent_precedence: u8,
-    output: &mut crate::formatter::comments::Output,
-) {
-    let precedence = pure_operator_expression_precedence(expression);
-    let parenthesize = precedence < parent_precedence;
-    if parenthesize {
-        output.push('(');
-    }
-    match &expression.kind {
-        PureOperatorExprKind::Rational {
-            numerator,
-            denominator,
-        } => {
-            write!(
-                output,
-                "rational({}, {})",
-                numerator.value, denominator.value
-            )
-            .expect("String write");
-        }
-        PureOperatorExprKind::Component {
-            formal,
-            result_axes,
-            ..
-        } => {
-            write!(output, "component({formal}").expect("String write");
-            for axis in result_axes {
-                write!(output, ", {}", axis.value).expect("String write");
-            }
-            output.push(')');
-        }
-        PureOperatorExprKind::Delta {
-            left_axis,
-            right_axis,
-        } => {
-            write!(output, "delta({}, {})", left_axis.value, right_axis.value)
-                .expect("String write");
-        }
-        PureOperatorExprKind::Neg(value) => {
-            output.push('-');
-            format_pure_operator_expression(value, precedence, output);
-        }
-        PureOperatorExprKind::Binary { op, left, right } => {
-            let (symbol, left_precedence, right_precedence) = match op {
-                PureOperatorBinaryOp::Add => (" + ", precedence, precedence + 1),
-                PureOperatorBinaryOp::Sub => (" - ", precedence, precedence + 1),
-                PureOperatorBinaryOp::Mul => (" * ", precedence, precedence + 1),
-            };
-            format_pure_operator_expression(left, left_precedence, output);
-            output.push_str(symbol);
-            format_pure_operator_expression(right, right_precedence, output);
-        }
-    }
-    if parenthesize {
-        output.push(')');
-    }
-}
-
-fn pure_operator_expression_precedence(expression: &PureOperatorExpr) -> u8 {
-    match &expression.kind {
-        PureOperatorExprKind::Binary {
-            op: PureOperatorBinaryOp::Add | PureOperatorBinaryOp::Sub,
-            ..
-        } => 1,
-        PureOperatorExprKind::Binary {
-            op: PureOperatorBinaryOp::Mul,
-            ..
-        } => 3,
-        PureOperatorExprKind::Neg(_) => 5,
-        PureOperatorExprKind::Rational { .. }
-        | PureOperatorExprKind::Component { .. }
-        | PureOperatorExprKind::Delta { .. } => 7,
     }
 }
 

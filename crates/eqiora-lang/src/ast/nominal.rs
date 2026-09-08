@@ -11,7 +11,7 @@ pub(crate) fn definition_call(
         resolved_nominal: None,
         kind: super::ExprKind::Call {
             callee: NamePath::single(name.to_owned(), range),
-            arguments,
+            arguments: super::CallArguments::Positional(arguments),
         },
         range,
     }

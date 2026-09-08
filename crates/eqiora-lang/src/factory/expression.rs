@@ -70,20 +70,37 @@ fn validate_expression_depth(expression: &Expr, depth: usize) -> Result<(), AstC
                     "sum/product require a structured reduction binder",
                 ));
             }
-            if arguments.is_empty() && callee.to_string() != "boundaries" {
+            if arguments.expressions().len() == 0 && callee.as_str() != "boundaries" {
                 return Err(AstConstructionError::new(
                     "an expression operator call requires at least one argument",
                 ));
             }
+            if let Some(bindings) = arguments.named() {
+                let mut names = std::collections::HashSet::new();
+                for binding in bindings {
+                    validate_identifier(binding.name(), "argument name")?;
+                    checked_range(binding.range())?;
+                    if !names.insert(binding.name()) {
+                        return Err(AstConstructionError::new("duplicate named argument"));
+                    }
+                }
+            }
             if callee.as_str() == "tensor_value"
-                && (arguments.len() != 2
-                    || !matches!(arguments[0].kind(), ExprKind::Name(_) | ExprKind::Path(_)))
+                && !arguments.named().is_some_and(|bindings| {
+                    bindings.len() == 2
+                        && bindings[0].name() == "frame"
+                        && bindings[1].name() == "components"
+                        && matches!(
+                            bindings[0].value().kind(),
+                            ExprKind::Name(_) | ExprKind::Path(_)
+                        )
+                })
             {
                 return Err(AstConstructionError::new(
                     "tensor_value requires a frame name and components",
                 ));
             }
-            for argument in arguments {
+            for argument in arguments.expressions() {
                 validate_expression_depth(argument, depth + 1)?;
             }
             Ok(())

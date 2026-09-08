@@ -27,9 +27,8 @@ use crate::ast::{
     ConnectorQuantitySyntax, ConnectorSyntax, DomainDecl, DomainSyntax, Equation,
     ExactIntegerSyntax, Expr, ExprKind, FamilyBinderSyntax, FieldDecl, InstanceDecl, NamePath,
     NamedBindingDecl, NamedDefinitionDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl,
-    PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax, RelationDecl,
-    RelationFamilyDecl, SupportSlotDecl, SupportSlotSyntax, TextRange, ValueShapeSyntax,
-    VisibilitySyntax,
+    PureOperatorFormal, PureValueClassSyntax, RelationDecl, RelationFamilyDecl, SupportSlotDecl,
+    SupportSlotSyntax, TextRange, ValueShapeSyntax, VisibilitySyntax,
 };
 use domain_validation::validate_domain_syntax;
 
@@ -574,54 +573,9 @@ fn validate_pure_value_class(
     value_class: &PureValueClassSyntax,
 ) -> Result<(), AstConstructionError> {
     match value_class {
+        PureValueClassSyntax::Typed(value) => validate_expression(value.dimension()),
         PureValueClassSyntax::Scalar => Ok(()),
         PureValueClassSyntax::Spatial { rank } => validate_exact_integer(rank),
-    }
-}
-
-fn validate_pure_operator_expression(
-    expression: &PureOperatorExpr,
-) -> Result<(), AstConstructionError> {
-    checked_range(expression.range)?;
-    match &expression.kind {
-        PureOperatorExprKind::Rational {
-            numerator,
-            denominator,
-        } => {
-            validate_exact_integer(numerator)?;
-            validate_exact_integer(denominator)?;
-            if denominator.value == 0 {
-                Err(AstConstructionError::new(
-                    "pure operator rational denominator must be nonzero",
-                ))
-            } else {
-                Ok(())
-            }
-        }
-        PureOperatorExprKind::Component {
-            formal,
-            formal_range,
-            result_axes,
-        } => {
-            validate_identifier(formal, "pure operator component formal")?;
-            checked_range(*formal_range)?;
-            for axis in result_axes {
-                validate_exact_integer(axis)?;
-            }
-            Ok(())
-        }
-        PureOperatorExprKind::Delta {
-            left_axis,
-            right_axis,
-        } => {
-            validate_exact_integer(left_axis)?;
-            validate_exact_integer(right_axis)
-        }
-        PureOperatorExprKind::Neg(value) => validate_pure_operator_expression(value),
-        PureOperatorExprKind::Binary { left, right, .. } => {
-            validate_pure_operator_expression(left)?;
-            validate_pure_operator_expression(right)
-        }
     }
 }
 
