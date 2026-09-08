@@ -236,3 +236,49 @@ fn tensor_applications_still_require_existing_component_expansion() {
     let error = ScalarOperatorIr::lower(&dag).unwrap_err();
     assert!(error.to_string().contains("component expansion"));
 }
+
+#[test]
+fn partial_rejects_invalid_unused_arguments_before_appending_even_for_zero() {
+    let scalar = PureValueClass::invariant_scalar();
+    let mut definition = CalculusBuilder::new([scalar, scalar], scalar).unwrap();
+    let x = definition
+        .push(CalculusNode::FormalComponent {
+            formal: 0,
+            axes: Box::new([]),
+        })
+        .unwrap();
+    let definition = definition.finish(x).unwrap();
+    let types = [
+        ExpressionType::<()>::scalar(DimExponents::DIMENSIONLESS, None),
+        ExpressionType::scalar(DimExponents::DIMENSIONLESS, None),
+    ];
+    let scalar = definition
+        .instantiate(&types)
+        .unwrap()
+        .component(&[])
+        .unwrap();
+    let mut foreign = ExprDagBuilder::new();
+    foreign
+        .constant(DynQuantity::new(0., DimExponents::DIMENSIONLESS))
+        .unwrap();
+    let unavailable = foreign
+        .constant(DynQuantity::new(1., DimExponents::DIMENSIONLESS))
+        .unwrap();
+    for order in [1, 2] {
+        let mut destination = ExprDagBuilder::new();
+        let existing = destination
+            .constant(DynQuantity::new(7., DimExponents::DIMENSIONLESS))
+            .unwrap();
+        assert!(
+            scalar
+                .partial(&mut destination, &[existing, unavailable], 0, order)
+                .is_err()
+        );
+        let unchanged = destination.finish([existing]).unwrap();
+        assert_eq!(
+            unchanged.nodes().len(),
+            1,
+            "rejected arguments must not append derivative constants"
+        );
+    }
+}

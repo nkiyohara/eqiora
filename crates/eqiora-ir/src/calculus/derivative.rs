@@ -21,7 +21,7 @@ impl<I: Clone> ScalarCalculus<I> {
     ///
     /// # Errors
     /// Rejects non-real or shaped formals/results, unsupported orders, wrong
-    /// arity, invalid derivative operands, and unrepresentable derivative dimensions.
+    /// arity, invalid argument IDs, and unrepresentable derivative dimensions.
     pub fn partial(
         &self,
         builder: &mut ExprDagBuilder,
@@ -44,6 +44,11 @@ impl<I: Clone> ScalarCalculus<I> {
                 })
         {
             return Err(CalculusError::UnsupportedDerivative);
+        }
+        for argument in arguments {
+            builder
+                .validate_prior_operand(*argument)
+                .map_err(projection)?;
         }
         let dimension = selected
             .dimension()

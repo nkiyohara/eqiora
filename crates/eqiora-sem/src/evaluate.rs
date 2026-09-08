@@ -557,6 +557,45 @@ fn require_scalar_arithmetic(value: &ValueLiteral) -> Result<(), Diagnostic> {
     Ok(())
 }
 
+fn evaluate_pure_operator(
+    owner: RawId,
+    definition: &eqiora_schema::kernel::pure_operator::PureOperatorDefinition,
+    arguments: &[&ValueLiteral],
+) -> Result<ValueLiteral, Diagnostic> {
+    use eqiora_schema::kernel::{ExprDagBuilder, typing::ExpressionType};
+    let types = arguments
+        .iter()
+        .map(|value| ExpressionType::<()>::new(value.value_type().clone(), None))
+        .collect::<Vec<_>>();
+    if types
+        .iter()
+        .any(|ty| ty.value_type.scalar_domain() != ScalarDomain::Real || !ty.shape().is_scalar())
+    {
+        return Err(Diagnostic::error(
+            codes::NOT_IMPLEMENTED,
+            "pure operator execution requires real scalar arguments",
+        ));
+    }
+    let instance = definition
+        .instantiate(&types)
+        .map_err(|error| Diagnostic::error(codes::NOT_IMPLEMENTED, error.to_string()))?;
+    let mut builder = ExprDagBuilder::new();
+    let arguments = arguments
+        .iter()
+        .map(|value| builder.constant((*value).clone()))
+        .collect::<Result<Vec<_>, _>>()?;
+    let root = builder.project_scalar_operator(&instance, &arguments, 1_000_000)?;
+    let dag = builder.finish([root])?;
+    evaluate_selected(owner, &dag, &[root], &mut |_| None)?
+        .pop()
+        .ok_or_else(|| {
+            Diagnostic::error(
+                codes::INVALID_EXPRESSION_DAG,
+                "pure operator result is absent",
+            )
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -805,43 +844,4 @@ mod tests {
             .is_err()
         );
     }
-}
-
-fn evaluate_pure_operator(
-    owner: RawId,
-    definition: &eqiora_schema::kernel::pure_operator::PureOperatorDefinition,
-    arguments: &[&ValueLiteral],
-) -> Result<ValueLiteral, Diagnostic> {
-    use eqiora_schema::kernel::{ExprDagBuilder, typing::ExpressionType};
-    let types = arguments
-        .iter()
-        .map(|value| ExpressionType::<()>::new(value.value_type().clone(), None))
-        .collect::<Vec<_>>();
-    if types
-        .iter()
-        .any(|ty| ty.value_type.scalar_domain() != ScalarDomain::Real || !ty.shape().is_scalar())
-    {
-        return Err(Diagnostic::error(
-            codes::NOT_IMPLEMENTED,
-            "pure operator execution requires real scalar arguments",
-        ));
-    }
-    let instance = definition
-        .instantiate(&types)
-        .map_err(|error| Diagnostic::error(codes::NOT_IMPLEMENTED, error.to_string()))?;
-    let mut builder = ExprDagBuilder::new();
-    let arguments = arguments
-        .iter()
-        .map(|value| builder.constant((*value).clone()))
-        .collect::<Result<Vec<_>, _>>()?;
-    let root = builder.project_scalar_operator(&instance, &arguments, 1_000_000)?;
-    let dag = builder.finish([root])?;
-    evaluate_selected(owner, &dag, &[root], &mut |_| None)?
-        .pop()
-        .ok_or_else(|| {
-            Diagnostic::error(
-                codes::INVALID_EXPRESSION_DAG,
-                "pure operator result is absent",
-            )
-        })
 }

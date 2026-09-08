@@ -387,6 +387,39 @@ fn require_scalar_arithmetic(value: &ValueLiteral) -> Result<(), Diagnostic> {
     Ok(())
 }
 
+fn evaluate_pure_operator(
+    definition: &eqiora_schema::kernel::pure_operator::PureOperatorDefinition,
+    arguments: &[&ValueLiteral],
+) -> Result<ValueLiteral, Diagnostic> {
+    use eqiora_schema::kernel::{ExprDagBuilder, typing::ExpressionType};
+    let types = arguments
+        .iter()
+        .map(|value| ExpressionType::<()>::new(value.value_type().clone(), None))
+        .collect::<Vec<_>>();
+    if types
+        .iter()
+        .any(|ty| ty.value_type.scalar_domain() != ScalarDomain::Real || !ty.shape().is_scalar())
+    {
+        return Err(ir_builder_error(
+            "pure operator execution requires real scalar arguments",
+        ));
+    }
+    let instance = definition
+        .instantiate(&types)
+        .map_err(|error| ir_builder_error(error.to_string()))?;
+    let mut builder = ExprDagBuilder::new();
+    let arguments = arguments
+        .iter()
+        .map(|value| builder.constant((*value).clone()))
+        .collect::<Result<Vec<_>, _>>()?;
+    let root = builder.project_scalar_operator(&instance, &arguments, 1_000_000)?;
+    let dag = builder.finish([root])?;
+    let ir = ScalarOperatorIr::lower(&dag)?;
+    ir.evaluate_typed(&[root], &mut |_| None)?
+        .pop()
+        .ok_or_else(|| ir_builder_error("pure operator result is absent"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -644,37 +677,4 @@ mod tests {
         assert!(ir.evaluate(&[]).is_err());
         assert!(ir.linearize(&[], &[]).is_err());
     }
-}
-
-fn evaluate_pure_operator(
-    definition: &eqiora_schema::kernel::pure_operator::PureOperatorDefinition,
-    arguments: &[&ValueLiteral],
-) -> Result<ValueLiteral, Diagnostic> {
-    use eqiora_schema::kernel::{ExprDagBuilder, typing::ExpressionType};
-    let types = arguments
-        .iter()
-        .map(|value| ExpressionType::<()>::new(value.value_type().clone(), None))
-        .collect::<Vec<_>>();
-    if types
-        .iter()
-        .any(|ty| ty.value_type.scalar_domain() != ScalarDomain::Real || !ty.shape().is_scalar())
-    {
-        return Err(ir_builder_error(
-            "pure operator execution requires real scalar arguments",
-        ));
-    }
-    let instance = definition
-        .instantiate(&types)
-        .map_err(|error| ir_builder_error(error.to_string()))?;
-    let mut builder = ExprDagBuilder::new();
-    let arguments = arguments
-        .iter()
-        .map(|value| builder.constant((*value).clone()))
-        .collect::<Result<Vec<_>, _>>()?;
-    let root = builder.project_scalar_operator(&instance, &arguments, 1_000_000)?;
-    let dag = builder.finish([root])?;
-    let ir = ScalarOperatorIr::lower(&dag)?;
-    ir.evaluate_typed(&[root], &mut |_| None)?
-        .pop()
-        .ok_or_else(|| ir_builder_error("pure operator result is absent"))
 }

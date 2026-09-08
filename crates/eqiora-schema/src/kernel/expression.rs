@@ -321,7 +321,11 @@ impl ExprDagBuilder {
         })
     }
 
-    fn validate_prior_operand(&self, operand: ExprId) -> Result<(), Diagnostic> {
+    /// Check that an operand references an existing arena node without appending nodes.
+    ///
+    /// # Errors
+    /// Rejects an ID outside the current arena using the ordinary operand diagnostic.
+    pub fn validate_prior_operand(&self, operand: ExprId) -> Result<(), Diagnostic> {
         let operand_index = usize::try_from(operand.0).map_err(|_| invalid_index(operand))?;
         if operand_index >= self.nodes.len() {
             Err(invalid_index(operand))
