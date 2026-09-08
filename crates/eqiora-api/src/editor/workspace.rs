@@ -567,6 +567,7 @@ const fn canonical_symbol_kind(kind: CanonicalDeclarationKind) -> Option<EditorS
         }
         CanonicalDeclarationKind::MaterialComposition => EditorSymbolKind::Material,
         CanonicalDeclarationKind::PureOperator => EditorSymbolKind::Operator,
+        CanonicalDeclarationKind::Enum => EditorSymbolKind::Enum,
         CanonicalDeclarationKind::Connector => EditorSymbolKind::Connector,
         CanonicalDeclarationKind::Component => EditorSymbolKind::Component,
         CanonicalDeclarationKind::Model => EditorSymbolKind::Model,

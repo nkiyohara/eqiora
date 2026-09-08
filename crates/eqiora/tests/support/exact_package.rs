@@ -45,6 +45,7 @@ fn semantic_content(
         .map(|declaration| {
             let kind = match declaration.kind() {
                 CanonicalDeclarationKind::PureOperator => DeclarationKindV1::PureOperator,
+                CanonicalDeclarationKind::Enum => DeclarationKindV1::Enum,
                 CanonicalDeclarationKind::Connector => DeclarationKindV1::Connector,
                 CanonicalDeclarationKind::Component => DeclarationKindV1::Component,
                 CanonicalDeclarationKind::Model => DeclarationKindV1::Model,

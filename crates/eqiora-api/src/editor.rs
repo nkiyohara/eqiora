@@ -59,6 +59,10 @@ pub enum EditorSymbolKind {
     Component,
     /// Pure compile-time operator.
     Operator,
+    /// Declaration-owned finite enumeration.
+    Enum,
+    /// Ordered member of a finite enumeration.
+    EnumMember,
     /// Executable model.
     Model,
     /// Spatial domain.
@@ -455,6 +459,20 @@ fn document_symbols(document: &Document) -> Vec<EditorSymbol> {
             .material_composition_syntax()
             .map(|(_, name, _, range)| EditorSymbol::leaf(EditorSymbolKind::Material, name, range)),
     );
+    symbols.extend(document.enumerations().iter().map(|declaration| {
+        EditorSymbol::branch(
+            EditorSymbolKind::Enum,
+            declaration.name(),
+            declaration.range(),
+            declaration
+                .tags()
+                .iter()
+                .map(|tag| {
+                    EditorSymbol::leaf(EditorSymbolKind::EnumMember, tag.as_str(), tag.range())
+                })
+                .collect(),
+        )
+    }));
     symbols.extend(document.connectors().iter().map(|declaration| {
         EditorSymbol::leaf(
             EditorSymbolKind::Connector,
@@ -604,3 +622,6 @@ fn model_item_symbol(item: &Item) -> Option<EditorSymbol> {
     };
     Some(symbol)
 }
+
+#[cfg(test)]
+mod enumerations;
