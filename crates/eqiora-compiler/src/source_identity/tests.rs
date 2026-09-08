@@ -44,10 +44,6 @@ fn declaration_binding_and_anonymous_member_permutations_are_invariant() {
 connector Pin = scalar_physical(across = 1, through = A);
 connector Heat = scalar_physical(across = K, through = kg * m ^ 2 / (s ^ 3 * K));
 component Pair(parameter resistance: 1 = 2, parameter scale: 1 = 3, port positive: conserving on Pin, port negative: conserving on Pin) {
-  
-  
-  
-  
   instance inner: Library.Resistor(resistance = resistance, scale = scale);
   relation law { across(positive) - across(negative) = 0; }
   connect conserving positive, inner.positive, negative;
@@ -68,10 +64,6 @@ component Pair(port negative: conserving on Pin, port positive: conserving on Pi
   connect conserving negative, positive, inner.positive;
   relation law { across(positive) - across(negative) = 0; }
   instance inner: Library.Resistor(scale = scale, resistance = resistance);
-  
-  
-  
-  
 }
 model auxiliary() {}
 model circuit() {
@@ -174,7 +166,6 @@ public component SurfaceLaw(support body: volume(ambient_dimension = 2), support
 conserving MechanicalBoundary over boundary) {
 
 
-  
   relation carrier[boundary in exterior] on boundary {
 trace(mechanical[boundary = boundary])
   - trace(mechanical[boundary = boundary]) = 0;
@@ -252,7 +243,6 @@ fn parameter_support_and_field_bindings_share_one_limit() {
     let document = document(
         r#"
 component Law(variable state: 1 on body, support body: volume(ambient_dimension = 1), parameter gain: 1) {
-  
 
 
 }
