@@ -77,6 +77,38 @@ Indices are static exact nonnegative integers; mutable Parameters cannot supply 
 Typed value edits preserve the complete declared type and all components through replay.
 This authoring support does not establish a complex numerical solver.
 
+Declare `value_type=eqiora.ValueType.integer()` to retain Python integers exactly,
+including values above `2**53`. Values must be signed 64-bit integers; booleans,
+floating-point values and overflow reject. Without an explicit integer type,
+ordinary numeric defaults keep their real interpretation. `ParameterRef.value`
+returns the exact typed value, including after edits and Model replay.
+
+```python
+species = eqiora.FiniteSpace("Species", labels=("A", "B"))
+population = eqiora.Parameter(
+    "population", value_type=eqiora.ValueType.counts(species),
+    value=(2, 9007199254740993),
+)
+model = eqiora.Model.define("Population", species, population)
+assert model.parameter("population").value == (2, 9007199254740993)
+```
+
+`ValueType.coordinates(species)` holds signed integer components in the same
+ordered basis; `counts(species)` requires nonnegative components. Equal labels in
+another `FiniteSpace` do not establish the same type. `IndexSet("Rows", extent=3)`
+and `ValueType.index(rows)` similarly retain a distinct nominal identity and admit
+only ordinals from zero through two. Include each native declaration in
+`Model.define`. Nominal types need their declaration's lexical scope for source
+rendering, so their standalone `to_eqi()` rejects.
+
+Python Source registers spaces with `source.space(...)` and constant-sized sets
+with `component.index_set(..., extent=3)`. Its `counts`, `coordinates`, and `index`
+constructors require handles from the owning Source or Component. The closed
+`eqiora.lang.quotient`, `remainder`, `to_real`, `to_integer`, and `ordinal`
+expressions use the shared compiler's explicit conversion and arithmetic rules.
+Products, dual spaces, general maps, Boolean execution, and dynamic indexing remain
+outside this bounded discrete profile.
+
 A numeric Parameter default uses the declared dimension's coherent unit.
 For example, `parameter rate: 1 / s = 1;` gives the same value as
 `parameter rate: 1 / s = 1[1 / s];`. Explicit input units still express compatible
@@ -1004,7 +1036,7 @@ assert same.revision == child.revision
 ```
 
 The canonical bytes still expose the persisted
-`eqiora.model-envelope/v14` schema, but callers do not select that suffix.
+`eqiora.model-envelope/v15` schema, but callers do not select that suffix.
 `.eqi` remains source text; `.eqmodel` is the canonical compiled Model artifact.
 Only the current schema is accepted; decoding never sniffs, retries, or silently
 migrates an older artifact.

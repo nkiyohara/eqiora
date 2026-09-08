@@ -15,7 +15,7 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__in
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.pyi" kind="blob">bindings/python/python/eqiora/lang/__init__.pyi</ExactSourceLink>
 
-This module publishes **25** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **30** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
 <a id="api-eqiora-lang-Clock"></a>
 
@@ -42,6 +42,10 @@ Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py
 ```python
 @final
 class Component:
+    def counts(self, space: FiniteSpace, components: Sequence[Expression | int]) -> Expression: ...
+    def coordinates(self, space: FiniteSpace, components: Sequence[Expression | int]) -> Expression: ...
+    def index(self, set: IndexSet, value: Expression | int) -> Expression: ...
+    def index_set(self, name: str, *, extent: int, doc: str | None=None) -> IndexSet: ...
     def clock(self, name: str, *, period_s: Fraction | int, phase_s: Fraction | int=0, doc: str | None=None) -> Clock: ...
     def initial(self, *residuals: Expression | int | float | complex, doc: str | None=None) -> None: ...
     def volume(self, name: str, *, dimensions: int, doc: str | None=None) -> Support: ...
@@ -151,6 +155,7 @@ Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py
 ```python
 @final
 class Source:
+    def space(self, name: str, *, labels: Sequence[str], doc: str | None=None) -> FiniteSpace: ...
     def __init__(self) -> None: ...
     def component(self, name: str, *, doc: str | None=None) -> Component: ...
     def model(self, name: str, *, doc: str | None=None) -> Component: ...
@@ -297,6 +302,18 @@ Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py
 def normal(value: Expression) -> Expression: ...
 ```
 
+<a id="api-eqiora-lang-ordinal"></a>
+
+## `ordinal`
+
+Explicitly project an index's ordinary integer ordinal.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::ordinal</ExactSourceLink>
+
+```python
+def ordinal(value: Expression) -> Expression: ...
+```
+
 <a id="api-eqiora-lang-pre"></a>
 
 ## `pre`
@@ -331,6 +348,54 @@ Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py
 
 ```python
 def quantity(value: int | float | Decimal, unit: Unit) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-quotient"></a>
+
+## `quotient`
+
+Return the checked integer quotient truncated toward zero.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::quotient</ExactSourceLink>
+
+```python
+def quotient(left: Expression | int, right: Expression | int) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-remainder"></a>
+
+## `remainder`
+
+Return the integer remainder with the dividend's sign.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::remainder</ExactSourceLink>
+
+```python
+def remainder(left: Expression | int, right: Expression | int) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-to_real"></a>
+
+## `to_real`
+
+Explicitly convert an integer to a real, with possible precision loss.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::to_real</ExactSourceLink>
+
+```python
+def to_real(value: Expression | int) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-to_integer"></a>
+
+## `to_integer`
+
+Convert an integral finite dimensionless real within the signed integer range.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::to_integer</ExactSourceLink>
+
+```python
+def to_integer(value: Expression | float | int) -> Expression: ...
 ```
 
 <a id="api-eqiora-lang-symmetric_part"></a>
