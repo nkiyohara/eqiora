@@ -474,7 +474,8 @@ fn projected_zero_storage_does_not_hide_unconsumed_operations() {
         let root = builder
             .constant(
                 ValueLiteral::from_real(
-                    ValueType::scalar(domain, DimExponents::DIMENSIONLESS),
+                    ValueType::scalar(domain, DimExponents::DIMENSIONLESS)
+                        .expect("fixture uses a numeric scalar domain"),
                     1.0,
                 )
                 .unwrap(),
@@ -483,7 +484,8 @@ fn projected_zero_storage_does_not_hide_unconsumed_operations() {
         let zero = builder
             .constant(
                 ValueLiteral::from_real(
-                    ValueType::scalar(domain, DimExponents::DIMENSIONLESS),
+                    ValueType::scalar(domain, DimExponents::DIMENSIONLESS)
+                        .expect("fixture uses a numeric scalar domain"),
                     0.0,
                 )
                 .unwrap(),
@@ -511,12 +513,14 @@ fn non_numeric_or_nonzero_unused_storage_remains_unconsumed() {
     for extra in [
         ValueLiteral::boolean(false),
         ValueLiteral::from_integer(
-            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                .expect("numeric scalar type"),
             0,
         )
         .unwrap(),
         ValueLiteral::from_real(
-            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                .expect("numeric scalar type"),
             2.0,
         )
         .unwrap(),
@@ -525,7 +529,8 @@ fn non_numeric_or_nonzero_unused_storage_remains_unconsumed() {
         let root = builder
             .constant(
                 ValueLiteral::from_real(
-                    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+                    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                        .expect("numeric scalar type"),
                     1.0,
                 )
                 .unwrap(),

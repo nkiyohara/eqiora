@@ -74,14 +74,14 @@ pub(super) fn steady_stokes_block_system(
             domain,
             pressure,
             space_for(pressure),
-            ValueType::scalar(ScalarDomain::Real, PRESSURE),
+            ValueType::scalar(ScalarDomain::Real, PRESSURE).expect("numeric scalar type"),
             scales.pressure(),
             FieldBlockRole::Algebraic,
         )?,
         FieldBlock::coefficient(
             domain,
             force,
-            ValueType::scalar(ScalarDomain::Real, PRESSURE),
+            ValueType::scalar(ScalarDomain::Real, PRESSURE).expect("numeric scalar type"),
         ),
     ];
 
@@ -110,7 +110,7 @@ pub(super) fn steady_stokes_block_system(
             fields.push(FieldBlock::coefficient(
                 domain,
                 coefficient,
-                ValueType::scalar(ScalarDomain::Real, PRESSURE),
+                ValueType::scalar(ScalarDomain::Real, PRESSURE).expect("numeric scalar type"),
             ));
         }
     }
@@ -133,7 +133,7 @@ pub(super) fn steady_stokes_block_system(
             fields.push(FieldBlock::coefficient(
                 domain,
                 coefficient,
-                ValueType::scalar(ScalarDomain::Real, VELOCITY),
+                ValueType::scalar(ScalarDomain::Real, VELOCITY).expect("numeric scalar type"),
             ));
         }
     }
@@ -390,14 +390,14 @@ pub(super) fn transient_navier_stokes_block_system(
             domain,
             pressure,
             Space::continuous_lagrange(std::num::NonZeroU16::MIN),
-            ValueType::scalar(ScalarDomain::Real, PRESSURE),
+            ValueType::scalar(ScalarDomain::Real, PRESSURE).expect("numeric scalar type"),
             scales.pressure(),
             FieldBlockRole::Algebraic,
         )?,
         FieldBlock::coefficient(
             domain,
             force,
-            ValueType::scalar(ScalarDomain::Real, PRESSURE),
+            ValueType::scalar(ScalarDomain::Real, PRESSURE).expect("numeric scalar type"),
         ),
     ];
     let mut relations = vec![

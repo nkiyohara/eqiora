@@ -14,7 +14,11 @@ fn current() -> DimExponents {
     DimExponents::from_integers([0, 0, 0, 1, 0, 0, 0]).unwrap()
 }
 fn real(d: DimExponents, x: f64) -> ValueLiteral {
-    ValueLiteral::from_real(ValueType::scalar(ScalarDomain::Real, d), x).unwrap()
+    ValueLiteral::from_real(
+        ValueType::scalar(ScalarDomain::Real, d).expect("numeric scalar type"),
+        x,
+    )
+    .unwrap()
 }
 fn value(value: &ValueLiteral) -> f64 {
     value.real_scalar_value().unwrap().value()

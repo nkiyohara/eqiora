@@ -188,12 +188,14 @@ fn bouncing_ball(direction: EventDirection) -> BouncingBall {
         KernelNode::from(RelationDef::initial(initial, initial_equations).unwrap()),
         KernelNode::from(FieldDef::new(
             height,
-            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, length),
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, length)
+                .expect("numeric scalar type"),
             eqiora_schema::kernel::FieldRole::State,
         )),
         KernelNode::from(FieldDef::new(
             velocity,
-            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, velocity_dimension),
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, velocity_dimension)
+                .expect("numeric scalar type"),
             eqiora_schema::kernel::FieldRole::State,
         )),
         KernelNode::from(ParameterDef::new(
@@ -202,7 +204,8 @@ fn bouncing_ball(direction: EventDirection) -> BouncingBall {
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     acceleration_dimension,
-                ),
+                )
+                .expect("numeric scalar type"),
                 9.81,
             )
             .unwrap(),
@@ -213,7 +216,8 @@ fn bouncing_ball(direction: EventDirection) -> BouncingBall {
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
-                ),
+                )
+                .expect("numeric scalar type"),
                 0.8,
             )
             .unwrap(),

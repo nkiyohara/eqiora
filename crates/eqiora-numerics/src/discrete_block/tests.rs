@@ -18,9 +18,10 @@ const TIME: DimExponents =
 #[test]
 fn block_identity_preserves_complete_field_types_without_admitting_nonreal_execution() {
     let mut system = minimal(MinimalIds::new(), false);
-    let real = ValueType::scalar(ScalarDomain::Real, LENGTH);
-    let complex = ValueType::scalar(ScalarDomain::Complex, LENGTH);
-    let integer = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+    let real = ValueType::scalar(ScalarDomain::Real, LENGTH).expect("numeric scalar type");
+    let complex = ValueType::scalar(ScalarDomain::Complex, LENGTH).expect("numeric scalar type");
+    let integer = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+        .expect("numeric scalar type");
     let vector = ValueType::shaped(
         ScalarDomain::Real,
         LENGTH,
@@ -91,7 +92,7 @@ fn complete_field_type_retains_scale_validation() {
                 ids.domain,
                 ids.fields[0],
                 Space::continuous_lagrange(NonZeroU16::MIN),
-                ValueType::scalar(ScalarDomain::Real, LENGTH),
+                ValueType::scalar(ScalarDomain::Real, LENGTH).expect("numeric scalar type"),
                 scale,
                 FieldBlockRole::Algebraic
             )
@@ -130,7 +131,7 @@ fn minimal(ids: MinimalIds, order_reversed: bool) -> DiscreteBlockSystem {
                 ids.domain,
                 field,
                 Space::continuous_lagrange(NonZeroU16::MIN),
-                ValueType::scalar(ScalarDomain::Real, LENGTH),
+                ValueType::scalar(ScalarDomain::Real, LENGTH).expect("numeric scalar type"),
                 DynQuantity::new(1.0, LENGTH),
                 FieldBlockRole::Algebraic,
             )
@@ -232,7 +233,7 @@ fn stateful(ids: MinimalIds) -> DiscreteBlockSystem {
             ids.domain,
             state,
             Space::continuous_lagrange(NonZeroU16::MIN),
-            ValueType::scalar(ScalarDomain::Real, LENGTH),
+            ValueType::scalar(ScalarDomain::Real, LENGTH).expect("numeric scalar type"),
             DynQuantity::new(1.0, LENGTH),
             FieldBlockRole::EliminatedState,
         )

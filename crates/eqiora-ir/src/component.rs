@@ -560,6 +560,7 @@ mod tests {
         use eqiora_core::{ScalarDomain, ValueLiteral, ValueType};
         for domain in [ScalarDomain::Real, ScalarDomain::Complex] {
             let value_type = ValueType::scalar(domain, DimExponents::DIMENSIONLESS)
+                .expect("fixture uses a numeric scalar domain")
                 .array(3)
                 .unwrap();
             let mut builder = ExprDagBuilder::new();
@@ -599,7 +600,8 @@ mod tests {
                 RootContract::ComponentwiseResidual,
                 |_| {
                     Ok::<_, ()>(ExpressionType::new(
-                        ValueType::scalar(domain, DimExponents::DIMENSIONLESS),
+                        ValueType::scalar(domain, DimExponents::DIMENSIONLESS)
+                            .expect("fixture uses a numeric scalar domain"),
                         None,
                     ))
                 },
@@ -881,6 +883,7 @@ mod channel_tests {
     #[test]
     fn complete_constant_components_and_explicit_channel_index_keep_order() {
         let ty = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            .expect("numeric scalar type")
             .array(2)
             .unwrap();
         let mut dag = ExprDagBuilder::new();
