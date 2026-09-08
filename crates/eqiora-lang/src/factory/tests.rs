@@ -119,7 +119,10 @@ fn owned_flat_model_formats_and_parses_identically() {
     .expect("Relation");
     let connection = SourceAstFactory::connection(
         ConnectionSyntax::Signal,
-        vec![path(&["output"]), path(&["input"])],
+        vec![
+            SourceAstFactory::expression(ExprKind::Path(path(&["output"])), range(0, 0)).unwrap(),
+            SourceAstFactory::expression(ExprKind::Path(path(&["input"])), range(0, 0)).unwrap(),
+        ],
         range(0, 0),
     )
     .expect("Connection");
@@ -133,9 +136,14 @@ fn owned_flat_model_formats_and_parses_identically() {
         range(0, 0),
     )
     .expect("binding");
-    let instance =
-        SourceAstFactory::instance("nested", path(&["Reusable"]), vec![binding], range(0, 0))
-            .expect("instance");
+    let instance = SourceAstFactory::instance(
+        "nested",
+        path(&["Reusable"]),
+        None,
+        vec![binding],
+        range(0, 0),
+    )
+    .expect("instance");
     let model = SourceAstFactory::model(
         VisibilitySyntax::Private,
         "constructed",
@@ -307,6 +315,7 @@ fn owned_support_slots_and_bindings_format_and_parse_identically() {
     let instance = SourceAstFactory::instance(
         "probe",
         path(&["BoundaryState"]),
+        None,
         vec![support],
         range(0, 0),
     )
@@ -383,6 +392,7 @@ fn owned_field_slots_and_bindings_format_and_parse_identically() {
     let instance = SourceAstFactory::instance(
         "law",
         path(&["StateLaw"]),
+        None,
         vec![support, field],
         range(0, 0),
     )
@@ -660,6 +670,7 @@ fn factory_constructs_complete_exterior_families_and_roundtrips() {
     let instance = SourceAstFactory::instance(
         "law",
         path(&["BoundaryLaw"]),
+        None,
         vec![
             SourceAstFactory::named_binding(
                 "body",
@@ -712,7 +723,10 @@ fn construction_rejects_unrepresentable_source_shapes() {
     assert!(
         SourceAstFactory::connection(
             ConnectionSyntax::Conserving,
-            vec![path(&["only_one"])],
+            vec![
+                SourceAstFactory::expression(ExprKind::Path(path(&["only_one"])), range(0, 0))
+                    .unwrap()
+            ],
             range(0, 0),
         )
         .is_err()

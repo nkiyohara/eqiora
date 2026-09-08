@@ -218,9 +218,13 @@ fn physical_vocabulary_projects_only_to_existing_source_ast_forms() {
         panic!("sixth item must be a Connection");
     };
     assert_eq!(connection.syntax(), ConnectionSyntax::Conserving);
-    assert_eq!(connection.port_paths().len(), 2);
-    assert_eq!(connection.port_paths()[0].as_str(), "positive");
-    assert_eq!(connection.port_paths()[1].as_str(), "negative");
+    assert_eq!(connection.port_expressions().len(), 2);
+    assert!(
+        matches!(connection.port_expressions()[0].kind(), ExprKind::Name(name) if name == "positive")
+    );
+    assert!(
+        matches!(connection.port_expressions()[1].kind(), ExprKind::Name(name) if name == "negative")
+    );
     assert!(native.graph_path(connection.range()).is_some());
 }
 
@@ -504,7 +508,9 @@ fn expression_contains_call(expression: &Expr, expected: &str) -> bool {
         ExprKind::Index { value, index } => {
             expression_contains_call(value, expected) || expression_contains_call(index, expected)
         }
-        ExprKind::Unary { value, .. } => expression_contains_call(value, expected),
+        ExprKind::Unary { value, .. } | ExprKind::Member { value, .. } => {
+            expression_contains_call(value, expected)
+        }
         ExprKind::Binary { left, right, .. } => {
             expression_contains_call(left, expected) || expression_contains_call(right, expected)
         }
