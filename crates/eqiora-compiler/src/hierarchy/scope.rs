@@ -503,6 +503,16 @@ pub(super) fn rewrite_equations(
     equations
         .iter()
         .map(|equation| {
+            if scope.reduction_terms_limit > 0 {
+                for value in [equation.left(), equation.right()] {
+                    super::reductions::preflight(
+                        file,
+                        value,
+                        &mut |name| scope.index_set(name).map(|set| set.extent()),
+                        scope.reduction_terms_limit,
+                    )?;
+                }
+            }
             Ok(LoweringEquation::rewritten(
                 equation,
                 rewrite_expression_with_boundary_member(file, equation.left(), scope, active)?,

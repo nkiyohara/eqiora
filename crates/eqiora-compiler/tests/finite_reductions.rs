@@ -123,3 +123,29 @@ fn selected_extent_checks_product_units_and_unselected_definitions() {
         .is_err()
     );
 }
+
+#[test]
+fn indexed_reduction_members_keep_exact_set_and_alias_clock() {
+    let source = "component C(parameter value:1,output y:1){relation r{y=value;}} model M(){indexset I=range(2);indexset Foreign=range(2);instance cell[k in I]:C(value=to_real(ordinal(k)));let total=sum(cell[index(I,ordinal(i))].y,over=(i in I));relation r{total=1;}}";
+    compile("members.eqi", source).unwrap();
+    let errors = compile(
+        "foreign.eqi",
+        &source.replace(
+            "cell[index(I,ordinal(i))]",
+            "cell[index(Foreign,ordinal(i))]",
+        ),
+    )
+    .unwrap_err();
+    assert!(errors.iter().all(|error| error.source_span().is_some()));
+    let clocked = "model M(){indexset I=range(2);clock a=periodic(1[s]);clock b=periodic(1[s]);state x:1 at a;initial{x=1;}let total at a=sum(pre(x),over=(i in I));relation r at a{next(x)=total;}}";
+    compile("clock.eqi", clocked).unwrap();
+    let errors = compile(
+        "clock.eqi",
+        &clocked.replace("let total at a", "let total at b"),
+    )
+    .unwrap_err();
+    assert!(
+        errors.iter().any(|error| error.message().contains("clock")),
+        "{errors:?}"
+    );
+}
