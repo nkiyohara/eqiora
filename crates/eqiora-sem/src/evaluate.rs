@@ -474,6 +474,47 @@ fn compare(
     Ok(ValueLiteral::boolean(value))
 }
 
+fn require_channels(value_type: &ValueType) -> Result<(), Diagnostic> {
+    if value_type.frame() != eqiora_core::ValueFrame::Invariant
+        || !matches!(
+            value_type.scalar_domain(),
+            ScalarDomain::Real | ScalarDomain::Integer
+        )
+        || value_type.array_rank() != value_type.shape().rank()
+        || value_type.finite_space().is_some()
+        || value_type.index_set().is_some()
+    {
+        return Err(Diagnostic::error(
+            codes::NOT_IMPLEMENTED,
+            "channel execution requires invariant real or integer values",
+        ));
+    }
+    Ok(())
+}
+fn component_budget_error() -> Diagnostic {
+    Diagnostic::error(
+        codes::NOT_IMPLEMENTED,
+        "expression evaluation exceeds the one-million component work budget",
+    )
+}
+fn check_component_work(used: usize, next: usize) -> Result<(), Diagnostic> {
+    if used.checked_add(next).is_none_or(|total| total > 1_000_000) {
+        Err(component_budget_error())
+    } else {
+        Ok(())
+    }
+}
+
+fn require_scalar_arithmetic(value: &ValueLiteral) -> Result<(), Diagnostic> {
+    if value.value_type().array_rank() > 0 {
+        return Err(Diagnostic::error(
+            codes::NOT_IMPLEMENTED,
+            "channel arrays require explicit indexing before arithmetic",
+        ));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -667,45 +708,4 @@ mod tests {
             evaluate_expression(owner, &dag.finish([converted]).unwrap(), &mut |_| None).is_err()
         );
     }
-}
-
-fn require_channels(value_type: &ValueType) -> Result<(), Diagnostic> {
-    if value_type.frame() != eqiora_core::ValueFrame::Invariant
-        || !matches!(
-            value_type.scalar_domain(),
-            ScalarDomain::Real | ScalarDomain::Integer
-        )
-        || value_type.array_rank() != value_type.shape().rank()
-        || value_type.finite_space().is_some()
-        || value_type.index_set().is_some()
-    {
-        return Err(Diagnostic::error(
-            codes::NOT_IMPLEMENTED,
-            "channel execution requires invariant real or integer values",
-        ));
-    }
-    Ok(())
-}
-fn component_budget_error() -> Diagnostic {
-    Diagnostic::error(
-        codes::NOT_IMPLEMENTED,
-        "expression evaluation exceeds the one-million component work budget",
-    )
-}
-fn check_component_work(used: usize, next: usize) -> Result<(), Diagnostic> {
-    if used.checked_add(next).is_none_or(|total| total > 1_000_000) {
-        Err(component_budget_error())
-    } else {
-        Ok(())
-    }
-}
-
-fn require_scalar_arithmetic(value: &ValueLiteral) -> Result<(), Diagnostic> {
-    if value.value_type().array_rank() > 0 {
-        return Err(Diagnostic::error(
-            codes::NOT_IMPLEMENTED,
-            "channel arrays require explicit indexing before arithmetic",
-        ));
-    }
-    Ok(())
 }

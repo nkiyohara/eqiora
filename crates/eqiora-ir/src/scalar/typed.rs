@@ -317,6 +317,42 @@ fn compare(
     Ok(ValueLiteral::boolean(value))
 }
 
+fn require_channels(value_type: &ValueType) -> Result<(), Diagnostic> {
+    if value_type.frame() != eqiora_core::ValueFrame::Invariant
+        || !matches!(
+            value_type.scalar_domain(),
+            ScalarDomain::Real | ScalarDomain::Integer
+        )
+        || value_type.array_rank() != value_type.shape().rank()
+        || value_type.finite_space().is_some()
+        || value_type.index_set().is_some()
+    {
+        return Err(ir_builder_error(
+            "channel execution requires invariant real or integer values",
+        ));
+    }
+    Ok(())
+}
+fn component_budget_error() -> Diagnostic {
+    ir_builder_error("typed evaluation exceeds the one-million component work budget")
+}
+fn check_component_work(used: usize, next: usize) -> Result<(), Diagnostic> {
+    if used.checked_add(next).is_none_or(|total| total > 1_000_000) {
+        Err(component_budget_error())
+    } else {
+        Ok(())
+    }
+}
+
+fn require_scalar_arithmetic(value: &ValueLiteral) -> Result<(), Diagnostic> {
+    if value.value_type().array_rank() > 0 {
+        return Err(ir_builder_error(
+            "channel arrays require explicit indexing before arithmetic",
+        ));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -504,40 +540,4 @@ mod tests {
         assert_eq!(values[3].integer_scalar_value(), Some(-2));
         assert_eq!(values[4].integer_scalar_value(), Some(2));
     }
-}
-
-fn require_channels(value_type: &ValueType) -> Result<(), Diagnostic> {
-    if value_type.frame() != eqiora_core::ValueFrame::Invariant
-        || !matches!(
-            value_type.scalar_domain(),
-            ScalarDomain::Real | ScalarDomain::Integer
-        )
-        || value_type.array_rank() != value_type.shape().rank()
-        || value_type.finite_space().is_some()
-        || value_type.index_set().is_some()
-    {
-        return Err(ir_builder_error(
-            "channel execution requires invariant real or integer values",
-        ));
-    }
-    Ok(())
-}
-fn component_budget_error() -> Diagnostic {
-    ir_builder_error("typed evaluation exceeds the one-million component work budget")
-}
-fn check_component_work(used: usize, next: usize) -> Result<(), Diagnostic> {
-    if used.checked_add(next).is_none_or(|total| total > 1_000_000) {
-        Err(component_budget_error())
-    } else {
-        Ok(())
-    }
-}
-
-fn require_scalar_arithmetic(value: &ValueLiteral) -> Result<(), Diagnostic> {
-    if value.value_type().array_rank() > 0 {
-        return Err(ir_builder_error(
-            "channel arrays require explicit indexing before arithmetic",
-        ));
-    }
-    Ok(())
 }
