@@ -104,6 +104,7 @@ fn compile_model(
                 eqiora_lang::SourceAstFactory::value_literal(
                     &eqiora_core::ValueLiteral::try_from(*value).unwrap(),
                     eqiora_lang::TextRange::default(),
+                    |_| None,
                 )
                 .unwrap(),
             )
