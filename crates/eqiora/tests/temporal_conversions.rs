@@ -111,11 +111,11 @@ fn sampling_phase_is_model_meaning_while_numerical_steps_are_not() {
 fn coincident_source(reverse: bool, conflict: bool) -> String {
     let mut declarations = vec![
         "clock tick = periodic(1[s], phase = 1[s]);",
-        "state x: V; state y: V; state z: V; state memory: V at tick; variable held: V;",
+        "state x: V; state y: V; state z: V; state memory: V at tick; variable held: V; variable observed: V at tick;",
         "initial { x = 0[V]; y = 0[V]; z = 0[V]; memory = 0[V]; }",
         "relation flow { derivative(x) = 1[V/s]; derivative(y) = 2[V/s]; derivative(z) = 0[V/s]; }",
         "relation output { held = hold(memory); }",
-        "relation update at tick { next(memory) = sample(x + y, tick); }",
+        "relation update at tick { next(memory) = sample(x + y, tick); observed = next(memory); }",
         "event first = crossing(x - 1[V], direction = rising);",
         "event second = crossing(y - 2[V], direction = rising);",
         "event cascade = crossing(x - 5[V], direction = rising);",
@@ -181,16 +181,28 @@ fn coincident_sampler_reads_left_state_and_restart_preserves_stabilized_microste
         assert!(accepted.2[0].contains(&symbols.get("first").unwrap()));
         assert!(accepted.2[0].contains(&symbols.get("second").unwrap()));
         assert_eq!(accepted.2[1], vec![symbols.get("cascade").unwrap()]);
+        // A clocked Variable remains present through every microstep at this instant.
+        let observed = symbols.get("observed").unwrap();
+        let tick_value = session
+            .field(observed)
+            .expect("tick value survives cascade");
+        assert!((tick_value.real_scalar_value().unwrap().value() - 3.0).abs() < 1e-10);
         let after = session.checkpoint();
         let mut resumed_before = interpreter.resume_execution(&program, &before).unwrap();
         assert!(resumed_before.advance().unwrap());
         assert_eq!(boundary(&resumed_before, &symbols), accepted);
+        assert_eq!(resumed_before.field(observed), Some(tick_value.clone()));
         let mut resumed_after = interpreter.resume_execution(&program, &after).unwrap();
+        assert_eq!(resumed_after.field(observed), Some(tick_value));
         assert!(session.advance().unwrap());
         assert!(resumed_before.advance().unwrap());
         assert!(resumed_after.advance().unwrap());
         let final_boundary = boundary(&session, &symbols);
         assert_eq!(final_boundary.0, 1.25);
+        // Presence ends at another physical instant, not at an event-only microstep.
+        assert!(session.field(observed).is_none());
+        assert!(resumed_before.field(observed).is_none());
+        assert!(resumed_after.field(observed).is_none());
         // One quarter second of the unchanged flow after stabilized t=1.
         for (actual, expected) in final_boundary.1.iter().zip([10.25, 20.5, 7.0, 3.0, 3.0]) {
             assert!((actual - expected).abs() < 1e-10);
