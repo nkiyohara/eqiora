@@ -309,10 +309,65 @@ class _Math:
     @staticmethod
     def sqrt(value: Expression | float | int | _builtins.complex) -> Expression: ...
 
+    @staticmethod
+    def abs(value: object) -> Expression:
+        """Author dimension-preserving absolute value.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::_Math.abs``.
+        """
+        ...
+
+    @staticmethod
+    def min(left: object, right: object) -> Expression:
+        """Author binary minimum with first-operand ties.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::_Math.min``.
+        """
+        ...
+
+    @staticmethod
+    def max(left: object, right: object) -> Expression:
+        """Author binary maximum with first-operand ties.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::_Math.max``.
+        """
+        ...
+
+    @staticmethod
+    def clamp(value: object, lower: object, upper: object) -> Expression:
+        """Author a clamp with ordered compatible bounds.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::_Math.clamp``.
+        """
+        ...
+
+    @staticmethod
+    def sign(value: object) -> Expression:
+        """Author dimensionless negative one, zero, or positive one.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::_Math.sign``.
+        """
+        ...
+
+    @staticmethod
+    def step(value: object) -> Expression:
+        """Author zero below zero and one at or above zero.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::_Math.step``.
+        """
+        ...
+
 #: Exact language constants used by Source expressions.
 #:
 #: Authority: ``bindings/python/python/eqiora/lang/__init__.py::math``.
 math: _Math
+
+def if_else(condition: object, then_value: object, else_value: object) -> Expression:
+    """Author a conditional with all operands checked and one branch executed.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::if_else``.
+    """
+    ...
 
 def array(values: Sequence[object]) -> Expression:
     """Construct channel arrays with exact ordered components.
@@ -491,6 +546,7 @@ __all__ = [
     "div",
     "grad",
     "integrate",
+    "if_else",
     "isotropic_lift",
     "math",
     "normal",
