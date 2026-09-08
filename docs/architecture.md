@@ -545,7 +545,7 @@ single current Model contract and accept no artifact-generation selector.
 Source callers use `compile`, client-neutral `ModelDraft` callers use `define`,
 and persisted current bytes use `replay`; all three converge before artifact
 acceptance.
-Canonical bytes expose the persisted `eqiora.model-envelope/v18` schema as an
+Canonical bytes expose the persisted `eqiora.model-envelope/v19` schema as an
 output fact; the suffix is not a selectable authoring profile. Historical
 Model bytes reject, and replay never sniffs, retries, or migrates them.
 The bounded value-edit and scalar-elliptic application workflows retain exact
@@ -1771,7 +1771,7 @@ owned result arrays do not become unbounded DOM state.
 
 Bridge v5 also retains the first canonical model-edit path without adding UI
 semantics. A finite coherent-SI scalar replacement for a
-`Parameter` becomes the current `eqiora.model-transaction-envelope/v18`,
+`Parameter` becomes the current `eqiora.model-transaction-envelope/v19`,
 containing both `RevisionIs` and typed `ValueEquals` preconditions. Preview
 exposes the transaction's domain-separated identity; exact-key commit
 reconstructs and atomically replays it through the same current owner,

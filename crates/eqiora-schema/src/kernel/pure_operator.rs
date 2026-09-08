@@ -20,7 +20,7 @@ mod encoding;
 use dimensions::{derive_symbolic_dimension, instantiate_dimension, validate_result_dimension};
 use encoding::canonical_definition_bytes;
 
-const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v3\0";
+const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v4\0";
 
 /// Maximum number of formal arguments in a definition.
 pub const MAX_FORMALS: usize = 64;
