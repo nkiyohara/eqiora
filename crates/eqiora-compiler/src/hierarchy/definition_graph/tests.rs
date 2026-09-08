@@ -166,3 +166,16 @@ fn indexed_connection_families_share_the_neighbor_connection_budget() {
             .any(|error| error.message().contains("4 Connections"))
     );
 }
+
+#[test]
+fn child_expression_work_is_aggregated_before_any_occurrence_is_allocated() {
+    let source = "component Cell() { indexset S=range(250001); variable x:1; relation r[i in S] { x=0; } } model Main() { instance a:Cell(); instance b:Cell(); }";
+    // Each child contributes 250001 * two one-node equality sides. Neither
+    // child alone exceeds one million; their combined 1000004 nodes do.
+    let errors = validate_source(source, HierarchyLimits::default()).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message().contains("expanded expression nodes"))
+    );
+}
