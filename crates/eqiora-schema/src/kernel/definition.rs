@@ -772,7 +772,7 @@ mod tests {
     }
 
     #[test]
-    fn initial_equations_use_typed_residual_validation() {
+    fn initial_equations_validate_both_side_types() {
         use super::super::typing::{ExpressionType, RootContract, TypedResidual};
         use super::super::{ExprDagBuilder, SymbolRef};
         let field = Id::new();
@@ -785,16 +785,19 @@ mod tests {
         let wrong_dimension = builder
             .constant(DynQuantity::new(2.0, dim::TimeDim::EXPONENTS))
             .unwrap();
-        let root = builder.sub(value, wrong_dimension).unwrap();
-        let expression = builder.finish([root]).unwrap();
-        let initial = RelationDef::initial(Id::new(), expression.clone());
+        let expression = builder.finish([value, wrong_dimension]).unwrap();
+        let initial = RelationDef::initial(Id::new(), expression.clone()).unwrap();
         assert!(initial.is_initial());
-        assert!(!RelationDef::new(initial.id(), expression.clone()).is_initial());
+        assert!(
+            !RelationDef::new(initial.id(), expression.clone())
+                .unwrap()
+                .is_initial()
+        );
         assert!(
             TypedResidual::<()>::infer(
                 expression,
                 None,
-                RootContract::ComponentwiseResidual,
+                RootContract::InitialConditions,
                 |_| Ok::<_, ()>(ExpressionType::new(temperature.clone(), None))
             )
             .is_err()

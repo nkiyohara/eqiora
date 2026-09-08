@@ -17,6 +17,24 @@ pub(super) fn infer_node<I: Clone + Eq, E>(
     symbol_type: &mut impl FnMut(SymbolRef) -> Result<ExpressionType<I>, E>,
 ) -> NodeInference<I, E> {
     let typed = match node {
+        ExprNode::Compare(op, left, right) => {
+            let Some((left, right)) = inferred_binary(inferred, *left, *right) else {
+                return NodeInference::Unavailable;
+            };
+            left.compare(*op, right)
+        }
+        ExprNode::Not(value) => {
+            let Some(value) = inferred_type(inferred, *value) else {
+                return NodeInference::Unavailable;
+            };
+            value.not()
+        }
+        ExprNode::And(left, right) | ExprNode::Or(left, right) => {
+            let Some((left, right)) = inferred_binary(inferred, *left, *right) else {
+                return NodeInference::Unavailable;
+            };
+            left.and(right)
+        }
         ExprNode::Constant(value) => Ok(ExpressionType::new(value.value_type().clone(), None)),
         ExprNode::Symbol(symbol) => {
             return match symbol_type(*symbol) {
@@ -56,7 +74,10 @@ pub(super) fn infer_node<I: Clone + Eq, E>(
             let Some(value) = inferred_type(inferred, *value) else {
                 return NodeInference::Unavailable;
             };
-            if value.value_type.is_count() || value.value_type.index_set().is_some() {
+            if value.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean
+                || value.value_type.is_count()
+                || value.value_type.index_set().is_some()
+            {
                 Err(TypeViolation::ScalarDomainMismatch)
             } else {
                 Ok(value)
@@ -70,6 +91,11 @@ pub(super) fn infer_node<I: Clone + Eq, E>(
             let Some((left, right)) = inferred_binary(inferred, *left, *right) else {
                 return NodeInference::Unavailable;
             };
+            if left.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean
+                || right.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean
+            {
+                return NodeInference::Type(TypeViolation::ScalarDomainMismatch);
+            }
             if matches!(node, ExprNode::Add(_, _)) {
                 left.sum(right)
             } else {

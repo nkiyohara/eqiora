@@ -4,7 +4,11 @@ use eqiora_core::{DimExponents, ScalarDomain, ValueFrame, ValueType};
 impl<I: Clone + Eq> ExpressionType<I> {
     /// Type arithmetic addition, including a count plus same-basis signed change.
     pub fn sum(self, other: Self) -> Result<Self, TypeViolation<I>> {
-        if self.value_type.index_set().is_some() || other.value_type.index_set().is_some() {
+        if self.value_type.scalar_domain() == ScalarDomain::Boolean
+            || other.value_type.scalar_domain() == ScalarDomain::Boolean
+            || self.value_type.index_set().is_some()
+            || other.value_type.index_set().is_some()
+        {
             return Err(TypeViolation::ScalarDomainMismatch);
         }
         if self.value_type.is_count() {
