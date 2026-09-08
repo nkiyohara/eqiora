@@ -687,7 +687,8 @@ public component Resistor(
             [DraftExpression::derivative(&state) + rate.expression() * state.expression()],
         );
         let initial = eqiora_lang::DraftDeclaration::Initial(vec![
-            state.expression() - DraftExpression::constant(eqiora_lang::DecimalLiteral::from_f64(1.0).unwrap()),
+            state.expression()
+                - DraftExpression::constant(eqiora_lang::DecimalLiteral::from_f64(1.0).unwrap()),
         ]);
         let draft =
             ModelDraft::new("decay", [state.into(), rate.into(), flow.into(), initial]).unwrap();

@@ -64,8 +64,11 @@ separate exact boundary-member meaning.
 Expansion produces ordinary fixed instances in declared index order. It does not introduce
 a runtime loop or resize the Model. An edit to a static parameter that would invalidate
 elaborated structure rejects; changing the structure requires compilation with new bindings.
-The initial bounded family profile admits one binder, without nested families or runtime
-indexing. Explicit and indexed descriptions can be compared by their mathematical equations
+The initial bounded family profile admits one binder, without nested families, runtime
+indexing, or Parameter-dependent child IndexSets. Child IndexSets with closed constant extents
+are supported. A binder may supply ordinary Parameter values while the child footprint remains
+independent of them. Explicit and indexed
+descriptions can be compared by their mathematical equations
 and occurrence structure; their distinct authored Source is not required to have equal bytes.
 
 ### Nominal particle counts
