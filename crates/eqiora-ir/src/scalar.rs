@@ -2,8 +2,12 @@ mod affine_analysis;
 mod instruction;
 mod lower;
 use instruction::{Instruction, ValueId};
+mod batch;
+mod linearization;
 mod numerical_evaluation;
+mod point_projection;
 mod typed;
+mod typed_linearization;
 use numerical_evaluation::evaluate_instructions;
 
 use std::collections::HashMap;
@@ -432,7 +436,7 @@ impl ScalarOperatorIr {
             })
             .collect();
         Ok(ScalarLinearization {
-            ir: self,
+            ir: std::borrow::Cow::Borrowed(self),
             inputs: inputs.to_vec(),
             bindings,
             unknown_dimension,
@@ -768,239 +772,11 @@ fn selected_columns(
 /// `f64` scalar SSA relation fixed at one explicit linearization point.
 #[derive(Debug)]
 pub struct ScalarLinearization<'a> {
-    ir: &'a ScalarOperatorIr,
+    ir: std::borrow::Cow<'a, ScalarOperatorIr>,
     inputs: Vec<f64>,
     bindings: Vec<InputBinding>,
     unknown_dimension: usize,
     parameter_dimension: usize,
-}
-
-impl LinearizedRelation<f64> for ScalarLinearization<'_> {
-    fn unknown_dimension(&self) -> usize {
-        self.unknown_dimension
-    }
-
-    fn parameter_dimension(&self) -> usize {
-        self.parameter_dimension
-    }
-
-    fn residual_dimension(&self) -> usize {
-        self.ir.roots.len()
-    }
-
-    fn primal(&self, residual: &mut [f64]) -> Result<(), Diagnostic> {
-        require_length(residual, self.residual_dimension(), "primal residual")?;
-        let values = self.ir.evaluate_values(&self.inputs)?;
-        write_roots(self.ir, &values, residual)
-    }
-
-    fn jvp(
-        &self,
-        tangent: RelationTangent<'_, f64>,
-        residual_tangent: &mut [f64],
-    ) -> Result<(), Diagnostic> {
-        let (unknown_tangent, parameter_tangent) = match tangent {
-            RelationTangent::Unknown(unknown) => (Some(unknown), None),
-            RelationTangent::Parameter(parameter) => (None, Some(parameter)),
-            RelationTangent::Both { unknown, parameter } => (Some(unknown), Some(parameter)),
-        };
-        if let Some(unknown) = unknown_tangent {
-            require_length(unknown, self.unknown_dimension, "unknown tangent")?;
-            require_finite(unknown, "unknown tangent")?;
-        }
-        if let Some(parameter) = parameter_tangent {
-            require_length(parameter, self.parameter_dimension, "parameter tangent")?;
-            require_finite(parameter, "parameter tangent")?;
-        }
-        require_length(
-            residual_tangent,
-            self.residual_dimension(),
-            "residual tangent",
-        )?;
-
-        let values = self.ir.evaluate_values(&self.inputs)?;
-        let mut tangents = Vec::with_capacity(self.ir.instructions.len());
-        for (index, instruction) in self.ir.instructions.iter().enumerate() {
-            let tangent = match *instruction {
-                Instruction::PureOperator { .. }
-                | Instruction::Min(_, _)
-                | Instruction::Max(_, _)
-                | Instruction::Compare(_, _, _)
-                | Instruction::Not(_)
-                | Instruction::And(_, _)
-                | Instruction::Or(_, _)
-                | Instruction::Array { .. }
-                | Instruction::Index(_, _)
-                | Instruction::TypedConstant(_)
-                | Instruction::Quotient(_, _)
-                | Instruction::Remainder(_, _)
-                | Instruction::ToReal(_)
-                | Instruction::ToInteger(_)
-                | Instruction::Ordinal(_) => {
-                    return Err(ir_builder_error(
-                        "discrete operations cannot be differentiated",
-                    ));
-                }
-                Instruction::Constant(_) => 0.0,
-                Instruction::Read(slot) => match self.bindings[slot_index(slot, index)?] {
-                    InputBinding::Unknown(coordinate) => {
-                        unknown_tangent.map_or(0.0, |values| values[coordinate])
-                    }
-                    InputBinding::Parameter(coordinate) => {
-                        parameter_tangent.map_or(0.0, |values| values[coordinate])
-                    }
-                    InputBinding::Frozen => 0.0,
-                },
-                Instruction::Neg(value) => -read(&tangents, value, index)?,
-                Instruction::Add(left, right) => {
-                    read(&tangents, left, index)? + read(&tangents, right, index)?
-                }
-                Instruction::Sub(left, right) => {
-                    read(&tangents, left, index)? - read(&tangents, right, index)?
-                }
-                Instruction::Mul(left, right) => {
-                    read(&tangents, left, index)? * read(&values, right, index)?
-                        + read(&values, left, index)? * read(&tangents, right, index)?
-                }
-                Instruction::Div(left, right) => {
-                    let denominator = read(&values, right, index)?;
-                    (read(&tangents, left, index)? * denominator
-                        - read(&values, left, index)? * read(&tangents, right, index)?)
-                        / denominator.powi(2)
-                }
-                Instruction::PowI(base, exponent) => {
-                    powi_derivative(read(&values, base, index)?, exponent)
-                        * read(&tangents, base, index)?
-                }
-            };
-            require_finite_value(tangent, "JVP", index)?;
-            tangents.push(tangent);
-        }
-        write_roots(self.ir, &tangents, residual_tangent)
-    }
-
-    fn vjp(
-        &self,
-        residual_cotangent: &[f64],
-        cotangent: RelationCotangent<'_, f64>,
-    ) -> Result<(), Diagnostic> {
-        let (mut unknown_cotangent, mut parameter_cotangent) = match cotangent {
-            RelationCotangent::Unknown(unknown) => (Some(unknown), None),
-            RelationCotangent::Parameter(parameter) => (None, Some(parameter)),
-            RelationCotangent::Both { unknown, parameter } => (Some(unknown), Some(parameter)),
-        };
-        require_length(
-            residual_cotangent,
-            self.residual_dimension(),
-            "residual cotangent",
-        )?;
-        if let Some(unknown) = unknown_cotangent.as_deref_mut() {
-            require_length(unknown, self.unknown_dimension, "unknown cotangent")?;
-            unknown.fill(0.0);
-        }
-        if let Some(parameter) = parameter_cotangent.as_deref_mut() {
-            require_length(parameter, self.parameter_dimension, "parameter cotangent")?;
-            parameter.fill(0.0);
-        }
-        require_finite(residual_cotangent, "residual cotangent")?;
-
-        let values = self.ir.evaluate_values(&self.inputs)?;
-        let mut adjoints = vec![0.0; self.ir.instructions.len()];
-        for (root, seed) in self.ir.roots.iter().zip(residual_cotangent) {
-            accumulate(&mut adjoints, *root, *seed, self.ir.instructions.len())?;
-        }
-
-        for (index, instruction) in self.ir.instructions.iter().enumerate().rev() {
-            let cotangent = adjoints[index];
-            match *instruction {
-                Instruction::PureOperator { .. }
-                | Instruction::Min(_, _)
-                | Instruction::Max(_, _)
-                | Instruction::Compare(_, _, _)
-                | Instruction::Not(_)
-                | Instruction::And(_, _)
-                | Instruction::Or(_, _)
-                | Instruction::Array { .. }
-                | Instruction::Index(_, _)
-                | Instruction::TypedConstant(_)
-                | Instruction::Quotient(_, _)
-                | Instruction::Remainder(_, _)
-                | Instruction::ToReal(_)
-                | Instruction::ToInteger(_)
-                | Instruction::Ordinal(_) => {
-                    return Err(ir_builder_error(
-                        "discrete operations cannot be differentiated",
-                    ));
-                }
-                Instruction::Constant(_) => {}
-                Instruction::Read(slot) => match self.bindings[slot_index(slot, index)?] {
-                    InputBinding::Unknown(coordinate) => {
-                        if let Some(values) = unknown_cotangent.as_deref_mut() {
-                            accumulate_coordinate(values, coordinate, cotangent, "unknown VJP")?;
-                        }
-                    }
-                    InputBinding::Parameter(coordinate) => {
-                        if let Some(values) = parameter_cotangent.as_deref_mut() {
-                            accumulate_coordinate(values, coordinate, cotangent, "parameter VJP")?;
-                        }
-                    }
-                    InputBinding::Frozen => {}
-                },
-                Instruction::Neg(value) => {
-                    accumulate(&mut adjoints, value, -cotangent, index)?;
-                }
-                Instruction::Add(left, right) => {
-                    accumulate(&mut adjoints, left, cotangent, index)?;
-                    accumulate(&mut adjoints, right, cotangent, index)?;
-                }
-                Instruction::Sub(left, right) => {
-                    accumulate(&mut adjoints, left, cotangent, index)?;
-                    accumulate(&mut adjoints, right, -cotangent, index)?;
-                }
-                Instruction::Mul(left, right) => {
-                    accumulate(
-                        &mut adjoints,
-                        left,
-                        cotangent * read(&values, right, index)?,
-                        index,
-                    )?;
-                    accumulate(
-                        &mut adjoints,
-                        right,
-                        cotangent * read(&values, left, index)?,
-                        index,
-                    )?;
-                }
-                Instruction::Div(left, right) => {
-                    let denominator = read(&values, right, index)?;
-                    accumulate(&mut adjoints, left, cotangent / denominator, index)?;
-                    accumulate(
-                        &mut adjoints,
-                        right,
-                        -cotangent * read(&values, left, index)? / denominator.powi(2),
-                        index,
-                    )?;
-                }
-                Instruction::PowI(base, exponent) => {
-                    if exponent != 0 {
-                        accumulate(
-                            &mut adjoints,
-                            base,
-                            cotangent * powi_derivative(read(&values, base, index)?, exponent),
-                            index,
-                        )?;
-                    }
-                }
-            }
-        }
-        if let Some(unknown) = unknown_cotangent.as_deref() {
-            require_finite(unknown, "unknown VJP")?;
-        }
-        if let Some(parameter) = parameter_cotangent.as_deref() {
-            require_finite(parameter, "parameter VJP")?;
-        }
-        Ok(())
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

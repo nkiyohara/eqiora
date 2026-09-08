@@ -104,6 +104,22 @@ impl ScalarOperatorIr {
                     }
                     Instruction::Array { start, len }
                 }
+                ExprNode::Select {
+                    condition,
+                    then_value,
+                    else_value,
+                } => Instruction::Select {
+                    condition: value_id(*condition, &values)?,
+                    then_value: value_id(*then_value, &values)?,
+                    else_value: value_id(*else_value, &values)?,
+                },
+                ExprNode::Require { condition, value } => Instruction::Require {
+                    condition: value_id(*condition, &values)?,
+                    value: value_id(*value, &values)?,
+                },
+                ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Sqrt, value) => {
+                    Instruction::Sqrt(value_id(*value, &values)?)
+                }
                 ExprNode::Index { value, index } => {
                     Instruction::Index(value_id(*value, &values)?, *index)
                 }

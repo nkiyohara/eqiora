@@ -1,0 +1,172 @@
+//! Point-bound active-program selection through the existing typed demand evaluator.
+use super::*;
+use eqiora_core::ValueLiteral;
+
+impl ScalarOperatorIr {
+    /// Bind a typed real scalar point, rejecting demanded branch/domain boundaries.
+    /// Inactive branches are type-checked but never evaluated or differentiated.
+    /// All input symbols and differentiation roles retain their original order.
+    ///
+    /// # Errors
+    /// Rejects wrong input types, invalid active domains, comparison ties, square
+    /// root derivatives at zero, and operations outside the scalar derivative profile.
+    pub fn linearize_typed(
+        &self,
+        inputs: &[ValueLiteral],
+        roles: &[DifferentiationRole],
+    ) -> Result<ScalarLinearization<'_>, Diagnostic> {
+        if roles.len() != self.symbols.len() {
+            return Err(ir_builder_error(
+                "typed linearization role count differs from symbols",
+            ));
+        }
+        let (projected, roots) = self.project_point(inputs, &self.roots)?;
+        let point = self
+            .symbols
+            .iter()
+            .copied()
+            .zip(inputs.iter().cloned())
+            .collect::<HashMap<_, _>>();
+        let (_, trace) =
+            projected.evaluate_trace(&roots, &mut |symbol| point.get(&symbol).cloned())?;
+        for (index, node) in projected.instructions.iter().enumerate() {
+            if trace[index].is_none() {
+                continue;
+            }
+            match *node {
+                Instruction::Compare(_, a, b) => {
+                    let a = trace[a.0 as usize].as_ref().expect("demanded comparison");
+                    let b = trace[b.0 as usize].as_ref().expect("demanded comparison");
+                    if a.real_scalar_value().is_some()
+                        && b.real_scalar_value().is_some()
+                        && a.checked_equal(b)
+                            .map_err(|e| ir_builder_error(e.to_string()))?
+                    {
+                        return Err(ir_builder_error(
+                            "derivative is undefined at a demanded comparison boundary",
+                        ));
+                    }
+                }
+                Instruction::Sqrt(a)
+                    if trace[a.0 as usize]
+                        .as_ref()
+                        .and_then(ValueLiteral::real_scalar_value)
+                        .is_some_and(|value| value.value() == 0.) =>
+                {
+                    return Err(ir_builder_error(
+                        "square-root derivative is undefined at zero",
+                    ));
+                }
+                _ => {}
+            }
+        }
+        let active = projected.active_program(&trace)?;
+        let point = inputs
+            .iter()
+            .map(|value| {
+                value
+                    .real_scalar_value()
+                    .expect("checked real input")
+                    .value()
+            })
+            .collect::<Vec<_>>();
+        let bound = active.linearize(&point, roles)?;
+        let ScalarLinearization {
+            inputs,
+            bindings,
+            unknown_dimension,
+            parameter_dimension,
+            ..
+        } = bound;
+        Ok(ScalarLinearization {
+            ir: std::borrow::Cow::Owned(active),
+            inputs,
+            bindings,
+            unknown_dimension,
+            parameter_dimension,
+        })
+    }
+
+    fn active_program(&self, trace: &[Option<ValueLiteral>]) -> Result<Self, Diagnostic> {
+        let chosen = |node: Instruction| -> Option<ValueId> {
+            match node {
+                Instruction::Select {
+                    condition,
+                    then_value,
+                    else_value,
+                } => Some(if trace[condition.0 as usize].as_ref()?.as_bool()? {
+                    then_value
+                } else {
+                    else_value
+                }),
+                Instruction::Require { value, .. } => Some(value),
+                _ => None,
+            }
+        };
+        let mut needed = vec![false; self.instructions.len()];
+        let mut pending = self.roots.clone();
+        while let Some(id) = pending.pop() {
+            if std::mem::replace(&mut needed[id.0 as usize], true) {
+                continue;
+            }
+            let node = self.instructions[id.0 as usize];
+            if let Some(value) = chosen(node) {
+                pending.push(value);
+                continue;
+            }
+            match node {
+                Instruction::Neg(a) | Instruction::PowI(a, _) | Instruction::Sqrt(a) => {
+                    pending.push(a)
+                }
+                Instruction::Add(a, b)
+                | Instruction::Sub(a, b)
+                | Instruction::Mul(a, b)
+                | Instruction::Div(a, b) => pending.extend([a, b]),
+                Instruction::Constant(_) | Instruction::Read(_) => {}
+                _ => {
+                    return Err(ir_builder_error(
+                        "active derivative value is outside the real scalar profile",
+                    ));
+                }
+            }
+        }
+        let mut mapped = vec![None; self.instructions.len()];
+        let mut instructions = Vec::new();
+        for (index, node) in self.instructions.iter().copied().enumerate() {
+            if !needed[index] {
+                continue;
+            }
+            let at = |id: ValueId| mapped[id.0 as usize].expect("prior active operand");
+            if let Some(value) = chosen(node) {
+                mapped[index] = Some(at(value));
+                continue;
+            }
+            let node = match node {
+                Instruction::Neg(a) => Instruction::Neg(at(a)),
+                Instruction::PowI(a, n) => Instruction::PowI(at(a), n),
+                Instruction::Sqrt(a) => Instruction::Sqrt(at(a)),
+                Instruction::Add(a, b) => Instruction::Add(at(a), at(b)),
+                Instruction::Sub(a, b) => Instruction::Sub(at(a), at(b)),
+                Instruction::Mul(a, b) => Instruction::Mul(at(a), at(b)),
+                Instruction::Div(a, b) => Instruction::Div(at(a), at(b)),
+                Instruction::Read(_) | Instruction::Constant(_) => node,
+                _ => return Err(ir_builder_error("active scalar instruction is unsupported")),
+            };
+            mapped[index] = Some(ValueId(instructions.len() as u32));
+            instructions.push(node);
+        }
+        Ok(Self {
+            source_values: (0..instructions.len()).map(|i| ValueId(i as u32)).collect(),
+            typed_constants: Vec::new(),
+            array_operands: Vec::new(),
+            definitions: Vec::new(),
+            symbols: self.symbols.clone(),
+            roots: self
+                .roots
+                .iter()
+                .map(|id| mapped[id.0 as usize].expect("active root"))
+                .collect(),
+            instructions,
+        })
+    }
+}

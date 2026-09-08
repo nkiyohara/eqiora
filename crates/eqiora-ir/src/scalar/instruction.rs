@@ -26,6 +26,16 @@ pub(super) enum Instruction {
     Min(ValueId, ValueId),
     Max(ValueId, ValueId),
     Compare(eqiora_schema::kernel::ComparisonOp, ValueId, ValueId),
+    Select {
+        condition: ValueId,
+        then_value: ValueId,
+        else_value: ValueId,
+    },
+    Require {
+        condition: ValueId,
+        value: ValueId,
+    },
+    Sqrt(ValueId),
     Not(ValueId),
     And(ValueId, ValueId),
     Or(ValueId, ValueId),

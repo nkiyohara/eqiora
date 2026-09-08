@@ -28,7 +28,10 @@ impl<I: Clone> OperatorExpansionExt<I> for PureOperatorInstantiation<'_, I> {
         let mut nodes = Vec::with_capacity(definition.nodes().len());
         for node in definition.nodes() {
             let node = match node {
-                CalculusNode::Rational(value) => ScalarCalculusNode::Rational(*value),
+                CalculusNode::Rational { value, dimension } => ScalarCalculusNode::Rational {
+                    value: *value,
+                    dimension: *dimension,
+                },
                 CalculusNode::FormalComponent { formal, axes } => {
                     let argument = self
                         .arguments()
@@ -56,11 +59,15 @@ impl<I: Clone> OperatorExpansionExt<I> for PureOperatorInstantiation<'_, I> {
                     let right = component
                         .get(usize::from(right.index()))
                         .ok_or(CalculusError::ResultAxisOutOfRange)?;
-                    ScalarCalculusNode::Rational(ExactRational::integer(i64::from(left == right)))
+                    ScalarCalculusNode::Rational {
+                        value: ExactRational::integer(i64::from(left == right)),
+                        dimension: eqiora_core::DimExponents::DIMENSIONLESS,
+                    }
                 }
                 CalculusNode::Neg(value) => ScalarCalculusNode::Neg(*value),
                 CalculusNode::Add(left, right) => ScalarCalculusNode::Add(*left, *right),
                 CalculusNode::Mul(left, right) => ScalarCalculusNode::Mul(*left, *right),
+                _ => return Err(CalculusError::NonPolynomialCalculus),
             };
             nodes.push(node);
         }
@@ -113,7 +120,10 @@ impl ScalarCalculusAtom {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScalarCalculusNode {
     /// Exact mathematical literal.
-    Rational(ExactRational),
+    Rational {
+        value: ExactRational,
+        dimension: eqiora_core::DimExponents,
+    },
     /// One exact formal component.
     FormalComponent(ScalarCalculusAtom),
     /// Ordered negation.

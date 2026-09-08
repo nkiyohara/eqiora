@@ -169,7 +169,9 @@ pub(super) fn validate_linearization_inputs(
     if ir.instructions.iter().any(|instruction| {
         matches!(
             instruction,
-            Instruction::PureOperator { .. }
+            Instruction::Select { .. }
+                | Instruction::Require { .. }
+                | Instruction::PureOperator { .. }
                 | Instruction::Min(_, _)
                 | Instruction::Max(_, _)
                 | Instruction::Array { .. }

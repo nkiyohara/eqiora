@@ -130,6 +130,12 @@ pub(super) fn validate(
 
 pub(crate) fn operands(node: &ExprNode) -> Vec<ExprId> {
     match node {
+        ExprNode::Select {
+            condition,
+            then_value,
+            else_value,
+        } => vec![*condition, *then_value, *else_value],
+        ExprNode::Require { condition, value } => vec![*condition, *value],
         ExprNode::Array { elements } => elements.clone(),
         ExprNode::Sample { value, .. }
         | ExprNode::Hold(value)
