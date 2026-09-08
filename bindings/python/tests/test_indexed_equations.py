@@ -28,7 +28,7 @@ component Accumulator(clock tick: periodic, input u: integer at tick,
   relation drive[i in Stages] at tick {{
     driver[index(Stages, ordinal(i))].y = ordinal(i) + 1;
   }}
-  connect signal[j in Stages] driver[{selector}].y -> cell[index(Stages, ordinal(j))].u;
+  connect [j in Stages] driver[{selector}].y -> cell[index(Stages, ordinal(j))].u;
   relation expose at tick {{
     values = [cell[index(Stages, 0)].y, cell[index(Stages, 1)].y,
               cell[index(Stages, 2)].y];
