@@ -109,3 +109,17 @@ See [properties](properties.md), [finite spaces](finite-spaces.md), [coordinates
 [calculus](calculus.md), [harmonic forms](harmonic-rc.md), [eigenpairs](wavefunction.md),
 [variations](phase-separation.md), and [stochastic Laws](stochastic.md) for specialized children.
 The [resource profile](resources.md) applies before recursion or expansion.
+
+Typed operator definitions use the [operator profile](operators.md):
+
+```text
+operator-declaration = ["public"] "operator" name "(" formal {"," formal} ")"
+                       ":" operator-type "=" expression ";"
+formal = "input" name ":" operator-type
+operator-type = "scalar" | "spatial" "[" integer "]" | value-type
+named-call = qualified-name "(" name "=" expression {"," name "=" expression} ")"
+```
+
+Named and positional arguments cannot mix. Builtins retain their specified positional or
+named roles; user-defined operator calls use formal names. Exact body purity, dimensions,
+lexical composition and resource limits are compiler obligations.
