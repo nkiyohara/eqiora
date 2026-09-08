@@ -429,7 +429,7 @@ fn erase_relation_implementation(model: &mut serde_json::Value) {
             .as_object_mut()
             .expect("typed node definition");
         if definition.get("kind").and_then(serde_json::Value::as_str) == Some("relation") {
-            assert!(definition.remove("residuals").is_some());
+            assert!(definition.remove("expression").is_some());
         }
     }
 }
