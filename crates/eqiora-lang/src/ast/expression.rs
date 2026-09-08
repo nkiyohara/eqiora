@@ -53,6 +53,7 @@ impl Expr {
                 value: Box::new(value.rewrite_name_paths_with(rewrite)),
                 member: member.clone(),
             },
+            ExprKind::Boolean(value) => ExprKind::Boolean(*value),
             ExprKind::Number(value) => ExprKind::Number(value.clone()),
             ExprKind::Quantity { value, unit } => ExprKind::Quantity {
                 value: value.clone(),
@@ -123,6 +124,8 @@ fn expression_name(path: NamePath) -> ExprKind {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ExprKind {
+    /// Boolean truth value, distinct from numeric literals.
+    Boolean(bool),
     /// Exact decimal literal, interpreted in its required value-domain context.
     Number(crate::DecimalLiteral),
     /// Numeric literal with an explicit input-unit expression.
@@ -184,6 +187,8 @@ pub enum ExprKind {
 pub enum UnaryOp {
     /// Arithmetic negation.
     Neg,
+    /// Boolean negation.
+    Not,
 }
 
 /// Infix expression operator.
@@ -199,4 +204,20 @@ pub enum BinaryOp {
     Div,
     /// Integer power (validated during lowering).
     Pow,
+    /// Equality comparison.
+    Equal,
+    /// Inequality comparison.
+    NotEqual,
+    /// Strict order comparison.
+    Less,
+    /// Inclusive order comparison.
+    LessEqual,
+    /// Strict reverse order comparison.
+    Greater,
+    /// Inclusive reverse order comparison.
+    GreaterEqual,
+    /// Short-circuit Boolean conjunction.
+    And,
+    /// Short-circuit Boolean disjunction.
+    Or,
 }

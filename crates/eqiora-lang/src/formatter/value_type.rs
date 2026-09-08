@@ -31,6 +31,10 @@ pub(super) fn format_value_type(
             write!(output, "index<{name}>").expect("String write");
         }
         ValueTypeSyntaxKind::Scalar { domain, dimension } => {
+            if *domain == ScalarDomain::Boolean {
+                output.push_str("bool");
+                return;
+            }
             if *domain == ScalarDomain::Integer {
                 output.push_str("integer");
                 return;

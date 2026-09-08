@@ -129,10 +129,9 @@ impl ModelDraft {
                         "equation group requires at least one residual",
                     ));
                 }
-                if residuals
-                    .iter()
-                    .any(DraftExpression::contains_invalid_literal)
-                {
+                if residuals.iter().any(|(left, right)| {
+                    left.contains_invalid_literal() || right.contains_invalid_literal()
+                }) {
                     diagnostics.push(native_diagnostic(
                         &self.name,
                         path,
@@ -251,8 +250,9 @@ impl ModelDraft {
                 continue;
             };
             let mut referenced = Vec::new();
-            for residual in residuals {
-                residual.references(&mut referenced);
+            for (left, right) in residuals {
+                left.references(&mut referenced);
+                right.references(&mut referenced);
             }
             for reference in referenced {
                 match reference {
@@ -379,12 +379,12 @@ pub enum DraftDeclaration {
     ConservingPort(DraftConservingPort),
     /// Continuous implicit residual group.
     Relation(DraftRelation),
-    /// Simultaneous fresh-initialization residuals, each equal to zero.
+    /// Simultaneous fresh-initialization equation sides.
     ///
     /// These are mathematical conditions, separate from numerical guesses.
     /// Empty groups, non-finite constants, and foreign references are rejected
     /// when closing the draft. Types are checked by the common compiler.
-    Initial(Vec<DraftExpression>),
+    Initial(Vec<(DraftExpression, DraftExpression)>),
     /// Anonymous N-ary conserving connection net.
     ConservingConnection(DraftConservingConnection),
 }
@@ -418,9 +418,9 @@ impl DraftDeclaration {
         }
     }
 
-    fn equations(&self) -> Option<(&str, &[DraftExpression])> {
+    fn equations(&self) -> Option<(&str, &[(DraftExpression, DraftExpression)])> {
         match self {
-            Self::Relation(relation) => Some((relation.name(), &relation.residuals)),
+            Self::Relation(relation) => Some((relation.name(), &relation.equations)),
             Self::Initial(residuals) => Some(("initial", residuals)),
             _ => None,
         }
@@ -729,34 +729,34 @@ impl DraftParameter {
 pub struct DraftRelation {
     name: String,
     domain: Option<DraftSpatialDomain>,
-    residuals: Vec<DraftExpression>,
+    equations: Vec<(DraftExpression, DraftExpression)>,
 }
 
 impl DraftRelation {
-    /// Declare residual expressions whose canonical meaning is zero.
+    /// Declare ordered left and right sides of simultaneous equations.
     #[must_use]
     pub fn continuous(
         name: impl Into<String>,
-        residuals: impl IntoIterator<Item = DraftExpression>,
+        equations: impl IntoIterator<Item = (DraftExpression, DraftExpression)>,
     ) -> Self {
         Self {
             name: name.into(),
             domain: None,
-            residuals: residuals.into_iter().collect(),
+            equations: equations.into_iter().collect(),
         }
     }
 
-    /// Declare continuous residuals on one exact draft-local spatial Domain.
+    /// Declare continuous equations on one exact draft-local spatial Domain.
     #[must_use]
     pub fn continuous_on(
         name: impl Into<String>,
         domain: &DraftSpatialDomain,
-        residuals: impl IntoIterator<Item = DraftExpression>,
+        equations: impl IntoIterator<Item = (DraftExpression, DraftExpression)>,
     ) -> Self {
         Self {
             name: name.into(),
             domain: Some(domain.clone()),
-            residuals: residuals.into_iter().collect(),
+            equations: equations.into_iter().collect(),
         }
     }
 
@@ -766,10 +766,10 @@ impl DraftRelation {
         &self.name
     }
 
-    /// Residuals in declared order.
+    /// Equation sides in declared order.
     #[must_use]
-    pub fn residuals(&self) -> &[DraftExpression] {
-        &self.residuals
+    pub fn equations(&self) -> &[(DraftExpression, DraftExpression)] {
+        &self.equations
     }
 
     /// Exact draft-local support Domain, when spatially scoped.
@@ -898,7 +898,9 @@ impl DraftExpression {
 
     fn references<'a>(&'a self, output: &mut Vec<DraftExpressionReference<'a>>) {
         match &self.kind {
-            DraftExpressionKind::Constant(_) | DraftExpressionKind::Complex(_, _) => {}
+            DraftExpressionKind::Boolean(_)
+            | DraftExpressionKind::Constant(_)
+            | DraftExpressionKind::Complex(_, _) => {}
             DraftExpressionKind::Array(values) => {
                 for value in values {
                     value.references(output);
@@ -912,7 +914,8 @@ impl DraftExpression {
             DraftExpressionKind::Across(reference) | DraftExpressionKind::Through(reference) => {
                 output.push(DraftExpressionReference::Port(reference));
             }
-            DraftExpressionKind::Neg(value) | DraftExpressionKind::SpatialCall { value, .. } => {
+            DraftExpressionKind::Unary { value, .. }
+            | DraftExpressionKind::SpatialCall { value, .. } => {
                 value.references(output);
             }
             DraftExpressionKind::Binary { left, right, .. } => {
@@ -924,7 +927,7 @@ impl DraftExpression {
 
     fn contains_invalid_literal(&self) -> bool {
         match &self.kind {
-            DraftExpressionKind::Constant(_) => false,
+            DraftExpressionKind::Boolean(_) | DraftExpressionKind::Constant(_) => false,
             DraftExpressionKind::Complex(real, imaginary) => {
                 !real.is_finite() || !imaginary.is_finite()
             }
@@ -936,9 +939,8 @@ impl DraftExpression {
             | DraftExpressionKind::Derivative(_)
             | DraftExpressionKind::Across(_)
             | DraftExpressionKind::Through(_) => false,
-            DraftExpressionKind::Neg(value) | DraftExpressionKind::SpatialCall { value, .. } => {
-                value.contains_invalid_literal()
-            }
+            DraftExpressionKind::Unary { value, .. }
+            | DraftExpressionKind::SpatialCall { value, .. } => value.contains_invalid_literal(),
             DraftExpressionKind::Binary { left, right, .. } => {
                 left.contains_invalid_literal() || right.contains_invalid_literal()
             }
@@ -951,7 +953,10 @@ impl Neg for DraftExpression {
 
     fn neg(self) -> Self::Output {
         Self {
-            kind: DraftExpressionKind::Neg(Box::new(self)),
+            kind: DraftExpressionKind::Unary {
+                operator: UnaryOp::Neg,
+                value: Box::new(self),
+            },
         }
     }
 }
@@ -975,6 +980,7 @@ impl_binary_expression_operator!(Div, div, BinaryOp::Div);
 
 #[derive(Debug, Clone)]
 enum DraftExpressionKind {
+    Boolean(bool),
     Constant(crate::DecimalLiteral),
     Complex(f64, f64),
     Array(Vec<DraftExpression>),
@@ -990,7 +996,10 @@ enum DraftExpressionKind {
         operator: DraftSpatialOperator,
         value: Box<DraftExpression>,
     },
-    Neg(Box<DraftExpression>),
+    Unary {
+        operator: UnaryOp,
+        value: Box<DraftExpression>,
+    },
     Binary {
         operator: BinaryOp,
         left: Box<DraftExpression>,

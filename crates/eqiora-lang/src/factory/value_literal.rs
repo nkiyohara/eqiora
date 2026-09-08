@@ -15,6 +15,9 @@ impl SourceAstFactory {
     ) -> Result<Expr, AstConstructionError> {
         checked_range(range)?;
         let syntax = crate::ValueTypeSyntax::from_checked(value.value_type(), &mut resolve)?;
+        if let Some(value) = value.as_bool() {
+            return Self::expression(ExprKind::Boolean(value), range);
+        }
         let nominal = match syntax.kind() {
             crate::ValueTypeSyntaxKind::Coordinates(name) => Some(("coordinates", name)),
             crate::ValueTypeSyntaxKind::Counts(name) => Some(("counts", name)),

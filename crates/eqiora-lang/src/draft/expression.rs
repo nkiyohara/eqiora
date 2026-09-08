@@ -21,6 +21,7 @@ impl DraftExpression {
         paths: &mut HashMap<TextRange, GraphPath>,
     ) -> Expr {
         let kind = match &self.kind {
+            DraftExpressionKind::Boolean(value) => ExprKind::Boolean(*value),
             DraftExpressionKind::Constant(value) => ExprKind::Number(value.clone()),
             DraftExpressionKind::Complex(real, imaginary) => ExprKind::Call {
                 callee: NamePath::from_parsed_segments(
@@ -77,8 +78,8 @@ impl DraftExpression {
                 ),
                 arguments: vec![value.ast(path, ranges, paths)],
             },
-            DraftExpressionKind::Neg(value) => ExprKind::Unary {
-                op: UnaryOp::Neg,
+            DraftExpressionKind::Unary { operator, value } => ExprKind::Unary {
+                op: *operator,
                 value: Box::new(value.ast(path, ranges, paths)),
             },
             DraftExpressionKind::Binary {
@@ -96,5 +97,65 @@ impl DraftExpression {
             kind,
             range: ranges.allocate(path, paths),
         }
+    }
+}
+
+impl DraftExpression {
+    /// Boolean literal with no numeric coercion.
+    #[must_use]
+    pub const fn boolean(value: bool) -> Self {
+        Self {
+            kind: DraftExpressionKind::Boolean(value),
+        }
+    }
+    /// Boolean negation.
+    #[must_use]
+    pub fn logical_not(self) -> Self {
+        Self {
+            kind: DraftExpressionKind::Unary {
+                operator: UnaryOp::Not,
+                value: Box::new(self),
+            },
+        }
+    }
+    /// Construct a `equal` predicate.
+    #[must_use]
+    pub fn equal(self, right: Self) -> Self {
+        self.binary(BinaryOp::Equal, right)
+    }
+    /// Construct a `not_equal` predicate.
+    #[must_use]
+    pub fn not_equal(self, right: Self) -> Self {
+        self.binary(BinaryOp::NotEqual, right)
+    }
+    /// Construct a `less` predicate.
+    #[must_use]
+    pub fn less(self, right: Self) -> Self {
+        self.binary(BinaryOp::Less, right)
+    }
+    /// Construct a `less_equal` predicate.
+    #[must_use]
+    pub fn less_equal(self, right: Self) -> Self {
+        self.binary(BinaryOp::LessEqual, right)
+    }
+    /// Construct a `greater` predicate.
+    #[must_use]
+    pub fn greater(self, right: Self) -> Self {
+        self.binary(BinaryOp::Greater, right)
+    }
+    /// Construct a `greater_equal` predicate.
+    #[must_use]
+    pub fn greater_equal(self, right: Self) -> Self {
+        self.binary(BinaryOp::GreaterEqual, right)
+    }
+    /// Construct a `logical_and` predicate.
+    #[must_use]
+    pub fn logical_and(self, right: Self) -> Self {
+        self.binary(BinaryOp::And, right)
+    }
+    /// Construct a `logical_or` predicate.
+    #[must_use]
+    pub fn logical_or(self, right: Self) -> Self {
+        self.binary(BinaryOp::Or, right)
     }
 }

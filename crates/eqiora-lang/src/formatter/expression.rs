@@ -16,9 +16,10 @@ pub(super) fn format_expression(
     }
     match &expression.kind {
         ExprKind::Member { value, member } => {
-            format_expression(value, 11, output);
+            format_expression(value, 19, output);
             write!(output, ".{member}").expect("String write");
         }
+        ExprKind::Boolean(value) => output.push_str(if *value { "true" } else { "false" }),
         ExprKind::Number(value) => output.push_str(&value.canonical_text()),
         ExprKind::Quantity { value, unit } => {
             output.push_str(&value.canonical_text());
@@ -39,13 +40,28 @@ pub(super) fn format_expression(
             output.push('-');
             format_expression(value, precedence, output);
         }
+        ExprKind::Unary {
+            op: UnaryOp::Not,
+            value,
+        } => {
+            output.push_str("not ");
+            format_expression(value, precedence, output);
+        }
         ExprKind::Binary { op, left, right } => {
             let (symbol, left_precedence, right_precedence) = match op {
                 BinaryOp::Add => (" + ", precedence, precedence + 1),
                 BinaryOp::Sub => (" - ", precedence, precedence + 1),
                 BinaryOp::Mul => (" * ", precedence, precedence + 1),
                 BinaryOp::Div => (" / ", precedence, precedence + 1),
-                BinaryOp::Pow => (" ^ ", precedence + 1, 6),
+                BinaryOp::Pow => (" ^ ", precedence + 1, 14),
+                BinaryOp::And => (" and ", precedence, precedence + 1),
+                BinaryOp::Or => (" or ", precedence, precedence + 1),
+                BinaryOp::Equal => (" == ", precedence + 1, precedence + 1),
+                BinaryOp::NotEqual => (" != ", precedence + 1, precedence + 1),
+                BinaryOp::Less => (" < ", precedence + 1, precedence + 1),
+                BinaryOp::LessEqual => (" <= ", precedence + 1, precedence + 1),
+                BinaryOp::Greater => (" > ", precedence + 1, precedence + 1),
+                BinaryOp::GreaterEqual => (" >= ", precedence + 1, precedence + 1),
             };
             format_expression(left, left_precedence, output);
             output.push_str(symbol);
@@ -67,7 +83,7 @@ pub(super) fn format_expression(
             if group_number {
                 output.push('(');
             }
-            format_expression(value, 11, output);
+            format_expression(value, 19, output);
             if group_number {
                 output.push(')');
             }
@@ -97,27 +113,40 @@ fn expression_precedence(expression: &Expr) -> u8 {
         ExprKind::Binary {
             op: BinaryOp::Add | BinaryOp::Sub,
             ..
-        } => 1,
+        } => 9,
         ExprKind::Binary {
             op: BinaryOp::Mul | BinaryOp::Div,
             ..
-        } => 3,
+        } => 11,
         ExprKind::Binary {
             op: BinaryOp::Pow, ..
-        } => 7,
-        ExprKind::Unary { .. } => 6,
+        } => 15,
+        ExprKind::Unary {
+            op: UnaryOp::Neg, ..
+        } => 14,
+        ExprKind::Unary {
+            op: UnaryOp::Not, ..
+        } => 5,
+        ExprKind::Binary {
+            op: BinaryOp::Or, ..
+        } => 1,
+        ExprKind::Binary {
+            op: BinaryOp::And, ..
+        } => 3,
+        ExprKind::Binary { .. } => 7,
         // Native source factories may store a negative literal directly rather
         // than as Unary(Neg). Its printed sign still needs a grouped power base.
-        ExprKind::Number(value) if value.is_negative() => 6,
-        ExprKind::Quantity { value, .. } if value.is_negative() => 6,
-        ExprKind::Member { .. } => 11,
-        ExprKind::Number(_)
+        ExprKind::Number(value) if value.is_negative() => 14,
+        ExprKind::Quantity { value, .. } if value.is_negative() => 14,
+        ExprKind::Member { .. } => 19,
+        ExprKind::Boolean(_)
+        | ExprKind::Number(_)
         | ExprKind::Quantity { .. }
         | ExprKind::Name(_)
         | ExprKind::Path(_)
         | ExprKind::BoundaryPortSelection { .. }
         | ExprKind::Call { .. }
         | ExprKind::Array(_)
-        | ExprKind::Index { .. } => 11,
+        | ExprKind::Index { .. } => 19,
     }
 }

@@ -41,6 +41,10 @@ pub enum TokenKind {
     Dot,
     /// `=`.
     Equal,
+    /// `==`.
+    EqualEqual,
+    /// `!=`.
+    NotEqual,
     /// `+`.
     Plus,
     /// `-`.
@@ -184,6 +188,14 @@ pub fn lex(file: impl Into<String>, source: &str) -> LexResult {
             b';' => single(&mut offset, TokenKind::Semicolon),
             b',' => single(&mut offset, TokenKind::Comma),
             b'.' => single(&mut offset, TokenKind::Dot),
+            b'=' if bytes.get(offset + 1) == Some(&b'=') => {
+                offset += 2;
+                TokenKind::EqualEqual
+            }
+            b'!' if bytes.get(offset + 1) == Some(&b'=') => {
+                offset += 2;
+                TokenKind::NotEqual
+            }
             b'=' => single(&mut offset, TokenKind::Equal),
             b'+' => single(&mut offset, TokenKind::Plus),
             b'-' => single(&mut offset, TokenKind::Minus),

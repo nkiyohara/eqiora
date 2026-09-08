@@ -17,7 +17,7 @@ fn validate_expression_depth(expression: &Expr, depth: usize) -> Result<(), AstC
     }
     checked_range(expression.range())?;
     match expression.kind() {
-        ExprKind::Number(_) => Ok(()),
+        ExprKind::Number(_) | ExprKind::Boolean(_) => Ok(()),
         ExprKind::Member { value, member } => {
             if !matches!(
                 value.kind(),
