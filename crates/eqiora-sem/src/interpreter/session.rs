@@ -2,6 +2,8 @@
 use super::*;
 use eqiora_core::ValueLiteral;
 
+type TickOutputs = BTreeMap<(RawId, u64), (RationalTime, ValueLiteral)>;
+
 const MAX_SAMPLED_VALUES: usize = super::direct_assignments::MAX_COMPONENTS;
 
 #[derive(Debug, Clone)]
@@ -15,37 +17,44 @@ struct InputTable {
 /// The immutable program, exact calendar, and accepted values remain together.
 /// Complete input tables and retained output samples each have a one-million-scalar-component cap.
 #[derive(Debug, Clone)]
-pub struct SampledSession {
-    program: KernelProgram,
+pub struct ExecutionSession {
+    pub(super) program: KernelProgram,
     config: ReferenceConfig,
-    plan: ExecutionPlan,
-    state: RuntimeState,
+    pub(super) plan: ExecutionPlan,
+    pub(super) state: RuntimeState,
     inputs: BTreeMap<RawId, InputTable>,
-    outputs: BTreeMap<(RawId, u64), (RationalTime, ValueLiteral)>,
-    time: f64,
+    outputs: TickOutputs,
+    pub(super) time: f64,
     accepted_steps: usize,
+    sequence: Vec<Vec<RawId>>,
+    arming: BTreeMap<RawId, i8>,
+    last_event_time: Option<f64>,
+    zero_time_events: usize,
+    pub(super) boundary_samples: Vec<Sample>,
+    pub(super) boundary_physical: Vec<PhysicalSample>,
 }
 
 impl Interpreter {
     /// Initialize before tick zero using complete, exact-clock input tables.
     /// Values are indexed from each clock's first tick, including a delayed phase.
     /// Missing, duplicate, foreign, mistyped, or incompletely covered inputs reject.
-    pub fn sampled_session(
+    pub fn execution_session(
         &self,
         program: &KernelProgram,
         config: ReferenceConfig,
         inputs: impl IntoIterator<Item = (RawId, RawId, Vec<ValueLiteral>)>,
-    ) -> Result<SampledSession, Vec<Diagnostic>> {
-        SampledSession::fresh(program, config, inputs).map_err(|error| vec![error])
+    ) -> Result<ExecutionSession, Vec<Diagnostic>> {
+        ExecutionSession::fresh(program, config, inputs, &ReferenceExpressionBackend)
+            .map_err(|error| vec![error])
     }
 
     /// Resume exactly the accepted checkpoint without running initial equations.
     /// A different program, including a different value revision, rejects.
-    pub fn resume_sampled(
+    pub fn resume_execution(
         &self,
         program: &KernelProgram,
-        checkpoint: &SampledSession,
-    ) -> Result<SampledSession, Vec<Diagnostic>> {
+        checkpoint: &ExecutionSession,
+    ) -> Result<ExecutionSession, Vec<Diagnostic>> {
         if program != &checkpoint.program {
             return Err(vec![config_error(
                 "sampled checkpoint belongs to a different exact program",
@@ -55,11 +64,12 @@ impl Interpreter {
     }
 }
 
-impl SampledSession {
-    fn fresh(
+impl ExecutionSession {
+    pub(super) fn fresh(
         program: &KernelProgram,
         config: ReferenceConfig,
         supplied: impl IntoIterator<Item = (RawId, RawId, Vec<ValueLiteral>)>,
+        backend: &impl ExpressionBackend,
     ) -> Result<Self, Diagnostic> {
         config.validate()?;
         let mut plan = ExecutionPlan::new(program)?;
@@ -77,6 +87,7 @@ impl SampledSession {
                     ));
                 };
                 plan.periodic.push(PeriodicTask {
+                    activation: None,
                     clock,
                     tick_index: 0,
                     relations: BTreeSet::new(),
@@ -84,11 +95,6 @@ impl SampledSession {
                     next: phase,
                 });
             }
-        }
-        if !plan.events.is_empty() {
-            return Err(config_error(
-                "sampled sessions do not yet checkpoint event localization",
-            ));
         }
         let required = program
             .boundary()
@@ -158,17 +164,21 @@ impl SampledSession {
             ));
         }
         let mut state = RuntimeState::new(program, &plan)?;
-        solve_initialization(
-            program,
-            &plan,
-            &mut state,
-            config,
-            &ReferenceExpressionBackend,
-        )?;
+        solve_initialization(program, &plan, &mut state, config, backend)?;
         // A clocked sample has no value before its first accepted tick.
         state
             .ports
             .retain(|port, _| port_clock(program, *port).ok().flatten().is_none());
+        let mut arming = BTreeMap::new();
+        for event in &plan.events {
+            let value = super::event_localization::evaluate_event_guard(
+                program, &plan, event, &state, 0., backend,
+            )?;
+            arming.insert(
+                event.activation,
+                event::armed_side(value, config.event_guard_tolerance),
+            );
+        }
         Ok(Self {
             program: program.clone(),
             config,
@@ -178,6 +188,12 @@ impl SampledSession {
             outputs: BTreeMap::new(),
             time: 0.0,
             accepted_steps: 0,
+            sequence: Vec::new(),
+            arming,
+            last_event_time: None,
+            zero_time_events: 0,
+            boundary_samples: Vec::new(),
+            boundary_physical: Vec::new(),
         })
     }
 
@@ -193,11 +209,38 @@ impl SampledSession {
     /// A failed boundary changes neither values, clock progress, inputs nor outputs.
     pub fn advance_ticks(&mut self, count: usize) -> Result<usize, Vec<Diagnostic>> {
         let mut accepted = 0;
-        while accepted < count && self.next_tick().is_some() {
-            self.advance_one().map_err(|error| vec![error])?;
+        while accepted < count {
+            let Some(tick) = self.next_tick() else {
+                break;
+            };
+            while self.next_tick() == Some(tick) {
+                if !self.advance()? {
+                    return Ok(accepted);
+                }
+            }
             accepted += 1;
         }
         Ok(accepted)
+    }
+
+    /// Advance one stabilized boundary. Event-only boundaries do not consume ticks.
+    /// A failed advance leaves state, calendar, outputs and prior sequence unchanged.
+    pub fn advance(&mut self) -> Result<bool, Vec<Diagnostic>> {
+        self.advance_with_backend(&ReferenceExpressionBackend, false)
+            .map_err(|e| vec![e])
+    }
+
+    /// The most recently accepted boundary; fresh sessions are before tick zero.
+    #[must_use]
+    pub fn progress(&self) -> ExecutionProgress {
+        accepted_progress(self.time, self.accepted_steps, self.config)
+    }
+
+    /// Activation IDs grouped by zero-time microstep in the last accepted boundary.
+    /// IDs are sorted for inspection only; order never chooses execution priority.
+    #[must_use]
+    pub fn activation_sequence(&self) -> &[Vec<RawId>] {
+        &self.sequence
     }
 
     /// Next requested exact instant, absent after the inclusive run horizon.
@@ -230,119 +273,9 @@ impl SampledSession {
             .get(&(port, tick_index))
             .map(|(time, value)| (*time, value))
     }
-
-    fn advance_one(&mut self) -> Result<(), Diagnostic> {
-        let instant = self.next_tick().expect("caller checked the next tick");
-        let time = instant.as_seconds_f64();
-        let mut candidate = self.state.clone();
-        let mut plan = self.plan.clone();
-        let mut steps = self.accepted_steps;
-        let mut current_time = self.time;
-        while current_time < time {
-            let end = (current_time + self.config.max_step).min(time);
-            if end <= current_time || steps >= self.config.max_steps {
-                return Err(config_error("sampled execution exhausted its step budget"));
-            }
-            solve_continuous_step(
-                &self.program,
-                &plan,
-                &mut candidate,
-                current_time,
-                end,
-                self.config,
-                &ReferenceExpressionBackend,
-            )?;
-            current_time = end;
-            steps += 1;
-        }
-        if steps >= self.config.max_steps {
-            return Err(config_error("sampled execution exhausted its step budget"));
-        }
-        let due = plan
-            .periodic
-            .iter()
-            .filter(|task| task.next == instant)
-            .map(|task| (task.clock, task.tick_index))
-            .collect::<BTreeMap<_, _>>();
-        candidate
-            .ports
-            .retain(|port, _| port_clock(&self.program, *port).ok().flatten().is_none());
-        candidate
-            .typed_ports
-            .retain(|port, _| port_clock(&self.program, *port).ok().flatten().is_none());
-        for (&port, input) in &self.inputs {
-            if let Some(index) = due.get(&input.clock) {
-                if *index != input.cursor as u64 {
-                    return Err(config_error(
-                        "sampled input cursor differs from its exact calendar",
-                    ));
-                }
-                let value = input
-                    .values
-                    .get(input.cursor)
-                    .ok_or_else(|| config_error("sampled input coverage exhausted"))?;
-                if let Some(real) = value.real_scalar_value() {
-                    candidate.ports.insert(port, real.value());
-                } else {
-                    candidate.typed_ports.insert(port, value.clone());
-                }
-            }
-        }
-        execute_due_tick(
-            &self.program,
-            &mut plan,
-            &mut candidate,
-            time,
-            self.config,
-            &ReferenceExpressionBackend,
-        )?;
-        let mut outputs = Vec::new();
-        for &port in self.program.boundary() {
-            let Some(KernelNode::Port(definition)) = self.program.node(port) else {
-                continue;
-            };
-            let Some((SignalDirection::Output, value_type)) = definition.signal_contract() else {
-                continue;
-            };
-            let Some(clock) = port_clock(&self.program, port)? else {
-                continue;
-            };
-            let Some(index) = due.get(&clock) else {
-                continue;
-            };
-            let source = plan.signal_sources.get(&port).copied().unwrap_or(port);
-            let value = if let Some(value) = candidate.typed_ports.get(&source) {
-                value.clone()
-            } else {
-                let value = candidate
-                    .ports
-                    .get(&source)
-                    .ok_or_else(|| config_error("requested output has no accepted tick value"))?;
-                ValueLiteral::from_real(value_type.clone(), *value)
-                    .map_err(|_| config_error("sampled output is not a finite real scalar"))?
-            };
-            if value.value_type() != value_type {
-                return Err(config_error(
-                    "sampled output differs from its complete Port type",
-                ));
-            }
-            outputs.push(((port, *index), (instant, value)));
-        }
-        self.plan = plan;
-        self.state = candidate;
-        self.time = time;
-        self.accepted_steps = steps + 1;
-        for input in self
-            .inputs
-            .values_mut()
-            .filter(|input| due.contains_key(&input.clock))
-        {
-            input.cursor += 1;
-        }
-        self.outputs.extend(outputs);
-        Ok(())
-    }
 }
+
+mod boundary;
 
 fn add_sample_count(current: usize, additional: usize, limit: usize) -> Result<usize, Diagnostic> {
     current

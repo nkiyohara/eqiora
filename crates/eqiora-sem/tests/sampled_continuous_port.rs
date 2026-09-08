@@ -99,7 +99,7 @@ fn sampled_continuous_source_remains_an_initial_and_continuous_unknown() {
     // Before a tick, source = 3 + t/1s is still one ordinary continuous equation.
     Interpreter::new().initialize(&program, config).unwrap();
     let mut session = Interpreter::new()
-        .sampled_session(&program, config, [])
+        .execution_session(&program, config, [])
         .unwrap();
     assert!(session.output(output.erase(), 0).is_none());
     for (tick, expected) in [(0, 4.), (1, 5.)] {

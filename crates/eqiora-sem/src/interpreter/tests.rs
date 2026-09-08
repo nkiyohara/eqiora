@@ -388,3 +388,107 @@ fn short_terminal_step_retains_the_solved_derivative_without_subtractive_cancell
     assert_eq!(state.fields, before.fields);
     assert_eq!(state.derivatives, before.derivatives);
 }
+
+#[test]
+fn slow_crossing_keeps_arming_through_the_zero_band_and_checkpoint() {
+    let field = Id::<kinds::Field>::new();
+    let continuous = Id::<kinds::Activation>::new();
+    let event = Id::<kinds::Activation>::new();
+    let flow = Id::<kinds::Relation>::new();
+    let reset = Id::<kinds::Relation>::new();
+    let d = DimExponents::DIMENSIONLESS;
+    let rate = DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).unwrap();
+    let mut b = ExprDagBuilder::new();
+    let derivative = b.symbol(SymbolRef::Derivative(field)).unwrap();
+    let one = b.constant(DynQuantity::new(1., rate)).unwrap();
+    let mut nodes = vec![
+        FieldDef::new(
+            field,
+            ValueType::scalar(eqiora_core::ScalarDomain::Real, d),
+            FieldRole::State,
+        )
+        .into(),
+        initial(field, d, -2.),
+        ActivationDef::continuous(continuous).into(),
+        RelationDef::new(flow, b.finish([derivative, one]).unwrap())
+            .unwrap()
+            .into(),
+    ];
+    let mut b = ExprDagBuilder::new();
+    let x = b.symbol(SymbolRef::Field(field)).unwrap();
+    nodes.push(
+        ActivationDef::new(
+            event,
+            ActivationKind::Event {
+                guard: b.finish([x]).unwrap(),
+                direction: EventDirection::Rising,
+            },
+        )
+        .unwrap()
+        .into(),
+    );
+    let mut b = ExprDagBuilder::new();
+    let next = b.symbol(SymbolRef::Next(field)).unwrap();
+    let one = b.constant(DynQuantity::new(1., d)).unwrap();
+    nodes.push(
+        RelationDef::new(reset, b.finish([next, one]).unwrap())
+            .unwrap()
+            .into(),
+    );
+    let program = program(
+        nodes,
+        &[
+            (continuous.erase(), flow.erase()),
+            (event.erase(), reset.erase()),
+        ],
+    );
+    let config = ReferenceConfig::new(2.25, 0.25)
+        .unwrap()
+        .with_event_tolerances(1e-12, 1.)
+        .unwrap();
+    let interpreter = Interpreter::new();
+    let mut session = interpreter.execution_session(&program, config, []).unwrap();
+    assert!(session.activation_sequence().is_empty());
+    while session.progress().model_time() < 1.25 {
+        assert!(session.advance().unwrap());
+        assert!(session.activation_sequence().is_empty());
+    }
+    // x=-0.75 is inside the arming band, but its earlier negative-side
+    // arming must survive. The actual zero is still at t=2, not t=1.
+    assert_eq!(
+        session
+            .field(field.erase())
+            .unwrap()
+            .real_scalar_value()
+            .unwrap()
+            .value(),
+        -0.75
+    );
+    let mut resumed = interpreter
+        .resume_execution(&program, &session.checkpoint())
+        .unwrap();
+    let mut activations = Vec::new();
+    while session.advance().unwrap() {
+        assert!(resumed.advance().unwrap());
+        assert_eq!(session.progress(), resumed.progress());
+        assert_eq!(session.activation_sequence(), resumed.activation_sequence());
+        assert_eq!(session.field(field.erase()), resumed.field(field.erase()));
+        if !session.activation_sequence().is_empty() {
+            activations.push((
+                session.progress().model_time(),
+                session.activation_sequence().to_vec(),
+            ));
+        }
+    }
+    assert!(!resumed.advance().unwrap());
+    assert_eq!(activations, vec![(2., vec![vec![event.erase()]])]);
+    assert_eq!(
+        session
+            .field(field.erase())
+            .unwrap()
+            .real_scalar_value()
+            .unwrap()
+            .value(),
+        1.25
+    );
+}

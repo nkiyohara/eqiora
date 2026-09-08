@@ -24,13 +24,24 @@ pub(crate) fn crosses(
     after: f64,
     guard_tolerance: f64,
 ) -> bool {
+    crosses_armed(direction, armed_side(before, guard_tolerance), after)
+}
+
+pub(crate) fn armed_side(value: f64, tolerance: f64) -> i8 {
+    if value > tolerance {
+        1
+    } else if value < -tolerance {
+        -1
+    } else {
+        0
+    }
+}
+
+pub(crate) fn crosses_armed(direction: EventDirection, side: i8, after: f64) -> bool {
     match direction {
-        EventDirection::Any => {
-            (before > guard_tolerance && after <= guard_tolerance)
-                || (before < -guard_tolerance && after >= -guard_tolerance)
-        }
-        EventDirection::Rising => before < -guard_tolerance && after >= -guard_tolerance,
-        EventDirection::Falling => before > guard_tolerance && after <= guard_tolerance,
+        EventDirection::Any => (side > 0 && after <= 0.) || (side < 0 && after >= 0.),
+        EventDirection::Rising => side < 0 && after >= 0.,
+        EventDirection::Falling => side > 0 && after <= 0.,
     }
 }
 
@@ -38,9 +49,9 @@ pub(crate) fn root_is_left_of(
     direction: EventDirection,
     left_guard: f64,
     midpoint_guard: f64,
-    guard_tolerance: f64,
+    _guard_tolerance: f64,
 ) -> bool {
-    crosses(direction, left_guard, midpoint_guard, guard_tolerance)
+    crosses(direction, left_guard, midpoint_guard, 0.)
 }
 
 pub(crate) fn same_instant(left: f64, right: f64, tolerance: f64) -> bool {

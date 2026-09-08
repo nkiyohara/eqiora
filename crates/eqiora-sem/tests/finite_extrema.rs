@@ -163,7 +163,7 @@ fn dimensioned_sampled_selection_and_dependent_real_assignment_resume() {
     let (program, field, input, output, clock) = fixture(false, false, false);
     let interpreter = Interpreter::new();
     let mut session = interpreter
-        .sampled_session(
+        .execution_session(
             &program,
             ReferenceConfig::new(2., 1.).unwrap(),
             [(input, clock, vec![voltage(3.), voltage(4.), voltage(-2.)])],
@@ -172,7 +172,7 @@ fn dimensioned_sampled_selection_and_dependent_real_assignment_resume() {
     assert_eq!(session.field(field), Some(voltage(0.)));
     session.advance_ticks(1).unwrap();
     let mut resumed = interpreter
-        .resume_sampled(&program, &session.checkpoint())
+        .resume_execution(&program, &session.checkpoint())
         .unwrap();
     resumed.advance_ticks(2).unwrap();
     for (tick, expected) in [6., 10., 6.].into_iter().enumerate() {
@@ -188,7 +188,7 @@ fn dimensioned_sampled_selection_and_dependent_real_assignment_resume() {
 fn eager_failure_keeps_state_calendar_and_output_absent() {
     let (program, field, input, output, clock) = fixture(false, false, true);
     let mut session = Interpreter::new()
-        .sampled_session(
+        .execution_session(
             &program,
             ReferenceConfig::new(0., 1.).unwrap(),
             [(input, clock, vec![voltage(3.)])],
@@ -205,7 +205,7 @@ fn eager_failure_keeps_state_calendar_and_output_absent() {
 fn implicit_selection_uses_common_real_equations() {
     let (program, field, input, output, clock) = fixture(true, false, false);
     let mut session = Interpreter::new()
-        .sampled_session(
+        .execution_session(
             &program,
             ReferenceConfig::new(0., 1.).unwrap(),
             [(input, clock, vec![voltage(3.)])],
