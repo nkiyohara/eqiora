@@ -723,7 +723,13 @@ fn resolved_near_tick_crossing_precedes_the_tick_without_becoming_coincident() {
     let mut session = Interpreter::new()
         .execution_session(&fixture.program, coincidence_config(), [])
         .unwrap();
-    while session.advance().unwrap() {}
+    let mut boundaries = Vec::new();
+    while session.advance().unwrap() {
+        boundaries.push((
+            session.progress().model_time(),
+            session.activation_sequence().to_vec(),
+        ));
+    }
     // x resets at 1-delta, then advances by delta before the tick. Its
     // left-state tick contribution is 10+delta, while y contributes 2.
     // 2^-26 is sixteen localization tolerances and exceeds the propagated
@@ -745,17 +751,29 @@ fn resolved_near_tick_crossing_precedes_the_tick_without_becoming_coincident() {
             "{value} != {expected}"
         );
     }
-    let groups = session.activation_sequence();
-    let event = groups
+    let event = boundaries
         .iter()
-        .position(|group| group.contains(&fixture.events[0].erase()))
+        .find(|(_, groups)| {
+            groups
+                .iter()
+                .any(|group| group.contains(&fixture.events[0].erase()))
+        })
         .unwrap();
-    let tick = groups
+    let tick = boundaries
         .iter()
-        .position(|group| group.contains(&fixture.tick.erase()))
+        .find(|(_, groups)| {
+            groups
+                .iter()
+                .any(|group| group.contains(&fixture.tick.erase()))
+        })
         .unwrap();
-    assert!(event < tick);
-    assert!(!groups[tick].contains(&fixture.events[0].erase()));
+    assert!(event.0 < tick.0);
+    assert_eq!(tick.0, 1.0);
+    assert!(
+        tick.1
+            .iter()
+            .all(|group| !group.contains(&fixture.events[0].erase()))
+    );
 }
 
 #[test]
