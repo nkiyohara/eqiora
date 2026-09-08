@@ -139,11 +139,12 @@ expressions use the shared compiler's explicit conversion and arithmetic rules.
 Products, dual spaces, general maps, and dynamic indexing remain
 outside this bounded discrete profile.
 
-Finite scalar reductions bind one symbolic index through `Component.sum` or `Component.product`:
+Finite scalar reductions bind one symbolic index through `Component.sum`, `Component.product`,
+`Component.min` or `Component.max`:
 
 ```python
 rows = component.index_set("Rows", extent=3)
-total = component.sum(lambda i: (q.ordinal(i) + 1) ** 2, over=rows)
+total = component.sum(lambda i: (q.ordinal(i) + 1) * (q.ordinal(i) + 1), over=rows)
 component.let_alias("total", total)
 ```
 
@@ -152,8 +153,10 @@ its three terms and obtains 14. A nested reduction needs a distinct `name`, such
 `name="j"`. Binders cannot escape their callback or capture another declaration, and the
 set and captured declarations must belong to the same Component. An array expression accepts
 `values[q.ordinal(i)]` within this scope. General runtime indexing remains unsupported.
-The [finite reduction rules](../language/numeric-catalog.md#finite-sums-and-products) define
+The [finite reduction rules](../language/numeric-catalog.md#finite-scalar-reductions) define
 ordering, scalar types, product units, expansion bounds and unsupported initializer contexts.
+`min` and `max` preserve ordinary integer or real scalar types and dimensions, evaluate all
+terms and retain the first term on a tie; they do not supply generic conditional expressions.
 
 A numeric Parameter default uses the declared dimension's coherent unit.
 For example, `parameter rate: 1 / s = 1;` gives the same value as
