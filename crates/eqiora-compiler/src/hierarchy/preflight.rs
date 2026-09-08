@@ -655,6 +655,7 @@ impl<'a> Elaborator<'a> {
                     Item::Port(value) => Some((value.name(), value.range())),
                     Item::Clock(value) => Some((value.name(), value.range())),
                     Item::Relation(value) => Some((value.name(), value.range())),
+                    Item::RelationFamily(value) => Some((value.relation().name(), value.range())),
                     Item::Instance(value) => Some((value.name(), value.range())),
                     Item::Connection(_) | Item::BoundaryConnection(_) => None,
                     _ => None,

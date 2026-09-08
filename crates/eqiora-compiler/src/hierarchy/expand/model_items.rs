@@ -155,6 +155,24 @@ impl RootExpansion<'_, '_> {
                         identity,
                     });
                 }
+                Item::RelationFamily(family) => {
+                    self.add_indexed_relations(
+                        family,
+                        scope,
+                        (&self.root_path.clone(), ""),
+                        definition_path(
+                            &model.namespace,
+                            "model",
+                            model.name(),
+                            family.relation().name(),
+                        ),
+                        EntitySourceOrigin {
+                            definition: SourceLocation::new(model.file, family.range()),
+                            instance: SourceLocation::new(model.file, model.range()),
+                            bindings: Vec::new(),
+                        },
+                    )?;
+                }
                 Item::Connection(declaration) => {
                     self.add_connection(
                         declaration,

@@ -20,6 +20,7 @@ use super::supports::SupportInterface;
 
 mod component;
 mod expression;
+mod indexed;
 pub(super) use expression::DependencyActivation;
 mod model;
 mod scope;

@@ -54,9 +54,13 @@ pub(in crate::hierarchy::body_check) fn validate_connection(
             .all(|contract| matches!(contract, PortContract::Physical { .. }));
     if scalar_physical {
         validate_connection_contract(declaration, &contracts, scope.file)?;
-        let endpoints = paths.iter().map(|path| {
-            ResolvedPhysicalEndpoint::from_path(path)
-                .expect("resolved visible Port paths have one or two segments")
+        let endpoints = keys.iter().map(|key| match key.as_slice() {
+            [port] => ResolvedPhysicalEndpoint::Local(port.clone()),
+            [instance, port] => ResolvedPhysicalEndpoint::Child {
+                instance: instance.clone(),
+                port: port.clone(),
+            },
+            _ => unreachable!("resolved visible Port keys have one or two segments"),
         });
         return ConnectionFragment::try_new(endpoints, connection_limits)
             .map(Some)
@@ -90,9 +94,13 @@ pub(in crate::hierarchy::body_check) fn validate_connection(
                 "field-physical Connection requires the exact same specialized Connector",
             ));
         }
-        let endpoints = paths.iter().map(|path| {
-            ResolvedPhysicalEndpoint::from_path(path)
-                .expect("resolved visible Port paths have one or two segments")
+        let endpoints = keys.iter().map(|key| match key.as_slice() {
+            [port] => ResolvedPhysicalEndpoint::Local(port.clone()),
+            [instance, port] => ResolvedPhysicalEndpoint::Child {
+                instance: instance.clone(),
+                port: port.clone(),
+            },
+            _ => unreachable!("resolved visible Port keys have one or two segments"),
         });
         return ConnectionFragment::try_new(endpoints, connection_limits)
             .map(Some)
