@@ -7,8 +7,8 @@ use super::{
 };
 use crate::ModelDocument;
 
-const MODEL_SCHEMA: &str = "eqiora.model-envelope/v16";
-const MODEL_TRANSACTION_SCHEMA: &str = "eqiora.model-transaction-envelope/v16";
+const MODEL_SCHEMA: &str = "eqiora.model-envelope/v17";
+const MODEL_TRANSACTION_SCHEMA: &str = "eqiora.model-transaction-envelope/v17";
 
 /// Exact canonical Model identity returned by successful compile/check.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -63,10 +63,10 @@ fn accepted_execution_links_the_same_document_and_schema_facts() {
         panic!("valid source must be accepted")
     };
     assert_eq!(execution.response().request_id(), "compile-1");
-    assert_eq!(model.schema(), "eqiora.model-envelope/v16");
+    assert_eq!(model.schema(), "eqiora.model-envelope/v17");
     assert_eq!(
         model.transaction_schema(),
-        "eqiora.model-transaction-envelope/v16"
+        "eqiora.model-transaction-envelope/v17"
     );
     assert_eq!(model.digest(), document.digest().unwrap());
     assert_eq!(model.semantic_revision(), document.program().revision().0);
@@ -186,8 +186,8 @@ fn response_model_identity_uses_the_frozen_character_bound() {
         "outcome": {
             "status": "accepted",
             "model": {
-                "schema": "eqiora.model-envelope/v16",
-                "transactionSchema": "eqiora.model-transaction-envelope/v16",
+                "schema": "eqiora.model-envelope/v17",
+                "transactionSchema": "eqiora.model-transaction-envelope/v17",
                 "digest": "0".repeat(64),
                 "modelId": "π".repeat(128),
                 "semanticRevision": 1
