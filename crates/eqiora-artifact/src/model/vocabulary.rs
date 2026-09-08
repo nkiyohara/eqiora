@@ -21,7 +21,7 @@ use crate::dimension::WireDimension;
 use crate::invalid_artifact;
 
 use super::*;
-use super::{expression::*, primitive::*};
+use super::{expression::*, primitive::*, value_type::WireScalarDomain};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -572,32 +572,58 @@ pub(crate) enum WirePureValueClass {
     InvariantScalar {
         #[serde(deserialize_with = "Deserialize::deserialize")]
         dimension: Option<WireDimension>,
+        #[serde(deserialize_with = "Deserialize::deserialize")]
+        scalar_domain: Option<WireScalarDomain>,
     },
     SpatialTensor {
         rank: u16,
         #[serde(deserialize_with = "Deserialize::deserialize")]
         dimension: Option<WireDimension>,
+        #[serde(deserialize_with = "Deserialize::deserialize")]
+        scalar_domain: Option<WireScalarDomain>,
     },
 }
 
 impl WirePureValueClass {
     pub(crate) fn encode(value: PureValueClass) -> Self {
         let dimension = value.dimension().map(WireDimension::encode);
+        let scalar_domain = value.scalar_domain().map(WireScalarDomain::encode);
         match value.spatial_rank() {
-            None => Self::InvariantScalar { dimension },
-            Some(rank) => Self::SpatialTensor { rank, dimension },
+            None => Self::InvariantScalar {
+                dimension,
+                scalar_domain,
+            },
+            Some(rank) => Self::SpatialTensor {
+                rank,
+                dimension,
+                scalar_domain,
+            },
         }
     }
 
     pub(crate) fn decode(self) -> Result<PureValueClass, Diagnostic> {
-        let (class, dimension) = match self {
-            Self::InvariantScalar { dimension } => (PureValueClass::invariant_scalar(), dimension),
-            Self::SpatialTensor { rank, dimension } => (
+        let (class, dimension, scalar_domain) = match self {
+            Self::InvariantScalar {
+                dimension,
+                scalar_domain,
+            } => (PureValueClass::invariant_scalar(), dimension, scalar_domain),
+            Self::SpatialTensor {
+                rank,
+                dimension,
+                scalar_domain,
+            } => (
                 PureValueClass::spatial_tensor(rank).map_err(|error| {
                     invalid_artifact(format!("invalid pure value class: {error}"))
                 })?,
                 dimension,
+                scalar_domain,
             ),
+        };
+        let class = match scalar_domain {
+            Some(domain) => class
+                .with_scalar_domain(domain.decode())
+                .map_err(|error| invalid_artifact(format!("invalid pure value class: {error}")))?,
+            None => class,
         };
         Ok(match dimension {
             Some(dimension) => class.with_dimension(dimension.decode()),
@@ -733,7 +759,16 @@ mod pure_constraint_tests {
             PureValueClass::spatial_tensor(1).unwrap(),
             PureValueClass::spatial_tensor(2).unwrap(),
         ] {
-            for value in [class, class.with_dimension(length)] {
+            for value in [
+                class,
+                class.with_dimension(length),
+                class
+                    .with_scalar_domain(eqiora_core::ScalarDomain::Real)
+                    .unwrap(),
+                class
+                    .with_scalar_domain(eqiora_core::ScalarDomain::Complex)
+                    .unwrap(),
+            ] {
                 let wire = WirePureValueClass::encode(value);
                 let bytes = serde_json::to_vec(&wire).unwrap();
                 let restored: WirePureValueClass = serde_json::from_slice(&bytes).unwrap();
@@ -745,11 +780,12 @@ mod pure_constraint_tests {
             .with_dimension(length);
         assert_eq!(
             serde_json::to_value(WirePureValueClass::encode(rank_two)).unwrap(),
-            json!({"kind":"spatial-tensor","rank":2,"dimension":[[0,1],[1,1],[0,1],[0,1],[0,1],[0,1],[0,1]]})
+            json!({"kind":"spatial-tensor","rank":2,"scalar_domain":null,"dimension":[[0,1],[1,1],[0,1],[0,1],[0,1],[0,1],[0,1]]})
         );
-        let invalid: WirePureValueClass =
-            serde_json::from_value(json!({"kind":"spatial-tensor","rank":0,"dimension":null}))
-                .unwrap();
+        let invalid: WirePureValueClass = serde_json::from_value(
+            json!({"kind":"spatial-tensor","rank":0,"scalar_domain":null,"dimension":null}),
+        )
+        .unwrap();
         assert!(invalid.decode().is_err());
     }
 
@@ -762,7 +798,7 @@ mod pure_constraint_tests {
         let root = builder
             .push(CalculusNode::FormalComponent {
                 formal: 0,
-                axes: vec![],
+                axes: Box::new([]),
             })
             .unwrap();
         let mut wire = WirePureOperatorDefinition::encode(&builder.finish(root).unwrap());

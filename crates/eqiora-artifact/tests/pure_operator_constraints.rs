@@ -22,7 +22,10 @@ fn program(dimension: DimExponents, constrained: bool) -> KernelProgram {
     let model = OntologyId::new();
     let class = PureValueClass::invariant_scalar();
     let class = if constrained {
-        class.with_dimension(dimension)
+        class
+            .with_dimension(dimension)
+            .with_scalar_domain(ScalarDomain::Real)
+            .unwrap()
     } else {
         class
     };
@@ -30,7 +33,7 @@ fn program(dimension: DimExponents, constrained: bool) -> KernelProgram {
     let component = calculus
         .push(CalculusNode::FormalComponent {
             formal: 0,
-            axes: vec![],
+            axes: Box::new([]),
         })
         .unwrap();
     let definition = calculus.finish(component).unwrap();
@@ -88,6 +91,15 @@ fn constraints_round_trip_through_model_and_transaction() {
         let bytes = envelope.canonical_json().unwrap();
         let mut json: Value = serde_json::from_slice(&bytes).unwrap();
         let definition = &relation_expression(&mut json)["definitions"][0];
+        let expected_domain = if constrained {
+            json!("real")
+        } else {
+            Value::Null
+        };
+        for class in [&definition["formals"][0], &definition["result"]] {
+            assert!(class.as_object().unwrap().contains_key("scalar_domain"));
+            assert_eq!(class["scalar_domain"], expected_domain);
+        }
         let expected = if constrained {
             json!([[0, 1], [1, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1]])
         } else {
@@ -179,6 +191,49 @@ fn malformed_missing_and_tampered_constraints_are_rejected() {
                 )
                 .is_err(),
                 "{field} mutation {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
+fn scalar_domain_constraints_are_mandatory_checked_and_identity_bound() {
+    let original: Value = serde_json::from_slice(
+        &ModelEnvelope::from_program(&program(length(), true))
+            .unwrap()
+            .canonical_json()
+            .unwrap(),
+    )
+    .unwrap();
+    for formal in [false, true] {
+        for domain in [
+            None,
+            Some(Value::Null),
+            Some(json!("integer")),
+            Some(json!("boolean")),
+            Some(json!("complex")),
+        ] {
+            let mut invalid = original.clone();
+            let definition = &mut relation_expression(&mut invalid)["definitions"][0];
+            let class = if formal {
+                &mut definition["formals"][0]
+            } else {
+                &mut definition["result"]
+            };
+            match domain {
+                None => {
+                    class.as_object_mut().unwrap().remove("scalar_domain");
+                }
+                Some(value) => {
+                    class["scalar_domain"] = value;
+                }
+            }
+            assert!(
+                ModelEnvelope::from_json(
+                    &serde_json::to_vec(&invalid).unwrap(),
+                    ModelDecoderLimits::default()
+                )
+                .is_err()
             );
         }
     }
