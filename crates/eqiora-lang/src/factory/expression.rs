@@ -57,6 +57,15 @@ fn validate_expression_depth(expression: &Expr, depth: usize) -> Result<(), AstC
             }
             Ok(())
         }
+        ExprKind::Select {
+            condition,
+            then_value,
+            else_value,
+        } => {
+            validate_expression_depth(condition, depth + 1)?;
+            validate_expression_depth(then_value, depth + 1)?;
+            validate_expression_depth(else_value, depth + 1)
+        }
         ExprKind::Reduction { binder, value, .. } => {
             super::validate_identifier(binder.member(), "reduction member")?;
             validate_name_path(binder.set())?;

@@ -21,6 +21,15 @@ impl DraftExpression {
         paths: &mut HashMap<TextRange, GraphPath>,
     ) -> Expr {
         let kind = match &self.kind {
+            DraftExpressionKind::Select {
+                condition,
+                then_value,
+                else_value,
+            } => ExprKind::Select {
+                condition: Box::new(condition.ast(path, ranges, paths)),
+                then_value: Box::new(then_value.ast(path, ranges, paths)),
+                else_value: Box::new(else_value.ast(path, ranges, paths)),
+            },
             DraftExpressionKind::Boolean(value) => ExprKind::Boolean(*value),
             DraftExpressionKind::Constant(value) => ExprKind::Number(value.clone()),
             DraftExpressionKind::Complex(real, imaginary) => ExprKind::Call {
@@ -110,6 +119,17 @@ impl DraftExpression {
             kind: DraftExpressionKind::Boolean(value),
         }
     }
+    /// Select one value lazily from a Boolean condition and two authored branches.
+    #[must_use]
+    pub fn select(condition: Self, then_value: Self, else_value: Self) -> Self {
+        Self {
+            kind: DraftExpressionKind::Select {
+                condition: Box::new(condition),
+                then_value: Box::new(then_value),
+                else_value: Box::new(else_value),
+            },
+        }
+    }
     /// Boolean negation.
     #[must_use]
     pub fn logical_not(self) -> Self {
@@ -165,6 +185,15 @@ impl DraftExpression {
 impl DraftExpression {
     pub(super) fn references<'a>(&'a self, output: &mut Vec<DraftExpressionReference<'a>>) {
         match &self.kind {
+            DraftExpressionKind::Select {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                condition.references(output);
+                then_value.references(output);
+                else_value.references(output);
+            }
             DraftExpressionKind::Boolean(_)
             | DraftExpressionKind::Constant(_)
             | DraftExpressionKind::Complex(_, _) => {}
@@ -194,6 +223,15 @@ impl DraftExpression {
 
     pub(super) fn contains_invalid_literal(&self) -> bool {
         match &self.kind {
+            DraftExpressionKind::Select {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                condition.contains_invalid_literal()
+                    || then_value.contains_invalid_literal()
+                    || else_value.contains_invalid_literal()
+            }
             DraftExpressionKind::Boolean(_) | DraftExpressionKind::Constant(_) => false,
             DraftExpressionKind::Complex(real, imaginary) => {
                 !real.is_finite() || !imaginary.is_finite()

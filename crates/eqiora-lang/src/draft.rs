@@ -867,6 +867,11 @@ impl_binary_expression_operator!(Div, div, BinaryOp::Div);
 
 #[derive(Debug, Clone)]
 enum DraftExpressionKind {
+    Select {
+        condition: Box<DraftExpression>,
+        then_value: Box<DraftExpression>,
+        else_value: Box<DraftExpression>,
+    },
     Boolean(bool),
     Constant(crate::DecimalLiteral),
     Complex(f64, f64),

@@ -109,6 +109,15 @@ fn expression(
     visit: &mut impl FnMut(Option<&str>, &mut Expr),
 ) {
     match &mut value.kind {
+        ExprKind::Select {
+            condition,
+            then_value,
+            else_value,
+        } => {
+            expression(scope, condition, visit);
+            expression(scope, then_value, visit);
+            expression(scope, else_value, visit);
+        }
         ExprKind::Unary { value, .. }
         | ExprKind::Member { value, .. }
         | ExprKind::Reduction { value, .. } => expression(scope, value, visit),
