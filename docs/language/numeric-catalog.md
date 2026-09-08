@@ -64,6 +64,10 @@ separate exact boundary-member meaning.
 Expansion produces ordinary fixed instances in declared index order. It does not introduce
 a runtime loop or resize the Model. An edit to a static parameter that would invalidate
 elaborated structure rejects; changing the structure requires compilation with new bindings.
+Array expressions are immutable. Index selection must name one member within the fixed
+extent. Slice/range selection syntax is unsupported and rejects; there are no mutable views,
+clipping or wrapping semantics.
+
 An instance family admits one binder, without nested instance families, runtime
 indexing, or Parameter-dependent child IndexSets. Child IndexSets with closed constant extents
 are supported. A binder may supply ordinary Parameter values while the child footprint remains
@@ -161,9 +165,14 @@ existing resource bounds before allocation. Ordinary Parameter references remain
 dependencies; structural extent dependencies retain the existing edit restrictions.
 
 Reduction extents must be resolved during definition checking. A selected local Model uses
-its supplied static Parameter bindings before that check. A generic Component with an
-unbound extent cannot yet type a dimensioned reduction result; closed Component extents are
-admitted.
+its supplied static Parameter bindings before that check. Components reached through authored
+Model instances use each concrete static binding context, including nested parameter forwarding.
+Every context must type-check; one valid instance does not excuse an invalid second instance.
+Dimensioned products must match the declared result dimension in each context. The existing
+physical contract projection must agree across these specialized contexts; context-dependent
+physical topology is not admitted by this reduction-specialization path. Uninstantiated
+unresolved-reduction definitions still receive symbolic validation and reject; standalone selected
+Component specialization and symbolic product-dimension inference remain outside this profile.
 
 Reductions are admitted in Relations and runtime expression aliases. Parameter defaults and
 IndexSet extent definitions cannot contain reductions in this profile. Runtime-sized
