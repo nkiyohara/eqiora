@@ -244,7 +244,13 @@ fn compile_external_component_from_definition<'a>(
                     range,
                 )?,
                 range,
-                |_| None,
+                |id| declaration.value_type().resolved_nominal()
+                    .filter(|ty| ty.enum_definition().is_some_and(|definition| definition.erase() == id))
+                    .and_then(|_| match declaration.value_type().kind() {
+                        eqiora_lang::ValueTypeSyntaxKind::Named(name) => Some(name.clone()),
+                        _ => None,
+                    }),
+                |id| elaborator.enum_definition(id),
             )
             .map_err(|error| vec![hierarchy_error(error.message())])?,
             range,

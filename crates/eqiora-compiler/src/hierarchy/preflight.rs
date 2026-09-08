@@ -149,6 +149,11 @@ pub(super) struct Elaborator<'a> {
 }
 
 impl<'a> Elaborator<'a> {
+    pub(super) fn enum_definition(&self, id: eqiora_core::RawId) -> Option<&eqiora_schema::kernel::EnumDef> {
+        self.enumerations.values().flat_map(|values| values.values())
+            .map(|value| &value.definition).find(|definition| definition.id().erase() == id)
+    }
+
     #[cfg(test)]
     pub(super) fn new(
         file: &'a str,

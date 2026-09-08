@@ -166,7 +166,7 @@ fn local_document_in(
                 property(&context, &model.namespace, model.file, requirement, value)
             },
         )?;
-        selected_bound = bind_model(model.declaration, &prepared)?;
+        selected_bound = bind_model(&elaborator, model.declaration, &prepared)?;
         elaborator.bind_selected_model(preflight::ModelDefinition {
             namespace: model.namespace,
             file: model.file,
@@ -268,7 +268,7 @@ fn compile(
                 property(hierarchy, &model.namespace, model.file, requirement, value)
             },
         )?;
-        let bound = bind_model(model.declaration, &prepared)?;
+        let bound = bind_model(&elaborator, model.declaration, &prepared)?;
         let definition = preflight::ModelDefinition {
             namespace: model.namespace.clone(),
             file: model.file,
@@ -593,6 +593,7 @@ fn prepare(
 }
 
 fn bind_model(
+    elaborator: &Elaborator<'_>,
     model: &ModelDecl,
     bindings: &ExternalComponentBinding,
 ) -> Result<ModelDecl, Vec<Diagnostic>> {
@@ -621,7 +622,13 @@ fn bind_model(
                     declaration.range(),
                 )?,
                 declaration.range(),
-                |_| None,
+                |id| declaration.value_type().resolved_nominal()
+                    .filter(|ty| ty.enum_definition().is_some_and(|definition| definition.erase() == id))
+                    .and_then(|_| match declaration.value_type().kind() {
+                        eqiora_lang::ValueTypeSyntaxKind::Named(name) => Some(name.clone()),
+                        _ => None,
+                    }),
+                |id| elaborator.enum_definition(id),
             )
             .map_err(|error| vec![hierarchy_error(error.message())])?;
             SourceAstFactory::component_parameter(
