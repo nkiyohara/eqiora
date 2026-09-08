@@ -97,6 +97,9 @@ fn expression_type_cached(
         LoweringExpressionNode::Complex { real, imag } => {
             ExpressionType::complex(infer(real)?, infer(imag)?).map_err(violation)
         }
+        LoweringExpressionNode::Number(_) => {
+            Ok(ExpressionType::scalar(DimExponents::DIMENSIONLESS, None))
+        }
         LoweringExpressionNode::Literal(value) => {
             Ok(ExpressionType::new(value.value_type().clone(), None))
         }
@@ -158,7 +161,8 @@ fn expression_type_cached(
             let left_type = infer(left)?;
             let right_type = infer(right)?;
             match operator {
-                BinaryOp::Add | BinaryOp::Sub => typing::additive(&left_type, &right_type),
+                BinaryOp::Add => left_type.sum(right_type),
+                BinaryOp::Sub => typing::additive(&left_type, &right_type),
                 BinaryOp::Mul => typing::multiply(&left_type, &right_type),
                 BinaryOp::Div => typing::divide(&left_type, &right_type),
                 BinaryOp::Pow => {

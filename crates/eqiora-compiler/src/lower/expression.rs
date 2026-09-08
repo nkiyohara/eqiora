@@ -1,3 +1,6 @@
+mod source;
+pub(super) use source::from_source;
+mod contextual;
 mod physical_accessors;
 use super::*;
 
@@ -31,120 +34,13 @@ impl LoweringExpression {
                     pending.push(right);
                 }
                 LoweringExpressionNode::PureOperator { arguments, .. } => pending.extend(arguments),
-                LoweringExpressionNode::Literal(_) | LoweringExpressionNode::Name(_) => {}
+                LoweringExpressionNode::Number(_)
+                | LoweringExpressionNode::Literal(_)
+                | LoweringExpressionNode::Name(_) => {}
                 _ => return false,
             }
         }
         true
-    }
-}
-
-pub(super) fn from_source(expression: &Expr) -> LoweringExpression {
-    let kind = match expression.kind() {
-        ExprKind::Array(elements) => LoweringExpressionNode::Array(
-            elements
-                .iter()
-                .map(LoweringExpression::from_source)
-                .collect(),
-        ),
-        ExprKind::Index { value, index } => match crate::hierarchy::closed_index(index) {
-            Ok(index) => LoweringExpressionNode::Index {
-                value: LoweringExpression::from_source(value),
-                index,
-            },
-            Err(_) => LoweringExpressionNode::InvalidValue(
-                "channel index requires a constant nonnegative integer",
-            ),
-        },
-        ExprKind::Path(path) if path.as_str() == "math.i" => {
-            return LoweringExpression::literal(
-                eqiora_core::ValueLiteral::new(
-                    eqiora_core::ValueType::scalar(
-                        eqiora_core::ScalarDomain::Complex,
-                        DimExponents::DIMENSIONLESS,
-                    ),
-                    [(0.0, 1.0)],
-                )
-                .expect("imaginary unit"),
-                expression.range(),
-            );
-        }
-        ExprKind::Call { callee, arguments } if callee.as_str() == "math.complex" => {
-            match arguments.as_slice() {
-                [real, imag] => LoweringExpressionNode::Complex {
-                    real: LoweringExpression::from_source(real),
-                    imag: LoweringExpression::from_source(imag),
-                },
-                _ => LoweringExpressionNode::InvalidValue(
-                    "math.complex requires exactly two real scalar arguments",
-                ),
-            }
-        }
-        ExprKind::Quantity { value, unit } => match crate::units::quantity(value, unit) {
-            Ok(value) => return LoweringExpression::quantity(value, expression.range()),
-            Err(message) => LoweringExpressionNode::InvalidValue(message),
-        },
-        ExprKind::Number(value) => match value.to_f64() {
-            Ok(value) => {
-                return LoweringExpression::quantity(
-                    DynQuantity::new(value, DimExponents::DIMENSIONLESS),
-                    expression.range(),
-                );
-            }
-            Err(_) => LoweringExpressionNode::InvalidValue(
-                "real literal exceeds the finite binary64 range",
-            ),
-        },
-        ExprKind::Path(path) => match crate::math::constant(path) {
-            Some(value) => {
-                return LoweringExpression::quantity(
-                    DynQuantity::new(value, DimExponents::DIMENSIONLESS),
-                    expression.range(),
-                );
-            }
-            None if crate::math::is_namespaced(path) => {
-                LoweringExpressionNode::UnknownMath(path.as_str().to_owned())
-            }
-            None => LoweringExpressionNode::Unsupported,
-        },
-        ExprKind::Name(name) => LoweringExpressionNode::Name(name.clone()),
-        ExprKind::Unary {
-            op: UnaryOp::Neg,
-            value,
-        } => return LoweringExpression::neg(from_source(value), expression.range()),
-        ExprKind::Binary { op, left, right } => LoweringExpressionNode::Binary {
-            operator: *op,
-            left: from_source(left),
-            right: from_source(right),
-        },
-        ExprKind::Call { callee, arguments } if callee.as_str() == "sample" => {
-            match arguments.as_slice() {
-                [value, clock] => match clock.kind() {
-                    ExprKind::Name(clock) => LoweringExpressionNode::Sample {
-                        value: from_source(value),
-                        clock: clock.clone(),
-                    },
-                    _ => LoweringExpressionNode::InvalidValue("sample requires one clock name"),
-                },
-                _ => LoweringExpressionNode::InvalidValue(
-                    "sample requires a value and one clock name",
-                ),
-            }
-        }
-        ExprKind::Call { callee, arguments }
-            if (!callee.is_qualified() || crate::math::is_namespaced(callee))
-                && arguments.len() == 1 =>
-        {
-            LoweringExpressionNode::Call {
-                callee: callee.as_str().to_owned(),
-                argument: from_source(&arguments[0]),
-            }
-        }
-        _ => LoweringExpressionNode::Unsupported,
-    };
-    LoweringExpression {
-        node: Arc::new(kind),
-        range: expression.range(),
     }
 }
 
@@ -210,8 +106,15 @@ pub(super) fn lower_relation(
     };
     let mut normalized = Vec::with_capacity(equations.len());
     for equation in equations {
-        let left_type = expression_type(file, &equation.left, bindings, support.as_ref())?;
-        let right_type = expression_type(file, &equation.right, bindings, support.as_ref())?;
+        let (left_expression, right_expression) = contextual::equation(
+            file,
+            &equation.left,
+            &equation.right,
+            bindings,
+            support.as_ref(),
+        )?;
+        let left_type = expression_type(file, &left_expression, bindings, support.as_ref())?;
+        let right_type = expression_type(file, &right_expression, bindings, support.as_ref())?;
         let checked = equality::check(
             left_type,
             right_type,
@@ -246,8 +149,12 @@ pub(super) fn lower_relation(
             |expression: &LoweringExpression, is_zero, value_type: &eqiora_core::ValueType| {
                 if is_zero {
                     LoweringExpression::literal(
-                        eqiora_core::ValueLiteral::from_real(value_type.clone(), 0.0)
-                            .expect("zero inhabits every checked mathematical type"),
+                        if value_type.scalar_domain() == eqiora_core::ScalarDomain::Integer {
+                            eqiora_core::ValueLiteral::from_integer(value_type.clone(), 0)
+                        } else {
+                            eqiora_core::ValueLiteral::from_real(value_type.clone(), 0.0)
+                        }
+                        .expect("zero inhabits every checked mathematical type"),
                         expression.range(),
                     )
                 } else {
@@ -255,19 +162,22 @@ pub(super) fn lower_relation(
                 }
             };
         let left = contextual(
-            &equation.left,
+            &left_expression,
             equation.contextual_left_zero,
             &checked.left.value_type,
         );
         let right = contextual(
-            &equation.right,
+            &right_expression,
             equation.contextual_right_zero,
             &checked.right.value_type,
         );
         // This neutral-element rule applies only after both operands and the
         // resulting support/type have passed admission. In particular a real
         // left side cannot absorb the promotion caused by a complex zero.
-        let residual = if equation.literal_right_zero && checked.residual == checked.left {
+        let residual = if equation.literal_right_zero
+            && checked.residual == checked.left
+            && checked.residual.value_type.scalar_domain() != eqiora_core::ScalarDomain::Integer
+        {
             left
         } else {
             LoweringExpression::binary(BinaryOp::Sub, left, right, equation.range)
@@ -337,6 +247,14 @@ impl ExpressionLowerer<'_> {
             return Ok(*lowered);
         }
         let lowered = match expression.node.as_ref() {
+            LoweringExpressionNode::Number(_) => {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.file,
+                    expression.range(),
+                    "unresolved contextual number",
+                ));
+            }
             LoweringExpressionNode::IntegerCall {
                 operator,
                 arguments,
@@ -346,6 +264,7 @@ impl ExpressionLowerer<'_> {
                     .map(|argument| self.lower(argument))
                     .collect::<Result<Vec<_>, _>>()?;
                 let result = match operator {
+                    super::IntegerBuiltin::Ordinal => self.builder.ordinal(operands[0].id),
                     super::IntegerBuiltin::Quotient => {
                         self.builder.quotient(operands[0].id, operands[1].id)
                     }

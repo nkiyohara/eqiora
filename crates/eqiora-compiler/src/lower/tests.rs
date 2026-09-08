@@ -1,3 +1,4 @@
+mod runtime_integer;
 use super::*;
 use crate::compile;
 use eqiora_lang::parse;

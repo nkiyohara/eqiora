@@ -4,6 +4,7 @@ use eqiora_schema::kernel::typing::{ExpressionType, TypeViolation};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum IntegerBuiltin {
+    Ordinal,
     Quotient,
     Remainder,
     ToReal,
@@ -12,6 +13,7 @@ pub(crate) enum IntegerBuiltin {
 impl IntegerBuiltin {
     pub(crate) fn named(name: &str) -> Option<Self> {
         match name {
+            "ordinal" => Some(Self::Ordinal),
             "quotient" => Some(Self::Quotient),
             "remainder" => Some(Self::Remainder),
             "to_real" => Some(Self::ToReal),
@@ -36,6 +38,7 @@ impl IntegerBuiltin {
         operands: &[ExpressionType<I>],
     ) -> Result<ExpressionType<I>, TypeViolation<I>> {
         match self {
+            Self::Ordinal => operands[0].clone().ordinal(),
             Self::Quotient | Self::Remainder => {
                 operands[0].clone().integer_quotient(operands[1].clone())
             }
@@ -48,6 +51,7 @@ impl IntegerBuiltin {
         operands: &[ValueLiteral],
     ) -> Result<ValueLiteral, eqiora_core::InvalidValueLiteral> {
         match self {
+            Self::Ordinal => operands[0].ordinal(),
             Self::Quotient => operands[0].checked_quotient(&operands[1]),
             Self::Remainder => operands[0].checked_remainder(&operands[1]),
             Self::ToReal => operands[0].to_real(),

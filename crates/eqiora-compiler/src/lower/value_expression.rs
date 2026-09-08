@@ -7,6 +7,13 @@ impl LoweringExpression {
         expression::from_source(expression)
     }
 
+    pub(crate) fn number(value: eqiora_lang::DecimalLiteral, range: TextRange) -> Self {
+        Self {
+            node: Arc::new(LoweringExpressionNode::Number(value)),
+            range,
+        }
+    }
+
     pub(crate) fn quantity(value: DynQuantity, range: TextRange) -> Self {
         match eqiora_core::ValueLiteral::try_from(value) {
             Ok(value) => Self::literal(value, range),
