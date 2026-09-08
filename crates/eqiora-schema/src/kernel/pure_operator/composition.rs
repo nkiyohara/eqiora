@@ -35,6 +35,12 @@ impl CalculusBuilder {
             definition_index(*argument, self.nodes.len())?;
             let dimension = derive_symbolic_dimension(&self.formals, &self.nodes, *argument)?;
             validate_result_dimension(&self.formals, *formal, &dimension)?;
+            if let Some(expected) = formal.scalar_domain()
+                && domains::expression_domain(&self.formals, &self.nodes, *argument)?
+                    != Some(expected)
+            {
+                return Err(PureOperatorError::FormalTypeMismatch);
+            }
         }
         // Stage the bounded append so any failed depth/type check leaves the caller intact.
         let mut staged = Self {

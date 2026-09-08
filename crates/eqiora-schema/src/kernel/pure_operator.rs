@@ -15,6 +15,7 @@ use super::typing::{ExpressionType, SpatialSupport};
 use eqiora_core::{DimExponents, ValueFrame};
 mod composition;
 mod dimensions;
+mod domains;
 use dimensions::{derive_symbolic_dimension, instantiate_dimension, validate_result_dimension};
 
 const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v3\0";
@@ -288,6 +289,7 @@ fn gcd(mut left: u128, mut right: u128) -> u128 {
 pub struct PureValueClass {
     spatial_rank: Option<std::num::NonZeroU16>,
     dimension: Option<DimExponents>,
+    scalar_domain: Option<eqiora_core::ScalarDomain>,
 }
 
 impl PureValueClass {
@@ -297,6 +299,7 @@ impl PureValueClass {
         Self {
             spatial_rank: None,
             dimension: None,
+            scalar_domain: None,
         }
     }
 
@@ -312,6 +315,7 @@ impl PureValueClass {
         Ok(Self {
             spatial_rank: Some(rank),
             dimension: None,
+            scalar_domain: None,
         })
     }
 
@@ -357,10 +361,12 @@ impl Ord for PureValueClass {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         (
             self.spatial_rank,
+            self.scalar_domain,
             self.dimension.map(DimExponents::exponents),
         )
             .cmp(&(
                 other.spatial_rank,
+                other.scalar_domain,
                 other.dimension.map(DimExponents::exponents),
             ))
     }
@@ -542,6 +548,7 @@ impl CalculusBuilder {
         }
         let dimension = derive_symbolic_dimension(&self.formals, &self.nodes, root)?;
         validate_result_dimension(&self.formals, self.result, &dimension)?;
+        domains::validate_result(&self.formals, self.result)?;
         Ok(PureOperatorDefinition {
             formals: self.formals,
             result: self.result,
@@ -690,6 +697,13 @@ impl PureOperatorDefinition {
                 None => common_volume = Some(support.clone()),
             }
         }
+        if self
+            .result
+            .scalar_domain()
+            .is_some_and(|expected| expected != scalar_domain)
+        {
+            return Err(PureOperatorError::FormalTypeMismatch);
+        }
         let result_dimension = instantiate_dimension(&self.dimension, arguments)?;
         if self
             .result
@@ -765,6 +779,12 @@ fn validate_argument_class<I>(
     class: PureValueClass,
     argument: &ExpressionType<I>,
 ) -> Result<(), PureOperatorError> {
+    if class
+        .scalar_domain()
+        .is_some_and(|expected| expected != argument.value_type.scalar_domain())
+    {
+        return Err(PureOperatorError::FormalTypeMismatch);
+    }
     if class
         .dimension()
         .is_some_and(|expected| expected != argument.dimension())
@@ -916,6 +936,12 @@ fn push_value_class(bytes: &mut Vec<u8>, class: PureValueClass) {
             bytes.push(1);
             push_u16(bytes, rank);
         }
+    }
+    match class.scalar_domain() {
+        None => bytes.push(0),
+        Some(eqiora_core::ScalarDomain::Real) => bytes.push(1),
+        Some(eqiora_core::ScalarDomain::Complex) => bytes.push(2),
+        Some(_) => unreachable!("checked pure scalar domain"),
     }
     match class.dimension() {
         None => bytes.push(0),
