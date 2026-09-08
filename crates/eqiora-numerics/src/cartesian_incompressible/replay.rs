@@ -2,7 +2,7 @@ use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, GraphPath};
 
 use crate::cartesian_fvm_geometry::{
-    CartesianCellMetrics2d, CartesianFacetAdjacency2d, CartesianFacetMetrics2d,
+    CartesianCellMetrics, CartesianFacetAdjacency, CartesianFacetMetrics,
 };
 
 use super::operator::{CollocatedFaceAction2d, CollocatedPoint2d, CollocatedResidual2d};
@@ -21,8 +21,8 @@ pub(crate) struct CollocatedResidualReplay2d {
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn replay_residual(
-    facets: &[CartesianFacetMetrics2d],
-    cells: &[CartesianCellMetrics2d],
+    facets: &[CartesianFacetMetrics<2>],
+    cells: &[CartesianCellMetrics<2>],
     density: f64,
     duration: f64,
     previous_velocity: &[[f64; DIMENSION]],
@@ -57,7 +57,7 @@ pub(super) fn replay_residual(
     for (facet, action) in facets.iter().zip(&residual.face_actions) {
         match (facet.adjacency, action) {
             (
-                CartesianFacetAdjacency2d::Interior { lower, upper, .. },
+                CartesianFacetAdjacency::Interior { lower, upper, .. },
                 CollocatedFaceAction2d::Interior {
                     lower: action_lower,
                     upper: action_upper,
@@ -90,7 +90,7 @@ pub(super) fn replay_residual(
                 }
             }
             (
-                CartesianFacetAdjacency2d::Boundary { cell, .. },
+                CartesianFacetAdjacency::Boundary { cell, .. },
                 CollocatedFaceAction2d::Boundary {
                     cell: action_cell,
                     traction_momentum,
@@ -175,7 +175,7 @@ mod tests {
 
     fn zero_problem() -> (CartesianIncompressibleOperator2d, CollocatedPoint2d) {
         let mesh = CartesianMesh::uniform(&[[0.0, 1.0], [0.0, 1.0]], &[2, 2]).unwrap();
-        let face_count = crate::cartesian_fvm_geometry::cartesian_fvm_geometry_2d(&mesh)
+        let face_count = crate::cartesian_fvm_geometry::cartesian_fvm_geometry::<2>(&mesh)
             .unwrap()
             .1
             .len();

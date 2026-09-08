@@ -25,6 +25,9 @@ mod common_ode;
 mod common_result;
 mod common_trajectory;
 mod constrained_dofs;
+// Private face-action seam consumed by the forthcoming common Run integration (#686).
+#[allow(dead_code)]
+mod conservative_system;
 mod continuum_kinematics;
 mod diffusion;
 mod discrete_block;

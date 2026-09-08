@@ -8,9 +8,9 @@ use eqiora_meshing::MeshEntity;
 use super::pressure_coupling::MomentumWeightedPressureCoupling2d;
 use super::replay::{CollocatedResidualReplay2d, replay_residual};
 #[cfg(test)]
-use crate::cartesian_fvm_geometry::cartesian_fvm_geometry_2d;
+use crate::cartesian_fvm_geometry::cartesian_fvm_geometry;
 use crate::cartesian_fvm_geometry::{
-    CartesianCellMetrics2d, CartesianFacetAdjacency2d, CartesianFacetMetrics2d,
+    CartesianCellMetrics, CartesianFacetAdjacency, CartesianFacetMetrics,
 };
 use eqiora_meshing::CartesianMesh;
 
@@ -101,8 +101,8 @@ pub(super) enum CollocatedFaceAction2d {
 #[derive(Debug, Clone)]
 pub(crate) struct PreparedCartesianIncompressibleOperator2d {
     mesh: CartesianMesh,
-    cells: Vec<CartesianCellMetrics2d>,
-    facets: Vec<CartesianFacetMetrics2d>,
+    cells: Vec<CartesianCellMetrics<2>>,
+    facets: Vec<CartesianFacetMetrics<2>>,
     pressure_coupling: MomentumWeightedPressureCoupling2d,
     density: f64,
     viscosity: f64,
@@ -120,7 +120,7 @@ impl PreparedCartesianIncompressibleOperator2d {
         duration: f64,
         body_force: Vec<[f64; DIMENSION]>,
     ) -> Result<Self, Diagnostic> {
-        let (cells, facets) = cartesian_fvm_geometry_2d(&mesh)?;
+        let (cells, facets) = cartesian_fvm_geometry::<2>(&mesh)?;
         Self::from_geometry(
             mesh, cells, facets, density, viscosity, duration, body_force,
         )
@@ -129,8 +129,8 @@ impl PreparedCartesianIncompressibleOperator2d {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn from_geometry(
         mesh: CartesianMesh,
-        cells: Vec<CartesianCellMetrics2d>,
-        facets: Vec<CartesianFacetMetrics2d>,
+        cells: Vec<CartesianCellMetrics<2>>,
+        facets: Vec<CartesianFacetMetrics<2>>,
         density: f64,
         viscosity: f64,
         duration: f64,
@@ -213,7 +213,7 @@ impl PreparedCartesianIncompressibleOperator2d {
         &self.mesh
     }
 
-    pub(crate) fn cells(&self) -> &[CartesianCellMetrics2d] {
+    pub(crate) fn cells(&self) -> &[CartesianCellMetrics<2>] {
         &self.cells
     }
 
@@ -321,7 +321,7 @@ impl CartesianIncompressibleOperator2d {
         let mut face_actions = Vec::with_capacity(self.facets.len());
         for (facet_index, facet) in self.facets.iter().enumerate() {
             match facet.adjacency {
-                CartesianFacetAdjacency2d::Interior {
+                CartesianFacetAdjacency::Interior {
                     lower,
                     upper,
                     center_distance,
@@ -360,7 +360,7 @@ impl CartesianIncompressibleOperator2d {
                         traction_momentum,
                     });
                 }
-                CartesianFacetAdjacency2d::Boundary {
+                CartesianFacetAdjacency::Boundary {
                     cell,
                     side,
                     center_distance,
@@ -452,7 +452,7 @@ impl CartesianIncompressibleOperator2d {
         }
         for (facet_index, facet) in self.facets.iter().enumerate() {
             match facet.adjacency {
-                CartesianFacetAdjacency2d::Interior {
+                CartesianFacetAdjacency::Interior {
                     lower,
                     upper,
                     center_distance,
@@ -488,7 +488,7 @@ impl CartesianIncompressibleOperator2d {
                         momentum[upper][component] += action;
                     }
                 }
-                CartesianFacetAdjacency2d::Boundary {
+                CartesianFacetAdjacency::Boundary {
                     cell,
                     side,
                     center_distance,
@@ -547,8 +547,8 @@ impl CartesianIncompressibleOperator2d {
 }
 
 fn momentum_diagonal(
-    cells: &[CartesianCellMetrics2d],
-    facets: &[CartesianFacetMetrics2d],
+    cells: &[CartesianCellMetrics<2>],
+    facets: &[CartesianFacetMetrics<2>],
     density: f64,
     viscosity: f64,
     duration: f64,
@@ -559,16 +559,16 @@ fn momentum_diagonal(
         .collect::<Vec<_>>();
     for facet in facets {
         let coefficient = match facet.adjacency {
-            CartesianFacetAdjacency2d::Interior {
+            CartesianFacetAdjacency::Interior {
                 center_distance, ..
             }
-            | CartesianFacetAdjacency2d::Boundary {
+            | CartesianFacetAdjacency::Boundary {
                 center_distance, ..
             } => viscosity * facet.measure / center_distance,
         };
         let cells = match facet.adjacency {
-            CartesianFacetAdjacency2d::Interior { lower, upper, .. } => [Some(lower), Some(upper)],
-            CartesianFacetAdjacency2d::Boundary { cell, .. } => [Some(cell), None],
+            CartesianFacetAdjacency::Interior { lower, upper, .. } => [Some(lower), Some(upper)],
+            CartesianFacetAdjacency::Boundary { cell, .. } => [Some(cell), None],
         };
         for cell in cells.into_iter().flatten() {
             for (component, diagonal) in diagonal[cell].iter_mut().enumerate() {
@@ -595,7 +595,7 @@ fn momentum_diagonal(
 
 fn cell_vector_gradients(
     mesh: &CartesianMesh,
-    cells: &[CartesianCellMetrics2d],
+    cells: &[CartesianCellMetrics<2>],
     values: &[[f64; DIMENSION]],
 ) -> Result<Vec<[[f64; DIMENSION]; DIMENSION]>, Diagnostic> {
     (0..cells.len())
@@ -744,12 +744,12 @@ fn invalid(message: impl Into<String>) -> Diagnostic {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cartesian_fvm_geometry::cartesian_fvm_geometry_2d;
+    use crate::cartesian_fvm_geometry::cartesian_fvm_geometry;
 
     #[test]
     fn affine_pressure_exactly_balances_its_canonical_body_force() {
         let mesh = CartesianMesh::uniform(&[[-1.0, 1.0], [-2.0, 2.0]], &[4, 3]).unwrap();
-        let (_, facets) = cartesian_fvm_geometry_2d(&mesh).unwrap();
+        let (_, facets) = cartesian_fvm_geometry::<2>(&mesh).unwrap();
         let pressure = (0..12)
             .map(|cell| {
                 let center = mesh.entity_center(MeshEntity::new(2, cell)).unwrap();
