@@ -75,8 +75,9 @@ fn typed_edit_cannot_reinterpret_domain_shape_or_dimension() {
     let declared = document.program().typed_value(target).unwrap().value_type();
     for wrong in [
         declared.clone().array(1).unwrap(),
-        ValueType::scalar(ScalarDomain::Real, declared.dimension()),
-        ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS),
+        ValueType::scalar(ScalarDomain::Real, declared.dimension()).expect("valid scalar type"),
+        ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+            .expect("valid scalar type"),
     ] {
         let replacement = ValueLiteral::new(wrong, [(2.0, 0.0)]).unwrap();
         assert!(document.preview_value_edit(target, replacement).is_err());

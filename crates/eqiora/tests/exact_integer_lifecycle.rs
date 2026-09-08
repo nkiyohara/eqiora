@@ -8,7 +8,8 @@ use eqiora::{DimExponents, ScalarDomain, ValueLiteral, ValueType};
 
 fn integer(value: i64) -> ValueLiteral {
     ValueLiteral::from_integer(
-        ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+        ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("valid scalar type"),
         value,
     )
     .unwrap()
@@ -43,7 +44,8 @@ fn adjacent_exact_values_survive_source_native_edit_and_artifact_replay() {
 
     let witness = DraftField::new(
         "witness",
-        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            .expect("valid scalar type"),
         FieldRoleSyntax::Variable,
     );
     let law = DraftRelation::continuous(

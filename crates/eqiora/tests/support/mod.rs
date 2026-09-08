@@ -100,7 +100,8 @@ pub(crate) fn canonical_state_dependent_mass_dae() -> CanonicalStateDependentMas
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
             eqiora::kernel::FieldRole::State,
         )),
         KernelNode::from(FieldDef::new(
@@ -108,13 +109,15 @@ pub(crate) fn canonical_state_dependent_mass_dae() -> CanonicalStateDependentMas
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
             eqiora::kernel::FieldRole::Variable,
         )),
         KernelNode::from(ParameterDef::new(
             rate,
             eqiora_core::ValueLiteral::from_real(
-                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time),
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time)
+                    .expect("valid scalar type"),
                 1.0,
             )
             .unwrap(),
@@ -129,7 +132,8 @@ pub(crate) fn canonical_state_dependent_mass_dae() -> CanonicalStateDependentMas
                                 eqiora_core::ValueType::scalar(
                                     eqiora_core::ScalarDomain::Real,
                                     inverse_time,
-                                ),
+                                )
+                                .expect("valid scalar type"),
                                 0.0,
                             )
                             .unwrap(),
@@ -141,7 +145,8 @@ pub(crate) fn canonical_state_dependent_mass_dae() -> CanonicalStateDependentMas
                                 eqiora_core::ValueType::scalar(
                                     eqiora_core::ScalarDomain::Real,
                                     DimExponents::DIMENSIONLESS,
-                                ),
+                                )
+                                .expect("valid scalar type"),
                                 0.0,
                             )
                             .unwrap(),

@@ -34,7 +34,11 @@ fn k() -> DimExponents {
     DimExponents::from_integers([1, 1, -3, 0, -1, 0, 0]).unwrap()
 }
 fn real(dimension: DimExponents, value: f64) -> ValueLiteral {
-    ValueLiteral::from_real(ValueType::scalar(ScalarDomain::Real, dimension), value).unwrap()
+    ValueLiteral::from_real(
+        ValueType::scalar(ScalarDomain::Real, dimension).expect("valid scalar type"),
+        value,
+    )
+    .unwrap()
 }
 fn close(actual: f64, expected: f64) {
     assert!((actual - expected).abs() <= 2e-12, "{actual} != {expected}");
@@ -44,11 +48,13 @@ fn native_conductivity() -> PureOperatorDefinition {
     let scalar = PureValueClass::invariant_scalar();
     let mut b = CalculusBuilder::new(
         [
-            scalar.with_dimension(t()),
-            scalar.with_dimension(k()),
-            scalar.with_dimension(t().pow(-1, 1).unwrap()),
+            scalar.with_dimension(t()).expect("valid scalar type"),
+            scalar.with_dimension(k()).expect("valid scalar type"),
+            scalar
+                .with_dimension(t().pow(-1, 1).unwrap())
+                .expect("valid scalar type"),
         ],
-        scalar.with_dimension(k()),
+        scalar.with_dimension(k()).expect("valid scalar type"),
     )
     .unwrap();
     let mut formal = |formal| {
@@ -88,7 +94,7 @@ fn native_program(definition: &PureOperatorDefinition) -> (KernelProgram, RawId)
     let mut nodes = vec![
         KernelNode::from(FieldDef::new(
             field,
-            ValueType::scalar(ScalarDomain::Real, k()),
+            ValueType::scalar(ScalarDomain::Real, k()).expect("valid scalar type"),
             FieldRole::Variable,
         )),
         RelationDef::new(relation, builder.finish([lhs, rhs]).unwrap())

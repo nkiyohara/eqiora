@@ -333,7 +333,8 @@ fn build_transaction(
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
             eqiora::kernel::FieldRole::Variable,
         ))),
         ExtraMeaning::RelationSupport => {}
@@ -342,11 +343,13 @@ fn build_transaction(
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
-                ),
+                )
+                .expect("valid scalar type"),
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
-                ),
+                )
+                .expect("valid scalar type"),
                 BoundaryPairing::EuclideanBoundaryDuality,
             )
             .unwrap();

@@ -218,7 +218,8 @@ fn positive_model(
                                 eqiora_core::ValueType::scalar(
                                     eqiora_core::ScalarDomain::Real,
                                     DimExponents::from_integers([0, -1, 0, 0, 0, 0, 0]).unwrap(),
-                                ),
+                                )
+                                .expect("valid scalar type"),
                                 0.0,
                             )
                             .unwrap(),
@@ -1255,11 +1256,13 @@ fn geometry_boundary_port_requires_an_embedding_contract_even_after_admission() 
         eqiora_core::ValueType::scalar(
             eqiora_core::ScalarDomain::Real,
             DimExponents::DIMENSIONLESS,
-        ),
+        )
+        .expect("valid scalar type"),
         eqiora_core::ValueType::scalar(
             eqiora_core::ScalarDomain::Real,
             DimExponents::DIMENSIONLESS,
-        ),
+        )
+        .expect("valid scalar type"),
         BoundaryPairing::EuclideanBoundaryDuality,
     )
     .expect("boundary connector");
@@ -1370,7 +1373,8 @@ fn admitted_geometry_boundary_support_accepts_relation_scope_only() {
                                     eqiora_core::ValueType::scalar(
                                         eqiora_core::ScalarDomain::Real,
                                         DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
-                                    ),
+                                    )
+                                    .expect("valid scalar type"),
                                     0.0,
                                 )
                                 .unwrap(),

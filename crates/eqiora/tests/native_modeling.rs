@@ -11,7 +11,8 @@ fn native_and_source_models_share_structure_and_artifacts() {
         eqiora_core::ValueType::scalar(
             eqiora_core::ScalarDomain::Real,
             DimExponents::DIMENSIONLESS,
-        ),
+        )
+        .expect("valid scalar type"),
         eqiora::language::FieldRoleSyntax::State,
     );
     let rate = DraftParameter::new(
@@ -20,7 +21,8 @@ fn native_and_source_models_share_structure_and_artifacts() {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),
-            ),
+            )
+            .expect("valid scalar type"),
             1.0,
         )
         .unwrap(),
@@ -69,7 +71,8 @@ fn native_modeling_failures_have_paths_and_never_return_a_model() {
         eqiora_core::ValueType::scalar(
             eqiora_core::ScalarDomain::Real,
             DimExponents::DIMENSIONLESS,
-        ),
+        )
+        .expect("valid scalar type"),
         eqiora::language::FieldRoleSyntax::Variable,
     );
     let foreign = DraftField::new(
@@ -77,7 +80,8 @@ fn native_modeling_failures_have_paths_and_never_return_a_model() {
         eqiora_core::ValueType::scalar(
             eqiora_core::ScalarDomain::Real,
             DimExponents::DIMENSIONLESS,
-        ),
+        )
+        .expect("valid scalar type"),
         eqiora::language::FieldRoleSyntax::Variable,
     );
     let relation = DraftRelation::continuous(
@@ -100,7 +104,8 @@ fn native_modeling_failures_have_paths_and_never_return_a_model() {
         eqiora_core::ValueType::scalar(
             eqiora_core::ScalarDomain::Real,
             DimExponents::from_integers([0, 0, 0, 0, 1, 0, 0]).expect("bounded dimension"),
-        ),
+        )
+        .expect("valid scalar type"),
         eqiora::language::FieldRoleSyntax::Variable,
     );
     let duration = DraftParameter::new(
@@ -109,7 +114,8 @@ fn native_modeling_failures_have_paths_and_never_return_a_model() {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension"),
-            ),
+            )
+            .expect("valid scalar type"),
             1.0,
         )
         .unwrap(),

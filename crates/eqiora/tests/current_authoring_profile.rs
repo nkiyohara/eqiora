@@ -61,7 +61,8 @@ fn rust_authoring_edit_replay_and_control_share_the_current_profile() {
         eqiora_core::ValueType::scalar(
             eqiora_core::ScalarDomain::Real,
             DimExponents::DIMENSIONLESS,
-        ),
+        )
+        .expect("valid scalar type"),
         eqiora::language::FieldRoleSyntax::State,
     );
     let hold = DraftRelation::continuous(

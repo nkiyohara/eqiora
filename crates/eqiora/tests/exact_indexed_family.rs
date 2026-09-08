@@ -126,7 +126,8 @@ fn changing_a_structural_extent_requires_recompilation_even_after_replay() {
         "cell[index(Stages, 1)].y",
     );
     let replacement = ValueLiteral::from_integer(
-        ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+        ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("valid scalar type"),
         3,
     )
     .unwrap();

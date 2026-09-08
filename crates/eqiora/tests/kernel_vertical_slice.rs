@@ -51,7 +51,8 @@ fn public_api_builds_a_clocked_relation_network() {
                         eqiora_core::ValueType::scalar(
                             eqiora_core::ScalarDomain::Real,
                             DimExponents::DIMENSIONLESS,
-                        ),
+                        )
+                        .expect("valid scalar type"),
                         0.0,
                     )
                     .unwrap(),
@@ -72,7 +73,8 @@ fn public_api_builds_a_clocked_relation_network() {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
             eqiora::kernel::FieldRole::Variable,
         )),
         KernelNode::from(relation_definition),
@@ -82,7 +84,8 @@ fn public_api_builds_a_clocked_relation_network() {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
         )),
         KernelNode::from(ActivationDef::periodic(activation)),
         KernelNode::from(

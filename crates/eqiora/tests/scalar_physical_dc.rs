@@ -85,13 +85,16 @@ fn native_parallel_dc_draft() -> ModelDraft {
         DimExponents::from_integers([1, 2, -3, -2, 0, 0, 0]).expect("bounded dimension");
     let electrical = DraftPhysicalDomain::new(
         "electrical",
-        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage),
-        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, current),
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage)
+            .expect("valid scalar type"),
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, current)
+            .expect("valid scalar type"),
     );
     let supply_voltage = DraftParameter::new(
         "supply_voltage",
         eqiora_core::ValueLiteral::from_real(
-            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage),
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage)
+                .expect("valid scalar type"),
             12.0,
         )
         .unwrap(),
@@ -99,7 +102,8 @@ fn native_parallel_dc_draft() -> ModelDraft {
     let resistance_two = DraftParameter::new(
         "resistance_two",
         eqiora_core::ValueLiteral::from_real(
-            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, resistance),
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, resistance)
+                .expect("valid scalar type"),
             2.0,
         )
         .unwrap(),
@@ -107,7 +111,8 @@ fn native_parallel_dc_draft() -> ModelDraft {
     let resistance_four = DraftParameter::new(
         "resistance_four",
         eqiora_core::ValueLiteral::from_real(
-            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, resistance),
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, resistance)
+                .expect("valid scalar type"),
             4.0,
         )
         .unwrap(),
@@ -288,7 +293,8 @@ fn with_unrelated_relation(source: &Transaction, model: OntologyId<Model>) -> Tr
                         eqiora_core::ValueType::scalar(
                             eqiora_core::ScalarDomain::Real,
                             DimExponents::DIMENSIONLESS,
-                        ),
+                        )
+                        .expect("valid scalar type"),
                         0.0,
                     )
                     .unwrap(),
@@ -312,7 +318,8 @@ fn with_unrelated_relation(source: &Transaction, model: OntologyId<Model>) -> Tr
                             eqiora_core::ValueType::scalar(
                                 eqiora_core::ScalarDomain::Real,
                                 DimExponents::DIMENSIONLESS,
-                            ),
+                            )
+                            .expect("valid scalar type"),
                             eqiora::kernel::FieldRole::Variable,
                         )
                         .into(),

@@ -206,6 +206,7 @@ fn imaginary_coefficient_edit_preserves_parameter_id_type_and_other_components()
     assert!(changed.commit_value_edit(plan).is_err());
     let channels = ValueLiteral::new(
         ValueType::scalar(ScalarDomain::Complex, before.value_type().dimension())
+            .expect("valid scalar type")
             .array(2)
             .unwrap()
             .array(2)

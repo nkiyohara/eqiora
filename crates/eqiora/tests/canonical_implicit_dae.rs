@@ -387,7 +387,8 @@ fn canonical_nonlinear_derivative_relation() -> (
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
             eqiora::kernel::FieldRole::State,
         )),
         KernelNode::from(
@@ -400,7 +401,8 @@ fn canonical_nonlinear_derivative_relation() -> (
                                 eqiora_core::ValueType::scalar(
                                     eqiora_core::ScalarDomain::Real,
                                     inverse_time_squared,
-                                ),
+                                )
+                                .expect("valid scalar type"),
                                 0.0,
                             )
                             .unwrap(),
