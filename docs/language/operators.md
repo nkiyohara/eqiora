@@ -25,8 +25,10 @@ bodies retain `rational`, `component` and `delta`. The former `pure operator` an
 declaration spellings are not part of the current source surface.
 
 Polynomial bodies use exact decimal or rational coefficients, formal references and bounded
-arithmetic. Powers use nonnegative integer literal exponents up to 255 and share the
-calculus work and depth limits; negative or computed exponents are outside this profile.
+arithmetic. Powers use positive integer literal exponents up to 255 and share the
+calculus work and depth limits. Zero, negative or computed exponents are outside this
+profile; write the constant `1` for a degree-zero term. This preserves the general value-power
+rule that `0^0` rejects instead of erasing its domain check during polynomial expansion.
 Calls between local scalar operators compose through the existing exact calculus owner. Lexical names and formal bindings are resolved before expansion; cycles, capture,
 unknown or missing arguments, incompatible types and excess work reject locally. Operators
 cannot read hidden evolving state or invoke host callbacks. Cross-package composition inside
