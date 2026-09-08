@@ -3,6 +3,8 @@ mod instruction;
 mod lower;
 use instruction::{Instruction, ValueId};
 mod batch;
+#[cfg(test)]
+mod enum_tests;
 mod linearization;
 mod numerical_evaluation;
 mod point_projection;
