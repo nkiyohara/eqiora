@@ -134,42 +134,44 @@ fn thermostat_thresholds_rearm_and_omitted_states_remain_continuous() {
         activations.push((event.erase(), reset.erase()));
     }
     let program = program(nodes, &activations);
-    let config = ReferenceConfig::new(12., 0.25)
-        .unwrap()
-        .with_nonlinear_tolerances(1e-12, 0.)
-        .unwrap()
-        .with_event_tolerances(1e-11, 1e-10)
-        .unwrap();
-    let trajectory = Interpreter::new().run(&program, config).unwrap();
-    // Piecewise constant rates integrate exactly: heating reaches22 at2s,
-    // cooling reaches18 at6s, reheating reaches22 at10s, cooling returns20 at12s.
-    assert!((trajectory.last_value(temperature.erase()).unwrap().value() - 20.).abs() < 1e-8);
-    assert_eq!(trajectory.last_value(rate.erase()).unwrap().value(), -1.);
-    for (field, expected) in [
-        (
-            temperature,
-            [(2., 22., 22.), (6., 18., 18.), (10., 22., 22.)],
-        ),
-        (rate, [(2., 1., -1.), (6., -1., 1.), (10., 1., -1.)]),
-    ] {
-        let samples = trajectory
-            .samples()
-            .iter()
-            .filter(|s| s.field() == field.erase())
-            .collect::<Vec<_>>();
-        let resets = samples
-            .windows(2)
-            .filter(|p| p[0].time() == p[1].time())
-            .collect::<Vec<_>>();
-        assert_eq!(
-            resets.len(),
-            3,
-            "reset onto the guard must not immediately retrigger"
-        );
-        for (pair, (time, before, after)) in resets.iter().zip(expected) {
-            assert!((pair[0].time() - time).abs() < 2e-9);
-            assert!((pair[0].value().value() - before).abs() < 2e-9);
-            assert!((pair[1].value().value() - after).abs() < 2e-9);
+    for max_step in [0.25, 0.01] {
+        let config = ReferenceConfig::new(12., max_step)
+            .unwrap()
+            .with_nonlinear_tolerances(1e-12, 0.)
+            .unwrap()
+            .with_event_tolerances(1e-11, 1e-10)
+            .unwrap();
+        let trajectory = Interpreter::new().run(&program, config).unwrap();
+        // Piecewise constant rates integrate exactly: heating reaches22 at2s,
+        // cooling reaches18 at6s, reheating reaches22 at10s, cooling returns20 at12s.
+        assert!((trajectory.last_value(temperature.erase()).unwrap().value() - 20.).abs() < 1e-8);
+        assert_eq!(trajectory.last_value(rate.erase()).unwrap().value(), -1.);
+        for (field, expected) in [
+            (
+                temperature,
+                [(2., 22., 22.), (6., 18., 18.), (10., 22., 22.)],
+            ),
+            (rate, [(2., 1., -1.), (6., -1., 1.), (10., 1., -1.)]),
+        ] {
+            let samples = trajectory
+                .samples()
+                .iter()
+                .filter(|s| s.field() == field.erase())
+                .collect::<Vec<_>>();
+            let resets = samples
+                .windows(2)
+                .filter(|p| p[0].time() == p[1].time())
+                .collect::<Vec<_>>();
+            assert_eq!(
+                resets.len(),
+                3,
+                "reset onto the guard must not immediately retrigger"
+            );
+            for (pair, (time, before, after)) in resets.iter().zip(expected) {
+                assert!((pair[0].time() - time).abs() < 2e-9);
+                assert!((pair[0].value().value() - before).abs() < 2e-9);
+                assert!((pair[1].value().value() - after).abs() < 2e-9);
+            }
         }
     }
 }
@@ -309,4 +311,80 @@ fn reference_config_rejects_non_advancing_steps() {
     let diagnostic = ReferenceConfig::new(1.0, 0.0).expect_err("zero step");
 
     assert_eq!(diagnostic.code(), codes::INVALID_EXECUTION_CONFIG);
+}
+
+#[test]
+fn short_terminal_step_retains_the_solved_derivative_without_subtractive_cancellation() {
+    let field = Id::<kinds::Field>::new();
+    let continuous = Id::<kinds::Activation>::new();
+    let flow = Id::<kinds::Relation>::new();
+    let d = DimExponents::DIMENSIONLESS;
+    let per_second = DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).unwrap();
+    let mut b = ExprDagBuilder::new();
+    let derivative = b.symbol(SymbolRef::Derivative(field)).unwrap();
+    let one = b.constant(DynQuantity::new(1., per_second)).unwrap();
+    let program = program(
+        vec![
+            FieldDef::new(
+                field,
+                ValueType::scalar(eqiora_core::ScalarDomain::Real, d),
+                FieldRole::State,
+            )
+            .into(),
+            initial(field, d, 20.),
+            ActivationDef::continuous(continuous).into(),
+            RelationDef::new(flow, b.finish([derivative, one]).unwrap())
+                .unwrap()
+                .into(),
+        ],
+        &[(continuous.erase(), flow.erase())],
+    );
+    let plan = ExecutionPlan::new(&program).unwrap();
+    let mut state = RuntimeState::new(&program, &plan).unwrap();
+    let config = ReferenceConfig::new(2., 1.)
+        .unwrap()
+        .with_nonlinear_tolerances(1e-12, 0.)
+        .unwrap();
+    solve_initialization(
+        &program,
+        &plan,
+        &mut state,
+        config,
+        &ReferenceExpressionBackend,
+    )
+    .unwrap();
+    let start = 1.;
+    let end = 1. + 3e-10;
+    // x'=1 is exact. Reconstructing x' from rounded x differences instead
+    // has a quantization floor near 6e-6 at this point and interval.
+    solve_continuous_step(
+        &program,
+        &plan,
+        &mut state,
+        start,
+        end,
+        config,
+        &ReferenceExpressionBackend,
+    )
+    .unwrap();
+    assert_eq!(state.fields[&field.erase()], 20. + (end - start));
+    assert_eq!(state.derivatives[&field.erase()], 1.);
+
+    // Derived fields remain subject to finite-value admission even when the
+    // authored flow reads only the derivative, not the candidate field.
+    state.fields.insert(field.erase(), f64::MAX);
+    let before = state.clone();
+    let error = solve_continuous_step(
+        &program,
+        &plan,
+        &mut state,
+        0.,
+        f64::MAX,
+        config,
+        &ReferenceExpressionBackend,
+    )
+    .unwrap_err();
+    assert!(error.message().contains("candidate Field is not finite"));
+    assert_eq!(state.fields, before.fields);
+    assert_eq!(state.derivatives, before.derivatives);
 }

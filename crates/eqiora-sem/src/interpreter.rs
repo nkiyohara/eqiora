@@ -794,9 +794,9 @@ fn solve_continuous_step(
     let variables = plan
         .differential_fields
         .iter()
-        .chain(&plan.algebraic_fields)
         .copied()
-        .map(Variable::Field)
+        .map(Variable::Derivative)
+        .chain(plan.algebraic_fields.iter().copied().map(Variable::Field))
         .chain(plan.continuous_ports.iter().copied().map(Variable::Port))
         .chain(
             plan.physical_unknowns
@@ -807,12 +807,7 @@ fn solve_continuous_step(
         .collect::<Vec<_>>();
     let initial = variables
         .iter()
-        .map(|variable| match *variable {
-            Variable::Field(id) if plan.differential_fields.contains(&id) => {
-                state.fields[&id] + step * state.derivatives.get(&id).copied().unwrap_or(0.0)
-            }
-            _ => variable_value(*variable, state),
-        })
+        .map(|variable| variable_value(*variable, state))
         .collect();
     let solution = solver::solve(
         initial,
@@ -821,10 +816,16 @@ fn solve_continuous_step(
         |values| {
             let mut candidates = candidate_maps(&variables, values, state);
             for &field in &plan.differential_fields {
-                let candidate = candidates.fields[&field];
-                candidates
-                    .derivatives
-                    .insert(field, (candidate - state.fields[&field]) / step);
+                // Backward Euler in derivative coordinates avoids subtracting
+                // nearly equal accepted/candidate states on a short final step.
+                let value = state.fields[&field] + step * candidates.derivatives[&field];
+                if !value.is_finite() {
+                    return Err(execution_error(
+                        "backward Euler candidate Field is not finite",
+                        end,
+                    ));
+                }
+                candidates.fields.insert(field, value);
             }
             evaluate_relations(
                 program,
@@ -842,15 +843,13 @@ fn solve_continuous_step(
             )
         },
     )?;
-    let mut candidates = candidate_maps(&variables, &solution, state);
+    commit_solution(&variables, &solution, state);
     for &field in &plan.differential_fields {
-        candidates.derivatives.insert(
+        state.fields.insert(
             field,
-            (candidates.fields[&field] - state.fields[&field]) / step,
+            state.fields[&field] + step * state.derivatives[&field],
         );
     }
-    commit_solution(&variables, &solution, state);
-    state.derivatives.extend(candidates.derivatives);
     clear_clocked_variables(program, state);
     Ok(())
 }
