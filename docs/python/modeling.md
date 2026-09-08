@@ -139,6 +139,22 @@ expressions use the shared compiler's explicit conversion and arithmetic rules.
 Products, dual spaces, general maps, and dynamic indexing remain
 outside this bounded discrete profile.
 
+Finite scalar reductions bind one symbolic index through `Component.sum` or `Component.product`:
+
+```python
+rows = component.index_set("Rows", extent=3)
+total = component.sum(lambda i: (q.ordinal(i) + 1) ** 2, over=rows)
+component.let_alias("total", total)
+```
+
+Here `q` is `eqiora.lang`. The callback runs once to author the body; the compiler expands
+its three terms and obtains 14. A nested reduction needs a distinct `name`, such as
+`name="j"`. Binders cannot escape their callback or capture another declaration, and the
+set and captured declarations must belong to the same Component. An array expression accepts
+`values[q.ordinal(i)]` within this scope. General runtime indexing remains unsupported.
+The [finite reduction rules](../language/numeric-catalog.md#finite-sums-and-products) define
+ordering, scalar types, product units, expansion bounds and unsupported initializer contexts.
+
 A numeric Parameter default uses the declared dimension's coherent unit.
 For example, `parameter rate: 1 / s = 1;` gives the same value as
 `parameter rate: 1 / s = 1[1 / s];`. Explicit input units still express compatible
