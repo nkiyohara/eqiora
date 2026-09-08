@@ -76,3 +76,40 @@ fn completed_analysis_does_not_wait_for_a_future_cancellation() {
         .unwrap()
     );
 }
+
+#[test]
+fn superseded_in_flight_analysis_cannot_replace_current_revision() {
+    let mut state = ServerState::new(vec![]);
+    let (wake, _receiver) = crossbeam_channel::unbounded();
+    let scheduler = AnalysisScheduler {
+        queued: Arc::new(Mutex::new(BTreeMap::new())),
+        wake,
+    };
+    state.schedule_group("group", &scheduler).unwrap();
+    // Dequeue exactly as the worker does, then supersede before delivering completion.
+    let old = scheduler.queued.lock().unwrap().remove("group").unwrap();
+    state.schedule_group("group", &scheduler).unwrap();
+    let current_version = state.pending["group"].version;
+    assert_ne!(old.version, current_version);
+    assert!(old.cancelled.load(Ordering::Acquire));
+    assert_eq!(
+        state.apply_completed(CompletedAnalysis {
+            group: old.group,
+            version: old.version,
+            outcome: AnalysisOutcome::Empty,
+        }),
+        None
+    );
+    assert_eq!(state.pending["group"].version, current_version);
+    let current = scheduler.queued.lock().unwrap().remove("group").unwrap();
+    assert!(!current.cancelled.load(Ordering::Acquire));
+    assert_eq!(
+        state.apply_completed(CompletedAnalysis {
+            group: current.group,
+            version: current.version,
+            outcome: AnalysisOutcome::Empty,
+        }),
+        Some("group".to_owned())
+    );
+    assert!(!state.pending.contains_key("group"));
+}
