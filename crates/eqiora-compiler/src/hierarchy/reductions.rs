@@ -19,8 +19,17 @@ pub(super) fn preflight(
     resolve_extent: &mut dyn FnMut(&str) -> Option<u32>,
     max_terms: usize,
 ) -> Result<(), Diagnostic> {
+    expanded_nodes(file, expression, resolve_extent, max_terms).map(|_| ())
+}
+
+pub(super) fn expanded_nodes(
+    file: &str,
+    expression: &Expr,
+    resolve_extent: &mut dyn FnMut(&str) -> Option<u32>,
+    max_terms: usize,
+) -> Result<usize, Diagnostic> {
     let limits = LocalSourceIdentityLimits::default();
-    measure(
+    let (nodes, _) = measure(
         file,
         expression,
         resolve_extent,
@@ -28,7 +37,7 @@ pub(super) fn preflight(
         1,
         &mut Vec::new(),
     )?;
-    Ok(())
+    Ok(nodes)
 }
 
 fn measure<'a>(

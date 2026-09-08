@@ -24,7 +24,7 @@ pub enum ComponentItem {
     Clock(ClockDecl),
     /// Private implicit residual group.
     Relation(RelationDecl),
-    /// Private continuous Relation family over one complete exterior.
+    /// Private Relation family over an exact finite set.
     RelationFamily(RelationFamilyDecl),
     /// Private local connection.
     Connection(ConnectionDecl),
@@ -56,6 +56,8 @@ pub enum Item {
     Clock(ClockDecl),
     /// Implicit residual group and activation.
     Relation(RelationDecl),
+    /// Relation expanded over a finite nominal index set.
+    RelationFamily(RelationFamilyDecl),
     /// Signal or conserving connection net.
     Connection(ConnectionDecl),
     /// Conserving connection containing exact boundary-member selectors.

@@ -7,7 +7,7 @@ use eqiora_schema::kernel::IndexSetDef;
 #[derive(Debug, Clone)]
 pub(super) struct ScopedIndexSet {
     definition: IndexSetDef,
-    dependencies: std::cell::RefCell<std::collections::BTreeSet<String>>,
+    dependencies: std::rc::Rc<std::cell::RefCell<std::collections::BTreeSet<String>>>,
 }
 
 impl Scope {

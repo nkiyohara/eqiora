@@ -3,53 +3,18 @@
 use super::*;
 
 impl Parser<'_> {
-    pub(super) fn parse_connection(&mut self, allow_family: bool) -> Option<ParsedConnection> {
+    pub(super) fn parse_connection(&mut self, component: bool) -> Option<ParsedConnection> {
         let start = self.expect_keyword("connect")?.range().start();
-        if !self.at_keyword("conserving") && !self.at_keyword("periodic") {
-            let mut ports = vec![self.parse_expression(0)?];
-            self.expect(TokenKind::Arrow, "`->` after signal output")?;
-            ports.push(self.parse_expression(0)?);
-            while self.at(TokenKind::Comma) {
-                self.bump();
-                ports.push(self.parse_expression(0)?);
-            }
-            for endpoint in &ports {
-                if !matches!(
-                    endpoint.kind(),
-                    ExprKind::Name(_) | ExprKind::Path(_) | ExprKind::Member { .. }
-                ) {
-                    self.error_here(
-                        "Connection endpoint requires an exact declared Port selection",
-                    );
-                    return None;
-                }
-            }
-            if ports.len() < 2 {
-                self.error_here("Connection requires at least two Ports");
-            }
-            let end = self
-                .expect(TokenKind::Semicolon, "`;` after Connection")?
-                .range()
-                .end();
-            return Some(ParsedConnection::Ordinary(ConnectionDecl {
-                comments: Default::default(),
-                syntax: ConnectionSyntax::Signal,
-                ports,
-                range: TextRange::new(start, end),
-            }));
-        }
         let syntax = if self.at_keyword("conserving") {
+            self.bump();
             ConnectionSyntax::Conserving
         } else if self.at_keyword("periodic") {
+            self.bump();
             ConnectionSyntax::SpatialPeriodic
         } else {
-            self.error_here(
-                "expected directed Port connection, `conserving`, or `periodic` after `connect`",
-            );
-            return None;
+            ConnectionSyntax::Signal
         };
-        self.bump();
-        if syntax == ConnectionSyntax::SpatialPeriodic && allow_family {
+        if syntax == ConnectionSyntax::SpatialPeriodic && component {
             self.error_here("spatial-periodic Connections are allowed only in closed Models");
             return None;
         }
@@ -58,43 +23,77 @@ impl Parser<'_> {
                 self.error_here("spatial-periodic Connections cannot declare a family binder");
                 return None;
             }
-            if !allow_family {
-                self.error_here("boundary family binders are allowed only in Components");
-                return None;
-            }
-            Some(self.parse_boundary_family_binder()?)
+            Some(self.parse_index_family_binder()?)
         } else {
             None
         };
-        let ports = self.parse_boundary_port_reference_list("boundary Port")?;
-        if syntax == ConnectionSyntax::SpatialPeriodic && ports.len() != 2 {
-            self.error_here("spatial-periodic Connection requires exactly two Ports");
-        } else if ports.len() < 2 {
+        let mut ports = vec![self.parse_expression(0)?];
+        if syntax == ConnectionSyntax::Signal {
+            self.expect(TokenKind::Arrow, "`->` after signal output")?;
+            ports.push(self.parse_expression(0)?);
+        }
+        while self.at(TokenKind::Comma) {
+            self.bump();
+            ports.push(self.parse_expression(0)?);
+        }
+        if ports.len() < 2 {
             self.error_here("Connection requires at least two Ports");
         }
         let end = self
             .expect(TokenKind::Semicolon, "`;` after Connection")?
             .range()
             .end();
-        if syntax == ConnectionSyntax::Conserving
-            && binder.is_none()
-            && ports.iter().all(|port| port.selector().is_none())
-        {
-            return Some(ParsedConnection::Ordinary(ConnectionDecl {
+        let boundary = syntax == ConnectionSyntax::SpatialPeriodic
+            || ports
+                .iter()
+                .any(|port| matches!(port.kind(), ExprKind::BoundaryPortSelection { .. }));
+        if boundary {
+            if syntax == ConnectionSyntax::Signal {
+                self.error_here("signal Connection requires exact declared signal Port selections");
+                return None;
+            }
+            if syntax == ConnectionSyntax::SpatialPeriodic && ports.len() != 2 {
+                self.error_here("spatial-periodic Connection requires exactly two Ports");
+            }
+            let mut references = Vec::new();
+            for port in ports {
+                let range = port.range;
+                let (port, selector) = match port.kind {
+                    ExprKind::BoundaryPortSelection { port, selector } => (*port, Some(*selector)),
+                    ExprKind::Path(port) => (port, None),
+                    ExprKind::Name(name) => (NamePath::single(name, range), None),
+                    _ => {
+                        self.error_here(
+                            "boundary Connection requires exact boundary Port references",
+                        );
+                        return None;
+                    }
+                };
+                references.push(BoundaryPortReferenceSyntax { port, selector });
+            }
+            return Some(ParsedConnection::Boundary(BoundaryConnectionDecl {
                 comments: Default::default(),
                 syntax,
-                ports: ports
-                    .into_iter()
-                    .map(|port| Expr {
-                        resolved_nominal: None,
-                        range: port.port.range(),
-                        kind: ExprKind::Path(port.port),
-                    })
-                    .collect(),
+                binder,
+                ports: references,
                 range: TextRange::new(start, end),
             }));
         }
-        Some(ParsedConnection::Boundary(BoundaryConnectionDecl {
+        for port in &mut ports {
+            if !matches!(
+                port.kind(),
+                ExprKind::Name(_) | ExprKind::Path(_) | ExprKind::Member { .. }
+            ) {
+                self.error_here("Connection endpoint requires an exact declared Port selection");
+                return None;
+            }
+            if syntax == ConnectionSyntax::Conserving
+                && let ExprKind::Name(name) = &port.kind
+            {
+                port.kind = ExprKind::Path(NamePath::single(name.clone(), port.range));
+            }
+        }
+        Some(ParsedConnection::Ordinary(ConnectionDecl {
             comments: Default::default(),
             syntax,
             binder,
@@ -151,29 +150,5 @@ impl Parser<'_> {
             target,
             range: TextRange::new(start, end),
         })
-    }
-
-    pub(super) fn parse_boundary_port_reference(
-        &mut self,
-        expected: &str,
-    ) -> Option<BoundaryPortReferenceSyntax> {
-        let port = self.parse_name_path(expected)?;
-        let selector = self
-            .at(TokenKind::LeftBracket)
-            .then(|| self.parse_boundary_port_selector())
-            .flatten();
-        Some(BoundaryPortReferenceSyntax { port, selector })
-    }
-
-    pub(super) fn parse_boundary_port_reference_list(
-        &mut self,
-        expected: &str,
-    ) -> Option<Vec<BoundaryPortReferenceSyntax>> {
-        let mut ports = vec![self.parse_boundary_port_reference(expected)?];
-        while self.at(TokenKind::Comma) {
-            self.bump();
-            ports.push(self.parse_boundary_port_reference(expected)?);
-        }
-        Some(ports)
     }
 }

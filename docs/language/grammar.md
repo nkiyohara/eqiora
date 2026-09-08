@@ -28,11 +28,11 @@ instance = "instance" identifier [annotation] [index-family] ":" qualified-name 
 named-argument = identifier "=" expression-or-exact-reference
 initial = "initial" "{" {equation} "}"
 boundary-family = "[" identifier "in" qualified-name "]"
-relation = "relation" identifier [annotation] [boundary-family] ["on" qualified-name]
+relation = "relation" identifier [annotation] [index-family] ["on" qualified-name]
            ["at" qualified-name] "{" {equation} "}"
 equation = expression "=" expression ";"
-connection = "connect" qualified-name "->" qualified-name ";"
-           | "connect" qualified-name "," qualified-name {"," qualified-name} ";"
+connection = "connect" [index-family] expression "->" expression {"," expression} ";"
+           | "connect" "conserving" [index-family] expression "," expression {"," expression} ";"
            | "connect" "periodic" qualified-name "," qualified-name ";"
 operator = ["public"] "operator" identifier [annotation] signature ":" type "=" expression ";"
 ```
@@ -42,8 +42,9 @@ signatures admit the roles in the core table. A reference argument retains its t
 the broad grammar above does not convert a support, clock, property, or state into a numeric
 expression. No repeated argument-category words or positional instance bindings are admitted.
 
-A Relation's boundary-family binder is restricted to a Component's complete-exterior
-requirement. It follows notation and precedes `on`; `on` must name the bound member.
+A Relation family ranges over an exact IndexSet or a Component's complete-exterior
+requirement. A boundary family follows notation and precedes `on`; `on` must name the
+bound boundary member. An indexed Relation retains its ordinary support and activation.
 The [core family rules](core.md#boundary-relation-families) define its scope and expansion.
 An instance's index-family instead ranges over an exact finite index set. Its bound index
 cannot substitute for a boundary member. The [numeric catalog](numeric-catalog.md) defines

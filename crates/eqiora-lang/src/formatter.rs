@@ -334,6 +334,7 @@ fn format_item(item: &Item, indent: usize, output: &mut crate::formatter::commen
         }
         Item::Clock(declaration) => format_clock(declaration, indent, output),
         Item::Relation(declaration) => format_relation(declaration, indent, output),
+        Item::RelationFamily(declaration) => format_relation_family(declaration, indent, output),
         Item::Connection(declaration) => format_connection(declaration, indent, output),
         Item::BoundaryConnection(declaration) => {
             format_boundary_connection(declaration, indent, output);
@@ -482,6 +483,10 @@ fn format_connection(
     match declaration.syntax {
         ConnectionSyntax::Signal => {
             output.push_str("connect ");
+            if let Some(binder) = &declaration.binder {
+                format_boundary_family_binder(binder, output);
+                output.push(' ');
+            }
             if let Some((source, targets)) = declaration.ports.split_first() {
                 format_expression(source, 0, output);
                 output.push_str(" -> ");
@@ -490,6 +495,10 @@ fn format_connection(
         }
         ConnectionSyntax::Conserving => {
             output.push_str("connect conserving ");
+            if let Some(binder) = &declaration.binder {
+                format_boundary_family_binder(binder, output);
+                output.push(' ');
+            }
             format_endpoint_list(&declaration.ports, output);
         }
         ConnectionSyntax::SpatialPeriodic => {

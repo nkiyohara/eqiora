@@ -100,6 +100,7 @@ macro_rules! owners {
                     Item::Port(value) => $visit(value.range, &$($mutable)? value.comments),
                     Item::Clock(value) => $visit(value.range, &$($mutable)? value.comments),
                     Item::Relation(value) => $visit(value.range, &$($mutable)? value.comments),
+                    Item::RelationFamily(value) => $visit(value.relation.range, &$($mutable)? value.relation.comments),
                     Item::Connection(value) => $visit(value.range, &$($mutable)? value.comments),
                     Item::BoundaryConnection(value) => $visit(value.range, &$($mutable)? value.comments),
                     Item::Instance(value) => {
@@ -169,6 +170,7 @@ impl Item {
             Self::Port(node) => &node.comments,
             Self::Clock(node) => &node.comments,
             Self::Relation(node) => &node.comments,
+            Self::RelationFamily(node) => &node.relation.comments,
             Self::Connection(node) => &node.comments,
             Self::BoundaryConnection(node) => &node.comments,
             Self::IndexSet(node) => &node.comments,

@@ -10,7 +10,7 @@ use crate::diagnostics::source_error;
 use super::expression::{validate_relation_expression, validate_relation_family_expression};
 use super::scope::{
     DefinitionScope, SymbolContract, component_port_contract, component_port_family_contract,
-    field_expression_type, validate_boundary_connection, validate_connection,
+    field_expression_type, validate_boundary_connection,
 };
 use super::{
     ChildInstanceProof, DefinitionBodyProof, LocalPhysicalPortProof, SymbolicParameterMap,
@@ -341,16 +341,49 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                     instance.range(),
                 )
             {
-                self.proof.children.insert(
-                    instance.name().to_owned(),
-                    ChildInstanceProof {
-                        definition: DefinitionKey {
-                            namespace: child.namespace.clone(),
-                            name: child.declaration.name().to_owned(),
+                let extent = instance.family().and_then(|family| {
+                    self.scope
+                        .index_sets
+                        .get(family.set().as_str())
+                        .copied()
+                        .flatten()
+                });
+                let count = extent.map_or(1, |value| value as usize);
+                if count
+                    > self
+                        .scope
+                        .elaborator
+                        .limits
+                        .max_instances
+                        .saturating_sub(self.proof.children.len())
+                {
+                    self.diagnostics.push(source_error(
+                        codes::LANGUAGE_LOWERING_ERROR,
+                        self.scope.file,
+                        instance.range(),
+                        "indexed child proof exceeds the instance expansion limit",
+                    ));
+                    continue;
+                }
+                let names = (0..count).map(|ordinal| {
+                    if extent.is_some() {
+                        format!("{}[{ordinal}]", instance.name())
+                    } else {
+                        instance.name().to_owned()
+                    }
+                });
+                for name in names {
+                    self.proof.children.insert(
+                        name,
+                        ChildInstanceProof {
+                            definition: DefinitionKey {
+                                namespace: child.namespace.clone(),
+                                name: child.declaration.name().to_owned(),
+                            },
+                            range: instance.range(),
                         },
-                        range: instance.range(),
-                    },
-                );
+                    );
+                }
                 self.scope
                     .children
                     .insert(instance.name().to_owned(), child);
@@ -424,6 +457,41 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                     }
                 }
                 ComponentItem::RelationFamily(declaration) => {
+                    if self
+                        .scope
+                        .index_sets
+                        .contains_key(declaration.binder().set().as_str())
+                    {
+                        let extent = match super::indexed::extent(&self.scope, declaration.binder())
+                        {
+                            Ok(extent) => extent,
+                            Err(error) => {
+                                self.diagnostics.push(error);
+                                continue;
+                            }
+                        };
+                        for ordinal in 0..extent {
+                            match super::indexed::relation(self.scope.file, declaration, ordinal) {
+                                Ok(relation) => {
+                                    let support = relation
+                                        .domain()
+                                        .and_then(|name| self.scope.spatial_support(name));
+                                    match validate_relation_expression(
+                                        &self.scope,
+                                        &relation,
+                                        support,
+                                    ) {
+                                        Ok(endpoints) => {
+                                            self.proof.relation_endpoints.push(endpoints)
+                                        }
+                                        Err(errors) => self.diagnostics.extend(errors),
+                                    }
+                                }
+                                Err(error) => self.diagnostics.push(error),
+                            }
+                        }
+                        continue;
+                    }
                     let active = match self.scope.boundary_family_scope(declaration.binder()) {
                         Ok(active) => active,
                         Err(error) => {
@@ -437,16 +505,13 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                     }
                 }
                 ComponentItem::Connection(declaration) => {
-                    match validate_connection(
+                    match super::indexed::connections(
                         &self.scope,
                         declaration,
                         &mut self.connected_ports,
                         self.proof.connection_limits,
                     ) {
-                        Ok(Some(fragment)) => {
-                            self.proof.physical_connection_fragments.push(fragment);
-                        }
-                        Ok(None) => {}
+                        Ok(fragments) => self.proof.physical_connection_fragments.extend(fragments),
                         Err(error) => self.diagnostics.push(error),
                     }
                 }

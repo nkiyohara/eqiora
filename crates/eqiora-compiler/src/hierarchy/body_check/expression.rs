@@ -709,6 +709,23 @@ impl ExpressionChecker<'_, '_, '_> {
                 self.scope.resolve_symbol(path)?,
                 super::ResolvedPhysicalEndpoint::from_expression(argument),
             ),
+            ExprKind::Member { .. } => {
+                let (path, key) = self.scope.indexed_member(argument)?;
+                let endpoint =
+                    super::ResolvedPhysicalEndpoint::from_key(&key).ok_or_else(|| {
+                        source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            self.scope.file,
+                            argument.range(),
+                            "physical accessor requires an exact static indexed occurrence",
+                        )
+                    })?;
+                (
+                    key.join("."),
+                    self.scope.resolve_symbol(&path)?,
+                    Some(endpoint),
+                )
+            }
             ExprKind::BoundaryPortSelection { port, selector } => {
                 let Some(family_scope) = self.family_scope else {
                     return Err(source_error(

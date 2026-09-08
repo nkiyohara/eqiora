@@ -113,6 +113,7 @@ fn rewrite_item(item: &mut Item, rewrite: &mut impl FnMut(&Expr) -> Expr) {
         | Item::Initial(_)
         | Item::Clock(_)
         | Item::Relation(_)
+        | Item::RelationFamily(_)
         | Item::Connection(_)
         | Item::BoundaryConnection(_)
         | Item::Instance(_) => {}

@@ -783,6 +783,7 @@ impl ClockDecl {
 pub struct ConnectionDecl {
     pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) syntax: ConnectionSyntax,
+    pub(crate) binder: Option<FamilyBinderSyntax>,
     pub(crate) ports: Vec<Expr>,
     pub(crate) range: TextRange,
 }
@@ -792,6 +793,12 @@ impl ConnectionDecl {
     #[must_use]
     pub const fn syntax(&self) -> ConnectionSyntax {
         self.syntax
+    }
+
+    /// Optional binder over one exact nominal index set.
+    #[must_use]
+    pub const fn binder(&self) -> Option<&FamilyBinderSyntax> {
+        self.binder.as_ref()
     }
 
     /// Structurally segmented Port selections in source order.

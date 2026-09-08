@@ -770,31 +770,24 @@ model periodic() {
 }
 
 #[test]
-fn parser_rejects_boundary_binders_outside_the_closed_family_sites() {
-    let invalid_sources = [
-        (
-            "signal-port",
-            "component C(port p[b in exterior]: signal input 1) {  }",
-        ),
-        (
-            "periodic-relation",
-            "component C() { clock c = periodic(1[s] / 1, phase = 0[s] / 1); relation r[b in exterior] on b at c { 1 = 0; } }",
-        ),
-        (
-            "model-relation",
-            "model M() { relation r[b in exterior] on b { 1 = 0; } }",
-        ),
-        (
-            "model-connection",
-            "model M() { connect conserving [b in exterior] left, right; }",
-        ),
-    ];
-
-    for (case, source) in invalid_sources {
-        let result = parse(format!("{case}.eqi"), source);
-        assert!(!result.diagnostics().is_empty(), "{case} must fail closed");
-        assert!(result.into_document().is_err(), "{case} cannot compile");
+fn parser_leaves_relation_and_connection_family_set_kinds_to_the_compiler() {
+    for source in [
+        "component C() { clock c = periodic(1[s]); relation r[b in exterior] on b at c { 1 = 0; } }",
+        "model M() { relation r[b in exterior] on b { 1 = 0; } }",
+        "model M() { connect conserving [b in exterior] left, right; }",
+    ] {
+        // An identifier alone cannot distinguish an IndexSet from a boundary
+        // set. The compiler owns the distinct activation and selector rules.
+        assert!(parse("family.eqi", source).into_document().is_ok());
     }
+    assert!(
+        parse(
+            "signal.eqi",
+            "component C(port p[b in exterior]: signal input 1) {}"
+        )
+        .into_document()
+        .is_err()
+    );
 }
 
 #[test]

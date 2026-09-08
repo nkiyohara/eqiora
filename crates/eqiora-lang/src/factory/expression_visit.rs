@@ -57,6 +57,9 @@ impl super::SourceAstFactory {
                         expression(scope, &mut value.value, &mut visit)
                     }
                     Item::Relation(value) => equations(scope, &mut value.equations, &mut visit),
+                    Item::RelationFamily(value) => {
+                        equations(scope, &mut value.relation.equations, &mut visit)
+                    }
                     Item::Initial(value) => equations(scope, &mut value.equations, &mut visit),
                     Item::Instance(value) => {
                         for binding in &mut value.bindings {

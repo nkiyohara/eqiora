@@ -20,6 +20,7 @@ use super::supports::SupportInterface;
 
 mod component;
 mod expression;
+mod indexed;
 pub(super) use expression::DependencyActivation;
 mod model;
 mod scope;
@@ -58,6 +59,21 @@ impl ResolvedPhysicalEndpoint {
             [instance, port] => Some(Self::Child {
                 instance: (*instance).to_owned(),
                 port: (*port).to_owned(),
+            }),
+            _ => None,
+        }
+    }
+
+    pub(super) fn from_key(key: &[String]) -> Option<Self> {
+        match key {
+            [port] => Some(Self::Local(port.clone())),
+            [instance, port] => Some(Self::Child {
+                instance: instance.clone(),
+                port: port.clone(),
+            }),
+            [instance, ordinal, port] if ordinal.parse::<u32>().is_ok() => Some(Self::Child {
+                instance: format!("{instance}[{ordinal}]"),
+                port: port.clone(),
             }),
             _ => None,
         }

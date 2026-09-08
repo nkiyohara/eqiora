@@ -31,7 +31,7 @@ pub(in crate::hierarchy) fn selected_expansion_size(
         indexed_subtrees: BTreeMap::new(),
     };
     let mut diagnostics = Vec::new();
-    let mut local = model_local_footprint(elaborator, model, &mut diagnostics);
+    let mut local = model_local_footprint(elaborator, model, &mut diagnostics, Some(&values));
     local.declarations = local
         .declarations
         .checked_add(
@@ -333,7 +333,7 @@ impl Selected<'_, '_> {
         )?;
         let mut diagnostics = Vec::new();
         let (mut local, local_connectors) =
-            component_local_footprint(self.elaborator, component, &mut diagnostics);
+            component_local_footprint(self.elaborator, component, &mut diagnostics, Some(&values));
         if !diagnostics.is_empty() {
             return Err(diagnostics);
         }

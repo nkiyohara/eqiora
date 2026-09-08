@@ -268,7 +268,7 @@ fn encode_container_records<T>(
         let Some(connection) = connection_of(value) else {
             continue;
         };
-        if connection.syntax() != ConnectionSyntax::Conserving {
+        if connection.syntax() != ConnectionSyntax::Conserving || connection.binder().is_some() {
             continue;
         }
         let members = connection.port_expressions().len();
@@ -314,6 +314,7 @@ fn encode_container_records<T>(
     for value in values {
         if let Some(connection) = connection_of(value)
             && connection.syntax() == ConnectionSyntax::Conserving
+            && connection.binder().is_none()
         {
             fragments.push(encode_conserving_fragment(connection, budget, limits)?);
             continue;
@@ -424,6 +425,10 @@ fn encode_model_item(item: &Item, budget: &mut Budget) -> Result<Vec<u8>, Diagno
         Item::Relation(declaration) => {
             encoder.u16(7)?;
             encode_relation(&mut encoder, declaration, budget)?;
+        }
+        Item::RelationFamily(declaration) => {
+            encoder.u16(16)?;
+            encode_relation_family(&mut encoder, declaration, budget)?;
         }
         Item::Connection(declaration) => {
             encoder.u16(MODEL_CONNECTION_ITEM_TAG)?;
@@ -708,41 +713,6 @@ fn encode_clock(
     })
 }
 
-fn encode_connection(
-    encoder: &mut Encoder,
-    declaration: &ConnectionDecl,
-    budget: &mut Budget,
-) -> Result<(), Diagnostic> {
-    budget.check_connection_members(declaration.port_expressions().len(), "Connection")?;
-    encoder.field(1, |encoder| {
-        encoder.u8(match declaration.syntax() {
-            ConnectionSyntax::Signal => 1,
-            ConnectionSyntax::Conserving => 2,
-            ConnectionSyntax::SpatialPeriodic => 3,
-        })
-    })?;
-    encoder.field(2, |encoder| match declaration.syntax() {
-        ConnectionSyntax::Conserving => {
-            let paths = encode_sorted_endpoints(declaration.port_expressions(), budget)?;
-            encoder.records(&paths)
-        }
-        ConnectionSyntax::Signal => {
-            let Some((output, inputs)) = declaration.port_expressions().split_first() else {
-                return Err(source_identity_error(
-                    "signal Connection has no output member",
-                ));
-            };
-            encoder.field(1, |encoder| encode_expression(encoder, output, budget, 0))?;
-            let inputs = encode_sorted_endpoints(inputs, budget)?;
-            encoder.field(2, |encoder| encoder.records(&inputs))
-        }
-        ConnectionSyntax::SpatialPeriodic => {
-            let paths = encode_sorted_endpoints(declaration.port_expressions(), budget)?;
-            encoder.records(&paths)
-        }
-    })
-}
-
 fn encode_boundary_connection(
     encoder: &mut Encoder,
     declaration: &BoundaryConnectionDecl,
@@ -838,6 +808,8 @@ fn encode_path(
 
 mod expression;
 use expression::{encode_expression, encode_relation, encode_relation_family};
+mod connection;
+use connection::encode_connection;
 
 fn encode_sorted_endpoints(
     values: &[Expr],

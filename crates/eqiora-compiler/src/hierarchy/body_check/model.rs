@@ -10,7 +10,7 @@ use crate::diagnostics::source_error;
 use super::expression::validate_relation_expression;
 use super::scope::{
     DefinitionScope, DomainContract, SymbolContract, field_expression_type, model_port_contract,
-    unresolved, validate_connection, validate_model_boundary_connection,
+    unresolved, validate_model_boundary_connection,
 };
 use super::{ChildInstanceProof, DefinitionBodyProof, LocalPhysicalPortProof, validate_clock};
 use crate::hierarchy::parameters::SymbolicParameterMap;
@@ -162,16 +162,49 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                     instance.range(),
                 )
             {
-                self.proof.children.insert(
-                    instance.name().to_owned(),
-                    ChildInstanceProof {
-                        definition: DefinitionKey {
-                            namespace: child.namespace.clone(),
-                            name: child.declaration.name().to_owned(),
+                let extent = instance.family().and_then(|family| {
+                    self.scope
+                        .index_sets
+                        .get(family.set().as_str())
+                        .copied()
+                        .flatten()
+                });
+                let count = extent.map_or(1, |value| value as usize);
+                if count
+                    > self
+                        .scope
+                        .elaborator
+                        .limits
+                        .max_instances
+                        .saturating_sub(self.proof.children.len())
+                {
+                    self.diagnostics.push(source_error(
+                        codes::LANGUAGE_LOWERING_ERROR,
+                        self.scope.file,
+                        instance.range(),
+                        "indexed child proof exceeds the instance expansion limit",
+                    ));
+                    continue;
+                }
+                let names = (0..count).map(|ordinal| {
+                    if extent.is_some() {
+                        format!("{}[{ordinal}]", instance.name())
+                    } else {
+                        instance.name().to_owned()
+                    }
+                });
+                for name in names {
+                    self.proof.children.insert(
+                        name,
+                        ChildInstanceProof {
+                            definition: DefinitionKey {
+                                namespace: child.namespace.clone(),
+                                name: child.declaration.name().to_owned(),
+                            },
+                            range: instance.range(),
                         },
-                        range: instance.range(),
-                    },
-                );
+                    );
+                }
                 self.scope
                     .children
                     .insert(instance.name().to_owned(), child);
@@ -254,6 +287,9 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                         }))
                 }
                 Item::Clock(declaration) => Ok(Some((declaration.name(), SymbolContract::Clock))),
+                Item::RelationFamily(family) => {
+                    Ok(Some((family.relation().name(), SymbolContract::Relation)))
+                }
                 Item::Relation(declaration) => {
                     Ok(Some((declaration.name(), SymbolContract::Relation)))
                 }
@@ -406,17 +442,27 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                     }
                 }
                 Item::Relation(declaration) => self.validate_relation(declaration),
+                Item::RelationFamily(family) => {
+                    match super::indexed::extent(&self.scope, family.binder()) {
+                        Ok(extent) => {
+                            for ordinal in 0..extent {
+                                match super::indexed::relation(self.scope.file, family, ordinal) {
+                                    Ok(relation) => self.validate_relation(&relation),
+                                    Err(error) => self.diagnostics.push(error),
+                                }
+                            }
+                        }
+                        Err(error) => self.diagnostics.push(error),
+                    }
+                }
                 Item::Connection(declaration) => {
-                    match validate_connection(
+                    match super::indexed::connections(
                         &self.scope,
                         declaration,
                         &mut self.connected_ports,
                         self.proof.connection_limits,
                     ) {
-                        Ok(Some(fragment)) => {
-                            self.proof.physical_connection_fragments.push(fragment);
-                        }
-                        Ok(None) => {}
+                        Ok(fragments) => self.proof.physical_connection_fragments.extend(fragments),
                         Err(error) => self.diagnostics.push(error),
                     }
                 }

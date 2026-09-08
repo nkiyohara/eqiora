@@ -6,7 +6,28 @@ pub(super) fn component_local_footprint(
     elaborator: &Elaborator<'_>,
     definition: &ComponentDefinition<'_>,
     diagnostics: &mut Vec<Diagnostic>,
+    values: Option<&super::super::parameters::SymbolicParameterMap>,
 ) -> (LocalFootprint, BTreeSet<DefinitionKey>) {
+    let generic_values;
+    let require_exact = values.is_some();
+    let values = match values {
+        Some(values) => values,
+        None => {
+            generic_values = family_component_values(definition, diagnostics);
+            &generic_values
+        }
+    };
+    let families = super::families::Families::new(
+        definition.file,
+        definition.owned_items().filter_map(|item| match item {
+            ComponentItem::IndexSet(set) => Some(set),
+            _ => None,
+        }),
+        values,
+        require_exact,
+        diagnostics,
+    );
+    let mut expression_nodes = 0usize;
     let mut declarations = 0_usize;
     let mut connections = 0_usize;
     let mut local_connectors = BTreeSet::new();
@@ -40,9 +61,9 @@ pub(super) fn component_local_footprint(
                 "declaration",
                 diagnostics,
             ),
-            ComponentItem::Connection(_) => checked_local_add(
+            ComponentItem::Connection(connection) => checked_local_add(
                 &mut connections,
-                1,
+                families.members(connection.binder(), diagnostics),
                 definition.file,
                 definition.declaration.range(),
                 "Connection",
@@ -66,12 +87,16 @@ pub(super) fn component_local_footprint(
                 }
             }
             ComponentItem::RelationFamily(family) => {
-                if let Some(members) = complete_exterior_cardinality(
-                    definition,
-                    family.binder().set().as_str(),
-                    family.range(),
-                    diagnostics,
-                ) {
+                if let Some(members) =
+                    families.extent(family.binder().set().as_str()).or_else(|| {
+                        complete_exterior_cardinality(
+                            definition,
+                            family.binder().set().as_str(),
+                            family.range(),
+                            diagnostics,
+                        )
+                    })
+                {
                     match members.checked_mul(2) {
                         Some(declarations_per_family) => checked_local_add(
                             &mut declarations,
@@ -138,6 +163,43 @@ pub(super) fn component_local_footprint(
             }
             _ => {}
         }
+        match item {
+            ComponentItem::Relation(relation) => {
+                families.equations(relation.equations(), 1, &mut expression_nodes, diagnostics)
+            }
+            ComponentItem::Initial(initial) => {
+                families.equations(initial.equations(), 1, &mut expression_nodes, diagnostics)
+            }
+            ComponentItem::Connection(connection) => families.expressions(
+                connection.port_expressions(),
+                families.members(connection.binder(), diagnostics),
+                &mut expression_nodes,
+                diagnostics,
+            ),
+            ComponentItem::Let(value) => {
+                families.expressions([value.value()], 1, &mut expression_nodes, diagnostics)
+            }
+            ComponentItem::RelationFamily(family) => {
+                if let Some(members) =
+                    families.extent(family.binder().set().as_str()).or_else(|| {
+                        complete_exterior_cardinality(
+                            definition,
+                            family.binder().set().as_str(),
+                            family.range(),
+                            diagnostics,
+                        )
+                    })
+                {
+                    families.equations(
+                        family.relation().equations(),
+                        members,
+                        &mut expression_nodes,
+                        diagnostics,
+                    );
+                }
+            }
+            _ => {}
+        }
         let port = match item {
             ComponentItem::Port(port) => port,
             ComponentItem::PortFamily(family) => family.port(),
@@ -167,6 +229,7 @@ pub(super) fn component_local_footprint(
         LocalFootprint {
             declarations,
             connections,
+            expression_nodes,
         },
         local_connectors,
     )
@@ -253,7 +316,27 @@ pub(super) fn model_local_footprint(
     elaborator: &Elaborator<'_>,
     definition: &ModelDefinition<'_>,
     diagnostics: &mut Vec<Diagnostic>,
+    values: Option<&super::super::parameters::SymbolicParameterMap>,
 ) -> LocalFootprint {
+    let generic_values;
+    let require_exact = values.is_some();
+    let values = match values {
+        Some(values) => values,
+        None => {
+            generic_values = family_model_values(definition, diagnostics);
+            &generic_values
+        }
+    };
+    let families = super::families::Families::new(
+        definition.file,
+        definition.owned_items().filter_map(|item| match item {
+            Item::IndexSet(set) => Some(set),
+            _ => None,
+        }),
+        values,
+        require_exact,
+        diagnostics,
+    );
     let mut footprint = LocalFootprint::default();
     for item in definition.owned_items() {
         match item {
@@ -273,7 +356,25 @@ pub(super) fn model_local_footprint(
                 "declaration",
                 diagnostics,
             ),
-            Item::Connection(_) | Item::BoundaryConnection(_) => checked_local_add(
+            Item::Connection(connection) => checked_local_add(
+                &mut footprint.connections,
+                families.members(connection.binder(), diagnostics),
+                definition.file,
+                connection.range(),
+                "indexed Connection",
+                diagnostics,
+            ),
+            Item::RelationFamily(family) => checked_local_add(
+                &mut footprint.declarations,
+                families
+                    .members(Some(family.binder()), diagnostics)
+                    .saturating_mul(2),
+                definition.file,
+                family.range(),
+                "indexed Relation and Activation declarations",
+                diagnostics,
+            ),
+            Item::BoundaryConnection(_) => checked_local_add(
                 &mut footprint.connections,
                 1,
                 definition.file,
@@ -308,6 +409,39 @@ pub(super) fn model_local_footprint(
                 diagnostics,
             ),
         }
+        match item {
+            Item::Relation(relation) => families.equations(
+                relation.equations(),
+                1,
+                &mut footprint.expression_nodes,
+                diagnostics,
+            ),
+            Item::Initial(initial) => families.equations(
+                initial.equations(),
+                1,
+                &mut footprint.expression_nodes,
+                diagnostics,
+            ),
+            Item::RelationFamily(family) => families.equations(
+                family.relation().equations(),
+                families.members(Some(family.binder()), diagnostics),
+                &mut footprint.expression_nodes,
+                diagnostics,
+            ),
+            Item::Connection(connection) => families.expressions(
+                connection.port_expressions(),
+                families.members(connection.binder(), diagnostics),
+                &mut footprint.expression_nodes,
+                diagnostics,
+            ),
+            Item::Let(value) => families.expressions(
+                [value.value()],
+                1,
+                &mut footprint.expression_nodes,
+                diagnostics,
+            ),
+            _ => {}
+        }
     }
     footprint
 }
@@ -341,5 +475,60 @@ pub(super) fn input_binding_count(
     match elaborator.resolve_component(namespace, instance.definition(), file, instance.range()) {
         Ok(child) => instance.bindings().iter().filter(|binding| child.signature().iter().any(|item| matches!(item, eqiora_lang::SignatureItem::Input(input) if input.name() == binding.name()))).count(),
         Err(error) => { diagnostics.push(error); 0 }
+    }
+}
+
+fn family_component_values(
+    definition: &ComponentDefinition<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> super::super::parameters::SymbolicParameterMap {
+    use super::super::{clocks, parameters};
+    let result: Result<_, Vec<Diagnostic>> = (|| {
+        let mut values = parameters::resolve_component_parameters_symbolically(
+            definition.file,
+            definition.declaration,
+            |name| clocks::component(definition.file, definition.declaration, name),
+        )?;
+        parameters::resolve_component_lets(
+            definition.file,
+            definition.declaration,
+            &mut values,
+            |name| clocks::component(definition.file, definition.declaration, name),
+        )?;
+        Ok(values)
+    })();
+    match result {
+        Ok(values) => values,
+        Err(errors) => {
+            diagnostics.extend(errors);
+            Default::default()
+        }
+    }
+}
+fn family_model_values(
+    definition: &ModelDefinition<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> super::super::parameters::SymbolicParameterMap {
+    use super::super::{clocks, parameters};
+    let result: Result<_, Vec<Diagnostic>> = (|| {
+        let mut values = parameters::resolve_model_parameters_symbolically(
+            definition.file,
+            definition.declaration,
+            |name| clocks::model(definition.file, definition.declaration, name),
+        )?;
+        parameters::resolve_model_lets(
+            definition.file,
+            definition.declaration,
+            &mut values,
+            |name| clocks::model(definition.file, definition.declaration, name),
+        )?;
+        Ok(values)
+    })();
+    match result {
+        Ok(values) => values,
+        Err(errors) => {
+            diagnostics.extend(errors);
+            Default::default()
+        }
     }
 }

@@ -225,7 +225,11 @@ impl Parser<'_> {
         } else if self.at_keyword("clock") {
             self.parse_clock().map(Item::Clock)
         } else if self.at_keyword("relation") {
-            self.parse_relation().map(Item::Relation)
+            self.parse_component_relation()
+                .map(|relation| match relation {
+                    ParsedRelation::Ordinary(value) => Item::Relation(value),
+                    ParsedRelation::Family(value) => Item::RelationFamily(value),
+                })
         } else if self.at_keyword("connect") {
             self.parse_connection(false)
                 .map(|connection| match connection {

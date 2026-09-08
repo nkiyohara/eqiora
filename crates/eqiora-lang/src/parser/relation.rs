@@ -34,26 +34,11 @@ impl Parser<'_> {
         })
     }
 
-    pub(super) fn parse_relation(&mut self) -> Option<RelationDecl> {
-        match self.parse_relation_inner(false)? {
-            ParsedRelation::Ordinary(relation) => Some(relation),
-            ParsedRelation::Family(_) => unreachable!("model Relations reject family binders"),
-        }
-    }
-
     pub(super) fn parse_component_relation(&mut self) -> Option<ParsedRelation> {
-        self.parse_relation_inner(true)
-    }
-
-    fn parse_relation_inner(&mut self, allow_family: bool) -> Option<ParsedRelation> {
         let start = self.expect_keyword("relation")?.range().start();
         let name = self.expect_identifier("Relation name")?.text().to_owned();
         let binder = if self.at(TokenKind::LeftBracket) {
-            if !allow_family {
-                self.error_here("boundary family binders are allowed only in Components");
-                return None;
-            }
-            Some(self.parse_boundary_family_binder()?)
+            Some(self.parse_index_family_binder()?)
         } else {
             None
         };
@@ -96,16 +81,6 @@ impl Parser<'_> {
         let Some(binder) = binder else {
             return Some(ParsedRelation::Ordinary(relation));
         };
-        if !matches!(relation.activation(), ActivationSyntax::Continuous) {
-            self.error_here("a boundary Relation family must be continuous");
-            return None;
-        }
-        if relation.domain() != Some(binder.member()) {
-            self.error_here(
-                "a boundary Relation family must be declared on its bound boundary member",
-            );
-            return None;
-        }
         Some(ParsedRelation::Family(RelationFamilyDecl {
             relation,
             binder,
