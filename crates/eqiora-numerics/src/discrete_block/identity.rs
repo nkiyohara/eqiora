@@ -136,7 +136,17 @@ fn hash_value_type(hash: &mut Sha256, value_type: &ValueType) {
         ScalarDomain::Complex => 1,
         ScalarDomain::Integer => 2,
         ScalarDomain::Boolean => 3,
+        ScalarDomain::Enum => 4,
     }]);
+    if let Some(definition) = value_type.enum_definition() {
+        hash_id(hash, definition);
+        hash.update(
+            value_type
+                .enum_member_count()
+                .expect("enum member count")
+                .to_le_bytes(),
+        );
+    }
     hash_dimension(hash, value_type.dimension());
     hash_shape(hash, value_type.shape());
     hash.update([frame_tag(value_type.frame())]);

@@ -44,6 +44,8 @@ fn block_identity_preserves_complete_field_types_without_admitting_nonreal_execu
         real,
         complex,
         integer,
+        ValueType::enumeration(Id::new(), 2).unwrap(),
+        ValueType::enumeration(Id::new(), 2).unwrap(),
         vector,
         channels,
         tensor,
