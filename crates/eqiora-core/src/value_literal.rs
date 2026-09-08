@@ -1,6 +1,6 @@
 use crate::{DynQuantity, ScalarDomain, ValueType};
 
-/// A complete finite mathematical value, with ordered real/imaginary components.
+/// A complete finite mathematical value, with domain-specific exact payloads.
 ///
 /// Components follow the type's shape in row-major, last-axis-fastest order.
 /// The type alone determines scalar domain, dimensions, shape, and frame.
@@ -12,12 +12,31 @@ pub struct ValueLiteral {
 
 #[derive(Debug, Clone, PartialEq)]
 enum Payload {
+    Boolean(bool),
     Zero,
     Components(Box<[(f64, f64)]>),
     Integers(Box<[i64]>),
 }
 
 impl ValueLiteral {
+    /// Construct a logical truth value without integer or real coercion.
+    #[must_use]
+    pub fn boolean(value: bool) -> Self {
+        Self {
+            value_type: ValueType::boolean(),
+            payload: Payload::Boolean(value),
+        }
+    }
+
+    /// Extract only a logical truth value; numeric zero and one are not Booleans.
+    #[must_use]
+    pub const fn as_bool(&self) -> Option<bool> {
+        match self.payload {
+            Payload::Boolean(value) => Some(value),
+            _ => None,
+        }
+    }
+
     /// Construct all components of the declared mathematical type.
     /// Signed zeros normalize to positive zero; all-zero values store no buffer.
     /// Inputs with unknown length are read at most one past the required count.
@@ -29,7 +48,10 @@ impl ValueLiteral {
         value_type: ValueType,
         components: impl IntoIterator<Item = (f64, f64)>,
     ) -> Result<Self, InvalidValueLiteral> {
-        if value_type.scalar_domain() == ScalarDomain::Integer {
+        if !matches!(
+            value_type.scalar_domain(),
+            ScalarDomain::Real | ScalarDomain::Complex
+        ) {
             return Err(InvalidValueLiteral::ScalarDomain);
         }
         let count = value_type
@@ -79,7 +101,10 @@ impl ValueLiteral {
     /// # Errors
     /// Rejects non-finite values and nonzero scalar broadcasting to shaped types.
     pub fn from_real(value_type: ValueType, value: f64) -> Result<Self, InvalidValueLiteral> {
-        if value_type.scalar_domain() == ScalarDomain::Integer {
+        if !matches!(
+            value_type.scalar_domain(),
+            ScalarDomain::Real | ScalarDomain::Complex
+        ) {
             return Err(InvalidValueLiteral::ScalarDomain);
         }
         if !value.is_finite() {
@@ -115,11 +140,14 @@ impl ValueLiteral {
     /// One ordered real/imaginary pair, or `None` outside the exact shape.
     #[must_use]
     pub fn component(&self, index: usize) -> Option<(f64, f64)> {
-        if self.value_type.scalar_domain() == ScalarDomain::Integer {
+        if !matches!(
+            self.value_type.scalar_domain(),
+            ScalarDomain::Real | ScalarDomain::Complex
+        ) {
             return None;
         }
         match &self.payload {
-            Payload::Integers(_) => None,
+            Payload::Integers(_) | Payload::Boolean(_) => None,
             Payload::Zero => (index < self.component_count()).then_some((0.0, 0.0)),
             Payload::Components(values) => values.get(index).copied(),
         }
@@ -129,13 +157,17 @@ impl ValueLiteral {
     pub fn components(
         &self,
     ) -> Option<impl ExactSizeIterator<Item = (f64, f64)> + DoubleEndedIterator + '_> {
-        (self.value_type.scalar_domain() != ScalarDomain::Integer).then(|| {
+        matches!(
+            self.value_type.scalar_domain(),
+            ScalarDomain::Real | ScalarDomain::Complex
+        )
+        .then(|| {
             (0..self.component_count())
                 .map(|index| self.component(index).expect("in-range component"))
         })
     }
 
-    /// Whether every real and imaginary component is zero.
+    /// Whether every numeric component is zero. Boolean false is not numeric zero.
     #[must_use]
     pub const fn is_zero(&self) -> bool {
         matches!(self.payload, Payload::Zero)
@@ -218,6 +250,7 @@ impl core::fmt::Display for InvalidValueLiteral {
 }
 impl std::error::Error for InvalidValueLiteral {}
 
+mod comparison;
 mod integer;
 
 #[cfg(test)]

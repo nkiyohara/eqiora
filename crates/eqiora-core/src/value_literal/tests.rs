@@ -241,6 +241,7 @@ fn integer_arrays_keep_order_cardinality_and_compact_zero() {
     assert!(zero.is_zero());
     assert!(matches!(zero.payload, super::Payload::Zero));
     assert_eq!(zero.integer_component(u32::MAX as usize - 1), Some(0));
+    assert!(zero.component(0).is_none());
 }
 
 #[test]
@@ -290,4 +291,54 @@ fn nominal_counts_and_indexes_do_not_inherit_integer_coercions() {
     assert!(ValueLiteral::from_integer(index_type, -1).is_err());
     assert_ne!(index.value_type(), &ValueType::index(Id::new(), 3).unwrap());
     assert!(ValueType::index(set, 0).is_err());
+}
+
+#[test]
+fn booleans_never_coerce_to_numeric_values_or_zero() {
+    let integer = ValueLiteral::from_integer(
+        ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+        1,
+    )
+    .unwrap();
+    let real = ValueLiteral::from_real(
+        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+        1.0,
+    )
+    .unwrap();
+    assert_eq!(integer.as_bool(), None);
+    assert_eq!(real.as_bool(), None);
+    for truth in [false, true] {
+        let value = ValueLiteral::boolean(truth);
+        assert_eq!(value.value_type(), &ValueType::boolean());
+        assert_eq!(value.as_bool(), Some(truth));
+        assert!(!value.is_zero());
+        assert_eq!(value.component_count(), 1);
+        assert!(value.component(0).is_none());
+        assert!(value.components().is_none());
+        assert!(value.integer_component(0).is_none());
+        assert!(value.integer_components().is_none());
+        assert!(value.integer_scalar_value().is_none());
+        assert!(value.real_scalar_value().is_none());
+        assert!(value.to_real().is_err());
+        assert!(value.to_integer().is_err());
+        assert!(value.ordinal().is_err());
+        assert!(value.checked_neg().is_err());
+        for other in [&value, &integer, &real] {
+            assert!(value.checked_add(other).is_err());
+            assert!(value.checked_sub(other).is_err());
+            assert!(value.checked_mul(other).is_err());
+            assert!(value.checked_quotient(other).is_err());
+            assert!(value.checked_remainder(other).is_err());
+            assert!(other.checked_add(&value).is_err());
+        }
+        assert_ne!(value, integer);
+        assert_ne!(value, real);
+    }
+    assert_ne!(ValueLiteral::boolean(false), ValueLiteral::boolean(true));
+    for (number, real_number) in [(0, 0.0), (1, 1.0)] {
+        assert!(ValueLiteral::from_integer(ValueType::boolean(), number).is_err());
+        assert!(ValueLiteral::integer(ValueType::boolean(), [number]).is_err());
+        assert!(ValueLiteral::from_real(ValueType::boolean(), real_number).is_err());
+        assert!(ValueLiteral::new(ValueType::boolean(), [(real_number, 0.0)]).is_err());
+    }
 }
