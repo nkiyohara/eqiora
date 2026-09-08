@@ -107,7 +107,10 @@ impl ExecutionSession {
                     if first.1 < other.0 {
                         break;
                     }
-                    if first.0 == first.1 && first == other {
+                    let identical_guard = plan.events[index].guard
+                        == plan.events[other_index].guard
+                        && plan.events[index].direction == plan.events[other_index].direction;
+                    if (first.0 == first.1 && first == other) || identical_guard {
                         active_events.insert(other_index);
                     } else {
                         return Err(activation_error(
@@ -184,13 +187,9 @@ impl ExecutionSession {
                 if microstep >= self.config.max_zero_time_events
                     || zero_time_events > self.config.max_zero_time_events
                 {
-                    return Err(activation_error(
-                        &format!(
-                            "bounded event iteration exceeded its microstep limit at microstep {microstep}; possible Zeno behavior"
-                        ),
-                        target,
-                        active.iter().copied(),
-                    ));
+                    return Err(Diagnostic::error(codes::INVALID_EXECUTION_CONFIG,
+                        format!("bounded event iteration exceeded its microstep limit at microstep {microstep}; possible Zeno behavior; owners={}",owner_labels(active.iter().copied())))
+                        .with_graph_path(execution_path("activation-boundary",target)));
                 }
                 let mut relations = relations_for(&self.program, &active);
                 reject_conflicts(&self.program, &active, target)?;
@@ -435,6 +434,15 @@ fn activation_error(
     time: f64,
     owners: impl IntoIterator<Item = RawId>,
 ) -> Diagnostic {
-    let owners = owners.into_iter().collect::<BTreeSet<_>>();
-    execution_error(format!("{message}; owners={owners:?}"), time)
+    execution_error(format!("{message}; owners={}", owner_labels(owners)), time)
+}
+
+fn owner_labels(owners: impl IntoIterator<Item = RawId>) -> String {
+    owners
+        .into_iter()
+        .collect::<BTreeSet<_>>()
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(", ")
 }

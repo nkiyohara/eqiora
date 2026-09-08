@@ -224,6 +224,8 @@ impl ExecutionSession {
     }
 
     /// Advance one stabilized boundary. Event-only boundaries do not consume ticks.
+    /// At a nominal tick, numerical guard zero witnesses coincidence; unresolved
+    /// root-bracket overlap rejects. This is not a proof of exact real root equality.
     /// A failed advance leaves state, calendar, outputs and prior sequence unchanged.
     pub fn advance(&mut self) -> Result<bool, Vec<Diagnostic>> {
         self.advance_with_backend(&ReferenceExpressionBackend, false)
