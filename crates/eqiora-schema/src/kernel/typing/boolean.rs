@@ -44,6 +44,13 @@ impl<I: Clone + Eq> ExpressionType<I> {
         {
             return Err(TypeViolation::ScalarDomainMismatch);
         }
+        for value in [&self, &other] {
+            if value.value_type.scalar_domain() == ScalarDomain::Integer
+                && value.dimension() != DimExponents::DIMENSIONLESS
+            {
+                return Err(TypeViolation::ScalarDomainMismatch);
+            }
+        }
         let left = self.value_type.scalar_domain();
         let right = other.value_type.scalar_domain();
         if self.value_type.index_set().is_some() || other.value_type.index_set().is_some() {

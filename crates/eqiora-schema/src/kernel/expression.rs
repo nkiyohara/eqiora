@@ -120,12 +120,6 @@ pub enum ExprNode {
         then_value: ExprId,
         else_value: ExprId,
     },
-    /// Smaller of two ordered real or integer scalars. Both operands are evaluated;
-    /// equal values retain the first operand.
-    Min(ExprId, ExprId),
-    /// Larger of two ordered real or integer scalars. Both operands are evaluated;
-    /// equal values retain the first operand.
-    Max(ExprId, ExprId),
     /// Scalar comparison retaining exact operand domains.
     Compare(ComparisonOp, ExprId, ExprId),
     /// Boolean negation.
@@ -237,8 +231,6 @@ impl ExprNode {
                 real: left,
                 imag: right,
             }
-            | Self::Min(left, right)
-            | Self::Max(left, right)
             | Self::Compare(_, left, right)
             | Self::And(left, right)
             | Self::Or(left, right)
@@ -431,13 +423,15 @@ impl ExprDagBuilder {
     /// Select the smaller scalar, retaining the first operand on ties.
     /// Both operands are demanded; typing requires identical ordered scalar types.
     pub fn min(&mut self, left: ExprId, right: ExprId) -> Result<ExprId, Diagnostic> {
-        self.push(ExprNode::Min(left, right))
+        let condition = self.compare(ComparisonOp::LessEqual, left, right)?;
+        self.select(condition, left, right)
     }
 
     /// Select the larger scalar, retaining the first operand on ties.
     /// Both operands are demanded; typing requires identical ordered scalar types.
     pub fn max(&mut self, left: ExprId, right: ExprId) -> Result<ExprId, Diagnostic> {
-        self.push(ExprNode::Max(left, right))
+        let condition = self.compare(ComparisonOp::GreaterEqual, left, right)?;
+        self.select(condition, left, right)
     }
 
     /// Compare two scalar expressions.
