@@ -887,6 +887,20 @@ class Component:
         """Construct a finite product; the compiler checks element types and units."""
         return self._reduction("product", body, over, name)
 
+    def min(self, body: Callable[[Expression], object], *, over: IndexSet, name: str = "i") -> Expression:
+        """Construct a finite minimum of compatible real or integer scalars.
+
+        The callback runs once. Evaluation is eager and retains the first tie.
+        """
+        return self._reduction("min", body, over, name)
+
+    def max(self, body: Callable[[Expression], object], *, over: IndexSet, name: str = "i") -> Expression:
+        """Construct a finite maximum of compatible real or integer scalars.
+
+        The callback runs once. Evaluation is eager and retains the first tie.
+        """
+        return self._reduction("max", body, over, name)
+
     def _reduction(self, operation: str, body: Callable[[Expression], object],
                    over: IndexSet, name: str) -> Expression:
         self._source._ensure_open()
