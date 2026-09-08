@@ -25,6 +25,7 @@ pub(crate) struct WireValueType {
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 enum WireValueBasis {
     Ordinary,
+    Enum { definition: WireId, count: u32 },
     Coordinates { space: WireId },
     Counts { space: WireId },
     Index { set: WireId, extent: u32 },
@@ -33,6 +34,7 @@ enum WireValueBasis {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub(crate) enum WireScalarDomain {
+    Enum,
     Boolean,
     Integer,
     Real,
@@ -42,6 +44,7 @@ pub(crate) enum WireScalarDomain {
 impl WireScalarDomain {
     pub(super) const fn encode(value: ScalarDomain) -> Self {
         match value {
+            ScalarDomain::Enum => Self::Enum,
             ScalarDomain::Boolean => Self::Boolean,
             ScalarDomain::Integer => Self::Integer,
             ScalarDomain::Real => Self::Real,
@@ -51,6 +54,7 @@ impl WireScalarDomain {
 
     pub(super) const fn decode(self) -> ScalarDomain {
         match self {
+            Self::Enum => ScalarDomain::Enum,
             Self::Boolean => ScalarDomain::Boolean,
             Self::Integer => ScalarDomain::Integer,
             Self::Real => ScalarDomain::Real,
@@ -61,7 +65,12 @@ impl WireScalarDomain {
 
 impl WireValueType {
     pub(super) fn encode(value: &ValueType) -> Result<Self, Diagnostic> {
-        let basis = if let Some(set) = value.index_set() {
+        let basis = if let Some(definition) = value.enum_definition() {
+            WireValueBasis::Enum {
+                definition: WireId::from_raw(definition.erase()),
+                count: value.enum_member_count().expect("checked enum type"),
+            }
+        } else if let Some(set) = value.index_set() {
             WireValueBasis::Index {
                 set: WireId::from_raw(set.erase()),
                 extent: value.index_extent().expect("checked index type"),
@@ -104,7 +113,27 @@ impl WireValueType {
             ));
         }
         match &self.basis {
-            WireValueBasis::Ordinary => {}
+            WireValueBasis::Ordinary => {
+                if self.domain == WireScalarDomain::Enum {
+                    return Err(invalid_artifact(
+                        "enum requires its exact nominal declaration",
+                    ));
+                }
+            }
+            WireValueBasis::Enum { definition, count } => {
+                if self.domain != WireScalarDomain::Enum
+                    || !shape.is_scalar()
+                    || rank != 0
+                    || self.frame.decode() != ValueFrame::Invariant
+                    || self.dimension.decode() != eqiora_core::DimExponents::DIMENSIONLESS
+                {
+                    return Err(invalid_artifact(
+                        "enum type requires a dimensionless invariant nominal scalar",
+                    ));
+                }
+                return ValueType::enumeration(definition.typed::<kinds::Enum>()?, *count)
+                    .map_err(|error| invalid_artifact(error.to_string()));
+            }
             WireValueBasis::Index { set, extent } => {
                 if self.domain != WireScalarDomain::Integer
                     || !shape.is_scalar()
@@ -160,6 +189,7 @@ impl WireValueType {
     pub(super) fn nominal_reference(&self) -> Option<&WireId> {
         match &self.basis {
             WireValueBasis::Ordinary => None,
+            WireValueBasis::Enum { definition, .. } => Some(definition),
             WireValueBasis::Coordinates { space } | WireValueBasis::Counts { space } => Some(space),
             WireValueBasis::Index { set, .. } => Some(set),
         }

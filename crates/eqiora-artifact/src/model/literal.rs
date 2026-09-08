@@ -17,6 +17,7 @@ pub(crate) struct WireValueLiteral {
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub(super) enum WireComponents {
     Zero,
+    Enum { tag: u32 },
     Boolean { value: bool },
     Dense { values: Vec<(f64, f64)> },
     Integer { values: Vec<i64> },
@@ -26,7 +27,9 @@ impl WireValueLiteral {
     pub(crate) fn encode(value: &ValueLiteral) -> Result<Self, Diagnostic> {
         Ok(Self {
             value_type: WireValueType::encode(value.value_type())?,
-            components: if let Some(value) = value.as_bool() {
+            components: if let Some(tag) = value.enum_tag() {
+                WireComponents::Enum { tag }
+            } else if let Some(value) = value.as_bool() {
                 WireComponents::Boolean { value }
             } else if value.is_zero() {
                 WireComponents::Zero
@@ -48,6 +51,7 @@ impl WireValueLiteral {
     pub(crate) fn decode(&self) -> Result<ValueLiteral, Diagnostic> {
         let value_type = self.value_type.decode()?;
         let result = match &self.components {
+            WireComponents::Enum { tag } => ValueLiteral::enum_value(value_type, *tag),
             WireComponents::Boolean { value } => {
                 let literal = ValueLiteral::boolean(*value);
                 if literal.value_type() != &value_type {
@@ -58,6 +62,9 @@ impl WireValueLiteral {
                 return Ok(literal);
             }
             WireComponents::Zero => match value_type.scalar_domain() {
+                ScalarDomain::Enum => {
+                    return Err(invalid_artifact("enum requires an explicit tag payload"));
+                }
                 ScalarDomain::Boolean => {
                     return Err(invalid_artifact(
                         "Boolean requires an explicit truth payload",
@@ -103,7 +110,7 @@ impl WireValueLiteral {
     pub(crate) fn component_payload_count(&self) -> usize {
         match &self.components {
             WireComponents::Zero => 0,
-            WireComponents::Boolean { .. } => 1,
+            WireComponents::Boolean { .. } | WireComponents::Enum { .. } => 1,
             WireComponents::Dense { values } => values.len(),
             WireComponents::Integer { values } => values.len(),
         }

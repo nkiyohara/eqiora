@@ -230,6 +230,13 @@ fn encode_node(
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
     match node {
+        KernelNode::Enum(definition) => {
+            encoder.u8(12)?;
+            encoder.len(definition.members().len())?;
+            for member in definition.members() {
+                encoder.bytes(member.as_bytes())?;
+            }
+        }
         KernelNode::FiniteSpace(space) => {
             encoder.u8(10)?;
             encoder.len(space.labels().len())?;
