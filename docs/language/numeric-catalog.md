@@ -103,6 +103,11 @@ another declaration. Expansion charges the body size and nested extent products 
 existing resource bounds before allocation. Ordinary Parameter references remain live expression
 dependencies; structural extent dependencies retain the existing edit restrictions.
 
+Reduction extents must be resolved during definition checking. A selected local Model uses
+its supplied static Parameter bindings before that check. A generic Component with an
+unbound extent cannot yet type a dimensioned reduction result; closed Component extents are
+admitted.
+
 Reductions are admitted in Relations and runtime expression aliases. Parameter defaults and
 IndexSet extent definitions cannot contain reductions in this profile. `min` and `max`,
 runtime-sized reductions, indexed equation/connection families and tensor contractions remain

@@ -81,3 +81,45 @@ fn selected_static_extent_is_bound_before_reduction_expansion() {
     .unwrap();
     eqiora_compiler::CompiledModel::compile_selected("selected.eqi","model M(parameter n:integer){indexset I=range(n);relation r{sum(to_real(ordinal(i)),over=(i in I))=3;}}","M",&[("n",eqiora_compiler::StaticBindingValue::Expression(&value))]).unwrap();
 }
+
+#[test]
+fn selected_extent_checks_product_units_and_unselected_definitions() {
+    let extent = |n: &str| {
+        eqiora_lang::SourceAstFactory::expression(
+            eqiora_lang::ExprKind::Number(eqiora_lang::DecimalLiteral::parse(n).unwrap()),
+            Default::default(),
+        )
+        .unwrap()
+    };
+    let source = "model M(parameter n:integer){indexset I=range(n);relation r{product(2[m],over=(i in I))=8[m^3];}}";
+    let three = extent("3");
+    eqiora_compiler::CompiledModel::compile_selected(
+        "product.eqi",
+        source,
+        "M",
+        &[("n", eqiora_compiler::StaticBindingValue::Expression(&three))],
+    )
+    .unwrap();
+    for n in ["0", "2"] {
+        let value = extent(n);
+        assert!(
+            eqiora_compiler::CompiledModel::compile_selected(
+                "product.eqi",
+                source,
+                "M",
+                &[("n", eqiora_compiler::StaticBindingValue::Expression(&value))]
+            )
+            .is_err()
+        );
+    }
+    let invalid = format!("{source} model Unselected(){{relation wrong{{1[m]=1[s];}}}}");
+    assert!(
+        eqiora_compiler::CompiledModel::compile_selected(
+            "product.eqi",
+            &invalid,
+            "M",
+            &[("n", eqiora_compiler::StaticBindingValue::Expression(&three))]
+        )
+        .is_err()
+    );
+}

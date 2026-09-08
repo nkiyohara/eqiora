@@ -301,6 +301,18 @@ impl<'a> Elaborator<'a> {
         }
     }
 
+    /// Check the selected Model against its actual static bindings while retaining
+    /// the authored source namespace and every unselected definition.
+    pub(super) fn bind_selected_model(&mut self, model: ModelDefinition<'a>) {
+        self.models.insert(
+            DefinitionKey {
+                namespace: model.namespace.clone(),
+                name: model.name().to_owned(),
+            },
+            model,
+        );
+    }
+
     pub(super) fn entry_model(&self, path: &str) -> Result<ModelDefinition<'a>, String> {
         self.find_entry_model(path)?
             .ok_or_else(|| format!("unresolved entry Model `{path}`"))
