@@ -499,7 +499,7 @@ class Parameter:
 
 @final
 class PhysicalDomain:
-    """Immutable nominal scalar physical-domain declaration.
+    """Immutable nominal scalar physical domain with explicitly named quantities.
 
     Authority: ``crates/eqiora-python/src/modeling.rs::PyPhysicalDomain``.
     """
@@ -508,11 +508,17 @@ class PhysicalDomain:
         cls,
         name: str,
         *,
+        across_name: str,
         across_type: ValueType,
+        through_name: str,
         through_type: ValueType,
     ) -> Self: ...
     @property
     def name(self) -> str: ...
+    @property
+    def across_name(self) -> str: ...
+    @property
+    def through_name(self) -> str: ...
     @property
     def across_type(self) -> ValueType: ...
     @property

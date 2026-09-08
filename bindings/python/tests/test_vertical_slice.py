@@ -53,16 +53,16 @@ model decay() {
 PHYSICAL_SOURCE = """
 model physical_pair() {
   domain electrical = scalar_physical(
-    across = kg * m ^ 2 / (s ^ 3 * A),
-    through = A
+    across voltage: kg * m ^ 2 / (s ^ 3 * A),
+    through current: A
   );
-  port left: conserving on electrical;
-  port right: conserving on electrical;
+  port left: electrical;
+  port right: electrical;
   relation component {
-    across(left) = 0;
-    through(right) = 0;
+    left.voltage = 0;
+    right.current = 0;
   }
-  connect conserving left, right;
+  connect left, right;
 }
 """
 
@@ -406,7 +406,7 @@ def test_native_declarations_are_frozen_and_keep_typed_compiler_diagnostics() ->
     with pytest.raises(ValueError, match="finite"):
         eqiora.Model.define("invalid", non_finite, flow, eqiora.Initial((non_finite, float("nan"))))
 
-def physical_pair() -> tuple[
+def physical_pair(across_name: str = "voltage", through_name: str = "current") -> tuple[
     eqiora.PhysicalDomain,
     eqiora.ConservingPort,
     eqiora.ConservingPort,
@@ -417,7 +417,9 @@ def physical_pair() -> tuple[
     current = eqiora.Dimension(current=1)
     electrical = eqiora.PhysicalDomain(
         "electrical",
+        across_name=across_name,
         across_type=eqiora.ValueType.real(voltage),
+        through_name=through_name,
         through_type=eqiora.ValueType.real(current),
     )
     left = eqiora.ConservingPort("left", domain=electrical)
@@ -457,6 +459,10 @@ def test_physical_source_compile_uses_current_without_user_codec_selection() -> 
 def test_native_physical_handles_are_frozen_and_nominal() -> None:
     electrical, left, right, component, net = physical_pair()
     assert left.domain.name == electrical.name
+    assert electrical.across_name == left.domain.across_name == "voltage"
+    assert electrical.through_name == left.domain.through_name == "current"
+    assert 'across_name="voltage"' in repr(electrical)
+    assert 'through_name="current"' in repr(electrical)
     assert len(component.equations) == 2
     with pytest.raises(AttributeError):
         component.residual
@@ -464,12 +470,18 @@ def test_native_physical_handles_are_frozen_and_nominal() -> None:
         left.name = "renamed"
     with pytest.raises(AttributeError):
         electrical.name = "renamed"
+    with pytest.raises(AttributeError):
+        electrical.across_name = "renamed"
+    with pytest.raises(AttributeError):
+        electrical.through_name = "renamed"
     with pytest.raises(TypeError):
         type(net)()
 
     equal_but_foreign = eqiora.PhysicalDomain(
         "electrical",
+        across_name=electrical.across_name,
         across_type=electrical.across_type,
+        through_name=electrical.through_name,
         through_type=electrical.through_type,
     )
     foreign = eqiora.ConservingPort("foreign", domain=equal_but_foreign)
@@ -485,6 +497,47 @@ def test_native_physical_handles_are_frozen_and_nominal() -> None:
             eqiora.Relation("foreign_owner", equations=[(eqiora.across(foreign), 0)]),
             invalid,
         )
+
+
+@pytest.mark.parametrize(
+    "across_name,through_name", [("potential", "flow"), ("current", "voltage")]
+)
+def test_named_quantities_preserve_native_roles_and_exact_source_lookup(
+    across_name: str, through_name: str
+) -> None:
+    declarations = physical_pair(across_name, through_name)
+    native = eqiora.Model.define("physical_pair", *declarations)
+    source = (
+        PHYSICAL_SOURCE.replace("voltage", "__across__")
+        .replace("current", through_name)
+        .replace("__across__", across_name)
+    )
+    compiled = eqiora.compile(source=source, filename="renamed-physical.eqi")
+    assert compiled.structurally_equivalent(native)
+    # Old names do not become aliases, even when their familiar spelling names
+    # the opposite physical role in this connector.
+    missing = source.replace(f"left.{across_name}", "left.undeclared")
+    with pytest.raises(eqiora.EqioraError):
+        eqiora.compile(source=missing, filename="missing-member.eqi")
+
+
+def test_physical_quantity_names_are_required_and_checked_by_native_admission() -> None:
+    electrical, *_ = physical_pair()
+    with pytest.raises(TypeError, match="across_name"):
+        eqiora.PhysicalDomain(
+            "missing", across_type=electrical.across_type,
+            through_type=electrical.through_type,
+        )
+    with pytest.raises(eqiora.EqioraError, match="distinct"):
+        eqiora.Model.define("duplicate", *physical_pair("quantity", "quantity"))
+    with pytest.raises(eqiora.EqioraError, match="identifier"):
+        eqiora.Model.define("invalid", *physical_pair("not a member", "flow"))
+    for old in ["across(left)", "through(left)"]:
+        with pytest.raises(eqiora.EqioraError):
+            eqiora.compile(
+                source=PHYSICAL_SOURCE.replace("left.voltage", old),
+                filename="retired-accessor.eqi",
+            )
 
 
 def test_native_physical_category_errors_do_not_reach_semantics() -> None:
