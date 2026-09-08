@@ -4,12 +4,21 @@ use std::collections::HashMap;
 
 use eqiora_core::GraphPath;
 
-use super::{DraftDeclaration, DraftPortReference, NativeModelAst, connection_path, value_type};
+use super::{DraftDeclaration, DraftPortReference, connection_path, value_type};
 use crate::ast::{
     ActivationSyntax, ConnectionDecl, ConnectionSyntax, DomainDecl, DomainSyntax, Equation, Expr,
     ExprKind, FieldDecl, Item, ModelDecl, NamePath, ParameterDecl, PortDecl, PortSyntax,
     RelationDecl, TextRange, VisibilitySyntax,
 };
+
+/// Synthetic AST plus paths that recover native declaration context.
+#[doc(hidden)]
+#[derive(Debug)]
+pub struct NativeModelAst {
+    document: crate::Document,
+    nominal_ids: HashMap<String, eqiora_core::RawId>,
+    paths: HashMap<TextRange, GraphPath>,
+}
 
 impl super::ModelDraft {
     /// Build the private compiler bridge without formatting or parsing source.

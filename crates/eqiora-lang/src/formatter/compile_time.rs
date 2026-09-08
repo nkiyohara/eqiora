@@ -1,16 +1,16 @@
 use core::fmt::Write;
 
-use crate::ast::{DimensionDecl, LetDecl, ParameterDecl};
+use crate::ast::{NamedDefinitionDecl, ParameterDecl};
 
 use super::{format_expression, write_indent};
 
 pub(super) fn format_dimension(
-    declaration: &DimensionDecl,
+    declaration: &NamedDefinitionDecl,
     output: &mut crate::formatter::comments::Output,
 ) {
     output.begin(&declaration.comments);
     write!(output, "dimension {} = ", declaration.name).expect("String write");
-    format_expression(&declaration.expression, 0, output);
+    format_expression(&declaration.value, 0, output);
     output.push_str(";\n");
     output.end();
 }
@@ -29,7 +29,7 @@ pub(super) fn format_parameter(
 }
 
 pub(super) fn format_let(
-    declaration: &LetDecl,
+    declaration: &NamedDefinitionDecl,
     indent: usize,
     output: &mut crate::formatter::comments::Output,
 ) {

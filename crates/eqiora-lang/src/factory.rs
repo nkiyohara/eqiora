@@ -20,13 +20,13 @@ pub(crate) mod value_literal;
 mod value_type;
 
 use crate::ast::{
-    ActivationSyntax, BoundaryConnectionDecl, BoundaryFamilyBinderSyntax,
-    BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax, ClockDecl, ComponentParameterDecl,
-    ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorDecl,
+    ActivationSyntax, BoundaryConnectionDecl, BoundaryPortReferenceSyntax,
+    BoundaryPortSelectorSyntax, ClockDecl, ComponentParameterDecl, ComponentPortDecl,
+    ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorDecl,
     ConnectorQuantitySyntax, ConnectorSyntax, DomainDecl, DomainSyntax, Equation,
-    ExactIntegerSyntax, Expr, ExprKind, FieldDecl, InstanceDecl, LetDecl, NamePath,
-    NamedBindingDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl, PureOperatorExpr,
-    PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax, RelationDecl,
+    ExactIntegerSyntax, Expr, ExprKind, FamilyBinderSyntax, FieldDecl, InstanceDecl, NamePath,
+    NamedBindingDecl, NamedDefinitionDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl,
+    PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax, RelationDecl,
     RelationFamilyDecl, SupportSlotDecl, SupportSlotSyntax, TextRange, ValueShapeSyntax,
     VisibilitySyntax,
 };
@@ -161,7 +161,7 @@ impl SourceAstFactory {
     /// the binder member, and both declarations are structurally valid.
     pub fn component_port_family(
         port: ComponentPortDecl,
-        binder: BoundaryFamilyBinderSyntax,
+        binder: FamilyBinderSyntax,
     ) -> Result<ComponentPortFamilyDecl, AstConstructionError> {
         validate_port_syntax(port.syntax())?;
         checked_range(port.range())?;
@@ -190,10 +190,13 @@ impl SourceAstFactory {
         member: impl Into<String>,
         set: impl Into<String>,
         range: TextRange,
-    ) -> Result<BoundaryFamilyBinderSyntax, AstConstructionError> {
-        Ok(BoundaryFamilyBinderSyntax {
+    ) -> Result<FamilyBinderSyntax, AstConstructionError> {
+        Ok(FamilyBinderSyntax {
             member: checked_identifier(member, "boundary family member")?,
-            set: checked_identifier(set, "boundary family support set")?,
+            set: NamePath::single(
+                checked_identifier(set, "boundary family support set")?,
+                range,
+            ),
             range: checked_range(range)?,
         })
     }
@@ -346,7 +349,7 @@ impl SourceAstFactory {
     /// Returns an error for fewer than two Ports, malformed references, or a
     /// declaration containing neither a family binder nor a selector.
     pub fn boundary_connection(
-        binder: Option<BoundaryFamilyBinderSyntax>,
+        binder: Option<FamilyBinderSyntax>,
         ports: Vec<BoundaryPortReferenceSyntax>,
         range: TextRange,
     ) -> Result<BoundaryConnectionDecl, AstConstructionError> {
@@ -432,7 +435,7 @@ impl SourceAstFactory {
     pub fn instance(
         name: impl Into<String>,
         definition: NamePath,
-        family: Option<crate::IndexFamilyBinderSyntax>,
+        family: Option<crate::FamilyBinderSyntax>,
         bindings: Vec<NamedBindingDecl>,
         range: TextRange,
     ) -> Result<InstanceDecl, AstConstructionError> {
@@ -692,10 +695,10 @@ fn validate_value_shape(shape: &ValueShapeSyntax) -> Result<(), AstConstructionE
 }
 
 fn validate_boundary_family_binder(
-    binder: &BoundaryFamilyBinderSyntax,
+    binder: &FamilyBinderSyntax,
 ) -> Result<(), AstConstructionError> {
     validate_identifier(binder.member(), "boundary family member")?;
-    validate_identifier(binder.set(), "boundary family support set")?;
+    validate_identifier(binder.set().as_str(), "boundary family support set")?;
     checked_range(binder.range()).map(|_| ())
 }
 

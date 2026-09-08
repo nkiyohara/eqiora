@@ -1,34 +1,5 @@
 use super::{Expr, TextRange, ValueTypeSyntax};
 
-/// Compilation-unit structural dimension alias.
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct DimensionDecl {
-    pub(crate) comments: crate::ast::comments::SourceComments,
-    pub(crate) name: String,
-    pub(crate) expression: Expr,
-    pub(crate) range: TextRange,
-}
-
-impl DimensionDecl {
-    /// Returns the declared alias name.
-    #[must_use]
-    pub(crate) fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Returns the structural dimension expression.
-    #[must_use]
-    pub(crate) const fn expression(&self) -> &Expr {
-        &self.expression
-    }
-
-    /// Returns the declaration's source range.
-    #[must_use]
-    pub(crate) const fn range(&self) -> TextRange {
-        self.range
-    }
-}
-
 /// Parameter source declaration.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParameterDecl {
@@ -71,9 +42,10 @@ impl ParameterDecl {
     }
 }
 
-/// Immutable local expression alias with optional type, support and named activation assertions.
+/// Named expression definition. Its containing declaration determines meaning and allowed assertions.
 #[derive(Debug, Clone, PartialEq)]
-pub struct LetDecl {
+pub struct NamedDefinitionDecl {
+    pub(crate) visibility: super::VisibilitySyntax,
     pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) name: String,
     pub(crate) value_type: Option<ValueTypeSyntax>,
@@ -83,7 +55,31 @@ pub struct LetDecl {
     pub(crate) range: TextRange,
 }
 
-impl LetDecl {
+impl NamedDefinitionDecl {
+    /// Visibility of this named definition in its compilation unit.
+    #[must_use]
+    pub const fn visibility(&self) -> super::VisibilitySyntax {
+        self.visibility
+    }
+
+    pub(crate) fn plain(
+        name: String,
+        value: Expr,
+        range: TextRange,
+        visibility: super::VisibilitySyntax,
+    ) -> Self {
+        Self {
+            comments: Default::default(),
+            visibility,
+            name,
+            value,
+            range,
+            value_type: None,
+            domain: None,
+            activation: None,
+        }
+    }
+
     /// Returns the declared alias name.
     #[must_use]
     pub fn name(&self) -> &str {

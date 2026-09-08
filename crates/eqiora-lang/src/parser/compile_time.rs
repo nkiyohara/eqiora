@@ -1,4 +1,4 @@
-use crate::ast::{LetDecl, ParameterDecl, TextRange};
+use crate::ast::{NamedDefinitionDecl, ParameterDecl, TextRange};
 use crate::lexer::TokenKind;
 
 use super::Parser;
@@ -27,7 +27,7 @@ impl Parser<'_> {
         })
     }
 
-    pub(super) fn parse_let(&mut self) -> Option<LetDecl> {
+    pub(super) fn parse_let(&mut self) -> Option<NamedDefinitionDecl> {
         let start = self.expect_keyword("let")?.range().start();
         let name = self.expect_identifier("alias name")?.text().to_owned();
         let value_type = if self.at(TokenKind::Colon) {
@@ -62,7 +62,8 @@ impl Parser<'_> {
             .expect(TokenKind::Semicolon, "`;` after declaration")?
             .range()
             .end();
-        Some(LetDecl {
+        Some(NamedDefinitionDecl {
+            visibility: crate::VisibilitySyntax::Private,
             comments: Default::default(),
             name,
             value_type,

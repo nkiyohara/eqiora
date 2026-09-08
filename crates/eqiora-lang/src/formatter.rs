@@ -16,12 +16,12 @@ mod relation;
 mod value_type;
 
 use crate::ast::{
-    BoundaryConnectionDecl, BoundaryFamilyBinderSyntax, BoundaryPairingSyntax,
-    BoundaryPortReferenceSyntax, BoundarySideSyntax, ClockDecl, ComponentItem,
-    ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorSyntax, Document,
-    DomainSyntax, FieldDecl, FrameSyntax, InstanceDecl, Item, PortSyntax, PureOperatorBinaryOp,
-    PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind, PureValueClassSyntax,
-    SignalDirectionSyntax, SupportSlotSyntax, ValueShapeSyntax, VisibilitySyntax,
+    BoundaryConnectionDecl, BoundaryPairingSyntax, BoundaryPortReferenceSyntax, BoundarySideSyntax,
+    ClockDecl, ComponentItem, ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax,
+    ConnectorSyntax, Document, DomainSyntax, FamilyBinderSyntax, FieldDecl, FrameSyntax,
+    InstanceDecl, Item, PortSyntax, PureOperatorBinaryOp, PureOperatorDecl, PureOperatorExpr,
+    PureOperatorExprKind, PureValueClassSyntax, SignalDirectionSyntax, SupportSlotSyntax,
+    ValueShapeSyntax, VisibilitySyntax,
 };
 use cartesian::format_cartesian_coordinate;
 use compile_time::{format_let, format_parameter};
@@ -43,13 +43,9 @@ pub fn format(document: &Document) -> String {
         if space.visibility == VisibilitySyntax::Public {
             output.push_str("public ");
         }
-        write!(
-            output,
-            "space {} = orthonormal({});\n",
-            space.name,
-            space.labels.join(", ")
-        )
-        .expect("String write");
+        write!(output, "space {} = ", space.name()).expect("String write");
+        format_expression(space.value(), 0, &mut output);
+        output.push_str(";\n");
         output.end();
     }
     for connector in &document.connectors {
@@ -458,7 +454,7 @@ fn format_component_port_family(
 }
 
 fn format_boundary_family_binder(
-    binder: &BoundaryFamilyBinderSyntax,
+    binder: &FamilyBinderSyntax,
     output: &mut crate::formatter::comments::Output,
 ) {
     write!(output, "[{} in {}]", binder.member, binder.set).expect("String write");
@@ -547,7 +543,7 @@ fn format_instance(
     write_indent(output, indent);
     write!(output, "instance {}", declaration.name).expect("String write");
     if let Some(family) = &declaration.family {
-        write!(output, "[{} in {}]", family.binder(), family.set()).expect("String write");
+        write!(output, "[{} in {}]", family.member(), family.set()).expect("String write");
     }
     write!(output, ": {}", declaration.definition).expect("String write");
     output.push('(');
@@ -576,14 +572,14 @@ fn format_number(value: f64) -> String {
 mod tests;
 
 fn format_index_set(
-    declaration: &crate::IndexSetDecl,
+    declaration: &crate::NamedDefinitionDecl,
     indent: usize,
     output: &mut comments::Output,
 ) {
     write_indent(output, indent);
-    write!(output, "indexset {} = range(", declaration.name()).expect("String write");
-    format_expression(declaration.extent(), 0, output);
-    output.push_str(");\n");
+    write!(output, "indexset {} = ", declaration.name()).expect("String write");
+    format_expression(declaration.value(), 0, output);
+    output.push_str(";\n");
 }
 
 fn format_endpoint_list(endpoints: &[crate::Expr], output: &mut comments::Output) {

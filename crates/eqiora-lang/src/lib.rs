@@ -18,18 +18,18 @@ mod lexer;
 mod parser;
 
 pub use ast::{
-    ActivationSyntax, BinaryOp, BoundaryConnectionDecl, BoundaryFamilyBinderSyntax,
-    BoundaryPairingSyntax, BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax,
-    BoundarySideSyntax, ClockDecl, ClockRequirementDecl, ComponentDecl, ComponentItem,
-    ComponentParameterDecl, ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl,
-    ConnectionSyntax, ConnectorDecl, ConnectorQuantitySyntax, ConnectorSyntax, DocComment,
-    Document, DomainDecl, DomainSyntax, Equation, ExactIntegerSyntax, Expr, ExprKind, FieldDecl,
-    FieldRoleSyntax, FiniteSpaceDecl, FrameSyntax, IndexFamilyBinderSyntax, IndexSetDecl,
-    InitialDecl, InstanceDecl, Item, LetDecl, ModelDecl, NamePath, NamedBindingDecl, ParameterDecl,
-    PortDecl, PortSyntax, PureOperatorBinaryOp, PureOperatorDecl, PureOperatorExpr,
-    PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax, RelationDecl,
-    RelationFamilyDecl, SignalDirectionSyntax, SignatureItem, SupportSlotDecl, SupportSlotSyntax,
-    TextRange, UnaryOp, ValueShapeSyntax, ValueTypeSyntax, ValueTypeSyntaxKind, VisibilitySyntax,
+    ActivationSyntax, BinaryOp, BoundaryConnectionDecl, BoundaryPairingSyntax,
+    BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax, BoundarySideSyntax, ClockDecl,
+    ClockRequirementDecl, ComponentDecl, ComponentItem, ComponentParameterDecl, ComponentPortDecl,
+    ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorDecl,
+    ConnectorQuantitySyntax, ConnectorSyntax, DocComment, Document, DomainDecl, DomainSyntax,
+    Equation, ExactIntegerSyntax, Expr, ExprKind, FamilyBinderSyntax, FieldDecl, FieldRoleSyntax,
+    FrameSyntax, InitialDecl, InstanceDecl, Item, ModelDecl, NamePath, NamedBindingDecl,
+    NamedDefinitionDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorBinaryOp,
+    PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal,
+    PureValueClassSyntax, RelationDecl, RelationFamilyDecl, SignalDirectionSyntax, SignatureItem,
+    SupportSlotDecl, SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, ValueTypeSyntax,
+    ValueTypeSyntaxKind, VisibilitySyntax,
 };
 pub use cartesian::CartesianCoordinateSyntax;
 pub use decimal::DecimalLiteral;

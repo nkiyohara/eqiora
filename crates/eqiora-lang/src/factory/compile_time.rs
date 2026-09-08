@@ -1,8 +1,8 @@
 use super::{
-    AstConstructionError, Expr, LetDecl, NamedBindingDecl, ParameterDecl, SourceAstFactory,
-    TextRange, checked_identifier, checked_range, validate_expression, validate_identifier,
+    AstConstructionError, Expr, NamedBindingDecl, NamedDefinitionDecl, ParameterDecl,
+    SourceAstFactory, TextRange, checked_identifier, checked_range, validate_expression,
+    validate_identifier,
 };
-use crate::ast::DimensionDecl;
 
 pub(super) fn validate_named_binding(
     binding: &NamedBindingDecl,
@@ -21,14 +21,14 @@ impl SourceAstFactory {
         name: impl Into<String>,
         expression: Expr,
         range: TextRange,
-    ) -> Result<DimensionDecl, AstConstructionError> {
+    ) -> Result<NamedDefinitionDecl, AstConstructionError> {
         validate_expression(&expression)?;
-        Ok(DimensionDecl {
-            comments: Default::default(),
-            name: checked_identifier(name, "dimension alias")?,
+        Ok(NamedDefinitionDecl::plain(
+            checked_identifier(name, "dimension alias")?,
             expression,
-            range: checked_range(range)?,
-        })
+            checked_range(range)?,
+            crate::VisibilitySyntax::Private,
+        ))
     }
 
     /// Construct a model-level typed Parameter declaration.
@@ -62,9 +62,10 @@ impl SourceAstFactory {
         activation: Option<String>,
         value: Expr,
         range: TextRange,
-    ) -> Result<LetDecl, AstConstructionError> {
+    ) -> Result<NamedDefinitionDecl, AstConstructionError> {
         validate_expression(&value)?;
-        Ok(LetDecl {
+        Ok(NamedDefinitionDecl {
+            visibility: crate::VisibilitySyntax::Private,
             comments: Default::default(),
             name: checked_identifier(name, "let alias")?,
             value_type,

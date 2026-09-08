@@ -1,7 +1,7 @@
 //! Parsing for finite nominal declarations and bounded family binders.
 
 use super::*;
-use crate::ast::nominal::{FiniteSpaceDecl, IndexFamilyBinderSyntax, IndexSetDecl};
+use crate::ast::{FamilyBinderSyntax, NamedDefinitionDecl};
 use std::collections::BTreeSet;
 
 impl Parser<'_> {
@@ -9,7 +9,7 @@ impl Parser<'_> {
         &mut self,
         start: u32,
         visibility: VisibilitySyntax,
-    ) -> Option<FiniteSpaceDecl> {
+    ) -> Option<NamedDefinitionDecl> {
         self.expect_keyword("space")?;
         let name = self
             .expect_identifier("finite space name")?
@@ -37,16 +37,25 @@ impl Parser<'_> {
             .expect(TokenKind::Semicolon, "`;` after finite space")?
             .range()
             .end();
-        Some(FiniteSpaceDecl {
-            comments: Default::default(),
-            visibility,
+        Some(NamedDefinitionDecl::plain(
             name,
-            labels,
-            range: TextRange::new(start, end),
-        })
+            crate::ast::nominal::definition_call(
+                "orthonormal",
+                labels
+                    .into_iter()
+                    .map(|name| Expr {
+                        kind: crate::ExprKind::Name(name),
+                        range: TextRange::new(start, end),
+                    })
+                    .collect(),
+                TextRange::new(start, end),
+            ),
+            TextRange::new(start, end),
+            visibility,
+        ))
     }
 
-    pub(super) fn parse_index_set(&mut self) -> Option<IndexSetDecl> {
+    pub(super) fn parse_index_set(&mut self) -> Option<NamedDefinitionDecl> {
         let start = self.expect_keyword("indexset")?.range().start();
         let name = self.expect_identifier("index set name")?.text().to_owned();
         self.expect(TokenKind::Equal, "`=` before index set definition")?;
@@ -58,15 +67,15 @@ impl Parser<'_> {
             .expect(TokenKind::Semicolon, "`;` after index set")?
             .range()
             .end();
-        Some(IndexSetDecl {
-            comments: Default::default(),
+        Some(NamedDefinitionDecl::plain(
             name,
-            extent,
-            range: TextRange::new(start, end),
-        })
+            crate::ast::nominal::definition_call("range", vec![extent], TextRange::new(start, end)),
+            TextRange::new(start, end),
+            VisibilitySyntax::Private,
+        ))
     }
 
-    pub(super) fn parse_index_family_binder(&mut self) -> Option<IndexFamilyBinderSyntax> {
+    pub(super) fn parse_index_family_binder(&mut self) -> Option<FamilyBinderSyntax> {
         let start = self
             .expect(TokenKind::LeftBracket, "`[` before index family binder")?
             .range()
@@ -81,8 +90,8 @@ impl Parser<'_> {
             .expect(TokenKind::RightBracket, "`]` after index family binder")?
             .range()
             .end();
-        Some(IndexFamilyBinderSyntax {
-            binder,
+        Some(FamilyBinderSyntax {
+            member: binder,
             set,
             range: TextRange::new(start, end),
         })

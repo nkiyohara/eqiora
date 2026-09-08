@@ -19,7 +19,9 @@ model M(parameter n: integer = 2, output y: integer) {
 }
 "#;
     let document = parse("nominal.eqi", source).into_document().unwrap();
-    assert_eq!(document.finite_spaces()[0].labels(), &["A", "B"]);
+    assert!(
+        matches!(document.finite_spaces()[0].value().kind(), eqiora_lang::ExprKind::Call { callee, arguments } if callee.as_str() == "orthonormal" && arguments.len() == 2)
+    );
     assert!(
         matches!(&document.models()[0].items()[0], Item::IndexSet(set) if set.name() == "Stages")
     );
@@ -77,4 +79,29 @@ fn native_nominal_projection_requires_registered_exact_declaration_identity() {
         )
         .is_ok()
     );
+}
+
+#[test]
+fn shared_named_definitions_keep_nominal_constructor_and_assertion_boundaries() {
+    use eqiora_lang::{TextRange, VisibilitySyntax};
+    let range = TextRange::new(0, 0);
+    let value = SourceAstFactory::expression(
+        eqiora_lang::ExprKind::Number(DecimalLiteral::parse("2").unwrap()),
+        range,
+    )
+    .unwrap();
+    let alias =
+        SourceAstFactory::let_alias("Rows", None, Some("body".into()), None, value, range).unwrap();
+    assert!(
+        SourceAstFactory::model(
+            VisibilitySyntax::Private,
+            "M",
+            vec![],
+            vec![Item::IndexSet(alias.clone())],
+            range
+        )
+        .is_err()
+    );
+    let document = parse("empty.eqi", "model M() {}").into_document().unwrap();
+    assert!(SourceAstFactory::with_finite_space(document, alias).is_err());
 }

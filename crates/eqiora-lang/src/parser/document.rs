@@ -1,5 +1,5 @@
 use crate::ast::document::ImportDecl;
-use crate::ast::{DimensionDecl, Document, ModelDecl, TextRange, VisibilitySyntax};
+use crate::ast::{Document, ModelDecl, NamedDefinitionDecl, TextRange, VisibilitySyntax};
 use crate::lexer::TokenKind;
 
 use super::Parser;
@@ -236,7 +236,7 @@ impl Parser<'_> {
         })
     }
 
-    fn parse_dimension(&mut self, start: u32) -> Option<DimensionDecl> {
+    fn parse_dimension(&mut self, start: u32) -> Option<NamedDefinitionDecl> {
         self.expect_keyword("dimension")?;
         let name = self
             .expect_identifier("dimension alias name")?
@@ -248,12 +248,12 @@ impl Parser<'_> {
             .expect(TokenKind::Semicolon, "`;` after dimension alias")?
             .range()
             .end();
-        Some(DimensionDecl {
-            comments: Default::default(),
+        Some(NamedDefinitionDecl::plain(
             name,
             expression,
-            range: TextRange::new(start, end),
-        })
+            TextRange::new(start, end),
+            VisibilitySyntax::Private,
+        ))
     }
 }
 

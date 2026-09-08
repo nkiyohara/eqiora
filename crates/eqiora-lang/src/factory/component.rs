@@ -137,7 +137,7 @@ fn validate_component_item(item: &ComponentItem) -> Result<(), AstConstructionEr
             declaration.range()
         }
         ComponentItem::IndexSet(declaration) => {
-            validate_expression(declaration.extent())?;
+            super::nominal::validate_definition(declaration, "range")?;
             declaration.range()
         }
         ComponentItem::Instance(declaration) => declaration.range(),

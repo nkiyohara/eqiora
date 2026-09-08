@@ -50,24 +50,6 @@ impl ModelDraft {
         &self.declarations
     }
 
-    fn nominal_name(&self, id: eqiora_core::RawId) -> Option<NamePath> {
-        self.declarations
-            .iter()
-            .find_map(|declaration| match declaration {
-                DraftDeclaration::FiniteSpace { name, definition }
-                    if definition.id().erase() == id =>
-                {
-                    Some(NamePath::single(name.clone(), TextRange::new(0, 0)))
-                }
-                DraftDeclaration::IndexSet { name, definition }
-                    if definition.id().erase() == id =>
-                {
-                    Some(NamePath::single(name.clone(), TextRange::new(0, 0)))
-                }
-                _ => None,
-            })
-    }
-
     fn validate(&self) -> Result<(), Vec<Diagnostic>> {
         let mut diagnostics = Vec::new();
         let mut names = HashMap::new();
@@ -1076,44 +1058,18 @@ impl DraftSymbolKind {
     }
 }
 
-/// Synthetic AST plus paths that recover native declaration context.
-#[doc(hidden)]
-#[derive(Debug)]
-pub struct NativeModelAst {
-    document: crate::Document,
-    nominal_ids: HashMap<String, eqiora_core::RawId>,
-    paths: HashMap<TextRange, GraphPath>,
-}
-
 mod ast_bridge;
 mod dimension;
 mod expression;
+mod nominal;
 mod symbol;
+mod validation;
 mod value_type;
+pub use ast_bridge::NativeModelAst;
 use ast_bridge::{RangeAllocator, physical_accessor_ast};
 use dimension::dimension_expression;
 pub(crate) use symbol::DraftSymbol;
-
-fn native_diagnostic(model: &str, declaration: &str, message: impl Into<String>) -> Diagnostic {
-    Diagnostic::error(codes::LANGUAGE_TYPE_ERROR, message)
-        .with_graph_path(GraphPath::new([model.to_owned(), declaration.to_owned()]))
-}
-
-fn connection_path(connection: &DraftConservingConnection) -> String {
-    let mut members = connection
-        .ports()
-        .iter()
-        .map(DraftConservingPort::name)
-        .collect::<Vec<_>>();
-    members.sort_unstable();
-    format!("connection[{}]", members.join(","))
-}
-
-fn is_language_identifier(value: &str) -> bool {
-    let mut bytes = value.bytes();
-    matches!(bytes.next(), Some(first) if first.is_ascii_alphabetic() || first == b'_')
-        && bytes.all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
-}
+use validation::{connection_path, is_language_identifier, native_diagnostic};
 
 #[cfg(test)]
 mod tests;

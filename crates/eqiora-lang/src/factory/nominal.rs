@@ -2,8 +2,8 @@
 
 use std::collections::BTreeSet;
 
-use crate::ast::nominal::{FiniteSpaceDecl, IndexFamilyBinderSyntax, IndexSetDecl};
 use crate::ast::{Expr, NamePath, TextRange, VisibilitySyntax};
+use crate::ast::{FamilyBinderSyntax, NamedDefinitionDecl};
 
 use super::{
     AstConstructionError, SourceAstFactory, checked_identifier, checked_range, validate_expression,
@@ -20,7 +20,7 @@ impl SourceAstFactory {
         name: impl Into<String>,
         labels: Vec<String>,
         range: TextRange,
-    ) -> Result<FiniteSpaceDecl, AstConstructionError> {
+    ) -> Result<NamedDefinitionDecl, AstConstructionError> {
         if labels.is_empty() {
             return Err(AstConstructionError::new(
                 "a finite space requires at least one basis label",
@@ -35,13 +35,22 @@ impl SourceAstFactory {
                 ));
             }
         }
-        Ok(FiniteSpaceDecl {
-            comments: Default::default(),
+        Ok(NamedDefinitionDecl::plain(
+            checked_identifier(name, "finite space")?,
+            crate::ast::nominal::definition_call(
+                "orthonormal",
+                labels
+                    .into_iter()
+                    .map(|name| Expr {
+                        kind: crate::ExprKind::Name(name),
+                        range,
+                    })
+                    .collect(),
+                checked_range(range)?,
+            ),
+            checked_range(range)?,
             visibility,
-            name: checked_identifier(name, "finite space")?,
-            labels,
-            range: checked_range(range)?,
-        })
+        ))
     }
 
     /// Construct an index-set declaration, preserving its exact extent expression.
@@ -53,14 +62,14 @@ impl SourceAstFactory {
         name: impl Into<String>,
         extent: Expr,
         range: TextRange,
-    ) -> Result<IndexSetDecl, AstConstructionError> {
+    ) -> Result<NamedDefinitionDecl, AstConstructionError> {
         validate_expression(&extent)?;
-        Ok(IndexSetDecl {
-            comments: Default::default(),
-            name: checked_identifier(name, "index set")?,
-            extent,
-            range: checked_range(range)?,
-        })
+        Ok(NamedDefinitionDecl::plain(
+            checked_identifier(name, "index set")?,
+            crate::ast::nominal::definition_call("range", vec![extent], checked_range(range)?),
+            checked_range(range)?,
+            VisibilitySyntax::Private,
+        ))
     }
 
     /// Construct a local binder over one nominal index-set name.
@@ -71,10 +80,10 @@ impl SourceAstFactory {
         binder: impl Into<String>,
         set: NamePath,
         range: TextRange,
-    ) -> Result<IndexFamilyBinderSyntax, AstConstructionError> {
+    ) -> Result<FamilyBinderSyntax, AstConstructionError> {
         validate_name_path(&set)?;
-        Ok(IndexFamilyBinderSyntax {
-            binder: checked_identifier(binder, "index family binder")?,
+        Ok(FamilyBinderSyntax {
+            member: checked_identifier(binder, "index family binder")?,
             set,
             range: checked_range(range)?,
         })
@@ -85,10 +94,11 @@ impl SourceAstFactory {
     /// Add one checked nominal space to an existing compilation unit.
     pub fn with_finite_space(
         mut document: crate::Document,
-        declaration: FiniteSpaceDecl,
-    ) -> crate::Document {
+        declaration: NamedDefinitionDecl,
+    ) -> Result<crate::Document, AstConstructionError> {
+        validate_definition(&declaration, "orthonormal")?;
         document.finite_spaces.push(declaration);
-        document
+        Ok(document)
     }
 
     /// Attach a checked lexical nominal binding while retaining authored syntax.
@@ -125,4 +135,52 @@ impl SourceAstFactory {
         syntax.resolved_nominal = Some(value);
         Ok(())
     }
+}
+
+pub(super) fn validate_definition(
+    declaration: &NamedDefinitionDecl,
+    constructor: &str,
+) -> Result<(), AstConstructionError> {
+    if declaration.value_type().is_some()
+        || declaration.domain().is_some()
+        || declaration.activation().is_some()
+    {
+        return Err(AstConstructionError::new(
+            "nominal definitions cannot carry let type, support or activation assertions",
+        ));
+    }
+    validate_expression(declaration.value())?;
+    let crate::ExprKind::Call { callee, arguments } = declaration.value().kind() else {
+        return Err(AstConstructionError::new(
+            "nominal definition requires its closed constructor",
+        ));
+    };
+    if callee.as_str() != constructor
+        || (constructor == "range" && arguments.len() != 1)
+        || arguments.is_empty()
+    {
+        return Err(AstConstructionError::new(
+            "nominal definition has a different constructor or arity",
+        ));
+    }
+    if constructor == "orthonormal" {
+        let mut labels = BTreeSet::new();
+        for argument in arguments {
+            let crate::ExprKind::Name(label) = argument.kind() else {
+                return Err(AstConstructionError::new(
+                    "finite space basis requires distinct labels",
+                ));
+            };
+            if !labels.insert(label) {
+                return Err(AstConstructionError::new(
+                    "finite space basis requires distinct labels",
+                ));
+            }
+        }
+    } else if declaration.visibility() != VisibilitySyntax::Private {
+        return Err(AstConstructionError::new(
+            "index sets are private body definitions",
+        ));
+    }
+    Ok(())
 }

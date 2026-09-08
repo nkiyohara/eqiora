@@ -21,6 +21,11 @@ impl SourceAstFactory {
         range: TextRange,
     ) -> Result<ModelDecl, AstConstructionError> {
         super::signature::validate_signature(&signature)?;
+        for item in &items {
+            if let Item::IndexSet(declaration) = item {
+                super::nominal::validate_definition(declaration, "range")?;
+            }
+        }
         Ok(ModelDecl {
             comments: Default::default(),
             visibility,
