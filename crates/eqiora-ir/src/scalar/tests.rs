@@ -16,7 +16,11 @@ fn scalar_ir_rejects_complex_and_shaped_real_constants() {
             .constant(ValueLiteral::from_real(value_type, 0.0).unwrap())
             .unwrap();
         let error = ScalarOperatorIr::lower(&builder.finish([root]).unwrap()).unwrap_err();
-        assert!(error.message().contains("real scalar or exact discrete constants"));
+        assert!(
+            error
+                .message()
+                .contains("real scalar or exact discrete constants")
+        );
     }
 }
 
