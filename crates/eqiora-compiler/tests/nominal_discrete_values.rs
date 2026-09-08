@@ -91,10 +91,10 @@ fn unresolved_index_extent_cannot_be_published_as_a_checked_package_definition()
         .analyze_with_cancellation(|| false)
         .unwrap()
         .unwrap();
-    let errors = analysis
-        .validate_definitions()
-        .err()
-        .expect("unresolved extent must fail closed");
+    let errors = match analysis.validate_definitions() {
+        Ok(_) => panic!("unresolved extent must fail closed"),
+        Err(errors) => errors,
+    };
     assert!(
         errors
             .iter()
