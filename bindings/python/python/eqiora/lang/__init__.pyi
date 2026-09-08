@@ -10,7 +10,7 @@ from fractions import Fraction
 from decimal import Decimal
 from ..units import Unit
 from os import PathLike
-from typing import Final, final
+from typing import Final, Literal, final
 from .. import FieldRole, ValueType, FiniteSpace, IndexSet
 
 @final
@@ -49,6 +49,14 @@ class Expression:
     def __bool__(self) -> bool: ...
     def __neg__(self) -> Expression: ...
     def __getitem__(self, index: int | Expression) -> Expression: ...
+
+@final
+class Event:
+    """Identify a crossing event in its exact Component.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::Event``.
+    """
+    ...
 
 @final
 class Clock:
@@ -149,6 +157,13 @@ class Component:
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.index_set``.
         """
         ...
+    def event(self, name: str, guard: Expression | int | float, *,
+              direction: Literal["any", "rising", "falling"], doc: str | None = None) -> Event:
+        """Declare a crossing event with explicit direction; compiler checks the guard.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.event``.
+        """
+        ...
     def clock(
         self, name: str, *, period_s: Fraction | int,
         phase_s: Fraction | int = 0, doc: str | None = None,
@@ -188,7 +203,7 @@ class Component:
         *,
         value_type: ValueType | None = None,
         on: Support | None = None,
-        at: Clock | None = None,
+        at: Clock | Event | None = None,
         doc: str | None = None,
     ) -> Expression: ...
     def property(
@@ -215,7 +230,7 @@ class Component:
         on: Support | None = None,
         left: Expression | int | float | complex,
         right: Expression | int | float | complex,
-        at: Clock | None = None,
+        at: Clock | Event | None = None,
         doc: str | None = None,
     ) -> Relation: ...
     def primal_form(
@@ -532,6 +547,7 @@ __all__ = [
     "Clock",
     "Component",
     "Expression",
+    "Event",
     "MaterialComposition",
     "Operator",
     "PropertyContract",
