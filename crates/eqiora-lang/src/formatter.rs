@@ -196,6 +196,7 @@ fn format_component_item(
         }
         ComponentItem::Field(declaration) => format_field(declaration, indent, output),
         ComponentItem::Initial(declaration) => format_initial(declaration, indent, output),
+        ComponentItem::Event(declaration) => format_event(declaration, indent, output),
         ComponentItem::Clock(declaration) => format_clock(declaration, indent, output),
         ComponentItem::Relation(declaration) => format_relation(declaration, indent, output),
         ComponentItem::RelationFamily(declaration) => {
@@ -256,6 +257,7 @@ fn format_item(item: &Item, indent: usize, output: &mut crate::formatter::commen
             format_port_syntax(&declaration.syntax, output);
             output.push_str(";\n");
         }
+        Item::Event(declaration) => format_event(declaration, indent, output),
         Item::Clock(declaration) => format_clock(declaration, indent, output),
         Item::Relation(declaration) => format_relation(declaration, indent, output),
         Item::RelationFamily(declaration) => format_relation_family(declaration, indent, output),
@@ -383,6 +385,22 @@ fn format_boundary_family_binder(
     output: &mut crate::formatter::comments::Output,
 ) {
     write!(output, "[{} in {}]", binder.member, binder.set).expect("String write");
+}
+
+fn format_event(
+    declaration: &crate::EventDecl,
+    indent: usize,
+    output: &mut crate::formatter::comments::Output,
+) {
+    write_indent(output, indent);
+    write!(output, "event {} = crossing(", declaration.name()).expect("String write");
+    format_expression(declaration.guard(), 0, output);
+    let direction = match declaration.direction() {
+        eqiora_schema::kernel::EventDirection::Any => "any",
+        eqiora_schema::kernel::EventDirection::Rising => "rising",
+        eqiora_schema::kernel::EventDirection::Falling => "falling",
+    };
+    writeln!(output, ", direction = {direction});").expect("String write");
 }
 
 fn format_clock(

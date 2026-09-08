@@ -87,6 +87,7 @@ fn rewrite_component_item(item: &mut ComponentItem, rewrite: &mut impl FnMut(&Ex
         ComponentItem::IndexSet(_)
         | ComponentItem::Instance(_)
         | ComponentItem::Initial(_)
+        | ComponentItem::Event(_)
         | ComponentItem::Clock(_)
         | ComponentItem::Relation(_)
         | ComponentItem::RelationFamily(_)
@@ -121,6 +122,7 @@ fn rewrite_item(item: &mut Item, rewrite: &mut impl FnMut(&Expr) -> Expr) {
         Item::Port(declaration) => rewrite_port(&mut declaration.syntax, rewrite),
         Item::IndexSet(_)
         | Item::Initial(_)
+        | Item::Event(_)
         | Item::Clock(_)
         | Item::Relation(_)
         | Item::RelationFamily(_)

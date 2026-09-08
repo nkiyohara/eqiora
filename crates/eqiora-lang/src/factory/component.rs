@@ -120,6 +120,7 @@ fn validate_component_item(item: &ComponentItem) -> Result<(), AstConstructionEr
         }
         ComponentItem::Field(declaration) => declaration.range(),
         ComponentItem::Initial(declaration) => declaration.range(),
+        ComponentItem::Event(declaration) => declaration.range(),
         ComponentItem::Clock(declaration) => declaration.range(),
         ComponentItem::Relation(declaration) => declaration.range(),
         ComponentItem::RelationFamily(declaration) => {

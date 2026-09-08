@@ -12,6 +12,7 @@ mod expression;
 mod expression_visit;
 mod signature;
 use expression::validate_expression;
+mod event;
 mod nominal;
 mod operator;
 mod property;

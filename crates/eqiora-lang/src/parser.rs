@@ -11,6 +11,7 @@ mod connection;
 mod dimension;
 mod document;
 mod domain;
+mod event;
 mod expression;
 mod formulation;
 mod instance;
@@ -223,6 +224,8 @@ impl Parser<'_> {
             self.parse_let().map(Item::Let)
         } else if self.at_keyword("port") {
             self.parse_port().map(Item::Port)
+        } else if self.at_keyword("event") {
+            self.parse_event().map(Item::Event)
         } else if self.at_keyword("clock") {
             self.parse_clock().map(Item::Clock)
         } else if self.at_keyword("relation") {
