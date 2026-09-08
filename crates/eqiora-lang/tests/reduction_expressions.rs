@@ -20,6 +20,8 @@ fn reductions_retain_operation_binder_ranges_and_precedence() {
             "product(math.complex(2, 3) ^ ordinal(i), over = (i in catalog.Stages))",
             ReductionOp::Product,
         ),
+        ("min(ordinal(i), over = (i in Stages))", ReductionOp::Min),
+        ("max(2[m], over = (i in Stages))", ReductionOp::Max),
     ] {
         let source = format!("model M() {{ let value = {text}; }}");
         let document = parse("reduce.eqi", &source).into_document().unwrap();

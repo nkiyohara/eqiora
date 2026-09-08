@@ -99,6 +99,8 @@ pub(super) fn format_expression(
             output.push_str(match operation {
                 crate::ReductionOp::Sum => "sum(",
                 crate::ReductionOp::Product => "product(",
+                crate::ReductionOp::Min => "min(",
+                crate::ReductionOp::Max => "max(",
             });
             format_expression(value, 0, output);
             write!(

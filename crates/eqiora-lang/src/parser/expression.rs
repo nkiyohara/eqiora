@@ -249,10 +249,12 @@ impl Parser<'_> {
     }
 
     fn parse_reduction(&mut self, path: NamePath) -> Option<(Expr, usize)> {
-        let operation = if path.as_str() == "sum" {
-            crate::ReductionOp::Sum
-        } else {
-            crate::ReductionOp::Product
+        let operation = match path.as_str() {
+            "sum" => crate::ReductionOp::Sum,
+            "product" => crate::ReductionOp::Product,
+            "min" => crate::ReductionOp::Min,
+            "max" => crate::ReductionOp::Max,
+            _ => unreachable!("recognized finite reduction"),
         };
         self.expect(TokenKind::LeftParen, "`(` after reduction operation")?;
         let (value, child_depth) = self.parse_expression_with_depth(0)?;
@@ -311,7 +313,9 @@ impl Parser<'_> {
             } else {
                 NamePath::single(name, token.range())
             };
-            if self.at(TokenKind::LeftParen) && matches!(path.as_str(), "sum" | "product") {
+            if self.at(TokenKind::LeftParen)
+                && matches!(path.as_str(), "sum" | "product" | "min" | "max")
+            {
                 return self.parse_reduction(path);
             }
             if self.at(TokenKind::LeftParen) {
