@@ -89,7 +89,9 @@ population = eqiora.Parameter(
     "population", value_type=eqiora.ValueType.counts(species),
     value=(2, 9007199254740993),
 )
-model = eqiora.Model.define("Population", species, population)
+observed = eqiora.Field("observed", role=eqiora.FieldRole.Variable)
+relation = eqiora.Relation("observation", residual=observed - 0)
+model = eqiora.Model.define("Population", species, population, observed, relation)
 assert model.parameter("population").value == (2, 9007199254740993)
 ```
 

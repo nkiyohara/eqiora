@@ -1,4 +1,4 @@
-//! Typed definitions for the nine Semantic Kernel node kinds.
+//! Typed definitions for Semantic Kernel nodes.
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
