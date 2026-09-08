@@ -58,7 +58,8 @@ impl Resolver<'_> {
             {
                 Some(ScalarDomain::Boolean)
             }
-            LoweringExpressionNode::Binary { left, right, .. } => {
+            LoweringExpressionNode::Binary { left, right, .. }
+            | LoweringExpressionNode::Extremum { left, right, .. } => {
                 self.anchor(left).or_else(|| self.anchor(right))
             }
             _ => expression_type(self.file, value, self.bindings, self.support)
@@ -115,6 +116,21 @@ impl Resolver<'_> {
                     return literal(file, expression, &number, expected);
                 }
                 LoweringExpressionNode::Neg(self.resolve(value, expected)?)
+            }
+            LoweringExpressionNode::Extremum {
+                minimum,
+                left,
+                right,
+            } => {
+                let domain = self
+                    .anchor(left)
+                    .or_else(|| self.anchor(right))
+                    .or(expected);
+                LoweringExpressionNode::Extremum {
+                    minimum: *minimum,
+                    left: self.resolve(left, domain)?,
+                    right: self.resolve(right, domain)?,
+                }
             }
             LoweringExpressionNode::Binary {
                 operator,

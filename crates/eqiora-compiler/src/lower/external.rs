@@ -50,6 +50,15 @@ impl LoweringExpression {
             LoweringExpressionNode::Neg(value) => {
                 LoweringExpressionNode::Neg(value.clone_shared(cache))
             }
+            LoweringExpressionNode::Extremum {
+                minimum,
+                left,
+                right,
+            } => LoweringExpressionNode::Extremum {
+                minimum: *minimum,
+                left: left.clone_shared(cache),
+                right: right.clone_shared(cache),
+            },
             LoweringExpressionNode::Binary {
                 operator,
                 left,

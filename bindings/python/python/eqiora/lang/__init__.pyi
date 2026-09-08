@@ -125,6 +125,16 @@ class Component:
         """Construct a finite sum; call body once with an exact scoped index."""
     def product(self, body: Callable[[Expression], object], *, over: IndexSet, name: str = "i") -> Expression:
         """Construct a finite product; the compiler checks element types and units."""
+    def min(self, body: Callable[[Expression], object], *, over: IndexSet, name: str = "i") -> Expression:
+        """Construct a finite minimum of compatible real or integer scalars.
+
+        The callback runs once. Evaluation is eager and retains the first tie.
+        """
+    def max(self, body: Callable[[Expression], object], *, over: IndexSet, name: str = "i") -> Expression:
+        """Construct a finite maximum of compatible real or integer scalars.
+
+        The callback runs once. Evaluation is eager and retains the first tie.
+        """
     def index_set(self, name: str, *, extent: int, doc: str | None = None) -> IndexSet:
         """Declare a constant nominal index set; expression extents require authored source.
 

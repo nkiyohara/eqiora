@@ -225,6 +225,10 @@ pub enum ReductionOp {
     Sum,
     /// Ordered multiplication.
     Product,
+    /// Ordered minimum, retaining the first equal operand.
+    Min,
+    /// Ordered maximum, retaining the first equal operand.
+    Max,
 }
 
 /// Prefix expression operator.

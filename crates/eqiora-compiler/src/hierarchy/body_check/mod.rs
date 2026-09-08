@@ -98,13 +98,13 @@ impl ResolvedPhysicalEndpoint {
 pub(super) type PhysicalEndpointSelections = BTreeSet<ResolvedPhysicalEndpoint>;
 pub(super) type PhysicalConnectionFragment = ConnectionFragment<ResolvedPhysicalEndpoint>;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct LocalPhysicalPortProof {
     pub(super) public: bool,
     pub(super) range: TextRange,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct ChildInstanceProof {
     pub(super) definition: DefinitionKey,
     pub(super) range: TextRange,
@@ -130,6 +130,14 @@ pub(super) struct DefinitionBodyProof {
 }
 
 impl DefinitionBodyProof {
+    pub(super) fn same_physical_contract(&self, other: &Self) -> bool {
+        self.local_physical_ports == other.local_physical_ports
+            && self.children == other.children
+            && self.relation_endpoints == other.relation_endpoints
+            && self.physical_connection_fragments == other.physical_connection_fragments
+            && self.deferred_connection_memberships == other.deferred_connection_memberships
+    }
+
     pub(super) fn new(
         file: &str,
         range: TextRange,

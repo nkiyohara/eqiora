@@ -23,6 +23,7 @@ impl RuntimeState {
                         && !direct_assignments::requires_typed_assignment(
                             program,
                             SymbolRef::Field(field.id()),
+                            plan.ordered_selection,
                         ) =>
                 {
                     let id = field.id().erase();
@@ -33,6 +34,7 @@ impl RuntimeState {
                         && !direct_assignments::requires_typed_assignment(
                             program,
                             SymbolRef::Port(port.id()),
+                            plan.ordered_selection,
                         ) =>
                 {
                     ports.insert(port.id().erase(), 0.0);

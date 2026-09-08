@@ -120,6 +120,21 @@ fn measure<'a>(
     Ok(result)
 }
 
+pub(super) fn contains(expression: &Expr) -> bool {
+    let mut pending = vec![expression];
+    while let Some(value) = pending.pop() {
+        if matches!(value.kind(), ExprKind::Reduction { .. }) {
+            return true;
+        }
+        visit_children(value, &mut |child| {
+            pending.push(child);
+            Ok(())
+        })
+        .expect("collecting children cannot fail");
+    }
+    false
+}
+
 fn visit_children<'a>(
     expression: &'a Expr,
     visit: &mut impl FnMut(&'a Expr) -> Result<(), Diagnostic>,

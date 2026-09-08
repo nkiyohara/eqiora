@@ -17,6 +17,8 @@ pub(super) fn encode_expression(
             encoder.u8(match operation {
                 eqiora_lang::ReductionOp::Sum => 1,
                 eqiora_lang::ReductionOp::Product => 2,
+                eqiora_lang::ReductionOp::Min => 3,
+                eqiora_lang::ReductionOp::Max => 4,
             })?;
             budget.account_name(binder.member())?;
             encoder.field(1, |encoder| encode_path(encoder, binder.set(), budget))?;

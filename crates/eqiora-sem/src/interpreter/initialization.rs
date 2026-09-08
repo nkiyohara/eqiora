@@ -76,7 +76,11 @@ pub(super) fn solve_initialization(
     // an unused algebraic declaration is legal mathematics, not an implicit zero.
     let fields = plan.fields.iter().copied().filter(|field| {
         !is_clocked_variable(program, *field)
-            && !direct_assignments::requires_typed_assignment_id(program, *field)
+            && !direct_assignments::requires_typed_assignment_id(
+                program,
+                *field,
+                plan.ordered_selection,
+            )
     });
     let mut derivatives = plan.differential_fields.clone();
     for relation in &plan.initial_relations {
@@ -110,6 +114,7 @@ pub(super) fn solve_initialization(
             initial_state.fields.clone_from(&candidates.fields);
             let mut residuals = evaluate_relations(
                 program,
+                plan.ordered_selection,
                 &relations,
                 0.0,
                 &initial_state,

@@ -154,6 +154,9 @@ fn expression_type_cached(
         },
         LoweringExpressionNode::Neg(value) => infer(value),
         LoweringExpressionNode::Not(value) => infer(value)?.logical_not().map_err(violation),
+        LoweringExpressionNode::Extremum { left, right, .. } => infer(left)?
+            .ordered_selection(infer(right)?)
+            .map_err(violation),
         LoweringExpressionNode::Binary {
             operator,
             left,

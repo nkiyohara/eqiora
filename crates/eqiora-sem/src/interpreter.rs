@@ -8,6 +8,8 @@ mod execution_plan;
 mod initialization;
 pub use initialization::InitialState;
 use initialization::solve_initialization;
+mod residuals;
+use residuals::evaluate_relations;
 mod sampled;
 mod samples;
 mod state;
@@ -440,10 +442,16 @@ impl Interpreter {
         if let Err(diagnostic) = config.validate() {
             return Err(vec![diagnostic]);
         }
-        if program.nodes().any(|node| matches!(node, KernelNode::Field(field) if direct_assignments::requires_typed_assignment(program,SymbolRef::Field(field.id())))) {
+        if program.nodes().any(|node| matches!(node, KernelNode::Field(field) if direct_assignments::requires_typed_assignment(program,SymbolRef::Field(field.id()), false))) {
             return Err(vec![execution_error("DynQuantity trajectories cannot retain channel or exact discrete Fields; use sampled_session",0.0)]);
         }
         let mut plan = ExecutionPlan::new(program).map_err(|diagnostic| vec![diagnostic])?;
+        if plan.ordered_selection {
+            return Err(vec![execution_error(
+                "min/max sampled execution requires sampled_session",
+                0.0,
+            )]);
+        }
         let mut state = RuntimeState::new(program, &plan).map_err(|diagnostic| vec![diagnostic])?;
 
         solve_initialization(program, &plan, &mut state, config, backend)
@@ -677,6 +685,7 @@ impl Interpreter {
 
 #[derive(Debug, Clone)]
 struct ExecutionPlan {
+    ordered_selection: bool,
     initial_relations: BTreeSet<RawId>,
     continuous_relations: BTreeSet<RawId>,
     periodic: Vec<PeriodicTask>,
@@ -761,6 +770,7 @@ fn solve_consistency(
             let candidates = candidate_maps(&variables, values, state);
             evaluate_relations(
                 program,
+                plan.ordered_selection,
                 &plan.continuous_relations,
                 time,
                 state,
@@ -826,6 +836,7 @@ fn solve_continuous_step(
             }
             evaluate_relations(
                 program,
+                plan.ordered_selection,
                 &plan.continuous_relations,
                 end,
                 state,
@@ -908,7 +919,11 @@ fn execute_activated_relations(
     let mut variables = BTreeSet::new();
     for &relation in relations {
         for symbol in relation_symbols(program, relation)? {
-            if direct_assignments::requires_typed_assignment(program, symbol) {
+            if direct_assignments::requires_typed_assignment(
+                program,
+                symbol,
+                plan.ordered_selection,
+            ) {
                 continue;
             }
             match symbol {
@@ -935,6 +950,7 @@ fn execute_activated_relations(
         let candidates = candidate_maps(&variables, values, &accepted_candidate);
         evaluate_relations(
             program,
+            plan.ordered_selection,
             relations,
             time,
             &accepted_candidate,
@@ -1043,65 +1059,6 @@ fn variable_value(variable: Variable, state: &RuntimeState) -> f64 {
         Variable::Port(id) => state.ports.get(&id).copied().unwrap_or(0.0),
         Variable::Physical(unknown) => state.physical.get(&unknown).copied().unwrap_or(0.0),
     }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn evaluate_relations(
-    program: &KernelProgram,
-    relations: &BTreeSet<RawId>,
-    time: f64,
-    state: &RuntimeState,
-    field_candidates: &BTreeMap<RawId, f64>,
-    derivatives: &BTreeMap<RawId, f64>,
-    next_fields: &BTreeMap<RawId, f64>,
-    port_candidates: &BTreeMap<RawId, f64>,
-    physical_candidates: &BTreeMap<PhysicalUnknown, f64>,
-    signal_sources: &BTreeMap<RawId, RawId>,
-    physical_systems: &[ComposedResidualSystem],
-    backend: &impl ExpressionBackend,
-) -> Result<Vec<f64>, Diagnostic> {
-    let context = EvalContext {
-        program,
-        time,
-        typed_fields: &state.typed_fields,
-        typed_ports: &state.typed_ports,
-        typed_next: &state.typed_next,
-        fields: &state.fields,
-        field_candidates,
-        derivatives,
-        next_fields,
-        ports: &state.ports,
-        port_candidates,
-        signal_sources,
-        physical: &state.physical,
-        physical_candidates,
-    };
-    let mut residuals = Vec::new();
-    for &relation in relations {
-        let Some(KernelNode::Relation(definition)) = program.node(relation) else {
-            return Err(execution_error(
-                "validated Relation definition is unavailable",
-                time,
-            ));
-        };
-        residuals.extend(evaluate::numerical_differences(backend.evaluate(
-            relation,
-            definition.expression(),
-            &direct_assignments::numerical_roots(program, definition),
-            &mut |symbol| evaluate::resolve_symbol(symbol, &context),
-        )?)?);
-    }
-    for system in physical_systems {
-        for junction in system.junctions() {
-            residuals.extend(evaluate::real_values(backend.evaluate(
-                junction.connection().erase(),
-                junction.dag(),
-                junction.dag().roots(),
-                &mut |symbol| evaluate::resolve_symbol(symbol, &context),
-            )?)?);
-        }
-    }
-    Ok(residuals)
 }
 
 fn relation_symbols(

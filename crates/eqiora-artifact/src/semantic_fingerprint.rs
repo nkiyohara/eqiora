@@ -29,9 +29,9 @@ use values::{
     encode_literal, encode_optional_literal, encode_quantity, encode_value_type, type_reference,
 };
 
-const FINGERPRINT_DOMAIN_V11: &[u8] = b"eqiora.structural-semantic-fingerprint/v11\0";
+const FINGERPRINT_DOMAIN_V12: &[u8] = b"eqiora.structural-semantic-fingerprint/v12\0";
 const PROJECTION_MAGIC: &[u8; 8] = b"EQIORASF";
-const GENERATION_V11: u16 = 11;
+const GENERATION_V12: u16 = 12;
 
 /// Current generation of the structural semantic projection.
 ///
@@ -41,8 +41,9 @@ const GENERATION_V11: u16 = 11;
 #[non_exhaustive]
 pub enum SemanticFingerprintGeneration {
     /// Closed projection retaining Boolean and exact integer payloads, nominal references,
-    /// ordered equation sides and comparisons, initialization, and sample/hold transitions.
-    V11,
+    /// ordered equation sides, comparisons and finite extrema, initialization,
+    /// and sample/hold transitions.
+    V12,
 }
 
 impl SemanticFingerprintGeneration {
@@ -50,19 +51,19 @@ impl SemanticFingerprintGeneration {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::V11 => "eqiora.structural-semantic-fingerprint/v11",
+            Self::V12 => "eqiora.structural-semantic-fingerprint/v12",
         }
     }
 
     const fn code(self) -> u16 {
         match self {
-            Self::V11 => GENERATION_V11,
+            Self::V12 => GENERATION_V12,
         }
     }
 
     const fn hash_domain(self) -> &'static [u8] {
         match self {
-            Self::V11 => FINGERPRINT_DOMAIN_V11,
+            Self::V12 => FINGERPRINT_DOMAIN_V12,
         }
     }
 }
@@ -205,7 +206,7 @@ impl ProjectionIdentity {
         limits: SemanticFingerprintLimits,
     ) -> Result<Self, Diagnostic> {
         validate_limits(limits)?;
-        let generation = SemanticFingerprintGeneration::V11;
+        let generation = SemanticFingerprintGeneration::V12;
         let graph = ProjectionGraph::from_program(program, limits)?;
         let canonical = Canonicalizer::new(&graph, limits).canonicalize()?;
         let mut hasher = Sha256::new();
@@ -557,6 +558,12 @@ fn encode_expression(
                 binary_expr(encoder, 30, *left, *right, &canonical_index)?
             }
             ExprNode::Or(left, right) => binary_expr(encoder, 31, *left, *right, &canonical_index)?,
+            ExprNode::Min(left, right) => {
+                binary_expr(encoder, 32, *left, *right, &canonical_index)?
+            }
+            ExprNode::Max(left, right) => {
+                binary_expr(encoder, 33, *left, *right, &canonical_index)?
+            }
             ExprNode::Quotient(left, right) => {
                 binary_expr(encoder, 23, *left, *right, &canonical_index)?
             }
@@ -758,6 +765,8 @@ fn expression_operands(node: &ExprNode) -> Vec<eqiora_schema::kernel::ExprId> {
         | ExprNode::Compare(_, left, right)
         | ExprNode::And(left, right)
         | ExprNode::Or(left, right)
+        | ExprNode::Min(left, right)
+        | ExprNode::Max(left, right)
         | ExprNode::Quotient(left, right)
         | ExprNode::Remainder(left, right)
         | ExprNode::Div(left, right) => vec![*left, *right],
@@ -874,7 +883,7 @@ fn validate_limits(limits: SemanticFingerprintLimits) -> Result<(), Diagnostic> 
 
 fn newer_vocabulary(subject: &str) -> Diagnostic {
     fingerprint_error(format!(
-        "{subject} is newer than structural semantic fingerprint generation v11"
+        "{subject} is newer than structural semantic fingerprint generation v12"
     ))
 }
 

@@ -407,25 +407,7 @@ impl ScalarOperatorIr {
         inputs: &[f64],
         roles: &[DifferentiationRole],
     ) -> Result<ScalarLinearization<'_>, Diagnostic> {
-        if self.instructions.iter().any(|instruction| {
-            matches!(
-                instruction,
-                Instruction::Array { .. } | Instruction::Index(_, _)
-            )
-        }) {
-            return Err(invalid_linearization(
-                "channel construction/indexing requires typed execution and is outside scalar automatic differentiation",
-            ));
-        }
-        if inputs.len() != self.symbols.len() || roles.len() != self.symbols.len() {
-            return Err(invalid_linearization(format!(
-                "scalar linearization expects {} point values and roles, received {} values and {} roles",
-                self.symbols.len(),
-                inputs.len(),
-                roles.len()
-            )));
-        }
-        require_finite(inputs, "linearization point")?;
+        validate_linearization_inputs(self, inputs, roles)?;
         let mut unknown_dimension = 0usize;
         let mut parameter_dimension = 0usize;
         let bindings = roles
@@ -470,7 +452,9 @@ impl ScalarOperatorIr {
         let mut summaries: Vec<AffineSummary> = Vec::with_capacity(self.instructions.len());
         for (index, instruction) in self.instructions.iter().copied().enumerate() {
             let summary = match instruction {
-                Instruction::Compare(_, _, _)
+                Instruction::Min(_, _)
+                | Instruction::Max(_, _)
+                | Instruction::Compare(_, _, _)
                 | Instruction::Not(_)
                 | Instruction::And(_, _)
                 | Instruction::Or(_, _)
@@ -909,7 +893,9 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
         let mut tangents = Vec::with_capacity(self.ir.instructions.len());
         for (index, instruction) in self.ir.instructions.iter().enumerate() {
             let tangent = match *instruction {
-                Instruction::Compare(_, _, _)
+                Instruction::Min(_, _)
+                | Instruction::Max(_, _)
+                | Instruction::Compare(_, _, _)
                 | Instruction::Not(_)
                 | Instruction::And(_, _)
                 | Instruction::Or(_, _)
@@ -997,7 +983,9 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
         for (index, instruction) in self.ir.instructions.iter().enumerate().rev() {
             let cotangent = adjoints[index];
             match *instruction {
-                Instruction::Compare(_, _, _)
+                Instruction::Min(_, _)
+                | Instruction::Max(_, _)
+                | Instruction::Compare(_, _, _)
                 | Instruction::Not(_)
                 | Instruction::And(_, _)
                 | Instruction::Or(_, _)

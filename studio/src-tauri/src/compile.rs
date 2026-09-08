@@ -187,10 +187,10 @@ model decay(parameter rate: 1 / s = 1[1 / s]) {
         let CompileOutcomeV2::Accepted { model } = control.outcome() else {
             panic!("accepted fixture must return one Model descriptor");
         };
-        assert_eq!(model.schema(), "eqiora.model-envelope/v16");
+        assert_eq!(model.schema(), "eqiora.model-envelope/v17");
         assert_eq!(
             model.transaction_schema(),
-            "eqiora.model-transaction-envelope/v16"
+            "eqiora.model-transaction-envelope/v17"
         );
         assert!(response.diagnostics.is_empty());
         assert!(state.documents.lock().unwrap().contains(&projection.digest));

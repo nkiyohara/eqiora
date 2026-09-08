@@ -4,7 +4,7 @@ pub(crate) mod geometry_admission;
 mod nominal_values;
 mod numerical_residuals;
 mod relation_admission;
-mod signal_activation;
+pub(crate) mod signal_activation;
 pub(crate) mod signal_connections;
 mod snapshot_admission;
 use relation_admission::validate_relations;

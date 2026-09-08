@@ -88,7 +88,9 @@ impl ScalarOperatorIr {
                         | Instruction::ToInteger(a)
                         | Instruction::Ordinal(a)
                         | Instruction::Not(a) => pending.push(Frame::Demand(a)),
-                        Instruction::Compare(_, a, b)
+                        Instruction::Min(a, b)
+                        | Instruction::Max(a, b)
+                        | Instruction::Compare(_, a, b)
                         | Instruction::Add(a, b)
                         | Instruction::Sub(a, b)
                         | Instruction::Mul(a, b)
@@ -157,6 +159,21 @@ impl ScalarOperatorIr {
                     Instruction::Not(value) => ValueLiteral::boolean(!boolean(read(value)?)?),
                     Instruction::And(_, right) | Instruction::Or(_, right) => {
                         ValueLiteral::boolean(boolean(read(right)?)?)
+                    }
+                    Instruction::Min(left, right) | Instruction::Max(left, right) => {
+                        let left = read(left)?;
+                        let right = read(right)?;
+                        let order = left.checked_order(right).map_err(discrete_error)?;
+                        let take_right = if matches!(instruction, Instruction::Min(_, _)) {
+                            order == std::cmp::Ordering::Greater
+                        } else {
+                            order == std::cmp::Ordering::Less
+                        };
+                        if take_right {
+                            right.clone()
+                        } else {
+                            left.clone()
+                        }
                     }
                     Instruction::Compare(op, left, right) => {
                         compare(op, read(left)?, read(right)?)?
@@ -539,5 +556,75 @@ mod tests {
         assert_eq!(values[2].real_scalar_value().unwrap().value(), -2.);
         assert_eq!(values[3].integer_scalar_value(), Some(-2));
         assert_eq!(values[4].integer_scalar_value(), Some(2));
+    }
+    #[test]
+    fn extrema_keep_adjacent_integers_exact_and_evaluate_both_operands() {
+        use eqiora_schema::kernel::ExprDagBuilder;
+        let integer = |n| {
+            ValueLiteral::from_integer(
+                ValueType::scalar(
+                    ScalarDomain::Integer,
+                    eqiora_core::DimExponents::DIMENSIONLESS,
+                ),
+                n,
+            )
+            .unwrap()
+        };
+        let mut builder = ExprDagBuilder::new();
+        let first = builder.constant(integer(9_007_199_254_740_993)).unwrap();
+        let second = builder.constant(integer(9_007_199_254_740_992)).unwrap();
+        let smallest = builder.min(first, second).unwrap();
+        let largest = builder.max(first, second).unwrap();
+        let tie = builder.min(first, first).unwrap();
+        let roots = [smallest, largest, tie];
+        let dag = builder.finish(roots).unwrap();
+        assert_eq!(
+            ScalarOperatorIr::lower(&dag)
+                .unwrap()
+                .evaluate_typed(&roots, &mut |_| None)
+                .unwrap(),
+            vec![
+                integer(9_007_199_254_740_992),
+                integer(9_007_199_254_740_993),
+                integer(9_007_199_254_740_993)
+            ]
+        );
+        let mut builder = ExprDagBuilder::new();
+        let zero = builder.constant(integer(0)).unwrap();
+        let max = builder.constant(integer(i64::MAX)).unwrap();
+        let one = builder.constant(integer(1)).unwrap();
+        let bad = builder.add(max, one).unwrap();
+        // Even though every valid positive candidate would lose to zero, overflow is demanded.
+        let selected = builder.min(zero, bad).unwrap();
+        let roots = [selected];
+        let dag = builder.finish(roots).unwrap();
+        assert!(
+            ScalarOperatorIr::lower(&dag)
+                .unwrap()
+                .evaluate_typed(&roots, &mut |_| None)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn extrema_refuse_numerical_evaluation_and_derivatives() {
+        use eqiora_schema::kernel::ExprDagBuilder;
+        let mut builder = ExprDagBuilder::new();
+        let a = builder
+            .constant(DynQuantity::new(
+                1.,
+                eqiora_core::DimExponents::DIMENSIONLESS,
+            ))
+            .unwrap();
+        let b = builder
+            .constant(DynQuantity::new(
+                2.,
+                eqiora_core::DimExponents::DIMENSIONLESS,
+            ))
+            .unwrap();
+        let root = builder.max(a, b).unwrap();
+        let ir = ScalarOperatorIr::lower(&builder.finish([root]).unwrap()).unwrap();
+        assert!(ir.evaluate(&[]).is_err());
+        assert!(ir.linearize(&[], &[]).is_err());
     }
 }

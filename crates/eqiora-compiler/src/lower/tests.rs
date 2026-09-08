@@ -1,3 +1,4 @@
+mod extrema;
 mod runtime_integer;
 use super::*;
 use crate::compile;

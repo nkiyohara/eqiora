@@ -32,7 +32,7 @@ mod selected;
 /// The value remains private to hierarchy elaboration.
 pub(crate) use checked::CheckedDefinitionGraph;
 use footprint::{component_local_footprint, model_local_footprint};
-pub(super) use selected::selected_expansion_size;
+pub(super) use selected::{component_contexts, selected_expansion_size};
 
 /// Saturating footprint of one Component occurrence or one Model root.
 ///

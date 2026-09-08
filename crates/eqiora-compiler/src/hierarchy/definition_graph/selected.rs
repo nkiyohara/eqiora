@@ -17,6 +17,32 @@ pub(in crate::hierarchy) fn selected_expansion_size(
     checked: &CheckedDefinitionGraph,
     model: &ModelDefinition<'_>,
 ) -> Result<super::super::preflight::ExpansionSize, Vec<Diagnostic>> {
+    let values = model_values(model)?;
+    selected_expansion_size_with_contexts(elaborator, checked, model, values, None)
+}
+
+pub(in crate::hierarchy) type ComponentContexts =
+    BTreeMap<DefinitionKey, Vec<SymbolicParameterMap>>;
+
+pub(in crate::hierarchy) fn component_contexts(
+    elaborator: &Elaborator<'_>,
+    checked: &CheckedDefinitionGraph,
+) -> Result<ComponentContexts, Vec<Diagnostic>> {
+    let mut contexts = ComponentContexts::new();
+    for (_, model) in elaborator.models() {
+        let values = model_values(model)?;
+        selected_expansion_size_with_contexts(
+            elaborator,
+            checked,
+            model,
+            values,
+            Some(&mut contexts),
+        )?;
+    }
+    Ok(contexts)
+}
+
+fn model_values(model: &ModelDefinition<'_>) -> Result<SymbolicParameterMap, Vec<Diagnostic>> {
     let mut values =
         parameters::resolve_model_parameters_symbolically(model.file, model.declaration, |name| {
             clocks::model(model.file, model.declaration, name)
@@ -24,14 +50,43 @@ pub(in crate::hierarchy) fn selected_expansion_size(
     parameters::resolve_model_lets(model.file, model.declaration, &mut values, |name| {
         clocks::model(model.file, model.declaration, name)
     })?;
+    Ok(values)
+}
+
+fn selected_expansion_size_with_contexts(
+    elaborator: &Elaborator<'_>,
+    checked: &CheckedDefinitionGraph,
+    model: &ModelDefinition<'_>,
+    values: SymbolicParameterMap,
+    contexts: Option<&mut ComponentContexts>,
+) -> Result<super::super::preflight::ExpansionSize, Vec<Diagnostic>> {
+    let context_count = contexts
+        .as_ref()
+        .map_or(0, |contexts| contexts.values().map(Vec::len).sum());
     let mut preflight = Selected {
         elaborator,
         checked,
         cache: Vec::new(),
         indexed_subtrees: BTreeMap::new(),
+        contexts,
+        context_count,
     };
     let mut diagnostics = Vec::new();
-    let mut local = model_local_footprint(elaborator, model, &mut diagnostics, Some(&values));
+    let symbolic = preflight.contexts.is_some()
+        && unresolved_extents(
+            model.file,
+            model.owned_items().filter_map(|item| match item {
+                Item::IndexSet(set) => Some(set),
+                _ => None,
+            }),
+            &values,
+        )?;
+    let mut local = model_local_footprint(
+        elaborator,
+        model,
+        &mut diagnostics,
+        if symbolic { None } else { Some(&values) },
+    );
     local.declarations = local
         .declarations
         .checked_add(
@@ -100,13 +155,15 @@ pub(in crate::hierarchy) fn selected_expansion_size(
     })
 }
 
-struct Selected<'a, 'd> {
+struct Selected<'a, 'd, 'c> {
     elaborator: &'a Elaborator<'d>,
     checked: &'a CheckedDefinitionGraph,
     cache: Vec<(DefinitionKey, Values, DefinitionSummary)>,
     indexed_subtrees: BTreeMap<DefinitionKey, (bool, bool)>,
+    contexts: Option<&'c mut ComponentContexts>,
+    context_count: usize,
 }
-impl Selected<'_, '_> {
+impl Selected<'_, '_, '_> {
     fn structural_profile(
         &mut self,
         component: &ComponentDefinition<'_>,
@@ -203,8 +260,28 @@ impl Selected<'_, '_> {
                 if callee.as_str() != "range" {
                     return Err(vec![definition_error("index set requires range(extent)")]);
                 }
-                let extent = parameters::structural_extent(file, extent, values)
-                    .map_err(|e| vec![e])?
+                let resolved_extent =
+                    parameters::structural_extent(file, extent, values).map_err(|e| vec![e])?;
+                if resolved_extent.is_none() && self.contexts.is_some() {
+                    // An unbound family has no concrete member context to collect.
+                    // Reuse only its checked generic footprint; selected materialization
+                    // below still requires the exact extent.
+                    edges.push(Edge {
+                        target: summaries.len(),
+                        multiplicity: 1,
+                        occurrence: instance.name().to_owned(),
+                        file,
+                        range: instance.range(),
+                    });
+                    summaries.push(Some(
+                        self.checked
+                            .component_summary(&key)
+                            .expect("validated definition graph")
+                            .clone(),
+                    ));
+                    continue;
+                }
+                let extent = resolved_extent
                     .ok_or_else(|| {
                         vec![source_error(
                             codes::LANGUAGE_TYPE_ERROR,
@@ -331,6 +408,35 @@ impl Selected<'_, '_> {
             &mut values,
             |name| clocks::component(component.file, component.declaration, name),
         )?;
+        if self.contexts.is_some()
+            && unresolved_extents(
+                component.file,
+                component.owned_items().filter_map(|item| match item {
+                    ComponentItem::IndexSet(set) => Some(set),
+                    _ => None,
+                }),
+                &values,
+            )?
+        {
+            // Keep the unresolved definition on the ordinary symbolic checking path.
+            return Ok(self
+                .checked
+                .component_summary(&key)
+                .expect("validated definition graph")
+                .clone());
+        }
+        if let Some(contexts) = self.contexts.as_mut() {
+            if self.context_count >= self.elaborator.limits.max_definition_reachability_pairs {
+                return Err(vec![definition_error(
+                    "concrete Component contexts exceed the definition reachability limit",
+                )]);
+            }
+            self.context_count += 1;
+            contexts
+                .entry(key.clone())
+                .or_default()
+                .push(values.clone());
+        }
         let mut diagnostics = Vec::new();
         let (mut local, local_connectors) =
             component_local_footprint(self.elaborator, component, &mut diagnostics, Some(&values));
@@ -395,6 +501,28 @@ impl Selected<'_, '_> {
         self.cache.push((key, cache_values, summary.clone()));
         Ok(summary)
     }
+}
+
+fn unresolved_extents<'a>(
+    file: &str,
+    sets: impl IntoIterator<Item = &'a NamedDefinitionDecl>,
+    values: &SymbolicParameterMap,
+) -> Result<bool, Vec<Diagnostic>> {
+    for set in sets {
+        let ExprKind::Call { arguments, .. } = set.value().kind() else {
+            return Err(vec![definition_error("index set requires range(extent)")]);
+        };
+        let [extent] = arguments.as_slice() else {
+            return Err(vec![definition_error("range requires one extent")]);
+        };
+        if parameters::structural_extent(file, extent, values)
+            .map_err(|error| vec![error])?
+            .is_none()
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 #[cfg(test)]

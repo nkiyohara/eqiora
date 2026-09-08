@@ -159,3 +159,34 @@ pub(super) fn ir_builder_error(message: impl Into<String>) -> Diagnostic {
 pub(super) fn ir_path(index: usize) -> GraphPath {
     GraphPath::new(["operator-ir".to_owned(), index.to_string()])
 }
+
+/// Validate the numerical instruction profile and finite role-bound point together.
+pub(super) fn validate_linearization_inputs(
+    ir: &ScalarOperatorIr,
+    inputs: &[f64],
+    roles: &[DifferentiationRole],
+) -> Result<(), Diagnostic> {
+    if ir.instructions.iter().any(|instruction| {
+        matches!(
+            instruction,
+            Instruction::Min(_, _)
+                | Instruction::Max(_, _)
+                | Instruction::Array { .. }
+                | Instruction::Index(_, _)
+        )
+    }) {
+        return Err(invalid_linearization(
+            "channel construction/indexing requires typed execution and is outside scalar automatic differentiation",
+        ));
+    }
+    if inputs.len() != ir.symbols.len() || roles.len() != ir.symbols.len() {
+        return Err(invalid_linearization(format!(
+            "scalar linearization expects {} point values and roles, received {} values and {} roles",
+            ir.symbols.len(),
+            inputs.len(),
+            roles.len()
+        )));
+    }
+    require_finite(inputs, "linearization point")?;
+    Ok(())
+}
