@@ -63,13 +63,23 @@ pub(super) fn collect_expression_dependencies(
             // as an edge in the Parameter default dependency graph.
             ExprKind::Call { callee, .. } if callee.as_str() == "period" => {}
             ExprKind::Call { callee, arguments } if callee.as_str() == "tensor_value" => {
-                pending.extend(arguments.iter().skip(1));
+                if let Some((_, components)) = super::tensor_values::arguments(arguments) {
+                    pending.push(components);
+                } else {
+                    diagnostics.push(source_error(codes::LANGUAGE_TYPE_ERROR, file, expression.range(),
+                        "tensor_value requires exactly named frame and components arguments"));
+                }
             }
             ExprKind::Call { callee, arguments }
                 if callee.as_str() == "math.complex"
                     || crate::lower::IntegerBuiltin::named(callee.as_str()).is_some() =>
             {
-                pending.extend(arguments)
+                if let Some(arguments) = arguments.positional() {
+                    pending.extend(arguments);
+                } else {
+                    diagnostics.push(source_error(codes::LANGUAGE_TYPE_ERROR, file, expression.range(),
+                        "static builtins require positional arguments"));
+                }
             }
             ExprKind::Call { callee, .. } => diagnostics.push(source_error(
                 codes::LANGUAGE_TYPE_ERROR,

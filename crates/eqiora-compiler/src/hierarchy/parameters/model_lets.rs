@@ -168,11 +168,19 @@ pub(in crate::hierarchy) fn alias_order<'a>(
                     eqiora_lang::ExprKind::Call { callee, arguments }
                         if callee.as_str() == "tensor_value" =>
                     {
-                        pending.extend(arguments.iter().skip(1));
+                        if let Some((_, components)) = super::tensor_values::arguments(arguments) {
+                            pending.push(components);
+                        } else {
+                            pending.extend(arguments.expressions());
+                        }
                     }
-                    eqiora_lang::ExprKind::Call { arguments, .. } => {
-                        pending.extend(arguments.iter().rev())
-                    }
+                    eqiora_lang::ExprKind::Call { arguments, .. } => pending.extend(
+                        arguments
+                            .expressions()
+                            .collect::<Vec<_>>()
+                            .into_iter()
+                            .rev(),
+                    ),
                     _ => {}
                 }
             }
@@ -230,7 +238,10 @@ fn is_static_expression(expression: &eqiora_lang::Expr, values: &SymbolicParamet
             eqiora_lang::ExprKind::Call { callee, arguments }
                 if callee.as_str() == "tensor_value" =>
             {
-                pending.extend(arguments.iter().skip(1));
+                let Some((_, components)) = super::tensor_values::arguments(arguments) else {
+                    return false;
+                };
+                pending.push(components);
             }
             eqiora_lang::ExprKind::Call { callee, arguments }
                 if !matches!(
@@ -238,7 +249,7 @@ fn is_static_expression(expression: &eqiora_lang::Expr, values: &SymbolicParamet
                     "derivative" | "pre" | "next" | "coordinate"
                 ) =>
             {
-                pending.extend(arguments)
+                pending.extend(arguments.expressions())
             }
             _ => return false,
         }

@@ -188,7 +188,7 @@ pub(super) fn evaluate_mode(
             )
         }
         ExprKind::Call { arguments, .. } => {
-            let [real, imag] = arguments.as_slice() else {
+            let Some([real, imag]) = arguments.positional() else {
                 return Err(error(
                     "math.complex requires exactly two real scalar arguments".into(),
                 ));
