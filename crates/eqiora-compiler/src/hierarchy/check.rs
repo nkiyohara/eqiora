@@ -171,8 +171,7 @@ fn validate_definition_bodies_and_parameters(
                 continue;
             };
             if let Err(errors) = validate_instance_parameters_symbolically(
-                child.file,
-                definition.file,
+                (child.file, definition.file),
                 child.declaration,
                 instance,
                 parent,
@@ -317,8 +316,7 @@ fn validate_definition_bodies_and_parameters(
                 continue;
             };
             if let Err(errors) = validate_instance_parameters_symbolically(
-                child.file,
-                definition.file,
+                (child.file, definition.file),
                 child.declaration,
                 instance,
                 &parameters,

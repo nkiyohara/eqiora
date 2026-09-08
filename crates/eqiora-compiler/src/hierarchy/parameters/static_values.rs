@@ -30,8 +30,7 @@ pub(in crate::hierarchy) fn closed_value_with_frames(
         },
         target.clone(),
         "declared value",
-        &mut |_| None,
-        resolve_frame,
+        (&mut |_| None, &mut *resolve_frame),
     )?;
     let value = coerce_parameter_with_label(
         file,

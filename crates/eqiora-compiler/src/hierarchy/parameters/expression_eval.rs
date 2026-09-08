@@ -90,8 +90,7 @@ pub(super) fn evaluate_with_domain(
         expression,
         context,
         resolve,
-        resolve_clock,
-        resolve_frame,
+        (&mut *resolve_clock, &mut *resolve_frame),
         expected,
         true,
     )
@@ -102,8 +101,7 @@ pub(super) fn evaluate_mode(
     expression: &Expr,
     context: ExpressionContext<'_>,
     resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
-    resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
-    resolve_frame: &mut dyn FnMut(&str) -> Option<SpatialSupport<String>>,
+    (resolve_clock, resolve_frame): StaticContexts<'_>,
     expected: Option<ScalarDomain>,
     evaluate_values: bool,
 ) -> Result<EvaluatedParameter, Diagnostic> {
@@ -131,8 +129,7 @@ pub(super) fn evaluate_mode(
             expression,
             context,
             resolve,
-            resolve_clock,
-            resolve_frame,
+            (&mut *resolve_clock, &mut *resolve_frame),
             None,
             evaluate_values,
         );
@@ -161,8 +158,7 @@ pub(super) fn evaluate_mode(
             expression,
             context,
             resolve,
-            resolve_clock,
-            resolve_frame,
+            (&mut *resolve_clock, &mut *resolve_frame),
             None,
             evaluate_values,
         );
@@ -214,8 +210,7 @@ pub(super) fn evaluate_mode(
                 value,
                 context,
                 resolve,
-                resolve_clock,
-                resolve_frame,
+                (&mut *resolve_clock, &mut *resolve_frame),
                 None,
                 evaluate_values,
             )?,
@@ -226,8 +221,7 @@ pub(super) fn evaluate_mode(
                 left,
                 context,
                 resolve,
-                resolve_clock,
-                resolve_frame,
+                (&mut *resolve_clock, &mut *resolve_frame),
                 None,
                 evaluate_values,
             )?;
@@ -241,8 +235,7 @@ pub(super) fn evaluate_mode(
                 right,
                 context,
                 resolve,
-                resolve_clock,
-                resolve_frame,
+                (&mut *resolve_clock, &mut *resolve_frame),
                 None,
                 evaluate_values && demand_right,
             )?;
@@ -317,8 +310,7 @@ pub(super) fn evaluate_mode(
                         argument,
                         context,
                         resolve,
-                        resolve_clock,
-                        resolve_frame,
+                        (&mut *resolve_clock, &mut *resolve_frame),
                         Some(operator.operand_domain()),
                         evaluate_values,
                     )
@@ -471,8 +463,7 @@ pub(super) fn evaluate_mode(
                 argument,
                 context,
                 resolve,
-                resolve_clock,
-                resolve_frame,
+                (&mut *resolve_clock, &mut *resolve_frame),
                 None,
                 evaluate_values,
             )?;
@@ -568,8 +559,7 @@ pub(super) fn evaluate_mode(
                 value,
                 context,
                 resolve,
-                resolve_clock,
-                resolve_frame,
+                (&mut *resolve_clock, &mut *resolve_frame),
                 expected,
                 evaluate_values,
             )?;
@@ -612,8 +602,7 @@ pub(super) fn evaluate_mode(
                 left,
                 context,
                 resolve,
-                resolve_clock,
-                resolve_frame,
+                (&mut *resolve_clock, &mut *resolve_frame),
                 None,
                 false,
             )?;
@@ -622,8 +611,7 @@ pub(super) fn evaluate_mode(
                 right,
                 context,
                 resolve,
-                resolve_clock,
-                resolve_frame,
+                (&mut *resolve_clock, &mut *resolve_frame),
                 None,
                 false,
             )?;
@@ -639,8 +627,7 @@ pub(super) fn evaluate_mode(
                 left,
                 context,
                 resolve,
-                resolve_clock,
-                resolve_frame,
+                (&mut *resolve_clock, &mut *resolve_frame),
                 operand_domain,
                 evaluate_values,
             )?;
@@ -649,8 +636,7 @@ pub(super) fn evaluate_mode(
                 right,
                 context,
                 resolve,
-                resolve_clock,
-                resolve_frame,
+                (&mut *resolve_clock, &mut *resolve_frame),
                 operand_domain,
                 evaluate_values,
             )?;
@@ -668,8 +654,7 @@ pub(super) fn evaluate_mode(
                 right,
                 context,
                 resolve,
-                resolve_clock,
-                resolve_frame,
+                (&mut *resolve_clock, &mut *resolve_frame),
                 expected,
                 evaluate_values || *op == BinaryOp::Pow,
             )?;
@@ -682,8 +667,7 @@ pub(super) fn evaluate_mode(
                 left,
                 context,
                 resolve,
-                resolve_clock,
-                resolve_frame,
+                (&mut *resolve_clock, &mut *resolve_frame),
                 contextual,
                 evaluate_values,
             )?;
@@ -696,8 +680,7 @@ pub(super) fn evaluate_mode(
                     right_ast,
                     context,
                     resolve,
-                    resolve_clock,
-                    resolve_frame,
+                    (&mut *resolve_clock, &mut *resolve_frame),
                     Some(ScalarDomain::Integer),
                     evaluate_values,
                 )?;
@@ -754,8 +737,7 @@ pub(super) fn evaluate_initializer(
     resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
     target: ValueType,
     label: &str,
-    resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
-    resolve_frame: &mut dyn FnMut(&str) -> Option<SpatialSupport<String>>,
+    (resolve_clock, resolve_frame): StaticContexts<'_>,
 ) -> Result<EvaluatedParameter, Diagnostic> {
     let evaluated = if matches!(expression.kind(), ExprKind::Call { callee, .. } if callee.as_str() == "tensor_value")
     {
@@ -764,8 +746,7 @@ pub(super) fn evaluate_initializer(
             expression,
             context,
             resolve,
-            resolve_clock,
-            resolve_frame,
+            (&mut *resolve_clock, &mut *resolve_frame),
             Some(&target),
             true,
         )?

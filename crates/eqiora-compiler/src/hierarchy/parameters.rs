@@ -152,6 +152,11 @@ enum RequiredParameterPolicy {
     PublicIsFree,
 }
 
+type StaticContexts<'a> = (
+    &'a mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
+    &'a mut dyn FnMut(&str) -> Option<SpatialSupport<String>>,
+);
+
 struct SymbolicParameterResolver<'a> {
     declaration_file: &'a str,
     declarations: BTreeMap<String, &'a ComponentParameterDecl>,
@@ -191,11 +196,9 @@ impl<'a> SymbolicParameterResolver<'a> {
             (declaration_file, binding_file),
             component,
             instance,
-            &declarations,
+            (&declarations, &frames),
             resolve_parent,
-            resolve_clock,
-            resolve_frame,
-            &frames,
+            (&mut *resolve_clock, &mut *resolve_frame),
             ExpressionContext::Binding,
         )?;
         Ok(Self {
@@ -325,8 +328,9 @@ impl<'a> SymbolicParameterResolver<'a> {
                 },
                 parameter.target.clone().expect("valid default target"),
                 "Parameter initializer",
-                resolve_clock,
-                &mut |name| self.frames.get(name).cloned(),
+                (&mut *resolve_clock, &mut |name| {
+                    self.frames.get(name).cloned()
+                }),
             )
             .and_then(|evaluated| {
                 coerce_parameter_with_label(
@@ -377,11 +381,12 @@ fn resolve_instance_overrides(
     (declaration_file, binding_file): (&str, &str),
     component: &ComponentDecl,
     instance: &InstanceDecl,
-    declarations: &BTreeMap<String, &ComponentParameterDecl>,
+    (declarations, frames): (
+        &BTreeMap<String, &ComponentParameterDecl>,
+        &BTreeMap<String, SpatialSupport<String>>,
+    ),
     mut resolve_parent: impl FnMut(&str) -> Option<SymbolicParameterValue>,
-    resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
-    resolve_frame: &mut dyn FnMut(&str) -> Option<SpatialSupport<String>>,
-    frames: &BTreeMap<String, SpatialSupport<String>>,
+    (resolve_clock, resolve_frame): StaticContexts<'_>,
     context: ExpressionContext<'_>,
 ) -> Result<BTreeMap<String, SymbolicParameterValue>, Vec<Diagnostic>> {
     let mut overrides = BTreeMap::new();
@@ -456,8 +461,7 @@ fn resolve_instance_overrides(
             },
          target.clone(),
          "Parameter binding",
-         resolve_clock,
-         resolve_frame)
+         (&mut *resolve_clock, &mut *resolve_frame))
         .and_then(|value| coerce_parameter(binding_file, binding.range(), value, target));
         match value {
             Ok(value) => {
@@ -491,8 +495,7 @@ pub(super) fn resolve_component_parameters_symbolically(
 /// when `child_interface` was constructed, so one definition edge visits only
 /// its binding expressions and the child's required public declarations.
 pub(super) fn validate_instance_parameters_symbolically(
-    declaration_file: &str,
-    binding_file: &str,
+    (declaration_file, binding_file): (&str, &str),
     component: &ComponentDecl,
     instance: &InstanceDecl,
     parent_parameters: &SymbolicParameterMap,
@@ -517,11 +520,9 @@ pub(super) fn validate_instance_parameters_symbolically(
         (declaration_file, binding_file),
         component,
         instance,
-        &declarations,
+        (&declarations, &frames),
         |name| parent_parameters.get(name).cloned(),
-        &mut resolve_clock,
-        &mut resolve_frame,
-        &frames,
+        (&mut resolve_clock, &mut resolve_frame),
         instance
             .family()
             .map_or(ExpressionContext::Binding, |family| {

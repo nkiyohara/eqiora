@@ -104,8 +104,7 @@ instance child: Child(base = length, exponent = 2);
         resolve_component_parameters_symbolically("parameters.eqi", child, |_| None)
             .expect("child interface resolves once");
     validate_instance_parameters_symbolically(
-        "parameters.eqi",
-        "parameters.eqi",
+        ("parameters.eqi", "parameters.eqi"),
         child,
         instance,
         &parent_parameters,
@@ -165,8 +164,7 @@ instance missing: Child();
     ];
     for (instance, message) in expected {
         let diagnostics = validate_instance_parameters_symbolically(
-            "parameters.eqi",
-            "parameters.eqi",
+            ("parameters.eqi", "parameters.eqi"),
             child,
             instances[instance],
             &parent_parameters,

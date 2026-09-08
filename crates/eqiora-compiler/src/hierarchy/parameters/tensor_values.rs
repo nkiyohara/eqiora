@@ -25,8 +25,7 @@ pub(super) fn evaluate(
     expression: &Expr,
     context: ExpressionContext<'_>,
     resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
-    resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
-    resolve_frame: &mut dyn FnMut(&str) -> Option<SpatialSupport<String>>,
+    (resolve_clock, resolve_frame): StaticContexts<'_>,
     target: Option<&ValueType>,
     evaluate_values: bool,
 ) -> Result<EvaluatedParameter, Diagnostic> {
@@ -105,16 +104,14 @@ pub(super) fn evaluate(
                 resolve,
                 target.clone(),
                 "tensor component initializer",
-                resolve_clock,
-                resolve_frame,
+                (&mut *resolve_clock, &mut *resolve_frame),
             )?,
             _ => expression_eval::evaluate_mode(
                 file,
                 leaf,
                 context,
                 resolve,
-                resolve_clock,
-                resolve_frame,
+                (&mut *resolve_clock, &mut *resolve_frame),
                 None,
                 evaluate_values,
             )?,
@@ -252,8 +249,7 @@ mod tests {
                     lineage: None,
                 })
             },
-            &mut |_| None,
-            &mut |name| {
+            (&mut |_| None, &mut |name| {
                 (name == "grid").then(|| {
                     if boundary {
                         SpatialSupport::Boundary {
@@ -268,7 +264,7 @@ mod tests {
                         }
                     }
                 })
-            },
+            }),
             target,
             evaluate_values,
         )
@@ -320,13 +316,12 @@ mod tests {
                         lineage: Some(ParameterLineage::Constant),
                     })
                 },
-                &mut |_| None,
-                &mut |_| {
+                (&mut |_| None, &mut |_| {
                     Some(SpatialSupport::Volume {
                         domain: "grid".into(),
                         dimensions: 2,
                     })
-                },
+                }),
                 None,
                 true,
             )

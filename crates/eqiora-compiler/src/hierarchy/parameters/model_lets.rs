@@ -99,8 +99,7 @@ fn resolve_lets<'a>(
                 &mut resolve,
                 target.clone(),
                 "let alias",
-                resolve_clock,
-                &mut |name| frames.get(name).cloned(),
+                (&mut *resolve_clock, &mut |name| frames.get(name).cloned()),
             ),
             None => evaluate_parameter_expression(
                 file,
