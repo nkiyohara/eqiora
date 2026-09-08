@@ -176,7 +176,7 @@ def transient_vorticity(cylinder_case):
     steady_velocity = steady_result.output(steady_plan.capability.velocity)
     steady_pressure = steady_result.output(steady_plan.capability.pressure)
     state = eqiora.State.initial(
-        plan,
+        (plan, 0),
         time_s=0.0,
         fields=(
             eqiora.InitialField(

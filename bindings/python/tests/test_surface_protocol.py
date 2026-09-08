@@ -113,7 +113,7 @@ def decayed_series() -> eqiora.Series:
     )
     result = eqiora.run(
         plan,
-        state=eqiora.State.initial(plan),
+        state=eqiora.State.initial((plan, 0)),
         until_s=0.2,
         output_times_s=(0.05, 0.1, 0.2),
     )

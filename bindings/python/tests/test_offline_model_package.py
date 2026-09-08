@@ -56,6 +56,16 @@ CONFORMANCE_REPORT_FIELDS = (
     "deterministic_replay_agreement",
 )
 EXPECTED_EQIORA_ALL = [
+    "equal",
+    "not_equal",
+    "less",
+    "less_equal",
+    "greater",
+    "greater_equal",
+    "logical_not",
+    "logical_and",
+    "logical_or",
+
     "__version__",
     "Array",
     "AuthoredFormulation",

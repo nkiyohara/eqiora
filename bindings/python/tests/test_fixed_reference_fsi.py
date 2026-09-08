@@ -112,7 +112,7 @@ def initial(
     displacement[interface_midpoint[0], 0] = 0.02
     fluid_velocity, fluid_pressure, solid_velocity, solid_displacement = plan.fields
     return eqiora.State.initial(
-        plan,
+        (plan, 0),
         time_s=0.0,
         fields=(
             eqiora.InitialField(
@@ -136,7 +136,7 @@ def initial(
 def solved() -> tuple[eqiora.Model, eqiora.Plan, eqiora.Run, eqiora.Result]:
     model, mesh, plan = admitted()
     run = eqiora.submit(
-        plan, state=initial(model, mesh, plan), steps=2, output_steps=(1, 2)
+        plan, state=initial((model, 0), (mesh, 0), (plan, 0)), steps=2, output_steps=(1, 2)
     )
     return model, plan, run, run.result()
 
@@ -145,7 +145,7 @@ def test_cancellation_exposes_the_last_exact_accepted_state() -> None:
     model, mesh, plan = admitted()
     run = eqiora.submit(
         plan,
-        state=initial(model, mesh, plan),
+        state=initial((model, 0), (mesh, 0), (plan, 0)),
         steps=100,
         output_steps=(100,),
     )
@@ -222,7 +222,7 @@ def test_plan_binds_exact_model_mesh_scopes_provider_and_scaling_receipt() -> No
 
 def test_initial_state_is_exact_field_bound_complete_and_gauge_free() -> None:
     model, mesh, plan = admitted()
-    state = initial(model, mesh, plan)
+    state = initial((model, 0), (mesh, 0), (plan, 0))
     assert state.model is model
     assert state.mesh is mesh
     assert state.time_s == 0.0
@@ -240,16 +240,16 @@ def test_initial_state_is_exact_field_bound_complete_and_gauge_free() -> None:
         state.field(plan.fields[3]).values("vertex"), expected_displacement
     )
     with pytest.raises(ValueError, match="time_s"):
-        eqiora.State.initial(plan, fields=())
+        eqiora.State.initial((plan, 0), fields=())
     with pytest.raises(eqiora.ValidationError):
-        eqiora.State.initial(plan, time_s=0.0, fields=())
+        eqiora.State.initial((plan, 0), time_s=0.0, fields=())
     with pytest.raises(TypeError):
         eqiora.InitialField(plan.capability.pressure, values=[0.0])
 
 
 def test_common_worker_run_outputs_restart_and_observation_evidence() -> None:
     model, mesh, plan = admitted()
-    state = initial(model, mesh, plan)
+    state = initial((model, 0), (mesh, 0), (plan, 0))
     run = eqiora.submit(plan, state=state, steps=2, output_steps=(1, 2))
     result = run.result()
     assert run.status is eqiora.RunStatus.Completed
@@ -455,7 +455,7 @@ def test_evidence_state_lookup_is_bound_to_exact_result_occurrence() -> None:
     assert mesh is not None
     repeated = eqiora.run(
         plan,
-        state=initial(model, mesh, plan),
+        state=initial((model, 0), (mesh, 0), (plan, 0)),
         steps=2,
         output_steps=(1, 2),
     )
@@ -482,7 +482,7 @@ model decay() {
         ),
     )
     with pytest.raises(ValueError, match="different exact|occurrence|trajectory"):
-        evidence.state(eqiora.State.initial(foreign_plan))
+        evidence.state(eqiora.State.initial((foreign_plan, 0)))
     for wrong_type in (1, object(), result.trajectory):
         with pytest.raises(TypeError):
             evidence.state(wrong_type)
@@ -510,7 +510,7 @@ model decay() {
     )
     unrelated = eqiora.run(
         plan,
-        state=eqiora.State.initial(plan),
+        state=eqiora.State.initial((plan, 0)),
         until_s=0.1,
         output_times_s=(0.1,),
     )
@@ -527,7 +527,7 @@ def test_independent_runs_do_not_share_observation_storage() -> None:
     assert mesh is not None
     second = eqiora.run(
         plan,
-        state=initial(model, mesh, plan),
+        state=initial((model, 0), (mesh, 0), (plan, 0)),
         steps=2,
         output_steps=(1, 2),
     )

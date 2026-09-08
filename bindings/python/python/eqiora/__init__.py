@@ -20,6 +20,16 @@ from . import (
 )
 
 from ._eqiora import (
+    equal,
+    not_equal,
+    less,
+    less_equal,
+    greater,
+    greater_equal,
+    logical_not,
+    logical_and,
+    logical_or,
+
     __version__,
     _check_package_conformance,
     add_bundled_dependency,
@@ -143,6 +153,16 @@ class PackageConformanceReport(NamedTuple):
 
 
 __all__ = [
+    "equal",
+    "not_equal",
+    "less",
+    "less_equal",
+    "greater",
+    "greater_equal",
+    "logical_not",
+    "logical_and",
+    "logical_or",
+
     "__version__",
     "Array",
     "AuthoredFormulation",

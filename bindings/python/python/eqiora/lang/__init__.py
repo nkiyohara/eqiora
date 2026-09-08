@@ -225,6 +225,9 @@ class Expression:
         return Expression(_CREATE, f"{value}[{text}]", self._owner,
                           self._depth + 1, self._nodes + 2, 100)
 
+    def __bool__(self) -> bool:
+        raise TypeError("symbolic Eqiora expressions have no truth value; use explicit predicates")
+
     def __neg__(self) -> Expression:
         value = f"({self._text})" if self._precedence < 25 else self._text
         return Expression(
@@ -386,6 +389,8 @@ def _number(value: object) -> str:
 
 
 def _expression(value: object) -> Expression:
+    if isinstance(value, bool):
+        return Expression(_CREATE, "true" if value else "false", None, 1, 1, 100)
     if isinstance(value, Expression):
         return value
     if isinstance(value, complex):
@@ -501,6 +506,60 @@ def _binary(left: object, operator: str, right: object) -> Expression:
         left_expr._nodes + right_expr._nodes + 1,
         precedence,
     )
+
+
+def _predicate(left: object, operator: str, right: object) -> Expression:
+    left, right = _expression(left), _expression(right)
+    return Expression(_CREATE, f"({left._text}) {operator} ({right._text})",
+                      _owner(left, right), max(left._depth, right._depth) + 1,
+                      left._nodes + right._nodes + 1, 1)
+
+
+def equal(left: object, right: object) -> Expression:
+    """Author equal without evaluating Python equality or truthiness."""
+    return _predicate(left, "==", right)
+
+
+def not_equal(left: object, right: object) -> Expression:
+    """Author not equal without evaluating Python equality or truthiness."""
+    return _predicate(left, "!=", right)
+
+
+def less(left: object, right: object) -> Expression:
+    """Author less without evaluating Python equality or truthiness."""
+    return _predicate(left, "<", right)
+
+
+def less_equal(left: object, right: object) -> Expression:
+    """Author less equal without evaluating Python equality or truthiness."""
+    return _predicate(left, "<=", right)
+
+
+def greater(left: object, right: object) -> Expression:
+    """Author greater without evaluating Python equality or truthiness."""
+    return _predicate(left, ">", right)
+
+
+def greater_equal(left: object, right: object) -> Expression:
+    """Author greater equal without evaluating Python equality or truthiness."""
+    return _predicate(left, ">=", right)
+
+
+def logical_and(left: object, right: object) -> Expression:
+    """Author logical and without evaluating Python equality or truthiness."""
+    return _predicate(left, "and", right)
+
+
+def logical_or(left: object, right: object) -> Expression:
+    """Author logical or without evaluating Python equality or truthiness."""
+    return _predicate(left, "or", right)
+
+
+def logical_not(value: object) -> Expression:
+    """Author logical negation without evaluating Python truthiness."""
+    value = _expression(value)
+    return Expression(_CREATE, f"not ({value._text})", value._owner,
+                      value._depth + 1, value._nodes + 1, 1)
 
 
 def _unary(name: str, value: object) -> Expression:
@@ -728,7 +787,7 @@ class Component:
         self._names: set[str] = set()
         self._supports: list[tuple[Support, str, object, tuple[str, ...]]] = []
         self._clocks: list[tuple[Clock, Fraction | None, Fraction | None, tuple[str, ...]]] = []
-        self._initials: list[tuple[tuple[tuple[Expression, Expression | None], ...], tuple[str, ...]]] = []
+        self._initials: list[tuple[tuple[tuple[Expression, Expression], ...], tuple[str, ...]]] = []
         self._index_sets: list[tuple[IndexSet, tuple[str, ...]]] = []
         self._parameters: list[tuple[_Parameter, str, tuple[str, ...]]] = []
         self._aliases: list[tuple[str, Expression, str | None, Support | None, Clock | None, tuple[str, ...]]] = []
@@ -829,38 +888,34 @@ class Component:
         self._clocks.append((clock, period, phase, doc_lines))
         return clock
 
-    def initial(self, *residuals: Expression | int | float | complex,
-                left: Expression | int | float | complex | None = None,
-                right: Expression | int | float | complex | None = None, doc: str | None = None) -> None:
-        """Add simultaneous initial equations or one explicit left/right assignment.
+    def initial(self, *equations: tuple[object, object],
+                left: object = None, right: object = None, doc: str | None = None) -> None:
+        """Add simultaneous equations with explicit sides, or one left/right pair.
 
-        These are equations, not Field guesses or an ordered sequence of writes.
-        The compiler checks State roles and pre/next permissions. Exact discrete
-        State initialization requires explicit left and right sides.
+        Equations are not guesses or ordered writes. Both sides retain their
+        exact type, Component ownership, and authored expression budget.
         """
         self._source._ensure_open()
         if (left is None) != (right is None):
             raise TypeError("initial requires both left and right")
-        if left is not None and residuals:
-            raise TypeError("initial left/right cannot be combined with residuals")
-        equations = (((_expression(left), _expression(right)),) if left is not None
-                     else tuple((_expression(value), None) for value in residuals))
-        expressions = tuple(value for equation in equations for value in equation if value is not None)
-        if any(value._owner is not None and value._owner is not self._component_token
-               for value in expressions):
+        if left is not None and equations:
+            raise TypeError("initial left/right cannot be combined with equation pairs")
+        pairs = ((left, right),) if left is not None else equations
+        if any(not isinstance(pair, (tuple, list)) or len(pair) != 2 for pair in pairs):
+            raise TypeError("each initial equation requires two explicit sides")
+        pairs = tuple((_expression(left), _expression(right)) for left, right in pairs)
+        expressions = tuple(value for pair in pairs for value in pair)
+        if any(value._owner is not None and value._owner is not self._component_token for value in expressions):
             raise SourceError("initial expressions must belong to this Component")
-        total_nodes = sum(value._nodes for equations, _ in self._initials
-                          for equation in equations for value in equation if value is not None)
+        total_nodes = sum(value._nodes for equations, _ in self._initials for pair in equations for value in pair)
         total_nodes += sum(value._nodes for value in expressions)
         if total_nodes > _MAX_EXPRESSION_NODES:
-            raise SourceError(
-                f"Component initial expressions exceed the {_MAX_EXPRESSION_NODES}-node limit"
-            )
+            raise SourceError(f"Component initial expressions exceed the {_MAX_EXPRESSION_NODES}-node limit")
         doc_lines = _doc(doc)
         if self._declaration_count >= _MAX_DECLARATIONS:
             raise SourceError(f"Component exceeds the {_MAX_DECLARATIONS}-declaration limit")
         self._declaration_count += 1
-        self._initials.append((equations, doc_lines))
+        self._initials.append((pairs, doc_lines))
 
     def volume(
         self,
@@ -1256,7 +1311,7 @@ class Component:
             lines.extend(_comment(doc, "  "))
             lines.append("  initial {")
             for left, right in equations:
-                lines.extend(_relation_lines(left, _expression(0) if right is None else right))
+                lines.extend(_relation_lines(left, right))
             lines.append("  }")
         for index, (name, support, left, right, clock, doc) in enumerate(self._relations):
             lines.extend(_comment(doc, "  "))
@@ -1577,6 +1632,16 @@ class Source:
 
 
 __all__ = [
+    "equal",
+    "not_equal",
+    "less",
+    "less_equal",
+    "greater",
+    "greater_equal",
+    "logical_and",
+    "logical_or",
+    "logical_not",
+
     "Clock",
     "Component",
     "Expression",

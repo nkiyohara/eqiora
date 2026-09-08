@@ -63,7 +63,7 @@ assert not hasattr(plan.capability, "scaling")
 assert plan.solve is None
 assert plan.temporal is not None
 assert plan.temporal.absolute_tolerances == {field: 1.0e-11}
-state = eqiora.State.initial(plan)
+state = eqiora.State.initial((plan, 0))
 assert state.value(field) == 1.0
 result = eqiora.run(
     plan,
@@ -80,7 +80,7 @@ for time_s, value in series:
     assert math.isclose(value, math.exp(-time_s), rel_tol=2.0e-8, abs_tol=2.0e-10)
 portable_result = eqiora.run(
     portable_plan,
-    state=eqiora.State.initial(portable_plan),
+    state=eqiora.State.initial((portable_plan, 0)),
     until_s=0.2,
     output_times_s=(0.2,),
 )
@@ -123,7 +123,7 @@ else:
 try:
     eqiora.run(
         plan,
-        state=eqiora.State.initial(other_plan),
+        state=eqiora.State.initial((other_plan, 0)),
         until_s=0.2,
         output_times_s=(0.2,),
     )
@@ -192,7 +192,7 @@ else:
 async def await_same_result():
     submitted = eqiora.submit(
         replayed_plan,
-        state=eqiora.State.initial(replayed_plan),
+        state=eqiora.State.initial((replayed_plan, 0)),
         until_s=0.2,
         output_times_s=(0.2,),
     )

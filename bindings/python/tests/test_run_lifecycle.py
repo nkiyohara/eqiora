@@ -33,7 +33,7 @@ def admitted() -> tuple[eqiora.Model, eqiora.FieldRef, eqiora.Plan, eqiora.State
             absolute_tolerances={field: 1.0e-11},
         ),
     )
-    return model, field, plan, eqiora.State.initial(plan)
+    return model, field, plan, eqiora.State.initial((plan, 0))
 
 
 def submit_decay(plan: eqiora.Plan, state: eqiora.State) -> eqiora.Run:

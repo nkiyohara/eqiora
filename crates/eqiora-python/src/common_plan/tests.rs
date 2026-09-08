@@ -1148,7 +1148,7 @@ plan = package.resolve(
     ),
 )
 state = package.State.initial(
-    plan,
+    (plan, 0),
     time_s=0.0,
     fields=(
         package.InitialField(
