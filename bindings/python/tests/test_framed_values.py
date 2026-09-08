@@ -1,5 +1,7 @@
 """Uniform spatial coefficients require an explicit existing Cartesian frame."""
 
+import json
+
 import pytest
 
 import eqiora
@@ -13,6 +15,41 @@ def literal_source(value):
     if isinstance(value, complex):
         return f"math.complex({value.real!r}, {value.imag!r})"
     return repr(value)
+
+
+def assert_inlined_coefficient(model, kind, values):
+    # Component defaults specialize into the Relation. Inspect its actual RHS,
+    # not a Parameter node that the selected Component does not retain.
+    nodes = json.loads(model.to_bytes())["nodes"]
+    definitions = [node["definition"] for node in nodes]
+    relations = [node for node in definitions if node["kind"] == "relation"]
+    assert len(relations) == 1
+    expression = relations[0]["expression"]
+    assert len(expression["roots"]) == 2
+    right = expression["nodes"][expression["roots"][1]]
+    assert right["op"] == "constant"
+    literal = right["value"]
+    value_type = literal["value_type"]
+    assert value_type["domain"] == kind.scalar_domain
+    assert value_type["shape"] == list(kind.shape)
+    assert value_type["array_rank"] == kind.array_rank
+    assert value_type["frame"] == "spatial-cartesian"
+    assert value_type["dimension"] == [[0, 1]] * 7
+
+    def flatten(value):
+        if isinstance(value, tuple):
+            return [component for child in value for component in flatten(child)]
+        number = complex(value)
+        return [[number.real, number.imag]]
+
+    assert literal["components"] == {"kind": "dense", "values": flatten(values)}
+    fields = [node for node in definitions if node["kind"] == "field"]
+    assert len(fields) == 1
+    assert fields[0]["value_type"] == value_type
+    field_id = next(node["id"] for node in nodes if node["definition"]["kind"] == "field")
+    assert expression["nodes"][expression["roots"][0]] == {
+        "op": "symbol", "symbol": {"kind": "field", "id": field_id},
+    }
 
 
 CASES = (
@@ -86,8 +123,8 @@ def test_source_tensor_value_defaults_use_explicit_support_and_file_path(kind, v
     shape = geometry()
     bindings = {"body": shape.selection("body")}
     compiled = eqiora.compile(source=source, entry="Framed", geometry=shape, bindings=bindings)
-    assert compiled.parameter("coefficient").value == values
-    assert compiled.parameter("coefficient").value_type == kind
+    assert_inlined_coefficient(compiled, kind, values)
+    assert_inlined_coefficient(eqiora.Model.from_bytes(compiled.to_bytes()), kind, values)
     path = tmp_path / "authored.eqi"
     source.write_eqi(path)
     assert eqiora.compile(path=path, entry="Framed", geometry=shape, bindings=bindings).to_bytes() == compiled.to_bytes()
@@ -124,13 +161,13 @@ model Channels() {
         q.tensor_value(frame=support, components=row) for row in values
     ]))
     field = owner.field("observed", on=support, role=eqiora.FieldRole.Variable,
-                        value_type=eqiora.ValueType.real())
-    owner.relation("observe", on=support, left=field, right=0)
+                        value_type=kind)
+    owner.relation("observe", on=support, left=field, right=channels)
     shape = geometry()
     compiled = eqiora.compile(source=authored, entry="Channels", geometry=shape,
                               bindings={"body": shape.selection("body")})
-    assert compiled.parameter("channels").value == values
-    assert compiled.parameter("channels").value_type == kind
+    assert_inlined_coefficient(compiled, kind, values)
+    assert_inlined_coefficient(eqiora.Model.from_bytes(compiled.to_bytes()), kind, values)
 
 
 def test_frame_handles_reject_foreign_identity_and_invalid_shape():
