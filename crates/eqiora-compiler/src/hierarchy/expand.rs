@@ -554,6 +554,13 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     None,
                     value.range(),
                 ),
+                Item::Event(value) => (
+                    value.name(),
+                    EntityKind::Activation,
+                    SymbolKind::Event,
+                    None,
+                    value.range(),
+                ),
                 Item::Clock(value) => (
                     value.name(),
                     EntityKind::ClockDomain,
@@ -956,8 +963,8 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             scope.insert_symbol(slot.clone(), symbol);
             let requirement = field_interface.field(&slot).expect("resolved requirement");
             let activation = match &requirement.activation {
-                eqiora_lang::ActivationSyntax::Periodic(clock) => {
-                    eqiora_lang::ActivationSyntax::Periodic(clocks[clock].clone())
+                eqiora_lang::ActivationSyntax::Named(clock) => {
+                    eqiora_lang::ActivationSyntax::Named(clocks[clock].clone())
                 }
                 other => other.clone(),
             };
@@ -1173,6 +1180,34 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                             declaration.name()
                         ))]);
                     }
+                }
+                ComponentItem::Event(declaration) => {
+                    let identity = self
+                        .entity_identity(
+                            &instance_path,
+                            definition_path(
+                                &component.namespace,
+                                "component",
+                                component.name(),
+                                declaration.name(),
+                            ),
+                            EntityKind::Activation,
+                            SourceLocation::new(component.file, declaration.range()),
+                            SourceLocation::new(instance_file, instance.range()),
+                            bindings.clone(),
+                        )
+                        .map_err(one_diagnostic)?;
+                    self.register_symbol(
+                        display_child(&display_prefix, declaration.name()),
+                        declaration.name(),
+                        &identity,
+                        SymbolKind::Event,
+                        &mut scope,
+                    )
+                    .map_err(one_diagnostic)?;
+                    identities
+                        .entities
+                        .insert(declaration.name().to_owned(), identity);
                 }
                 ComponentItem::Clock(declaration) => {
                     let identity = self
@@ -1604,6 +1639,21 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         value_type: declaration.value_type().clone(),
                         role: declaration.role(),
                         activation,
+                        range: declaration.range(),
+                        identity,
+                    });
+                }
+                ComponentItem::Event(declaration) => {
+                    let identity = identities.entities[declaration.name()].clone();
+                    self.items.push(FlatItemBlueprint::Event {
+                        name: internal_name(identity.full),
+                        guard: crate::hierarchy::scope::rewrite_expression_with_boundary_member(
+                            component.file,
+                            declaration.guard(),
+                            scope,
+                            None,
+                        )?,
+                        direction: declaration.direction(),
                         range: declaration.range(),
                         identity,
                     });

@@ -220,6 +220,7 @@ pub(super) enum SymbolContract {
         parent: SpatialSupport<String>,
     },
     Clock,
+    Event,
     Relation,
 }
 
@@ -262,7 +263,7 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
         right: &eqiora_lang::ActivationSyntax,
     ) -> bool {
         left == right
-            || matches!((left, right), (eqiora_lang::ActivationSyntax::Periodic(a), eqiora_lang::ActivationSyntax::Periodic(b)) if self.borrowed_clocks.contains(a) || self.borrowed_clocks.contains(b))
+            || matches!((left, right), (eqiora_lang::ActivationSyntax::Named(a), eqiora_lang::ActivationSyntax::Named(b)) if self.borrowed_clocks.contains(a) || self.borrowed_clocks.contains(b))
     }
 
     pub(super) fn spatial_support(&self, name: &str) -> Option<SpatialSupport<String>> {

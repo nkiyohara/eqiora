@@ -98,7 +98,7 @@ pub(super) fn signature_field_interface(
         let SignatureItem::Field(declaration) = item else {
             continue;
         };
-        if let eqiora_lang::ActivationSyntax::Periodic(clock) = declaration.activation()
+        if let eqiora_lang::ActivationSyntax::Named(clock) = declaration.activation()
             && !signature.iter().any(|item| matches!(item, SignatureItem::Clock(requirement) if requirement.name() == clock)) {
                 diagnostics.push(source_error(codes::LANGUAGE_TYPE_ERROR, file, declaration.range(), "required field clock must name a clock requirement in the signature"));
                 continue;
@@ -374,8 +374,8 @@ pub(super) fn resolve_instance_fields<I: Clone + Eq>(
                 eqiora_lang::ActivationSyntax::Continuous => {
                     eqiora_lang::ActivationSyntax::Continuous
                 }
-                eqiora_lang::ActivationSyntax::Periodic(clock) => match clock_bindings.get(clock) {
-                    Some(target) => eqiora_lang::ActivationSyntax::Periodic(target.clone()),
+                eqiora_lang::ActivationSyntax::Named(clock) => match clock_bindings.get(clock) {
+                    Some(target) => eqiora_lang::ActivationSyntax::Named(target.clone()),
                     None => {
                         diagnostics.push(source_error(
                             codes::LANGUAGE_TYPE_ERROR,

@@ -36,9 +36,13 @@ pub(super) fn encode_component_item(
             encoder.u16(3)?;
             encode_field(&mut encoder, declaration, budget)?;
         }
+        ComponentItem::Event(declaration) => {
+            encoder.u16(16)?;
+            declarations::encode_event(&mut encoder, declaration, budget)?;
+        }
         ComponentItem::Clock(declaration) => {
             encoder.u16(4)?;
-            encode_clock(&mut encoder, declaration, budget)?;
+            declarations::encode_clock(&mut encoder, declaration, budget)?;
         }
         ComponentItem::Relation(declaration) => {
             encoder.u16(5)?;

@@ -482,6 +482,10 @@ impl LoweringIdentities for AssignedTestIdentities {
         panic!("fixture has no ClockDomain")
     }
 
+    fn activation(&mut self, _name: &str) -> Id<kinds::Activation> {
+        panic!("fixture has no Event")
+    }
+
     fn relation(&mut self, _name: &str) -> (Id<kinds::Relation>, Id<kinds::Activation>) {
         (self.relation, self.activation)
     }

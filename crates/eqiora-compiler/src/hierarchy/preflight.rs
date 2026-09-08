@@ -588,6 +588,7 @@ impl<'a> Elaborator<'a> {
                     ComponentItem::PortFamily(value) => Some((value.port().name(), value.range())),
                     ComponentItem::Field(value) => Some((value.name(), value.range())),
                     ComponentItem::Clock(value) => Some((value.name(), value.range())),
+                    ComponentItem::Event(value) => Some((value.name(), value.range())),
                     ComponentItem::Relation(value) => Some((value.name(), value.range())),
                     ComponentItem::RelationFamily(value) => {
                         Some((value.relation().name(), value.range()))
@@ -678,6 +679,7 @@ impl<'a> Elaborator<'a> {
                     Item::Let(value) => Some((value.name(), value.range())),
                     Item::Port(value) => Some((value.name(), value.range())),
                     Item::Clock(value) => Some((value.name(), value.range())),
+                    Item::Event(value) => Some((value.name(), value.range())),
                     Item::Relation(value) => Some((value.name(), value.range())),
                     Item::RelationFamily(value) => Some((value.relation().name(), value.range())),
                     Item::Instance(value) => Some((value.name(), value.range())),

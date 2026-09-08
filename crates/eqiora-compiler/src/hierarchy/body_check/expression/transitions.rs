@@ -31,7 +31,7 @@ impl ExpressionChecker<'_, '_, '_> {
                 Some(SymbolContract::Field(
                     inferred,
                     eqiora_lang::FieldRoleSyntax::State,
-                    ActivationSyntax::Periodic(_),
+                    ActivationSyntax::Named(_),
                 )) => Ok(inferred.clone()),
                 _ => Err(error("hold requires one periodic State")),
             };
@@ -50,7 +50,7 @@ impl ExpressionChecker<'_, '_, '_> {
                 && (self.initial
                     || !self.scope.activation_matches(
                         self.activation,
-                        &ActivationSyntax::Periodic(clock.clone()),
+                        &ActivationSyntax::Named(clock.clone()),
                     )))
         {
             return Err(error("sample requires its exact clock's update relation"));

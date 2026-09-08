@@ -51,6 +51,40 @@ pub(super) fn validate_initial_expression(
     }
 }
 
+pub(super) fn validate_event_guard(
+    scope: &DefinitionScope<'_, '_>,
+    guard: &Expr,
+) -> Result<(), Diagnostic> {
+    let mut checker = ExpressionChecker {
+        scope,
+        relation_support: None,
+        family_scope: None,
+        allow_discrete_symbols: false,
+        initial: false,
+        activation: &ActivationSyntax::Continuous,
+        physical_endpoints: PhysicalEndpointSelections::new(),
+        intrinsic: false,
+        alias_dependencies: Vec::new(),
+        evolution: Vec::new(),
+        contextual: Vec::new(),
+        sampling: false,
+    };
+    let inferred = checker.check(guard)?;
+    if inferred.value_type.scalar_domain() != eqiora_core::ScalarDomain::Real
+        || !inferred.shape().is_scalar()
+        || inferred.frame() != eqiora_core::ValueFrame::Invariant
+        || inferred.support.is_some()
+    {
+        return Err(source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            scope.file,
+            guard.range(),
+            "event crossing guard requires one real invariant scalar quantity",
+        ));
+    }
+    Ok(())
+}
+
 pub(super) fn validate_relation_expression(
     scope: &DefinitionScope<'_, '_>,
     declaration: &RelationDecl,
@@ -59,19 +93,19 @@ pub(super) fn validate_relation_expression(
     let mut diagnostics = Vec::new();
     match declaration.activation() {
         ActivationSyntax::Continuous => {}
-        ActivationSyntax::Periodic(clock) => match scope.symbols.get(clock) {
-            Some(SymbolContract::Clock) => {}
+        ActivationSyntax::Named(clock) => match scope.symbols.get(clock) {
+            Some(SymbolContract::Clock | SymbolContract::Event) => {}
             Some(_) => diagnostics.push(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 scope.file,
                 declaration.range(),
-                format!("`{clock}` is not a periodic ClockDomain"),
+                format!("`{clock}` is not a ClockDomain or Event"),
             )),
             None => diagnostics.push(unresolved(
                 scope.file,
                 declaration.range(),
                 clock,
-                "periodic ClockDomain",
+                "ClockDomain or Event",
             )),
         },
         _ => diagnostics.push(source_error(
@@ -90,7 +124,7 @@ pub(super) fn validate_relation_expression(
         ));
         return Err(diagnostics);
     }
-    let discrete = matches!(declaration.activation(), ActivationSyntax::Periodic(_));
+    let discrete = matches!(declaration.activation(), ActivationSyntax::Named(_));
     let mut checker = ExpressionChecker {
         scope,
         relation_support,
@@ -447,7 +481,7 @@ impl ExpressionChecker<'_, '_, '_> {
                     ));
                 }
                 if role == eqiora_lang::FieldRoleSyntax::Variable
-                    && matches!(activation, ActivationSyntax::Periodic(_))
+                    && matches!(activation, ActivationSyntax::Named(_))
                 {
                     if self.intrinsic {
                         self.contextual.push(expression.clone());
@@ -502,6 +536,7 @@ impl ExpressionChecker<'_, '_, '_> {
             | SymbolContract::Support(_)
             | SymbolContract::CompleteExterior { .. }
             | SymbolContract::Clock
+            | SymbolContract::Event
             | SymbolContract::Relation => Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 self.scope.file,

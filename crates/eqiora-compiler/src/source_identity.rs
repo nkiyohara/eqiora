@@ -415,9 +415,13 @@ fn encode_model_item(item: &Item, budget: &mut Budget) -> Result<Vec<u8>, Diagno
             encoder.u16(5)?;
             encode_port(&mut encoder, declaration, budget)?;
         }
+        Item::Event(declaration) => {
+            encoder.u16(17)?;
+            declarations::encode_event(&mut encoder, declaration, budget)?;
+        }
         Item::Clock(declaration) => {
             encoder.u16(6)?;
-            encode_clock(&mut encoder, declaration, budget)?;
+            declarations::encode_clock(&mut encoder, declaration, budget)?;
         }
         Item::Relation(declaration) => {
             encoder.u16(7)?;
@@ -549,7 +553,7 @@ fn encode_activation(
 ) -> Result<(), Diagnostic> {
     match activation {
         ActivationSyntax::Continuous => encoder.u16(1),
-        ActivationSyntax::Periodic(clock) => {
+        ActivationSyntax::Named(clock) => {
             encoder.u16(2)?;
             encode_name(encoder, clock, budget)
         }
@@ -692,22 +696,6 @@ fn encode_boundary_pairing(
             "boundary pairing is newer than source identity v1",
         )),
     }
-}
-
-fn encode_clock(
-    encoder: &mut Encoder,
-    declaration: &ClockDecl,
-    budget: &mut Budget,
-) -> Result<(), Diagnostic> {
-    encoder.field(1, |encoder| {
-        encode_name(encoder, declaration.name(), budget)
-    })?;
-    encoder.field(2, |encoder| {
-        encode_expression(encoder, declaration.period(), budget, 0)
-    })?;
-    encoder.field(3, |encoder| {
-        encode_expression(encoder, declaration.phase(), budget, 0)
-    })
 }
 
 fn encode_boundary_connection(

@@ -33,7 +33,7 @@ impl DefinitionScope<'_, '_> {
             {
                 *current = bound;
             }
-            if let eqiora_lang::ActivationSyntax::Periodic(clock) = activation {
+            if let eqiora_lang::ActivationSyntax::Named(clock) = activation {
                 *clock = target(clock)
                     .map(str::to_owned)
                     .unwrap_or_else(|| format!("{instance}.{clock}"));

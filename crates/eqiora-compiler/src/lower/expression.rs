@@ -1,9 +1,11 @@
 mod source;
 pub(super) use source::from_source;
 mod contextual;
+mod event;
 mod physical_accessors;
 mod piecewise;
 use super::*;
+pub(super) use event::lower_event_guard;
 
 use eqiora_schema::kernel::typing::{self, ExpressionType, SpatialSupport};
 
@@ -87,9 +89,12 @@ pub(super) fn lower_relation(
             }
         }
     }
-    if let ActivationSyntax::Periodic(clock) = activation {
-        if !matches!(bindings.get(clock), Some(Binding::Clock(_, _))) {
-            return Err(unresolved(file, range, clock, "periodic ClockDomain"));
+    if let ActivationSyntax::Named(clock) = activation {
+        if !matches!(
+            bindings.get(clock),
+            Some(Binding::Clock(_, _) | Binding::Event(_))
+        ) {
+            return Err(unresolved(file, range, clock, "ClockDomain or Event"));
         }
     } else if !matches!(activation, ActivationSyntax::Continuous) {
         return Err(source_error(
@@ -103,7 +108,7 @@ pub(super) fn lower_relation(
     let support = domain
         .map(|name| relation_support(file, range, name, bindings))
         .transpose()?;
-    let discrete = matches!(activation, ActivationSyntax::Periodic(_));
+    let discrete = matches!(activation, ActivationSyntax::Named(_));
     let mut lowerer = ExpressionLowerer {
         file,
         bindings,
@@ -294,7 +299,7 @@ impl ExpressionLowerer<'_> {
                 let id = *id;
                 if self.sampling
                     || self.initial
-                    || self.activation != &ActivationSyntax::Periodic(clock.clone())
+                    || self.activation != &ActivationSyntax::Named(clock.clone())
                 {
                     return Err(source_error(
                         codes::LANGUAGE_TYPE_ERROR,
@@ -495,7 +500,7 @@ impl ExpressionLowerer<'_> {
                     ));
                 }
                 if contract.role == eqiora_lang::FieldRoleSyntax::Variable
-                    && matches!(contract.activation, ActivationSyntax::Periodic(_))
+                    && matches!(contract.activation, ActivationSyntax::Named(_))
                     && (self.initial || &contract.activation != self.activation)
                 {
                     return Err(source_error(
@@ -523,7 +528,7 @@ impl ExpressionLowerer<'_> {
                         None
                     } else {
                         match self.activation {
-                            ActivationSyntax::Periodic(name) => match self.bindings.get(name) {
+                            ActivationSyntax::Named(name) => match self.bindings.get(name) {
                                 Some(Binding::Clock(id, _)) => Some(*id),
                                 _ => None,
                             },
@@ -565,6 +570,7 @@ impl ExpressionLowerer<'_> {
             Binding::Domain(_, _)
             | Binding::Representation(_)
             | Binding::Clock(_, _)
+            | Binding::Event(_)
             | Binding::Relation { .. } => {
                 return Err(source_error(
                     codes::LANGUAGE_TYPE_ERROR,
@@ -742,7 +748,7 @@ impl ExpressionLowerer<'_> {
         };
         if callee == "hold" {
             if contract.role != eqiora_lang::FieldRoleSyntax::State
-                || !matches!(contract.activation, ActivationSyntax::Periodic(_))
+                || !matches!(contract.activation, ActivationSyntax::Named(_))
             {
                 return Err(source_error(
                     codes::LANGUAGE_TYPE_ERROR,
@@ -774,20 +780,7 @@ impl ExpressionLowerer<'_> {
             ));
         }
         if matches!(callee, "derivative" | "pre" | "next") {
-            let eligible = contract.role == eqiora_lang::FieldRoleSyntax::State
-                && match callee {
-                    "derivative" => matches!(contract.activation, ActivationSyntax::Continuous),
-                    "pre" => {
-                        matches!(contract.activation, ActivationSyntax::Periodic(_))
-                            && (self.initial || contract.activation == *self.activation)
-                    }
-                    "next" => {
-                        !self.initial
-                            && matches!(contract.activation, ActivationSyntax::Periodic(_))
-                            && contract.activation == *self.activation
-                    }
-                    _ => false,
-                };
+            let eligible = self.eligible_evolution(callee, &contract);
             if !eligible {
                 return Err(source_error(
                     codes::LANGUAGE_TYPE_ERROR,

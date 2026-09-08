@@ -307,7 +307,7 @@ pub(super) fn encode_relation(
     })?;
     encoder.field(2, |encoder| match declaration.activation() {
         ActivationSyntax::Continuous => encoder.u16(1),
-        ActivationSyntax::Periodic(clock) => {
+        ActivationSyntax::Named(clock) => {
             encoder.u16(2)?;
             encoder.field(1, |encoder| encode_name(encoder, clock, budget))
         }

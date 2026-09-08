@@ -124,6 +124,21 @@ impl RootExpansion<'_, '_> {
                         identity,
                     });
                 }
+                Item::Event(declaration) => {
+                    let identity = identities.entities[declaration.name()].clone();
+                    self.items.push(FlatItemBlueprint::Event {
+                        name: internal_name(identity.full),
+                        guard: crate::hierarchy::scope::rewrite_expression_with_boundary_member(
+                            self.model.file,
+                            declaration.guard(),
+                            scope,
+                            None,
+                        )?,
+                        direction: declaration.direction(),
+                        range: declaration.range(),
+                        identity,
+                    });
+                }
                 Item::Clock(declaration) => {
                     let identity = identities.entities[declaration.name()].clone();
                     self.items.push(FlatItemBlueprint::Clock {
