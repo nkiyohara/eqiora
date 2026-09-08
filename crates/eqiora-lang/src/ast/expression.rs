@@ -35,7 +35,9 @@ impl Expr {
     /// topology and every expression/source range are preserved. Call callees
     /// are structural [`NamePath`] values and are visited before their ordered
     /// arguments.
-    /// Unit-catalog names inside quantity literals are not value-name occurrences.
+    /// Reduction set names are visited, while occurrences rooted in the local
+    /// binder are protected from outer rewrites. Unit-catalog names inside
+    /// quantity literals are not value-name occurrences.
     #[must_use]
     pub fn rewrite_name_paths(
         &self,
@@ -46,7 +48,7 @@ impl Expr {
 
     fn rewrite_name_paths_with(
         &self,
-        rewrite: &mut impl FnMut(&NamePath) -> Option<NamePath>,
+        rewrite: &mut dyn FnMut(&NamePath) -> Option<NamePath>,
     ) -> Self {
         let kind = match &self.kind {
             ExprKind::Member { value, member } => ExprKind::Member {
@@ -93,6 +95,31 @@ impl Expr {
                 value: Box::new(value.rewrite_name_paths_with(rewrite)),
                 index: Box::new(index.rewrite_name_paths_with(rewrite)),
             },
+            ExprKind::Reduction {
+                operation,
+                binder,
+                value,
+            } => {
+                let set = rewrite(&binder.set)
+                    .unwrap_or_else(|| binder.set.clone())
+                    .with_range(binder.set.range());
+                let mut scoped = |path: &NamePath| {
+                    if path.segments().next() == Some(binder.member.as_str()) {
+                        None
+                    } else {
+                        rewrite(path)
+                    }
+                };
+                ExprKind::Reduction {
+                    operation: *operation,
+                    binder: FamilyBinderSyntax {
+                        member: binder.member.clone(),
+                        set,
+                        range: binder.range,
+                    },
+                    value: Box::new(value.rewrite_name_paths_with(&mut scoped)),
+                }
+            }
             ExprKind::Call { callee, arguments } => ExprKind::Call {
                 callee: rewrite(callee).map_or_else(
                     || callee.clone(),
@@ -173,6 +200,15 @@ pub enum ExprKind {
         /// Right operand.
         right: Box<Expr>,
     },
+    /// Ordered reduction over one nonempty bounded nominal index set.
+    Reduction {
+        /// Scalar reduction operation, evaluated in index-set order.
+        operation: ReductionOp,
+        /// Lexical member binding and exact set name.
+        binder: FamilyBinderSyntax,
+        /// Scalar expression evaluated for each member.
+        value: Box<Expr>,
+    },
     /// Qualified named operator with one or more ordered arguments.
     Call {
         /// Structurally qualified operator name.
@@ -180,6 +216,15 @@ pub enum ExprKind {
         /// Nonempty ordered arguments.
         arguments: Vec<Expr>,
     },
+}
+
+/// Scalar operation for an ordered finite reduction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ReductionOp {
+    /// Ordered addition.
+    Sum,
+    /// Ordered multiplication.
+    Product,
 }
 
 /// Prefix expression operator.

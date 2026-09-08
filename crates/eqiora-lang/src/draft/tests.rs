@@ -543,9 +543,9 @@ fn expression_contains_call(expression: &Expr, expected: &str) -> bool {
         ExprKind::Index { value, index } => {
             expression_contains_call(value, expected) || expression_contains_call(index, expected)
         }
-        ExprKind::Unary { value, .. } | ExprKind::Member { value, .. } => {
-            expression_contains_call(value, expected)
-        }
+        ExprKind::Unary { value, .. }
+        | ExprKind::Member { value, .. }
+        | ExprKind::Reduction { value, .. } => expression_contains_call(value, expected),
         ExprKind::Binary { left, right, .. } => {
             expression_contains_call(left, expected) || expression_contains_call(right, expected)
         }

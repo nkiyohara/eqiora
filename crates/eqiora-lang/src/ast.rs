@@ -432,7 +432,7 @@ pub enum SupportSlotSyntax {
     },
 }
 
-/// Restricted binder for one member of a complete exterior support set.
+/// Lexical binder for a member of a finite index or complete exterior support set.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FamilyBinderSyntax {
     pub(crate) member: String,
@@ -441,19 +441,19 @@ pub struct FamilyBinderSyntax {
 }
 
 impl FamilyBinderSyntax {
-    /// Lexical name of the currently expanded boundary member.
+    /// Lexical name of the currently expanded member.
     #[must_use]
     pub fn member(&self) -> &str {
         &self.member
     }
 
-    /// Complete-exterior support slot traversed by this binder.
+    /// Nominal index set or complete-exterior support slot traversed by this binder.
     #[must_use]
     pub fn set(&self) -> &NamePath {
         &self.set
     }
 
-    /// Full `[member in set]` range.
+    /// Full binder range, including its grouping delimiters.
     #[must_use]
     pub const fn range(&self) -> TextRange {
         self.range
@@ -907,4 +907,4 @@ impl BoundaryPortSelectorSyntax {
 }
 
 mod expression;
-pub use expression::{BinaryOp, Expr, ExprKind, UnaryOp};
+pub use expression::{BinaryOp, Expr, ExprKind, ReductionOp, UnaryOp};

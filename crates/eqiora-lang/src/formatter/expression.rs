@@ -91,6 +91,24 @@ pub(super) fn format_expression(
             format_expression(index, 0, output);
             output.push(']');
         }
+        ExprKind::Reduction {
+            operation,
+            binder,
+            value,
+        } => {
+            output.push_str(match operation {
+                crate::ReductionOp::Sum => "sum(",
+                crate::ReductionOp::Product => "product(",
+            });
+            format_expression(value, 0, output);
+            write!(
+                output,
+                ", over = ({} in {}))",
+                binder.member(),
+                binder.set()
+            )
+            .expect("String write");
+        }
         ExprKind::Call { callee, arguments } => {
             write!(output, "{callee}").expect("String write");
             output.push('(');
@@ -153,6 +171,7 @@ fn expression_precedence(expression: &Expr) -> u8 {
         | ExprKind::Path(_)
         | ExprKind::BoundaryPortSelection { .. }
         | ExprKind::Call { .. }
+        | ExprKind::Reduction { .. }
         | ExprKind::Array(_)
         | ExprKind::Index { .. } => 19,
     }

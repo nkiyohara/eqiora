@@ -57,8 +57,19 @@ fn validate_expression_depth(expression: &Expr, depth: usize) -> Result<(), AstC
             }
             Ok(())
         }
+        ExprKind::Reduction { binder, value, .. } => {
+            super::validate_identifier(binder.member(), "reduction member")?;
+            validate_name_path(binder.set())?;
+            super::checked_range(binder.range())?;
+            validate_expression_depth(value, depth + 1)
+        }
         ExprKind::Call { callee, arguments } => {
             validate_name_path(callee)?;
+            if matches!(callee.as_str(), "sum" | "product") {
+                return Err(AstConstructionError::new(
+                    "sum/product require a structured reduction binder",
+                ));
+            }
             if arguments.is_empty() && callee.to_string() != "boundaries" {
                 return Err(AstConstructionError::new(
                     "an expression operator call requires at least one argument",
@@ -87,5 +98,28 @@ pub(super) fn validate_endpoint(expression: &Expr) -> Result<(), AstConstruction
         _ => Err(AstConstructionError::new(
             "Connection endpoint requires an exact declared Port selection",
         )),
+    }
+}
+
+impl super::SourceAstFactory {
+    /// Construct a bounded scalar reduction with an explicit lexical binder.
+    ///
+    /// # Errors
+    /// Rejects malformed binder names/ranges or excessive expression depth.
+    /// The compiler checks index-set identity, cardinality, and scalar domain.
+    pub fn reduction(
+        operation: crate::ReductionOp,
+        binder: crate::FamilyBinderSyntax,
+        value: Expr,
+        range: crate::TextRange,
+    ) -> Result<Expr, AstConstructionError> {
+        Self::expression(
+            ExprKind::Reduction {
+                operation,
+                binder,
+                value: Box::new(value),
+            },
+            range,
+        )
     }
 }
