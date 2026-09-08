@@ -29,15 +29,15 @@ public component NewtonianMechanicalInterface2d(
   variable velocity: vector<m / s, 2> on body,
   variable pressure: kg / (m * s ^ 2) on body,
   parameter dynamic_viscosity: kg / (m * s),
-  port mechanical[boundary in exterior]: conserving mechanics.VelocityTractionBoundary over boundary
+  port mechanical[boundary in exterior]: mechanics.VelocityTractionBoundary over boundary
 ) {
   relation boundary_interface[boundary in exterior] on boundary {
     trace(velocity)
-      - trace(mechanical[boundary = boundary]) = 0;
+      - mechanical[boundary = boundary].velocity = 0;
     normal(
       2 * dynamic_viscosity * symmetric_part(grad(velocity))
       - isotropic_lift(pressure)
-    ) - flux(mechanical[boundary = boundary]) = 0;
+    ) - mechanical[boundary = boundary].traction = 0;
   }
 }
 
@@ -69,14 +69,14 @@ public component NewtonianMechanicalInterface3d(
   variable velocity: vector<m / s, 3> on body,
   variable pressure: kg / (m * s ^ 2) on body,
   parameter dynamic_viscosity: kg / (m * s),
-  port mechanical[boundary in exterior]: conserving mechanics.VelocityTractionBoundary over boundary
+  port mechanical[boundary in exterior]: mechanics.VelocityTractionBoundary over boundary
 ) {
   relation boundary_interface[boundary in exterior] on boundary {
     trace(velocity)
-      - trace(mechanical[boundary = boundary]) = 0;
+      - mechanical[boundary = boundary].velocity = 0;
     normal(
       2 * dynamic_viscosity * symmetric_part(grad(velocity))
       - isotropic_lift(pressure)
-    ) - flux(mechanical[boundary = boundary]) = 0;
+    ) - mechanical[boundary = boundary].traction = 0;
   }
 }

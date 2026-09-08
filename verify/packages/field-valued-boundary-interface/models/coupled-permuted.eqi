@@ -13,5 +13,5 @@ model Main() {
     body = fluid
   );
 
-  connect conserving solid_side.mechanical, fluid_side.mechanical;
+  connect solid_side.mechanical, fluid_side.mechanical;
 }

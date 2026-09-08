@@ -45,8 +45,8 @@ model Main() {
     body = body, face = y_upper
   );
 
-  connect conserving boundary.mechanical[boundary = x_lower], x_lower_zero.mechanical;
-  connect conserving boundary.mechanical[boundary = x_upper], x_upper_zero.mechanical;
-  connect conserving boundary.mechanical[boundary = y_lower], y_lower_zero.mechanical;
-  connect conserving boundary.mechanical[boundary = y_upper], y_upper_zero.mechanical;
+  connect boundary.mechanical[boundary = x_lower], x_lower_zero.mechanical;
+  connect boundary.mechanical[boundary = x_upper], x_upper_zero.mechanical;
+  connect boundary.mechanical[boundary = y_lower], y_lower_zero.mechanical;
+  connect boundary.mechanical[boundary = y_upper], y_upper_zero.mechanical;
 }

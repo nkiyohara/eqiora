@@ -24,15 +24,15 @@ public component VelocityTractionInterface2d(
   variable velocity: vector<m / s, 2> on body,
   variable pressure: kg / (m * s ^ 2) on body,
   parameter dynamic_viscosity: kg / (m * s),
-  port mechanical[boundary in exterior]: conserving mechanics.VelocityTractionBoundary over boundary
+  port mechanical[boundary in exterior]: mechanics.VelocityTractionBoundary over boundary
 ) {
   relation boundary_interface[boundary in exterior] on boundary {
     trace(velocity)
-      - trace(mechanical[boundary = boundary]) = 0;
+      - mechanical[boundary = boundary].velocity = 0;
     normal(
       2 * dynamic_viscosity * symmetric_part(grad(velocity))
       - isotropic_lift(pressure)
-    ) - flux(mechanical[boundary = boundary]) = 0;
+    ) - mechanical[boundary = boundary].traction = 0;
   }
 }
 
@@ -43,7 +43,7 @@ public component SteadyStokes2d(
   variable pressure: kg / (m * s ^ 2) on body,
   variable force_potential: kg / (m * s ^ 2) on body,
   parameter dynamic_viscosity: kg / (m * s),
-  port mechanical[boundary in exterior]: conserving mechanics.VelocityTractionBoundary over boundary
+  port mechanical[boundary in exterior]: mechanics.VelocityTractionBoundary over boundary
 ) {
   instance balance: SteadyNewtonianBalance2d(
     body = body,
@@ -60,7 +60,7 @@ public component SteadyStokes2d(
     dynamic_viscosity = dynamic_viscosity
   );
 
-  connect conserving [boundary in exterior]
+  connect [boundary in exterior]
     mechanical[boundary = boundary],
     interface.mechanical[boundary = boundary];
 }
@@ -68,20 +68,20 @@ public component SteadyStokes2d(
 public component NoSlip2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
-  port mechanical: conserving mechanics.VelocityTractionBoundary over face
+  port mechanical: mechanics.VelocityTractionBoundary over face
 ) {
   relation prescribed_velocity on face {
-    trace(mechanical) = 0;
+    mechanical.velocity = 0;
   }
 }
 
 public component TractionFree2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
-  port mechanical: conserving mechanics.VelocityTractionBoundary over face
+  port mechanical: mechanics.VelocityTractionBoundary over face
 ) {
   relation prescribed_traction on face {
-    flux(mechanical) = 0;
+    mechanical.traction = 0;
   }
 }
 
@@ -89,10 +89,10 @@ public component NormalPressureOutlet2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
   variable exterior_pressure: kg / (m * s ^ 2) on body,
-  port mechanical: conserving mechanics.VelocityTractionBoundary over face
+  port mechanical: mechanics.VelocityTractionBoundary over face
 ) {
   relation prescribed_traction on face {
-    flux(mechanical)
+    mechanical.traction
       - normal(isotropic_lift(exterior_pressure)) = 0;
   }
 }
@@ -101,10 +101,10 @@ public component NormalVelocityInlet2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
   variable speed: m / s on body,
-  port mechanical: conserving mechanics.VelocityTractionBoundary over face
+  port mechanical: mechanics.VelocityTractionBoundary over face
 ) {
   relation prescribed_velocity on face {
-    trace(mechanical) + normal(isotropic_lift(speed)) = 0;
+    mechanical.velocity + normal(isotropic_lift(speed)) = 0;
   }
 }
 
@@ -112,10 +112,10 @@ public component PrescribedVelocity2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
   variable velocity: vector<m / s, 2> on body,
-  port mechanical: conserving mechanics.VelocityTractionBoundary over face
+  port mechanical: mechanics.VelocityTractionBoundary over face
 ) {
   relation prescribed_velocity on face {
-    trace(mechanical) - trace(velocity) = 0;
+    mechanical.velocity - trace(velocity) = 0;
   }
 }
 
@@ -123,9 +123,9 @@ public component PrescribedTraction2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
   variable traction: vector<kg / (m * s ^ 2), 2> on body,
-  port mechanical: conserving mechanics.VelocityTractionBoundary over face
+  port mechanical: mechanics.VelocityTractionBoundary over face
 ) {
   relation prescribed_traction on face {
-    flux(mechanical) - trace(traction) = 0;
+    mechanical.traction - trace(traction) = 0;
   }
 }

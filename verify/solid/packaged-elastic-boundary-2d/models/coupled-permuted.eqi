@@ -1,10 +1,10 @@
 public component BoundaryTerminal(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
-  port mechanical: conserving solid.QuasistaticMechanicalBoundary over face
+  port mechanical: solid.QuasistaticMechanicalBoundary over face
 ) {
   relation free_traction on face {
-    flux(mechanical) = 0;
+    mechanical.traction = 0;
   }
 }
 
@@ -42,12 +42,12 @@ model Main() {
     face = y_upper
   );
 
-  connect conserving solid_boundary.mechanical[boundary = x_lower],
+  connect solid_boundary.mechanical[boundary = x_lower],
     x_lower_terminal.mechanical;
-  connect conserving solid_boundary.mechanical[boundary = x_upper],
+  connect solid_boundary.mechanical[boundary = x_upper],
     x_upper_terminal.mechanical;
-  connect conserving solid_boundary.mechanical[boundary = y_lower],
+  connect solid_boundary.mechanical[boundary = y_lower],
     y_lower_terminal.mechanical;
-  connect conserving solid_boundary.mechanical[boundary = y_upper],
+  connect solid_boundary.mechanical[boundary = y_upper],
     y_upper_terminal.mechanical;
 }

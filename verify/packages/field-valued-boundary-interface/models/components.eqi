@@ -1,31 +1,32 @@
-public connector MechanicalBoundary = field_physical(
-  trace = velocity: m / s,
-  flux = traction: kg / (m * s ^ 2),
-  shape = spatial_vector,
-  frame = spatial,
-  pairing = euclidean_boundary_duality
-);
+public connector MechanicalBoundary {
+  trace velocity: m / s;
+  flux traction: kg / (m * s ^ 2);
+  shape spatial_vector;
+  frame spatial;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}
 
 public component BoundarySide(
   support body: volume(ambient_dimension = 2),
   support interface: boundary(parent = body),
-  port mechanical: conserving MechanicalBoundary over interface
+  port mechanical: MechanicalBoundary over interface
 ) {
   relation carrier on interface {
-    trace(mechanical) - trace(mechanical) = 0;
-    flux(mechanical) - flux(mechanical) = 0;
+    mechanical.velocity - mechanical.velocity = 0;
+    mechanical.traction - mechanical.traction = 0;
   }
 }
 
 public component BoundaryWrapper(
   support body: volume(ambient_dimension = 2),
   support interface: boundary(parent = body),
-  port mechanical: conserving MechanicalBoundary over interface
+  port mechanical: MechanicalBoundary over interface
 ) {
   instance side: BoundarySide(
     body = body,
     interface = interface
   );
 
-  connect conserving mechanical, side.mechanical;
+  connect mechanical, side.mechanical;
 }

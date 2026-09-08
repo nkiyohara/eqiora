@@ -3,6 +3,6 @@ model Main() {
   instance load: components.ResistiveBranch(resistance = 2[kg * m^2 / (s^3 * A^2)]);
   instance ground: components.Ground();
 
-  connect conserving source.positive, load.positive;
-  connect conserving source.negative, load.negative, ground.terminal;
+  connect source.positive, load.positive;
+  connect source.negative, load.negative, ground.terminal;
 }

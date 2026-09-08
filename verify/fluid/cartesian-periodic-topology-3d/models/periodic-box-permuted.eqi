@@ -1,19 +1,20 @@
-public connector PeriodicBoundary = field_physical(
-  trace = state: 1,
-  flux = normal_flux: 1,
-  shape = [],
-  frame = invariant,
-  pairing = euclidean_boundary_duality
-);
+public connector PeriodicBoundary {
+  trace state: 1;
+  flux normal_flux: 1;
+  shape [];
+  frame invariant;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}
 
 public component PeriodicSide3d(
   support body: volume(ambient_dimension = 3),
   support face: boundary(parent = body),
-  port periodic: conserving PeriodicBoundary over face
+  port periodic: PeriodicBoundary over face
 ) {
   relation carrier on face {
-    trace(periodic) - trace(periodic) = 0;
-    flux(periodic) - flux(periodic) = 0;
+    periodic.state - periodic.state = 0;
+    periodic.normal_flux - periodic.normal_flux = 0;
   }
 }
 

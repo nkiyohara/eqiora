@@ -1,21 +1,21 @@
 import Eqiora.Electrical.Basic.basic as electrical;
 
-public connector RotationalFlange = scalar_physical(
-  across = 1 / s,
-  through = kg * m ^ 2 / s ^ 2
-);
+public connector RotationalFlange {
+  across speed: 1 / s;
+  through torque: kg * m ^ 2 / s ^ 2;
+}
 
 public component ControlledVoltageSource(
-  port positive: conserving on electrical.Pin,
-  port negative: conserving on electrical.Pin,
+  port positive: electrical.Pin,
+  port negative: electrical.Pin,
   input command: kg * m ^ 2 / (s ^ 3 * A)
 ) {
   variable applied_voltage: kg * m ^ 2 / (s ^ 3 * A);
 
   relation law {
     applied_voltage - command = 0;
-    across(positive) - across(negative) - applied_voltage = 0;
-    through(positive) + through(negative) = 0;
+    positive.voltage - negative.voltage - applied_voltage = 0;
+    positive.current + negative.current = 0;
   }
 }
 
@@ -23,9 +23,9 @@ public component PermanentMagnetDcMotor(
   parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2),
   parameter inductance: kg * m ^ 2 / (s ^ 2 * A ^ 2),
   parameter motor_constant: kg * m ^ 2 / (s ^ 2 * A),
-  port positive: conserving on electrical.Pin,
-  port negative: conserving on electrical.Pin,
-  port shaft: conserving on RotationalFlange
+  port positive: electrical.Pin,
+  port negative: electrical.Pin,
+  port shaft: RotationalFlange
 ) {
   state current: A;
   variable speed: 1 / s;
@@ -36,22 +36,22 @@ public component PermanentMagnetDcMotor(
   }
 
   relation coupled_law {
-    across(positive) - across(negative)
+    positive.voltage - negative.voltage
       - resistance * current
       - inductance * derivative(current)
       - motor_constant * speed = 0;
-    through(positive) - current = 0;
-    through(positive) + through(negative) = 0;
-    across(shaft) - speed = 0;
+    positive.current - current = 0;
+    positive.current + negative.current = 0;
+    shaft.speed - speed = 0;
     electromagnetic_torque - motor_constant * current = 0;
-    through(shaft) + electromagnetic_torque = 0;
+    shaft.torque + electromagnetic_torque = 0;
   }
 }
 
 public component InertialLoad(
   parameter inertia: kg * m ^ 2,
   parameter damping: kg * m ^ 2 / s,
-  port shaft: conserving on RotationalFlange
+  port shaft: RotationalFlange
 ) {
   state speed: 1 / s;
   variable reaction_torque: kg * m ^ 2 / s ^ 2;
@@ -61,18 +61,18 @@ public component InertialLoad(
   }
 
   relation dynamics {
-    across(shaft) - speed = 0;
+    shaft.speed - speed = 0;
     reaction_torque - inertia * derivative(speed) - damping * speed = 0;
-    through(shaft) - reaction_torque = 0;
+    shaft.torque - reaction_torque = 0;
   }
 }
 
 public component SpeedSensor(
-  port shaft: conserving on RotationalFlange,
+  port shaft: RotationalFlange,
   output speed: 1 / s
 ) {
   relation measurement {
-    through(shaft) = 0;
-    speed - across(shaft) = 0;
+    shaft.torque = 0;
+    speed - shaft.speed = 0;
   }
 }

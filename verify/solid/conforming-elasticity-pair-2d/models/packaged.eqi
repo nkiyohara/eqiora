@@ -91,18 +91,18 @@ model Main() {
     face = right_y_upper
   );
 
-  connect conserving left_boundary.mechanical[boundary = left_x_lower],
+  connect left_boundary.mechanical[boundary = left_x_lower],
     fixed.mechanical;
-  connect conserving left_boundary.mechanical[boundary = left_y_lower],
+  connect left_boundary.mechanical[boundary = left_y_lower],
     left_y_lower_free.mechanical;
-  connect conserving left_boundary.mechanical[boundary = left_y_upper],
+  connect left_boundary.mechanical[boundary = left_y_upper],
     left_y_upper_free.mechanical;
-  connect conserving right_boundary.mechanical[boundary = right_x_upper],
+  connect right_boundary.mechanical[boundary = right_x_upper],
     right_x_upper_free.mechanical;
-  connect conserving right_boundary.mechanical[boundary = right_y_lower],
+  connect right_boundary.mechanical[boundary = right_y_lower],
     right_y_lower_free.mechanical;
-  connect conserving right_boundary.mechanical[boundary = right_y_upper],
+  connect right_boundary.mechanical[boundary = right_y_upper],
     right_y_upper_free.mechanical;
-  connect conserving left_boundary.mechanical[boundary = left_x_upper],
+  connect left_boundary.mechanical[boundary = left_x_upper],
     right_boundary.mechanical[boundary = right_x_lower];
 }

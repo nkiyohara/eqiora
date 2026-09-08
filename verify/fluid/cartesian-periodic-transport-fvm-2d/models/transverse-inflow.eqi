@@ -1,10 +1,11 @@
-public connector ScalarTransportBoundary = field_physical(
-  trace = concentration: K,
-  flux = transport_flux: K * m / s,
-  shape = [],
-  frame = invariant,
-  pairing = euclidean_boundary_duality
-);
+public connector ScalarTransportBoundary {
+  trace concentration: K;
+  flux transport_flux: K * m / s;
+  shape [];
+  frame invariant;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}
 
 public component PeriodicTransportSide2d(
   support body: volume(ambient_dimension = 2),
@@ -12,14 +13,14 @@ public component PeriodicTransportSide2d(
   variable concentration: K on body,
   variable flow_potential: m ^ 2 / s on body,
   parameter diffusivity: m ^ 2 / s,
-  port transport: conserving ScalarTransportBoundary over face
+  port transport: ScalarTransportBoundary over face
 ) {
   relation periodic_binding on face {
-    trace(concentration) - trace(transport) = 0;
+    trace(concentration) - transport.concentration = 0;
     normal(
       concentration * grad(flow_potential)
       - diffusivity * grad(concentration)
-    ) - flux(transport) = 0;
+    ) - transport.transport_flux = 0;
   }
 }
 

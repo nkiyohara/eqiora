@@ -1,35 +1,35 @@
-connector Pin = scalar_physical(
-  across = kg * m ^ 2 / (s ^ 3 * A),
-  through = A
-);
+connector Pin {
+  across voltage: kg * m ^ 2 / (s ^ 3 * A);
+  through current: A;
+}
 
 component VoltageSource(
   parameter voltage: kg * m ^ 2 / (s ^ 3 * A),
-  port positive: conserving on Pin,
-  port negative: conserving on Pin
+  port positive: Pin,
+  port negative: Pin
 ) {
   relation law {
-    across(positive) - across(negative) - voltage = 0;
-    through(positive) + through(negative) = 0;
+    positive.voltage - negative.voltage - voltage = 0;
+    positive.current + negative.current = 0;
   }
 }
 
 component Resistor(
   parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2),
-  port positive: conserving on Pin,
-  port negative: conserving on Pin
+  port positive: Pin,
+  port negative: Pin
 ) {
   relation law {
-    across(positive) - across(negative) - resistance * through(positive) = 0;
-    through(positive) + through(negative) = 0;
+    positive.voltage - negative.voltage - resistance * positive.current = 0;
+    positive.current + negative.current = 0;
   }
 }
 
 component Ground(
-  port terminal: conserving on Pin
+  port terminal: Pin
 ) {
   relation law {
-    across(terminal) = 0;
+    terminal.voltage = 0;
   }
 }
 
@@ -43,8 +43,8 @@ component ParallelDc(
   instance resistor_four: Resistor(resistance = resistance_four);
   instance ground: Ground();
 
-  connect conserving source.positive, resistor_two.positive, resistor_four.positive;
-  connect conserving source.negative, resistor_two.negative, resistor_four.negative, ground.terminal;
+  connect source.positive, resistor_two.positive, resistor_four.positive;
+  connect source.negative, resistor_two.negative, resistor_four.negative, ground.terminal;
 }
 
 model component_elaboration() {

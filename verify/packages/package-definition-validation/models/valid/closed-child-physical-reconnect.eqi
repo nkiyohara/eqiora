@@ -1,18 +1,21 @@
-connector Pin = scalar_physical(across = 1, through = 1);
+connector Pin {
+  across potential: 1;
+  through flow: 1;
+}
 
 component ClosedLeaf(
-  port a: conserving on Pin,
-  port b: conserving on Pin
+  port a: Pin,
+  port b: Pin
 ) {
   relation law {
-    across(a) + across(b) = 0;
+    a.potential + b.potential = 0;
   }
-  connect conserving a, b;
+  connect a, b;
 }
 
 component BrokenParent() {
   instance leaf: ClosedLeaf();
-  connect conserving leaf.a, leaf.b;
+  connect leaf.a, leaf.b;
 }
 
 model Main() {}

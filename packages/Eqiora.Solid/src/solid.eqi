@@ -1,10 +1,11 @@
-public connector DisplacementTractionBoundary = field_physical(
-  trace = displacement: m,
-  flux = traction: kg / (m * s ^ 2),
-  shape = spatial_vector,
-  frame = spatial,
-  pairing = euclidean_boundary_duality
-);
+public connector DisplacementTractionBoundary {
+  trace displacement: m;
+  flux traction: kg / (m * s ^ 2);
+  shape spatial_vector;
+  frame spatial;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}
 
 public property contract YoungModulus(): kg / (m * s ^ 2) { derivatives value_only; }
 
@@ -31,15 +32,15 @@ public component DisplacementTractionInterface2d(
   variable displacement: vector<m, 2> on body,
   parameter shear_modulus: kg / (m * s ^ 2),
   parameter first_lame_parameter: kg / (m * s ^ 2),
-  port mechanical[boundary in exterior]: conserving DisplacementTractionBoundary over boundary
+  port mechanical[boundary in exterior]: DisplacementTractionBoundary over boundary
 ) {
   relation boundary_interface[boundary in exterior] on boundary {
     trace(displacement)
-      - trace(mechanical[boundary = boundary]) = 0;
+      - mechanical[boundary = boundary].displacement = 0;
     normal(
       2 * shear_modulus * symmetric_part(grad(displacement))
       + first_lame_parameter * isotropic_lift(div(displacement))
-    ) - flux(mechanical[boundary = boundary]) = 0;
+    ) - mechanical[boundary = boundary].traction = 0;
   }
 }
 
@@ -50,7 +51,7 @@ public component PlaneStrainLinearElasticity2d(
   variable load_potential: kg / (m * s ^ 2) on body,
   parameter young_modulus: kg / (m * s ^ 2),
   parameter poisson_ratio: 1,
-  port mechanical[boundary in exterior]: conserving DisplacementTractionBoundary over boundary
+  port mechanical[boundary in exterior]: DisplacementTractionBoundary over boundary
 ) {
   instance balance: IsotropicBalance2d(
     body = body,
@@ -69,7 +70,7 @@ public component PlaneStrainLinearElasticity2d(
       / ((1 + poisson_ratio) * (1 - 2 * poisson_ratio))
   );
 
-  connect conserving [boundary in exterior]
+  connect [boundary in exterior]
     mechanical[boundary = boundary],
     interface.mechanical[boundary = boundary];
 }
@@ -81,7 +82,7 @@ public component PlaneStressLinearElasticity2d(
   variable load_potential: kg / (m * s ^ 2) on body,
   parameter young_modulus: kg / (m * s ^ 2),
   parameter poisson_ratio: 1,
-  port mechanical[boundary in exterior]: conserving DisplacementTractionBoundary over boundary
+  port mechanical[boundary in exterior]: DisplacementTractionBoundary over boundary
 ) {
   instance balance: IsotropicBalance2d(
     body = body,
@@ -100,7 +101,7 @@ public component PlaneStressLinearElasticity2d(
       / (1 - poisson_ratio ^ 2)
   );
 
-  connect conserving [boundary in exterior]
+  connect [boundary in exterior]
     mechanical[boundary = boundary],
     interface.mechanical[boundary = boundary];
 }
@@ -112,7 +113,7 @@ public component PlaneStrainMaterial2d(
   variable load_potential: kg / (m * s ^ 2) on body,
   property young_modulus: YoungModulus,
   property poisson_ratio: PoissonRatio,
-  port mechanical[boundary in exterior]: conserving DisplacementTractionBoundary over boundary
+  port mechanical[boundary in exterior]: DisplacementTractionBoundary over boundary
 ) {
   instance elasticity: PlaneStrainLinearElasticity2d(
     body = body,
@@ -122,7 +123,7 @@ public component PlaneStrainMaterial2d(
     young_modulus = young_modulus,
     poisson_ratio = poisson_ratio
   );
-  connect conserving [boundary in exterior]
+  connect [boundary in exterior]
     mechanical[boundary = boundary],
     elasticity.mechanical[boundary = boundary];
 }
@@ -134,7 +135,7 @@ public component PlaneStressMaterial2d(
   variable load_potential: kg / (m * s ^ 2) on body,
   property young_modulus: YoungModulus,
   property poisson_ratio: PoissonRatio,
-  port mechanical[boundary in exterior]: conserving DisplacementTractionBoundary over boundary
+  port mechanical[boundary in exterior]: DisplacementTractionBoundary over boundary
 ) {
   instance elasticity: PlaneStressLinearElasticity2d(
     body = body,
@@ -144,7 +145,7 @@ public component PlaneStressMaterial2d(
     young_modulus = young_modulus,
     poisson_ratio = poisson_ratio
   );
-  connect conserving [boundary in exterior]
+  connect [boundary in exterior]
     mechanical[boundary = boundary],
     elasticity.mechanical[boundary = boundary];
 }
@@ -152,20 +153,20 @@ public component PlaneStressMaterial2d(
 public component FixedDisplacement2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
-  port mechanical: conserving DisplacementTractionBoundary over face
+  port mechanical: DisplacementTractionBoundary over face
 ) {
   relation prescribed_displacement on face {
-    trace(mechanical) = 0;
+    mechanical.displacement = 0;
   }
 }
 
 public component TractionFree2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
-  port mechanical: conserving DisplacementTractionBoundary over face
+  port mechanical: DisplacementTractionBoundary over face
 ) {
   relation prescribed_traction on face {
-    flux(mechanical) = 0;
+    mechanical.traction = 0;
   }
 }
 
@@ -173,10 +174,10 @@ public component PrescribedDisplacement2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
   variable displacement: vector<m, 2> on body,
-  port mechanical: conserving DisplacementTractionBoundary over face
+  port mechanical: DisplacementTractionBoundary over face
 ) {
   relation prescribed_displacement on face {
-    trace(mechanical) - trace(displacement) = 0;
+    mechanical.displacement - trace(displacement) = 0;
   }
 }
 
@@ -184,9 +185,9 @@ public component PrescribedTraction2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
   variable traction: vector<kg / (m * s ^ 2), 2> on body,
-  port mechanical: conserving DisplacementTractionBoundary over face
+  port mechanical: DisplacementTractionBoundary over face
 ) {
   relation prescribed_traction on face {
-    flux(mechanical) - trace(traction) = 0;
+    mechanical.traction - trace(traction) = 0;
   }
 }

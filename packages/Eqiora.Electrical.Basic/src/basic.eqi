@@ -1,34 +1,34 @@
-public connector Pin = scalar_physical(
-  across = kg * m ^ 2 / (s ^ 3 * A),
-  through = A
-);
+public connector Pin {
+  across voltage: kg * m ^ 2 / (s ^ 3 * A);
+  through current: A;
+}
 
 public component IdealVoltageSource(
   parameter voltage: kg * m ^ 2 / (s ^ 3 * A),
-  port positive: conserving on Pin,
-  port negative: conserving on Pin
+  port positive: Pin,
+  port negative: Pin
 ) {
   relation law {
-    across(positive) - across(negative) - voltage = 0;
-    through(positive) + through(negative) = 0;
+    positive.voltage - negative.voltage - voltage = 0;
+    positive.current + negative.current = 0;
   }
 }
 
 public component Resistor(
   parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2),
-  port positive: conserving on Pin,
-  port negative: conserving on Pin
+  port positive: Pin,
+  port negative: Pin
 ) {
   relation law {
-    across(positive) - across(negative) - resistance * through(positive) = 0;
-    through(positive) + through(negative) = 0;
+    positive.voltage - negative.voltage - resistance * positive.current = 0;
+    positive.current + negative.current = 0;
   }
 }
 
 public component Ground(
-  port terminal: conserving on Pin
+  port terminal: Pin
 ) {
   relation law {
-    across(terminal) = 0;
+    terminal.voltage = 0;
   }
 }

@@ -1,21 +1,22 @@
-public connector MechanicalBoundary = field_physical(
-  trace = displacement: m,
-  flux = traction: kg / (m * s ^ 2),
-  shape = spatial_vector,
-  frame = spatial,
-  pairing = euclidean_boundary_duality
-);
+public connector MechanicalBoundary {
+  trace displacement: m;
+  flux traction: kg / (m * s ^ 2);
+  shape spatial_vector;
+  frame spatial;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}
 
 public component ExteriorLaw(
   support body: volume(ambient_dimension = 2),
   support exterior: complete_exterior(parent = body),
-  port mechanical[boundary in exterior]: conserving MechanicalBoundary over boundary
+  port mechanical[boundary in exterior]: MechanicalBoundary over boundary
 ) {
   relation boundary_law[boundary in exterior] on boundary {
-    trace(mechanical[boundary = boundary])
-      - trace(mechanical[boundary = boundary]) = 0;
-    flux(mechanical[boundary = boundary])
-      - flux(mechanical[boundary = boundary]) = 0;
+    mechanical[boundary = boundary].displacement
+      - mechanical[boundary = boundary].displacement = 0;
+    mechanical[boundary = boundary].traction
+      - mechanical[boundary = boundary].traction = 0;
   }
 }
 

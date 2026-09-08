@@ -1,12 +1,12 @@
 model Network() {
-  domain physical = scalar_physical(across = 1, through = 1);
-  port a: conserving on physical;
-  port b: conserving on physical;
-  port c: conserving on physical;
+  domain physical = scalar_physical(across potential: 1, through flow: 1);
+  port a: physical;
+  port b: physical;
+  port c: physical;
   relation owner {
-    across(a) - across(b) = 0;
-    across(b) - across(c) = 0;
-    through(a) + through(b) + through(c) = 0;
+    a.potential - b.potential = 0;
+    b.potential - c.potential = 0;
+    a.flow + b.flow + c.flow = 0;
   }
-  connect conserving a, b, c;
+  connect a, b, c;
 }

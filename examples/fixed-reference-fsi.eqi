@@ -1,11 +1,12 @@
 // Shared interface contract: both subdomains expose velocity and traction.
-public connector VelocityTractionBoundary = field_physical(
-  trace = velocity: m / s,
-  flux = traction: kg / (m * s ^ 2),
-  shape = spatial_vector,
-  frame = spatial,
-  pairing = euclidean_boundary_duality
-);
+public connector VelocityTractionBoundary {
+  trace velocity: m / s;
+  flux traction: kg / (m * s ^ 2);
+  shape spatial_vector;
+  frame spatial;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}
 
 // Equations-only component for fluid-structure interaction on a fixed reference mesh.
 // Python supplies the adjacent fluid and solid Geometry and binds these support names.
@@ -73,18 +74,18 @@ public component FixedReferenceFsi2d(
   relation solid_y_upper_zero on solid_y_upper { trace(solid_velocity) = 0; }
 
   // The conserving connection enforces velocity continuity and balanced interface traction.
-  port fluid_interface: conserving VelocityTractionBoundary over fluid_x_upper;
-  port solid_interface: conserving VelocityTractionBoundary over solid_x_lower;
+  port fluid_interface: VelocityTractionBoundary over fluid_x_upper;
+  port solid_interface: VelocityTractionBoundary over solid_x_lower;
   relation fluid_interface_definition on fluid_x_upper {
-    trace(fluid_velocity) - trace(fluid_interface) = 0;
+    trace(fluid_velocity) - fluid_interface.velocity = 0;
     normal(2 * fluid_viscosity * symmetric_part(grad(fluid_velocity))
-      - isotropic_lift(fluid_pressure)) - flux(fluid_interface) = 0;
+      - isotropic_lift(fluid_pressure)) - fluid_interface.traction = 0;
   }
   relation solid_interface_definition on solid_x_lower {
-    trace(solid_velocity) - trace(solid_interface) = 0;
+    trace(solid_velocity) - solid_interface.velocity = 0;
     normal(2 * solid_mu * symmetric_part(grad(solid_displacement))
       + solid_lambda * isotropic_lift(div(solid_displacement)))
-      - flux(solid_interface) = 0;
+      - solid_interface.traction = 0;
   }
-  connect conserving fluid_interface, solid_interface;
+  connect fluid_interface, solid_interface;
 }

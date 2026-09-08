@@ -43,7 +43,7 @@ model Main() {
 
   connect controller.command -> source.command;
   connect sensor.speed -> controller.measured_speed;
-  connect conserving source.positive, motor.positive;
-  connect conserving source.negative, motor.negative, ground.terminal;
-  connect conserving motor.shaft, load.shaft, sensor.shaft;
+  connect source.positive, motor.positive;
+  connect source.negative, motor.negative, ground.terminal;
+  connect motor.shaft, load.shaft, sensor.shaft;
 }
