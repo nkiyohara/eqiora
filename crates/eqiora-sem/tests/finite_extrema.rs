@@ -215,10 +215,10 @@ fn implicit_and_continuous_selection_reject_before_execution() {
             "{error:?}"
         );
         for node in program.nodes() {
-            if let KernelNode::Relation(relation) = node {
-                if !relation.is_initial() {
-                    assert!(program.numerical_residuals(relation.id().erase()).is_err());
-                }
+            if let KernelNode::Relation(relation) = node
+                && !relation.is_initial()
+            {
+                assert!(program.numerical_residuals(relation.id().erase()).is_err());
             }
         }
     }
