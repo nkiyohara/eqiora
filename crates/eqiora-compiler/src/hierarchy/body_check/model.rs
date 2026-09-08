@@ -214,26 +214,31 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                         "Domain syntax is newer than definition-body validation",
                     )),
                 },
-                Item::Parameter(declaration) => self
-                    .compile_time_values
-                    .get(declaration.name())
-                    .map(|value| {
+                Item::Parameter(declaration) => {
+                    let value_type = self
+                        .compile_time_values
+                        .get(declaration.name())
+                        .map(|value| Ok(value.value_type.clone()))
+                        .unwrap_or_else(|| {
+                            let frames = crate::hierarchy::supports::model_spatial_supports(
+                                self.scope.file,
+                                self.definition.declaration,
+                            )
+                            .map_err(|mut errors| errors.remove(0))?;
+                            crate::hierarchy::parameters::frames::parameter_type(
+                                self.scope.file,
+                                declaration.value_type(),
+                                Some(declaration.value()),
+                                &frames,
+                            )
+                        });
+                    value_type.map(|value_type| {
                         Some((
                             declaration.name(),
-                            SymbolContract::Parameter(ExpressionType::new(
-                                value.value_type.clone(),
-                                None,
-                            )),
+                            SymbolContract::Parameter(ExpressionType::new(value_type, None)),
                         ))
                     })
-                    .ok_or_else(|| {
-                        source_error(
-                            codes::LANGUAGE_TYPE_ERROR,
-                            self.scope.file,
-                            declaration.range(),
-                            "Parameter type was not resolved in the static declaration context",
-                        )
-                    }),
+                }
                 Item::Let(declaration) => {
                     Ok(self
                         .compile_time_values

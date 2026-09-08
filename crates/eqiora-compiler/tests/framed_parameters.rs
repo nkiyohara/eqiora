@@ -76,7 +76,10 @@ fn missing_ambiguous_and_foreign_frames_reject() {
 
 #[test]
 fn component_frames_rebind_and_preserve_uniform_parameter_dependencies() {
-    let source = "component C(support body:volume(ambient_dimension=2),parameter p:vector<V,2>=tensor_value(frame=body,components=[2,3])) { relation r { p=p; } } model M() { domain a=box(0,1,0,1);domain b=box(0,2,0,2);instance first:C(body=a);instance second:C(body=b,p=tensor_value(frame=b,components=[5,7])); }";
+    let source = "component C(support body:volume(ambient_dimension=2),parameter p:vector<V,2>=tensor_value(frame=body,components=[2,3])) { relation r { p=p; } } model M() { domain a=box(0,1,0,1);domain b=box(0,2,0,2);instance first:C(body=a);instance second:C(body=b,p=tensor_value(frame=b,components=[5[V],7[V]])); }";
+    let untyped_binding = source.replace("[5[V],7[V]]", "[5,7]");
+    let errors = compile("occurrences.eqi", &untyped_binding).unwrap_err();
+    assert!(errors.iter().all(|error| error.source_span().is_some()));
     let models = compile("occurrences.eqi", source).unwrap();
     let values = models[0]
         .transaction()

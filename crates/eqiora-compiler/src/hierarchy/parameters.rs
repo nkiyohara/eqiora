@@ -443,7 +443,7 @@ fn resolve_instance_overrides(
                 continue;
             }
         };
-        let value = evaluate_initializer(
+        let value = expression_eval::evaluate_with_domain(
             binding_file,
             binding.value(),
             context,
@@ -459,9 +459,9 @@ fn resolve_instance_overrides(
                     )
                 })
             },
-         target.clone(),
-         "Parameter binding",
-         (&mut *resolve_clock, &mut *resolve_frame))
+         resolve_clock,
+         resolve_frame,
+         (target.scalar_domain() == ScalarDomain::Integer).then_some(ScalarDomain::Integer))
         .and_then(|value| coerce_parameter(binding_file, binding.range(), value, target));
         match value {
             Ok(value) => {
