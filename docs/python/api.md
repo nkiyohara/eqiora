@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 19 module summaries and all 215 canonical declaration summaries are source-traced; non-dunder member coverage remains **6 authoritative summaries and 703 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 19 module summaries and all 233 canonical declaration summaries are source-traced; non-dunder member coverage remains **6 authoritative summaries and 703 signature-only entries under documented owning types**.
 
-Inventory: 19 modules, 252 literal public spellings, 215 canonical grouped declarations, 927 visible method signatures (709 non-dunder and 218 dunder), and 76 visible class assignments.
+Inventory: 19 modules, 270 literal public spellings, 233 canonical grouped declarations, 927 visible method signatures (709 non-dunder and 218 dunder), and 76 visible class assignments.
 
 Regenerate with:
 
@@ -24,6 +24,114 @@ Python ergonomics over Eqiora's canonical Rust implementation.
 Module authority: [`bindings/python/python/eqiora/__init__.py`](../../bindings/python/python/eqiora/__init__.py)
 
 Shipped stub: [`bindings/python/python/eqiora/__init__.pyi`](../../bindings/python/python/eqiora/__init__.pyi)
+
+<a id="api-eqiora-equal"></a>
+
+### `eqiora.equal`
+
+Author a typed equal predicate.
+
+Authority: [`crates/eqiora-python/src/modeling/predicates.rs::equal`](../../crates/eqiora-python/src/modeling/predicates.rs)
+
+```python
+def equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
+```
+
+<a id="api-eqiora-not_equal"></a>
+
+### `eqiora.not_equal`
+
+Author a typed not equal predicate.
+
+Authority: [`crates/eqiora-python/src/modeling/predicates.rs::not_equal`](../../crates/eqiora-python/src/modeling/predicates.rs)
+
+```python
+def not_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
+```
+
+<a id="api-eqiora-less"></a>
+
+### `eqiora.less`
+
+Author a typed less predicate.
+
+Authority: [`crates/eqiora-python/src/modeling/predicates.rs::less`](../../crates/eqiora-python/src/modeling/predicates.rs)
+
+```python
+def less(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
+```
+
+<a id="api-eqiora-less_equal"></a>
+
+### `eqiora.less_equal`
+
+Author a typed less equal predicate.
+
+Authority: [`crates/eqiora-python/src/modeling/predicates.rs::less_equal`](../../crates/eqiora-python/src/modeling/predicates.rs)
+
+```python
+def less_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
+```
+
+<a id="api-eqiora-greater"></a>
+
+### `eqiora.greater`
+
+Author a typed greater predicate.
+
+Authority: [`crates/eqiora-python/src/modeling/predicates.rs::greater`](../../crates/eqiora-python/src/modeling/predicates.rs)
+
+```python
+def greater(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
+```
+
+<a id="api-eqiora-greater_equal"></a>
+
+### `eqiora.greater_equal`
+
+Author a typed greater equal predicate.
+
+Authority: [`crates/eqiora-python/src/modeling/predicates.rs::greater_equal`](../../crates/eqiora-python/src/modeling/predicates.rs)
+
+```python
+def greater_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
+```
+
+<a id="api-eqiora-logical_not"></a>
+
+### `eqiora.logical_not`
+
+Author a typed logical not predicate.
+
+Authority: [`crates/eqiora-python/src/modeling/predicates.rs::logical_not`](../../crates/eqiora-python/src/modeling/predicates.rs)
+
+```python
+def logical_not(value: _ExpressionLike) -> Expression: ...
+```
+
+<a id="api-eqiora-logical_and"></a>
+
+### `eqiora.logical_and`
+
+Author a typed logical and predicate.
+
+Authority: [`crates/eqiora-python/src/modeling/predicates.rs::logical_and`](../../crates/eqiora-python/src/modeling/predicates.rs)
+
+```python
+def logical_and(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
+```
+
+<a id="api-eqiora-logical_or"></a>
+
+### `eqiora.logical_or`
+
+Author a typed logical or predicate.
+
+Authority: [`crates/eqiora-python/src/modeling/predicates.rs::logical_or`](../../crates/eqiora-python/src/modeling/predicates.rs)
+
+```python
+def logical_or(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
+```
 
 <a id="api-eqiora-__version__"></a>
 
@@ -657,6 +765,8 @@ class ValueType:
     def to_eqi(self) -> str: ...
     @staticmethod
     def integer() -> ValueType: ...
+    @staticmethod
+    def boolean() -> ValueType: ...
     @staticmethod
     def real(dimension: Dimension | None=None) -> ValueType: ...
     @staticmethod
@@ -1351,39 +1461,34 @@ class FieldRole:
 
 ### `eqiora.Initial`
 
-Simultaneous fresh-initialization residuals, each equal to zero.
+Simultaneous fresh-initialization equations with explicit sides.
 
 Authority: [`crates/eqiora-python/src/modeling.rs::PyInitial`](../../crates/eqiora-python/src/modeling.rs)
 
 ```python
 @final
 class Initial:
-    def __new__(cls, *residuals: _ExpressionLike) -> Self: ...
+    def __new__(cls, *equations: tuple[_ExpressionLike, _ExpressionLike]) -> Self: ...
     @property
-    def residuals(self) -> list[Expression]: ...
+    def equations(self) -> list[tuple[Expression, Expression]]: ...
 ```
 
 <a id="api-eqiora-Relation"></a>
 
 ### `eqiora.Relation`
 
-Immutable continuous implicit relation declaration.
+Immutable continuous equations with explicit typed sides.
 
 Authority: [`crates/eqiora-python/src/modeling.rs::PyRelation`](../../crates/eqiora-python/src/modeling.rs)
 
 ```python
 @final
 class Relation:
-    @overload
-    def __new__(cls, name: str, *, domain: Domain | None=None, residual: _ExpressionLike, residuals: None=None) -> Self: ...
-    @overload
-    def __new__(cls, name: str, *, domain: Domain | None=None, residual: None=None, residuals: Sequence[_ExpressionLike]) -> Self: ...
+    def __new__(cls, name: str, *, equations: Sequence[tuple[_ExpressionLike, _ExpressionLike]], domain: Domain | None=None) -> Self: ...
     @property
     def name(self) -> str: ...
     @property
-    def residual(self) -> Expression: ...
-    @property
-    def residuals(self) -> list[Expression]: ...
+    def equations(self) -> list[tuple[Expression, Expression]]: ...
     @property
     def domain(self) -> Domain | None: ...
 ```
@@ -2441,6 +2546,114 @@ Module authority: [`bindings/python/python/eqiora/lang/__init__.py`](../../bindi
 
 Shipped stub: [`bindings/python/python/eqiora/lang/__init__.pyi`](../../bindings/python/python/eqiora/lang/__init__.pyi)
 
+<a id="api-eqiora-lang-equal"></a>
+
+### `eqiora.lang.equal`
+
+Author a typed equal predicate.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::equal`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def equal(left: object, right: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-not_equal"></a>
+
+### `eqiora.lang.not_equal`
+
+Author a typed not equal predicate.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::not_equal`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def not_equal(left: object, right: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-less"></a>
+
+### `eqiora.lang.less`
+
+Author a typed less predicate.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::less`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def less(left: object, right: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-less_equal"></a>
+
+### `eqiora.lang.less_equal`
+
+Author a typed less equal predicate.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::less_equal`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def less_equal(left: object, right: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-greater"></a>
+
+### `eqiora.lang.greater`
+
+Author a typed greater predicate.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::greater`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def greater(left: object, right: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-greater_equal"></a>
+
+### `eqiora.lang.greater_equal`
+
+Author a typed greater equal predicate.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::greater_equal`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def greater_equal(left: object, right: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-logical_not"></a>
+
+### `eqiora.lang.logical_not`
+
+Author a typed logical not predicate.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::logical_not`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def logical_not(value: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-logical_and"></a>
+
+### `eqiora.lang.logical_and`
+
+Author a typed logical and predicate.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::logical_and`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def logical_and(left: object, right: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-logical_or"></a>
+
+### `eqiora.lang.logical_or`
+
+Author a typed logical or predicate.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::logical_or`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def logical_or(left: object, right: object) -> Expression: ...
+```
+
 <a id="api-eqiora-lang-Clock"></a>
 
 ### `eqiora.lang.Clock`
@@ -2471,7 +2684,7 @@ class Component:
     def index(self, set: IndexSet, value: Expression | int) -> Expression: ...
     def index_set(self, name: str, *, extent: int, doc: str | None=None) -> IndexSet: ...
     def clock(self, name: str, *, period_s: Fraction | int, phase_s: Fraction | int=0, doc: str | None=None) -> Clock: ...
-    def initial(self, *residuals: Expression | int | float | complex, left: Expression | int | float | complex | None=None, right: Expression | int | float | complex | None=None, doc: str | None=None) -> None: ...
+    def initial(self, *equations: tuple[object, object], left: object=None, right: object=None, doc: str | None=None) -> None: ...
     def volume(self, name: str, *, dimensions: int, doc: str | None=None) -> Support: ...
     def boundary(self, name: str, *, parent: Support, doc: str | None=None) -> Support: ...
     def parameter(self, name: str, *, value_type: ValueType, doc: str | None=None) -> Expression: ...
@@ -2508,6 +2721,7 @@ class Expression:
     def __truediv__(self, other: Expression | float | int | complex, /) -> Expression: ...
     def __rtruediv__(self, other: float | int, /) -> Expression: ...
     def __pow__(self, exponent: int, /) -> Expression: ...
+    def __bool__(self) -> bool: ...
     def __neg__(self) -> Expression: ...
     def __getitem__(self, index: int) -> Expression: ...
 ```
