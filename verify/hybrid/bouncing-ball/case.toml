@@ -31,3 +31,17 @@ pending = [
 [evidence]
 package = "eqiora-sem"
 test = "reference_event"
+
+[affine_coincidence]
+flow = "x'=1; y'=2; z'=0; initially x=y=z=memory=0"
+clock = "period 1, phase 1; memory samples left-state x+y"
+primary_events = "rising x-1 resets x=10; rising y-2 resets y=20"
+post_reset_event = "rising x-5 resets z=7 in an event-only microstep"
+reference = "stabilized t=1: (10,20,7,3); t=1.25: (10.25,20.5,7,3)"
+coincidence_authority = "numerical-zero witness at nominal clock instant"
+ambiguous_brackets = "reject instead of tolerance snapping"
+conflicting_next_ownership = "reject with unchanged accepted checkpoint"
+restart = "in-memory clone at t=0.75 and stabilized t=1"
+arming = "retained through nonzero band entry and checkpoint"
+mathematical_real_time_equality = false
+persisted_checkpoint_format = false
