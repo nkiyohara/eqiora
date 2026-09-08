@@ -44,7 +44,7 @@ impl Parser<'_> {
     }
 
     fn parse_expression_inner(&mut self, minimum_binding_power: u8) -> Option<(Expr, usize)> {
-        if minimum_binding_power > 0 && self.at_keyword("if") {
+        if minimum_binding_power > 0 && (self.at_keyword("if") || self.at_keyword("case")) {
             self.error_here("conditional operand requires parentheses");
             return None;
         }
@@ -165,6 +165,9 @@ impl Parser<'_> {
     fn parse_primary(&mut self) -> Option<(Expr, usize)> {
         if self.at_keyword("if") {
             return self.parse_select();
+        }
+        if self.at_keyword("case") {
+            return self.parse_case();
         }
         if self.at_keyword("then") || self.at_keyword("else") {
             self.error_here("expected value expression before conditional branch keyword");

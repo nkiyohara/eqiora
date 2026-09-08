@@ -172,7 +172,9 @@ mod tests {
             source.range(),
         )
         .unwrap();
-        let document = SourceAstFactory::document(Vec::new(), vec![component], Vec::new()).unwrap();
+        let document =
+            SourceAstFactory::document(Vec::new(), Vec::new(), vec![component], Vec::new())
+                .unwrap();
 
         assert_eq!(document.components()[0].formulations().len(), 1);
         assert!(format(&document).contains("form primal for balance"));

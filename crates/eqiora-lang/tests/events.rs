@@ -85,7 +85,7 @@ fn explicit_directions_have_source_and_native_parity() {
             range,
         )
         .unwrap();
-        let document = F::document(vec![], vec![component], vec![]).unwrap();
+        let document = F::document(vec![], vec![], vec![component], vec![]).unwrap();
         let formatted = format(&document);
         assert!(formatted.contains(&format!(
             "event impact = crossing(height, direction = {spelling});"

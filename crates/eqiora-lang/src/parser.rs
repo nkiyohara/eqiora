@@ -11,6 +11,7 @@ mod connection;
 mod dimension;
 mod document;
 mod domain;
+mod enumeration;
 mod event;
 mod expression;
 mod formulation;

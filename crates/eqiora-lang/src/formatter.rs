@@ -36,6 +36,22 @@ pub fn format(document: &Document) -> String {
     output.begin(&document.comments);
     let mut declaration_count = document::format_header(document, &mut output);
     format_properties(document, &mut output, &mut declaration_count);
+    for declaration in &document.enumerations {
+        separate_declaration(&mut output, &mut declaration_count);
+        output.begin(&declaration.comments);
+        if declaration.visibility() == VisibilitySyntax::Public {
+            output.push_str("public ");
+        }
+        write!(output, "enum {} {{ ", declaration.name()).expect("String write");
+        for (index, tag) in declaration.tags().iter().enumerate() {
+            if index != 0 {
+                output.push_str(", ");
+            }
+            write!(output, "{tag}").expect("String write");
+        }
+        output.push_str(" }\n");
+        output.end();
+    }
     for space in &document.finite_spaces {
         separate_declaration(&mut output, &mut declaration_count);
         output.begin(&space.comments);

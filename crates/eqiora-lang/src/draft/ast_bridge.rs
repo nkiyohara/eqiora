@@ -210,8 +210,9 @@ impl super::ModelDraft {
             items,
             range,
         };
-        let mut document = crate::SourceAstFactory::document(vec![], vec![], vec![model])
-            .expect("native model document");
+        let mut document =
+            crate::SourceAstFactory::document(Vec::new(), vec![], vec![], vec![model])
+                .expect("native model document");
         document.finite_spaces = finite_spaces;
         NativeModelAst {
             document,

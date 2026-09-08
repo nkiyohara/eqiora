@@ -1,7 +1,7 @@
 use crate::ast::DomainSyntax;
 use crate::cartesian::CartesianCoordinateSyntax;
 
-use super::{AstConstructionError, validate_expression, validate_finite, validate_identifier};
+use super::{AstConstructionError, validate_finite, validate_identifier};
 
 pub(super) fn validate_domain_syntax(syntax: &DomainSyntax) -> Result<(), AstConstructionError> {
     match syntax {
@@ -28,8 +28,8 @@ pub(super) fn validate_domain_syntax(syntax: &DomainSyntax) -> Result<(), AstCon
             across_type,
             through_type,
         } => {
-            validate_expression(across_type.dimension())?;
-            validate_expression(through_type.dimension())
+            super::value_type::validate_syntax(across_type)?;
+            super::value_type::validate_syntax(through_type)
         }
     }
 }

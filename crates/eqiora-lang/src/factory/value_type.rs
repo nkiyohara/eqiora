@@ -19,6 +19,10 @@ impl SourceAstFactory {
         let mut count = 1_u64;
         for _ in 0..256 {
             let (element, extents) = match current.kind() {
+                ValueTypeSyntaxKind::Named(name) => {
+                    super::validate_name_path(name)?;
+                    return Ok(result);
+                }
                 ValueTypeSyntaxKind::Coordinates(name)
                 | ValueTypeSyntaxKind::Counts(name)
                 | ValueTypeSyntaxKind::Index(name) => {
@@ -78,13 +82,17 @@ impl SourceAstFactory {
 }
 
 fn require_scalar(value: &ValueTypeSyntax) -> Result<(), AstConstructionError> {
-    if value.is_scalar() {
+    if value.is_scalar() || matches!(value.kind(), ValueTypeSyntaxKind::Named(_)) {
         Ok(())
     } else {
         Err(AstConstructionError::new(
             "vector and tensor components require a scalar type",
         ))
     }
+}
+
+pub(super) fn validate_syntax(value: &ValueTypeSyntax) -> Result<(), AstConstructionError> {
+    SourceAstFactory::value_type(value.kind().clone(), value.range()).map(|_| ())
 }
 
 #[cfg(test)]
@@ -215,7 +223,8 @@ mod tests {
             range,
         )
         .unwrap();
-        let native = SourceAstFactory::document(Vec::new(), Vec::new(), vec![model]).unwrap();
+        let native =
+            SourceAstFactory::document(Vec::new(), Vec::new(), Vec::new(), vec![model]).unwrap();
         assert_eq!(format(&native), format(&parsed));
 
         for kind in [

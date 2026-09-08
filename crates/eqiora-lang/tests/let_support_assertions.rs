@@ -102,7 +102,8 @@ fn factory_support_assertion_survives_dimension_rewrite_and_reparse() {
         range,
     )
     .unwrap();
-    let native = SourceAstFactory::document(vec![], vec![component], vec![model]).unwrap();
+    let native =
+        SourceAstFactory::document(Vec::new(), vec![], vec![component], vec![model]).unwrap();
     assert_eq!(eqiora_lang::format(&native), eqiora_lang::format(&document));
     SourceAstFactory::rewrite_dimension_expressions(&mut document, |_| {
         SourceAstFactory::expression(ExprKind::Name("m".into()), range).unwrap()

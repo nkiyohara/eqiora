@@ -57,6 +57,14 @@ fn validate_expression_depth(expression: &Expr, depth: usize) -> Result<(), AstC
             }
             Ok(())
         }
+        ExprKind::Case { value, arms } => {
+            validate_expression_depth(value, depth + 1)?;
+            super::enumeration::validate_arms(arms)?;
+            for arm in arms {
+                validate_expression_depth(arm.value(), depth + 1)?;
+            }
+            Ok(())
+        }
         ExprKind::Select {
             condition,
             then_value,

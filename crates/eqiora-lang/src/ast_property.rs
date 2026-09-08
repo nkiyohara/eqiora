@@ -133,6 +133,7 @@ impl Document {
                     Self {
                         comments: Default::default(),
                         imports: Vec::new(),
+                        enumerations: self.enumerations.clone(),
                         finite_spaces: self.finite_spaces.clone(),
                         dimensions: self.dimensions.clone(),
                         property_contracts: vec![declaration.clone()],
@@ -153,6 +154,7 @@ impl Document {
                 Self {
                     comments: Default::default(),
                     imports: Vec::new(),
+                    enumerations: self.enumerations.clone(),
                     finite_spaces: self.finite_spaces.clone(),
                     dimensions: self.dimensions.clone(),
                     property_contracts: Vec::new(),
@@ -172,6 +174,7 @@ impl Document {
                 Self {
                     comments: Default::default(),
                     imports: Vec::new(),
+                    enumerations: self.enumerations.clone(),
                     finite_spaces: self.finite_spaces.clone(),
                     dimensions: self.dimensions.clone(),
                     property_contracts: Vec::new(),

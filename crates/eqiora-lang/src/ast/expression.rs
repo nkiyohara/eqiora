@@ -95,6 +95,20 @@ impl Expr {
                 value: Box::new(value.rewrite_name_paths_with(rewrite)),
                 index: Box::new(index.rewrite_name_paths_with(rewrite)),
             },
+            ExprKind::Case { value, arms } => ExprKind::Case {
+                value: Box::new(value.rewrite_name_paths_with(rewrite)),
+                arms: arms
+                    .iter()
+                    .map(|arm| CaseArm {
+                        pattern: rewrite(&arm.pattern).map_or_else(
+                            || arm.pattern.clone(),
+                            |path| path.with_range(arm.pattern.range()),
+                        ),
+                        value: arm.value.rewrite_name_paths_with(rewrite),
+                        range: arm.range,
+                    })
+                    .collect(),
+            },
             ExprKind::Select {
                 condition,
                 then_value,

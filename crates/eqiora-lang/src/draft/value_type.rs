@@ -162,8 +162,13 @@ mod tests {
                     .to_string(),
                 "M.coefficient"
             );
-            let document =
-                SourceAstFactory::document(vec![], vec![], vec![native.model().clone()]).unwrap();
+            let document = SourceAstFactory::document(
+                Vec::new(),
+                vec![],
+                vec![],
+                vec![native.model().clone()],
+            )
+            .unwrap();
             let source = crate::format(&document);
             let parsed = crate::parse("native.eqi", &source).into_document().unwrap();
             assert_eq!(crate::format(&parsed), source);
@@ -195,7 +200,8 @@ mod tests {
         let draft = ModelDraft::new("M", [field.into()]).unwrap();
         let native = draft.native_ast();
         let document =
-            SourceAstFactory::document(vec![], vec![], vec![native.model().clone()]).unwrap();
+            SourceAstFactory::document(Vec::new(), vec![], vec![], vec![native.model().clone()])
+                .unwrap();
         let source = crate::format(&document);
         assert!(source.contains("variable channels: array<vector<complex<1>, 2>, 3>;"));
         let parsed = crate::parse("native.eqi", &source).into_document().unwrap();

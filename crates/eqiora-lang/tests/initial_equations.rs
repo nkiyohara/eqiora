@@ -30,7 +30,8 @@ fn native_initial_equations_share_source_ast_without_field_literals() {
         "Decay.initial"
     );
     let document =
-        SourceAstFactory::document(vec![], vec![], vec![native.model().clone()]).unwrap();
+        SourceAstFactory::document(Vec::new(), vec![], vec![], vec![native.model().clone()])
+            .unwrap();
     let source = format(&document);
     assert!(source.contains("state x: 1;"));
     assert!(source.contains("initial {"));
@@ -167,8 +168,8 @@ fn factory_constructs_an_uninitialized_scalar_field() {
         range,
     )
     .expect("model");
-    let document =
-        SourceAstFactory::document(Vec::new(), Vec::new(), vec![model]).expect("document");
+    let document = SourceAstFactory::document(Vec::new(), Vec::new(), Vec::new(), vec![model])
+        .expect("document");
 
     let source = format(&document);
     assert_eq!(source, "model flow() {\n  variable pressure: 1;\n}\n");
