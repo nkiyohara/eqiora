@@ -103,7 +103,11 @@ impl Scope {
         let ExprKind::Name(family) = value.kind() else {
             return Err(invalid("indexed family requires a local instance name"));
         };
-        let ExprKind::Call { callee, arguments } = index.kind() else {
+        let ExprKind::Call {
+            callee,
+            arguments: eqiora_lang::CallArguments::Positional(arguments),
+        } = index.kind()
+        else {
             return Err(invalid("family selection requires index(Set, ordinal)"));
         };
         let [set, ordinal] = arguments.as_slice() else {

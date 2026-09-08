@@ -25,6 +25,7 @@ pub(super) use activation::port_activation;
 mod external;
 mod indexed;
 mod lets;
+mod operators;
 mod reductions;
 
 #[derive(Debug, Clone)]
@@ -107,7 +108,7 @@ pub(super) struct Scope {
     pub(super) field_evolution: BTreeMap<String, (eqiora_lang::FieldRoleSyntax, ActivationSyntax)>,
     field_types: BTreeMap<String, ExpressionType<FullElaborationIdentity>>,
     values: BTreeMap<String, lets::ScopedValue>,
-    pure_operators: BTreeMap<String, PureOperatorDefinition>,
+    pure_operators: BTreeMap<String, (PureOperatorDefinition, Vec<String>)>,
     occurrence_bindings: Vec<SourceLocation>,
     forwarded_parameter_resolution_bindings: Vec<SourceLocation>,
     forwarded_field_resolution_bindings: Vec<SourceLocation>,
@@ -117,16 +118,6 @@ pub(super) struct Scope {
 }
 
 impl Scope {
-    pub(super) fn set_pure_operators(
-        &mut self,
-        definitions: BTreeMap<String, PureOperatorDefinition>,
-    ) {
-        self.pure_operators = definitions;
-    }
-
-    fn pure_operator(&self, path: &NamePath) -> Option<&PureOperatorDefinition> {
-        self.pure_operators.get(path.as_str())
-    }
     pub(super) fn insert_symbol(&mut self, name: String, symbol: FlatSymbol) -> Option<FlatSymbol> {
         self.symbols.insert(name, symbol)
     }
@@ -578,7 +569,10 @@ pub(super) fn rewrite_expression_with_boundary_member(
                 expression.range(),
             )
         }
-        ExprKind::Call { callee, arguments } if callee.as_str() == "math.complex" => {
+        ExprKind::Call {
+            callee,
+            arguments: eqiora_lang::CallArguments::Positional(arguments),
+        } if callee.as_str() == "math.complex" => {
             let [real, imag] = arguments.as_slice() else {
                 return Err(source_error(
                     codes::LANGUAGE_TYPE_ERROR,
@@ -661,7 +655,10 @@ pub(super) fn rewrite_expression_with_boundary_member(
             rewrite_expression_with_boundary_member(file, right, scope, active)?,
             expression.range(),
         ),
-        ExprKind::Call { callee, arguments } if callee.as_str() == "period" => {
+        ExprKind::Call {
+            callee,
+            arguments: eqiora_lang::CallArguments::Positional(arguments),
+        } if callee.as_str() == "period" => {
             let [argument] = arguments.as_slice() else {
                 return Err(source_error(
                     codes::LANGUAGE_TYPE_ERROR,
@@ -694,7 +691,10 @@ pub(super) fn rewrite_expression_with_boundary_member(
                 expression.range(),
             )
         }
-        ExprKind::Call { callee, arguments } if callee.as_str() == "sample" => {
+        ExprKind::Call {
+            callee,
+            arguments: eqiora_lang::CallArguments::Positional(arguments),
+        } if callee.as_str() == "sample" => {
             let [value, clock] = arguments.as_slice() else {
                 return Err(source_error(
                     codes::LANGUAGE_TYPE_ERROR,
@@ -725,9 +725,10 @@ pub(super) fn rewrite_expression_with_boundary_member(
                 expression.range(),
             )
         }
-        ExprKind::Call { callee, arguments }
-            if crate::lower::IntegerBuiltin::named(callee.as_str()).is_some() =>
-        {
+        ExprKind::Call {
+            callee,
+            arguments: eqiora_lang::CallArguments::Positional(arguments),
+        } if crate::lower::IntegerBuiltin::named(callee.as_str()).is_some() => {
             let operator =
                 crate::lower::IntegerBuiltin::named(callee.as_str()).expect("named builtin guard");
             if arguments.len() != operator.arity() {
@@ -749,7 +750,10 @@ pub(super) fn rewrite_expression_with_boundary_member(
                 expression.range(),
             )
         }
-        ExprKind::Call { callee, arguments } if is_builtin_operator(callee) => {
+        ExprKind::Call {
+            callee,
+            arguments: eqiora_lang::CallArguments::Positional(arguments),
+        } if is_builtin_operator(callee) => {
             let [argument] = arguments.as_slice() else {
                 return Err(source_error(
                     codes::LANGUAGE_TYPE_ERROR,
@@ -765,21 +769,7 @@ pub(super) fn rewrite_expression_with_boundary_member(
             )
         }
         ExprKind::Call { callee, arguments } => {
-            let definition = scope.pure_operator(callee).cloned().ok_or_else(|| {
-                source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    file,
-                    callee.range(),
-                    format!("unresolved pure operator `{callee}`"),
-                )
-            })?;
-            let arguments = arguments
-                .iter()
-                .map(|argument| {
-                    rewrite_expression_with_boundary_member(file, argument, scope, active)
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            LoweringExpression::pure_operator(definition, arguments, expression.range())
+            operators::rewrite(file, expression, callee, arguments, scope, active)?
         }
         _ => {
             return Err(source_error(

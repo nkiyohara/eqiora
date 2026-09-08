@@ -4,15 +4,9 @@ use super::*;
 
 pub(super) fn encode_pure_operator(
     declaration: &PureOperatorDecl,
+    definition: &eqiora_schema::kernel::pure_operator::PureOperatorDefinition,
     budget: &mut Budget,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let definition = compile_definition("<source-identity>", declaration).map_err(|error| {
-        source_identity_error(format!(
-            "pure operator `{}` has no canonical definition: {}",
-            declaration.name(),
-            error.message()
-        ))
-    })?;
     let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
     encoder.field(1, |encoder| {
         encode_name(encoder, declaration.name(), budget)

@@ -48,7 +48,7 @@ use crate::connection_sets::{
     ConnectionFragment, ConnectionSetError, ConnectionSetLimits, normalize_connection_sets,
 };
 use crate::identity::IdentityNamespace;
-use crate::pure_operator::compile_definition;
+use crate::pure_operator::compile_definitions;
 pub(crate) use alias::ResolvedAliasTarget;
 use alias::encode_type_path;
 use compile_time::{encode_let, encode_parameter};
@@ -193,8 +193,16 @@ fn canonical_source_bytes_with_aliases(
         &mut budget,
         encode_material_composition,
     )?;
-    let pure_operators =
-        encode_sorted_records(document.pure_operators(), &mut budget, encode_pure_operator)?;
+    let pure_operators = {
+        let definitions = compile_definitions("<source-identity>", document)?;
+        encode_sorted_records(
+            document.pure_operators(),
+            &mut budget,
+            |declaration, budget| {
+                encode_pure_operator(declaration, &definitions[declaration.name()], budget)
+            },
+        )?
+    };
     let components = encode_sorted_records(document.components(), &mut budget, encode_component)?;
     let models = encode_sorted_records(document.models(), &mut budget, encode_model)?;
 
@@ -976,16 +984,16 @@ mod tests {
     #[test]
     fn pure_operator_identity_is_definition_semantic_and_order_independent() {
         let first = r#"
-public pure operator outer(left: spatial[1], right: spatial[1]) -> spatial[2]
+public operator outer(input left: spatial[1], input right: spatial[1]): spatial[2]
   = component(left, 0) * component(right, 1);
-private pure operator scale(value: scalar) -> scalar
+private operator scale(input value: scalar): scalar
   = rational(2, 1) * component(value);
 model M() { parameter p: 1 = 1; }
 "#;
         let renamed_and_reordered = r#"
-private pure operator scale(x: scalar) -> scalar
+private operator scale(input x: scalar): scalar
   = rational(2, 1) * component(x);
-public pure operator outer(a: spatial[1], b: spatial[1]) -> spatial[2]
+public operator outer(input a: spatial[1], input b: spatial[1]): spatial[2]
   = component(a, 0) * component(b, 1);
 model M() { parameter p: 1 = 1; }
 "#;

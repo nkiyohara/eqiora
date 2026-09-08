@@ -112,7 +112,11 @@ impl DependencyActivation {
                 }
                 ExprKind::Call { callee, .. } if callee.as_str() == "hold" => Self::Continuous,
                 ExprKind::Call { callee, arguments } if callee.as_str() == "sample" => {
-                    match arguments.get(1).map(Expr::kind) {
+                    match arguments
+                        .positional()
+                        .and_then(|arguments| arguments.get(1))
+                        .map(Expr::kind)
+                    {
                         Some(ExprKind::Name(name)) => Self::Clock(clock(name)),
                         _ => Self::Mixed,
                     }
@@ -120,7 +124,7 @@ impl DependencyActivation {
                 ExprKind::Call { arguments, .. } => {
                     // Evolution operators retain their target's declared activation too.
                     // The intrinsic checker has already validated identity-only targets.
-                    pending.extend(arguments.iter());
+                    pending.extend(arguments.expressions());
                     Self::Static
                 }
                 _ => Self::Static,

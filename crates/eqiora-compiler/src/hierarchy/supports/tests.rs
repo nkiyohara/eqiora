@@ -356,7 +356,11 @@ model Use() {{
         .iter()
         .find(|binding| binding.name() == "exterior")
         .unwrap();
-    let eqiora_lang::ExprKind::Call { arguments, .. } = binding.value().kind() else {
+    let eqiora_lang::ExprKind::Call {
+        arguments: eqiora_lang::CallArguments::Positional(arguments),
+        ..
+    } = binding.value().kind()
+    else {
         panic!("set binding")
     };
     let expected_range = arguments.last().expect("wrong member exists").range();

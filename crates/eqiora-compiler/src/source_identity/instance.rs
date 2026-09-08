@@ -19,7 +19,10 @@ pub(super) fn encode_instance(
         encode_type_path(encoder, declaration.definition(), budget)
     })?;
     let bindings = encode_sorted_records(declaration.bindings(), budget, |binding, budget| {
-        if let eqiora_lang::ExprKind::Call { callee, arguments } = binding.value().kind()
+        if let eqiora_lang::ExprKind::Call {
+            callee,
+            arguments: eqiora_lang::CallArguments::Positional(arguments),
+        } = binding.value().kind()
             && callee.as_str() == "boundaries"
         {
             budget.account_boundary_set_members(arguments.len())?;

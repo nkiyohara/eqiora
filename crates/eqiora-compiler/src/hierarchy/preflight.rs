@@ -12,7 +12,7 @@ use eqiora_schema::kernel::pure_operator::PureOperatorDefinition;
 
 use crate::diagnostics::source_error;
 use crate::identity::IdentityNamespace;
-use crate::pure_operator::compile_definition;
+use crate::pure_operator::compile_definitions;
 use crate::resolved::{AnalyzedResolvedHierarchy, CompilationModuleId};
 #[cfg(test)]
 use crate::source_identity::LocalSourceIdentity;
@@ -379,12 +379,25 @@ impl<'a> Elaborator<'a> {
     pub(super) fn visible_pure_operators(
         &self,
         owner: &DefinitionNamespace,
-    ) -> BTreeMap<String, PureOperatorDefinition> {
+    ) -> BTreeMap<String, (PureOperatorDefinition, Vec<String>)> {
         let mut visible = self
             .pure_operators
             .iter()
             .filter(|(key, _)| &key.namespace == owner)
-            .map(|(key, value)| (key.name.clone(), value.definition.clone()))
+            .map(|(key, value)| {
+                (
+                    key.name.clone(),
+                    (
+                        value.definition.clone(),
+                        value
+                            .declaration
+                            .formals()
+                            .iter()
+                            .map(|formal| formal.name().to_owned())
+                            .collect(),
+                    ),
+                )
+            })
             .collect::<BTreeMap<_, _>>();
         for ((declaring, alias), target) in &self.aliases {
             if declaring != owner {
@@ -394,7 +407,18 @@ impl<'a> Elaborator<'a> {
                 if &key.namespace == target
                     && value.declaration.visibility() == eqiora_lang::VisibilitySyntax::Public
                 {
-                    visible.insert(format!("{alias}.{}", key.name), value.definition.clone());
+                    visible.insert(
+                        format!("{alias}.{}", key.name),
+                        (
+                            value.definition.clone(),
+                            value
+                                .declaration
+                                .formals()
+                                .iter()
+                                .map(|formal| formal.name().to_owned())
+                                .collect(),
+                        ),
+                    );
                 }
             }
         }
@@ -699,6 +723,13 @@ fn index_unit<'a>(
     models: &mut BTreeMap<DefinitionKey, ModelDefinition<'a>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let compiled_operators = match compile_definitions(file, document) {
+        Ok(definitions) => definitions,
+        Err(error) => {
+            diagnostics.push(error);
+            BTreeMap::new()
+        }
+    };
     for declaration in document.pure_operators() {
         validate_identifier(
             file,
@@ -711,12 +742,8 @@ fn index_unit<'a>(
             namespace: namespace.clone(),
             name: declaration.name().to_owned(),
         };
-        let definition = match compile_definition(file, declaration) {
-            Ok(definition) => definition,
-            Err(diagnostic) => {
-                diagnostics.push(diagnostic);
-                continue;
-            }
+        let Some(definition) = compiled_operators.get(declaration.name()).cloned() else {
+            continue;
         };
         if pure_operators
             .insert(

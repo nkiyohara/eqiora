@@ -502,7 +502,7 @@ mod tests {
     #[test]
     fn rational_property_units_and_pure_operator_dimensions_share_exact_algebra() {
         let source = r#"
-pure operator square(x: scalar) -> scalar = component(x) * component(x);
+operator square(input x: scalar): scalar = component(x) * component(x);
 property contract Amplitude(): m ^ (-1 / 2) { derivatives value_only; }
 property release Reference implements Amplitude {
   value = 8;
@@ -514,7 +514,7 @@ property release Reference implements Amplitude {
 component Wave(support body: volume(ambient_dimension = 1), property amplitude: Amplitude) {
   variable value: m ^ (-1 / 2) on body; initial { value = 0; }
   variable intensity: m ^ -1 on body; initial { intensity = 0; }
-  relation law on body { value = amplitude; intensity = square(value); }
+  relation law on body { value = amplitude; intensity = square(x=value); }
 }
 model Main() {
   domain interval = box(0, 1);

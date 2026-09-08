@@ -846,13 +846,14 @@ model scalar_poisson() {
 
 #[test]
 fn source_pure_operators_admit_complex_fields_without_real_narrowing() {
-    let source = "public pure operator dyadic(left: spatial[1], right: spatial[1]) -> spatial[2]
+    let source =
+        "public operator dyadic(input left: spatial[1], input right: spatial[1]): spatial[2]
         = component(left, 0) * component(right, 1);
     model M() {
         domain body = box(0, 1, 0, 1);
         variable left: vector<complex<1>, 2> on body;
         variable right: vector<1, 2> on body;
-        relation r on body { div(div(dyadic(left, right))) = 0; }
+        relation r on body { div(div(dyadic(left=left, right=right))) = 0; }
     }";
     compile("complex-operator.eqi", source).unwrap();
 }
@@ -860,7 +861,7 @@ fn source_pure_operators_admit_complex_fields_without_real_narrowing() {
 #[test]
 fn compiler_lowers_source_declared_pure_operator_as_one_generic_application() {
     let source = r#"
-public pure operator dyadic(left: spatial[1], right: spatial[1]) -> spatial[2]
+public operator dyadic(input left: spatial[1], input right: spatial[1]): spatial[2]
   = component(left, 0) * component(right, 1);
 
 model generic_operator() {
@@ -868,7 +869,7 @@ model generic_operator() {
   variable left: vector<1, 2> on body;
   variable right: vector<1, 2> on body;
   relation balance on body {
-    div(div(dyadic(left, right))) = 0;
+    div(div(dyadic(left=left, right=right))) = 0;
   }
 }
 "#;
@@ -916,7 +917,7 @@ model generic_operator() {
 #[test]
 fn pure_operator_arity_and_exact_value_class_fail_before_lowering() {
     let prefix = r#"
-public pure operator dyadic(left: spatial[1], right: spatial[1]) -> spatial[2]
+public operator dyadic(input left: spatial[1], input right: spatial[1]): spatial[2]
   = component(left, 0) * component(right, 1);
 model invalid() {
   domain body = box(0, 1, 0, 1);
@@ -925,8 +926,8 @@ model invalid() {
   relation balance on body {
 "#;
     for (residual, expected) in [
-        ("dyadic(vector) = 0;", "argument count"),
-        ("dyadic(scalar, vector) = 0;", "exact type rule"),
+        ("dyadic(left=vector) = 0;", "missing operator argument"),
+        ("dyadic(left=scalar, right=vector) = 0;", "exact type rule"),
     ] {
         let source = format!("{prefix}{residual}\n  }}\n}}\n");
         let diagnostics = compile("invalid-pure-operator.eqi", &source)

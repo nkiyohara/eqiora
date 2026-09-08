@@ -365,11 +365,14 @@ fn projection_frame(
         match expression.kind() {
             ExprKind::Array(values) => pending.extend(values.iter().rev()),
             ExprKind::Call { callee, arguments } if callee.as_str() == "tensor_value" => {
-                let name = arguments.first().and_then(|frame| match frame.kind() {
-                    ExprKind::Name(name) => Some(name.as_str()),
-                    ExprKind::Path(name) => Some(name.as_str()),
-                    _ => None,
-                });
+                let name = arguments
+                    .named()
+                    .and_then(|bindings| bindings.iter().find(|binding| binding.name() == "frame"))
+                    .and_then(|binding| match binding.value().kind() {
+                        ExprKind::Name(name) => Some(name.as_str()),
+                        ExprKind::Path(name) => Some(name.as_str()),
+                        _ => None,
+                    });
                 if let Some(name) = name.filter(|name| frames.contains_key(*name)) {
                     return NamePath::from_segments(name.split('.'), range)
                         .map(Some)

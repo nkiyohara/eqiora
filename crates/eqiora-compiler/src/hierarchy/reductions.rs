@@ -152,11 +152,12 @@ fn visit_children<'a>(
             visit(value)?;
             visit(index)?;
         }
-        ExprKind::Array(elements)
-        | ExprKind::Call {
-            arguments: elements,
-            ..
-        } => {
+        ExprKind::Call { arguments, .. } => {
+            for argument in arguments.expressions() {
+                visit(argument)?;
+            }
+        }
+        ExprKind::Array(elements) => {
             for element in elements {
                 visit(element)?;
             }
@@ -195,7 +196,7 @@ fn substitute(
     };
     if let ExprKind::Call { callee, arguments } = expression.kind()
         && callee.as_str() == "ordinal"
-        && matches!(arguments.as_slice(), [argument] if matches!(argument.kind(), ExprKind::Name(name) if name == member))
+        && matches!(arguments.positional(), Some([argument]) if matches!(argument.kind(), ExprKind::Name(name) if name == member))
     {
         let number = construct(ExprKind::Number(
             DecimalLiteral::parse(&ordinal.to_string())
@@ -204,7 +205,7 @@ fn substitute(
         return construct(ExprKind::Call {
             callee: NamePath::from_segments(["to_integer"], expression.range())
                 .map_err(|failure| error(file, expression, failure.to_string()))?,
-            arguments: vec![number],
+            arguments: eqiora_lang::CallArguments::Positional(vec![number]),
         });
     }
     let mut child = |value: &Expr| substitute(file, value, member, ordinal, depth + 1);
@@ -260,13 +261,36 @@ fn substitute(
         },
         ExprKind::Call { callee, arguments } => ExprKind::Call {
             callee: callee.clone(),
-            arguments: arguments.iter().map(&mut child).collect::<Result<_, _>>()?,
+            arguments: match arguments {
+                eqiora_lang::CallArguments::Positional(values) => {
+                    eqiora_lang::CallArguments::Positional(
+                        values.iter().map(&mut child).collect::<Result<_, _>>()?,
+                    )
+                }
+                eqiora_lang::CallArguments::Named(values) => eqiora_lang::CallArguments::Named(
+                    values
+                        .iter()
+                        .map(|binding| {
+                            SourceAstFactory::named_binding(
+                                binding.name(),
+                                child(binding.value())?,
+                                binding.range(),
+                            )
+                            .map_err(|failure| error(file, expression, failure.to_string()))
+                        })
+                        .collect::<Result<_, _>>()?,
+                ),
+            },
         },
         _ => return Ok(expression.clone()),
     };
     let mut result = construct(kind)?;
     if let Some(value_type) = expression.resolved_nominal() {
-        let ExprKind::Call { arguments, .. } = expression.kind() else {
+        let ExprKind::Call {
+            arguments: eqiora_lang::CallArguments::Positional(arguments),
+            ..
+        } = expression.kind()
+        else {
             return Err(error(
                 file,
                 expression,
@@ -348,7 +372,11 @@ mod tests {
         let ExprKind::Binary { left, right, .. } = value.kind() else {
             panic!("sum")
         };
-        let ExprKind::Call { callee, arguments } = left.kind() else {
+        let ExprKind::Call {
+            callee,
+            arguments: eqiora_lang::CallArguments::Positional(arguments),
+        } = left.kind()
+        else {
             panic!("conversion")
         };
         assert_eq!(callee.as_str(), "to_integer");
@@ -391,13 +419,20 @@ mod tests {
         let result = instantiate("test", &constructor, binder, 3).unwrap();
         assert_eq!(result.resolved_nominal(), Some(&exact_type));
         assert_eq!(result.range(), constructor.range());
-        let ExprKind::Call { arguments, .. } = result.kind() else {
+        let ExprKind::Call {
+            arguments: eqiora_lang::CallArguments::Positional(arguments),
+            ..
+        } = result.kind()
+        else {
             panic!("index")
         };
         assert_eq!(
             arguments[0],
             match constructor.kind() {
-                ExprKind::Call { arguments, .. } => arguments[0].clone(),
+                ExprKind::Call {
+                    arguments: eqiora_lang::CallArguments::Positional(arguments),
+                    ..
+                } => arguments[0].clone(),
                 _ => unreachable!(),
             }
         );

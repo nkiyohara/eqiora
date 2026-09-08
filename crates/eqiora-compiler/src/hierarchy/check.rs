@@ -523,7 +523,7 @@ fn count_expression_terms(
             ExprKind::Array(elements) => pending.extend(elements),
             ExprKind::Index { value, index } => pending.extend([value.as_ref(), index.as_ref()]),
             ExprKind::Unary { value, .. } => pending.push(value),
-            ExprKind::Call { arguments, .. } => pending.extend(arguments),
+            ExprKind::Call { arguments, .. } => pending.extend(arguments.expressions()),
             ExprKind::Binary { left, right, .. } => {
                 pending.push(right);
                 pending.push(left);
