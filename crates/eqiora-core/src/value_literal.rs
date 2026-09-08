@@ -250,6 +250,7 @@ impl core::fmt::Display for InvalidValueLiteral {
 }
 impl std::error::Error for InvalidValueLiteral {}
 
+mod array;
 mod comparison;
 mod integer;
 

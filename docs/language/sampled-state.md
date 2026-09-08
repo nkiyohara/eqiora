@@ -172,3 +172,35 @@ constant rate 2 V/s.
 Each delay publishes its own pre-tick value. Each integrator tick adds exactly
 `0.25 s * 2 V/s = 0.5 V`, including the tick at zero. This table follows directly from the
 recurrences above; it does not depend on an execution trace or a component-name convention.
+
+## Fixed channel memory
+
+The sampled reference executor also accepts fixed channel arrays of real or exact
+integer values. A whole array is one typed assignment target. Component expressions
+use ordinary scalar arithmetic and explicit indexing:
+
+```eqiora
+model ChannelDelay(clock tick: periodic, input u: array<V, 2> at tick,
+                   output y: array<V, 2> at tick) {
+  state memory: array<V, 2> at tick;
+  initial { memory = [0[V], 0[V]]; }
+  relation update at tick {
+    y = pre(memory);
+    next(memory) = [u[1], u[0]];
+  }
+}
+```
+
+For input `[2 V, 3 V]`, the first tick publishes `[0 V, 0 V]` and commits
+`[3 V, 2 V]`. Every right-hand side reads the same accepted pre-tick state;
+equation order cannot update one component early. A failed component evaluation,
+including exact integer overflow, rejects the whole tick and preserves state,
+calendar, input position and output presence. Checkpoint/resume retains complete
+array values without rerunning initialization.
+
+Extents are fixed by the Model. Scalar broadcasting, partial indexed assignment,
+general whole-array arithmetic, spatial tensors, complex execution and Boolean
+arrays are outside this profile. The existing one-million retained-value limits
+count scalar components; intermediate array construction also has a bounded total
+component budget. These are focused product capabilities, not new registered
+scientific evidence or a production scheduling claim.

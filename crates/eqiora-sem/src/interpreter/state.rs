@@ -1,11 +1,11 @@
-//! Accepted numerical and exact discrete storage for one reference execution.
+//! Accepted scalar numerical and whole typed storage for one reference execution.
 use super::*;
 
 #[derive(Debug, Clone)]
 pub(super) struct RuntimeState {
-    pub(super) discrete_fields: BTreeMap<RawId, eqiora_core::ValueLiteral>,
-    pub(super) discrete_ports: BTreeMap<RawId, eqiora_core::ValueLiteral>,
-    pub(super) discrete_next: BTreeMap<RawId, eqiora_core::ValueLiteral>,
+    pub(super) typed_fields: BTreeMap<RawId, eqiora_core::ValueLiteral>,
+    pub(super) typed_ports: BTreeMap<RawId, eqiora_core::ValueLiteral>,
+    pub(super) typed_next: BTreeMap<RawId, eqiora_core::ValueLiteral>,
     pub(super) fields: BTreeMap<RawId, f64>,
     pub(super) derivatives: BTreeMap<RawId, f64>,
     pub(super) ports: BTreeMap<RawId, f64>,
@@ -20,14 +20,20 @@ impl RuntimeState {
             match node {
                 KernelNode::Field(field)
                     if !is_clocked_variable(program, field.id().erase())
-                        && !discrete::is_discrete(program, SymbolRef::Field(field.id())) =>
+                        && !direct_assignments::requires_typed_assignment(
+                            program,
+                            SymbolRef::Field(field.id()),
+                        ) =>
                 {
                     let id = field.id().erase();
                     fields.insert(id, 0.0);
                 }
                 KernelNode::Port(port)
                     if matches!(port.signal_contract(), Some((SignalDirection::Output, _)))
-                        && !discrete::is_discrete(program, SymbolRef::Port(port.id())) =>
+                        && !direct_assignments::requires_typed_assignment(
+                            program,
+                            SymbolRef::Port(port.id()),
+                        ) =>
                 {
                     ports.insert(port.id().erase(), 0.0);
                 }
@@ -35,9 +41,9 @@ impl RuntimeState {
             }
         }
         Ok(Self {
-            discrete_fields: BTreeMap::new(),
-            discrete_ports: BTreeMap::new(),
-            discrete_next: BTreeMap::new(),
+            typed_fields: BTreeMap::new(),
+            typed_ports: BTreeMap::new(),
+            typed_next: BTreeMap::new(),
             fields,
             derivatives: BTreeMap::new(),
             ports,

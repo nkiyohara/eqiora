@@ -46,6 +46,10 @@ impl Resolver<'_> {
     fn anchor_node(&mut self, value: &LoweringExpression) -> Option<ScalarDomain> {
         match value.node.as_ref() {
             LoweringExpressionNode::Number(_) => None,
+            LoweringExpressionNode::Array(elements) => {
+                elements.iter().find_map(|element| self.anchor(element))
+            }
+            LoweringExpressionNode::Index { value, .. } => self.anchor(value),
             LoweringExpressionNode::Neg(value) => self.anchor(value),
             LoweringExpressionNode::Not(_) => Some(ScalarDomain::Boolean),
             LoweringExpressionNode::Binary { operator, .. }

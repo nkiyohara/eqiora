@@ -1,27 +1,41 @@
-//! Exact direct assignments share the expression backend; Newton only sees real residuals.
+//! Whole typed assignments share the expression backend; Newton only sees real scalar residuals.
 use super::*;
 use eqiora_core::{ScalarDomain, ValueLiteral, ValueType};
 use eqiora_schema::kernel::{ExprDag, ExprId};
 
+/// Channel axes retain invariant scalar elements; spatial axes stay unsupported.
 pub(super) fn supported_type(value: &ValueType) -> bool {
-    (value.scalar_domain() == ScalarDomain::Real && value.shape().is_scalar())
+    let channels = value.array_rank() > 0
+        && value.array_rank() == value.shape().rank()
+        && value.frame() == eqiora_core::ValueFrame::Invariant
+        && matches!(
+            value.scalar_domain(),
+            ScalarDomain::Real | ScalarDomain::Integer
+        );
+    channels
+        || (value.scalar_domain() == ScalarDomain::Real && value.shape().is_scalar())
         || *value == ValueType::boolean()
         || (value.scalar_domain() == ScalarDomain::Integer && value.array_rank() == 0)
 }
 
-pub(super) fn is_discrete(program: &KernelProgram, symbol: SymbolRef) -> bool {
+pub(super) fn requires_typed_assignment(program: &KernelProgram, symbol: SymbolRef) -> bool {
     program.execution_symbol_type(symbol).is_some_and(|value| {
-        matches!(
-            value.scalar_domain(),
-            ScalarDomain::Integer | ScalarDomain::Boolean
-        )
+        value.array_rank() > 0
+            || matches!(
+                value.scalar_domain(),
+                ScalarDomain::Integer | ScalarDomain::Boolean
+            )
     })
 }
 
-pub(super) fn is_discrete_id(program: &KernelProgram, id: RawId) -> bool {
+pub(super) fn requires_typed_assignment_id(program: &KernelProgram, id: RawId) -> bool {
     match program.node(id) {
-        Some(KernelNode::Field(field)) => is_discrete(program, SymbolRef::Field(field.id())),
-        Some(KernelNode::Port(port)) => is_discrete(program, SymbolRef::Port(port.id())),
+        Some(KernelNode::Field(field)) => {
+            requires_typed_assignment(program, SymbolRef::Field(field.id()))
+        }
+        Some(KernelNode::Port(port)) => {
+            requires_typed_assignment(program, SymbolRef::Port(port.id()))
+        }
         _ => false,
     }
 }
@@ -38,7 +52,7 @@ fn assignment(
                 symbol,
                 SymbolRef::Field(_) | SymbolRef::Pre(_) | SymbolRef::Next(_) | SymbolRef::Port(_)
             )
-            && is_discrete(program, *symbol)
+            && requires_typed_assignment(program, *symbol)
         {
             return Some((*symbol, rhs));
         }
@@ -61,7 +75,7 @@ pub(super) fn typed_fields(
     program: &KernelProgram,
     state: &RuntimeState,
 ) -> Result<BTreeMap<RawId, ValueLiteral>, Vec<Diagnostic>> {
-    let mut fields = state.discrete_fields.clone();
+    let mut fields = state.typed_fields.clone();
     for (&id, &value) in &state.fields {
         let Some(KernelNode::Field(field)) = program.node(id) else {
             continue;
@@ -113,7 +127,7 @@ pub(super) fn stage(
                 };
                 if !allowed || !targets.insert(target) {
                     return Err(execution_error(
-                        "exact discrete assignments require one direct target at its owning activation",
+                        "typed direct assignments require one direct target at its owning activation",
                         time,
                     ));
                 }
@@ -138,15 +152,15 @@ pub(super) fn stage(
                 signal_sources: &plan.signal_sources,
                 physical: &state.physical,
                 physical_candidates: &BTreeMap::new(),
-                discrete_fields: &state.discrete_fields,
-                discrete_ports: &state.discrete_ports,
-                discrete_next: &state.discrete_next,
+                typed_fields: &state.typed_fields,
+                typed_ports: &state.typed_ports,
+                typed_next: &state.typed_next,
             };
             let mut missing = false;
             let result = backend.evaluate(owner, dag, &[rhs], &mut |symbol| {
                 let value = if initial
                     && !matches!(symbol, SymbolRef::Parameter(_))
-                    && !is_discrete(program, symbol)
+                    && !requires_typed_assignment(program, symbol)
                 {
                     None
                 } else {
@@ -177,20 +191,20 @@ pub(super) fn stage(
             }
             match target {
                 SymbolRef::Next(id) => {
-                    state.discrete_next.insert(id.erase(), value);
+                    state.typed_next.insert(id.erase(), value);
                 }
                 SymbolRef::Field(id) => {
-                    state.discrete_fields.insert(id.erase(), value);
+                    state.typed_fields.insert(id.erase(), value);
                 }
                 SymbolRef::Port(id) => {
-                    state.discrete_ports.insert(id.erase(), value);
+                    state.typed_ports.insert(id.erase(), value);
                 }
                 _ => unreachable!(),
             }
         }
         if waiting.len() == before {
             return Err(execution_error(
-                "exact discrete assignments are cyclic or lack an accepted input",
+                "typed direct assignments are cyclic or lack an accepted input",
                 time,
             ));
         }
@@ -198,15 +212,94 @@ pub(super) fn stage(
     }
     if initial
         && plan.fields.iter().any(|id| {
-            is_discrete_id(program, *id)
+            requires_typed_assignment_id(program, *id)
                 && !is_clocked_variable(program, *id)
-                && !state.discrete_fields.contains_key(id)
+                && !state.typed_fields.contains_key(id)
         })
     {
         return Err(execution_error(
-            "exact discrete State requires an explicit initial assignment",
+            "typed State requires an explicit initial assignment",
             time,
         ));
     }
     Ok(())
+}
+
+/// Bound complete retained state/Port/Parameter payloads before plan/state allocation.
+/// The same scalar-component cap applies to sampled input and output retention.
+pub(super) const MAX_COMPONENTS: usize = 1_000_000;
+
+pub(super) fn validate_storage_budget(program: &KernelProgram) -> Result<(), Diagnostic> {
+    let types = program.nodes().filter_map(|node| match node {
+        KernelNode::Field(value) => Some(value.value_type()),
+        KernelNode::Port(value) => value.signal_contract().map(|(_, value_type)| value_type),
+        KernelNode::Parameter(value) => Some(value.value_type()),
+        _ => None,
+    });
+    validate_component_total(types, MAX_COMPONENTS)
+}
+
+fn validate_component_total<'a>(
+    types: impl Iterator<Item = &'a ValueType>,
+    limit: usize,
+) -> Result<(), Diagnostic> {
+    let mut components = 0usize;
+    for value_type in types {
+        components = value_type
+            .shape()
+            .component_count()
+            .and_then(|count| components.checked_add(count))
+            .filter(|total| *total <= limit)
+            .ok_or_else(|| {
+                execution_error(
+                    "reference value storage exceeds the scalar-component budget",
+                    0.0,
+                )
+            })?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn channel_profile_keeps_domain_and_spatial_axes_distinct() {
+        use eqiora_core::{DimExponents, ValueFrame, ValueShape};
+        let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+        assert!(supported_type(
+            &real.clone().array(2).unwrap().array(3).unwrap()
+        ));
+        assert!(supported_type(
+            &ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                .array(2)
+                .unwrap()
+        ));
+        assert!(!supported_type(
+            &ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+                .array(2)
+                .unwrap()
+        ));
+        assert!(ValueType::boolean().array(2).is_err());
+        let vector = ValueType::shaped(
+            ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+            ValueShape::new([2]).unwrap(),
+            ValueFrame::SpatialCartesian,
+        )
+        .unwrap();
+        assert!(!supported_type(&vector));
+        assert!(!supported_type(&vector.array(2).unwrap()));
+    }
+
+    #[test]
+    fn storage_budget_counts_complete_shapes_before_allocating_values() {
+        let scalar =
+            ValueType::scalar(ScalarDomain::Real, eqiora_core::DimExponents::DIMENSIONLESS);
+        let array = scalar.clone().array(3).unwrap();
+        assert!(validate_component_total([&array, &scalar].into_iter(), 4).is_ok());
+        assert!(validate_component_total([&array, &scalar].into_iter(), 3).is_err());
+        let huge = scalar.array(1_000_001).unwrap();
+        assert!(validate_component_total([&huge].into_iter(), MAX_COMPONENTS).is_err());
+    }
 }

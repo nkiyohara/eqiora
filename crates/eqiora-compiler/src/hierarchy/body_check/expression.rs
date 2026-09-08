@@ -237,10 +237,24 @@ impl ExpressionChecker<'_, '_, '_> {
     fn check(&mut self, expression: &Expr) -> Result<ExpressionType<String>, Diagnostic> {
         match expression.kind() {
             ExprKind::Array(elements) => {
-                let types = elements
+                let mut types = elements
                     .iter()
                     .map(|element| self.check(element))
                     .collect::<Result<Vec<_>, _>>()?;
+                if types.iter().any(|value| {
+                    value.value_type.scalar_domain() == eqiora_core::ScalarDomain::Integer
+                }) {
+                    for (element, element_type) in elements.iter().zip(&mut types) {
+                        if element_type.value_type.scalar_domain()
+                            != eqiora_core::ScalarDomain::Integer
+                        {
+                            *element_type = self.check_numeric_context(
+                                element,
+                                eqiora_core::ScalarDomain::Integer,
+                            )?;
+                        }
+                    }
+                }
                 let inferred = ExpressionType::array(&types)
                     .map_err(|error| type_error(self.scope.file, expression, error))?;
                 crate::typed_values::check_type(&inferred.value_type).map_err(|message| {

@@ -13,6 +13,8 @@ pub(super) fn evaluate_instructions(
                 | Instruction::Not(_)
                 | Instruction::And(_, _)
                 | Instruction::Or(_, _)
+                | Instruction::Array { .. }
+                | Instruction::Index(_, _)
                 | Instruction::TypedConstant(_)
                 | Instruction::Quotient(_, _)
                 | Instruction::Remainder(_, _)

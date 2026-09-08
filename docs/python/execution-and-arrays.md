@@ -132,3 +132,26 @@ byte order, alignment, and contiguity, then makes one documented owned staging
 copy before native execution. This is not a zero-copy execution-input claim.
 GPU streams, sparse/distributed arrays, and general Run inputs remain separate
 contracts.
+
+## Fixed arrays in sampled sessions
+
+The bounded reference `Model.sampled_session` path accepts invariant real or exact
+integer channel arrays through its existing typed input tables. For a Model with
+`drive: array<1, 2> at tick`, pass one complete tuple per tick:
+
+```python
+session = model.sampled_session(
+    end_time_s=2, max_step_s=0.1,
+    inputs={"drive": ("tick", [(3, 4), (5, 6), (7, 8)])},
+)
+session.advance_ticks(1)
+resumed = model.resume_sampled(session.checkpoint())
+```
+
+Array State values and accepted output values are complete nested tuples; exact
+integer components remain Python integers, including values above `2**53`.
+A failed tick commits neither a partial array nor another State update. Restart
+preserves the accepted clock position and previously absent or present outputs.
+The immutable Model fixes every extent. Scalar broadcasting, partial indexed
+writes, spatial tensors and complex execution are not admitted by this path.
+Input and retained output limits count scalar components, including nested arrays.
