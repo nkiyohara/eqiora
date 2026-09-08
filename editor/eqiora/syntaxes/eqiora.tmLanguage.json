@@ -42,7 +42,7 @@
     "types": {
       "patterns": [
         { "name": "support.type.eqiora", "match": "\\b(?:array|complex|tensor|vector)\\b(?=\\s*<)" },
-        { "name": "support.type.eqiora", "match": "\\b(?:boolean|integer)\\b" }
+        { "name": "support.type.eqiora", "match": "\\b(?:bool|integer)\\b" }
       ]
     },
     "keywords": {
