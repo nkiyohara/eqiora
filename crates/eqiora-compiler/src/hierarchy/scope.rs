@@ -558,6 +558,10 @@ pub(super) fn rewrite_expression_with_boundary_member(
                 expression.range(),
             )
         }
+        ExprKind::Boolean(value) => LoweringExpression::literal(
+            eqiora_core::ValueLiteral::boolean(*value),
+            expression.range(),
+        ),
         ExprKind::Number(value) => LoweringExpression::number(value.clone(), expression.range()),
         ExprKind::Quantity { .. } => LoweringExpression::from_source(expression),
         ExprKind::Name(name) if name == "time" => {
@@ -606,6 +610,13 @@ pub(super) fn rewrite_expression_with_boundary_member(
             op: eqiora_lang::UnaryOp::Neg,
             value,
         } => LoweringExpression::neg(
+            rewrite_expression_with_boundary_member(file, value, scope, active)?,
+            expression.range(),
+        ),
+        ExprKind::Unary {
+            op: eqiora_lang::UnaryOp::Not,
+            value,
+        } => LoweringExpression::logical_not(
             rewrite_expression_with_boundary_member(file, value, scope, active)?,
             expression.range(),
         ),

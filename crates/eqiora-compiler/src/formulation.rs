@@ -535,6 +535,13 @@ impl ExpressionContext<'_> {
                 )
             }
             BinaryOp::Pow => unreachable!(),
+            _ => {
+                return Err(error(
+                    self.file,
+                    expression.range(),
+                    "Boolean predicates are not admitted in mathematical forms",
+                ));
+            }
         };
         Ok(typed(kind, dimension, shape, support))
     }

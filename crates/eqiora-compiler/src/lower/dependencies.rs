@@ -15,7 +15,8 @@ impl LoweringExpression {
                 LoweringExpressionNode::Name(name) => {
                     names.insert(name.clone());
                 }
-                LoweringExpressionNode::Neg(value)
+                LoweringExpressionNode::Not(value)
+                | LoweringExpressionNode::Neg(value)
                 | LoweringExpressionNode::Index { value, .. }
                 | LoweringExpressionNode::Call {
                     argument: value, ..

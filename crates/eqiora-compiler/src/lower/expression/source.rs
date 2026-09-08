@@ -46,6 +46,9 @@ pub(in crate::lower) fn from_source(expression: &Expr) -> LoweringExpression {
             Ok(value) => return LoweringExpression::quantity(value, expression.range()),
             Err(message) => LoweringExpressionNode::InvalidValue(message),
         },
+        ExprKind::Boolean(value) => {
+            LoweringExpressionNode::Literal(eqiora_core::ValueLiteral::boolean(*value))
+        }
         ExprKind::Number(value) => LoweringExpressionNode::Number(value.clone()),
         ExprKind::Path(path) => match crate::math::constant(path) {
             Some(value) => {
@@ -64,6 +67,10 @@ pub(in crate::lower) fn from_source(expression: &Expr) -> LoweringExpression {
             op: UnaryOp::Neg,
             value,
         } => return LoweringExpression::neg(from_source(value), expression.range()),
+        ExprKind::Unary {
+            op: UnaryOp::Not,
+            value,
+        } => LoweringExpressionNode::Not(from_source(value)),
         ExprKind::Binary { op, left, right } => LoweringExpressionNode::Binary {
             operator: *op,
             left: from_source(left),

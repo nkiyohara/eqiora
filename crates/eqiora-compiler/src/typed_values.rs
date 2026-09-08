@@ -80,6 +80,7 @@ pub(crate) fn binary(
                 a,
                 exponent.ok_or("power requires a checked static exponent")?,
             )?,
+            _ => return Err("Boolean operators require checked predicate evaluation".into()),
         };
         output.push(component);
     }

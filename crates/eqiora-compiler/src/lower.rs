@@ -736,7 +736,7 @@ pub(crate) fn lower_typed_model(
                 *initial,
                 &bindings,
             )
-            .map(|lowered| {
+            .and_then(|lowered| {
                 let Binding::Relation {
                     relation,
                     activation: activation_id,
@@ -746,10 +746,10 @@ pub(crate) fn lower_typed_model(
                 };
                 nodes.push(
                     if *initial {
-                        RelationDef::initial(relation, lowered.residuals)
+                        RelationDef::initial(relation, lowered.expression)
                     } else {
-                        RelationDef::new(relation, lowered.residuals)
-                    }
+                        RelationDef::new(relation, lowered.expression)
+                    }?
                     .into(),
                 );
                 let activation_definition = match activation {
@@ -781,6 +781,7 @@ pub(crate) fn lower_typed_model(
                     };
                     edges.push((activation_id.erase(), clock.erase(), EdgeKind::ClockedBy));
                 }
+                Ok(())
             }),
             LoweringItem::Connection {
                 syntax,
@@ -913,7 +914,9 @@ fn normalize_zero(value: f64) -> f64 {
 }
 
 /// Map authored comparison syntax to the one Kernel predicate vocabulary.
-pub(crate) fn comparison_operator(operator: BinaryOp) -> Option<eqiora_schema::kernel::ComparisonOp> {
+pub(crate) fn comparison_operator(
+    operator: BinaryOp,
+) -> Option<eqiora_schema::kernel::ComparisonOp> {
     use eqiora_schema::kernel::ComparisonOp;
     Some(match operator {
         BinaryOp::Equal => ComparisonOp::Equal,

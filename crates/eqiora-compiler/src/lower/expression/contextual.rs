@@ -47,6 +47,13 @@ impl Resolver<'_> {
         match value.node.as_ref() {
             LoweringExpressionNode::Number(_) => None,
             LoweringExpressionNode::Neg(value) => self.anchor(value),
+            LoweringExpressionNode::Not(_) => Some(ScalarDomain::Boolean),
+            LoweringExpressionNode::Binary { operator, .. }
+                if super::super::comparison_operator(*operator).is_some()
+                    || matches!(operator, BinaryOp::And | BinaryOp::Or) =>
+            {
+                Some(ScalarDomain::Boolean)
+            }
             LoweringExpressionNode::Binary { left, right, .. } => {
                 self.anchor(left).or_else(|| self.anchor(right))
             }
@@ -82,6 +89,9 @@ impl Resolver<'_> {
             LoweringExpressionNode::Number(value) => {
                 return literal(file, expression, value, expected);
             }
+            LoweringExpressionNode::Not(value) => {
+                LoweringExpressionNode::Not(self.resolve(value, None)?)
+            }
             LoweringExpressionNode::Neg(value) => {
                 if let LoweringExpressionNode::Number(number) = value.node.as_ref() {
                     let spelling = number.canonical_text();
@@ -107,10 +117,19 @@ impl Resolver<'_> {
                 left,
                 right,
             } => {
-                let domain = self
-                    .anchor(left)
-                    .or_else(|| self.anchor(right))
-                    .or(expected);
+                let domain = if matches!(operator, BinaryOp::And | BinaryOp::Or) {
+                    None
+                } else {
+                    self.anchor(left)
+                        .or_else(|| self.anchor(right))
+                        .or_else(|| {
+                            if super::super::comparison_operator(*operator).is_some() {
+                                None
+                            } else {
+                                expected
+                            }
+                        })
+                };
                 LoweringExpressionNode::Binary {
                     operator: *operator,
                     left: self.resolve(left, domain)?,

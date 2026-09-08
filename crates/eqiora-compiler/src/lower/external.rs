@@ -44,6 +44,9 @@ impl LoweringExpression {
                 imag: imag.clone_shared(cache),
             },
             LoweringExpressionNode::Name(name) => LoweringExpressionNode::Name(name.clone()),
+            LoweringExpressionNode::Not(value) => {
+                LoweringExpressionNode::Not(value.clone_shared(cache))
+            }
             LoweringExpressionNode::Neg(value) => {
                 LoweringExpressionNode::Neg(value.clone_shared(cache))
             }

@@ -1,7 +1,7 @@
 //! The one checked authored-equality boundary, shared by body checking and lowering.
 
 use eqiora_lang::{Expr, ExprKind, UnaryOp};
-use eqiora_schema::kernel::typing::{self, ExpressionType, TypeViolation};
+use eqiora_schema::kernel::typing::{ExpressionType, TypeViolation};
 
 /// Parentheses are already represented by expression ranges. Only a literal
 /// zero, optionally beneath unary negation, is contextual; named or computed
@@ -36,7 +36,7 @@ pub(crate) fn is_literal_zero(mut expression: &Expr) -> bool {
 pub(crate) struct CheckedEquality<I> {
     pub(crate) left: ExpressionType<I>,
     pub(crate) right: ExpressionType<I>,
-    pub(crate) residual: ExpressionType<I>,
+    pub(crate) equation_type: ExpressionType<I>,
 }
 
 /// Both operands must already have passed their ordinary expression checks.
@@ -48,17 +48,24 @@ pub(crate) fn check<I: Clone + Eq>(
     contextual_left_zero: bool,
     contextual_right_zero: bool,
 ) -> Result<CheckedEquality<I>, TypeViolation<I>> {
+    if (contextual_left_zero
+        && right.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean)
+        || (contextual_right_zero
+            && left.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean)
+    {
+        return Err(TypeViolation::ScalarDomainMismatch);
+    }
     if contextual_left_zero && !contextual_right_zero {
         left = ExpressionType::new(right.value_type.clone(), None);
     }
     if contextual_right_zero && !contextual_left_zero {
         right = ExpressionType::new(left.value_type.clone(), None);
     }
-    let residual = typing::additive(&left, &right)?;
+    let equation_type = left.clone().equation(right.clone())?;
     Ok(CheckedEquality {
         left,
         right,
-        residual,
+        equation_type,
     })
 }
 

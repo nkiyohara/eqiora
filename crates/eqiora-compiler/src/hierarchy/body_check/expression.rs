@@ -223,7 +223,7 @@ impl ExpressionChecker<'_, '_, '_> {
             crate::lower::equality::is_contextual_zero(equation.left()),
             crate::lower::equality::is_contextual_zero(equation.right()),
         )
-        .map(|checked| checked.residual)
+        .map(|checked| checked.equation_type)
         .map_err(|error| {
             source_error(
                 codes::LANGUAGE_TYPE_ERROR,
@@ -281,6 +281,9 @@ impl ExpressionChecker<'_, '_, '_> {
                 ExpressionType::complex(self.check(real)?, self.check(imag)?)
                     .map_err(|error| type_error(self.scope.file, expression, error))
             }
+            ExprKind::Boolean(_) => {
+                Ok(ExpressionType::new(eqiora_core::ValueType::boolean(), None))
+            }
             ExprKind::Number(_) => Ok(ExpressionType::scalar(DimExponents::DIMENSIONLESS, None)),
             ExprKind::Quantity { value, unit } => {
                 let quantity = crate::units::quantity(value, unit).map_err(|message| {
@@ -334,7 +337,10 @@ impl ExpressionChecker<'_, '_, '_> {
                 value,
             } => {
                 let inferred = self.check(value)?;
-                if inferred.value_type.is_count() || inferred.value_type.index_set().is_some() {
+                if inferred.value_type.is_count()
+                    || inferred.value_type.index_set().is_some()
+                    || inferred.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean
+                {
                     return Err(type_error(
                         self.scope.file,
                         expression,
@@ -343,6 +349,13 @@ impl ExpressionChecker<'_, '_, '_> {
                 }
                 Ok(inferred)
             }
+            ExprKind::Unary {
+                op: UnaryOp::Not,
+                value,
+            } => self
+                .check(value)?
+                .logical_not()
+                .map_err(|error| type_error(self.scope.file, expression, error)),
             ExprKind::Binary { op, left, right } => self.check_binary(expression, *op, left, right),
             ExprKind::Call { callee, arguments } => self.check_call(expression, callee, arguments),
             _ => Err(source_error(
@@ -756,6 +769,11 @@ impl ExpressionChecker<'_, '_, '_> {
         }
         let (left, right) = self.check_pair(left, right)?;
         let result = match operator {
+            BinaryOp::And => left.and(right),
+            BinaryOp::Or => left.or(right),
+            op if crate::lower::comparison_operator(op).is_some() => {
+                left.compare(crate::lower::comparison_operator(op).unwrap(), right)
+            }
             BinaryOp::Add => left.sum(right),
             BinaryOp::Sub
                 if left.value_type.is_count() || left.value_type.index_set().is_some() =>
@@ -766,6 +784,7 @@ impl ExpressionChecker<'_, '_, '_> {
             BinaryOp::Mul => typing::multiply(&left, &right),
             BinaryOp::Div => typing::divide(&left, &right),
             BinaryOp::Pow => unreachable!("power handled above"),
+            _ => unreachable!("comparison handled above"),
         };
         result.map_err(|error| type_error(self.scope.file, expression, error))
     }

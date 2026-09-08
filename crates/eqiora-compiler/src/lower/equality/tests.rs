@@ -27,7 +27,7 @@ fn contextual_zero_adopts_complete_type_but_explicit_zero_never_does() {
         assert_eq!(checked.left, left);
         assert_eq!(checked.right.value_type, value_type);
         assert_eq!(checked.right.support, None);
-        assert_eq!(checked.residual, left);
+        assert_eq!(checked.equation_type, left);
     }
     assert!(
         check(
