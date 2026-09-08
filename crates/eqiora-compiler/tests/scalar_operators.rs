@@ -137,11 +137,44 @@ fn composition_work_is_bounded_before_exponential_expansion() {
 }
 
 #[test]
-fn zero_power_and_dimensioned_cubic_use_exact_polynomial_multiplication() {
+fn constant_and_dimensioned_cubic_use_exact_polynomial_multiplication() {
     for source in [
-        "operator constant(input x:K):1=x^0;model M(){relation r{constant(x=2[K])=1;}}",
+        "operator constant(input x:K):1=1;model M(){relation r{constant(x=2[K])=1;}}",
         "operator force(input x:m,input stiffness:N/m,input cubic:N/m^3):N=stiffness*x+cubic*x^3;model M(){relation r{force(x=2[m],stiffness=3[N/m],cubic=4[N/m^3])=38[N];}}",
     ] {
         compile("powers.eqi", source).unwrap_or_else(|errors| panic!("{errors:?}"));
+    }
+}
+
+#[test]
+fn formal_alpha_renaming_preserves_named_application_identity() {
+    use eqiora_compiler::source_identity::LocalSourceIdentity;
+    let source = "operator square(input x:scalar):scalar=x*x;model M(){relation r{square(x=3)=9;}}";
+    let renamed = source
+        .replace("input x:", "input value:")
+        .replace("=x*x;", "=value*value;")
+        .replace("square(x=", "square(value=");
+    let identity = |source: &str| {
+        LocalSourceIdentity::from_document(
+            &eqiora_lang::parse("alpha.eqi", source)
+                .into_document()
+                .unwrap(),
+        )
+        .unwrap()
+    };
+    assert_eq!(identity(source), identity(&renamed));
+}
+
+#[test]
+fn zero_powers_do_not_erase_the_zero_to_zero_domain_error() {
+    for body in ["x^0", "0^0"] {
+        let source = format!("operator f(input x:1):1={body};model M(){{relation r{{1=1;}}}}");
+        let errors = compile("zero-power.eqi", &source).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message().contains("positive bounded calculus range")),
+            "{errors:?}"
+        );
     }
 }

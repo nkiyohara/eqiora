@@ -324,17 +324,13 @@ fn compile_expression(
         } => {
             let exponent = power_exponent(file, right)?;
             let value = compile_expression(file, left, formals, sources, compiled, builder)?;
-            if exponent == 0 {
-                CalculusNode::Rational(ExactRational::new(1, 1).expect("one is exact"))
-            } else {
-                let mut product = value;
-                for _ in 1..exponent {
-                    product = builder
-                        .push(CalculusNode::Mul(product, value))
-                        .map_err(|error| kernel_error(file, expression.range(), error))?;
-                }
-                return Ok(product);
+            let mut product = value;
+            for _ in 1..exponent {
+                product = builder
+                    .push(CalculusNode::Mul(product, value))
+                    .map_err(|error| kernel_error(file, expression.range(), error))?;
             }
+            return Ok(product);
         }
         ExprKind::Binary { op, left, right }
             if matches!(op, BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul) =>
@@ -435,7 +431,7 @@ fn power_exponent(file: &str, expression: &Expr) -> Result<usize, Diagnostic> {
         return Err(pure_error(
             file,
             expression.range(),
-            "polynomial powers require a nonnegative integer literal exponent",
+            "polynomial powers require a positive integer literal exponent",
         ));
     };
     value
@@ -443,13 +439,14 @@ fn power_exponent(file: &str, expression: &Expr) -> Result<usize, Diagnostic> {
         .ok()
         .and_then(|value| usize::try_from(value).ok())
         .filter(|value| {
-            *value <= usize::from(eqiora_schema::kernel::pure_operator::MAX_FORMAL_EXPONENT)
+            *value > 0
+                && *value <= usize::from(eqiora_schema::kernel::pure_operator::MAX_FORMAL_EXPONENT)
         })
         .ok_or_else(|| {
             pure_error(
                 file,
                 expression.range(),
-                "polynomial exponent exceeds the nonnegative bounded calculus range",
+                "polynomial exponent exceeds the positive bounded calculus range",
             )
         })
 }

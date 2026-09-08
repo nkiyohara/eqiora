@@ -10,6 +10,7 @@ pub(super) struct Budget {
     pub(super) boundary_set_memberships: usize,
     pub(super) resolved_aliases: BTreeMap<String, ResolvedAliasTarget>,
     pub(super) reduction_binders: Vec<String>,
+    pub(super) operator_formals: BTreeMap<String, Vec<String>>,
 }
 
 impl Budget {
@@ -23,6 +24,7 @@ impl Budget {
             boundary_set_memberships: 0,
             resolved_aliases: BTreeMap::new(),
             reduction_binders: Vec::new(),
+            operator_formals: BTreeMap::new(),
         }
     }
 

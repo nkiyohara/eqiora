@@ -677,6 +677,7 @@ fn collect_canonical_declarations(
     let mut result = Vec::new();
     let mut paths = BTreeSet::new();
     for unit in units {
+        let operator_formals = visible_operator_formals(unit, units, aliases);
         let resolved_aliases = aliases
             .iter()
             .filter(|alias| alias.declaring_module() == &unit.module)
@@ -699,6 +700,7 @@ fn collect_canonical_declarations(
                 visibility,
                 &document,
                 &resolved_aliases,
+                &operator_formals,
                 diagnostics,
             );
         }
@@ -715,6 +717,7 @@ fn collect_canonical_declarations(
                 connector.visibility(),
                 &document,
                 &resolved_aliases,
+                &operator_formals,
                 diagnostics,
             );
         }
@@ -759,6 +762,7 @@ fn collect_canonical_declarations(
                 component.visibility(),
                 &document,
                 &resolved_aliases,
+                &operator_formals,
                 diagnostics,
             );
         }
@@ -774,6 +778,7 @@ fn collect_canonical_declarations(
                 model.visibility(),
                 &document,
                 &resolved_aliases,
+                &operator_formals,
                 diagnostics,
             );
         }
@@ -795,6 +800,48 @@ fn collect_canonical_declarations(
             ))
     });
     result
+}
+
+fn visible_operator_formals(
+    unit: &AnalyzedSourceUnit,
+    units: &[AnalyzedSourceUnit],
+    aliases: &[ResolvedAlias],
+) -> BTreeMap<String, Vec<String>> {
+    let names = |operator: &eqiora_lang::PureOperatorDecl| {
+        operator
+            .formals()
+            .iter()
+            .map(|formal| formal.name().to_owned())
+            .collect()
+    };
+    let mut visible = unit
+        .document
+        .pure_operators()
+        .iter()
+        .map(|operator| (operator.name().to_owned(), names(operator)))
+        .collect::<BTreeMap<_, _>>();
+    for alias in aliases
+        .iter()
+        .filter(|alias| alias.declaring_module() == &unit.module)
+    {
+        for target in units
+            .iter()
+            .filter(|target| &target.module == alias.target_module())
+        {
+            for operator in target
+                .document
+                .pure_operators()
+                .iter()
+                .filter(|operator| operator.visibility() == VisibilitySyntax::Public)
+            {
+                visible.insert(
+                    format!("{}.{}", alias.alias(), operator.name()),
+                    names(operator),
+                );
+            }
+        }
+    }
+    visible
 }
 
 fn canonical_alias_target(alias: &ResolvedAlias) -> ResolvedAliasTarget {
@@ -820,6 +867,7 @@ fn push_canonical(
     visibility: VisibilitySyntax,
     document: &Document,
     resolved_aliases: &BTreeMap<String, ResolvedAliasTarget>,
+    operator_formals: &BTreeMap<String, Vec<String>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !paths.insert((namespace.clone(), path.to_owned())) {
@@ -831,6 +879,7 @@ fn push_canonical(
     let identity = match LocalSourceIdentity::from_document_with_resolved_aliases(
         document,
         resolved_aliases,
+        operator_formals,
     ) {
         Ok(identity) => identity,
         Err(error) => {

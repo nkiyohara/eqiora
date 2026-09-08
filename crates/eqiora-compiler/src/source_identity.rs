@@ -89,21 +89,6 @@ impl LocalSourceIdentity {
         Ok(Self(Sha256::digest(canonical).into()))
     }
 
-    /// Compute a package declaration identity after structurally replacing
-    /// source import aliases in type references with exact target namespace
-    /// segments.
-    pub(crate) fn from_document_with_resolved_aliases(
-        document: &Document,
-        aliases: &BTreeMap<String, ResolvedAliasTarget>,
-    ) -> Result<Self, Diagnostic> {
-        let canonical = canonical_source_bytes_with_aliases(
-            document,
-            LocalSourceIdentityLimits::default(),
-            aliases.clone(),
-        )?;
-        Ok(Self(Sha256::digest(canonical).into()))
-    }
-
     /// Exact SHA-256 bytes.
     #[must_use]
     pub const fn digest(&self) -> &[u8; 32] {
@@ -145,13 +130,14 @@ fn canonical_source_bytes(
     document: &Document,
     limits: LocalSourceIdentityLimits,
 ) -> Result<Vec<u8>, Diagnostic> {
-    canonical_source_bytes_with_aliases(document, limits, BTreeMap::new())
+    canonical_source_bytes_with_aliases(document, limits, BTreeMap::new(), BTreeMap::new())
 }
 
 fn canonical_source_bytes_with_aliases(
     document: &Document,
     limits: LocalSourceIdentityLimits,
     resolved_aliases: BTreeMap<String, ResolvedAliasTarget>,
+    operator_formals: BTreeMap<String, Vec<String>>,
 ) -> Result<Vec<u8>, Diagnostic> {
     let top_level_count = document
         .dimension_syntax()
@@ -172,6 +158,19 @@ fn canonical_source_bytes_with_aliases(
     }
 
     let mut budget = Budget::with_resolved_aliases(limits, resolved_aliases);
+    budget.operator_formals = operator_formals;
+    budget
+        .operator_formals
+        .extend(document.pure_operators().iter().map(|operator| {
+            (
+                operator.name().to_owned(),
+                operator
+                    .formals()
+                    .iter()
+                    .map(|formal| formal.name().to_owned())
+                    .collect(),
+            )
+        }));
     let dimensions = encode_dimensions(document.dimension_syntax(), &mut budget)?;
     let connectors = encode_sorted_records(document.connectors(), &mut budget, encode_connector)?;
     let property_contract_syntax = document.property_contract_syntax().collect::<Vec<_>>();

@@ -185,7 +185,29 @@ pub(super) fn encode_expression(
             encoder.field(1, |encoder| encode_type_path(encoder, callee, budget))?;
             let child_depth = next_depth(depth)?;
             let mut encoded = Vec::with_capacity(arguments.expressions().len());
-            if let Some(bindings) = named {
+            if let Some(formals) = budget
+                .operator_formals
+                .get(callee.as_str())
+                .cloned()
+                .filter(|_| named.is_some() && !tensor)
+            {
+                let ordered = crate::pure_operator::ordered_arguments(
+                    "<source-identity>",
+                    expression.range(),
+                    formals.iter().map(String::as_str),
+                    arguments,
+                )?;
+                for (slot, value) in ordered.into_iter().enumerate() {
+                    let mut argument_encoder = Encoder::new(budget.limits.max_canonical_bytes);
+                    argument_encoder.field(1, |encoder| {
+                        encoder.u32(as_u32(slot, "operator formal slot")?)
+                    })?;
+                    argument_encoder.field(2, |encoder| {
+                        encode_expression(encoder, value, budget, child_depth)
+                    })?;
+                    encoded.push(argument_encoder.finish()?);
+                }
+            } else if let Some(bindings) = named {
                 let bindings = if tensor {
                     ["frame", "components"]
                         .iter()
