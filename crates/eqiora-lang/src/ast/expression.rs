@@ -300,7 +300,7 @@ impl CallArguments {
             Self::Positional(values) => values.len(),
             Self::Named(bindings) => bindings.len(),
         };
-        (0..len).map(|index| match self {
+        (0..len).map(move |index| match self {
             Self::Positional(values) => &values[index],
             Self::Named(bindings) => bindings[index].value(),
         })
