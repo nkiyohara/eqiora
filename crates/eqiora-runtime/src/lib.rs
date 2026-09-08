@@ -43,7 +43,14 @@ impl CpuProgram {
                 // Numerical roots are a derived view. Original side IDs remain valid
                 // in either view for demanded typed expression evaluation.
                 let numerical = kernel.numerical_residuals(relation.id().erase());
-                let expression = numerical.as_ref().unwrap_or_else(|_| relation.expression());
+                let expression = match &numerical {
+                    Ok(expression) => expression,
+                    Err(error) if error.code() == codes::NOT_IMPLEMENTED => relation.expression(),
+                    Err(error) => {
+                        diagnostics.push(error.clone());
+                        continue;
+                    }
+                };
                 match ScalarOperatorIr::lower(expression) {
                     Ok(operator) => {
                         operators.insert(relation.id().erase(), operator);

@@ -46,10 +46,11 @@ impl KernelProgram {
                     value.scalar_domain(),
                     ScalarDomain::Real | ScalarDomain::Complex
                 ) {
-                    return Err(kernel_error(
-                        relation,
+                    return Err(Diagnostic::error(
+                        codes::NOT_IMPLEMENTED,
                         "discrete equation sides have no numerical residual projection",
-                    ));
+                    )
+                    .with_graph_path(kernel_path(relation)));
                 }
             }
         }
@@ -82,5 +83,85 @@ impl KernelProgram {
             });
         }
         builder.finish(roots)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use eqiora_core::{ValueLiteral, ValueType};
+    use eqiora_graph::{GraphStore, InMemoryGraphStore, Op, Transaction};
+    use eqiora_schema::kernel::RelationDef;
+    use eqiora_schema::{Model, ModelView};
+
+    fn program(expression: ExprDag) -> (KernelProgram, RawId) {
+        let relation = Id::<kinds::Relation>::new();
+        let model = OntologyId::<Model>::new();
+        let mut transaction = Transaction::new("typed equation projection");
+        transaction.push(Op::DefineKernelNode {
+            node: RelationDef::initial(relation, expression).unwrap().into(),
+        });
+        transaction.push(Op::DefineOntologyView {
+            view: ModelView::new(model, [relation.erase()], [])
+                .unwrap()
+                .into(),
+        });
+        let mut store = InMemoryGraphStore::new();
+        store.commit(transaction).unwrap();
+        (
+            KernelProgram::from_snapshot(&store.snapshot(), model).unwrap(),
+            relation.erase(),
+        )
+    }
+
+    #[test]
+    fn projection_preserves_arena_sharing_and_complex_zero_promotion() {
+        let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+        let complex = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS);
+        let mut builder = ExprDagBuilder::new();
+        let left = builder
+            .constant(ValueLiteral::from_real(real.clone(), 2.).unwrap())
+            .unwrap();
+        let real_zero = builder
+            .constant(ValueLiteral::from_real(real, 0.).unwrap())
+            .unwrap();
+        let complex_zero = builder
+            .constant(ValueLiteral::from_real(complex.clone(), 0.).unwrap())
+            .unwrap();
+        let original = builder
+            .finish([left, real_zero, left, complex_zero])
+            .unwrap();
+        let (program, relation) = program(original.clone());
+        let residuals = program.numerical_residuals(relation).unwrap();
+        assert_eq!(
+            &residuals.nodes()[..original.nodes().len()],
+            original.nodes()
+        );
+        assert_eq!(residuals.nodes().len(), original.nodes().len() + 1);
+        assert_eq!(residuals.roots()[0], left);
+        assert!(
+            matches!(residuals.nodes().last(),Some(ExprNode::Sub(a,b)) if *a==left && *b==complex_zero)
+        );
+        let typed = program
+            .typed_relation_residual(relation.downcast().unwrap())
+            .unwrap();
+        assert_eq!(
+            typed.node_type(residuals.roots()[1]).unwrap().value_type,
+            complex
+        );
+    }
+
+    #[test]
+    fn boolean_and_integer_equations_have_no_numeric_projection() {
+        let integer = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+        for value in [
+            ValueLiteral::boolean(false),
+            ValueLiteral::from_integer(integer, 0).unwrap(),
+        ] {
+            let mut builder = ExprDagBuilder::new();
+            let side = builder.constant(value).unwrap();
+            let (program, relation) = program(builder.finish([side, side]).unwrap());
+            assert!(program.numerical_residuals(relation).is_err());
+        }
     }
 }
