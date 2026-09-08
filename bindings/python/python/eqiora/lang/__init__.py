@@ -728,7 +728,7 @@ class Component:
         self._names: set[str] = set()
         self._supports: list[tuple[Support, str, object, tuple[str, ...]]] = []
         self._clocks: list[tuple[Clock, Fraction | None, Fraction | None, tuple[str, ...]]] = []
-        self._initials: list[tuple[tuple[tuple[Expression, Expression], ...], tuple[str, ...]]] = []
+        self._initials: list[tuple[tuple[tuple[Expression, Expression | None], ...], tuple[str, ...]]] = []
         self._index_sets: list[tuple[IndexSet, tuple[str, ...]]] = []
         self._parameters: list[tuple[_Parameter, str, tuple[str, ...]]] = []
         self._aliases: list[tuple[str, Expression, str | None, Support | None, Clock | None, tuple[str, ...]]] = []
@@ -844,13 +844,13 @@ class Component:
         if left is not None and residuals:
             raise TypeError("initial left/right cannot be combined with residuals")
         equations = (((_expression(left), _expression(right)),) if left is not None
-                     else tuple((_expression(value), _expression(0)) for value in residuals))
-        expressions = tuple(value for equation in equations for value in equation)
+                     else tuple((_expression(value), None) for value in residuals))
+        expressions = tuple(value for equation in equations for value in equation if value is not None)
         if any(value._owner is not None and value._owner is not self._component_token
                for value in expressions):
             raise SourceError("initial expressions must belong to this Component")
         total_nodes = sum(value._nodes for equations, _ in self._initials
-                          for equation in equations for value in equation)
+                          for equation in equations for value in equation if value is not None)
         total_nodes += sum(value._nodes for value in expressions)
         if total_nodes > _MAX_EXPRESSION_NODES:
             raise SourceError(
@@ -1256,7 +1256,7 @@ class Component:
             lines.extend(_comment(doc, "  "))
             lines.append("  initial {")
             for left, right in equations:
-                lines.extend(_relation_lines(left, right))
+                lines.extend(_relation_lines(left, _expression(0) if right is None else right))
             lines.append("  }")
         for index, (name, support, left, right, clock, doc) in enumerate(self._relations):
             lines.extend(_comment(doc, "  "))
