@@ -41,10 +41,12 @@ mod binding_locations;
 mod cartesian;
 mod connector_domain;
 mod external;
+mod indexed;
 mod input_bindings;
 mod model_items;
 mod model_lets;
 mod names;
+mod nominal;
 
 use super::parameters::{ParameterLineage, ParameterResolver, ResolvedParameter};
 use super::preflight::{
@@ -194,7 +196,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         items
             .try_reserve_exact(item_capacity)
             .map_err(|_| hierarchy_error("cannot reserve flat component expansion"))?;
-        Ok(Self {
+        let mut expansion = Self {
             elaborator,
             model,
             namespace,
@@ -217,7 +219,9 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             complete_exterior_memberships: CompleteExteriorMembershipBudget::new(
                 elaborator.limits.complete_exteriors,
             ),
-        })
+        };
+        expansion.allocate_finite_spaces()?;
+        Ok(expansion)
     }
 
     fn add_support_representation(
@@ -582,36 +586,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             Err(error) => return Err(vec![error]),
         };
 
-        for item in model.owned_items() {
-            if let Item::Instance(instance) = item {
-                let component = self
-                    .elaborator
-                    .resolve_component(
-                        &model.namespace,
-                        instance.definition(),
-                        model.file,
-                        instance.range(),
-                    )
-                    .map_err(one_diagnostic)?;
-                let instance_path = match child_instance_path(
-                    &self.root_path,
-                    instance.name(),
-                    self.elaborator.limits.identity,
-                ) {
-                    Ok(value) => value,
-                    Err(error) => return Err(vec![error]),
-                };
-                let interface = self.expand_component(
-                    component,
-                    instance,
-                    model.file,
-                    instance_path,
-                    instance.name().to_owned(),
-                    &root_scope,
-                )?;
-                root_scope.insert_child(instance.name().to_owned(), interface);
-            }
-        }
+        self.expand_model_children(&model, &mut root_scope)?;
 
         self.allocate_runtime_lets(
             &mut root_scope,
@@ -725,7 +700,8 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         .insert(value.name().to_owned(), identity);
                     continue;
                 }
-                Item::Initial(_)
+                Item::IndexSet(_)
+                | Item::Initial(_)
                 | Item::Connection(_)
                 | Item::BoundaryConnection(_)
                 | Item::Let(_)
@@ -768,6 +744,20 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             identities.entities.insert(name.to_owned(), identity);
         }
         self.allocate_model_lets(scope, &model)?;
+        self.allocate_nominals(
+            scope,
+            &model.namespace,
+            model.name(),
+            &self.root_path.clone(),
+            &model
+                .owned_items()
+                .filter_map(|item| match item {
+                    Item::IndexSet(value) => Some(value),
+                    _ => None,
+                })
+                .collect::<Vec<_>>(),
+            model.file,
+        )?;
         for item in model.owned_items() {
             let Item::Domain(declaration) = item else {
                 continue;
@@ -1433,6 +1423,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 | ComponentItem::Initial(_)
                 | ComponentItem::Connection(_)
                 | ComponentItem::BoundaryConnection(_)
+                | ComponentItem::IndexSet(_)
                 | ComponentItem::Instance(_) => {}
                 _ => {
                     return Err(vec![source_error(
@@ -1529,35 +1520,33 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
 
         self.allocate_component_lets(&mut scope, &component)
             .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
+        self.allocate_nominals(
+            &mut scope,
+            &component.namespace,
+            component.name(),
+            &instance_path,
+            &component
+                .owned_items()
+                .filter_map(|item| match item {
+                    ComponentItem::IndexSet(value) => Some(value),
+                    _ => None,
+                })
+                .collect::<Vec<_>>(),
+            component.file,
+        )
+        .map_err(one_diagnostic)?;
 
-        for item in component.owned_items() {
-            if let ComponentItem::Instance(child) = item {
-                let child_component = self
-                    .elaborator
-                    .resolve_component(
-                        &component.namespace,
-                        child.definition(),
-                        component.file,
-                        child.range(),
-                    )
-                    .map_err(one_diagnostic)?;
-                let child_path = child_instance_path(
-                    &instance_path,
-                    child.name(),
-                    self.elaborator.limits.identity,
-                )
-                .map_err(one_diagnostic)?;
-                let child_interface = self.expand_component(
-                    child_component,
-                    child,
-                    component.file,
-                    child_path,
-                    display_child(&display_prefix, child.name()),
-                    &scope,
-                )?;
-                scope.insert_child(child.name().to_owned(), child_interface);
-            }
-        }
+        self.expand_children(
+            &component.namespace,
+            component.owned_items().filter_map(|item| match item {
+                ComponentItem::Instance(instance) => Some(instance),
+                _ => None,
+            }),
+            component.file,
+            &instance_path,
+            &display_prefix,
+            &mut scope,
+        )?;
 
         self.allocate_runtime_lets(
             &mut scope,
@@ -1649,7 +1638,9 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     });
                 }
 
-                ComponentItem::Parameter(_) | ComponentItem::Let(_) => {}
+                ComponentItem::Parameter(_)
+                | ComponentItem::IndexSet(_)
+                | ComponentItem::Let(_) => {}
                 ComponentItem::Port(declaration) => {
                     let identity = identities.entities[declaration.name()].clone();
                     let (contract, materialization) =
