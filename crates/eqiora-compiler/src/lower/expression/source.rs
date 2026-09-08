@@ -52,6 +52,15 @@ pub(in crate::lower) fn from_source(expression: &Expr) -> LoweringExpression {
             then_value: LoweringExpression::from_source(then_value),
             else_value: LoweringExpression::from_source(else_value),
         },
+        ExprKind::Call {
+            callee,
+            arguments: eqiora_lang::CallArguments::Positional(arguments),
+        } if crate::math::piecewise::arity(callee.as_str()).is_some() => {
+            LoweringExpressionNode::Piecewise {
+                name: callee.as_str().to_owned(),
+                arguments: arguments.iter().map(from_source).collect(),
+            }
+        }
         ExprKind::Quantity { value, unit } => match crate::units::quantity(value, unit) {
             Ok(value) => return LoweringExpression::quantity(value, expression.range()),
             Err(message) => LoweringExpressionNode::InvalidValue(message),

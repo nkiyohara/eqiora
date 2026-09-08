@@ -32,7 +32,7 @@ pub(crate) fn is_namespaced(path: &NamePath) -> bool {
 
 /// Whether a path names an admitted scalar mathematical function.
 pub(crate) fn is_function(path: &NamePath) -> bool {
-    matches!(path.as_str(), "math.sin" | "math.sqrt")
+    matches!(path.as_str(), "math.sin" | "math.sqrt") || piecewise::arity(path.as_str()).is_some()
 }
 
 /// Returns the compiler-owned value of a canonical mathematical constant.

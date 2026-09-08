@@ -26,6 +26,18 @@ pub(crate) fn arity(name: &str) -> Option<usize> {
     }
 }
 
+/// Additional graph shape charged by the existing expression preflight.
+pub(crate) fn cost(name: &str) -> Option<(usize, usize)> {
+    match name {
+        "math.abs" => Some((4, 2)),
+        "math.min" | "math.max" => Some((2, 2)),
+        "math.clamp" => Some((6, 4)),
+        "math.sign" => Some((8, 3)),
+        "math.step" => Some((5, 2)),
+        _ => None,
+    }
+}
+
 /// At most eight primitive nodes; operands are reused, never substituted as trees.
 pub(crate) fn emit<N: Clone, E>(
     name: &str,
@@ -132,4 +144,32 @@ pub(crate) fn emit<N: Clone, E>(
             _ => unreachable!("closed arity vocabulary"),
         }
     })())
+}
+
+pub(crate) fn result_type<I: Clone + Eq>(
+    name: &str,
+    operands: &[eqiora_schema::kernel::typing::ExpressionType<I>],
+) -> Result<
+    eqiora_schema::kernel::typing::ExpressionType<I>,
+    eqiora_schema::kernel::typing::TypeViolation<I>,
+> {
+    use eqiora_core::{ScalarDomain, ValueFrame, ValueType};
+    use eqiora_schema::kernel::typing::TypeViolation;
+    if arity(name) != Some(operands.len())
+        || operands.iter().any(|value| {
+            value.value_type.scalar_domain() != ScalarDomain::Real
+                || !value.shape().is_scalar()
+                || value.frame() != ValueFrame::Invariant
+        })
+    {
+        return Err(TypeViolation::ScalarDomainMismatch);
+    }
+    let mut result = operands[0].clone();
+    for value in &operands[1..] {
+        result = result.ordered_selection(value.clone())?;
+    }
+    if matches!(name, "math.sign" | "math.step") {
+        result.value_type = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+    }
+    Ok(result)
 }

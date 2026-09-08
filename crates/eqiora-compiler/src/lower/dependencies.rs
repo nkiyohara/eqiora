@@ -26,6 +26,9 @@ impl LoweringExpression {
                 | LoweringExpressionNode::IntegerCall {
                     arguments: values, ..
                 }
+                | LoweringExpressionNode::Piecewise {
+                    arguments: values, ..
+                }
                 | LoweringExpressionNode::PureOperator {
                     arguments: values, ..
                 } => pending.extend(values),

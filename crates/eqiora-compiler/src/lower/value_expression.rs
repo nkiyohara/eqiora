@@ -76,6 +76,12 @@ impl LoweringExpression {
         }
     }
 
+    pub(crate) fn piecewise(name: String, arguments: Vec<Self>, range: TextRange) -> Self {
+        Self {
+            node: Arc::new(LoweringExpressionNode::Piecewise { name, arguments }),
+            range,
+        }
+    }
     pub(crate) fn select(
         condition: Self,
         then_value: Self,

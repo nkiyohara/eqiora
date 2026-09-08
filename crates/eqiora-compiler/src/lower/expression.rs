@@ -2,6 +2,7 @@ mod source;
 pub(super) use source::from_source;
 mod contextual;
 mod physical_accessors;
+mod piecewise;
 use super::*;
 
 use eqiora_schema::kernel::typing::{self, ExpressionType, SpatialSupport};
@@ -43,7 +44,8 @@ impl LoweringExpression {
                     pending.push(left);
                     pending.push(right);
                 }
-                LoweringExpressionNode::PureOperator { arguments, .. } => pending.extend(arguments),
+                LoweringExpressionNode::PureOperator { arguments, .. }
+                | LoweringExpressionNode::Piecewise { arguments, .. } => pending.extend(arguments),
                 LoweringExpressionNode::Number(_)
                 | LoweringExpressionNode::Literal(_)
                 | LoweringExpressionNode::Name(_) => {}
@@ -417,6 +419,9 @@ impl ExpressionLowerer<'_> {
                         dimension: value.dimension,
                     })
                     .map_err(|diagnostic| self.builder_error(expression, diagnostic))
+            }
+            LoweringExpressionNode::Piecewise { name, arguments } => {
+                self.lower_piecewise(expression, name, arguments)
             }
             LoweringExpressionNode::Extremum {
                 minimum,

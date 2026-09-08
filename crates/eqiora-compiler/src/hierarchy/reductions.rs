@@ -94,8 +94,13 @@ fn measure<'a>(
             depth.checked_add(extent - 1).ok_or_else(exceeded)?,
         )
     } else {
-        let mut nodes = 1usize;
-        let mut depth = 1usize;
+        let (mut nodes, overhead) = match expression.kind() {
+            ExprKind::Call { callee, .. } => {
+                crate::math::piecewise::cost(callee.as_str()).unwrap_or((1, 1))
+            }
+            _ => (1, 1),
+        };
+        let mut depth = overhead;
         visit_children(expression, &mut |child| {
             let (child_nodes, child_depth) = measure(
                 file,
@@ -106,7 +111,7 @@ fn measure<'a>(
                 binders,
             )?;
             nodes = nodes.checked_add(child_nodes).ok_or_else(exceeded)?;
-            depth = depth.max(child_depth + 1);
+            depth = depth.max(child_depth + overhead);
             if nodes > budget {
                 return Err(exceeded());
             }

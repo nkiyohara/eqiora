@@ -253,6 +253,10 @@ enum LoweringExpressionNode {
         value: LoweringExpression,
         clock: String,
     },
+    Piecewise {
+        name: String,
+        arguments: Vec<LoweringExpression>,
+    },
     PureOperator {
         definition: PureOperatorDefinition,
         arguments: Vec<LoweringExpression>,

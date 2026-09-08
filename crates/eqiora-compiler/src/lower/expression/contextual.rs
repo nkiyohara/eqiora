@@ -121,6 +121,15 @@ impl Resolver<'_> {
                     value: self.resolve(value, expected)?,
                 }
             }
+            LoweringExpressionNode::Piecewise { name, arguments } => {
+                LoweringExpressionNode::Piecewise {
+                    name: name.clone(),
+                    arguments: arguments
+                        .iter()
+                        .map(|value| self.resolve(value, Some(ScalarDomain::Real)))
+                        .collect::<Result<Vec<_>, _>>()?,
+                }
+            }
             LoweringExpressionNode::Not(value) => {
                 LoweringExpressionNode::Not(self.resolve(value, None)?)
             }

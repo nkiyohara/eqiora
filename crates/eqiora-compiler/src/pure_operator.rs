@@ -105,7 +105,12 @@ fn compile_local(
     let mut pending = vec![(declaration.body(), 1usize)];
     let mut work = 0usize;
     while let Some((expression, depth)) = pending.pop() {
-        work += 1;
+        work += match expression.kind() {
+            ExprKind::Call { callee, .. } => {
+                crate::math::piecewise::cost(callee.as_str()).map_or(1, |cost| cost.0)
+            }
+            _ => 1,
+        };
         if work > eqiora_schema::kernel::pure_operator::MAX_NODES
             || depth > eqiora_schema::kernel::pure_operator::MAX_DEPTH
         {
@@ -535,24 +540,19 @@ fn piecewise_calculus(
                 .map_err(|error| kernel_error(file, range, error))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let Some(first) = types.first() else {
-        return Err(pure_error(
-            file,
-            range,
-            "mathematical builtin requires operands",
-        ));
-    };
-    if first.scalar_domain() != eqiora_core::ScalarDomain::Real
-        || !first.shape().is_scalar()
-        || types.iter().any(|ty| ty != first)
-    {
-        return Err(pure_error(
+    let operand_types = types
+        .iter()
+        .cloned()
+        .map(|value| eqiora_schema::kernel::typing::ExpressionType::<()>::new(value, None))
+        .collect::<Vec<_>>();
+    piecewise::result_type(name, &operand_types).map_err(|_| {
+        pure_error(
             file,
             range,
             "piecewise mathematical builtins require equal complete real scalar types",
-        ));
-    }
-    piecewise::emit(name, arguments, first.dimension(), |primitive| {
+        )
+    })?;
+    piecewise::emit(name, arguments, types[0].dimension(), |primitive| {
         let node = match primitive {
             Primitive::Constant(value, dimension) => CalculusNode::Rational {
                 value: ExactRational::new(i64::from(value), 1).expect("small exact coefficient"),
@@ -669,6 +669,9 @@ fn decimal_signed(
             "exact decimal exceeds the rational i64 coefficient range",
         )
     };
+    if value.is_zero() {
+        return ExactRational::new(0, 1).map_err(|error| kernel_error(file, range, error));
+    }
     let exponent = value
         .exponent10()
         .checked_add(i64::from(exponent_shift))
