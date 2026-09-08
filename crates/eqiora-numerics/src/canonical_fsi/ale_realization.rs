@@ -2121,10 +2121,10 @@ mod tests {
 
     fn ale_source() -> String {
         format!(
-            "public pure operator outer_product(left: spatial[1], right: spatial[1]) -> spatial[2]\n  = component(left, 0) * component(right, 1);\n{}",
+            "public operator outer_product(input left: spatial[1], input right: spatial[1]): spatial[2]\n  = component(left, 0) * component(right, 1);\n{}",
             BASE_SOURCE.replace(
                 "fluid_density * derivative(fluid_velocity)\n      - div(",
-                "fluid_density * derivative(fluid_velocity)\n      + div(fluid_density * outer_product(fluid_velocity, fluid_velocity))\n      - div(",
+                "fluid_density * derivative(fluid_velocity)\n      + div(fluid_density * outer_product(left = fluid_velocity, right = fluid_velocity))\n      - div(",
             )
         )
     }
