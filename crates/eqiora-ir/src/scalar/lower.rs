@@ -48,7 +48,11 @@ impl ScalarOperatorIr {
                     }
                 }
                 ExprNode::Array { elements } => {
-                    if elements.len() > 1_000_000 {
+                    if array_operands
+                        .len()
+                        .checked_add(elements.len())
+                        .is_none_or(|count| count > 1_000_000)
+                    {
                         return Err(ir_builder_error(
                             "array operand count exceeds the component budget",
                         ));

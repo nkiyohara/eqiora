@@ -4,6 +4,23 @@ use eqiora_schema::kernel::ExprDagBuilder;
 use super::*;
 
 #[test]
+fn array_operand_budget_is_aggregate_across_instructions() {
+    let mut builder = ExprDagBuilder::new();
+    let zero = builder
+        .constant(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
+        .unwrap();
+    let first = builder.array(std::iter::repeat_n(zero, 500_001)).unwrap();
+    let second = builder.array(std::iter::repeat_n(zero, 500_001)).unwrap();
+    let dag = builder.finish([first, second]).unwrap();
+    assert!(
+        ScalarOperatorIr::lower(&dag)
+            .unwrap_err()
+            .message()
+            .contains("component budget")
+    );
+}
+
+#[test]
 fn scalar_ir_retains_channel_constants_but_rejects_numeric_projection() {
     use eqiora_core::{ScalarDomain, ValueLiteral, ValueType};
     let shaped = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
