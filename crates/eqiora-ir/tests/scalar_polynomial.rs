@@ -26,7 +26,10 @@ fn dimensioned_linear_operator_has_typed_zero_second_derivative_and_bounded_orde
         })
         .unwrap();
     let two = definition
-        .push(CalculusNode::Rational(ExactRational::integer(2)))
+        .push(CalculusNode::Rational {
+            value: ExactRational::integer(2),
+            dimension: eqiora_core::DimExponents::DIMENSIONLESS,
+        })
         .unwrap();
     let root = definition.push(CalculusNode::Mul(two, x)).unwrap();
     let definition = definition.finish(root).unwrap();
@@ -187,9 +190,10 @@ fn partial_keeps_live_product_rule_order_instead_of_floating_reassociation() {
         })
         .unwrap();
     let big = definition
-        .push(CalculusNode::Rational(ExactRational::integer(
-            10_000_000_000_000_000,
-        )))
+        .push(CalculusNode::Rational {
+            value: ExactRational::integer(10_000_000_000_000_000),
+            dimension: eqiora_core::DimExponents::DIMENSIONLESS,
+        })
         .unwrap();
     let product = definition.push(CalculusNode::Mul(big, x)).unwrap();
     let sum = definition.push(CalculusNode::Add(product, x)).unwrap();

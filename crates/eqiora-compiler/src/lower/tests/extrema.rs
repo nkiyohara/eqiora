@@ -1,6 +1,6 @@
 use super::*;
 use eqiora_core::{ValueLiteral, ValueType};
-use eqiora_schema::kernel::ExprNode;
+use eqiora_schema::kernel::{ComparisonOp, ExprNode};
 
 #[test]
 fn native_extrema_lower_exact_integer_operands_in_authored_order() {
@@ -50,8 +50,11 @@ fn native_extrema_lower_exact_integer_operands_in_authored_order() {
             .nodes()
             .iter()
             .find_map(|node| match node {
-                ExprNode::Min(a, b) if minimum => Some((*a, *b)),
-                ExprNode::Max(a, b) if !minimum => Some((*a, *b)),
+                ExprNode::Select { condition, then_value, else_value } => {
+                    let expected = if minimum { ComparisonOp::LessEqual } else { ComparisonOp::GreaterEqual };
+                    assert!(matches!(result.expression.node(*condition), Some(ExprNode::Compare(op, a, b)) if *op == expected && a == then_value && b == else_value));
+                    Some((*then_value, *else_value))
+                },
                 _ => None,
             })
             .unwrap();

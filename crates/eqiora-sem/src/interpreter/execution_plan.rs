@@ -5,7 +5,6 @@ use super::*;
 impl ExecutionPlan {
     pub(super) fn new(program: &KernelProgram) -> Result<Self, Diagnostic> {
         direct_assignments::validate_storage_budget(program)?;
-        let ordered_selection = program.nodes().any(|node| matches!(node, KernelNode::Relation(relation) if crate::ordered_selection::contains(relation.expression())));
         for node in program.nodes() {
             if let KernelNode::Parameter(parameter) = node
                 && !direct_assignments::supported_type(parameter.value_type())
@@ -135,12 +134,6 @@ impl ExecutionPlan {
                     });
                 }
                 ActivationKind::Event { guard, direction } => {
-                    if ordered_selection || crate::ordered_selection::contains(guard) {
-                        return Err(execution_error(
-                            "min/max event execution is unsupported",
-                            0.0,
-                        ));
-                    }
                     events.push(EventTask {
                         activation: activation_id,
                         relations,
@@ -255,33 +248,9 @@ impl ExecutionPlan {
                 }
             }
         }
-        for node in program.nodes() {
-            if let KernelNode::Relation(relation) = node {
-                let has_selection = crate::ordered_selection::contains(relation.expression());
-                if has_selection && continuous_relations.contains(&relation.id().erase()) {
-                    return Err(execution_error(
-                        "continuous min/max execution is unsupported; use explicit sampled assignments",
-                        0.0,
-                    ));
-                }
-                if (has_selection
-                    || (ordered_selection
-                        && periodic
-                            .iter()
-                            .any(|task| task.relations.contains(&relation.id().erase()))))
-                    && !direct_assignments::numerical_roots(program, relation, ordered_selection)
-                        .is_empty()
-                {
-                    return Err(execution_error(
-                        "min/max requires direct sampled assignments; implicit equations are unsupported",
-                        0.0,
-                    ));
-                }
-            }
-        }
         for relation in &continuous_relations {
             if let Some(KernelNode::Relation(definition)) = program.node(*relation)
-                && direct_assignments::numerical_roots(program, definition, ordered_selection).len()
+                && direct_assignments::numerical_roots(program, definition).len()
                     != definition.expression().roots().len()
             {
                 return Err(execution_error(
@@ -295,11 +264,7 @@ impl ExecutionPlan {
             .copied()
             .filter(|field| {
                 !typed_fields.contains(field)
-                    && !direct_assignments::requires_typed_assignment_id(
-                        program,
-                        *field,
-                        ordered_selection,
-                    )
+                    && !direct_assignments::requires_typed_assignment_id(program, *field)
             })
             .collect();
         let fields = program
@@ -320,7 +285,6 @@ impl ExecutionPlan {
             })
             .collect();
         Ok(Self {
-            ordered_selection,
             initial_relations,
             continuous_relations,
             periodic,

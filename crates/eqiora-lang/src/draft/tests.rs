@@ -531,6 +531,15 @@ fn spatial_draft_projects_only_to_existing_source_ast_forms() {
 
 fn expression_contains_call(expression: &Expr, expected: &str) -> bool {
     match expression.kind() {
+        ExprKind::Select {
+            condition,
+            then_value,
+            else_value,
+        } => {
+            expression_contains_call(condition, expected)
+                || expression_contains_call(then_value, expected)
+                || expression_contains_call(else_value, expected)
+        }
         ExprKind::Call { callee, arguments } => {
             callee.as_str() == expected
                 || arguments

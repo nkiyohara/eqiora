@@ -1,3 +1,6 @@
+mod initializers;
+pub(super) use initializers::{evaluate_initializer, evaluate_initializer_mode};
+mod piecewise;
 use super::*;
 use eqiora_schema::kernel::typing::SpatialSupport;
 
@@ -105,6 +108,75 @@ pub(super) fn evaluate_mode(
     expected: Option<ScalarDomain>,
     evaluate_values: bool,
 ) -> Result<EvaluatedParameter, Diagnostic> {
+    if let ExprKind::Select {
+        condition,
+        then_value,
+        else_value,
+    } = expression.kind()
+    {
+        let condition = evaluate_mode(
+            file,
+            condition,
+            context,
+            resolve,
+            (&mut *resolve_clock, &mut *resolve_frame),
+            None,
+            evaluate_values,
+        )?;
+        let demand = condition.value.as_ref().and_then(ValueLiteral::as_bool);
+        let then_value = evaluate_mode(
+            file,
+            then_value,
+            context,
+            resolve,
+            (&mut *resolve_clock, &mut *resolve_frame),
+            expected,
+            evaluate_values && demand == Some(true),
+        )?;
+        let else_value = evaluate_mode(
+            file,
+            else_value,
+            context,
+            resolve,
+            (&mut *resolve_clock, &mut *resolve_frame),
+            expected,
+            evaluate_values && demand == Some(false),
+        )?;
+        return piecewise::select(file, expression.range(), condition, then_value, else_value);
+    }
+    if let ExprKind::Call { callee, arguments } = expression.kind()
+        && let Some(arity) = crate::math::piecewise::arity(callee.as_str())
+    {
+        let arguments = arguments
+            .positional()
+            .filter(|values| values.len() == arity)
+            .ok_or_else(|| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    expression.range(),
+                    format!("{callee} requires {arity} positional operands"),
+                )
+            })?;
+        return piecewise::sugar(
+            file,
+            expression.range(),
+            callee.as_str(),
+            arity,
+            evaluate_values,
+            |index, demand| {
+                evaluate_mode(
+                    file,
+                    &arguments[index],
+                    context,
+                    resolve,
+                    (&mut *resolve_clock, &mut *resolve_frame),
+                    None,
+                    demand,
+                )
+            },
+        );
+    }
     if matches!(expression.kind(), ExprKind::Reduction { .. }) {
         return Err(source_error(
             codes::LANGUAGE_TYPE_ERROR,
@@ -744,53 +816,6 @@ pub(crate) fn exact_signed_literal(
         },
         _ => None,
     }
-}
-
-pub(super) fn evaluate_initializer(
-    file: &str,
-    expression: &Expr,
-    context: ExpressionContext<'_>,
-    resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
-    target: ValueType,
-    label: &str,
-    (resolve_clock, resolve_frame): StaticContexts<'_>,
-) -> Result<EvaluatedParameter, Diagnostic> {
-    let evaluated = if matches!(expression.kind(), ExprKind::Call { callee, .. } if callee.as_str() == "tensor_value")
-    {
-        super::tensor_values::evaluate(
-            file,
-            expression,
-            context,
-            resolve,
-            (&mut *resolve_clock, &mut *resolve_frame),
-            Some(&target),
-            true,
-        )?
-    } else if matches!(expression.kind(), ExprKind::Array(_))
-        || matches!(expression.kind(), ExprKind::Call { callee, .. } if callee.as_str() == "math.complex")
-    {
-        super::value_expressions::evaluate_with_target(
-            file,
-            expression,
-            context,
-            resolve,
-            resolve_clock,
-            resolve_frame,
-            Some(&target),
-        )?
-    } else {
-        evaluate_with_domain(
-            file,
-            expression,
-            context,
-            resolve,
-            resolve_clock,
-            resolve_frame,
-            (target.scalar_domain() == ScalarDomain::Integer).then_some(ScalarDomain::Integer),
-        )?
-    };
-    coerce_parameter_with_label(file, expression.range(), evaluated, target, label, true)
-        .map(Into::into)
 }
 
 pub(super) fn coerce_parameter(

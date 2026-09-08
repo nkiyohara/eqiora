@@ -351,14 +351,14 @@ dependency to an existing project through the same manifest/lock transaction:
 import eqiora
 
 resolution = eqiora.add_bundled_dependency(
-    ".", "package-store", "Eqiora.Fluid.Incompressible", version="0.5.0"
+    ".", "package-store", "Eqiora.Fluid.Incompressible", version="0.6.0"
 )
 ```
 
 Create the store directory first. The request must match the exact release
 shipped in the distribution. The solid package is
 `Eqiora.Solid.LinearElasticity`, version `0.6.0`.
-The manifest records `version = "0.5.0"` and `bundled = true` for the fluid
+The manifest records `version = "0.6.0"` and `bundled = true` for the fluid
 dependency; local dependencies instead record an explicit `path`.
 
 `eqiora.toml` is the author-maintained project and package manifest. It owns the
@@ -1088,7 +1088,7 @@ assert same.revision == child.revision
 ```
 
 The canonical bytes still expose the persisted
-`eqiora.model-envelope/v18` schema, but callers do not select that suffix.
+`eqiora.model-envelope/v19` schema, but callers do not select that suffix.
 `.eqi` remains source text; `.eqmodel` is the canonical compiled Model artifact.
 Only the current schema is accepted; decoding never sniffs, retries, or silently
 migrates an older artifact.

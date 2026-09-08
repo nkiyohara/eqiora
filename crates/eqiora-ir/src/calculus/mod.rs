@@ -38,6 +38,7 @@ pub enum CalculusError {
     InvalidFormal(u16),
     InvalidNode,
     UnsupportedDerivative,
+    NonPolynomialCalculus,
     DerivativeProjection(String),
     ResultAxisOutOfRange,
     ComponentOutOfRange,
@@ -62,6 +63,9 @@ impl fmt::Display for CalculusError {
             Self::InvalidFormal(formal) => {
                 write!(formatter, "pure operator formal {formal} is invalid")
             }
+            Self::NonPolynomialCalculus => formatter.write_str(
+                "exact polynomial calculus cannot expand branches or scalar mathematics",
+            ),
             Self::UnsupportedDerivative => formatter.write_str(
                 "partial derivatives require real scalar formals/results and order one or two",
             ),

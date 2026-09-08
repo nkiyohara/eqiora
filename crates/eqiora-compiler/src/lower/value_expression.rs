@@ -76,6 +76,34 @@ impl LoweringExpression {
         }
     }
 
+    pub(crate) fn piecewise(name: String, arguments: Vec<Self>, range: TextRange) -> Self {
+        Self {
+            node: Arc::new(LoweringExpressionNode::Piecewise { name, arguments }),
+            range,
+        }
+    }
+    pub(crate) fn select(
+        condition: Self,
+        then_value: Self,
+        else_value: Self,
+        range: TextRange,
+    ) -> Self {
+        Self {
+            node: Arc::new(LoweringExpressionNode::Select {
+                condition,
+                then_value,
+                else_value,
+            }),
+            range,
+        }
+    }
+    pub(crate) fn require(condition: Self, value: Self, range: TextRange) -> Self {
+        Self {
+            node: Arc::new(LoweringExpressionNode::Require { condition, value }),
+            range,
+        }
+    }
+
     pub(crate) fn extremum(minimum: bool, left: Self, right: Self, range: TextRange) -> Self {
         Self {
             node: Arc::new(LoweringExpressionNode::Extremum {

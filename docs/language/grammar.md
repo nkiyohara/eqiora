@@ -110,6 +110,10 @@ See [properties](properties.md), [finite spaces](finite-spaces.md), [coordinates
 [variations](phase-separation.md), and [stochastic Laws](stochastic.md) for specialized children.
 The [resource profile](resources.md) applies before recursion or expansion.
 
+Conditional value expressions use the [scalar branch profile](conditionals.md). `if`, `then`
+and `else` delimit values; both branches are statically checked and runtime evaluation selects
+only one. Parenthesize a conditional used as a tighter arithmetic or `not` operand.
+
 Typed operator definitions use the [operator profile](operators.md):
 
 ```text

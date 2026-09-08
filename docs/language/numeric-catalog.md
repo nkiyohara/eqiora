@@ -153,10 +153,12 @@ On an exact tie the earlier element wins. Every term is evaluated, so an error i
 cannot be hidden by an earlier winner. Mixed integer/real types, complex values, Booleans,
 nominal indexes/counts and shaped values reject.
 
-Finite extrema retain live Parameter dependencies and use the direct sampled assignment
-path for admitted periodic values. Implicit extrema equations, continuous execution and
-unsupported differentiation reject. These reductions do not establish generic `math.min`
-or `math.max`, conditional branches, smoothing or derivative rules at a tie.
+Finite extrema retain live Parameter dependencies and lower to ordinary comparison and
+selection nodes. Exact sampled values and admitted real equations use the existing
+execution profiles. The [typed point derivative profile](conditionals.md) admits real
+extrema away from demanded ties and rejects at a tie; the untyped numerical SSA entry
+still requires typed execution for selection. These reductions add no smoothing or
+general nonsmooth solver.
 
 The binder has the exact set's nominal index type. Use `ordinal(i)` for integer arithmetic
 or channel indexing. Nested reductions use distinct lexical binder names and cannot capture
@@ -209,8 +211,9 @@ with a separately requested output does not exempt that output from evaluation.
 
 A Relation equality remains `left = right`; it does not become the predicate `left == right`.
 Direct Boolean initialization and sampled assignments use the existing typed state and output
-owners. This profile does not establish conditional expressions, masked batched evaluation,
-a Boolean implicit solver, predicate derivatives, or automatic crossing events.
+owners. Conditional values and bounded batches use the separate
+[scalar branch profile](conditionals.md). A Boolean implicit solver, predicate derivatives
+and automatic crossing events remain outside these profiles.
 
 ## Real elementary functions
 

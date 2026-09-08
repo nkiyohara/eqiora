@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, DimExponents, DynQuantity, GraphPath, ValueShape};
+use eqiora_core::{Diagnostic, DynQuantity, GraphPath, ValueShape};
 use eqiora_schema::kernel::typing::{ExpressionType, TypedResidual};
 use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, SymbolRef};
 
@@ -412,10 +412,9 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
         }
         let node = calculus.nodes()[index].clone();
         let mapped = match node {
-            ScalarCalculusNode::Rational(value) => self.builder.constant(DynQuantity::new(
-                value.as_f64(),
-                DimExponents::DIMENSIONLESS,
-            ))?,
+            ScalarCalculusNode::Rational { value, dimension } => self
+                .builder
+                .constant(DynQuantity::new(value.as_f64(), dimension))?,
             ScalarCalculusNode::FormalComponent(atom) => {
                 let operand = arguments
                     .get(usize::from(atom.formal()))

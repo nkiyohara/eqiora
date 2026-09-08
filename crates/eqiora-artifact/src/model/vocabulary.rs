@@ -473,7 +473,7 @@ impl WireRationalTime {
     }
 }
 
-pub(crate) const PURE_COMPONENT_CALCULUS_V1: &str = "eqiora.pure-component-calculus/v1";
+pub(crate) const PURE_COMPONENT_CALCULUS_V2: &str = "eqiora.pure-component-calculus/v2";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -490,7 +490,7 @@ impl WirePureOperatorDefinition {
     pub(crate) fn encode(definition: &PureOperatorDefinition) -> Self {
         Self {
             digest: definition.digest().to_string(),
-            required_features: vec![PURE_COMPONENT_CALCULUS_V1.to_owned()],
+            required_features: vec![PURE_COMPONENT_CALCULUS_V2.to_owned()],
             formals: definition
                 .formals()
                 .iter()
@@ -516,7 +516,7 @@ impl WirePureOperatorDefinition {
         if let Some(feature) = self
             .required_features
             .iter()
-            .find(|feature| feature.as_str() != PURE_COMPONENT_CALCULUS_V1)
+            .find(|feature| feature.as_str() != PURE_COMPONENT_CALCULUS_V2)
         {
             return Err(invalid_artifact(format!(
                 "pure-operator definition requires unknown feature `{feature}`"
@@ -635,20 +635,106 @@ impl WirePureValueClass {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "kebab-case", deny_unknown_fields)]
 pub(crate) enum WirePureCalculusNode {
-    Rational { numerator: i64, denominator: u64 },
-    FormalComponent { formal: u16, axes: Vec<u16> },
-    KroneckerDelta { left_axis: u16, right_axis: u16 },
-    Neg { value: u32 },
-    Add { left: u32, right: u32 },
-    Mul { left: u32, right: u32 },
+    Rational {
+        numerator: i64,
+        denominator: u64,
+        dimension: WireDimension,
+    },
+    Boolean {
+        value: bool,
+    },
+    Compare {
+        comparison: WireComparisonOp,
+        left: u32,
+        right: u32,
+    },
+    Not {
+        value: u32,
+    },
+    And {
+        left: u32,
+        right: u32,
+    },
+    Or {
+        left: u32,
+        right: u32,
+    },
+    Select {
+        condition: u32,
+        then_value: u32,
+        else_value: u32,
+    },
+    Require {
+        condition: u32,
+        value: u32,
+    },
+    UnaryMath {
+        function: WireUnaryMath,
+        value: u32,
+    },
+    FormalComponent {
+        formal: u16,
+        axes: Vec<u16>,
+    },
+    KroneckerDelta {
+        left_axis: u16,
+        right_axis: u16,
+    },
+    Neg {
+        value: u32,
+    },
+    Add {
+        left: u32,
+        right: u32,
+    },
+    Mul {
+        left: u32,
+        right: u32,
+    },
 }
 
 impl WirePureCalculusNode {
     pub(crate) fn encode(node: &CalculusNode) -> Self {
         match node {
-            CalculusNode::Rational(value) => Self::Rational {
+            CalculusNode::Rational { value, dimension } => Self::Rational {
+                dimension: WireDimension::encode(*dimension),
                 numerator: value.numerator(),
                 denominator: value.denominator(),
+            },
+            CalculusNode::Boolean(value) => Self::Boolean { value: *value },
+            CalculusNode::Compare(comparison, left, right) => Self::Compare {
+                comparison: WireComparisonOp::encode(*comparison),
+                left: left.index(),
+                right: right.index(),
+            },
+            CalculusNode::Not(value) => Self::Not {
+                value: value.index(),
+            },
+            CalculusNode::And(left, right) => Self::And {
+                left: left.index(),
+                right: right.index(),
+            },
+            CalculusNode::Or(left, right) => Self::Or {
+                left: left.index(),
+                right: right.index(),
+            },
+            CalculusNode::Select {
+                condition,
+                then_value,
+                else_value,
+            } => Self::Select {
+                condition: condition.index(),
+                then_value: then_value.index(),
+                else_value: else_value.index(),
+            },
+            CalculusNode::Require { condition, value } => Self::Require {
+                condition: condition.index(),
+                value: value.index(),
+            },
+            CalculusNode::UnaryMath(function, value) => Self::UnaryMath {
+                function: WireUnaryMath::encode(*function)
+                    .expect("checked pure calculus admits only square root"),
+                value: value.index(),
             },
             CalculusNode::FormalComponent { formal, axes } => Self::FormalComponent {
                 formal: *formal,
@@ -681,11 +767,48 @@ impl WirePureCalculusNode {
             Self::Rational {
                 numerator,
                 denominator,
-            } => CalculusNode::Rational(
-                ExactRational::from_canonical_parts(*numerator, *denominator).map_err(|error| {
-                    invalid_artifact(format!("invalid canonical pure rational: {error}"))
-                })?,
+                dimension,
+            } => CalculusNode::Rational {
+                dimension: dimension.decode(),
+                value: ExactRational::from_canonical_parts(*numerator, *denominator).map_err(
+                    |error| invalid_artifact(format!("invalid canonical pure rational: {error}")),
+                )?,
+            },
+            Self::Boolean { value } => CalculusNode::Boolean(*value),
+            Self::Compare {
+                comparison,
+                left,
+                right,
+            } => CalculusNode::Compare(
+                comparison.decode(),
+                calculus_operand(ids, *left)?,
+                calculus_operand(ids, *right)?,
             ),
+            Self::Not { value } => CalculusNode::Not(calculus_operand(ids, *value)?),
+            Self::And { left, right } => CalculusNode::And(
+                calculus_operand(ids, *left)?,
+                calculus_operand(ids, *right)?,
+            ),
+            Self::Or { left, right } => CalculusNode::Or(
+                calculus_operand(ids, *left)?,
+                calculus_operand(ids, *right)?,
+            ),
+            Self::Select {
+                condition,
+                then_value,
+                else_value,
+            } => CalculusNode::Select {
+                condition: calculus_operand(ids, *condition)?,
+                then_value: calculus_operand(ids, *then_value)?,
+                else_value: calculus_operand(ids, *else_value)?,
+            },
+            Self::Require { condition, value } => CalculusNode::Require {
+                condition: calculus_operand(ids, *condition)?,
+                value: calculus_operand(ids, *value)?,
+            },
+            Self::UnaryMath { function, value } => {
+                CalculusNode::UnaryMath(function.decode(), calculus_operand(ids, *value)?)
+            }
             Self::FormalComponent { formal, axes } => CalculusNode::FormalComponent {
                 formal: *formal,
                 axes: axes
@@ -813,3 +936,7 @@ mod pure_constraint_tests {
         assert!(!error.contains("digest mismatch"), "{error}");
     }
 }
+
+#[cfg(test)]
+#[path = "calculus_wire_tests.rs"]
+mod calculus_wire_tests;

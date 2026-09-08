@@ -442,16 +442,10 @@ impl Interpreter {
         if let Err(diagnostic) = config.validate() {
             return Err(vec![diagnostic]);
         }
-        if program.nodes().any(|node| matches!(node, KernelNode::Field(field) if direct_assignments::requires_typed_assignment(program,SymbolRef::Field(field.id()), false))) {
+        if program.nodes().any(|node| matches!(node, KernelNode::Field(field) if direct_assignments::requires_typed_assignment(program,SymbolRef::Field(field.id())))) {
             return Err(vec![execution_error("DynQuantity trajectories cannot retain channel or exact discrete Fields; use sampled_session",0.0)]);
         }
         let mut plan = ExecutionPlan::new(program).map_err(|diagnostic| vec![diagnostic])?;
-        if plan.ordered_selection {
-            return Err(vec![execution_error(
-                "min/max sampled execution requires sampled_session",
-                0.0,
-            )]);
-        }
         let mut state = RuntimeState::new(program, &plan).map_err(|diagnostic| vec![diagnostic])?;
 
         solve_initialization(program, &plan, &mut state, config, backend)
@@ -685,7 +679,6 @@ impl Interpreter {
 
 #[derive(Debug, Clone)]
 struct ExecutionPlan {
-    ordered_selection: bool,
     initial_relations: BTreeSet<RawId>,
     continuous_relations: BTreeSet<RawId>,
     periodic: Vec<PeriodicTask>,
@@ -770,7 +763,6 @@ fn solve_consistency(
             let candidates = candidate_maps(&variables, values, state);
             evaluate_relations(
                 program,
-                plan.ordered_selection,
                 &plan.continuous_relations,
                 time,
                 state,
@@ -836,7 +828,6 @@ fn solve_continuous_step(
             }
             evaluate_relations(
                 program,
-                plan.ordered_selection,
                 &plan.continuous_relations,
                 end,
                 state,
@@ -919,11 +910,7 @@ fn execute_activated_relations(
     let mut variables = BTreeSet::new();
     for &relation in relations {
         for symbol in relation_symbols(program, relation)? {
-            if direct_assignments::requires_typed_assignment(
-                program,
-                symbol,
-                plan.ordered_selection,
-            ) {
+            if direct_assignments::requires_typed_assignment(program, symbol) {
                 continue;
             }
             match symbol {
@@ -950,7 +937,6 @@ fn execute_activated_relations(
         let candidates = candidate_maps(&variables, values, &accepted_candidate);
         evaluate_relations(
             program,
-            plan.ordered_selection,
             relations,
             time,
             &accepted_candidate,

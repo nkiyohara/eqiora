@@ -6,7 +6,7 @@ use super::ExactRational;
 use super::expansion::{ScalarCalculus, ScalarCalculusAtom, ScalarCalculusNode};
 use super::{CalculusError, calculus_index, hash, push_rational, push_u16, push_u32};
 
-const COMPONENT_DOMAIN: &[u8] = b"eqiora.scalar-calculus/v1\0";
+const COMPONENT_DOMAIN: &[u8] = b"eqiora.scalar-calculus/v2\0";
 const NORMAL_FORM_DOMAIN: &[u8] = b"eqiora.exact-polynomial-normal-form/v1\0";
 const MAX_NORMAL_TERMS: usize = 16_384;
 
@@ -45,7 +45,9 @@ impl ExactPolynomial {
             Vec::with_capacity(calculus.nodes().len());
         for node in calculus.nodes() {
             let polynomial = match node {
-                ScalarCalculusNode::Rational(value) => BTreeMap::from([(Vec::new(), *value)]),
+                ScalarCalculusNode::Rational { value, .. } => {
+                    BTreeMap::from([(Vec::new(), *value)])
+                }
                 ScalarCalculusNode::FormalComponent(atom) => {
                     BTreeMap::from([(vec![atom.clone()], ExactRational::integer(1))])
                 }
@@ -246,7 +248,11 @@ fn canonical_component_bytes<I>(component: &ScalarCalculus<I>) -> Vec<u8> {
     push_u32(&mut bytes, component.nodes().len());
     for node in component.nodes() {
         match node {
-            ScalarCalculusNode::Rational(value) => {
+            ScalarCalculusNode::Rational { value, dimension } => {
+                for (n, d) in dimension.exponents() {
+                    bytes.extend_from_slice(&n.to_be_bytes());
+                    bytes.extend_from_slice(&d.to_be_bytes());
+                }
                 bytes.push(0);
                 push_rational(&mut bytes, *value);
             }
@@ -324,11 +330,17 @@ mod tests {
             sum
         } else {
             let half = builder
-                .push(CalculusNode::Rational(ExactRational::new(1, 2).unwrap()))
+                .push(CalculusNode::Rational {
+                    value: ExactRational::new(1, 2).unwrap(),
+                    dimension: eqiora_core::DimExponents::DIMENSIONLESS,
+                })
                 .unwrap();
             let symmetric = builder.push(CalculusNode::Mul(half, sum)).unwrap();
             let two = builder
-                .push(CalculusNode::Rational(ExactRational::integer(2)))
+                .push(CalculusNode::Rational {
+                    value: ExactRational::integer(2),
+                    dimension: eqiora_core::DimExponents::DIMENSIONLESS,
+                })
                 .unwrap();
             builder.push(CalculusNode::Mul(two, symmetric)).unwrap()
         };

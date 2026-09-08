@@ -48,7 +48,7 @@
     "keywords": {
       "patterns": [{
         "name": "keyword.control.eqiora",
-        "match": "\\b(?:across|ambient_dimension|as|at|axis|boundaries|boundary|citation|clock|complete_exterior|component|components|composition|connect|connector|conserving|contract|delta|derivatives|dimension|discrete|domain|field|for|form|frame|implements|import|in|initial|input|instance|license|let|lower|material|model|on|operator|output|over|parameter|parent|period|periodic|phase|port|primal|private|property|public|pure|rational|relation|release|scalar|shape|side|signal|source_unit|spatial|state|support|through|unconditional|upper|validity|value|value_only|variable|volume)\\b"
+        "match": "\\b(?:across|ambient_dimension|as|at|axis|boundaries|boundary|citation|clock|complete_exterior|component|components|composition|connect|connector|conserving|contract|delta|derivatives|dimension|discrete|domain|else|field|for|form|frame|if|implements|import|in|initial|input|instance|license|let|lower|material|model|on|operator|output|over|parameter|parent|period|periodic|phase|port|primal|private|property|public|pure|rational|relation|release|scalar|shape|side|signal|source_unit|spatial|state|support|then|through|unconditional|upper|validity|value|value_only|variable|volume)\\b"
       }]
     },
     "functions": {

@@ -317,6 +317,17 @@ impl ExpressionChecker<'_, '_, '_> {
                 ExpressionType::complex(self.check(real)?, self.check(imag)?)
                     .map_err(|error| type_error(self.scope.file, expression, error))
             }
+            ExprKind::Select {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                let condition = self.check(condition)?;
+                let (then_value, else_value) = self.check_pair(then_value, else_value)?;
+                condition
+                    .select(then_value, else_value)
+                    .map_err(|error| type_error(self.scope.file, expression, error))
+            }
             ExprKind::Boolean(_) => {
                 Ok(ExpressionType::new(eqiora_core::ValueType::boolean(), None))
             }
@@ -565,6 +576,14 @@ impl ExpressionChecker<'_, '_, '_> {
                         "nominal constructor requires its resolved lexical declaration",
                     )
                 });
+        }
+        if crate::math::piecewise::arity(callee_name).is_some() {
+            let operands = arguments
+                .iter()
+                .map(|value| self.check(value))
+                .collect::<Result<Vec<_>, _>>()?;
+            return crate::math::piecewise::result_type(callee_name, &operands)
+                .map_err(|error| type_error(self.scope.file, expression, error));
         }
         if let Some(operator) = crate::lower::IntegerBuiltin::named(callee_name) {
             if arguments.len() != operator.arity() {

@@ -8,9 +8,9 @@ pub(super) fn evaluate_instructions(
     let mut values = Vec::with_capacity(instructions.len());
     for (index, instruction) in instructions.iter().enumerate() {
         let value = match *instruction {
-            Instruction::PureOperator { .. }
-            | Instruction::Min(_, _)
-            | Instruction::Max(_, _)
+            Instruction::Select { .. }
+            | Instruction::Require { .. }
+            | Instruction::PureOperator { .. }
             | Instruction::Compare(_, _, _)
             | Instruction::Not(_)
             | Instruction::And(_, _)
@@ -40,6 +40,7 @@ pub(super) fn evaluate_instructions(
                         .with_graph_path(ir_path(index))
                     })?
             }
+            Instruction::Sqrt(value) => read(&values, value, index)?.sqrt(),
             Instruction::Neg(value) => -read(&values, value, index)?,
             Instruction::Add(left, right) => {
                 read(&values, left, index)? + read(&values, right, index)?

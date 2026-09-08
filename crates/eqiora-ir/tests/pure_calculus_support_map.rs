@@ -62,15 +62,19 @@ fn equivalent_symmetry_definition(expanded: bool) -> PureOperatorDefinition {
         sum
     } else {
         let half = definition
-            .push(CalculusNode::Rational(
-                ExactRational::new(1, 2).expect("half"),
-            ))
+            .push(CalculusNode::Rational {
+                value: ExactRational::new(1, 2).expect("half"),
+                dimension: eqiora_core::DimExponents::DIMENSIONLESS,
+            })
             .expect("half node");
         let symmetric = definition
             .push(CalculusNode::Mul(half, sum))
             .expect("symmetric part");
         let two = definition
-            .push(CalculusNode::Rational(ExactRational::integer(2)))
+            .push(CalculusNode::Rational {
+                value: ExactRational::integer(2),
+                dimension: eqiora_core::DimExponents::DIMENSIONLESS,
+            })
             .expect("two node");
         definition
             .push(CalculusNode::Mul(two, symmetric))

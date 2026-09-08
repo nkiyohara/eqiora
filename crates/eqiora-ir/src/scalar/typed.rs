@@ -13,6 +13,15 @@ impl ScalarOperatorIr {
         roots: &[eqiora_schema::kernel::ExprId],
         resolve: &mut dyn FnMut(SymbolRef) -> Option<ValueLiteral>,
     ) -> Result<Vec<ValueLiteral>, Diagnostic> {
+        self.evaluate_trace(roots, resolve)
+            .map(|(values, _)| values)
+    }
+
+    pub(super) fn evaluate_trace(
+        &self,
+        roots: &[eqiora_schema::kernel::ExprId],
+        resolve: &mut dyn FnMut(SymbolRef) -> Option<ValueLiteral>,
+    ) -> Result<(Vec<ValueLiteral>, Vec<Option<ValueLiteral>>), Diagnostic> {
         let roots = roots
             .iter()
             .map(|id| {
@@ -26,6 +35,7 @@ impl ScalarOperatorIr {
             Demand(ValueId),
             Apply(ValueId),
             Logical(ValueId),
+            Branch(ValueId),
         }
         let mut component_work = 0usize;
         let mut values: Vec<Option<ValueLiteral>> = vec![None; self.instructions.len()];
@@ -33,7 +43,10 @@ impl ScalarOperatorIr {
             let mut pending = vec![Frame::Demand(root)];
             while let Some(frame) = pending.pop() {
                 let id = match frame {
-                    Frame::Demand(id) | Frame::Apply(id) | Frame::Logical(id) => id,
+                    Frame::Demand(id)
+                    | Frame::Apply(id)
+                    | Frame::Logical(id)
+                    | Frame::Branch(id) => id,
                 };
                 let index = id.0 as usize;
                 let instruction = *self
@@ -42,6 +55,44 @@ impl ScalarOperatorIr {
                     .ok_or_else(|| ir_builder_error("typed operand is unavailable"))?;
                 if values[index].is_some() {
                     continue;
+                }
+                if let Instruction::Select { condition, .. }
+                | Instruction::Require { condition, .. } = instruction
+                {
+                    if matches!(frame, Frame::Demand(_)) {
+                        pending.push(Frame::Branch(id));
+                        pending.push(Frame::Demand(condition));
+                        continue;
+                    }
+                    if matches!(frame, Frame::Branch(_)) {
+                        let test = boolean(
+                            values[condition.0 as usize]
+                                .as_ref()
+                                .expect("demanded condition"),
+                        )?;
+                        let selected = match instruction {
+                            Instruction::Select {
+                                then_value,
+                                else_value,
+                                ..
+                            } => {
+                                if test {
+                                    then_value
+                                } else {
+                                    else_value
+                                }
+                            }
+                            Instruction::Require { value, .. } if test => value,
+                            _ => {
+                                return Err(ir_builder_error(
+                                    "required expression domain condition is false",
+                                ));
+                            }
+                        };
+                        pending.push(Frame::Apply(id));
+                        pending.push(Frame::Demand(selected));
+                        continue;
+                    }
                 }
                 if let Instruction::And(left, right) | Instruction::Or(left, right) = instruction {
                     if matches!(frame, Frame::Demand(_)) {
@@ -66,7 +117,10 @@ impl ScalarOperatorIr {
                 if matches!(frame, Frame::Demand(_)) {
                     pending.push(Frame::Apply(id));
                     match instruction {
-                        Instruction::And(_, _) | Instruction::Or(_, _) => {
+                        Instruction::And(_, _)
+                        | Instruction::Or(_, _)
+                        | Instruction::Select { .. }
+                        | Instruction::Require { .. } => {
                             unreachable!("logical demand is staged separately")
                         }
                         Instruction::Constant(_)
@@ -82,16 +136,15 @@ impl ScalarOperatorIr {
                                 })?;
                             pending.extend(operands.iter().rev().copied().map(Frame::Demand));
                         }
-                        Instruction::Index(a, _)
+                        Instruction::Sqrt(a)
+                        | Instruction::Index(a, _)
                         | Instruction::Neg(a)
                         | Instruction::PowI(a, _)
                         | Instruction::ToReal(a)
                         | Instruction::ToInteger(a)
                         | Instruction::Ordinal(a)
                         | Instruction::Not(a) => pending.push(Frame::Demand(a)),
-                        Instruction::Min(a, b)
-                        | Instruction::Max(a, b)
-                        | Instruction::Compare(_, a, b)
+                        Instruction::Compare(_, a, b)
                         | Instruction::Add(a, b)
                         | Instruction::Sub(a, b)
                         | Instruction::Mul(a, b)
@@ -111,6 +164,30 @@ impl ScalarOperatorIr {
                         .ok_or_else(|| ir_builder_error("typed scalar operand is unavailable"))
                 };
                 let value = match instruction {
+                    Instruction::Select {
+                        condition,
+                        then_value,
+                        else_value,
+                    } => read(if boolean(read(condition)?)? {
+                        then_value
+                    } else {
+                        else_value
+                    })?
+                    .clone(),
+                    Instruction::Require { value, .. } => read(value)?.clone(),
+                    Instruction::Sqrt(value) => {
+                        let value = real(read(value)?)?;
+                        if value.value() < 0. {
+                            return Err(ir_builder_error(
+                                "real square root requires a nonnegative argument",
+                            ));
+                        }
+                        let dimension = value.dim().pow(1, 2).ok_or_else(|| {
+                            ir_builder_error("square-root dimension exceeds bounds")
+                        })?;
+                        literal(DynQuantity::new(value.value().sqrt(), dimension))?
+                    }
+
                     Instruction::PureOperator {
                         definition,
                         start,
@@ -176,21 +253,6 @@ impl ScalarOperatorIr {
                     Instruction::Not(value) => ValueLiteral::boolean(!boolean(read(value)?)?),
                     Instruction::And(_, right) | Instruction::Or(_, right) => {
                         ValueLiteral::boolean(boolean(read(right)?)?)
-                    }
-                    Instruction::Min(left, right) | Instruction::Max(left, right) => {
-                        let left = read(left)?;
-                        let right = read(right)?;
-                        let order = left.checked_order(right).map_err(discrete_error)?;
-                        let take_right = if matches!(instruction, Instruction::Min(_, _)) {
-                            order == std::cmp::Ordering::Greater
-                        } else {
-                            order == std::cmp::Ordering::Less
-                        };
-                        if take_right {
-                            right.clone()
-                        } else {
-                            left.clone()
-                        }
                     }
                     Instruction::Compare(op, left, right) => {
                         compare(op, read(left)?, read(right)?)?
@@ -276,7 +338,7 @@ impl ScalarOperatorIr {
                 values[index] = Some(value);
             }
         }
-        roots
+        let results = roots
             .iter()
             .map(|root| {
                 values
@@ -285,7 +347,8 @@ impl ScalarOperatorIr {
                     .cloned()
                     .ok_or_else(|| ir_builder_error("typed scalar root is unavailable"))
             })
-            .collect()
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok((results, values))
     }
 }
 

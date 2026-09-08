@@ -16,9 +16,11 @@ use eqiora_core::{DimExponents, ValueFrame};
 mod composition;
 mod dimensions;
 mod domains;
+mod encoding;
 use dimensions::{derive_symbolic_dimension, instantiate_dimension, validate_result_dimension};
+use encoding::canonical_definition_bytes;
 
-const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v3\0";
+const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v4\0";
 
 /// Maximum number of formal arguments in a definition.
 pub const MAX_FORMALS: usize = 64;
@@ -413,8 +415,34 @@ impl ResultAxis {
 /// A definition is therefore capture-free and nonrecursive by construction.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CalculusNode {
+    /// Demand a Boolean domain condition before evaluating a complete scalar value.
+    Require {
+        condition: CalculusNodeId,
+        value: CalculusNodeId,
+    },
     /// Exact mathematical literal.
-    Rational(ExactRational),
+    Rational {
+        value: ExactRational,
+        dimension: DimExponents,
+    },
+    /// Logical value used only by a checked scalar condition.
+    Boolean(bool),
+    /// Exact typed scalar predicate.
+    Compare(super::ComparisonOp, CalculusNodeId, CalculusNodeId),
+    /// Boolean negation.
+    Not(CalculusNodeId),
+    /// Short-circuit Boolean conjunction.
+    And(CalculusNodeId, CalculusNodeId),
+    /// Short-circuit Boolean disjunction.
+    Or(CalculusNodeId, CalculusNodeId),
+    /// Lazy complete scalar value selection.
+    Select {
+        condition: CalculusNodeId,
+        then_value: CalculusNodeId,
+        else_value: CalculusNodeId,
+    },
+    /// Checked real scalar mathematics; this profile admits only square root.
+    UnaryMath(super::UnaryMathFunction, CalculusNodeId),
     /// One formal component addressed only by result axes.
     FormalComponent {
         /// Zero-based formal slot.
@@ -434,14 +462,27 @@ pub enum CalculusNode {
 
 impl CalculusNode {
     fn operands(&self) -> impl Iterator<Item = CalculusNodeId> {
-        let pair = match *self {
-            Self::Neg(value) => (Some(value), None),
-            Self::Add(left, right) | Self::Mul(left, right) => (Some(left), Some(right)),
-            Self::Rational(_) | Self::FormalComponent { .. } | Self::KroneckerDelta(_, _) => {
-                (None, None)
+        let operands = match *self {
+            Self::Require { condition, value } => [Some(condition), Some(value), None],
+            Self::Neg(value) | Self::Not(value) | Self::UnaryMath(_, value) => {
+                [Some(value), None, None]
             }
+            Self::Add(left, right)
+            | Self::Mul(left, right)
+            | Self::Compare(_, left, right)
+            | Self::And(left, right)
+            | Self::Or(left, right) => [Some(left), Some(right), None],
+            Self::Select {
+                condition,
+                then_value,
+                else_value,
+            } => [Some(condition), Some(then_value), Some(else_value)],
+            Self::Rational { .. }
+            | Self::Boolean(_)
+            | Self::FormalComponent { .. }
+            | Self::KroneckerDelta(_, _) => [None, None, None],
         };
-        pair.0.into_iter().chain(pair.1)
+        operands.into_iter().flatten()
     }
 }
 
@@ -489,6 +530,9 @@ impl CalculusBuilder {
         }
         let result_rank = self.result_rank();
         match &node {
+            CalculusNode::UnaryMath(function, _) if *function != super::UnaryMathFunction::Sqrt => {
+                return Err(PureOperatorError::FormalTypeMismatch);
+            }
             CalculusNode::FormalComponent { formal, axes } => {
                 let Some(rule) = self.formals.get(usize::from(*formal)) else {
                     return Err(PureOperatorError::InvalidFormal(*formal));
@@ -546,6 +590,7 @@ impl CalculusBuilder {
         if self.nodes.get(root_index).is_none() {
             return Err(PureOperatorError::InvalidNode);
         }
+        dimensions::validate_profile(&self.formals, self.result, &self.nodes)?;
         let dimension = derive_symbolic_dimension(&self.formals, &self.nodes, root)?;
         validate_result_dimension(&self.formals, self.result, &dimension)?;
         domains::validate_result(&self.formals, self.result)?;
@@ -565,17 +610,25 @@ impl CalculusBuilder {
 
 /// Symbolic physical dimension of a definition body.
 ///
-/// Exponent `i` is the multiplicity of formal `i` in the body's physical
-/// dimension. Exact constants and Kronecker deltas contribute zero.
+/// Exponent `i` is the exact rational power of formal `i` in the body's
+/// physical dimension. Typed literals contribute the fixed SI factor;
+/// Kronecker deltas are dimensionless.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FormalDimensionMonomial {
-    exponents: Box<[u16]>,
+    fixed_dimension: DimExponents,
+    exponents: Box<[ExactRational]>,
 }
 
 impl FormalDimensionMonomial {
+    /// Fixed physical dimension factor contributed by typed literals.
+    #[must_use]
+    pub const fn fixed_dimension(&self) -> DimExponents {
+        self.fixed_dimension
+    }
+
     /// Formal exponents in declaration order.
     #[must_use]
-    pub const fn exponents(&self) -> &[u16] {
+    pub const fn exponents(&self) -> &[ExactRational] {
         &self.exponents
     }
 }
@@ -734,7 +787,10 @@ impl PureOperatorDefinition {
             axes: [ResultAxis::new(1), ResultAxis::new(0)].into(),
         })?;
         let sum = builder.push(CalculusNode::Add(direct, transposed))?;
-        let half = builder.push(CalculusNode::Rational(ExactRational::new(1, 2)?))?;
+        let half = builder.push(CalculusNode::Rational {
+            value: ExactRational::new(1, 2)?,
+            dimension: DimExponents::DIMENSIONLESS,
+        })?;
         let body = builder.push(CalculusNode::Mul(half, sum))?;
         builder.finish(body)
     }
@@ -882,95 +938,11 @@ impl<I> PureOperatorInstantiation<'_, I> {
     }
 }
 
-fn canonical_definition_bytes(definition: &PureOperatorDefinition) -> Vec<u8> {
-    let mut bytes = DEFINITION_DOMAIN.to_vec();
-    push_u32(&mut bytes, definition.formals.len());
-    for formal in &definition.formals {
-        push_value_class(&mut bytes, *formal);
-    }
-    push_value_class(&mut bytes, definition.result);
-    push_u32(&mut bytes, definition.nodes.len());
-    for node in &definition.nodes {
-        match node {
-            CalculusNode::Rational(value) => {
-                bytes.push(0);
-                push_rational(&mut bytes, *value);
-            }
-            CalculusNode::FormalComponent { formal, axes } => {
-                bytes.push(1);
-                push_u16(&mut bytes, *formal);
-                push_u32(&mut bytes, axes.len());
-                for axis in axes {
-                    push_u16(&mut bytes, axis.index());
-                }
-            }
-            CalculusNode::KroneckerDelta(left, right) => {
-                bytes.push(2);
-                push_u16(&mut bytes, left.index());
-                push_u16(&mut bytes, right.index());
-            }
-            CalculusNode::Neg(value) => {
-                bytes.push(3);
-                bytes.extend_from_slice(&value.index().to_be_bytes());
-            }
-            CalculusNode::Add(left, right) => {
-                bytes.push(4);
-                bytes.extend_from_slice(&left.index().to_be_bytes());
-                bytes.extend_from_slice(&right.index().to_be_bytes());
-            }
-            CalculusNode::Mul(left, right) => {
-                bytes.push(5);
-                bytes.extend_from_slice(&left.index().to_be_bytes());
-                bytes.extend_from_slice(&right.index().to_be_bytes());
-            }
-        }
-    }
-    bytes.extend_from_slice(&definition.root.index().to_be_bytes());
-    bytes
-}
-
-fn push_value_class(bytes: &mut Vec<u8>, class: PureValueClass) {
-    match class.spatial_rank() {
-        None => bytes.push(0),
-        Some(rank) => {
-            bytes.push(1);
-            push_u16(bytes, rank);
-        }
-    }
-    match class.scalar_domain() {
-        None => bytes.push(0),
-        Some(eqiora_core::ScalarDomain::Real) => bytes.push(1),
-        Some(eqiora_core::ScalarDomain::Complex) => bytes.push(2),
-        Some(_) => unreachable!("checked pure scalar domain"),
-    }
-    match class.dimension() {
-        None => bytes.push(0),
-        Some(dimension) => {
-            bytes.push(1);
-            for (numerator, denominator) in dimension.exponents() {
-                bytes.extend_from_slice(&numerator.to_be_bytes());
-                bytes.extend_from_slice(&denominator.to_be_bytes());
-            }
-        }
-    }
-}
-
-fn push_rational(bytes: &mut Vec<u8>, value: ExactRational) {
-    bytes.extend_from_slice(&value.numerator().to_be_bytes());
-    bytes.extend_from_slice(&value.denominator().to_be_bytes());
-}
-
-fn push_u16(bytes: &mut Vec<u8>, value: u16) {
-    bytes.extend_from_slice(&value.to_be_bytes());
-}
-
-fn push_u32(bytes: &mut Vec<u8>, value: usize) {
-    let value = u32::try_from(value).expect("bounded pure-operator count fits u32");
-    bytes.extend_from_slice(&value.to_be_bytes());
-}
-
 #[cfg(test)]
 mod tests;
 
 #[cfg(test)]
 mod dimension_tests;
+
+#[cfg(test)]
+mod conditional_tests;

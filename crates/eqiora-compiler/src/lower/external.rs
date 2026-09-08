@@ -50,6 +50,30 @@ impl LoweringExpression {
             LoweringExpressionNode::Neg(value) => {
                 LoweringExpressionNode::Neg(value.clone_shared(cache))
             }
+            LoweringExpressionNode::Select {
+                condition,
+                then_value,
+                else_value,
+            } => LoweringExpressionNode::Select {
+                condition: condition.clone_shared(cache),
+                then_value: then_value.clone_shared(cache),
+                else_value: else_value.clone_shared(cache),
+            },
+            LoweringExpressionNode::Require { condition, value } => {
+                LoweringExpressionNode::Require {
+                    condition: condition.clone_shared(cache),
+                    value: value.clone_shared(cache),
+                }
+            }
+            LoweringExpressionNode::Piecewise { name, arguments } => {
+                LoweringExpressionNode::Piecewise {
+                    name: name.clone(),
+                    arguments: arguments
+                        .iter()
+                        .map(|value| value.clone_shared(cache))
+                        .collect(),
+                }
+            }
             LoweringExpressionNode::Extremum {
                 minimum,
                 left,

@@ -1,6 +1,6 @@
 use eqiora_compiler::compile;
 use eqiora_graph::Op;
-use eqiora_schema::kernel::{ExprNode, KernelNode, SymbolRef};
+use eqiora_schema::kernel::{ComparisonOp, ExprNode, KernelNode, SymbolRef};
 
 #[test]
 fn extrema_keep_exact_integer_operands_and_live_parameter_dependencies() {
@@ -20,14 +20,14 @@ fn extrema_keep_exact_integer_operands_and_live_parameter_dependencies() {
     assert_eq!(
         nodes
             .iter()
-            .filter(|node| matches!(node, ExprNode::Min(..)))
+            .filter(|node| matches!(node, ExprNode::Compare(ComparisonOp::LessEqual, ..)))
             .count(),
         2
     );
     assert_eq!(
         nodes
             .iter()
-            .filter(|node| matches!(node, ExprNode::Max(..)))
+            .filter(|node| matches!(node, ExprNode::Compare(ComparisonOp::GreaterEqual, ..)))
             .count(),
         2
     );
@@ -60,7 +60,6 @@ fn invalid_singletons_capture_and_empty_extrema_fail_locally() {
         "indexset I=range(0);relation r{min(1,over=(i in I))=1;}",
         "indexset I=range(2);relation r{max(min(ordinal(i),over=(i in I)),over=(i in I))=1;}",
         "indexset I=range(2);parameter p:1=min(1,over=(i in I));relation r{p=1;}",
-        "indexset I=range(2);relation r{math.min(1,2)=1;}",
     ] {
         let errors = compile("invalid-extrema.eqi", &format!("model M(){{{body}}}")).unwrap_err();
         assert!(

@@ -2,6 +2,7 @@ mod source;
 pub(super) use source::from_source;
 mod contextual;
 mod physical_accessors;
+mod piecewise;
 use super::*;
 
 use eqiora_schema::kernel::typing::{self, ExpressionType, SpatialSupport};
@@ -30,12 +31,21 @@ impl LoweringExpression {
                 LoweringExpressionNode::Array(elements) => pending.extend(elements),
                 LoweringExpressionNode::IntegerCall { arguments, .. } => pending.extend(arguments),
                 LoweringExpressionNode::Complex { real, imag } => pending.extend([real, imag]),
+                LoweringExpressionNode::Select {
+                    condition,
+                    then_value,
+                    else_value,
+                } => pending.extend([condition, then_value, else_value]),
+                LoweringExpressionNode::Require { condition, value } => {
+                    pending.extend([condition, value])
+                }
                 LoweringExpressionNode::Binary { left, right, .. }
                 | LoweringExpressionNode::Extremum { left, right, .. } => {
                     pending.push(left);
                     pending.push(right);
                 }
-                LoweringExpressionNode::PureOperator { arguments, .. } => pending.extend(arguments),
+                LoweringExpressionNode::PureOperator { arguments, .. }
+                | LoweringExpressionNode::Piecewise { arguments, .. } => pending.extend(arguments),
                 LoweringExpressionNode::Number(_)
                 | LoweringExpressionNode::Literal(_)
                 | LoweringExpressionNode::Name(_) => {}
@@ -382,6 +392,36 @@ impl ExpressionLowerer<'_> {
                         dimension: value.dimension,
                     })
                     .map_err(|diagnostic| self.builder_error(expression, diagnostic))
+            }
+            LoweringExpressionNode::Select {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                let condition = self.lower(condition)?;
+                let then_value = self.lower(then_value)?;
+                let else_value = self.lower(else_value)?;
+                self.builder
+                    .select(condition.id, then_value.id, else_value.id)
+                    .map(|id| TypedExpression {
+                        id,
+                        dimension: then_value.dimension,
+                    })
+                    .map_err(|diagnostic| self.builder_error(expression, diagnostic))
+            }
+            LoweringExpressionNode::Require { condition, value } => {
+                let condition = self.lower(condition)?;
+                let value = self.lower(value)?;
+                self.builder
+                    .require(condition.id, value.id)
+                    .map(|id| TypedExpression {
+                        id,
+                        dimension: value.dimension,
+                    })
+                    .map_err(|diagnostic| self.builder_error(expression, diagnostic))
+            }
+            LoweringExpressionNode::Piecewise { name, arguments } => {
+                self.lower_piecewise(expression, name, arguments)
             }
             LoweringExpressionNode::Extremum {
                 minimum,
@@ -946,9 +986,12 @@ fn instantiate_pure_dimension(
         .iter()
         .zip(definition.dimension_monomial().exponents())
         .try_fold(
-            DimExponents::DIMENSIONLESS,
+            definition.dimension_monomial().fixed_dimension(),
             |result, (argument, exponent)| {
-                let term = argument.dimension.pow(i32::from(*exponent), 1)?;
+                let term = argument.dimension.pow(
+                    i32::try_from(exponent.numerator()).ok()?,
+                    i32::try_from(exponent.denominator()).ok()?,
+                )?;
                 result.mul(term)
             },
         )

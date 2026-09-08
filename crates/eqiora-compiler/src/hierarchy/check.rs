@@ -517,8 +517,19 @@ fn count_expression_terms(
 ) -> Result<(), Diagnostic> {
     let mut pending = vec![expression];
     while let Some(expression) = pending.pop() {
-        increment_parameter_terms(terms, 1, elaborator)?;
+        let cost = match expression.kind() {
+            ExprKind::Call { callee, .. } => {
+                crate::math::piecewise::cost(callee.as_str()).map_or(1, |cost| cost.0)
+            }
+            _ => 1,
+        };
+        increment_parameter_terms(terms, cost, elaborator)?;
         match expression.kind() {
+            ExprKind::Select {
+                condition,
+                then_value,
+                else_value,
+            } => pending.extend([condition.as_ref(), then_value.as_ref(), else_value.as_ref()]),
             ExprKind::Reduction { value, .. } => pending.push(value),
             ExprKind::Array(elements) => pending.extend(elements),
             ExprKind::Index { value, index } => pending.extend([value.as_ref(), index.as_ref()]),

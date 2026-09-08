@@ -17,11 +17,26 @@ pub(super) fn infer_node<I: Clone + Eq, E>(
     symbol_type: &mut impl FnMut(SymbolRef) -> Result<ExpressionType<I>, E>,
 ) -> NodeInference<I, E> {
     let typed = match node {
-        ExprNode::Min(left, right) | ExprNode::Max(left, right) => {
-            let Some((left, right)) = inferred_binary(inferred, *left, *right) else {
+        ExprNode::Require { condition, value } => {
+            let Some((condition, value)) = inferred_binary(inferred, *condition, *value) else {
                 return NodeInference::Unavailable;
             };
-            left.ordered_selection(right)
+            condition.require(value)
+        }
+        ExprNode::Select {
+            condition,
+            then_value,
+            else_value,
+        } => {
+            let Some(condition) = inferred_type(inferred, *condition) else {
+                return NodeInference::Unavailable;
+            };
+            let Some((then_value, else_value)) =
+                inferred_binary(inferred, *then_value, *else_value)
+            else {
+                return NodeInference::Unavailable;
+            };
+            condition.select(then_value, else_value)
         }
         ExprNode::Compare(op, left, right) => {
             let Some((left, right)) = inferred_binary(inferred, *left, *right) else {

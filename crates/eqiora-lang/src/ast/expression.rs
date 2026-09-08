@@ -95,6 +95,15 @@ impl Expr {
                 value: Box::new(value.rewrite_name_paths_with(rewrite)),
                 index: Box::new(index.rewrite_name_paths_with(rewrite)),
             },
+            ExprKind::Select {
+                condition,
+                then_value,
+                else_value,
+            } => ExprKind::Select {
+                condition: Box::new(condition.rewrite_name_paths_with(rewrite)),
+                then_value: Box::new(then_value.rewrite_name_paths_with(rewrite)),
+                else_value: Box::new(else_value.rewrite_name_paths_with(rewrite)),
+            },
             ExprKind::Reduction {
                 operation,
                 binder,
@@ -212,6 +221,15 @@ pub enum ExprKind {
         left: Box<Expr>,
         /// Right operand.
         right: Box<Expr>,
+    },
+    /// Lazy value selection; both branches remain authored expressions.
+    Select {
+        /// Boolean scalar predicate.
+        condition: Box<Expr>,
+        /// Value selected when the predicate is true.
+        then_value: Box<Expr>,
+        /// Value selected when the predicate is false.
+        else_value: Box<Expr>,
     },
     /// Ordered reduction over one nonempty bounded nominal index set.
     Reduction {

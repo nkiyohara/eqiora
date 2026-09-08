@@ -26,9 +26,20 @@ impl LoweringExpression {
                 | LoweringExpressionNode::IntegerCall {
                     arguments: values, ..
                 }
+                | LoweringExpressionNode::Piecewise {
+                    arguments: values, ..
+                }
                 | LoweringExpressionNode::PureOperator {
                     arguments: values, ..
                 } => pending.extend(values),
+                LoweringExpressionNode::Select {
+                    condition,
+                    then_value,
+                    else_value,
+                } => pending.extend([condition, then_value, else_value]),
+                LoweringExpressionNode::Require { condition, value } => {
+                    pending.extend([condition, value])
+                }
                 LoweringExpressionNode::Binary { left, right, .. }
                 | LoweringExpressionNode::Extremum { left, right, .. } => {
                     pending.push(left);

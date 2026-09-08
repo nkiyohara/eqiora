@@ -59,6 +59,7 @@ fn evaluate_selected(
         Demand(ExprId),
         Apply(ExprId),
         Logical(ExprId),
+        Branch(ExprId),
     }
     let mut component_work = 0usize;
     let mut values = vec![None; expression.nodes().len()];
@@ -66,7 +67,7 @@ fn evaluate_selected(
         let mut pending = vec![Frame::Demand(root)];
         while let Some(frame) = pending.pop() {
             let id = match frame {
-                Frame::Demand(id) | Frame::Apply(id) | Frame::Logical(id) => id,
+                Frame::Demand(id) | Frame::Apply(id) | Frame::Logical(id) | Frame::Branch(id) => id,
             };
             let index = id.index() as usize;
             let Some(node) = expression.nodes().get(index) else {
@@ -77,6 +78,39 @@ fn evaluate_selected(
             };
             if values[index].is_some() {
                 continue;
+            }
+            if let ExprNode::Select { condition, .. } | ExprNode::Require { condition, .. } = node {
+                if matches!(frame, Frame::Demand(_)) {
+                    pending.push(Frame::Branch(id));
+                    pending.push(Frame::Demand(*condition));
+                    continue;
+                }
+                if matches!(frame, Frame::Branch(_)) {
+                    let condition = boolean(operand(&values, *condition, owner)?)?;
+                    let selected = match node {
+                        ExprNode::Select {
+                            then_value,
+                            else_value,
+                            ..
+                        } => {
+                            if condition {
+                                *then_value
+                            } else {
+                                *else_value
+                            }
+                        }
+                        ExprNode::Require { value, .. } if condition => *value,
+                        _ => {
+                            return Err(Diagnostic::error(
+                                codes::NONFINITE_EVALUATION,
+                                "required expression domain condition is false",
+                            ));
+                        }
+                    };
+                    pending.push(Frame::Apply(id));
+                    pending.push(Frame::Demand(selected));
+                    continue;
+                }
             }
             if let ExprNode::And(left, right) | ExprNode::Or(left, right) = node {
                 if matches!(frame, Frame::Demand(_)) {
@@ -116,7 +150,8 @@ fn evaluate_selected(
                         check_component_work(component_work, elements.len())?;
                         pending.extend(elements.iter().rev().copied().map(Frame::Demand));
                     }
-                    ExprNode::Index { value, .. }
+                    ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Sqrt, value)
+                    | ExprNode::Index { value, .. }
                     | ExprNode::Sample { value, .. }
                     | ExprNode::Hold(value)
                     | ExprNode::Neg(value)
@@ -125,9 +160,7 @@ fn evaluate_selected(
                     | ExprNode::ToInteger(value)
                     | ExprNode::Ordinal(value)
                     | ExprNode::Not(value) => pending.push(Frame::Demand(*value)),
-                    ExprNode::Min(a, b)
-                    | ExprNode::Max(a, b)
-                    | ExprNode::Compare(_, a, b)
+                    ExprNode::Compare(_, a, b)
                     | ExprNode::Add(a, b)
                     | ExprNode::Sub(a, b)
                     | ExprNode::Mul(a, b)
@@ -147,6 +180,36 @@ fn evaluate_selected(
                 continue;
             }
             let value = match node {
+                ExprNode::Select {
+                    condition,
+                    then_value,
+                    else_value,
+                } => {
+                    let selected = if boolean(operand(&values, *condition, owner)?)? {
+                        then_value
+                    } else {
+                        else_value
+                    };
+                    operand(&values, *selected, owner)?.clone()
+                }
+                ExprNode::Require { value, .. } => operand(&values, *value, owner)?.clone(),
+                ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Sqrt, value) => {
+                    let value = real(operand(&values, *value, owner)?)?;
+                    if value.value() < 0. {
+                        return Err(Diagnostic::error(
+                            codes::NONFINITE_EVALUATION,
+                            "real square root requires a nonnegative argument",
+                        ));
+                    }
+                    let dimension = value.dim().pow(1, 2).ok_or_else(|| {
+                        Diagnostic::error(
+                            codes::NONFINITE_EVALUATION,
+                            "square-root dimension exceeds bounds",
+                        )
+                    })?;
+                    literal(DynQuantity::new(value.value().sqrt(), dimension))?
+                }
+
                 ExprNode::PureOperatorApplication(application) => {
                     let definition = expression
                         .definition(application.definition())
@@ -214,21 +277,6 @@ fn evaluate_selected(
                 }
                 ExprNode::And(_, right) | ExprNode::Or(_, right) => {
                     ValueLiteral::boolean(boolean(operand(&values, *right, owner)?)?)
-                }
-                ExprNode::Min(left, right) | ExprNode::Max(left, right) => {
-                    let left = operand(&values, *left, owner)?;
-                    let right = operand(&values, *right, owner)?;
-                    let order = left.checked_order(right).map_err(discrete_error)?;
-                    let take_right = if matches!(node, ExprNode::Min(_, _)) {
-                        order == std::cmp::Ordering::Greater
-                    } else {
-                        order == std::cmp::Ordering::Less
-                    };
-                    if take_right {
-                        right.clone()
-                    } else {
-                        left.clone()
-                    }
                 }
                 ExprNode::Compare(op, left, right) => compare(
                     *op,
@@ -595,6 +643,9 @@ fn evaluate_pure_operator(
             )
         })
 }
+
+#[cfg(test)]
+mod piecewise_tests;
 
 #[cfg(test)]
 mod tests {

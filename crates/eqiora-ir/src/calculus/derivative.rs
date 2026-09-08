@@ -66,8 +66,8 @@ impl<I: Clone> ScalarCalculus<I> {
         let mut jets: Vec<Jet> = Vec::with_capacity(self.nodes.len());
         for node in &self.nodes {
             let jet = match node {
-                ScalarCalculusNode::Rational(value) => Jet {
-                    value: constant(builder, DimExponents::DIMENSIONLESS, value.as_f64())?,
+                ScalarCalculusNode::Rational { value, dimension } => Jet {
+                    value: constant(builder, *dimension, value.as_f64())?,
                     first: None,
                     second: None,
                 },

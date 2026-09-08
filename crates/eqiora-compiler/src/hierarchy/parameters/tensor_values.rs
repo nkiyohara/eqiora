@@ -222,6 +222,13 @@ fn has_named_component_reference(expression: &Expr) -> bool {
             ExprKind::Unary { value, .. } => pending.push(value),
             ExprKind::Binary { left, right, .. } => pending.extend([left.as_ref(), right.as_ref()]),
             ExprKind::Call { arguments, .. } => pending.extend(arguments.expressions()),
+            ExprKind::Select {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                pending.extend([condition.as_ref(), then_value.as_ref(), else_value.as_ref()]);
+            }
             ExprKind::Array(elements) => pending.extend(elements),
             ExprKind::Index { value, index } => pending.extend([value.as_ref(), index.as_ref()]),
             _ => {}

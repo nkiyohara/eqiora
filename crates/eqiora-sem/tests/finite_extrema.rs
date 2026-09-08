@@ -202,24 +202,26 @@ fn eager_failure_keeps_state_calendar_and_output_absent() {
 }
 
 #[test]
-fn implicit_and_continuous_selection_reject_before_execution() {
-    for (implicit, continuous) in [(true, false), (false, true)] {
-        let (program, _, _, _, _) = fixture(implicit, continuous, false);
-        let error = Interpreter::new()
-            .initialize(&program, ReferenceConfig::new(0., 1.).unwrap())
-            .unwrap_err();
-        assert!(
-            error
-                .iter()
-                .any(|error| error.message().contains("min/max")),
-            "{error:?}"
-        );
-        for node in program.nodes() {
-            if let KernelNode::Relation(relation) = node
-                && !relation.is_initial()
-            {
-                assert!(program.numerical_residuals(relation.id().erase()).is_err());
-            }
+fn implicit_selection_uses_common_real_equations() {
+    let (program, field, input, output, clock) = fixture(true, false, false);
+    let mut session = Interpreter::new()
+        .sampled_session(
+            &program,
+            ReferenceConfig::new(0., 1.).unwrap(),
+            [(input, clock, vec![voltage(3.)])],
+        )
+        .unwrap();
+    session.advance_ticks(1).unwrap();
+    assert_eq!(session.field(field), Some(voltage(3.)));
+    assert_eq!(session.output(output, 0).unwrap().1, &voltage(6.));
+}
+
+#[test]
+fn continuous_selection_has_the_same_numerical_projection_as_select() {
+    let (program, _, _, _, _) = fixture(false, true, false);
+    for node in program.nodes() {
+        if let KernelNode::Relation(relation) = node {
+            assert!(program.numerical_residuals(relation.id().erase()).is_ok());
         }
     }
 }

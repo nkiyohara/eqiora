@@ -319,6 +319,37 @@ class _Math:
         return _unary("math.sqrt", value)
 
 
+    @staticmethod
+    def abs(value: object) -> Expression:
+        """Author absolute value, preserving its physical dimension."""
+        return _unary("math.abs", value)
+
+    @staticmethod
+    def min(left: object, right: object) -> Expression:
+        """Author a binary minimum; equality selects the first operand."""
+        return _binary_function("math.min", left, right)
+
+    @staticmethod
+    def max(left: object, right: object) -> Expression:
+        """Author a binary maximum; equality selects the first operand."""
+        return _binary_function("math.max", left, right)
+
+    @staticmethod
+    def clamp(value: object, lower: object, upper: object) -> Expression:
+        """Author a clamp; the compiler requires ordered compatible bounds."""
+        return _ternary("math.clamp", value, lower, upper)
+
+    @staticmethod
+    def sign(value: object) -> Expression:
+        """Author dimensionless sign: negative one, zero, or positive one."""
+        return _unary("math.sign", value)
+
+    @staticmethod
+    def step(value: object) -> Expression:
+        """Author dimensionless step: zero below zero, one at or above zero."""
+        return _unary("math.step", value)
+
+
 math: Final = _Math()
 
 
@@ -556,6 +587,36 @@ def _owner(left: Expression, right: Expression) -> object | None:
     ):
         raise SourceError("cannot combine expressions from different Source or Component owners")
     return left._owner if left._owner is not None else right._owner
+
+
+def _ternary(operation: str, first: object, second: object, third: object) -> Expression:
+    values = tuple(_expression(value) for value in (first, second, third))
+    owner = None
+    for value in values:
+        if owner is not None and value._owner is not None and owner is not value._owner:
+            raise SourceError("cannot combine expressions from different Source or Component owners")
+        if value._owner is not None:
+            owner = value._owner
+    depth = max(value._depth for value in values) + 1
+    nodes = sum(value._nodes for value in values) + 1
+    if depth > _MAX_EXPRESSION_DEPTH or nodes > _MAX_EXPRESSION_NODES:
+        raise SourceError("expression exceeds the depth or node limit")
+    if sum(len(value._text.encode("utf-8")) for value in values) + len(operation) + 20 > _MAX_OUTPUT_BYTES:
+        raise SourceError("expression exceeds the output byte limit")
+    first, second, third = (value._text for value in values)
+    text = (f"(if {first} then {second} else {third})" if operation == "if"
+            else f"{operation}({first}, {second}, {third})")
+    return Expression(_CREATE, text, owner, depth, nodes, 100,
+                      _binders=frozenset().union(*(value._binders for value in values)),
+                      _sources=frozenset().union(*(value._sources for value in values)))
+
+
+def if_else(condition: object, then_value: object, else_value: object) -> Expression:
+    """Author a conditional expression without evaluating Python truthiness.
+
+    All operands are authored and checked; execution selects one branch.
+    """
+    return _ternary("if", condition, then_value, else_value)
 
 
 def _binary(left: object, operator: str, right: object) -> Expression:
@@ -1872,6 +1933,7 @@ __all__ = [
     "div",
     "grad",
     "integrate",
+    "if_else",
     "isotropic_lift",
     "math",
     "normal",

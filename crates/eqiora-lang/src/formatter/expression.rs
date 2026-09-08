@@ -91,6 +91,18 @@ pub(super) fn format_expression(
             format_expression(index, 0, output);
             output.push(']');
         }
+        ExprKind::Select {
+            condition,
+            then_value,
+            else_value,
+        } => {
+            output.push_str("if ");
+            format_expression(condition, 1, output);
+            output.push_str(" then ");
+            format_expression(then_value, 0, output);
+            output.push_str(" else ");
+            format_expression(else_value, 0, output);
+        }
         ExprKind::Reduction {
             operation,
             binder,
@@ -133,6 +145,7 @@ pub(super) fn format_expression(
 
 fn expression_precedence(expression: &Expr) -> u8 {
     match &expression.kind {
+        ExprKind::Select { .. } => 0,
         ExprKind::Binary {
             op: BinaryOp::Add | BinaryOp::Sub,
             ..

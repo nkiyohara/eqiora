@@ -23,7 +23,6 @@ mod conserving;
 mod evaluate;
 mod event;
 mod interpreter;
-mod ordered_selection;
 mod program;
 mod solver;
 

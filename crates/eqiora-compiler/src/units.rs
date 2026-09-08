@@ -159,14 +159,19 @@ fn lower_unit(expression: &Expr, depth: usize) -> Result<Unit, &'static str> {
     }
 }
 
+pub(crate) fn exact_unit(expression: &Expr) -> Result<(DimExponents, i32), &'static str> {
+    let unit = lower_unit(expression, 0)?;
+    Ok((unit.dimension, unit.decimal_power))
+}
+
 pub(crate) fn quantity(
     value: &eqiora_lang::DecimalLiteral,
     expression: &Expr,
 ) -> Result<DynQuantity, &'static str> {
-    let unit = lower_unit(expression, 0)?;
+    let (dimension, decimal_power) = exact_unit(expression)?;
     let exponent = value
         .exponent10()
-        .checked_add(i64::from(unit.decimal_power))
+        .checked_add(i64::from(decimal_power))
         .ok_or("normalized quantity exceeds decimal exponent bounds")?;
     // Preserve the decimal coefficient and compose the exact power of ten.
     // Parsing this final decimal is the only binary64 rounding boundary.
@@ -185,7 +190,7 @@ pub(crate) fn quantity(
     }
     Ok(DynQuantity::new(
         if normalized == 0.0 { 0.0 } else { normalized },
-        unit.dimension,
+        dimension,
     ))
 }
 

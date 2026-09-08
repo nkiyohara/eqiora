@@ -1,7 +1,7 @@
 //! Derived scalar execution projection of a retained canonical pure application.
 use super::*;
 use crate::kernel::pure_operator::{CalculusNode, PureOperatorInstantiation};
-use eqiora_core::{DimExponents, DynQuantity};
+use eqiora_core::DynQuantity;
 
 impl ExprDagBuilder {
     /// Append an ordered scalar execution body from a checked pure instantiation.
@@ -53,10 +53,31 @@ impl ExprDagBuilder {
                 CalculusNode::FormalComponent { formal, axes } if axes.is_empty() => {
                     arguments[usize::from(*formal)]
                 }
-                CalculusNode::Rational(value) => self.constant(DynQuantity::new(
-                    value.as_f64(),
-                    DimExponents::DIMENSIONLESS,
-                ))?,
+                CalculusNode::Rational { value, dimension } => {
+                    self.constant(DynQuantity::new(value.as_f64(), *dimension))?
+                }
+                CalculusNode::Boolean(value) => self.constant(ValueLiteral::boolean(*value))?,
+                CalculusNode::Compare(op, left, right) => {
+                    self.compare(*op, mapped(*left)?, mapped(*right)?)?
+                }
+                CalculusNode::Not(value) => self.not(mapped(*value)?)?,
+                CalculusNode::And(left, right) => self.and(mapped(*left)?, mapped(*right)?)?,
+                CalculusNode::Or(left, right) => self.or(mapped(*left)?, mapped(*right)?)?,
+                CalculusNode::UnaryMath(function, value) => {
+                    self.unary_math(*function, mapped(*value)?)?
+                }
+                CalculusNode::Select {
+                    condition,
+                    then_value,
+                    else_value,
+                } => self.select(
+                    mapped(*condition)?,
+                    mapped(*then_value)?,
+                    mapped(*else_value)?,
+                )?,
+                CalculusNode::Require { condition, value } => {
+                    self.require(mapped(*condition)?, mapped(*value)?)?
+                }
                 CalculusNode::Neg(value) => self.neg(mapped(*value)?)?,
                 CalculusNode::Add(left, right) => self.add(mapped(*left)?, mapped(*right)?)?,
                 CalculusNode::Mul(left, right) => self.mul(mapped(*left)?, mapped(*right)?)?,

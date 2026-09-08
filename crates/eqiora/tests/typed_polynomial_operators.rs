@@ -62,7 +62,10 @@ fn native_conductivity() -> PureOperatorDefinition {
     let k0 = formal(1);
     let a = formal(2);
     let one = b
-        .push(CalculusNode::Rational(ExactRational::integer(1)))
+        .push(CalculusNode::Rational {
+            value: ExactRational::integer(1),
+            dimension: DimExponents::DIMENSIONLESS,
+        })
         .unwrap();
     let ax = b.push(CalculusNode::Mul(a, x)).unwrap();
     let aa = b.push(CalculusNode::Mul(a, a)).unwrap();

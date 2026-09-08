@@ -34,7 +34,7 @@ impl Parser<'_> {
         parsed
     }
 
-    fn parent_depth(&mut self, child_depth: usize) -> Option<usize> {
+    pub(super) fn parent_depth(&mut self, child_depth: usize) -> Option<usize> {
         if child_depth >= MAX_EXPRESSION_DEPTH {
             self.error_here("expression tree exceeds the 256-level limit");
             None
@@ -44,6 +44,10 @@ impl Parser<'_> {
     }
 
     fn parse_expression_inner(&mut self, minimum_binding_power: u8) -> Option<(Expr, usize)> {
+        if minimum_binding_power > 0 && self.at_keyword("if") {
+            self.error_here("conditional operand requires parentheses");
+            return None;
+        }
         if minimum_binding_power > 5 && self.at_keyword("not") {
             self.error_here(
                 "Boolean negation in an arithmetic or comparison operand requires parentheses",
@@ -159,6 +163,13 @@ impl Parser<'_> {
         Some((left, depth))
     }
     fn parse_primary(&mut self) -> Option<(Expr, usize)> {
+        if self.at_keyword("if") {
+            return self.parse_select();
+        }
+        if self.at_keyword("then") || self.at_keyword("else") {
+            self.error_here("expected value expression before conditional branch keyword");
+            return None;
+        }
         let result = if self.at(TokenKind::Minus) {
             let start = self.bump().range().start();
             // Power binds inside unary minus, including a signed right power:

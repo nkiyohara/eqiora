@@ -116,7 +116,7 @@ fn definition_identity_excludes_names_but_includes_exact_body() {
     assert!(
         first
             .canonical_bytes()
-            .starts_with(b"eqiora.pure-operator-definition/v3\0")
+            .starts_with(b"eqiora.pure-operator-definition/v4\0")
     );
     assert_ne!(
         first.digest().to_string(),
@@ -134,7 +134,10 @@ fn dyadic_product_derives_shape_support_and_product_dimension() {
     let force = DimExponents::from_integers([1, 1, -2, 0, 0, 0, 0]).expect("bounded dimension");
     let definition = PureOperatorDefinition::dyadic_product().unwrap();
     assert_eq!(definition.formals().len(), 2);
-    assert_eq!(definition.dimension_monomial().exponents(), &[1, 1]);
+    assert_eq!(
+        definition.dimension_monomial().exponents(),
+        &[ExactRational::integer(1), ExactRational::integer(1)]
+    );
     let application = definition
         .instantiate(&[volume_vector("body", length), volume_vector("body", force)])
         .unwrap();

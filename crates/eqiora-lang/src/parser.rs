@@ -19,6 +19,7 @@ mod operator;
 mod property;
 mod recovery;
 mod relation;
+mod select;
 mod signature;
 mod value_type;
 

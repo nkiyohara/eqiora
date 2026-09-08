@@ -154,6 +154,23 @@ fn expression_type_cached(
         },
         LoweringExpressionNode::Neg(value) => infer(value),
         LoweringExpressionNode::Not(value) => infer(value)?.logical_not().map_err(violation),
+        LoweringExpressionNode::Select {
+            condition,
+            then_value,
+            else_value,
+        } => infer(condition)?
+            .select(infer(then_value)?, infer(else_value)?)
+            .map_err(violation),
+        LoweringExpressionNode::Require { condition, value } => {
+            infer(condition)?.require(infer(value)?).map_err(violation)
+        }
+        LoweringExpressionNode::Piecewise { name, arguments } => {
+            crate::math::piecewise::result_type(
+                name,
+                &arguments.iter().map(infer).collect::<Result<Vec<_>, _>>()?,
+            )
+            .map_err(violation)
+        }
         LoweringExpressionNode::Extremum { left, right, .. } => infer(left)?
             .ordered_selection(infer(right)?)
             .map_err(violation),

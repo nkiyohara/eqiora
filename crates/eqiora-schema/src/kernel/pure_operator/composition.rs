@@ -60,7 +60,41 @@ impl CalculusBuilder {
                 CalculusNode::FormalComponent { formal, axes } if axes.is_empty() => {
                     arguments[usize::from(*formal)]
                 }
-                CalculusNode::Rational(value) => staged.push(CalculusNode::Rational(*value))?,
+                CalculusNode::Rational { value, dimension } => {
+                    staged.push(CalculusNode::Rational {
+                        value: *value,
+                        dimension: *dimension,
+                    })?
+                }
+                CalculusNode::Boolean(value) => staged.push(CalculusNode::Boolean(*value))?,
+                CalculusNode::Compare(op, left, right) => {
+                    staged.push(CalculusNode::Compare(*op, mapped(*left)?, mapped(*right)?))?
+                }
+                CalculusNode::Not(value) => staged.push(CalculusNode::Not(mapped(*value)?))?,
+                CalculusNode::And(left, right) => {
+                    staged.push(CalculusNode::And(mapped(*left)?, mapped(*right)?))?
+                }
+                CalculusNode::Or(left, right) => {
+                    staged.push(CalculusNode::Or(mapped(*left)?, mapped(*right)?))?
+                }
+                CalculusNode::UnaryMath(function, value) => {
+                    staged.push(CalculusNode::UnaryMath(*function, mapped(*value)?))?
+                }
+                CalculusNode::Select {
+                    condition,
+                    then_value,
+                    else_value,
+                } => staged.push(CalculusNode::Select {
+                    condition: mapped(*condition)?,
+                    then_value: mapped(*then_value)?,
+                    else_value: mapped(*else_value)?,
+                })?,
+                CalculusNode::Require { condition, value } => {
+                    staged.push(CalculusNode::Require {
+                        condition: mapped(*condition)?,
+                        value: mapped(*value)?,
+                    })?
+                }
                 CalculusNode::Neg(value) => staged.push(CalculusNode::Neg(mapped(*value)?))?,
                 CalculusNode::Add(left, right) => {
                     staged.push(CalculusNode::Add(mapped(*left)?, mapped(*right)?))?
@@ -73,6 +107,7 @@ impl CalculusBuilder {
             ids.push(id);
         }
         let root = ids[definition_index(definition.root, ids.len())?];
+        dimensions::validate_profile(&staged.formals, staged.result, &staged.nodes)?;
         derive_symbolic_dimension(&staged.formals, &staged.nodes, root)?;
         *self = staged;
         Ok(root)

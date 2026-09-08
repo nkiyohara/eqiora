@@ -1,27 +1,15 @@
 //! Ordered scalar selection retains the complete operand type and compatible support.
 use super::*;
-use eqiora_core::ScalarDomain;
 
 impl<I: Clone + Eq> ExpressionType<I> {
     /// Type a finite minimum or maximum without numeric promotion or dimension changes.
     /// Only ordinary invariant real/integer scalars are ordered. Equal values select
     /// the first operand; both operands remain part of the expression dependency graph.
     pub fn ordered_selection(self, other: Self) -> Result<Self, TypeViolation<I>> {
-        if self.value_type != other.value_type
-            || !self.shape().is_scalar()
-            || self.frame() != ValueFrame::Invariant
-            || self.value_type.index_set().is_some()
-            || self.value_type.finite_space().is_some()
-            || !matches!(
-                self.value_type.scalar_domain(),
-                ScalarDomain::Real | ScalarDomain::Integer
-            )
-            || (self.value_type.scalar_domain() == ScalarDomain::Integer
-                && self.dimension() != DimExponents::DIMENSIONLESS)
-        {
-            return Err(TypeViolation::ScalarDomainMismatch);
-        }
-        self.equation(other)
+        let condition = self
+            .clone()
+            .compare(crate::kernel::ComparisonOp::LessEqual, other.clone())?;
+        condition.select(self, other)
     }
 }
 
@@ -29,7 +17,7 @@ impl<I: Clone + Eq> ExpressionType<I> {
 mod tests {
     use super::*;
     use crate::kernel::{ExprDagBuilder, ExprNode};
-    use eqiora_core::{Id, ValueLiteral, ValueType};
+    use eqiora_core::{Id, ScalarDomain, ValueLiteral, ValueType};
 
     fn typed(value: ValueType) -> ExpressionType<u32> {
         ExpressionType::new(value, None)
@@ -126,8 +114,30 @@ mod tests {
         let minimum = builder.min(left, right).unwrap();
         let maximum = builder.max(right, left).unwrap();
         let dag = builder.finish([minimum, left, maximum, right]).unwrap();
-        assert_eq!(dag.node(minimum), Some(&ExprNode::Min(left, right)));
-        assert_eq!(dag.node(maximum), Some(&ExprNode::Max(right, left)));
+        for (root, first, second, op) in [
+            (minimum, left, right, crate::kernel::ComparisonOp::LessEqual),
+            (
+                maximum,
+                right,
+                left,
+                crate::kernel::ComparisonOp::GreaterEqual,
+            ),
+        ] {
+            let Some(ExprNode::Select {
+                condition,
+                then_value,
+                else_value,
+            }) = dag.node(root)
+            else {
+                panic!("selection must share the conditional owner")
+            };
+            assert_eq!((*then_value, *else_value), (first, second));
+            assert_eq!(
+                dag.node(*condition),
+                Some(&ExprNode::Compare(op, first, second))
+            );
+        }
+        assert_eq!(dag.nodes().len(), 6);
         let inferred = TypedResidual::<u32>::infer(dag, None, RootContract::EquationSides, |_| {
             Err::<ExpressionType<u32>, ()>(())
         })
@@ -168,5 +178,43 @@ mod tests {
                 .is_err()
             );
         }
+    }
+    #[test]
+    fn finite_fold_reuses_prior_nodes_and_keeps_first_on_ties() {
+        let mut builder = ExprDagBuilder::new();
+        let value = ValueLiteral::from_integer(
+            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+            i64::MAX,
+        )
+        .unwrap();
+        let first = builder.constant(value.clone()).unwrap();
+        let mut root = first;
+        for _ in 0..128 {
+            let next = builder.constant(value.clone()).unwrap();
+            let previous = root;
+            root = builder.min(previous, next).unwrap();
+        }
+        let dag = builder.finish([root]).unwrap();
+        assert_eq!(dag.nodes().len(), 1 + 3 * 128);
+        let Some(ExprNode::Select {
+            condition,
+            then_value,
+            else_value,
+        }) = dag.node(root)
+        else {
+            panic!("expected shared selection")
+        };
+        assert_eq!(
+            dag.node(*condition),
+            Some(&ExprNode::Compare(
+                crate::kernel::ComparisonOp::LessEqual,
+                *then_value,
+                *else_value
+            ))
+        );
+        assert_eq!(
+            value.checked_order(&value).unwrap(),
+            std::cmp::Ordering::Equal
+        );
     }
 }

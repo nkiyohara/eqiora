@@ -45,6 +45,12 @@ impl Resolver<'_> {
     }
     fn anchor_node(&mut self, value: &LoweringExpression) -> Option<ScalarDomain> {
         match value.node.as_ref() {
+            LoweringExpressionNode::Select {
+                then_value,
+                else_value,
+                ..
+            } => self.anchor(then_value).or_else(|| self.anchor(else_value)),
+            LoweringExpressionNode::Require { value, .. } => self.anchor(value),
             LoweringExpressionNode::Number(_) => None,
             LoweringExpressionNode::Array(elements) => {
                 elements.iter().find_map(|element| self.anchor(element))
@@ -93,6 +99,36 @@ impl Resolver<'_> {
         let node = match expression.node.as_ref() {
             LoweringExpressionNode::Number(value) => {
                 return literal(file, expression, value, expected);
+            }
+            LoweringExpressionNode::Select {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                let domain = self
+                    .anchor(then_value)
+                    .or_else(|| self.anchor(else_value))
+                    .or(expected);
+                LoweringExpressionNode::Select {
+                    condition: self.resolve(condition, Some(ScalarDomain::Boolean))?,
+                    then_value: self.resolve(then_value, domain)?,
+                    else_value: self.resolve(else_value, domain)?,
+                }
+            }
+            LoweringExpressionNode::Require { condition, value } => {
+                LoweringExpressionNode::Require {
+                    condition: self.resolve(condition, Some(ScalarDomain::Boolean))?,
+                    value: self.resolve(value, expected)?,
+                }
+            }
+            LoweringExpressionNode::Piecewise { name, arguments } => {
+                LoweringExpressionNode::Piecewise {
+                    name: name.clone(),
+                    arguments: arguments
+                        .iter()
+                        .map(|value| self.resolve(value, Some(ScalarDomain::Real)))
+                        .collect::<Result<Vec<_>, _>>()?,
+                }
             }
             LoweringExpressionNode::Not(value) => {
                 LoweringExpressionNode::Not(self.resolve(value, None)?)
