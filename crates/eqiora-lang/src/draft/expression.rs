@@ -5,30 +5,55 @@ use super::*;
 impl DraftExpression {
     /// Project an authored expression into the shared AST with synthetic ranges.
     #[doc(hidden)]
-    #[must_use]
-    pub fn source_ast(&self) -> Expr {
+    /// # Errors
+    /// Rejects invalid literal syntax and enum members without exact lexical declarations.
+    pub fn source_ast<'a>(
+        &self,
+        mut resolve: impl FnMut(eqiora_core::RawId) -> Option<NamePath>,
+        mut resolve_enum: impl FnMut(eqiora_core::RawId) -> Option<&'a eqiora_schema::kernel::EnumDef>,
+    ) -> Result<Expr, crate::AstConstructionError> {
+        if self.contains_invalid_literal() {
+            return Err(crate::AstConstructionError::new(
+                "invalid native expression literal",
+            ));
+        }
         self.ast(
             &GraphPath::new(["argument".to_owned()]),
             &mut RangeAllocator::default(),
             &mut HashMap::new(),
+            &mut resolve,
+            &mut resolve_enum,
         )
     }
 
-    pub(super) fn ast(
+    pub(super) fn ast<'a>(
         &self,
         path: &GraphPath,
         ranges: &mut RangeAllocator,
         paths: &mut HashMap<TextRange, GraphPath>,
-    ) -> Expr {
+        resolve: &mut dyn FnMut(eqiora_core::RawId) -> Option<NamePath>,
+        resolve_enum: &mut dyn FnMut(
+            eqiora_core::RawId,
+        ) -> Option<&'a eqiora_schema::kernel::EnumDef>,
+    ) -> Result<Expr, crate::AstConstructionError> {
         let kind = match &self.kind {
+            DraftExpressionKind::EnumValue(value) => {
+                return crate::SourceAstFactory::value_literal(
+                    value,
+                    None,
+                    ranges.allocate(path, paths),
+                    resolve,
+                    resolve_enum,
+                );
+            }
             DraftExpressionKind::Select {
                 condition,
                 then_value,
                 else_value,
             } => ExprKind::Select {
-                condition: Box::new(condition.ast(path, ranges, paths)),
-                then_value: Box::new(then_value.ast(path, ranges, paths)),
-                else_value: Box::new(else_value.ast(path, ranges, paths)),
+                condition: Box::new(condition.ast(path, ranges, paths, resolve, resolve_enum)?),
+                then_value: Box::new(then_value.ast(path, ranges, paths, resolve, resolve_enum)?),
+                else_value: Box::new(else_value.ast(path, ranges, paths, resolve, resolve_enum)?),
             },
             DraftExpressionKind::Boolean(value) => ExprKind::Boolean(*value),
             DraftExpressionKind::Constant(value) => ExprKind::Number(value.clone()),
@@ -55,11 +80,11 @@ impl DraftExpression {
             DraftExpressionKind::Array(values) => ExprKind::Array(
                 values
                     .iter()
-                    .map(|value| value.ast(path, ranges, paths))
-                    .collect(),
+                    .map(|value| value.ast(path, ranges, paths, resolve, resolve_enum))
+                    .collect::<Result<_, _>>()?,
             ),
             DraftExpressionKind::Index { value, index } => ExprKind::Index {
-                value: Box::new(value.ast(path, ranges, paths)),
+                value: Box::new(value.ast(path, ranges, paths, resolve, resolve_enum)?),
                 index: Box::new(Expr {
                     resolved_enum: None,
                     resolved_nominal: None,
@@ -90,11 +115,17 @@ impl DraftExpression {
                     operator.source_name().to_owned(),
                     ranges.allocate(path, paths),
                 ),
-                arguments: crate::CallArguments::Positional(vec![value.ast(path, ranges, paths)]),
+                arguments: crate::CallArguments::Positional(vec![value.ast(
+                    path,
+                    ranges,
+                    paths,
+                    resolve,
+                    resolve_enum,
+                )?]),
             },
             DraftExpressionKind::Unary { operator, value } => ExprKind::Unary {
                 op: *operator,
-                value: Box::new(value.ast(path, ranges, paths)),
+                value: Box::new(value.ast(path, ranges, paths, resolve, resolve_enum)?),
             },
             DraftExpressionKind::Binary {
                 operator,
@@ -102,20 +133,31 @@ impl DraftExpression {
                 right,
             } => ExprKind::Binary {
                 op: *operator,
-                left: Box::new(left.ast(path, ranges, paths)),
-                right: Box::new(right.ast(path, ranges, paths)),
+                left: Box::new(left.ast(path, ranges, paths, resolve, resolve_enum)?),
+                right: Box::new(right.ast(path, ranges, paths, resolve, resolve_enum)?),
             },
         };
-        Expr {
-            resolved_enum: None,
-            resolved_nominal: None,
-            kind,
-            range: ranges.allocate(path, paths),
-        }
+        crate::SourceAstFactory::expression(kind, ranges.allocate(path, paths))
     }
 }
 
 impl DraftExpression {
+    /// Retain one checked nominal enum member without storing source names.
+    ///
+    /// # Errors
+    /// Rejects values that are not enum members.
+    pub fn enum_value(
+        value: eqiora_core::ValueLiteral,
+    ) -> Result<Self, crate::AstConstructionError> {
+        if value.enum_tag().is_none() {
+            return Err(crate::AstConstructionError::new(
+                "enum expression requires an exact enum member",
+            ));
+        }
+        Ok(Self {
+            kind: DraftExpressionKind::EnumValue(value),
+        })
+    }
     /// Boolean literal with no numeric coercion.
     #[must_use]
     pub const fn boolean(value: bool) -> Self {
@@ -198,6 +240,9 @@ impl DraftExpression {
                 then_value.references(output);
                 else_value.references(output);
             }
+            DraftExpressionKind::EnumValue(value) => {
+                output.push(DraftExpressionReference::EnumValue(value))
+            }
             DraftExpressionKind::Boolean(_)
             | DraftExpressionKind::Constant(_)
             | DraftExpressionKind::Complex(_, _) => {}
@@ -236,7 +281,9 @@ impl DraftExpression {
                     || then_value.contains_invalid_literal()
                     || else_value.contains_invalid_literal()
             }
-            DraftExpressionKind::Boolean(_) | DraftExpressionKind::Constant(_) => false,
+            DraftExpressionKind::EnumValue(_)
+            | DraftExpressionKind::Boolean(_)
+            | DraftExpressionKind::Constant(_) => false,
             DraftExpressionKind::Complex(real, imaginary) => {
                 !real.is_finite() || !imaginary.is_finite()
             }
@@ -255,4 +302,46 @@ impl DraftExpression {
             }
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub(super) enum DraftExpressionKind {
+    Select {
+        condition: Box<DraftExpression>,
+        then_value: Box<DraftExpression>,
+        else_value: Box<DraftExpression>,
+    },
+    EnumValue(eqiora_core::ValueLiteral),
+    Boolean(bool),
+    Constant(crate::DecimalLiteral),
+    Complex(f64, f64),
+    Array(Vec<DraftExpression>),
+    Index {
+        value: Box<DraftExpression>,
+        index: u32,
+    },
+    Reference(DraftReference),
+    Derivative(DraftReference),
+    Across(DraftPortReference),
+    Through(DraftPortReference),
+    SpatialCall {
+        operator: DraftSpatialOperator,
+        value: Box<DraftExpression>,
+    },
+    Unary {
+        operator: UnaryOp,
+        value: Box<DraftExpression>,
+    },
+    Binary {
+        operator: BinaryOp,
+        left: Box<DraftExpression>,
+        right: Box<DraftExpression>,
+    },
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(super) enum DraftExpressionReference<'a> {
+    EnumValue(&'a eqiora_core::ValueLiteral),
+    Value(&'a DraftReference),
+    Port(&'a DraftPortReference),
 }

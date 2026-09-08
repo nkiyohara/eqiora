@@ -115,6 +115,11 @@ impl ModelDraft {
                 DraftDeclaration::ConservingPort(value) => {
                     ports.insert(value.symbol.clone(), value);
                 }
+                DraftDeclaration::Enum { name, definition } => {
+                    if let Err(error) = nominal::validate_enum(name, definition) {
+                        diagnostics.push(native_diagnostic(&self.name, name, error.to_string()));
+                    }
+                }
                 DraftDeclaration::FiniteSpace { .. }
                 | DraftDeclaration::IndexSet { .. }
                 | DraftDeclaration::Relation(_)
@@ -141,6 +146,13 @@ impl ModelDraft {
             }
             match declaration {
                 DraftDeclaration::Field(field) => {
+                    if let Err(error) = self.validate_enum_type(&field.value_type) {
+                        diagnostics.push(native_diagnostic(
+                            &self.name,
+                            field.name(),
+                            error.to_string(),
+                        ));
+                    }
                     if let Err(message) =
                         crate::ValueTypeSyntax::from_checked(&field.value_type, |id| {
                             self.nominal_name(id)
@@ -156,6 +168,7 @@ impl ModelDraft {
                         parameter.frame_name(TextRange::new(0, 1)),
                         TextRange::new(0, 1),
                         |id| self.nominal_name(id),
+                        |id| self.enum_definition(id),
                     ) {
                         diagnostics.push(native_diagnostic(
                             &self.name,
@@ -320,6 +333,21 @@ impl ModelDraft {
                             ),
                         ));
                     }
+                    DraftExpressionReference::EnumValue(value) => {
+                        if let Err(error) = crate::SourceAstFactory::value_literal(
+                            value,
+                            None,
+                            TextRange::new(0, 0),
+                            |id| self.nominal_name(id),
+                            |id| self.enum_definition(id),
+                        ) {
+                            diagnostics.push(native_diagnostic(
+                                &self.name,
+                                path,
+                                error.to_string(),
+                            ));
+                        }
+                    }
                     DraftExpressionReference::Value(_) | DraftExpressionReference::Port(_) => {}
                 }
             }
@@ -396,6 +424,11 @@ impl ModelDraft {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum DraftDeclaration {
+    /// One exact module-level enum declaration shared by all native occurrences.
+    Enum {
+        name: String,
+        definition: eqiora_schema::kernel::EnumDef,
+    },
     /// An exact registered atomic finite-space definition.
     FiniteSpace {
         name: String,
@@ -431,7 +464,9 @@ pub enum DraftDeclaration {
 impl DraftDeclaration {
     fn name(&self) -> Option<&str> {
         match self {
-            Self::FiniteSpace { name, .. } | Self::IndexSet { name, .. } => Some(name),
+            Self::Enum { name, .. }
+            | Self::FiniteSpace { name, .. }
+            | Self::IndexSet { name, .. } => Some(name),
             Self::SpatialDomain(value) => Some(value.name()),
             Self::PhysicalDomain(value) => Some(value.name()),
             Self::Field(value) => Some(value.name()),
@@ -444,6 +479,7 @@ impl DraftDeclaration {
 
     fn kind_name(&self) -> &'static str {
         match self {
+            Self::Enum { .. } => "Enum",
             Self::FiniteSpace { .. } => "FiniteSpace",
             Self::IndexSet { .. } => "IndexSet",
             Self::SpatialDomain(_) => "SpatialDomain",
@@ -865,40 +901,6 @@ impl_binary_expression_operator!(Sub, sub, BinaryOp::Sub);
 impl_binary_expression_operator!(Mul, mul, BinaryOp::Mul);
 impl_binary_expression_operator!(Div, div, BinaryOp::Div);
 
-#[derive(Debug, Clone)]
-enum DraftExpressionKind {
-    Select {
-        condition: Box<DraftExpression>,
-        then_value: Box<DraftExpression>,
-        else_value: Box<DraftExpression>,
-    },
-    Boolean(bool),
-    Constant(crate::DecimalLiteral),
-    Complex(f64, f64),
-    Array(Vec<DraftExpression>),
-    Index {
-        value: Box<DraftExpression>,
-        index: u32,
-    },
-    Reference(DraftReference),
-    Derivative(DraftReference),
-    Across(DraftPortReference),
-    Through(DraftPortReference),
-    SpatialCall {
-        operator: DraftSpatialOperator,
-        value: Box<DraftExpression>,
-    },
-    Unary {
-        operator: UnaryOp,
-        value: Box<DraftExpression>,
-    },
-    Binary {
-        operator: BinaryOp,
-        left: Box<DraftExpression>,
-        right: Box<DraftExpression>,
-    },
-}
-
 #[derive(Debug, Clone, Copy)]
 enum DraftSpatialOperator {
     Gradient,
@@ -938,12 +940,6 @@ impl From<&DraftConservingPort> for DraftPortReference {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-enum DraftExpressionReference<'a> {
-    Value(&'a DraftReference),
-    Port(&'a DraftPortReference),
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DraftSymbolKind {
     Field,
@@ -962,6 +958,7 @@ impl DraftSymbolKind {
 mod ast_bridge;
 mod dimension;
 mod expression;
+use expression::{DraftExpressionKind, DraftExpressionReference};
 mod parameter;
 mod relation;
 pub use relation::DraftRelation;

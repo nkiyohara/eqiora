@@ -102,14 +102,20 @@ pub(super) fn project(
         syntax.range = ranges.allocate(path, paths);
         return syntax;
     }
-    let mut syntax = ValueTypeSyntax {
-        resolved_nominal: None,
-        kind: Box::new(ValueTypeSyntaxKind::Scalar {
-            domain: value.scalar_domain(),
-            dimension: dimension_expression(value.dimension(), path, ranges, paths),
-        }),
-        range: ranges.allocate(path, paths),
+    let dimension = dimension_expression(value.dimension(), path, ranges, paths);
+    let mut syntax = if value.scalar_domain() == eqiora_core::ScalarDomain::Real {
+        ValueTypeSyntax::real(dimension)
+    } else {
+        ValueTypeSyntax {
+            resolved_nominal: None,
+            kind: Box::new(ValueTypeSyntaxKind::Scalar {
+                domain: value.scalar_domain(),
+                dimension,
+            }),
+            range: ranges.allocate(path, paths),
+        }
     };
+    syntax.range = ranges.allocate(path, paths);
     let (arrays, spatial) = value.shape().extents().split_at(value.array_rank());
     if !spatial.is_empty() {
         let kind = if spatial.len() == 1 {

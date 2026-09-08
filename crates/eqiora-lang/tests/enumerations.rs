@@ -288,3 +288,135 @@ fn checked_members_and_patterns_keep_exact_declaration_through_qualified_rewrite
         assert!(F::bind_enum_member(&mut expression, &declaration, &definition).is_err());
     }
 }
+
+#[test]
+fn enum_literal_projection_uses_registered_labels_and_rejects_foreign_or_incomplete_definitions() {
+    use eqiora_core::{Id, ValueLiteral, ValueType};
+    use eqiora_schema::kernel::EnumDef;
+    let definition = EnumDef::new(Id::new(), ["Heating".into(), "Cooling".into()]).unwrap();
+    let foreign = EnumDef::new(Id::new(), ["Heating".into(), "Cooling".into()]).unwrap();
+    let range = TextRange::new(0, 0);
+    let name = NamePath::from_segments(["Controls", "Mode"], range).unwrap();
+    let literal = definition.value(1).unwrap();
+    let expression = F::value_literal(
+        &literal,
+        None,
+        range,
+        |_| Some(name.clone()),
+        |_| Some(&definition),
+    )
+    .unwrap();
+    assert!(
+        matches!(expression.kind(), ExprKind::Path(path) if path.as_str() == "Controls.Mode.Cooling")
+    );
+    assert_eq!(expression.resolved_enum(), Some(&literal));
+    assert!(F::value_literal(&literal, None, range, |_| Some(name.clone()), |_| None).is_err());
+    assert!(
+        F::value_literal(
+            &literal,
+            None,
+            range,
+            |_| Some(name.clone()),
+            |_| Some(&foreign)
+        )
+        .is_err()
+    );
+    let wrong_count =
+        ValueLiteral::enum_value(ValueType::enumeration(definition.id(), 3).unwrap(), 1).unwrap();
+    assert!(
+        F::value_literal(
+            &wrong_count,
+            None,
+            range,
+            |_| Some(name.clone()),
+            |_| Some(&definition)
+        )
+        .is_err()
+    );
+    let native = eqiora_lang::DraftExpression::enum_value(literal.clone()).unwrap();
+    assert!(native.source_ast(|_| None, |_| None).is_err());
+    assert_eq!(
+        native
+            .source_ast(|_| Some(name.clone()), |_| Some(&definition))
+            .unwrap()
+            .resolved_enum(),
+        Some(&literal)
+    );
+}
+
+#[test]
+fn native_model_enum_initialization_checks_exact_registry_without_copying_definition_into_expressions()
+ {
+    use eqiora_core::Id;
+    use eqiora_lang::{DraftDeclaration, DraftExpression, DraftField, FieldRoleSyntax, ModelDraft};
+    use eqiora_schema::kernel::EnumDef;
+    let definition = EnumDef::new(Id::new(), ["Heating".into(), "Cooling".into()]).unwrap();
+    let foreign = EnumDef::new(Id::new(), ["Heating".into(), "Cooling".into()]).unwrap();
+    let mode = DraftField::new("mode", definition.value_type(), FieldRoleSyntax::State);
+    let initial = |value| {
+        DraftDeclaration::Initial(vec![(
+            mode.expression(),
+            DraftExpression::enum_value(value).unwrap(),
+        )])
+    };
+    let declared = || DraftDeclaration::Enum {
+        name: "Mode".into(),
+        definition: definition.clone(),
+    };
+    let model = ModelDraft::new(
+        "Controller",
+        [
+            mode.clone().into(),
+            initial(definition.value(0).unwrap()),
+            declared(),
+        ],
+    )
+    .unwrap();
+    let ast = model.native_ast();
+    assert_eq!(ast.nominal_identity("Mode"), Some(definition.id().erase()));
+    assert_eq!(
+        ast.document().enumerations()[0].tags()[0].as_str(),
+        "Heating"
+    );
+    let Item::Initial(initial) = &ast.model().items()[1] else {
+        panic!("initial")
+    };
+    assert_eq!(
+        initial.equations()[0].right().resolved_enum(),
+        Some(&definition.value(0).unwrap())
+    );
+    assert!(
+        ModelDraft::new(
+            "Foreign",
+            [
+                mode.clone().into(),
+                initial_for(&mode, &foreign),
+                declared()
+            ]
+        )
+        .is_err()
+    );
+    assert!(ModelDraft::new("Missing", [mode.into()]).is_err());
+    fn initial_for(mode: &DraftField, definition: &EnumDef) -> DraftDeclaration {
+        DraftDeclaration::Initial(vec![(
+            mode.expression(),
+            DraftExpression::enum_value(definition.value(0).unwrap()).unwrap(),
+        )])
+    }
+}
+
+#[test]
+fn native_real_single_name_types_canonicalize_to_the_same_neutral_source_kind() {
+    let range = TextRange::new(0, 0);
+    let dimension = F::expression(ExprKind::Name("V".into()), range).unwrap();
+    let kind = F::value_type(
+        ValueTypeSyntaxKind::Scalar {
+            domain: eqiora_core::ScalarDomain::Real,
+            dimension,
+        },
+        range,
+    )
+    .unwrap();
+    assert!(matches!(kind.kind(), ValueTypeSyntaxKind::Named(path) if path.as_str() == "V"));
+    assert!(kind.dimension().is_none() && kind.scalar_domain().is_none());
+}

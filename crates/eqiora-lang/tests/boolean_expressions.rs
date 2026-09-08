@@ -62,7 +62,8 @@ fn tight_nominal_type_assignment_and_comparisons_coexist() {
 fn native_boolean_is_not_a_numeric_literal() {
     let expression = DraftExpression::boolean(true)
         .logical_and(DraftExpression::boolean(false).logical_not())
-        .source_ast();
+        .source_ast(|_| None, |_| None)
+        .unwrap();
     assert!(matches!(
         expression.kind(),
         ExprKind::Binary {
@@ -75,6 +76,7 @@ fn native_boolean_is_not_a_numeric_literal() {
         &literal,
         None,
         eqiora_lang::TextRange::new(0, 0),
+        |_| None,
         |_| None,
     )
     .unwrap();

@@ -10,6 +10,15 @@ impl SourceAstFactory {
         kind: ValueTypeSyntaxKind,
         range: TextRange,
     ) -> Result<ValueTypeSyntax, AstConstructionError> {
+        let kind = if let ValueTypeSyntaxKind::Scalar {
+            domain: eqiora_core::ScalarDomain::Real,
+            dimension,
+        } = kind
+        {
+            *ValueTypeSyntax::real(dimension).kind
+        } else {
+            kind
+        };
         let result = ValueTypeSyntax {
             resolved_nominal: None,
             kind: Box::new(kind),

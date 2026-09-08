@@ -64,7 +64,7 @@ impl ValueTypeSyntax {
         self.range
     }
 
-    /// Whether the type is a mathematical scalar.
+    /// Whether syntax alone proves a scalar type, before resolving named types.
     #[must_use]
     pub const fn is_scalar(&self) -> bool {
         matches!(
@@ -73,7 +73,7 @@ impl ValueTypeSyntax {
         )
     }
 
-    /// Physical dimension of each scalar component.
+    /// Explicit physical dimension, absent while a type name remains unresolved.
     #[must_use]
     pub fn dimension(&self) -> Option<&Expr> {
         match self.kind.as_ref() {
@@ -88,7 +88,7 @@ impl ValueTypeSyntax {
         }
     }
 
-    /// Mathematical domain of each scalar component.
+    /// Explicit scalar domain, absent while a type name remains unresolved.
     #[must_use]
     pub fn scalar_domain(&self) -> Option<ScalarDomain> {
         match self.kind.as_ref() {
@@ -104,13 +104,21 @@ impl ValueTypeSyntax {
     }
 
     pub(crate) fn real(dimension: Expr) -> Self {
-        Self {
-            resolved_nominal: None,
-            range: dimension.range(),
-            kind: Box::new(ValueTypeSyntaxKind::Scalar {
+        let range = dimension.range();
+        let kind = match dimension.kind() {
+            super::ExprKind::Name(name) => {
+                ValueTypeSyntaxKind::Named(super::NamePath::single(name.clone(), range))
+            }
+            super::ExprKind::Path(name) => ValueTypeSyntaxKind::Named(name.clone()),
+            _ => ValueTypeSyntaxKind::Scalar {
                 domain: ScalarDomain::Real,
                 dimension,
-            }),
+            },
+        };
+        Self {
+            resolved_nominal: None,
+            range,
+            kind: Box::new(kind),
         }
     }
 
