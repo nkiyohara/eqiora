@@ -46,7 +46,7 @@ fn native_initial_conditions_reject_empty_nonfinite_and_foreign_symbols() {
     let included = DraftField::new("x", value_type.clone(), FieldRoleSyntax::State);
     let foreign = DraftField::new("x", value_type, FieldRoleSyntax::State);
     for (equations, expected) in [
-        (vec![], "at least one residual"),
+        (vec![], "at least one equation"),
         (
             vec![(
                 DraftExpression::complex(f64::NAN, 0.0),
