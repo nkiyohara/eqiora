@@ -132,11 +132,12 @@ fn changing_a_structural_extent_requires_recompilation_even_after_replay() {
     .unwrap();
     let document = ModelDocument::compile("fixed-extent.eqi", &source).unwrap();
     let replay = ModelDocument::replay(&document.canonical_json().unwrap()).unwrap();
+    let extent = document.aliases()["n"];
     for document in [&document, &replay] {
         let digest = document.digest().unwrap();
         assert!(
             document
-                .preview_value_edit(document.aliases()["n"], replacement.clone())
+                .preview_value_edit(extent, replacement.clone())
                 .is_err()
         );
         assert_eq!(document.digest().unwrap(), digest);
