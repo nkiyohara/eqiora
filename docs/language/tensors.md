@@ -17,6 +17,15 @@ must have one compatible scalar type and a frame-compatible shape. The frame ref
 exact caller-bound mathematical context, not a string. No array becomes a spatial tensor
 without this constructor or an equally explicit typed external binding.
 
+The current coefficient-authoring profile uses `frame = body`, where `body` is an
+exact admitted Cartesian support. It projects the existing model-global frame and
+uses the support's ambient dimension; the uniform Parameter retains no spatial
+support. Native `DraftParameter.with_frame` and Python `Parameter(frame=...)`
+retain the same explicit support reference during source construction. Components
+must be closed scalar expressions; live or unresolved Parameter components reject.
+Arithmetic using already framed Parameters retains its ordinary expression graph. Arbitrary
+local frames and the contraction operations below remain separate capabilities.
+
 `component(T, indices = (i, j, ...))` returns the selected scalar. It requires one bounded
 integer per axis. `permute_axes(T, order = (...))` explicitly reorders axes and retains their
 roles. A permutation contains every axis exactly once. Neither operation changes dimensions.
