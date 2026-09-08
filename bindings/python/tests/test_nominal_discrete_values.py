@@ -8,6 +8,17 @@ import eqiora
 q = eqiora.lang
 
 
+def native_model(name, *declarations):
+    observed = eqiora.Field("observed", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
+    return eqiora.Model.define(name, *declarations, observed,
+                               eqiora.Relation("observe", residual=observed))
+
+
+def add_observation(owner):
+    observed = owner.field("observed", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
+    owner.relation("observe", left=observed, right=0)
+
+
 def test_native_finite_space_values_preserve_identity_and_exact_components():
     space = eqiora.FiniteSpace("Species", labels=("A", "B"))
     foreign = eqiora.FiniteSpace("Species", labels=("A", "B"))
@@ -21,7 +32,7 @@ def test_native_finite_space_values_preserve_identity_and_exact_components():
     assert counts.shape == [2] and counts.array_rank == 0
     values = (2**53 + 1, 2**53 + 2)
     parameter = eqiora.Parameter("population", value_type=counts, value=values)
-    model = eqiora.Model.define("Population", space, parameter)
+    model = native_model("Population", space, parameter)
     reference = model.parameter("population")
     assert reference.value_type == counts
     assert reference.value == values
@@ -34,8 +45,8 @@ def test_native_finite_space_values_preserve_identity_and_exact_components():
     for invalid in ((-1, 2), (1,), (True, 2), (1.0, 2), 1):
         with pytest.raises((TypeError, ValueError, OverflowError)):
             eqiora.Parameter("invalid", value_type=counts, value=invalid)
-    with pytest.raises(eqiora.ValidationError):
-        eqiora.Model.define("Foreign", foreign, parameter)
+    with pytest.raises(eqiora.ValidationError, match="(?i)nominal|registered|scope|space|index"):
+        native_model("Foreign", foreign, parameter)
     with pytest.raises(ValueError):
         counts.to_eqi()
     with pytest.raises(ValueError):
@@ -51,7 +62,7 @@ def test_native_index_set_values_are_exact_bounded_and_nominal():
     kind = eqiora.ValueType.index(rows)
     assert kind != eqiora.ValueType.index(other)
     parameter = eqiora.Parameter("selected", value_type=kind, value=2)
-    model = eqiora.Model.define("Index", rows, parameter)
+    model = native_model("Index", rows, parameter)
     assert model.parameter("selected").value == 2
     assert model.parameter("selected").value_type == kind
     assert eqiora.Model.from_bytes(model.to_bytes()).parameter("selected").value_type == kind
@@ -61,8 +72,8 @@ def test_native_index_set_values_are_exact_bounded_and_nominal():
     for invalid in (0, -1, True, 1.0, 2**32):
         with pytest.raises((TypeError, ValueError, OverflowError)):
             eqiora.IndexSet("Invalid", extent=invalid)
-    with pytest.raises(eqiora.ValidationError):
-        eqiora.Model.define("Foreign", other, parameter)
+    with pytest.raises(eqiora.ValidationError, match="(?i)nominal|registered|scope|space|index"):
+        native_model("Foreign", other, parameter)
 
 
 def test_source_nominal_constructors_share_scope_and_file_meaning(tmp_path):
@@ -70,6 +81,7 @@ def test_source_nominal_constructors_share_scope_and_file_meaning(tmp_path):
     species = source.space("Species", labels=("A", "B"), doc="Ordered species basis.")
     alternate = source.space("Alternate", labels=("A", "B"))
     owner = source.model("Population")
+    add_observation(owner)
     rows = owner.index_set("Rows", extent=3, doc="Three fixed rows.")
     populations = owner.parameter("population", value_type=eqiora.ValueType.counts(species))
     other = owner.parameter("other", value_type=eqiora.ValueType.counts(alternate))
@@ -139,7 +151,9 @@ def test_source_counts_reject_equal_shaped_foreign_basis_arithmetic():
     first = source.space("First", labels=("A", "B"))
     second = source.space("Second", labels=("A", "B"))
     owner = source.model("WrongBasis")
+    add_observation(owner)
     value = owner.parameter("value", value_type=eqiora.ValueType.counts(first))
     owner.set_default(value, owner.counts(first, (1, 2)) + owner.coordinates(second, (3, 4)))
-    with pytest.raises(eqiora.ValidationError):
+    with pytest.raises(eqiora.ValidationError, match="(?i)nominal|space|basis|type") as error:
         eqiora.compile(source=source, entry="WrongBasis")
+    assert "EQ0604" not in str(error.value)

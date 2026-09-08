@@ -11,7 +11,7 @@ fn integer(value: i64) -> ValueLiteral {
 
 #[test]
 fn indexset_extent_parameters_reject_edits_before_and_after_replay() {
-    let source = "model Extent() { parameter n: integer = 3; parameter probe: integer = 7; let count = n + 1; indexset Rows = range(count); }";
+    let source = "model Extent() { parameter n: integer = 3; parameter probe: integer = 7; let count = n + 1; indexset Rows = range(count); variable observed: 1; relation observe { observed = to_real(probe); } }";
     let original = ModelDocument::compile("extent.eqi", source).unwrap();
     let original_bytes = original.canonical_json().unwrap();
     let replayed = ModelDocument::replay(&original_bytes).unwrap();

@@ -5,6 +5,12 @@ import pytest
 import eqiora
 
 
+def native_model(name, *declarations):
+    observed = eqiora.Field("observed", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
+    return eqiora.Model.define(name, *declarations, observed,
+                               eqiora.Relation("observe", residual=observed))
+
+
 VALUES = (-(2**63), -(2**53 + 1), 0, 2**53, 2**53 + 1, 2**53 + 2, 2**63 - 1)
 
 
@@ -16,8 +22,8 @@ def test_integer_creation_source_read_edit_and_replay_preserve_every_bit(value):
     parameter = eqiora.Parameter("count", value_type=kind, value=value)
     assert type(parameter.value) is int
     assert parameter.value == value
-    native = eqiora.Model.define("Integers", parameter)
-    source = eqiora.compile(source=f"model Integers() {{ parameter count: integer = {value}; }}")
+    native = native_model("Integers", parameter)
+    source = eqiora.compile(source=f"model Integers() {{ parameter count: integer = {value}; variable observed: 1; relation observe {{ observed = 0; }} }}")
     assert native.structural_fingerprint == source.structural_fingerprint
     for model in (native, source, eqiora.Model.from_bytes(native.to_bytes())):
         reference = model.parameter("count")
@@ -39,6 +45,8 @@ def test_integer_source_builder_and_external_binding_preserve_adjacent_values(tm
     owner = source.model("Selected")
     count = owner.parameter("count", value_type=eqiora.ValueType.integer())
     owner.set_default(count, 2**53 + 1)
+    observed = owner.field("observed", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
+    owner.relation("observe", left=observed, right=q.to_real(count))
     text = source.to_eqi()
     assert "9007199254740993" in text
     authored = eqiora.compile(source=source, entry="Selected")
@@ -57,7 +65,7 @@ def test_integer_channel_values_retain_shape_and_component_bits():
     values = ((2**53, 2**53 + 1), (2**53 + 2, -(2**63)))
     parameter = eqiora.Parameter("channels", value_type=kind, value=values)
     assert parameter.value == values
-    model = eqiora.Model.define("Channels", parameter)
+    model = native_model("Channels", parameter)
     assert eqiora.Model.from_bytes(model.to_bytes()).parameter("channels").value == values
     for value in (1, [[1, 2]], [[1, 2], [3]], [[1, 2], [3, True]]):
         with pytest.raises((TypeError, ValueError)):
@@ -69,7 +77,7 @@ def test_integer_native_creation_and_edits_reject_non_integer_or_out_of_range(va
     kind = eqiora.ValueType.integer()
     with pytest.raises((TypeError, ValueError, OverflowError)):
         eqiora.Parameter("count", value_type=kind, value=value)
-    model = eqiora.Model.define("Bounded", eqiora.Parameter("count", value_type=kind, value=1))
+    model = native_model("Bounded", eqiora.Parameter("count", value_type=kind, value=1))
     before = model.to_bytes()
     with pytest.raises((TypeError, ValueError, OverflowError)):
         model.preview_value_edit("count", value)
@@ -78,8 +86,9 @@ def test_integer_native_creation_and_edits_reject_non_integer_or_out_of_range(va
 
 @pytest.mark.parametrize("value", (True, -(2**63) - 1, 2**63))
 def test_integer_external_bindings_reject_bool_and_overflow(value):
-    with pytest.raises((TypeError, ValueError, OverflowError, eqiora.ValidationError)):
-        eqiora.compile(source="model Selected(parameter count: integer) {}", entry="Selected", bindings={"count": value})
+    with pytest.raises((TypeError, ValueError, OverflowError, eqiora.ValidationError)) as error:
+        eqiora.compile(source="model Selected(parameter count: integer) { variable observed: 1; relation observe { observed = to_real(count); } }", entry="Selected", bindings={"count": value})
+    assert "EQ0604" not in str(error.value)
 
 
 def test_untyped_native_parameter_keeps_real_default():
@@ -104,6 +113,8 @@ def test_integer_source_functions_retain_exact_values_and_explicit_conversion():
         owner.set_default(parameter, expression)
     rounded = owner.parameter("rounded", value_type=eqiora.ValueType.real())
     owner.set_default(rounded, q.to_real(count))
+    observed = owner.field("observed", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
+    owner.relation("observe", left=observed, right=rounded)
     model = eqiora.compile(source=source, entry="Arithmetic")
     assert model.parameter("adjacent").value == 2**53 + 2
     assert model.parameter("quotient").value == -2
