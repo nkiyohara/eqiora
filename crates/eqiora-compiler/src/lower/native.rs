@@ -32,7 +32,7 @@ mod tests {
         let selected = ValueLiteral::from_integer(rows.value_type(), 2).unwrap();
         let observed = DraftField::new(
             "observed",
-            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).expect("admitted numeric scalar type"),
             FieldRoleSyntax::Variable,
         );
         let relation = DraftRelation::continuous(

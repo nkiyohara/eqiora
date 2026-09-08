@@ -37,7 +37,7 @@ pub(crate) fn bind_local_index_types(
                 ValueType::scalar(
                     eqiora_core::ScalarDomain::Integer,
                     eqiora_core::DimExponents::DIMENSIONLESS,
-                ),
+                ).expect("admitted numeric scalar type"),
             ) else {
                 continue;
             };

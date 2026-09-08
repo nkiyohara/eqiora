@@ -1,5 +1,6 @@
 mod aliases;
 mod integer;
+mod enumeration;
 mod reductions;
 mod transitions;
 pub(in crate::hierarchy) use aliases::DependencyActivation;
@@ -327,7 +328,7 @@ impl ExpressionChecker<'_, '_, '_> {
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Complex,
                     DimExponents::DIMENSIONLESS,
-                ),
+                ).expect("admitted numeric scalar type"),
                 None,
             )),
             ExprKind::Call { callee, .. } if callee.as_str() == "tensor_value" => {
@@ -354,21 +355,7 @@ impl ExpressionChecker<'_, '_, '_> {
                 ExpressionType::complex(self.check(real)?, self.check(imag)?)
                     .map_err(|error| type_error(self.scope.file, expression, error))
             }
-            ExprKind::Case { value, arms } => {
-                let selector = self.check(value)?;
-                crate::enumeration::case_patterns(
-                    self.scope.file,
-                    expression.range(),
-                    &selector.value_type,
-                    arms,
-                )?;
-                let branches = arms
-                    .iter()
-                    .map(|arm| self.check(arm.value()))
-                    .collect::<Result<Vec<_>, _>>()?;
-                crate::enumeration::result_type(selector, &branches)
-                    .map_err(|error| type_error(self.scope.file, expression, error))
-            }
+            ExprKind::Case { value, arms } => self.check_case(expression,value,arms,None),
             ExprKind::Select {
                 condition,
                 then_value,
@@ -675,7 +662,7 @@ impl ExpressionChecker<'_, '_, '_> {
                 ));
             }
             return Ok(ExpressionType::new(
-                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, time_dimension()),
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, time_dimension()).expect("admitted numeric scalar type"),
                 None,
             ));
         }

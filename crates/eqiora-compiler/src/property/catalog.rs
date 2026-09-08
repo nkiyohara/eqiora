@@ -111,7 +111,7 @@ pub(super) fn build(
             let source_value = match crate::hierarchy::closed_value(
                 &unit.file,
                 source_value_expr,
-                contract_type.clone().with_dimension(source_dimension),
+                contract_type.clone(),
             ) {
                 Ok(value) => value,
                 Err(value) => {

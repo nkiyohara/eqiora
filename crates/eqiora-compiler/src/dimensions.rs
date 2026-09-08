@@ -334,7 +334,8 @@ mod tests {
         let eqiora_lang::Item::Parameter(parameter) = &document.models()[0].items()[0] else {
             panic!("one Parameter declaration");
         };
-        lower_dimension("dimension.eqi", parameter.dimension()).expect("dimension lowers")
+        crate::value_types::lower_value_type::<()>("dimension.eqi", parameter.value_type(), None)
+            .expect("dimension lowers").dimension()
     }
 
     #[test]

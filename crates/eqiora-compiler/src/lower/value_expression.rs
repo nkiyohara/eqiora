@@ -184,7 +184,7 @@ impl LoweringExpression {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Complex,
                 DimExponents::DIMENSIONLESS,
-            ),
+            ).expect("admitted numeric scalar type"),
             1.0,
         )
         .expect("one is a finite complex scalar literal");

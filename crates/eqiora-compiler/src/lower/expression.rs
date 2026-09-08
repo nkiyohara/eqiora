@@ -620,7 +620,7 @@ impl ExpressionLowerer<'_> {
             };
             let dimension = crate::dimensions::time_dimension();
             let literal = eqiora_core::ValueLiteral::from_real(
-                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension),
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension).expect("admitted numeric scalar type"),
                 period.as_seconds_f64(),
             )
             .expect("bounded positive period");

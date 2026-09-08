@@ -48,7 +48,7 @@ fn native_symbols_exclude_unnamed_initial_relations() {
     use eqiora_lang::{DraftDeclaration, DraftExpression, DraftField, FieldRoleSyntax, ModelDraft};
     let state = DraftField::new(
         "x",
-        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).expect("admitted numeric scalar type"),
         FieldRoleSyntax::State,
     );
     let condition = (

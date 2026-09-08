@@ -5,7 +5,7 @@ fn compile_model(
     model: &eqiora_lang::ModelDecl,
 ) -> Result<crate::CompiledModel, Vec<eqiora_core::Diagnostic>> {
     let document =
-        eqiora_lang::SourceAstFactory::document(Vec::new(), Vec::new(), vec![model.clone()])
+        eqiora_lang::SourceAstFactory::document(Vec::new(), Vec::new(), Vec::new(), vec![model.clone()])
             .unwrap();
     crate::hierarchy::selected::local_document(
         file,

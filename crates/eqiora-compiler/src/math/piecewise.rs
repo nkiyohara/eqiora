@@ -169,7 +169,7 @@ pub(crate) fn result_type<I: Clone + Eq>(
         result = result.ordered_selection(value.clone())?;
     }
     if matches!(name, "math.sign" | "math.step") {
-        result.value_type = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+        result.value_type = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).expect("admitted numeric scalar type");
     }
     Ok(result)
 }

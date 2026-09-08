@@ -344,7 +344,7 @@ fn expression_type_cached(
                     eqiora_core::ValueType::scalar(
                         eqiora_core::ScalarDomain::Real,
                         crate::dimensions::time_dimension(),
-                    ),
+                    ).expect("admitted numeric scalar type"),
                     None,
                 ));
             }

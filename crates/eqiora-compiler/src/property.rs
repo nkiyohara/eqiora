@@ -413,7 +413,7 @@ fn constant(file: &str, expression: &Expr) -> Result<f64, Diagnostic> {
         eqiora_core::ValueType::scalar(
             eqiora_core::ScalarDomain::Real,
             eqiora_core::DimExponents::DIMENSIONLESS,
-        ),
+        ).expect("admitted numeric scalar type"),
     )?
     .real_scalar_value()
     .map(|value| value.value())
