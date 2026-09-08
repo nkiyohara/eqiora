@@ -294,12 +294,12 @@ pub(crate) fn lower_inertial_incompressible_newtonian_subdomain_2d_with_boundari
     ) = candidates.remove(0);
     let force_potential_expression = spatial_expression::lower(
         program,
-        relation_expression(program, force_potential_definition)?,
+        &relation_expression(program, force_potential_definition)?,
         source,
         force_potential_definition,
         2,
     )?;
-    let momentum_expression = relation_expression(program, momentum_relation)?;
+    let momentum_expression = &relation_expression(program, momentum_relation)?;
     let momentum_typed = &typed_relations[&momentum_relation];
     debug_assert_eq!(momentum_typed.expression(), momentum_expression);
     let mass_density = spatial_expression::lower(
@@ -512,11 +512,9 @@ pub(super) fn parameters_referenced_by(
     relations
         .iter()
         .copied()
-        .flat_map(|relation| {
-            relation_expression(program, relation)
-                .expect("admitted Relations were already inspected")
-                .nodes()
-                .iter()
+        .flat_map(|relation| match program.node(relation) {
+            Some(KernelNode::Relation(definition)) => definition.expression().nodes().iter(),
+            _ => unreachable!("admitted Relations were already inspected"),
         })
         .filter_map(|node| match node {
             ExprNode::Symbol(SymbolRef::Parameter(parameter)) => Some(parameter.erase()),

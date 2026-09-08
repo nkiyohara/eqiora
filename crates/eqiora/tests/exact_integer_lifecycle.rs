@@ -44,7 +44,15 @@ fn adjacent_exact_values_survive_source_native_edit_and_artifact_replay() {
         ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
         FieldRoleSyntax::Variable,
     );
-    let law = DraftRelation::continuous("law", [witness.expression()]);
+    let law = DraftRelation::continuous(
+        "law",
+        [(
+            witness.expression(),
+            DraftExpression::constant(
+                eqiora::language::DecimalLiteral::from_f64(0.0).expect("finite zero"),
+            ),
+        )],
+    );
     let native = ModelDocument::define(
         &ModelDraft::new(
             "Exact",

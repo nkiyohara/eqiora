@@ -181,7 +181,7 @@ fn direct_disposition(
     volume_two_mu: &ScalarSpatialExpression,
     volume_lambda: &ScalarSpatialExpression,
 ) -> Result<Option<PhysicalBoundaryDisposition>, Diagnostic> {
-    let expression = relation_expression(program, relation)?;
+    let expression = &relation_expression(program, relation)?;
     let [root] = expression.roots() else {
         return Ok(None);
     };
@@ -254,7 +254,7 @@ fn interface_port(
     volume_two_mu: &ScalarSpatialExpression,
     volume_lambda: &ScalarSpatialExpression,
 ) -> Result<Option<RawId>, Diagnostic> {
-    let expression = relation_expression(program, relation)?;
+    let expression = &relation_expression(program, relation)?;
     let [first, second] = expression.roots() else {
         return Ok(None);
     };

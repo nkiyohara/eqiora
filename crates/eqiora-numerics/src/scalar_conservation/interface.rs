@@ -42,7 +42,7 @@ pub(super) fn recognize_interface_side(
             "scalar interface boundary contains an overlapping exterior Relation",
         ));
     }
-    let expression = relation_expression(program, *relation)?;
+    let expression = &relation_expression(program, *relation)?;
     if expression.roots().len() != 2 {
         return Err(lowering_error(
             *relation,

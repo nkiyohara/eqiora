@@ -26,7 +26,7 @@ model Root() {
             _ => None,
         })
         .unwrap();
-    let expression = relation.residuals();
+    let expression = &program.numerical_residuals(relation.id().erase()).unwrap();
     let Some(ExprNode::Sub(_, root)) = expression.node(expression.roots()[0]) else {
         panic!("length minus square root");
     };
@@ -121,19 +121,13 @@ u - (coordinate(0) + coordinate(1)) = 0;
             _ => None,
         })
         .unwrap();
-    let root = relation.residuals().roots()[0];
-    let source_root = match relation.residuals().node(root) {
+    let residuals = program.numerical_residuals(relation.id().erase()).unwrap();
+    let root = residuals.roots()[0];
+    let source_root = match residuals.node(root) {
         Some(ExprNode::Sub(_, source)) => *source,
         _ => panic!("fixture has one field-minus-source residual"),
     };
-    let lowered = lower(
-        &program,
-        relation.residuals(),
-        source_root,
-        relation.id().erase(),
-        2,
-    )
-    .unwrap();
+    let lowered = lower(&program, &residuals, source_root, relation.id().erase(), 2).unwrap();
 
     assert_eq!(lowered.coordinate_dimension(), 2);
     assert_eq!(lowered.evaluate(&[2.0, 3.0]).unwrap(), 5.0);
@@ -170,19 +164,13 @@ u - amplitude ^ 2 * math.sin(coordinate(0) / amplitude) = 0;
             _ => None,
         })
         .unwrap();
-    let root = relation.residuals().roots()[0];
-    let source_root = match relation.residuals().node(root) {
+    let residuals = program.numerical_residuals(relation.id().erase()).unwrap();
+    let root = residuals.roots()[0];
+    let source_root = match residuals.node(root) {
         Some(ExprNode::Sub(_, source)) => *source,
         _ => panic!("fixture has one field-minus-source residual"),
     };
-    let lowered = lower(
-        &program,
-        relation.residuals(),
-        source_root,
-        relation.id().erase(),
-        1,
-    )
-    .unwrap();
+    let lowered = lower(&program, &residuals, source_root, relation.id().erase(), 1).unwrap();
 
     let coordinate = 0.4_f64;
     let (value, tangent) = lowered

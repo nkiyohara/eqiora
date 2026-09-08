@@ -140,7 +140,10 @@ fn compiled_roots(model: &ModelDocument) -> Vec<Tree> {
     });
     let relation = relations.next().unwrap();
     assert!(relations.next().is_none());
-    let dag = relation.residuals();
+    let dag = &model
+        .program()
+        .numerical_residuals(relation.id().erase())
+        .unwrap();
     assert!(dag.nodes().len() <= 32);
     dag.roots()
         .iter()
@@ -171,8 +174,9 @@ fn authored_equations_and_typed_residuals_have_distinct_ordered_owners() {
     ];
     assert_eq!(compiled_roots(&natural), expected);
     assert_eq!(compiled_roots(&explicit), expected);
-    assert!(natural.structurally_equivalent(&explicit).unwrap());
-    assert_eq!(
+    // Authored equation sides are authority; only the numeric projection agrees.
+    assert!(!natural.structurally_equivalent(&explicit).unwrap());
+    assert_ne!(
         natural.structural_fingerprint().unwrap(),
         explicit.structural_fingerprint().unwrap()
     );
@@ -488,9 +492,12 @@ fn exact_package_and_native_residuals_share_only_checked_structural_meaning() {
     let relation = DraftRelation::continuous(
         "balance",
         [
-            a.expression() - b.expression(),
-            (a.expression() - (b.expression() - c.expression())) - d.expression(),
-            -a.expression() - -b.expression(),
+            (a.expression(), b.expression()),
+            (
+                a.expression() - (b.expression() - c.expression()),
+                d.expression(),
+            ),
+            (-a.expression(), -b.expression()),
         ],
     );
     let draft = ModelDraft::new(

@@ -286,7 +286,7 @@ fn lower_steady_incompressible_stokes_2d_on(
     ) = candidates.remove(0);
     let force_potential_expression = spatial_expression::lower(
         program,
-        relation_expression(program, force_potential_definition)?,
+        &relation_expression(program, force_potential_definition)?,
         source,
         force_potential_definition,
         2,
@@ -919,7 +919,7 @@ fn resolve_normal_pressures(
                         .iter()
                         .copied()
                         .filter_map(|relation| {
-                            let expression = relation_expression(program, relation).ok()?;
+                            let expression = &relation_expression(program, relation).ok()?;
                             let root = unique_root(expression, relation).ok()?;
                             load_definition_root(expression, root, field)
                                 .map(|source| (relation, source))
@@ -937,7 +937,7 @@ fn resolve_normal_pressures(
                     let (definition, root) = candidates[0];
                     let expression = spatial_expression::lower(
                         program,
-                        relation_expression(program, definition)?,
+                        &relation_expression(program, definition)?,
                         root,
                         definition,
                         2,

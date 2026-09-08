@@ -104,7 +104,7 @@ fn pure_definition(program: &eqiora::sem::KernelProgram) -> PureOperatorDefiniti
         let KernelNode::Relation(relation) = node else {
             return None;
         };
-        relation.residuals().definitions().values().next().cloned()
+        relation.expression().definitions().values().next().cloned()
     });
     let definition = definitions.next().expect("one pure definition");
     assert!(
@@ -123,7 +123,7 @@ fn assert_one_generic_application(program: &eqiora::sem::KernelProgram) {
             };
             Some(
                 relation
-                    .residuals()
+                    .expression()
                     .nodes()
                     .iter()
                     .filter(|node| matches!(node, ExprNode::PureOperatorApplication(_)))

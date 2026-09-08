@@ -625,12 +625,12 @@ fn lower_transient_volume_with_stress<const D: usize>(
     ) = candidates.remove(0);
     let force_potential_expression = spatial_expression::lower(
         program,
-        relation_expression(program, force_potential_definition)?,
+        &relation_expression(program, force_potential_definition)?,
         source,
         force_potential_definition,
         D,
     )?;
-    let momentum_expression = relation_expression(program, momentum_relation)?;
+    let momentum_expression = &relation_expression(program, momentum_relation)?;
     let momentum_typed = &typed_relations[&momentum_relation];
     let mass_density = spatial_expression::lower(
         program,

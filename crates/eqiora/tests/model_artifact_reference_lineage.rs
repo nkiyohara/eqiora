@@ -188,14 +188,19 @@ fn artifact_owner_replays_the_current_model_and_preserves_lineage() {
     );
     let flow = DraftRelation::continuous(
         "flow",
-        [DraftExpression::derivative(&state) + rate.expression() * state.expression()],
-    );
-    let initial = eqiora::language::DraftDeclaration::Initial(vec![
-        state.expression()
-            - DraftExpression::constant(
-                eqiora::language::DecimalLiteral::from_f64(1.0).expect("finite fixture literal"),
+        [(
+            DraftExpression::derivative(&state) + rate.expression() * state.expression(),
+            DraftExpression::constant(
+                eqiora::language::DecimalLiteral::from_f64(0.0).expect("finite zero"),
             ),
-    ]);
+        )],
+    );
+    let initial = eqiora::language::DraftDeclaration::Initial(vec![(
+        state.expression(),
+        DraftExpression::constant(
+            eqiora::language::DecimalLiteral::from_f64(1.0).expect("finite fixture literal"),
+        ),
+    )]);
     let draft =
         ModelDraft::new("decay", [state.into(), rate.into(), flow.into(), initial]).unwrap();
     let model = ModelDocument::define(&draft).expect("current Model");

@@ -436,7 +436,10 @@ fn exact_package_elaborates_isotropic_boundary_meaning_without_a_realization() {
         else {
             panic!("exact alias selects an ordinary Relation node");
         };
-        let residuals = definition.residuals();
+        let residuals = &model
+            .program()
+            .numerical_residuals(definition.id().erase())
+            .unwrap();
         assert_isotropic_boundary_relation(residuals, displacement, mu, lambda, family_port);
     }
 }

@@ -514,14 +514,36 @@ mod tests {
             )),
             KernelNode::from(PortDef::scalar_physical(ports[0], domain)),
             KernelNode::from(PortDef::scalar_physical(ports[1], domain)),
-            KernelNode::from(RelationDef::new(
-                relations[0],
-                source_dag.finish([source_root]).unwrap(),
-            )),
-            KernelNode::from(RelationDef::new(
-                relations[1],
-                load_dag.finish([load_root]).unwrap(),
-            )),
+            KernelNode::from(
+                RelationDef::new(
+                    relations[0],
+                    {
+                        let equation_zero_0 = source_dag
+                            .constant(eqiora_core::ValueLiteral::zero(
+                                eqiora_core::ValueType::scalar(scalar_domain, voltage),
+                            ))
+                            .unwrap();
+                        source_dag.finish([source_root, equation_zero_0])
+                    }
+                    .unwrap(),
+                )
+                .unwrap(),
+            ),
+            KernelNode::from(
+                RelationDef::new(
+                    relations[1],
+                    {
+                        let equation_zero_0 = load_dag
+                            .constant(eqiora_core::ValueLiteral::zero(
+                                eqiora_core::ValueType::scalar(scalar_domain, voltage),
+                            ))
+                            .unwrap();
+                        load_dag.finish([load_root, equation_zero_0])
+                    }
+                    .unwrap(),
+                )
+                .unwrap(),
+            ),
             KernelNode::from(ActivationDef::continuous(activation)),
             KernelNode::from(ConnectionDef::new(
                 connection,

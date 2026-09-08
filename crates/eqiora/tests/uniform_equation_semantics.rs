@@ -40,7 +40,10 @@ fn equation_permutation_preserves_simultaneous_solution_not_ordered_identity() {
                 }
             })
             .unwrap();
-        let dag = relation.residuals();
+        let dag = &model
+            .program()
+            .numerical_residuals(relation.id().erase())
+            .unwrap();
         // At the independently fixed input (4,-1), residuals are (0,4),
         // swapped to (4,0) by the root permutation.
         let mut values = Vec::new();

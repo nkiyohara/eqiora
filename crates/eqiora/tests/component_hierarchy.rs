@@ -446,7 +446,7 @@ fn nested_components_lower_to_one_flat_kernel_and_solve_the_analytic_dc_case() {
     let mut relation_roots = program
         .nodes()
         .filter_map(|node| match node {
-            KernelNode::Relation(relation) => Some(relation.residuals().roots().len()),
+            KernelNode::Relation(relation) => Some(relation.equation_sides().len()),
             _ => None,
         })
         .collect::<Vec<_>>();

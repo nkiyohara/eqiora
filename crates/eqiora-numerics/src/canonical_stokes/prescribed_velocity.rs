@@ -211,7 +211,7 @@ pub(super) fn lower_prescribed_velocity_trace_2d(
     boundary: RawId,
     relation: RawId,
 ) -> Result<Option<SteadyStokesPrescribedVelocityTrace2d>, Diagnostic> {
-    let expression = relation_expression(program, relation)?;
+    let expression = &relation_expression(program, relation)?;
     let root = unique_root(expression, relation)?;
     if matches!(expression.node(root), Some(ExprNode::Trace(value)) if is_field(expression, *value, velocity))
     {
@@ -318,7 +318,7 @@ fn require_body_no_slip(
             "body role does not own exactly the supplied exact no-slip Relation",
         ));
     }
-    let expression = relation_expression(program, body_relation)?;
+    let expression = &relation_expression(program, body_relation)?;
     let root = unique_root(expression, body_relation)?;
     if !matches!(expression.node(root), Some(ExprNode::Trace(value)) if is_field(expression, *value, velocity))
     {

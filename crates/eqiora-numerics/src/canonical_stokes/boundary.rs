@@ -410,7 +410,7 @@ fn direct_disposition(
     volume_viscosity: &ScalarSpatialExpression,
     stress_form: IncompressibleStressForm,
 ) -> Result<Option<BoundaryCandidate>, Diagnostic> {
-    let expression = relation_expression(program, relation)?;
+    let expression = &relation_expression(program, relation)?;
     let [root] = expression.roots() else {
         return Ok(None);
     };
@@ -508,7 +508,7 @@ fn prescribed_velocity_trace<const D: usize>(
     domain: RawId,
     boundary: RawId,
 ) -> Result<SteadyStokesPrescribedVelocityTrace2d, Diagnostic> {
-    let expression = relation_expression(program, relation)?;
+    let expression = &relation_expression(program, relation)?;
     let [root] = expression.roots() else {
         return Err(lowering_error(
             relation,
@@ -531,7 +531,7 @@ fn prescribed_velocity_trace<const D: usize>(
         let candidates = relations_on(program, domain)
             .into_iter()
             .filter_map(|definition| {
-                let definition_expression = relation_expression(program, definition).ok()?;
+                let definition_expression = &relation_expression(program, definition).ok()?;
                 let root = unique_root(definition_expression, definition).ok()?;
                 load_definition_root(definition_expression, root, potential)
                     .map(|source| (definition, source))
@@ -549,7 +549,7 @@ fn prescribed_velocity_trace<const D: usize>(
         let (definition, source) = candidates[0];
         require_continuous_relation(program, definition)?;
         let speed_parameter = exact_complete_potential_source(
-            relation_expression(program, definition)?,
+            &relation_expression(program, definition)?,
             source,
         )
         .ok_or_else(|| {
@@ -560,7 +560,7 @@ fn prescribed_velocity_trace<const D: usize>(
         })?;
         let tape = crate::spatial_expression::lower(
             program,
-            relation_expression(program, definition)?,
+            &relation_expression(program, definition)?,
             source,
             definition,
             D,
@@ -646,7 +646,7 @@ fn normalized_pressure_source(
             if law.quantity() == PhysicalBoundaryQuantity::Trace {
                 return Ok(None);
             }
-            let expression = relation_expression(program, law.relation())?;
+            let expression = &relation_expression(program, law.relation())?;
             let typed = typed_relation(program, law.relation())?;
             debug_assert_eq!(typed.expression(), expression);
             let [root] = expression.roots() else {
@@ -703,7 +703,7 @@ fn prescribed_normal_velocity_expression<const D: usize>(
     velocity: RawId,
     domain: RawId,
 ) -> Result<(ScalarSpatialExpression, RawId, RawId), Diagnostic> {
-    let expression = relation_expression(program, relation)?;
+    let expression = &relation_expression(program, relation)?;
     let [root] = expression.roots() else {
         return Err(lowering_error(
             relation,
@@ -728,7 +728,7 @@ fn prescribed_normal_velocity_expression<const D: usize>(
     let candidates = relations_on(program, domain)
         .into_iter()
         .filter_map(|definition| {
-            let definition_expression = relation_expression(program, definition).ok()?;
+            let definition_expression = &relation_expression(program, definition).ok()?;
             let root = unique_root(definition_expression, definition).ok()?;
             load_definition_root(definition_expression, root, field)
                 .map(|source| (definition, source))
@@ -747,7 +747,7 @@ fn prescribed_normal_velocity_expression<const D: usize>(
     require_continuous_relation(program, definition)?;
     let expression = crate::spatial_expression::lower(
         program,
-        relation_expression(program, definition)?,
+        &relation_expression(program, definition)?,
         source,
         definition,
         D,
@@ -834,7 +834,7 @@ fn interface_port(
     volume_viscosity: &ScalarSpatialExpression,
     stress_form: IncompressibleStressForm,
 ) -> Result<Option<RawId>, Diagnostic> {
-    let expression = relation_expression(program, relation)?;
+    let expression = &relation_expression(program, relation)?;
     let [first, second] = expression.roots() else {
         return Ok(None);
     };

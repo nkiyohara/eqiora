@@ -471,7 +471,28 @@ fn canonical_decay_with_integral() -> (
     let negative_x_derivative = expression.neg(x_derivative).unwrap();
     let decay = expression.mul(rate_value, x_value).unwrap();
     let x_residual = expression.sub(negative_x_derivative, decay).unwrap();
-    let residuals = expression.finish([integral_residual, x_residual]).unwrap();
+    let residuals = {
+        let equation_zero_0 = expression
+            .constant(eqiora_core::ValueLiteral::zero(
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time),
+            ))
+            .unwrap();
+        let equation_zero_1 = expression
+            .constant(eqiora_core::ValueLiteral::zero(
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::from_integers([0, 0, -2, 0, 0, 0, 0]).unwrap(),
+                ),
+            ))
+            .unwrap();
+        expression.finish([
+            integral_residual,
+            equation_zero_0,
+            x_residual,
+            equation_zero_1,
+        ])
+    }
+    .unwrap();
 
     let mut nodes = vec![
         KernelNode::from(FieldDef::new(
@@ -495,7 +516,7 @@ fn canonical_decay_with_integral() -> (
             )
             .unwrap(),
         )),
-        KernelNode::from(RelationDef::new(relation, residuals)),
+        KernelNode::from(RelationDef::new(relation, residuals).unwrap()),
         KernelNode::from(ActivationDef::continuous(continuous)),
     ];
     nodes.push(support::initial_value(
@@ -568,10 +589,24 @@ fn state_dependent_mass_relation() -> (eqiora::sem::KernelProgram, Id<kinds::Rel
             )
             .unwrap(),
         )),
-        KernelNode::from(RelationDef::new(
-            relation,
-            expression.finish([residual]).unwrap(),
-        )),
+        KernelNode::from(
+            RelationDef::new(
+                relation,
+                {
+                    let equation_zero_0 = expression
+                        .constant(eqiora_core::ValueLiteral::zero(
+                            eqiora_core::ValueType::scalar(
+                                eqiora_core::ScalarDomain::Real,
+                                inverse_time,
+                            ),
+                        ))
+                        .unwrap();
+                    expression.finish([residual, equation_zero_0])
+                }
+                .unwrap(),
+            )
+            .unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(continuous)),
     ];
     nodes.push(support::initial_value(
@@ -664,12 +699,37 @@ fn canonical_index_one_dae() -> (
             )
             .unwrap(),
         )),
-        KernelNode::from(RelationDef::new(
-            relation,
-            expression
-                .finish([differential_residual, algebraic_residual])
+        KernelNode::from(
+            RelationDef::new(
+                relation,
+                {
+                    let equation_zero_0 = expression
+                        .constant(eqiora_core::ValueLiteral::zero(
+                            eqiora_core::ValueType::scalar(
+                                eqiora_core::ScalarDomain::Real,
+                                inverse_time,
+                            ),
+                        ))
+                        .unwrap();
+                    let equation_zero_1 = expression
+                        .constant(eqiora_core::ValueLiteral::zero(
+                            eqiora_core::ValueType::scalar(
+                                eqiora_core::ScalarDomain::Real,
+                                DimExponents::DIMENSIONLESS,
+                            ),
+                        ))
+                        .unwrap();
+                    expression.finish([
+                        differential_residual,
+                        equation_zero_0,
+                        algebraic_residual,
+                        equation_zero_1,
+                    ])
+                }
                 .unwrap(),
-        )),
+            )
+            .unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(continuous)),
     ];
     nodes.push(support::initial_value(
@@ -776,12 +836,37 @@ fn canonical_dense_mass_matrix(
             )
             .unwrap(),
         )),
-        KernelNode::from(RelationDef::new(
-            relation,
-            expression
-                .finish([first_residual, second_residual])
+        KernelNode::from(
+            RelationDef::new(
+                relation,
+                {
+                    let equation_zero_0 = expression
+                        .constant(eqiora_core::ValueLiteral::zero(
+                            eqiora_core::ValueType::scalar(
+                                eqiora_core::ScalarDomain::Real,
+                                inverse_time,
+                            ),
+                        ))
+                        .unwrap();
+                    let equation_zero_1 = expression
+                        .constant(eqiora_core::ValueLiteral::zero(
+                            eqiora_core::ValueType::scalar(
+                                eqiora_core::ScalarDomain::Real,
+                                inverse_time,
+                            ),
+                        ))
+                        .unwrap();
+                    expression.finish([
+                        first_residual,
+                        equation_zero_0,
+                        second_residual,
+                        equation_zero_1,
+                    ])
+                }
                 .unwrap(),
-        )),
+            )
+            .unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(continuous)),
     ];
     nodes.push(support::initial_value(
@@ -916,20 +1001,70 @@ fn canonical_bouncing_ball() -> CanonicalBouncingBall {
             )
             .unwrap(),
         )),
-        KernelNode::from(RelationDef::new(
-            flow,
-            flow_expression
-                .finish([height_residual, velocity_residual])
+        KernelNode::from(
+            RelationDef::new(
+                flow,
+                {
+                    let equation_zero_0 = flow_expression
+                        .constant(eqiora_core::ValueLiteral::zero(
+                            eqiora_core::ValueType::scalar(
+                                eqiora_core::ScalarDomain::Real,
+                                velocity_dimension,
+                            ),
+                        ))
+                        .unwrap();
+                    let equation_zero_1 = flow_expression
+                        .constant(eqiora_core::ValueLiteral::zero(
+                            eqiora_core::ValueType::scalar(
+                                eqiora_core::ScalarDomain::Real,
+                                acceleration_dimension,
+                            ),
+                        ))
+                        .unwrap();
+                    flow_expression.finish([
+                        height_residual,
+                        equation_zero_0,
+                        velocity_residual,
+                        equation_zero_1,
+                    ])
+                }
                 .unwrap(),
-        )),
-        KernelNode::from(RelationDef::new(
-            reset_height,
-            height_reset.finish([height_reset_residual]).unwrap(),
-        )),
-        KernelNode::from(RelationDef::new(
-            reset_velocity,
-            velocity_reset.finish([velocity_reset_residual]).unwrap(),
-        )),
+            )
+            .unwrap(),
+        ),
+        KernelNode::from(
+            RelationDef::new(
+                reset_height,
+                {
+                    let equation_zero_0 = height_reset
+                        .constant(eqiora_core::ValueLiteral::zero(
+                            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, length),
+                        ))
+                        .unwrap();
+                    height_reset.finish([height_reset_residual, equation_zero_0])
+                }
+                .unwrap(),
+            )
+            .unwrap(),
+        ),
+        KernelNode::from(
+            RelationDef::new(
+                reset_velocity,
+                {
+                    let equation_zero_0 = velocity_reset
+                        .constant(eqiora_core::ValueLiteral::zero(
+                            eqiora_core::ValueType::scalar(
+                                eqiora_core::ScalarDomain::Real,
+                                velocity_dimension,
+                            ),
+                        ))
+                        .unwrap();
+                    velocity_reset.finish([velocity_reset_residual, equation_zero_0])
+                }
+                .unwrap(),
+            )
+            .unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(continuous)),
         KernelNode::from(
             ActivationDef::new(

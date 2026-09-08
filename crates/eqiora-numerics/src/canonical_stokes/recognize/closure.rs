@@ -40,11 +40,9 @@ pub(super) fn require_closed_model(
     let parameters = relations
         .iter()
         .copied()
-        .flat_map(|relation| {
-            relation_expression(program, relation)
-                .expect("admitted Relations were already inspected")
-                .nodes()
-                .iter()
+        .flat_map(|relation| match program.node(relation) {
+            Some(KernelNode::Relation(definition)) => definition.expression().nodes().iter(),
+            _ => unreachable!("admitted Relations were already inspected"),
         })
         .filter_map(|node| match node {
             ExprNode::Symbol(SymbolRef::Parameter(parameter)) => Some(parameter.erase()),

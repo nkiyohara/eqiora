@@ -105,13 +105,13 @@ fn complete_exterior_families_flatten_to_ordinary_boundary_entities() {
             panic!("verification bijection selects ordinary Relation nodes");
         };
         assert_eq!(
-            relation_shape(family_definition.residuals(), family_port),
-            relation_shape(flat_definition.residuals(), flat_port),
+            relation_shape(family_definition.expression(), family_port),
+            relation_shape(flat_definition.expression(), flat_port),
             "family elaboration preserves the explicit singular residual structure"
         );
         assert_eq!(
-            family_definition.residuals().roots(),
-            flat_definition.residuals().roots()
+            family_definition.expression().roots(),
+            flat_definition.expression().roots()
         );
     }
 }

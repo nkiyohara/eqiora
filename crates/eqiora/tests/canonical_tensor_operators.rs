@@ -68,7 +68,7 @@ fn source_meaning_crosses_the_closed_current_wire() {
     };
     assert_eq!(
         relation
-            .residuals()
+            .expression()
             .nodes()
             .iter()
             .filter(|node| matches!(node, ExprNode::SymmetricPart(_)))
@@ -77,7 +77,7 @@ fn source_meaning_crosses_the_closed_current_wire() {
     );
     assert_eq!(
         relation
-            .residuals()
+            .expression()
             .nodes()
             .iter()
             .filter(|node| matches!(node, ExprNode::IsotropicLift(_)))

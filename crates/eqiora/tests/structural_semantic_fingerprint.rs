@@ -327,14 +327,19 @@ fn native_decay(reversed: bool) -> ModelDraft {
     );
     let relation = DraftRelation::continuous(
         "balance",
-        [DraftExpression::derivative(&field) + rate.expression() * field.expression()],
-    );
-    let initial = eqiora::language::DraftDeclaration::Initial(vec![
-        field.expression()
-            - DraftExpression::constant(
-                eqiora::language::DecimalLiteral::from_f64(1.0).expect("finite fixture literal"),
+        [(
+            DraftExpression::derivative(&field) + rate.expression() * field.expression(),
+            DraftExpression::constant(
+                eqiora::language::DecimalLiteral::from_f64(0.0).expect("finite zero"),
             ),
-    ]);
+        )],
+    );
+    let initial = eqiora::language::DraftDeclaration::Initial(vec![(
+        field.expression(),
+        DraftExpression::constant(
+            eqiora::language::DecimalLiteral::from_f64(1.0).expect("finite fixture literal"),
+        ),
+    )]);
     let declarations = if reversed {
         vec![relation.into(), rate.into(), field.into(), initial]
     } else {
@@ -372,12 +377,22 @@ fn native_resistor(reversed: bool) -> ModelDraft {
     let law = DraftRelation::continuous(
         "law",
         [
-            DraftExpression::across(&positive)
-                - DraftExpression::across(&negative)
-                - resistance.expression() * DraftExpression::through(&positive),
-            DraftExpression::through(&positive)
-                + DraftExpression::through(&negative)
-                + DraftExpression::through(&tap),
+            (
+                DraftExpression::across(&positive)
+                    - DraftExpression::across(&negative)
+                    - resistance.expression() * DraftExpression::through(&positive),
+                DraftExpression::constant(
+                    eqiora::language::DecimalLiteral::from_f64(0.0).expect("finite zero"),
+                ),
+            ),
+            (
+                DraftExpression::through(&positive)
+                    + DraftExpression::through(&negative)
+                    + DraftExpression::through(&tap),
+                DraftExpression::constant(
+                    eqiora::language::DecimalLiteral::from_f64(0.0).expect("finite zero"),
+                ),
+            ),
         ],
     );
     let connection = DraftConservingConnection::new([&positive, &negative, &tap]);
@@ -444,7 +459,18 @@ fn manually_allocated_program(reverse_expression: bool, expose_port: bool) -> Ke
         (left_value, right_value)
     };
     let root = expression.add(left_value, right_value).unwrap();
-    let expression = expression.finish([root]).unwrap();
+    let expression = {
+        let equation_zero_0 = expression
+            .constant(eqiora_core::ValueLiteral::zero(
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                ),
+            ))
+            .unwrap();
+        expression.finish([root, equation_zero_0])
+    }
+    .unwrap();
     let members = [
         left.erase(),
         right.erase(),
@@ -479,7 +505,7 @@ fn manually_allocated_program(reverse_expression: bool, expose_port: bool) -> Ke
             .into(),
         })
         .push(Op::DefineKernelNode {
-            node: RelationDef::new(relation, expression).into(),
+            node: RelationDef::new(relation, expression).unwrap().into(),
         })
         .push(Op::DefineKernelNode {
             node: ActivationDef::continuous(activation).into(),

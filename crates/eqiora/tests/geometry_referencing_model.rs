@@ -315,10 +315,9 @@ fn build_transaction(
             )
             .unwrap(),
         ),
-        KernelNode::from(RelationDef::new(
-            ids.relation,
-            expression.finish([root]).unwrap(),
-        )),
+        KernelNode::from(
+            RelationDef::new(ids.relation, expression.finish([root, root]).unwrap()).unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(ids.activation)),
     ];
     if let Some(entity_set) = meaning.boundary_set {
@@ -451,10 +450,9 @@ fn cartesian_boundary_with_geometry_parent() -> (Transaction, OntologyId<Model>)
             0,
             BoundarySide::Lower,
         )),
-        KernelNode::from(RelationDef::new(
-            ids.relation,
-            expression.finish([root]).unwrap(),
-        )),
+        KernelNode::from(
+            RelationDef::new(ids.relation, expression.finish([root, root]).unwrap()).unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(ids.activation)),
     ];
     let mut transaction = Transaction::new("Cartesian boundary with geometry parent");

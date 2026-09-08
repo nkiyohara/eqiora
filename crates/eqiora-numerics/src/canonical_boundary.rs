@@ -397,7 +397,7 @@ fn terminal_disposition(
     relation: RawId,
     port: RawId,
 ) -> Result<Option<PhysicalBoundaryDisposition>, Diagnostic> {
-    let expression = relation_expression(program, relation)?;
+    let expression = &relation_expression(program, relation)?;
     let mut trace_occurrences = 0;
     let mut flux_occurrences = 0;
     let mut another_port = false;
@@ -490,7 +490,7 @@ fn relation_expression(
     relation: RawId,
 ) -> Result<&eqiora_schema::kernel::ExprDag, Diagnostic> {
     match program.node(relation) {
-        Some(KernelNode::Relation(relation)) => Ok(relation.residuals()),
+        Some(KernelNode::Relation(_)) => program.numerical_residuals(relation),
         _ => Err(lowering_error(
             relation,
             "field-physical boundary owner has no Relation definition",

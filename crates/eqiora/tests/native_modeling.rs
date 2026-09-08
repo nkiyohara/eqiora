@@ -27,15 +27,20 @@ fn native_and_source_models_share_structure_and_artifacts() {
     );
     let flow = DraftRelation::continuous(
         "flow",
-        [DraftExpression::derivative(&state) + rate.expression() * state.expression()],
+        [(
+            DraftExpression::derivative(&state) + rate.expression() * state.expression(),
+            DraftExpression::constant(
+                eqiora::language::DecimalLiteral::from_f64(0.0).expect("finite zero"),
+            ),
+        )],
     );
     // Independent declaration order is presentation, not symbol resolution.
-    let initial = eqiora::language::DraftDeclaration::Initial(vec![
-        state.expression()
-            - DraftExpression::constant(
-                eqiora::language::DecimalLiteral::from_f64(1.0).expect("finite fixture literal"),
-            ),
-    ]);
+    let initial = eqiora::language::DraftDeclaration::Initial(vec![(
+        state.expression(),
+        DraftExpression::constant(
+            eqiora::language::DecimalLiteral::from_f64(1.0).expect("finite fixture literal"),
+        ),
+    )]);
     let draft =
         ModelDraft::new("decay", [rate.into(), state.into(), flow.into(), initial]).unwrap();
 
@@ -75,7 +80,15 @@ fn native_modeling_failures_have_paths_and_never_return_a_model() {
         ),
         eqiora::language::FieldRoleSyntax::Variable,
     );
-    let relation = DraftRelation::continuous("flow", [foreign.expression()]);
+    let relation = DraftRelation::continuous(
+        "flow",
+        [(
+            foreign.expression(),
+            DraftExpression::constant(
+                eqiora::language::DecimalLiteral::from_f64(0.0).expect("finite zero"),
+            ),
+        )],
+    );
     let diagnostic = ModelDraft::new("decay", [included.into(), relation.into()]).unwrap_err();
     assert_eq!(
         diagnostic[0].graph_path().unwrap().to_string(),
@@ -103,7 +116,12 @@ fn native_modeling_failures_have_paths_and_never_return_a_model() {
     );
     let invalid = DraftRelation::continuous(
         "invalid",
-        [temperature.expression() + duration.expression()],
+        [(
+            temperature.expression() + duration.expression(),
+            DraftExpression::constant(
+                eqiora::language::DecimalLiteral::from_f64(0.0).expect("finite zero"),
+            ),
+        )],
     );
     let draft = ModelDraft::new(
         "thermal",
