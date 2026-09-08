@@ -116,24 +116,42 @@ fn support_and_activation_are_independent_optional_header_axes() {
 }
 
 #[test]
-fn numeric_admission_distinguishes_exact_zero_from_nonzero_underflow() {
-    for value in ["0", "-0", "0e-999", "-0e-999", "5e-324", "-5e-324"] {
-        assert!(
-            parse(
-                "number.eqi",
-                &format!("model M() {{ relation r {{ x = {value}; }} }}")
-            )
-            .into_document()
-            .is_ok(),
-            "{value}"
-        );
-    }
-    for value in ["1e-324", "-1e-324", "(1e-324)", "1e999"] {
-        let parsed = parse(
+fn numeric_syntax_preserves_zero_and_nonzero_before_domain_admission() {
+    // Decimal syntax has no binary64 range gate: contextual lowering owns it.
+    for (value, zero) in [
+        ("0", true),
+        ("-0", true),
+        ("0e-999", true),
+        ("-0e-999", true),
+        ("5e-324", false),
+        ("-5e-324", false),
+        ("1e-324", false),
+        ("-1e-324", false),
+        ("(1e-324)", false),
+        ("1e999", false),
+    ] {
+        let document = parse(
             "number.eqi",
             &format!("model M() {{ relation r {{ x = {value}; }} }}"),
+        )
+        .into_document()
+        .unwrap();
+        let Item::Relation(relation) = &document.models()[0].items()[0] else {
+            panic!("relation")
+        };
+        let mut expression = relation.equations()[0].right();
+        while let ExprKind::Unary { value, .. } = expression.kind() {
+            expression = value;
+        }
+        let ExprKind::Number(literal) = expression.kind() else {
+            panic!("number")
+        };
+        assert_eq!(literal.is_zero(), zero, "{value}");
+        let formatted = format(&document);
+        assert_eq!(
+            format(&parse("replay.eqi", &formatted).into_document().unwrap()),
+            formatted
         );
-        assert!(!parsed.diagnostics().is_empty(), "{value}");
     }
 }
 

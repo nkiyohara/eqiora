@@ -92,16 +92,31 @@ fn quantity_parser_defers_numeric_range_admission_and_preserves_exact_text() {
         assert_eq!(value, replayed);
         assert_eq!(eqiora_lang::format(&reparsed), formatted);
     }
-    for literal in ["1e-400", "1e400", "1e-400[2]"] {
-        assert!(
-            eqiora_lang::parse(
-                "invalid.eqi",
-                &format!("model M() {{ let x = {literal}; }}")
-            )
+    // Bare numbers now retain exact decimals too. Real-domain range admission
+    // belongs to elaboration, after the required value domain is known.
+    for literal in ["1e-400", "1e400"] {
+        let document =
+            eqiora_lang::parse("number.eqi", &format!("model M() {{ let x = {literal}; }}"))
+                .into_document()
+                .unwrap();
+        let Item::Let(alias) = &document.models()[0].items()[0] else {
+            panic!("let")
+        };
+        let ExprKind::Number(value) = alias.value().kind() else {
+            panic!("number")
+        };
+        assert_eq!(value, &DecimalLiteral::parse(literal).unwrap());
+        let formatted = eqiora_lang::format(&document);
+        let reparsed = eqiora_lang::parse("again.eqi", &formatted)
+            .into_document()
+            .unwrap();
+        assert_eq!(eqiora_lang::format(&reparsed), formatted);
+    }
+    assert!(
+        eqiora_lang::parse("invalid.eqi", "model M() { let x = 1e-400[2]; }")
             .into_document()
             .is_err()
-        );
-    }
+    );
 }
 
 #[test]

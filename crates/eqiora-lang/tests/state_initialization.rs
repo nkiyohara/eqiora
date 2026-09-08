@@ -109,6 +109,7 @@ fn borrowed_clocks_roundtrip_with_exact_target_and_comment_owner() {
     let instance = eqiora_lang::SourceAstFactory::instance(
         "clock_only",
         eqiora_lang::NamePath::from_segments(["Delay"], range).unwrap(),
+        None,
         vec![eqiora_lang::SourceAstFactory::named_binding("tick", value, range).unwrap()],
         range,
     )
