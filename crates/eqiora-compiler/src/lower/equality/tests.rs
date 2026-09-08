@@ -46,8 +46,8 @@ fn contextual_zero_adopts_complete_type_but_explicit_zero_never_does() {
         false,
     )
     .unwrap();
-    assert_eq!(promoted.residual.value_type, complex);
-    assert_ne!(promoted.residual, promoted.left);
+    assert_eq!(promoted.equation_type.value_type, complex);
+    assert_ne!(promoted.equation_type, promoted.left);
 }
 
 #[test]
