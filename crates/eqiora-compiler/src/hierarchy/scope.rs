@@ -544,7 +544,8 @@ pub(super) fn rewrite_expression_with_boundary_member(
                 expression.range(),
             )
         }
-        ExprKind::Number(_) | ExprKind::Quantity { .. } => {
+        ExprKind::Number(value) => LoweringExpression::number(value.clone(), expression.range()),
+        ExprKind::Quantity { .. } => {
             LoweringExpression::from_source(expression)
         }
         ExprKind::Name(name) if name == "time" => {
@@ -665,6 +666,13 @@ pub(super) fn rewrite_expression_with_boundary_member(
                 clock.internal_name.clone(),
                 expression.range(),
             )
+        }
+        ExprKind::Call { callee, arguments } if crate::lower::IntegerBuiltin::named(callee.as_str()).is_some() => {
+            let operator = crate::lower::IntegerBuiltin::named(callee.as_str()).expect("named builtin guard");
+            if arguments.len() != operator.arity() {
+                return Err(source_error(codes::LANGUAGE_TYPE_ERROR, file, expression.range(), format!("{callee} requires exactly {} arguments", operator.arity())));
+            }
+            LoweringExpression::integer_call(operator, arguments.iter().map(|argument| rewrite_expression_with_boundary_member(file, argument, scope, active)).collect::<Result<Vec<_>, _>>()?, expression.range())
         }
         ExprKind::Call { callee, arguments } if is_builtin_operator(callee) => {
             let [argument] = arguments.as_slice() else {

@@ -227,6 +227,7 @@ impl PartialEq for LoweringExpression {
 
 #[derive(Debug, PartialEq)]
 enum LoweringExpressionNode {
+    Number(eqiora_lang::DecimalLiteral),
     Literal(eqiora_core::ValueLiteral),
     IntegerCall {
         operator: IntegerBuiltin,
