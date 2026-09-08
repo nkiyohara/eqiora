@@ -25,14 +25,16 @@ bodies retain `rational`, `component` and `delta`. The former `pure operator` an
 declaration spellings are not part of the current source surface.
 
 Polynomial bodies use exact decimal or rational coefficients, formal references and bounded
-arithmetic. Calls between local scalar operators compose through the existing exact calculus
-owner. Lexical names and formal bindings are resolved before expansion; cycles, capture,
+arithmetic. Powers use nonnegative integer literal exponents up to 255 and share the
+calculus work and depth limits; negative or computed exponents are outside this profile.
+Calls between local scalar operators compose through the existing exact calculus owner. Lexical names and formal bindings are resolved before expansion; cycles, capture,
 unknown or missing arguments, incompatible types and excess work reject locally. Operators
 cannot read hidden evolving state or invoke host callbacks. Cross-package composition inside
 operator definitions and the general analytic/complex catalog remain outside this profile;
 existing qualified package calls at Model and Component use sites retain their visibility rules.
 
-Definition identity retains exact arithmetic and input/result dimension constraints. The
+Definition identity retains exact arithmetic and input/result scalar-domain and dimension
+constraints. The
 current Model stores the operator definition and application identity. Execution projects an
 admitted scalar application into the ordinary expression graph and uses the existing evaluator;
 proof normalization does not authorize reassociating floating-point operations.
