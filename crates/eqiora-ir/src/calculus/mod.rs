@@ -11,6 +11,7 @@ use std::fmt;
 use sha2::{Digest, Sha256};
 
 mod application;
+mod derivative;
 mod expansion;
 mod normalization;
 mod support_map;
@@ -36,6 +37,8 @@ pub enum CalculusError {
     NormalizationLimit,
     InvalidFormal(u16),
     InvalidNode,
+    UnsupportedDerivative,
+    DerivativeProjection(String),
     ResultAxisOutOfRange,
     ComponentOutOfRange,
     InvalidExpressionNode,
@@ -59,6 +62,10 @@ impl fmt::Display for CalculusError {
             Self::InvalidFormal(formal) => {
                 write!(formatter, "pure operator formal {formal} is invalid")
             }
+            Self::UnsupportedDerivative => formatter.write_str(
+                "partial derivatives require real scalar formals/results and order one or two",
+            ),
+            Self::DerivativeProjection(message) => formatter.write_str(message),
             Self::InvalidNode => {
                 formatter.write_str("pure calculus node is invalid or forward-referenced")
             }

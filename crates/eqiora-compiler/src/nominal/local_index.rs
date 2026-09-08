@@ -16,7 +16,11 @@ pub(crate) fn bind_local_index_types(
             let Item::IndexSet(declaration) = item else {
                 continue;
             };
-            let ExprKind::Call { callee, arguments } = declaration.value().kind() else {
+            let ExprKind::Call {
+                callee,
+                arguments: eqiora_lang::CallArguments::Positional(arguments),
+            } = declaration.value().kind()
+            else {
                 continue;
             };
             let [extent] = arguments.as_slice() else {
@@ -105,7 +109,11 @@ pub(crate) fn bind_local_index_types(
         }
     });
     SourceAstFactory::visit_expressions(document, |scope, expression| {
-        let ExprKind::Call { callee, arguments } = expression.kind() else {
+        let ExprKind::Call {
+            callee,
+            arguments: eqiora_lang::CallArguments::Positional(arguments),
+        } = expression.kind()
+        else {
             return;
         };
         if callee.as_str() != "index" {

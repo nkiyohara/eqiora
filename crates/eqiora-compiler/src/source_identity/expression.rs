@@ -166,7 +166,10 @@ pub(super) fn encode_expression(
                 encode_expression(encoder, right, budget, child_depth)
             })
         }
-        ExprKind::Call { callee, arguments } if !callee.is_qualified() && arguments.len() == 1 => {
+        ExprKind::Call {
+            callee,
+            arguments: eqiora_lang::CallArguments::Positional(arguments),
+        } if !callee.is_qualified() && arguments.len() == 1 => {
             // Byte-for-byte compatibility with source identity v1.
             encoder.u16(6)?;
             encoder.field(1, |encoder| encode_name(encoder, callee.as_str(), budget))?;
@@ -176,14 +179,81 @@ pub(super) fn encode_expression(
             })
         }
         ExprKind::Call { callee, arguments } => {
-            encoder.u16(8)?;
+            let named = arguments.named();
+            let tensor = callee.as_str() == "tensor_value" && named.is_some();
+            encoder.u16(if named.is_some() && !tensor { 16 } else { 8 })?;
             encoder.field(1, |encoder| encode_type_path(encoder, callee, budget))?;
             let child_depth = next_depth(depth)?;
-            let mut encoded = Vec::with_capacity(arguments.len());
-            for argument in arguments {
-                let mut argument_encoder = Encoder::new(budget.limits.max_canonical_bytes);
-                encode_expression(&mut argument_encoder, argument, budget, child_depth)?;
-                encoded.push(argument_encoder.finish()?);
+            let mut encoded = Vec::with_capacity(arguments.expressions().len());
+            if let Some(formals) = budget
+                .operator_formals
+                .get(callee.as_str())
+                .cloned()
+                .filter(|_| named.is_some() && !tensor)
+            {
+                let ordered = crate::pure_operator::ordered_arguments(
+                    "<source-identity>",
+                    expression.range(),
+                    formals.iter().map(String::as_str),
+                    arguments,
+                )?;
+                for (slot, value) in ordered.into_iter().enumerate() {
+                    let mut argument_encoder = Encoder::new(budget.limits.max_canonical_bytes);
+                    argument_encoder.field(1, |encoder| {
+                        encoder.u32(as_u32(slot, "operator formal slot")?)
+                    })?;
+                    argument_encoder.field(2, |encoder| {
+                        encode_expression(encoder, value, budget, child_depth)
+                    })?;
+                    encoded.push(argument_encoder.finish()?);
+                }
+            } else if let Some(bindings) = named {
+                let bindings = if tensor {
+                    ["frame", "components"]
+                        .iter()
+                        .map(|name| {
+                            bindings
+                                .iter()
+                                .find(|binding| binding.name() == *name)
+                                .ok_or_else(|| {
+                                    source_identity_error(
+                                        "tensor_value requires named frame and components",
+                                    )
+                                })
+                        })
+                        .collect::<Result<Vec<_>, _>>()?
+                } else {
+                    bindings.iter().collect()
+                };
+                for binding in bindings {
+                    let mut argument_encoder = Encoder::new(budget.limits.max_canonical_bytes);
+                    if !tensor {
+                        argument_encoder
+                            .field(1, |encoder| encode_name(encoder, binding.name(), budget))?;
+                    }
+                    if tensor {
+                        encode_expression(
+                            &mut argument_encoder,
+                            binding.value(),
+                            budget,
+                            child_depth,
+                        )?;
+                    } else {
+                        argument_encoder.field(2, |encoder| {
+                            encode_expression(encoder, binding.value(), budget, child_depth)
+                        })?;
+                    }
+                    encoded.push(argument_encoder.finish()?);
+                }
+                if !tensor {
+                    encoded.sort_unstable();
+                }
+            } else {
+                for argument in arguments.expressions() {
+                    let mut argument_encoder = Encoder::new(budget.limits.max_canonical_bytes);
+                    encode_expression(&mut argument_encoder, argument, budget, child_depth)?;
+                    encoded.push(argument_encoder.finish()?);
+                }
             }
             if callee.as_str() == "boundaries" {
                 encoded.sort_unstable();

@@ -42,22 +42,6 @@ impl SourceAstFactory {
         })
     }
 
-    /// Construct one bounded pure-operator expression.
-    ///
-    /// # Errors
-    /// Returns an error for malformed exact syntax or a reversed source range.
-    pub fn pure_operator_expression(
-        kind: PureOperatorExprKind,
-        range: TextRange,
-    ) -> Result<PureOperatorExpr, AstConstructionError> {
-        let expression = PureOperatorExpr {
-            kind,
-            range: checked_range(range)?,
-        };
-        validate_pure_operator_expression(&expression)?;
-        Ok(expression)
-    }
-
     /// Construct one top-level pure operator declaration.
     ///
     /// # Errors
@@ -68,7 +52,7 @@ impl SourceAstFactory {
         name: impl Into<String>,
         formals: Vec<PureOperatorFormal>,
         result: PureValueClassSyntax,
-        body: PureOperatorExpr,
+        body: Expr,
         range: TextRange,
     ) -> Result<PureOperatorDecl, AstConstructionError> {
         if formals.is_empty() {
@@ -89,7 +73,7 @@ impl SourceAstFactory {
             }
         }
         validate_pure_value_class(&result)?;
-        validate_pure_operator_expression(&body)?;
+        validate_expression(&body)?;
         Ok(PureOperatorDecl {
             comments: Default::default(),
             visibility,

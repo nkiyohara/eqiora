@@ -63,7 +63,7 @@ impl SourceAstFactory {
                     resolved_nominal: None,
                     kind: ExprKind::Call {
                         callee: NamePath::single("tensor_value".to_owned(), range),
-                        arguments: vec![frame_expression(frame.clone(), range), components],
+                        arguments: tensor_arguments(frame.clone(), components, range),
                     },
                     range,
                 };
@@ -118,7 +118,10 @@ impl SourceAstFactory {
                             ["math".to_owned(), "complex".to_owned()],
                             range,
                         ),
-                        arguments: vec![scalar(real), scalar(imaginary)],
+                        arguments: crate::CallArguments::Positional(vec![
+                            scalar(real),
+                            scalar(imaginary),
+                        ]),
                     }
                 } else {
                     scalar(real).kind
@@ -131,14 +134,14 @@ impl SourceAstFactory {
             let mut expression = Self::expression(
                 ExprKind::Call {
                     callee: NamePath::single(constructor.to_owned(), range),
-                    arguments: vec![
+                    arguments: crate::CallArguments::Positional(vec![
                         Expr {
                             resolved_nominal: None,
                             kind: ExprKind::Path(name.clone()),
                             range,
                         },
                         result,
-                    ],
+                    ]),
                 },
                 range,
             )?;
@@ -176,7 +179,7 @@ impl SourceAstFactory {
         Self::expression(
             ExprKind::Call {
                 callee: NamePath::single("tensor_value".to_owned(), range),
-                arguments: vec![frame_expression(frame, range), components],
+                arguments: tensor_arguments(frame, components, range),
             },
             range,
         )
@@ -260,6 +263,23 @@ pub(crate) fn dimension_expression(
     })
 }
 
+fn tensor_arguments(frame: NamePath, components: Expr, range: TextRange) -> crate::CallArguments {
+    crate::CallArguments::Named(vec![
+        crate::NamedBindingDecl {
+            comments: Default::default(),
+            name: "frame".to_owned(),
+            value: frame_expression(frame, range),
+            range,
+        },
+        crate::NamedBindingDecl {
+            comments: Default::default(),
+            name: "components".to_owned(),
+            value: components,
+            range,
+        },
+    ])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -285,7 +305,7 @@ mod tests {
                 panic!("complex constructor")
             };
             assert_eq!(callee.as_str(), "math.complex");
-            for (argument, expected) in arguments.iter().zip(expected) {
+            for (argument, expected) in arguments.expressions().zip(expected) {
                 let ExprKind::Quantity { value, unit } = argument.kind() else {
                     panic!("coherent quantity")
                 };
@@ -323,7 +343,9 @@ mod tests {
         let ExprKind::Call { arguments, .. } = projected.kind() else {
             panic!("framed vector")
         };
-        assert!(matches!(arguments[1].kind(), ExprKind::Array(values) if values.len() == 2));
+        assert!(
+            matches!(arguments.named().unwrap()[1].value().kind(), ExprKind::Array(values) if values.len() == 2)
+        );
         assert!(
             SourceAstFactory::value_literal(&value, None, TextRange::new(0, 1), |_| None)
                 .unwrap_err()
@@ -369,7 +391,7 @@ mod tests {
                 panic!("spatial element")
             };
             assert_eq!(callee.as_str(), "tensor_value");
-            let ExprKind::Array(rows) = arguments[1].kind() else {
+            let ExprKind::Array(rows) = arguments.named().unwrap()[1].value().kind() else {
                 panic!("matrix rows")
             };
             for row in rows {
@@ -382,7 +404,7 @@ mod tests {
                     };
                     components.push(
                         arguments
-                            .iter()
+                            .expressions()
                             .map(|e| match e.kind() {
                                 ExprKind::Number(value) => value.to_f64().unwrap(),
                                 _ => panic!("component"),

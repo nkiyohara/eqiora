@@ -1,4 +1,4 @@
-public pure operator outer_product(left: spatial[1], right: spatial[1]) -> spatial[2]
+public operator outer_product(input left: spatial[1], input right: spatial[1]): spatial[2]
   = component(left, 0) * component(right, 1);
 
 public component TransientFlowPastCylinder(
@@ -28,7 +28,7 @@ public component TransientFlowPastCylinder(
   }
   relation momentum on fluid {
     density * derivative(velocity)
-      + div(density * outer_product(velocity, velocity))
+      + div(density * outer_product(left = velocity, right = velocity))
       - div(
         2 * dynamic_viscosity * symmetric_part(grad(velocity))
         - isotropic_lift(pressure)

@@ -17,10 +17,11 @@ use eqiora_schema::kernel::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::dimension::WireDimension;
 use crate::invalid_artifact;
 
 use super::*;
-use super::{expression::*, primitive::*};
+use super::{expression::*, primitive::*, value_type::WireScalarDomain};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -568,24 +569,66 @@ impl WirePureOperatorDefinition {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub(crate) enum WirePureValueClass {
-    InvariantScalar,
-    SpatialTensor { rank: u16 },
+    InvariantScalar {
+        #[serde(deserialize_with = "Deserialize::deserialize")]
+        dimension: Option<WireDimension>,
+        #[serde(deserialize_with = "Deserialize::deserialize")]
+        scalar_domain: Option<WireScalarDomain>,
+    },
+    SpatialTensor {
+        rank: u16,
+        #[serde(deserialize_with = "Deserialize::deserialize")]
+        dimension: Option<WireDimension>,
+        #[serde(deserialize_with = "Deserialize::deserialize")]
+        scalar_domain: Option<WireScalarDomain>,
+    },
 }
 
 impl WirePureValueClass {
-    pub(crate) const fn encode(value: PureValueClass) -> Self {
+    pub(crate) fn encode(value: PureValueClass) -> Self {
+        let dimension = value.dimension().map(WireDimension::encode);
+        let scalar_domain = value.scalar_domain().map(WireScalarDomain::encode);
         match value.spatial_rank() {
-            None => Self::InvariantScalar,
-            Some(rank) => Self::SpatialTensor { rank },
+            None => Self::InvariantScalar {
+                dimension,
+                scalar_domain,
+            },
+            Some(rank) => Self::SpatialTensor {
+                rank,
+                dimension,
+                scalar_domain,
+            },
         }
     }
 
     pub(crate) fn decode(self) -> Result<PureValueClass, Diagnostic> {
-        match self {
-            Self::InvariantScalar => Ok(PureValueClass::invariant_scalar()),
-            Self::SpatialTensor { rank } => PureValueClass::spatial_tensor(rank)
-                .map_err(|error| invalid_artifact(format!("invalid pure value class: {error}"))),
-        }
+        let (class, dimension, scalar_domain) = match self {
+            Self::InvariantScalar {
+                dimension,
+                scalar_domain,
+            } => (PureValueClass::invariant_scalar(), dimension, scalar_domain),
+            Self::SpatialTensor {
+                rank,
+                dimension,
+                scalar_domain,
+            } => (
+                PureValueClass::spatial_tensor(rank).map_err(|error| {
+                    invalid_artifact(format!("invalid pure value class: {error}"))
+                })?,
+                dimension,
+                scalar_domain,
+            ),
+        };
+        let class = match scalar_domain {
+            Some(domain) => class
+                .with_scalar_domain(domain.decode())
+                .map_err(|error| invalid_artifact(format!("invalid pure value class: {error}")))?,
+            None => class,
+        };
+        Ok(match dimension {
+            Some(dimension) => class.with_dimension(dimension.decode()),
+            None => class,
+        })
     }
 }
 
@@ -700,4 +743,73 @@ pub(crate) fn validate_operator_digest(digest: &str) -> Result<(), Diagnostic> {
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod pure_constraint_tests {
+    use super::*;
+    use eqiora_core::DimExponents;
+    use serde_json::json;
+
+    #[test]
+    fn scalar_and_tensor_classes_preserve_exact_optional_dimensions() {
+        let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
+        for class in [
+            PureValueClass::invariant_scalar(),
+            PureValueClass::spatial_tensor(1).unwrap(),
+            PureValueClass::spatial_tensor(2).unwrap(),
+        ] {
+            for value in [
+                class,
+                class.with_dimension(length),
+                class
+                    .with_scalar_domain(eqiora_core::ScalarDomain::Real)
+                    .unwrap(),
+                class
+                    .with_scalar_domain(eqiora_core::ScalarDomain::Complex)
+                    .unwrap(),
+            ] {
+                let wire = WirePureValueClass::encode(value);
+                let bytes = serde_json::to_vec(&wire).unwrap();
+                let restored: WirePureValueClass = serde_json::from_slice(&bytes).unwrap();
+                assert_eq!(restored.decode().unwrap(), value);
+            }
+        }
+        let rank_two = PureValueClass::spatial_tensor(2)
+            .unwrap()
+            .with_dimension(length);
+        assert_eq!(
+            serde_json::to_value(WirePureValueClass::encode(rank_two)).unwrap(),
+            json!({"kind":"spatial-tensor","rank":2,"scalar_domain":null,"dimension":[[0,1],[1,1],[0,1],[0,1],[0,1],[0,1],[0,1]]})
+        );
+        let invalid: WirePureValueClass = serde_json::from_value(
+            json!({"kind":"spatial-tensor","rank":0,"scalar_domain":null,"dimension":null}),
+        )
+        .unwrap();
+        assert!(invalid.decode().is_err());
+    }
+
+    #[test]
+    fn result_constraint_proof_precedes_claimed_digest_acceptance() {
+        let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
+        let time = DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap();
+        let class = PureValueClass::invariant_scalar().with_dimension(length);
+        let mut builder = CalculusBuilder::new([class], class).unwrap();
+        let root = builder
+            .push(CalculusNode::FormalComponent {
+                formal: 0,
+                axes: Box::new([]),
+            })
+            .unwrap();
+        let mut wire = WirePureOperatorDefinition::encode(&builder.finish(root).unwrap());
+        assert!(wire.rebuild_and_validate_digest().is_ok());
+        wire.result =
+            WirePureValueClass::encode(PureValueClass::invariant_scalar().with_dimension(time));
+        let error = wire.rebuild_and_validate_digest().unwrap_err().to_string();
+        assert!(
+            error.contains("invalid pure-operator definition"),
+            "{error}"
+        );
+        assert!(!error.contains("digest mismatch"), "{error}");
+    }
 }

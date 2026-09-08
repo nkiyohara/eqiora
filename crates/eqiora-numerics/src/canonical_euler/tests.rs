@@ -6,7 +6,7 @@ use super::*;
 // Euler operations below supply Primitive/Conservative states explicitly.
 // This recognition fixture declares no fresh-initialization equations.
 const SOURCE: &str = r#"
-public pure operator scalar_flux(value: scalar) -> spatial[1]
+public operator scalar_flux(input value: scalar): spatial[1]
   = component(value);
 
 model Main() {
@@ -28,15 +28,15 @@ momentum - density * velocity = 0;
 pressure - (gamma - 1) * (total_energy - 0.5 * momentum * velocity) = 0;
   }
   relation mass on interval {
-derivative(density) + div(scalar_flux(momentum)) = 0;
+derivative(density) + div(scalar_flux(value = momentum)) = 0;
   }
   relation momentum_balance on interval {
 derivative(momentum)
-  + div(scalar_flux(momentum * velocity + pressure)) = 0;
+  + div(scalar_flux(value = momentum * velocity + pressure)) = 0;
   }
   relation energy on interval {
 derivative(total_energy)
-  + div(scalar_flux(velocity * (total_energy + pressure))) = 0;
+  + div(scalar_flux(value = velocity * (total_energy + pressure))) = 0;
   }
 }
 "#;
@@ -92,12 +92,12 @@ fn additive_orientation_does_not_change_admitted_equation_meaning() {
             "momentum = density * velocity;",
         )
         .replace(
-            "derivative(density) + div(scalar_flux(momentum)) = 0;",
-            "derivative(density) = -div(scalar_flux(momentum));",
+            "derivative(density) + div(scalar_flux(value = momentum)) = 0;",
+            "derivative(density) = -div(scalar_flux(value = momentum));",
         )
         .replace(
-            "derivative(total_energy)\n      + div(scalar_flux(velocity * (total_energy + pressure))) = 0;",
-            "-derivative(total_energy)\n      - div(scalar_flux(velocity * (total_energy + pressure))) = 0;",
+            "derivative(total_energy)\n      + div(scalar_flux(value = velocity * (total_energy + pressure))) = 0;",
+            "-derivative(total_energy)\n      - div(scalar_flux(value = velocity * (total_energy + pressure))) = 0;",
         );
     recognize(&oriented);
 }
@@ -152,8 +152,8 @@ fn rejects_wrong_closure_source_boundary_and_extra_relation() {
     assert!(try_recognize(&wrong_closure).is_err());
 
     let source_term = SOURCE.replace(
-        "derivative(density) + div(scalar_flux(momentum)) = 0;",
-        "derivative(density) + div(scalar_flux(momentum)) + derivative(density) = 0;",
+        "derivative(density) + div(scalar_flux(value = momentum)) = 0;",
+        "derivative(density) + div(scalar_flux(value = momentum)) + derivative(density) = 0;",
     );
     assert!(try_recognize(&source_term).is_err());
 
@@ -170,7 +170,7 @@ fn rejects_wrong_closure_source_boundary_and_extra_relation() {
     assert!(try_recognize(&extra).is_err());
 
     let missing = SOURCE.replace(
-        "  relation mass on interval {\nderivative(density) + div(scalar_flux(momentum)) = 0;\n  }\n",
+        "  relation mass on interval {\nderivative(density) + div(scalar_flux(value = momentum)) = 0;\n  }\n",
         "",
     );
     assert!(try_recognize(&missing).is_err());
@@ -187,8 +187,8 @@ fn rejects_invalid_gamma_and_swapped_flux_lineage() {
     assert!(try_recognize(&SOURCE.replace("1.4", "1.0")).is_err());
     assert!(try_recognize(&SOURCE.replace("1.4", "0.5")).is_err());
     let swapped = SOURCE.replace(
-        "scalar_flux(momentum * velocity + pressure)",
-        "scalar_flux(momentum * velocity - pressure)",
+        "scalar_flux(value = momentum * velocity + pressure)",
+        "scalar_flux(value = momentum * velocity - pressure)",
     );
     assert!(try_recognize(&swapped).is_err());
 

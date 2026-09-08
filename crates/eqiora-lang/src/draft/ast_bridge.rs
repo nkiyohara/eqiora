@@ -249,11 +249,11 @@ pub(super) fn physical_accessor_ast(
 ) -> ExprKind {
     ExprKind::Call {
         callee: NamePath::single(callee.to_owned(), ranges.allocate(path, paths)),
-        arguments: vec![Expr {
+        arguments: crate::CallArguments::Positional(vec![Expr {
             resolved_nominal: None,
             kind: ExprKind::Name(reference.name.clone()),
             range: ranges.allocate(path, paths),
-        }],
+        }]),
     }
 }
 

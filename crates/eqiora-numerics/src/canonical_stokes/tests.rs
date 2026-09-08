@@ -89,7 +89,7 @@ public component NormalPressureTraction2d(
 "#;
 
 const TRANSIENT_NAVIER_STOKES_SOURCE: &str = r#"
-public pure operator outer_product(left: spatial[1], right: spatial[1]) -> spatial[2]
+public operator outer_product(input left: spatial[1], input right: spatial[1]): spatial[2]
   = component(left, 0) * component(right, 1);
 
 model transient_navier_stokes() {
@@ -111,7 +111,7 @@ model transient_navier_stokes() {
   }
   relation momentum on fluid {
     rho * derivative(velocity)
-      + div(rho * outer_product(velocity, velocity))
+      + div(rho * outer_product(left = velocity, right = velocity))
       - div(
         2 * mu * symmetric_part(grad(velocity))
         - isotropic_lift(pressure)
@@ -716,8 +716,8 @@ fn three_dimensional_transient_flow_rejects_dimension_and_boundary_drift() {
 #[test]
 fn transient_navier_stokes_requires_exact_velocity_pair_and_density_identity() {
     assert_transient_navier_stokes_rejected(&TRANSIENT_NAVIER_STOKES_SOURCE.replace(
-        "outer_product(velocity, velocity)",
-        "outer_product(velocity, velocity + velocity)",
+        "outer_product(left = velocity, right = velocity)",
+        "outer_product(left = velocity, right = velocity + velocity)",
     ));
 
     let distinct_density = TRANSIENT_NAVIER_STOKES_SOURCE
@@ -726,8 +726,8 @@ fn transient_navier_stokes_requires_exact_velocity_pair_and_density_identity() {
             "parameter rho_flux: kg / m ^ 3 = 1.25;\n  parameter mu: kg / (m * s) = 0.125;",
         )
         .replace(
-            "div(rho * outer_product(velocity, velocity))",
-            "div(rho_flux * outer_product(velocity, velocity))",
+            "div(rho * outer_product(left = velocity, right = velocity))",
+            "div(rho_flux * outer_product(left = velocity, right = velocity))",
         );
     assert_transient_navier_stokes_rejected(&distinct_density);
 
@@ -748,8 +748,8 @@ fn transient_navier_stokes_requires_exact_velocity_pair_and_density_identity() {
             "(rho * (1 + inverse_length * coordinate(0))) * derivative(velocity)",
         )
         .replace(
-            "div(rho * outer_product(velocity, velocity))",
-            "div((rho * (1 + inverse_length * coordinate(0))) * outer_product(velocity, velocity))",
+            "div(rho * outer_product(left = velocity, right = velocity))",
+            "div((rho * (1 + inverse_length * coordinate(0))) * outer_product(left = velocity, right = velocity))",
         );
     assert_transient_navier_stokes_rejected(&spatial_density);
 }
@@ -763,8 +763,8 @@ fn transient_navier_stokes_rejects_hidden_ale_velocity() {
                 "variable mesh_velocity: vector<m / s, 2> on fluid;\n  variable pressure: kg / (m * s ^ 2) on fluid;",
             )
             .replace(
-                "outer_product(velocity, velocity)",
-                "outer_product(velocity - mesh_velocity, velocity)",
+                "outer_product(left = velocity, right = velocity)",
+                "outer_product(left = velocity - mesh_velocity, right = velocity)",
             ),
     );
 }

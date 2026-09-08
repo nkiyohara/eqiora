@@ -125,10 +125,23 @@ impl Expr {
                     || callee.clone(),
                     |replacement| replacement.with_range(callee.range()),
                 ),
-                arguments: arguments
-                    .iter()
-                    .map(|argument| argument.rewrite_name_paths_with(rewrite))
-                    .collect(),
+                arguments: match arguments {
+                    CallArguments::Positional(values) => CallArguments::Positional(
+                        values
+                            .iter()
+                            .map(|value| value.rewrite_name_paths_with(rewrite))
+                            .collect(),
+                    ),
+                    CallArguments::Named(bindings) => CallArguments::Named(
+                        bindings
+                            .iter()
+                            .map(|binding| NamedBindingDecl {
+                                value: binding.value.rewrite_name_paths_with(rewrite),
+                                ..binding.clone()
+                            })
+                            .collect(),
+                    ),
+                },
             },
         };
         Self {
@@ -214,7 +227,7 @@ pub enum ExprKind {
         /// Structurally qualified operator name.
         callee: NamePath,
         /// Nonempty ordered arguments.
-        arguments: Vec<Expr>,
+        arguments: CallArguments,
     },
 }
 
@@ -269,4 +282,43 @@ pub enum BinaryOp {
     And,
     /// Short-circuit Boolean disjunction.
     Or,
+}
+
+/// One homogeneous, authored-order argument list for a shared expression call.
+#[derive(Debug, Clone, PartialEq)]
+pub enum CallArguments {
+    /// Ordered arguments of a positional primitive.
+    Positional(Vec<Expr>),
+    /// Explicit bindings to the target signature, retaining authored order.
+    Named(Vec<NamedBindingDecl>),
+}
+
+impl CallArguments {
+    /// Expression values in authored argument order, without erasing binding names.
+    pub fn expressions(&self) -> impl ExactSizeIterator<Item = &Expr> {
+        let len = match self {
+            Self::Positional(values) => values.len(),
+            Self::Named(bindings) => bindings.len(),
+        };
+        (0..len).map(move |index| match self {
+            Self::Positional(values) => &values[index],
+            Self::Named(bindings) => bindings[index].value(),
+        })
+    }
+    /// Positional values, only when this call uses positional syntax.
+    #[must_use]
+    pub fn positional(&self) -> Option<&[Expr]> {
+        match self {
+            Self::Positional(values) => Some(values),
+            Self::Named(_) => None,
+        }
+    }
+    /// Named bindings, only when this call uses named syntax.
+    #[must_use]
+    pub fn named(&self) -> Option<&[NamedBindingDecl]> {
+        match self {
+            Self::Named(bindings) => Some(bindings),
+            Self::Positional(_) => None,
+        }
+    }
 }

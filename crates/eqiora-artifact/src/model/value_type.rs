@@ -30,13 +30,33 @@ enum WireValueBasis {
     Index { set: WireId, extent: u32 },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-enum WireScalarDomain {
+pub(crate) enum WireScalarDomain {
     Boolean,
     Integer,
     Real,
     Complex,
+}
+
+impl WireScalarDomain {
+    pub(super) const fn encode(value: ScalarDomain) -> Self {
+        match value {
+            ScalarDomain::Boolean => Self::Boolean,
+            ScalarDomain::Integer => Self::Integer,
+            ScalarDomain::Real => Self::Real,
+            ScalarDomain::Complex => Self::Complex,
+        }
+    }
+
+    pub(super) const fn decode(self) -> ScalarDomain {
+        match self {
+            Self::Boolean => ScalarDomain::Boolean,
+            Self::Integer => ScalarDomain::Integer,
+            Self::Real => ScalarDomain::Real,
+            Self::Complex => ScalarDomain::Complex,
+        }
+    }
 }
 
 impl WireValueType {
@@ -61,12 +81,7 @@ impl WireValueType {
         };
         Ok(Self {
             basis,
-            domain: match value.scalar_domain() {
-                ScalarDomain::Boolean => WireScalarDomain::Boolean,
-                ScalarDomain::Integer => WireScalarDomain::Integer,
-                ScalarDomain::Real => WireScalarDomain::Real,
-                ScalarDomain::Complex => WireScalarDomain::Complex,
-            },
+            domain: WireScalarDomain::encode(value.scalar_domain()),
             dimension: WireDimension::encode(value.dimension()),
             shape: WireValueShape::encode(value.shape()),
             frame: WireValueFrame::encode(value.frame()),
@@ -127,12 +142,7 @@ impl WireValueType {
         }
         let (arrays, spatial) = shape.extents().split_at(rank);
         let mut value = ValueType::shaped(
-            match self.domain {
-                WireScalarDomain::Boolean => ScalarDomain::Boolean,
-                WireScalarDomain::Integer => ScalarDomain::Integer,
-                WireScalarDomain::Real => ScalarDomain::Real,
-                WireScalarDomain::Complex => ScalarDomain::Complex,
-            },
+            self.domain.decode(),
             self.dimension.decode(),
             ValueShape::new(spatial.iter().map(|n| n.get()))
                 .map_err(|error| invalid_artifact(error.to_string()))?,

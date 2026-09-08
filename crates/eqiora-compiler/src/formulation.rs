@@ -347,9 +347,10 @@ impl ExpressionContext<'_> {
             ExprKind::Binary { op, left, right } => {
                 self.compile_binary(expression, *op, left, right)
             }
-            ExprKind::Call { callee, arguments } => {
-                self.compile_call(expression, callee, arguments)
-            }
+            ExprKind::Call {
+                callee,
+                arguments: eqiora_lang::CallArguments::Positional(arguments),
+            } => self.compile_call(expression, callee, arguments),
             _ => Err(error(
                 self.file,
                 expression.range(),

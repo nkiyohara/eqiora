@@ -222,11 +222,11 @@ model Main() {
   variable a: vector<1, 2> on d;
   variable b: vector<1, 2> on d;
   instance load: lib.Resistor(resistance = 2);
-  relation doubled on d { div(div(lib.outer(a, b))) = 0; }
+  relation doubled on d { div(div(lib.outer(left=a, right=b))) = 0; }
 }
 "#;
     let library_source = r#"
-public pure operator outer(left: spatial[1], right: spatial[1]) -> spatial[2]
+public operator outer(input left: spatial[1], input right: spatial[1]): spatial[2]
   = component(left, 0) * component(right, 1);
 public component Resistor(parameter resistance: 1) {
 
@@ -690,7 +690,7 @@ fn pure_operator_declarations_and_calls_are_file_and_alias_invariant() {
     let root = namespace("root");
     let operators = namespace("operators");
     let dependency = r#"
-public pure operator outer(left: spatial[1], right: spatial[1]) -> spatial[2]
+public operator outer(input left: spatial[1], input right: spatial[1]): spatial[2]
   = component(left, 0) * component(right, 1);
 "#;
     let analyzed = |alias_name: &str, operator_file: &str| {
@@ -701,7 +701,7 @@ public pure operator outer(left: spatial[1], right: spatial[1]) -> spatial[2]
                     &root,
                     "root.eqi",
                     &format!(
-                        "import operators.main as {alias_name}; model Main() {{ domain d = box(0,1,0,1); variable a: vector<1, 2> on d; variable b: vector<1, 2> on d; relation r on d {{ div(div({alias_name}.outer(a,b))) = 0; }} }}"
+                        "import operators.main as {alias_name}; model Main() {{ domain d = box(0,1,0,1); variable a: vector<1, 2> on d; variable b: vector<1, 2> on d; relation r on d {{ div(div({alias_name}.outer(left=a,right=b))) = 0; }} }}"
                     ),
                 ),
                 unit(&operators, operator_file, dependency),
@@ -739,12 +739,12 @@ fn private_pure_operator_cannot_cross_an_exact_package_boundary() {
             unit(
                 &root,
                 "root.eqi",
-                "import operators.main as ops; model Main() { domain d = box(0,1); variable a: vector<1, 1> on d; variable b: vector<1, 1> on d; relation r on d { div(ops.outer(a,b)) = 0; } }",
+                "import operators.main as ops; model Main() { domain d = box(0,1); variable a: vector<1, 1> on d; variable b: vector<1, 1> on d; relation r on d { div(ops.outer(a=a,b=b)) = 0; } }",
             ),
             unit(
                 &dependency,
                 "operator.eqi",
-                "private pure operator outer(a: spatial[1], b: spatial[1]) -> spatial[2] = component(a,0) * component(b,1);",
+                "private operator outer(input a: spatial[1], input b: spatial[1]): spatial[2] = component(a,0) * component(b,1);",
             ),
         ],
         vec![dependency_edge(&root, &dependency)],

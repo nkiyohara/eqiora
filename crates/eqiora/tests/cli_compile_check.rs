@@ -334,7 +334,7 @@ mod full {
         ];
         assert_eq!(
             fingerprints[0].generation(),
-            SemanticFingerprintGeneration::V12
+            SemanticFingerprintGeneration::V13
         );
         assert_eq!(fingerprints[0], fingerprints[1]);
         assert_eq!(fingerprints[0], fingerprints[2]);

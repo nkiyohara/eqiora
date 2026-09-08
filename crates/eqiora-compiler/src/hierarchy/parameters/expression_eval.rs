@@ -116,7 +116,7 @@ pub(super) fn evaluate_mode(
     if let ExpressionContext::IndexedBinding(member) = context
         && let ExprKind::Call { callee, arguments } = expression.kind()
         && callee.as_str() == "ordinal"
-        && let [argument] = arguments.as_slice()
+        && let Some([argument]) = arguments.positional()
         && matches!(argument.kind(), ExprKind::Name(name) if name == member)
     {
         return Ok(EvaluatedParameter {
@@ -302,6 +302,14 @@ pub(super) fn evaluate_mode(
             if crate::lower::IntegerBuiltin::named(callee.as_str()).is_some() =>
         {
             let operator = crate::lower::IntegerBuiltin::named(callee.as_str()).unwrap();
+            let arguments = arguments.positional().ok_or_else(|| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    expression.range(),
+                    "static integer builtins require positional arguments",
+                )
+            })?;
             if arguments.len() != operator.arity() {
                 return Err(source_error(
                     codes::LANGUAGE_TYPE_ERROR,
@@ -380,7 +388,7 @@ pub(super) fn evaluate_mode(
             }
         }
         ExprKind::Call { callee, arguments } if callee.as_str() == "period" => {
-            let [argument] = arguments.as_slice() else {
+            let Some([argument]) = arguments.positional() else {
                 return Err(source_error(
                     codes::LANGUAGE_TYPE_ERROR,
                     file,
@@ -458,7 +466,7 @@ pub(super) fn evaluate_mode(
         ExprKind::Call { callee, arguments }
             if matches!(context, ExpressionContext::Let) && crate::math::is_function(callee) =>
         {
-            let [argument] = arguments.as_slice() else {
+            let Some([argument]) = arguments.positional() else {
                 return Err(source_error(
                     codes::LANGUAGE_TYPE_ERROR,
                     file,

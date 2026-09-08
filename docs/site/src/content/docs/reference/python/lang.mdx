@@ -15,7 +15,7 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__in
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.pyi" kind="blob">bindings/python/python/eqiora/lang/__init__.pyi</ExactSourceLink>
 
-This module publishes **40** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **41** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
 <a id="api-eqiora-lang-equal"></a>
 
@@ -215,6 +215,20 @@ class MaterialComposition:
     def __getitem__(self, name: str) -> PropertyRelease: ...
 ```
 
+<a id="api-eqiora-lang-Operator"></a>
+
+## `Operator`
+
+An immutable typed operator declared by one Source; call with named arguments.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::Operator</ExactSourceLink>
+
+```python
+@final
+class Operator:
+    def __call__(self, /, **arguments: object) -> Expression: ...
+```
+
 <a id="api-eqiora-lang-PropertyContract"></a>
 
 ## `PropertyContract`
@@ -268,6 +282,7 @@ Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py
 ```python
 @final
 class Source:
+    def operator(self, name: str, *, inputs: Mapping[str, ValueType], result_type: ValueType, body: Callable[..., object], doc: str | None=None) -> Operator: ...
     def space(self, name: str, *, labels: Sequence[str], doc: str | None=None) -> FiniteSpace: ...
     def __init__(self) -> None: ...
     def component(self, name: str, *, doc: str | None=None) -> Component: ...

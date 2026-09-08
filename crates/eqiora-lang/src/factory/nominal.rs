@@ -156,6 +156,9 @@ pub(super) fn validate_definition(
             "nominal definition requires its closed constructor",
         ));
     };
+    let arguments = arguments.positional().ok_or_else(|| {
+        AstConstructionError::new("nominal constructor requires positional arguments")
+    })?;
     if callee.as_str() != constructor
         || (constructor == "range" && arguments.len() != 1)
         || arguments.is_empty()
@@ -205,6 +208,9 @@ impl SourceAstFactory {
                 "nominal binding requires a constructor call",
             ));
         };
+        let arguments = arguments.positional().ok_or_else(|| {
+            AstConstructionError::new("nominal constructor requires positional arguments")
+        })?;
         let role = match callee.as_str() {
             "counts" => value.is_count(),
             "coordinates" => value.finite_space().is_some() && !value.is_count(),

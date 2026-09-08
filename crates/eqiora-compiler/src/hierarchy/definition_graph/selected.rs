@@ -181,19 +181,20 @@ impl Selected<'_, '_, '_> {
                 ComponentItem::IndexSet(set) => {
                     found.0 = true;
                     let closed = match set.value().kind() {
-                        ExprKind::Call { callee, arguments } if callee.as_str() == "range" => {
-                            match arguments.as_slice() {
-                                [extent] => matches!(
-                                    parameters::structural_extent(
-                                        component.file,
-                                        extent,
-                                        &SymbolicParameterMap::new(),
-                                    ),
-                                    Ok(Some(_))
+                        ExprKind::Call {
+                            callee,
+                            arguments: eqiora_lang::CallArguments::Positional(arguments),
+                        } if callee.as_str() == "range" => match arguments.as_slice() {
+                            [extent] => matches!(
+                                parameters::structural_extent(
+                                    component.file,
+                                    extent,
+                                    &SymbolicParameterMap::new(),
                                 ),
-                                _ => false,
-                            }
-                        }
+                                Ok(Some(_))
+                            ),
+                            _ => false,
+                        },
                         _ => false,
                     };
                     found.1 |= !closed;
@@ -251,7 +252,11 @@ impl Selected<'_, '_, '_> {
                             "indexed instance requires an enclosing IndexSet",
                         )]
                     })?;
-                let ExprKind::Call { callee, arguments } = set.value().kind() else {
+                let ExprKind::Call {
+                    callee,
+                    arguments: eqiora_lang::CallArguments::Positional(arguments),
+                } = set.value().kind()
+                else {
                     return Err(vec![definition_error("index set requires range(extent)")]);
                 };
                 let [extent] = arguments.as_slice() else {
@@ -509,7 +514,11 @@ fn unresolved_extents<'a>(
     values: &SymbolicParameterMap,
 ) -> Result<bool, Vec<Diagnostic>> {
     for set in sets {
-        let ExprKind::Call { arguments, .. } = set.value().kind() else {
+        let ExprKind::Call {
+            arguments: eqiora_lang::CallArguments::Positional(arguments),
+            ..
+        } = set.value().kind()
+        else {
             return Err(vec![definition_error("index set requires range(extent)")]);
         };
         let [extent] = arguments.as_slice() else {

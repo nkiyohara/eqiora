@@ -26,14 +26,8 @@ pub(in crate::hierarchy) fn parameter_type(
     while let Some(value) = pending.pop() {
         match value.kind() {
             ExprKind::Array(values) => pending.extend(values),
-            ExprKind::Call { callee, arguments } if callee.as_str() == "tensor_value" => {
-                let name = arguments
-                    .first()
-                    .and_then(|value| match value.kind() {
-                        ExprKind::Name(name) => Some(name.as_str()),
-                        ExprKind::Path(name) => Some(name.as_str()),
-                        _ => None,
-                    })
+            ExprKind::Call { callee, .. } if callee.as_str() == "tensor_value" => {
+                let name = super::tensor_values::frame_name(value)
                     .ok_or_else(|| invalid("tensor_value requires an exact named frame support"))?;
                 let support = frames.get(name).ok_or_else(|| {
                     invalid("tensor_value frame is not an existing Cartesian support in this scope")

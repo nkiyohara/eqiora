@@ -139,7 +139,11 @@ pub(super) fn boundary_sets<'a>(
         .iter()
         .filter(|binding| accepts(binding.name()) && is_boundary_set(binding))
         .filter_map(|binding| {
-            let ExprKind::Call { arguments, .. } = binding.value().kind() else {
+            let ExprKind::Call {
+                arguments: eqiora_lang::CallArguments::Positional(arguments),
+                ..
+            } = binding.value().kind()
+            else {
                 unreachable!()
             };
             let mut members = Vec::with_capacity(arguments.len());

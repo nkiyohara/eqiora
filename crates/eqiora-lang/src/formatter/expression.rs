@@ -114,16 +114,12 @@ pub(super) fn format_expression(
         ExprKind::Call { callee, arguments } => {
             write!(output, "{callee}").expect("String write");
             output.push('(');
-            for (index, argument) in arguments.iter().enumerate() {
+            for (index, argument) in arguments.expressions().enumerate() {
                 if index != 0 {
                     output.push_str(", ");
                 }
-                if callee.as_str() == "tensor_value" {
-                    output.push_str(if index == 0 {
-                        "frame = "
-                    } else {
-                        "components = "
-                    });
+                if let Some(bindings) = arguments.named() {
+                    write!(output, "{} = ", bindings[index].name()).expect("String write");
                 }
                 format_expression(argument, 0, output);
             }

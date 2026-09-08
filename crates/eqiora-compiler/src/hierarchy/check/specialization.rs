@@ -11,7 +11,11 @@ pub(super) fn needs_context(
         let ComponentItem::IndexSet(set) = item else {
             return false;
         };
-        let ExprKind::Call { arguments, .. } = set.value().kind() else {
+        let ExprKind::Call {
+            arguments: eqiora_lang::CallArguments::Positional(arguments),
+            ..
+        } = set.value().kind()
+        else {
             return false;
         };
         let [extent] = arguments.as_slice() else {

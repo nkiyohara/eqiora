@@ -302,7 +302,10 @@ impl ExpressionChecker<'_, '_, '_> {
                 )?;
                 Ok(ExpressionType::new(value.value_type().clone(), None))
             }
-            ExprKind::Call { callee, arguments } if callee.as_str() == "math.complex" => {
+            ExprKind::Call {
+                callee,
+                arguments: eqiora_lang::CallArguments::Positional(arguments),
+            } if callee.as_str() == "math.complex" => {
                 let [real, imag] = arguments.as_slice() else {
                     return Err(source_error(
                         codes::LANGUAGE_TYPE_ERROR,
@@ -501,9 +504,54 @@ impl ExpressionChecker<'_, '_, '_> {
         &mut self,
         expression: &Expr,
         callee: &eqiora_lang::NamePath,
-        arguments: &[Expr],
+        arguments: &eqiora_lang::CallArguments,
     ) -> Result<ExpressionType<String>, Diagnostic> {
         let callee_name = callee.as_str();
+        if !is_builtin_operator(callee)
+            && !matches!(callee_name, "counts" | "coordinates" | "index" | "sin")
+            && crate::lower::IntegerBuiltin::named(callee_name).is_none()
+            && !crate::math::is_namespaced(callee)
+        {
+            let definition = self.scope.elaborator.resolve_pure_operator(
+                &self.scope.namespace,
+                callee,
+                self.scope.file,
+                callee.range(),
+            )?;
+            let inferred = crate::pure_operator::ordered_arguments(
+                self.scope.file,
+                expression.range(),
+                definition
+                    .declaration
+                    .formals()
+                    .iter()
+                    .map(|formal| formal.name()),
+                arguments,
+            )?
+            .into_iter()
+            .map(|argument| self.check(argument))
+            .collect::<Result<Vec<_>, _>>()?;
+            return definition
+                .definition
+                .instantiate(&inferred)
+                .map(|application| application.result_type().clone())
+                .map_err(|error| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.scope.file,
+                        expression.range(),
+                        format!("invalid application of pure operator `{callee}`: {error}"),
+                    )
+                });
+        }
+        let arguments = arguments.positional().ok_or_else(|| {
+            source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                self.scope.file,
+                expression.range(),
+                "builtin calls require positional arguments",
+            )
+        })?;
         if matches!(callee_name, "counts" | "coordinates" | "index") {
             return expression
                 .resolved_nominal()
@@ -577,30 +625,6 @@ impl ExpressionChecker<'_, '_, '_> {
                 callee.range(),
                 format!("unknown compiler-owned scalar mathematics member `{callee}`"),
             ));
-        }
-        if !is_builtin_operator(callee) {
-            let definition = self.scope.elaborator.resolve_pure_operator(
-                &self.scope.namespace,
-                callee,
-                self.scope.file,
-                callee.range(),
-            )?;
-            let inferred = arguments
-                .iter()
-                .map(|argument| self.check(argument))
-                .collect::<Result<Vec<_>, _>>()?;
-            return definition
-                .definition
-                .instantiate(&inferred)
-                .map(|application| application.result_type().clone())
-                .map_err(|error| {
-                    source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        self.scope.file,
-                        expression.range(),
-                        format!("invalid application of pure operator `{callee}`: {error}"),
-                    )
-                });
         }
         let [argument] = arguments else {
             return Err(source_error(

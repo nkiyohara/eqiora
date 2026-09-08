@@ -15,7 +15,11 @@ impl DefinitionScope<'_, '_> {
                 message,
             )
         };
-        let ExprKind::Call { callee, arguments } = declaration.value().kind() else {
+        let ExprKind::Call {
+            callee,
+            arguments: eqiora_lang::CallArguments::Positional(arguments),
+        } = declaration.value().kind()
+        else {
             return Err(invalid("index set requires range(extent)"));
         };
         let [extent] = arguments.as_slice() else {
@@ -86,7 +90,11 @@ impl DefinitionScope<'_, '_> {
             .get(family_name)
             .and_then(|instance| instance.family())
             .ok_or_else(|| invalid("indexed member target is not an instance family"))?;
-        let ExprKind::Call { callee, arguments } = index.kind() else {
+        let ExprKind::Call {
+            callee,
+            arguments: eqiora_lang::CallArguments::Positional(arguments),
+        } = index.kind()
+        else {
             return Err(invalid("family selection requires index(Set, ordinal)"));
         };
         let [set, ordinal] = arguments.as_slice() else {

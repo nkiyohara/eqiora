@@ -10,8 +10,8 @@ use std::collections::BTreeMap;
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_lang::{
-    PureOperatorBinaryOp, PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind,
-    PureValueClassSyntax, TextRange,
+    BinaryOp, CallArguments, DecimalLiteral, Expr, ExprKind, PureOperatorDecl,
+    PureValueClassSyntax, TextRange, UnaryOp,
 };
 use eqiora_schema::kernel::pure_operator::{
     CalculusBuilder, CalculusNode, CalculusNodeId, ExactRational, PureOperatorDefinition,
@@ -46,37 +46,208 @@ pub(crate) fn is_builtin_operator(path: &eqiora_lang::NamePath) -> bool {
             ))
 }
 
-/// Compile one closed source declaration into its name-free Kernel meaning.
-pub(crate) fn compile_definition(
+/// Compile one lexical source unit, checking cycles before calculus expansion.
+pub(crate) fn compile_definitions(
     file: &str,
-    declaration: &PureOperatorDecl,
-) -> Result<PureOperatorDefinition, Diagnostic> {
-    let mut formal_names = BTreeMap::new();
-    let mut formal_rules = Vec::with_capacity(declaration.formals().len());
-    for (slot, formal) in declaration.formals().iter().enumerate() {
-        let slot = u16::try_from(slot).map_err(|_| {
-            pure_error(
+    document: &eqiora_lang::Document,
+) -> Result<BTreeMap<String, PureOperatorDefinition>, Diagnostic> {
+    if document.pure_operators().is_empty() {
+        return Ok(BTreeMap::new());
+    }
+    let document = crate::dimensions::elaborate_dimension_aliases(file, document)
+        .map_err(|errors| errors.into_iter().next().expect("dimension error"))?;
+    let declarations = document.pure_operators();
+    let mut sources = BTreeMap::new();
+    for declaration in declarations {
+        if sources.insert(declaration.name(), declaration).is_some() {
+            return Err(pure_error(
                 file,
-                formal.range(),
-                "pure operator has too many ordered formals",
-            )
-        })?;
+                declaration.range(),
+                "duplicate operator declaration",
+            ));
+        }
+    }
+    let mut compiled = BTreeMap::new();
+    let mut active = Vec::new();
+    for name in sources.keys() {
+        compile_local(file, name, &sources, &mut compiled, &mut active)?;
+    }
+    Ok(compiled)
+}
+
+fn compile_local(
+    file: &str,
+    name: &str,
+    sources: &BTreeMap<&str, &PureOperatorDecl>,
+    compiled: &mut BTreeMap<String, PureOperatorDefinition>,
+    active: &mut Vec<String>,
+) -> Result<(), Diagnostic> {
+    if compiled.contains_key(name) {
+        return Ok(());
+    }
+    let declaration = sources[name];
+    if active.iter().any(|value| value == name) {
+        return Err(pure_error(
+            file,
+            declaration.range(),
+            "recursive operator composition is not admitted",
+        ));
+    }
+    if active.len() >= eqiora_schema::kernel::pure_operator::MAX_DEPTH {
+        return Err(pure_error(
+            file,
+            declaration.range(),
+            "operator composition exceeds the calculus depth limit",
+        ));
+    }
+    active.push(name.to_owned());
+    let mut callees = Vec::new();
+    let mut pending = vec![(declaration.body(), 1usize)];
+    let mut work = 0usize;
+    while let Some((expression, depth)) = pending.pop() {
+        work += 1;
+        if work > eqiora_schema::kernel::pure_operator::MAX_NODES
+            || depth > eqiora_schema::kernel::pure_operator::MAX_DEPTH
+        {
+            return Err(pure_error(
+                file,
+                expression.range(),
+                "operator body exceeds the calculus work or depth limit",
+            ));
+        }
+        match expression.kind() {
+            ExprKind::Call { callee, arguments } => {
+                if declaration
+                    .formals()
+                    .iter()
+                    .any(|formal| formal.name() == callee.as_str())
+                {
+                    return Err(pure_error(
+                        file,
+                        expression.range(),
+                        "a lexical formal cannot be called as an operator",
+                    ));
+                }
+                if !matches!(callee.as_str(), "component" | "rational" | "delta") {
+                    callees.push((callee.clone(), expression.range()));
+                }
+                pending.extend(arguments.expressions().map(|value| (value, depth + 1)));
+            }
+            ExprKind::Unary { value, .. } => pending.push((value, depth + 1)),
+            ExprKind::Binary {
+                op: BinaryOp::Pow,
+                left,
+                right,
+            } => {
+                let exponent = power_exponent(file, right)?;
+                work = work.saturating_add(exponent.saturating_sub(1));
+                if work > eqiora_schema::kernel::pure_operator::MAX_NODES {
+                    return Err(pure_error(
+                        file,
+                        expression.range(),
+                        "polynomial powers exceed the calculus work limit",
+                    ));
+                }
+                pending.push((left, depth + 1));
+            }
+            ExprKind::Binary { left, right, .. } => {
+                pending.push((left, depth + 1));
+                pending.push((right, depth + 1));
+            }
+            ExprKind::Name(_) | ExprKind::Number(_) => {}
+            _ => {
+                return Err(pure_error(
+                    file,
+                    expression.range(),
+                    "operator bodies require exact polynomial expressions over lexical formals",
+                ));
+            }
+        }
+    }
+    for (callee, range) in callees {
+        if callee.is_qualified() || !sources.contains_key(callee.as_str()) {
+            return Err(pure_error(
+                file,
+                range,
+                "operator bodies admit only local lexical polynomial operators",
+            ));
+        }
+        compile_local(file, callee.as_str(), sources, compiled, active)?;
+    }
+    let mut formal_names = BTreeMap::new();
+    let mut formal_rules = Vec::new();
+    for (slot, formal) in declaration.formals().iter().enumerate() {
+        let slot = u16::try_from(slot)
+            .map_err(|_| pure_error(file, formal.range(), "too many operator formals"))?;
         if formal_names.insert(formal.name(), slot).is_some() {
             return Err(pure_error(
                 file,
                 formal.range(),
-                format!("duplicate pure-operator formal `{}`", formal.name()),
+                "duplicate operator formal",
             ));
         }
         formal_rules.push(value_class(file, formal.range(), formal.value_class())?);
     }
-    let result_rule = value_class(file, declaration.range(), declaration.result())?;
-    let mut builder = CalculusBuilder::new(formal_rules, result_rule)
-        .map_err(|error| kernel_error(file, declaration.range(), error))?;
-    let root = compile_expression(file, declaration.body(), &formal_names, &mut builder)?;
-    builder
+    let mut builder = CalculusBuilder::new(
+        formal_rules,
+        value_class(file, declaration.range(), declaration.result())?,
+    )
+    .map_err(|error| kernel_error(file, declaration.range(), error))?;
+    let root = compile_expression(
+        file,
+        declaration.body(),
+        &formal_names,
+        sources,
+        compiled,
+        &mut builder,
+    )?;
+    let definition = builder
         .finish(root)
-        .map_err(|error| kernel_error(file, declaration.body().range(), error))
+        .map_err(|error| kernel_error(file, declaration.range(), error))?;
+    compiled.insert(name.to_owned(), definition);
+    active.pop();
+    Ok(())
+}
+
+pub(crate) fn ordered_arguments<'a>(
+    file: &str,
+    range: TextRange,
+    names: impl IntoIterator<Item = &'a str>,
+    arguments: &'a CallArguments,
+) -> Result<Vec<&'a Expr>, Diagnostic> {
+    let Some(bindings) = arguments.named() else {
+        return Err(pure_error(
+            file,
+            range,
+            "operator calls require named arguments",
+        ));
+    };
+    let mut remaining = BTreeMap::new();
+    for binding in bindings {
+        if remaining.insert(binding.name(), binding.value()).is_some() {
+            return Err(pure_error(
+                file,
+                binding.range(),
+                "duplicate operator argument",
+            ));
+        }
+    }
+    let ordered = names
+        .into_iter()
+        .map(|name| {
+            remaining.remove(name).ok_or_else(|| {
+                pure_error(file, range, format!("missing operator argument `{name}`"))
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if let Some((name, value)) = remaining.first_key_value() {
+        return Err(pure_error(
+            file,
+            value.range(),
+            format!("unknown operator argument `{name}`"),
+        ));
+    }
+    Ok(ordered)
 }
 
 fn value_class(
@@ -86,113 +257,285 @@ fn value_class(
 ) -> Result<PureValueClass, Diagnostic> {
     match syntax {
         PureValueClassSyntax::Scalar => Ok(PureValueClass::invariant_scalar()),
-        PureValueClassSyntax::Spatial { rank } => u16::try_from(rank.value())
-            .map_err(|_| pure_error(file, rank.range(), "spatial rank exceeds u16"))
-            .and_then(|rank| {
-                PureValueClass::spatial_tensor(rank)
-                    .map_err(|error| kernel_error(file, range, error))
-            }),
-        _ => Err(pure_error(
-            file,
-            range,
-            "pure value-class syntax is newer than this compiler",
-        )),
+        PureValueClassSyntax::Spatial { rank } => PureValueClass::spatial_tensor(
+            u16::try_from(rank.value())
+                .map_err(|_| pure_error(file, rank.range(), "spatial rank exceeds u16"))?,
+        )
+        .map_err(|error| kernel_error(file, range, error)),
+        PureValueClassSyntax::Typed(syntax) => {
+            let value_type = crate::value_types::lower_scalar_type(file, syntax)?;
+            if value_type.scalar_domain() != eqiora_core::ScalarDomain::Real {
+                return Err(pure_error(
+                    file,
+                    range,
+                    "operator scalar contracts require ordinary real scalar types",
+                ));
+            }
+            PureValueClass::invariant_scalar()
+                .with_dimension(value_type.dimension())
+                .with_scalar_domain(eqiora_core::ScalarDomain::Real)
+                .map_err(|error| kernel_error(file, range, error))
+        }
+        _ => Err(pure_error(file, range, "unsupported operator value class")),
     }
 }
 
 fn compile_expression(
     file: &str,
-    expression: &PureOperatorExpr,
+    expression: &Expr,
     formals: &BTreeMap<&str, u16>,
+    sources: &BTreeMap<&str, &PureOperatorDecl>,
+    compiled: &BTreeMap<String, PureOperatorDefinition>,
     builder: &mut CalculusBuilder,
 ) -> Result<CalculusNodeId, Diagnostic> {
     let node = match expression.kind() {
-        PureOperatorExprKind::Rational {
-            numerator,
-            denominator,
+        ExprKind::Number(value) => {
+            CalculusNode::Rational(decimal(file, expression.range(), value)?)
+        }
+        ExprKind::Name(name) => CalculusNode::FormalComponent {
+            formal: *formals.get(name.as_str()).ok_or_else(|| {
+                pure_error(
+                    file,
+                    expression.range(),
+                    format!("unknown operator formal `{name}`"),
+                )
+            })?,
+            axes: Box::new([]),
+        },
+        ExprKind::Unary {
+            op: UnaryOp::Neg,
+            value,
+        } if matches!(value.kind(), ExprKind::Number(_)) => {
+            let ExprKind::Number(number) = value.kind() else {
+                unreachable!()
+            };
+            CalculusNode::Rational(decimal_signed(file, expression.range(), number, true)?)
+        }
+        ExprKind::Unary {
+            op: UnaryOp::Neg,
+            value,
+        } => CalculusNode::Neg(compile_expression(
+            file, value, formals, sources, compiled, builder,
+        )?),
+        ExprKind::Binary {
+            op: BinaryOp::Pow,
+            left,
+            right,
         } => {
-            let numerator = i64::try_from(numerator.value()).map_err(|_| {
+            let exponent = power_exponent(file, right)?;
+            let value = compile_expression(file, left, formals, sources, compiled, builder)?;
+            let mut product = value;
+            for _ in 1..exponent {
+                product = builder
+                    .push(CalculusNode::Mul(product, value))
+                    .map_err(|error| kernel_error(file, expression.range(), error))?;
+            }
+            return Ok(product);
+        }
+        ExprKind::Binary { op, left, right }
+            if matches!(op, BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul) =>
+        {
+            let left = compile_expression(file, left, formals, sources, compiled, builder)?;
+            let mut right = compile_expression(file, right, formals, sources, compiled, builder)?;
+            if *op == BinaryOp::Sub {
+                right = builder
+                    .push(CalculusNode::Neg(right))
+                    .map_err(|error| kernel_error(file, expression.range(), error))?;
+            }
+            if *op == BinaryOp::Mul {
+                CalculusNode::Mul(left, right)
+            } else {
+                CalculusNode::Add(left, right)
+            }
+        }
+        ExprKind::Call { callee, arguments } if !callee.is_qualified() => {
+            if let Some(definition) = compiled.get(callee.as_str()) {
+                let declaration = sources[callee.as_str()];
+                let ordered = ordered_arguments(
+                    file,
+                    expression.range(),
+                    declaration.formals().iter().map(|formal| formal.name()),
+                    arguments,
+                )?;
+                let arguments = ordered
+                    .into_iter()
+                    .map(|value| {
+                        compile_expression(file, value, formals, sources, compiled, builder)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                return builder
+                    .apply_scalar(definition, &arguments)
+                    .map_err(|error| kernel_error(file, expression.range(), error));
+            }
+            let args = arguments.positional().ok_or_else(|| {
                 pure_error(
                     file,
-                    numerator.range(),
-                    "exact rational numerator exceeds i64",
+                    expression.range(),
+                    "calculus constructors require positional arguments",
                 )
             })?;
-            let denominator = i64::try_from(denominator.value()).map_err(|_| {
-                pure_error(
-                    file,
-                    denominator.range(),
-                    "exact rational denominator exceeds i64",
-                )
-            })?;
-            CalculusNode::Rational(
-                ExactRational::new(numerator, denominator)
-                    .map_err(|error| kernel_error(file, expression.range(), error))?,
-            )
-        }
-        PureOperatorExprKind::Component {
-            formal,
-            formal_range,
-            result_axes,
-        } => {
-            let slot = formals.get(formal.as_str()).copied().ok_or_else(|| {
-                pure_error(
-                    file,
-                    *formal_range,
-                    format!("unknown pure-operator formal `{formal}`"),
-                )
-            })?;
-            let axes = result_axes
-                .iter()
-                .map(|axis| {
-                    u16::try_from(axis.value())
-                        .map(ResultAxis::new)
-                        .map_err(|_| pure_error(file, axis.range(), "result axis exceeds u16"))
-                })
-                .collect::<Result<Box<[_]>, _>>()?;
-            CalculusNode::FormalComponent { formal: slot, axes }
-        }
-        PureOperatorExprKind::Delta {
-            left_axis,
-            right_axis,
-        } => CalculusNode::KroneckerDelta(
-            ResultAxis::new(
-                u16::try_from(left_axis.value())
-                    .map_err(|_| pure_error(file, left_axis.range(), "result axis exceeds u16"))?,
-            ),
-            ResultAxis::new(
-                u16::try_from(right_axis.value())
-                    .map_err(|_| pure_error(file, right_axis.range(), "result axis exceeds u16"))?,
-            ),
-        ),
-        PureOperatorExprKind::Neg(value) => {
-            CalculusNode::Neg(compile_expression(file, value, formals, builder)?)
-        }
-        PureOperatorExprKind::Binary { op, left, right } => {
-            let left = compile_expression(file, left, formals, builder)?;
-            let right = compile_expression(file, right, formals, builder)?;
-            match op {
-                PureOperatorBinaryOp::Add => CalculusNode::Add(left, right),
-                PureOperatorBinaryOp::Sub => {
-                    let right = builder
-                        .push(CalculusNode::Neg(right))
-                        .map_err(|error| kernel_error(file, expression.range(), error))?;
-                    CalculusNode::Add(left, right)
+            match (callee.as_str(), args) {
+                ("rational", [numerator, denominator]) => CalculusNode::Rational(
+                    ExactRational::new(integer(file, numerator)?, integer(file, denominator)?)
+                        .map_err(|error| kernel_error(file, expression.range(), error))?,
+                ),
+                ("delta", [left, right]) => {
+                    CalculusNode::KroneckerDelta(axis(file, left)?, axis(file, right)?)
                 }
-                PureOperatorBinaryOp::Mul => CalculusNode::Mul(left, right),
+                ("component", [formal, axes @ ..]) => {
+                    let ExprKind::Name(name) = formal.kind() else {
+                        return Err(pure_error(
+                            file,
+                            formal.range(),
+                            "component requires one lexical formal name",
+                        ));
+                    };
+                    CalculusNode::FormalComponent {
+                        formal: *formals.get(name.as_str()).ok_or_else(|| {
+                            pure_error(
+                                file,
+                                formal.range(),
+                                format!("unknown operator formal `{name}`"),
+                            )
+                        })?,
+                        axes: axes
+                            .iter()
+                            .map(|value| axis(file, value))
+                            .collect::<Result<Box<[_]>, _>>()?,
+                    }
+                }
+                _ => {
+                    return Err(pure_error(
+                        file,
+                        expression.range(),
+                        "unsupported exact polynomial constructor",
+                    ));
+                }
             }
         }
         _ => {
             return Err(pure_error(
                 file,
                 expression.range(),
-                "pure-operator expression syntax is newer than this compiler",
+                "operator bodies require exact polynomial expressions over lexical formals",
             ));
         }
     };
     builder
         .push(node)
         .map_err(|error| kernel_error(file, expression.range(), error))
+}
+
+fn power_exponent(file: &str, expression: &Expr) -> Result<usize, Diagnostic> {
+    let ExprKind::Number(value) = expression.kind() else {
+        return Err(pure_error(
+            file,
+            expression.range(),
+            "polynomial powers require a positive integer literal exponent",
+        ));
+    };
+    value
+        .to_i64()
+        .ok()
+        .and_then(|value| usize::try_from(value).ok())
+        .filter(|value| {
+            *value > 0
+                && *value <= usize::from(eqiora_schema::kernel::pure_operator::MAX_FORMAL_EXPONENT)
+        })
+        .ok_or_else(|| {
+            pure_error(
+                file,
+                expression.range(),
+                "polynomial exponent exceeds the positive bounded calculus range",
+            )
+        })
+}
+
+fn integer(file: &str, expression: &Expr) -> Result<i64, Diagnostic> {
+    match expression.kind() {
+        ExprKind::Number(value) => value
+            .to_i64()
+            .map_err(|_| pure_error(file, expression.range(), "expected exact i64 literal")),
+        ExprKind::Unary {
+            op: UnaryOp::Neg,
+            value,
+        } if matches!(value.kind(), ExprKind::Number(_)) => {
+            let ExprKind::Number(number) = value.kind() else {
+                unreachable!()
+            };
+            let signed = if number.is_negative() {
+                number.canonical_text().trim_start_matches('-').to_owned()
+            } else {
+                format!("-{}", number.canonical_text())
+            };
+            DecimalLiteral::parse(&signed)
+                .and_then(|value| value.to_i64())
+                .map_err(|_| pure_error(file, expression.range(), "expected exact i64 literal"))
+        }
+        ExprKind::Unary {
+            op: UnaryOp::Neg,
+            value,
+        } => integer(file, value)?
+            .checked_neg()
+            .ok_or_else(|| pure_error(file, expression.range(), "integer literal overflow")),
+        _ => Err(pure_error(
+            file,
+            expression.range(),
+            "expected exact integer literal",
+        )),
+    }
+}
+
+fn axis(file: &str, expression: &Expr) -> Result<ResultAxis, Diagnostic> {
+    u16::try_from(integer(file, expression)?)
+        .map(ResultAxis::new)
+        .map_err(|_| pure_error(file, expression.range(), "result axis exceeds u16"))
+}
+
+fn decimal(
+    file: &str,
+    range: TextRange,
+    value: &DecimalLiteral,
+) -> Result<ExactRational, Diagnostic> {
+    decimal_signed(file, range, value, false)
+}
+
+fn decimal_signed(
+    file: &str,
+    range: TextRange,
+    value: &DecimalLiteral,
+    negate: bool,
+) -> Result<ExactRational, Diagnostic> {
+    use num_bigint::BigInt;
+    use num_rational::BigRational;
+    use num_traits::ToPrimitive;
+    let error = || {
+        pure_error(
+            file,
+            range,
+            "exact decimal exceeds the rational i64 coefficient range",
+        )
+    };
+    let exponent = value.exponent10();
+    // Any smaller nonzero magnitude is below every representable i64 ratio.
+    if exponent > 18 || exponent < -(value.coefficient().len() as i64 + 19) {
+        return Err(error());
+    }
+    let mut numerator: BigInt = value.coefficient().parse().map_err(|_| error())?;
+    if value.is_negative() != negate {
+        numerator = -numerator;
+    }
+    let power = BigInt::from(10).pow(exponent.unsigned_abs() as u32);
+    let rational = if exponent >= 0 {
+        BigRational::from_integer(numerator * power)
+    } else {
+        BigRational::new(numerator, power)
+    };
+    ExactRational::new(
+        rational.numer().to_i64().ok_or_else(error)?,
+        rational.denom().to_i64().ok_or_else(error)?,
+    )
+    .map_err(|error| kernel_error(file, range, error))
 }
 
 fn kernel_error(file: &str, range: TextRange, error: PureOperatorError) -> Diagnostic {
@@ -205,45 +548,68 @@ fn pure_error(file: &str, range: TextRange, message: impl Into<String>) -> Diagn
 
 #[cfg(test)]
 mod tests {
-    use eqiora_lang::parse;
-
     use super::*;
+
+    fn definition(source: &str) -> PureOperatorDefinition {
+        let document = eqiora_lang::parse("operator.eqi", source)
+            .into_document()
+            .expect("source");
+        compile_definitions("operator.eqi", &document)
+            .expect("definition")
+            .into_values()
+            .next()
+            .unwrap()
+    }
 
     #[test]
     fn source_names_do_not_enter_definition_identity() {
-        let left = parse(
-            "left.eqi",
-            "public pure operator dyadic(a: spatial[1], b: spatial[1]) -> spatial[2] = component(a, 0) * component(b, 1);\nmodel M() {}\n",
-        )
-        .into_document()
-        .expect("source");
-        let right = parse(
-            "right.eqi",
-            "public pure operator outer(x: spatial[1], y: spatial[1]) -> spatial[2] = component(x, 0) * component(y, 1);\nmodel M() {}\n",
-        )
-        .into_document()
-        .expect("source");
-        let left = compile_definition("left.eqi", &left.pure_operators()[0]).expect("definition");
-        let right =
-            compile_definition("right.eqi", &right.pure_operators()[0]).expect("definition");
-        assert_eq!(left.digest(), right.digest());
+        let first = definition(
+            "operator dyadic(input a:spatial[1],input b:spatial[1]):spatial[2]=component(a,0)*component(b,1);",
+        );
+        let second = definition(
+            "operator outer(input x:spatial[1],input y:spatial[1]):spatial[2]=component(x,0)*component(y,1);",
+        );
+        assert_eq!(first.digest(), second.digest());
+    }
+
+    #[test]
+    fn decimal_coefficients_are_exact_reduced_rationals() {
+        let decimal = definition("operator scale(input x:scalar):scalar=0.01*x;");
+        let rational = definition("operator scale(input x:scalar):scalar=rational(1,100)*x;");
+        assert_eq!(decimal.digest(), rational.digest());
+        let minimum = definition("operator scale(input x:scalar):scalar=-9223372036854775808*x;");
+        assert!(minimum.nodes().iter().any(|node| matches!(node, CalculusNode::Rational(value) if *value == ExactRational::new(i64::MIN,1).unwrap())));
+        let tiny = DecimalLiteral::parse("25e-20").unwrap();
+        assert_eq!(
+            super::decimal("exact.eqi", TextRange::new(0, 6), &tiny).unwrap(),
+            ExactRational::new(1, 4_000_000_000_000_000_000).unwrap()
+        );
+        for value in ["1e999999", "1e-999999", "9223372036854775808"] {
+            assert!(
+                super::decimal(
+                    "exact.eqi",
+                    TextRange::new(0, 1),
+                    &DecimalLiteral::parse(value).unwrap()
+                )
+                .is_err()
+            );
+        }
     }
 
     #[test]
     fn unresolved_formals_fail_at_the_central_definition_boundary() {
-        let document = parse(
+        let document = eqiora_lang::parse(
             "invalid.eqi",
-            "pure operator broken(value: scalar) -> scalar = component(missing);\n",
+            "operator broken(input x:scalar):scalar=component(missing);",
         )
         .into_document()
-        .expect("closed syntax still parses");
-        let diagnostic = compile_definition("invalid.eqi", &document.pure_operators()[0])
-            .expect_err("free source names cannot enter canonical calculus");
+        .unwrap();
+        let error = compile_definitions("invalid.eqi", &document).unwrap_err();
         assert!(
-            diagnostic
+            error
                 .message()
-                .contains("unknown pure-operator formal `missing`")
+                .contains("unknown operator formal `missing`")
         );
-        assert!(diagnostic.source_span().is_some());
+        assert!(error.source_span().is_some());
     }
 }

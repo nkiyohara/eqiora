@@ -72,7 +72,8 @@ impl ScalarOperatorIr {
                         Instruction::Constant(_)
                         | Instruction::TypedConstant(_)
                         | Instruction::Read(_) => {}
-                        Instruction::Array { start, len } => {
+                        Instruction::Array { start, len }
+                        | Instruction::PureOperator { start, len, .. } => {
                             let operands = self
                                 .array_operands
                                 .get(start as usize..start as usize + len as usize)
@@ -110,6 +111,22 @@ impl ScalarOperatorIr {
                         .ok_or_else(|| ir_builder_error("typed scalar operand is unavailable"))
                 };
                 let value = match instruction {
+                    Instruction::PureOperator {
+                        definition,
+                        start,
+                        len,
+                    } => {
+                        let definition = &self.definitions[definition as usize].1;
+                        let arguments = self.array_operands
+                            [start as usize..start as usize + len as usize]
+                            .iter()
+                            .map(|id| read(*id))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        let cost = definition.nodes().len() + arguments.len();
+                        check_component_work(component_work, cost)?;
+                        component_work += cost;
+                        evaluate_pure_operator(definition, &arguments)?
+                    }
                     Instruction::Array { start, len } => {
                         let elements = self.array_operands
                             [start as usize..start as usize + len as usize]
@@ -368,6 +385,39 @@ fn require_scalar_arithmetic(value: &ValueLiteral) -> Result<(), Diagnostic> {
         ));
     }
     Ok(())
+}
+
+fn evaluate_pure_operator(
+    definition: &eqiora_schema::kernel::pure_operator::PureOperatorDefinition,
+    arguments: &[&ValueLiteral],
+) -> Result<ValueLiteral, Diagnostic> {
+    use eqiora_schema::kernel::{ExprDagBuilder, typing::ExpressionType};
+    let types = arguments
+        .iter()
+        .map(|value| ExpressionType::<()>::new(value.value_type().clone(), None))
+        .collect::<Vec<_>>();
+    if types
+        .iter()
+        .any(|ty| ty.value_type.scalar_domain() != ScalarDomain::Real || !ty.shape().is_scalar())
+    {
+        return Err(ir_builder_error(
+            "pure operator execution requires real scalar arguments",
+        ));
+    }
+    let instance = definition
+        .instantiate(&types)
+        .map_err(|error| ir_builder_error(error.to_string()))?;
+    let mut builder = ExprDagBuilder::new();
+    let arguments = arguments
+        .iter()
+        .map(|value| builder.constant((*value).clone()))
+        .collect::<Result<Vec<_>, _>>()?;
+    let root = builder.project_scalar_operator(&instance, &arguments, 1_000_000)?;
+    let dag = builder.finish([root])?;
+    let ir = ScalarOperatorIr::lower(&dag)?;
+    ir.evaluate_typed(&[root], &mut |_| None)?
+        .pop()
+        .ok_or_else(|| ir_builder_error("pure operator result is absent"))
 }
 
 #[cfg(test)]

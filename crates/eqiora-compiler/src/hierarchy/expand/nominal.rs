@@ -55,7 +55,10 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     message,
                 )
             };
-            let eqiora_lang::ExprKind::Call { callee, arguments } = declaration.value().kind()
+            let eqiora_lang::ExprKind::Call {
+                callee,
+                arguments: eqiora_lang::CallArguments::Positional(arguments),
+            } = declaration.value().kind()
             else {
                 return Err(invalid("index set requires range(extent)"));
             };

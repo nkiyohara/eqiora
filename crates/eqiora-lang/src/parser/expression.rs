@@ -20,7 +20,10 @@ impl Parser<'_> {
             .map(|(expression, _)| expression)
     }
 
-    fn parse_expression_with_depth(&mut self, minimum_binding_power: u8) -> Option<(Expr, usize)> {
+    pub(super) fn parse_expression_with_depth(
+        &mut self,
+        minimum_binding_power: u8,
+    ) -> Option<(Expr, usize)> {
         if self.expression_recursion >= MAX_EXPRESSION_DEPTH {
             self.error_here("expression recursion exceeds the 256-level limit");
             return None;
@@ -320,55 +323,7 @@ impl Parser<'_> {
             }
             if self.at(TokenKind::LeftParen) {
                 self.bump();
-                let mut arguments = Vec::new();
-                let mut child_depth = 0;
-                if self.at(TokenKind::RightParen) {
-                    if path.as_str() != "boundaries" {
-                        self.error_here("operator call requires at least one argument");
-                        return None;
-                    }
-                } else {
-                    loop {
-                        if path.as_str() == "tensor_value" {
-                            let expected = match arguments.len() {
-                                0 => "frame",
-                                1 => "components",
-                                _ => {
-                                    self.error_here(
-                                        "tensor_value requires exactly frame and components",
-                                    );
-                                    return None;
-                                }
-                            };
-                            if !self.at_keyword(expected) {
-                                self.error_here(format!(
-                                    "tensor_value requires `{expected} = ...`"
-                                ));
-                                return None;
-                            }
-                            self.bump();
-                            self.expect(TokenKind::Equal, "`=` after tensor_value argument name")?;
-                        }
-                        let (argument, depth) = self.parse_expression_with_depth(0)?;
-                        if path.as_str() == "tensor_value"
-                            && arguments.is_empty()
-                            && !matches!(argument.kind(), ExprKind::Name(_) | ExprKind::Path(_))
-                        {
-                            self.error_here("tensor_value frame must be a support name");
-                            return None;
-                        }
-                        child_depth = child_depth.max(depth);
-                        arguments.push(argument);
-                        if !self.at(TokenKind::Comma) {
-                            break;
-                        }
-                        self.bump();
-                    }
-                }
-                if path.as_str() == "tensor_value" && arguments.len() != 2 {
-                    self.error_here("tensor_value requires frame and components");
-                    return None;
-                }
+                let (arguments, child_depth) = self.parse_call_arguments(&path)?;
                 let depth = self.parent_depth(child_depth)?;
                 let end = self
                     .expect(TokenKind::RightParen, "`)` after operator arguments")?

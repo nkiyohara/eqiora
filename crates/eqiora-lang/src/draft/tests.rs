@@ -534,7 +534,7 @@ fn expression_contains_call(expression: &Expr, expected: &str) -> bool {
         ExprKind::Call { callee, arguments } => {
             callee.as_str() == expected
                 || arguments
-                    .iter()
+                    .expressions()
                     .any(|argument| expression_contains_call(argument, expected))
         }
         ExprKind::Array(values) => values

@@ -1,21 +1,18 @@
 //! Pure-operator source declarations and their exact syntax.
 
-use super::{TextRange, VisibilitySyntax};
+use super::{Expr, TextRange, ValueTypeSyntax, VisibilitySyntax};
 
 /// One exact, side-effect-free operator definition in source form.
 ///
-/// This syntax is deliberately separate from model expressions. It admits
-/// only exact rationals, component selection, Kronecker deltas, and bounded
-/// arithmetic, so later lowering never has to recover purity from a general
-/// expression tree.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// The shared expression body is checked for exact purity during compilation.
+#[derive(Debug, Clone, PartialEq)]
 pub struct PureOperatorDecl {
     pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) visibility: VisibilitySyntax,
     pub(crate) name: String,
     pub(crate) formals: Vec<PureOperatorFormal>,
     pub(crate) result: PureValueClassSyntax,
-    pub(crate) body: PureOperatorExpr,
+    pub(crate) body: Expr,
     pub(crate) range: TextRange,
 }
 
@@ -46,7 +43,7 @@ impl PureOperatorDecl {
 
     /// Exact bounded operator body.
     #[must_use]
-    pub const fn body(&self) -> &PureOperatorExpr {
+    pub const fn body(&self) -> &Expr {
         &self.body
     }
 
@@ -58,7 +55,7 @@ impl PureOperatorDecl {
 }
 
 /// One ordered pure-operator formal.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PureOperatorFormal {
     pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) name: String,
@@ -87,10 +84,12 @@ impl PureOperatorFormal {
 }
 
 /// Closed source value classes admitted by a pure operator definition.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum PureValueClassSyntax {
-    /// One scalar value.
+    /// One concrete declared value type.
+    Typed(ValueTypeSyntax),
+    /// One dimension-polymorphic scalar value.
     Scalar,
     /// A spatial value whose rank is retained as exact source syntax.
     Spatial {
@@ -125,76 +124,4 @@ impl ExactIntegerSyntax {
     pub const fn range(&self) -> TextRange {
         self.range
     }
-}
-
-/// Exact expression admitted inside a pure operator declaration.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PureOperatorExpr {
-    pub(crate) kind: PureOperatorExprKind,
-    pub(crate) range: TextRange,
-}
-
-impl PureOperatorExpr {
-    /// Exact expression form.
-    #[must_use]
-    pub const fn kind(&self) -> &PureOperatorExprKind {
-        &self.kind
-    }
-
-    /// Full expression range, including explicit parentheses when present.
-    #[must_use]
-    pub const fn range(&self) -> TextRange {
-        self.range
-    }
-}
-
-/// Closed exact expression vocabulary for pure operators.
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum PureOperatorExprKind {
-    /// Exact rational literal `rational(numerator, denominator)`.
-    Rational {
-        /// Nonnegative numerator; sign is represented by [`Self::Neg`].
-        numerator: ExactIntegerSyntax,
-        /// Strictly positive denominator.
-        denominator: ExactIntegerSyntax,
-    },
-    /// Select a formal component using one output axis per formal axis.
-    Component {
-        /// Referenced formal name.
-        formal: String,
-        /// Exact range of the formal-name occurrence.
-        formal_range: TextRange,
-        /// Ordered result-axis sequence; empty selects a scalar formal.
-        result_axes: Vec<ExactIntegerSyntax>,
-    },
-    /// Kronecker delta between two result axes.
-    Delta {
-        /// Left result axis.
-        left_axis: ExactIntegerSyntax,
-        /// Right result axis.
-        right_axis: ExactIntegerSyntax,
-    },
-    /// Exact prefix negation.
-    Neg(Box<PureOperatorExpr>),
-    /// Exact infix arithmetic.
-    Binary {
-        /// Arithmetic operator.
-        op: PureOperatorBinaryOp,
-        /// Left operand.
-        left: Box<PureOperatorExpr>,
-        /// Right operand.
-        right: Box<PureOperatorExpr>,
-    },
-}
-
-/// Infix operators admitted by a pure operator body.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum PureOperatorBinaryOp {
-    /// Addition.
-    Add,
-    /// Subtraction.
-    Sub,
-    /// Multiplication.
-    Mul,
 }

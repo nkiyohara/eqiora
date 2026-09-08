@@ -93,7 +93,7 @@ operation.
 The initial library is intentionally small:
 
 `eqiora.add_bundled_dependency(...)` and `eqiora package add --bundled` record
-`Eqiora.Fluid.Incompressible@0.4.0` or
+`Eqiora.Fluid.Incompressible@0.5.0` or
 `Eqiora.Solid.LinearElasticity@0.6.0` as ordinary exact project dependencies.
 The shared native owner publishes the manifest, lock and exact store entries.
 `eqiora.vendor_project(...)` copies the complete accepted closure to an offline

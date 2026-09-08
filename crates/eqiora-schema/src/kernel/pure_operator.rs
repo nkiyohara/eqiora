@@ -12,9 +12,13 @@ use std::num::NonZeroU64;
 use sha2::{Digest, Sha256};
 
 use super::typing::{ExpressionType, SpatialSupport};
-use eqiora_core::ValueFrame;
+use eqiora_core::{DimExponents, ValueFrame};
+mod composition;
+mod dimensions;
+mod domains;
+use dimensions::{derive_symbolic_dimension, instantiate_dimension, validate_result_dimension};
 
-const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v2\0";
+const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v3\0";
 
 /// Maximum number of formal arguments in a definition.
 pub const MAX_FORMALS: usize = 64;
@@ -281,16 +285,22 @@ fn gcd(mut left: u128, mut right: u128) -> u128 {
 /// Spatial tensors have exact rank but obtain each axis extent from the one
 /// common volume dimension at instantiation. A scalar is represented only by
 /// `None`; spatial rank zero therefore has no duplicate representation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PureValueClass {
     spatial_rank: Option<std::num::NonZeroU16>,
+    dimension: Option<DimExponents>,
+    scalar_domain: Option<eqiora_core::ScalarDomain>,
 }
 
 impl PureValueClass {
     /// Invariant scalar on the common volume.
     #[must_use]
     pub const fn invariant_scalar() -> Self {
-        Self { spatial_rank: None }
+        Self {
+            spatial_rank: None,
+            dimension: None,
+            scalar_domain: None,
+        }
     }
 
     /// Spatial Cartesian tensor of exact positive rank on the common volume.
@@ -304,7 +314,22 @@ impl PureValueClass {
         }
         Ok(Self {
             spatial_rank: Some(rank),
+            dimension: None,
+            scalar_domain: None,
         })
+    }
+
+    /// Constrain this scalar/tensor class to one exact physical dimension.
+    #[must_use]
+    pub const fn with_dimension(mut self, dimension: DimExponents) -> Self {
+        self.dimension = Some(dimension);
+        self
+    }
+
+    /// Exact physical dimension constraint; absent for a generic class.
+    #[must_use]
+    pub const fn dimension(self) -> Option<DimExponents> {
+        self.dimension
     }
 
     /// Spatial tensor rank, or `None` for an invariant scalar.
@@ -329,6 +354,26 @@ impl PureValueClass {
     #[must_use]
     pub const fn is_invariant_scalar(self) -> bool {
         self.spatial_rank.is_none()
+    }
+}
+
+impl Ord for PureValueClass {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (
+            self.spatial_rank,
+            self.scalar_domain,
+            self.dimension.map(DimExponents::exponents),
+        )
+            .cmp(&(
+                other.spatial_rank,
+                other.scalar_domain,
+                other.dimension.map(DimExponents::exponents),
+            ))
+    }
+}
+impl PartialOrd for PureValueClass {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -418,7 +463,10 @@ impl CalculusBuilder {
         formals: impl IntoIterator<Item = PureValueClass>,
         result: PureValueClass,
     ) -> Result<Self, PureOperatorError> {
-        let formals = formals.into_iter().collect::<Vec<_>>();
+        let formals = formals
+            .into_iter()
+            .take(MAX_FORMALS + 1)
+            .collect::<Vec<_>>();
         if formals.is_empty() || formals.len() > MAX_FORMALS {
             return Err(PureOperatorError::FormalLimit);
         }
@@ -498,7 +546,9 @@ impl CalculusBuilder {
         if self.nodes.get(root_index).is_none() {
             return Err(PureOperatorError::InvalidNode);
         }
-        let dimension = derive_symbolic_dimension(self.formals.len(), &self.nodes, root)?;
+        let dimension = derive_symbolic_dimension(&self.formals, &self.nodes, root)?;
+        validate_result_dimension(&self.formals, self.result, &dimension)?;
+        domains::validate_result(&self.formals, self.result)?;
         Ok(PureOperatorDefinition {
             formals: self.formals,
             result: self.result,
@@ -528,58 +578,6 @@ impl FormalDimensionMonomial {
     pub const fn exponents(&self) -> &[u16] {
         &self.exponents
     }
-}
-
-fn derive_symbolic_dimension(
-    formal_count: usize,
-    nodes: &[CalculusNode],
-    root: CalculusNodeId,
-) -> Result<FormalDimensionMonomial, PureOperatorError> {
-    let mut dimensions: Vec<Box<[u16]>> = Vec::with_capacity(nodes.len());
-    for node in nodes {
-        let dimension = match node {
-            CalculusNode::Rational(_) | CalculusNode::KroneckerDelta(_, _) => {
-                vec![0; formal_count].into_boxed_slice()
-            }
-            CalculusNode::FormalComponent { formal, .. } => {
-                let formal_index = usize::from(*formal);
-                if formal_index >= formal_count {
-                    return Err(PureOperatorError::InvalidFormal(*formal));
-                }
-                let mut exponents = vec![0; formal_count];
-                exponents[formal_index] = 1;
-                exponents.into_boxed_slice()
-            }
-            CalculusNode::Neg(value) => {
-                dimensions[definition_index(*value, dimensions.len())?].clone()
-            }
-            CalculusNode::Add(left, right) => {
-                let left = dimensions[definition_index(*left, dimensions.len())?].clone();
-                let right = dimensions[definition_index(*right, dimensions.len())?].clone();
-                if left != right {
-                    return Err(PureOperatorError::AdditiveDimensionMismatch);
-                }
-                left
-            }
-            CalculusNode::Mul(left, right) => {
-                let left = &dimensions[definition_index(*left, dimensions.len())?];
-                let right = &dimensions[definition_index(*right, dimensions.len())?];
-                let mut exponents = Vec::with_capacity(formal_count);
-                for (left, right) in left.iter().zip(right) {
-                    let exponent = left
-                        .checked_add(*right)
-                        .filter(|exponent| *exponent <= MAX_FORMAL_EXPONENT)
-                        .ok_or(PureOperatorError::FormalExponentLimit)?;
-                    exponents.push(exponent);
-                }
-                exponents.into_boxed_slice()
-            }
-        };
-        dimensions.push(dimension);
-    }
-    Ok(FormalDimensionMonomial {
-        exponents: dimensions[definition_index(root, dimensions.len())?].clone(),
-    })
 }
 
 fn definition_index(id: CalculusNodeId, upper: usize) -> Result<usize, PureOperatorError> {
@@ -685,9 +683,12 @@ impl PureOperatorDefinition {
             scalar_domain = scalar_domain
                 .common(argument.value_type.scalar_domain())
                 .ok_or(PureOperatorError::FormalTypeMismatch)?;
-            let Some(support @ SpatialSupport::Volume { .. }) = argument.support.as_ref() else {
-                return Err(PureOperatorError::FormalTypeMismatch);
+            let Some(support) = argument.support.as_ref() else {
+                continue;
             };
+            if !matches!(support, SpatialSupport::Volume { .. }) {
+                return Err(PureOperatorError::FormalTypeMismatch);
+            }
             match &common_volume {
                 Some(expected) if expected != support => {
                     return Err(PureOperatorError::CommonVolumeMismatch);
@@ -696,8 +697,21 @@ impl PureOperatorDefinition {
                 None => common_volume = Some(support.clone()),
             }
         }
-        let common_volume = common_volume.ok_or(PureOperatorError::FormalTypeMismatch)?;
+        if self
+            .result
+            .scalar_domain()
+            .is_some_and(|expected| expected != scalar_domain)
+        {
+            return Err(PureOperatorError::FormalTypeMismatch);
+        }
         let result_dimension = instantiate_dimension(&self.dimension, arguments)?;
+        if self
+            .result
+            .dimension()
+            .is_some_and(|expected| expected != result_dimension)
+        {
+            return Err(PureOperatorError::FormalTypeMismatch);
+        }
         let result_type =
             expression_type_for_class(self.result, scalar_domain, result_dimension, common_volume)?;
         Ok(PureOperatorInstantiation {
@@ -765,8 +779,22 @@ fn validate_argument_class<I>(
     class: PureValueClass,
     argument: &ExpressionType<I>,
 ) -> Result<(), PureOperatorError> {
-    let Some(SpatialSupport::Volume { dimensions, .. }) = argument.support.as_ref() else {
+    if class
+        .scalar_domain()
+        .is_some_and(|expected| expected != argument.value_type.scalar_domain())
+    {
         return Err(PureOperatorError::FormalTypeMismatch);
+    }
+    if class
+        .dimension()
+        .is_some_and(|expected| expected != argument.dimension())
+    {
+        return Err(PureOperatorError::FormalTypeMismatch);
+    }
+    let dimensions = match argument.support.as_ref() {
+        Some(SpatialSupport::Volume { dimensions, .. }) => Some(*dimensions),
+        None => None,
+        _ => return Err(PureOperatorError::FormalTypeMismatch),
     };
     match class.spatial_rank() {
         None if argument.shape().is_scalar() && argument.frame() == ValueFrame::Invariant => Ok(()),
@@ -774,14 +802,16 @@ fn validate_argument_class<I>(
             if argument.frame() == ValueFrame::SpatialCartesian
                 && argument.value_type.array_rank() == 0
                 && argument.shape().rank() == usize::from(rank)
-                && u32::try_from(*dimensions).is_ok_and(|dimension| {
-                    dimension != 0
-                        && argument
-                            .shape()
-                            .extents()
-                            .iter()
-                            .all(|extent| extent.get() == dimension)
-                }) =>
+                && dimensions
+                    .and_then(|dimensions| u32::try_from(dimensions).ok())
+                    .is_some_and(|dimension| {
+                        dimension != 0
+                            && argument
+                                .shape()
+                                .extents()
+                                .iter()
+                                .all(|extent| extent.get() == dimension)
+                    }) =>
         {
             Ok(())
         }
@@ -793,16 +823,16 @@ fn expression_type_for_class<I>(
     class: PureValueClass,
     scalar_domain: eqiora_core::ScalarDomain,
     dimension: eqiora_core::DimExponents,
-    support: SpatialSupport<I>,
+    support: Option<SpatialSupport<I>>,
 ) -> Result<ExpressionType<I>, PureOperatorError> {
-    let spatial_dimensions = support.dimensions();
     match class.spatial_rank() {
         None => Ok(ExpressionType::new(
             eqiora_core::ValueType::scalar(scalar_domain, dimension),
-            Some(support),
+            support,
         )),
         Some(rank) => {
-            let extent = u32::try_from(spatial_dimensions)
+            let support = support.ok_or(PureOperatorError::FormalTypeMismatch)?;
+            let extent = u32::try_from(support.dimensions())
                 .ok()
                 .filter(|extent| *extent != 0)
                 .ok_or(PureOperatorError::FormalTypeMismatch)?;
@@ -819,23 +849,6 @@ fn expression_type_for_class<I>(
             .map_err(|_| PureOperatorError::FormalTypeMismatch)
         }
     }
-}
-
-fn instantiate_dimension<I>(
-    monomial: &FormalDimensionMonomial,
-    arguments: &[ExpressionType<I>],
-) -> Result<eqiora_core::DimExponents, PureOperatorError> {
-    let mut result = eqiora_core::DimExponents::DIMENSIONLESS;
-    for (argument, exponent) in arguments.iter().zip(monomial.exponents()) {
-        let term = argument
-            .dimension()
-            .pow(i32::from(*exponent), 1)
-            .ok_or(PureOperatorError::ResultDimensionOverflow)?;
-        result = result
-            .mul(term)
-            .ok_or(PureOperatorError::ResultDimensionOverflow)?;
-    }
-    Ok(result)
 }
 
 /// One semantically typed instantiation of a pure definition.
@@ -875,23 +888,7 @@ fn canonical_definition_bytes(definition: &PureOperatorDefinition) -> Vec<u8> {
     for formal in &definition.formals {
         push_value_class(&mut bytes, *formal);
     }
-    if definition.formals.len() == 1 && definition.result == definition.formals[0] {
-        // Exact legacy encoding of `SameAsFormal(0)` keeps all established
-        // unary same-class identities stable without a second representation.
-        bytes.push(0);
-        push_u16(&mut bytes, 0);
-    } else if definition.formals.as_slice() == [PureValueClass::invariant_scalar()]
-        && definition.result.spatial_rank() == Some(2)
-    {
-        // Exact legacy encoding of `IsotropicSquareFromFormal(0)`.
-        bytes.push(1);
-        push_u16(&mut bytes, 0);
-    } else {
-        // Extension result: declared class is independent of formal slots and
-        // its physical dimension comes from the body monomial.
-        bytes.push(0x80);
-        push_value_class(&mut bytes, definition.result);
-    }
+    push_value_class(&mut bytes, definition.result);
     push_u32(&mut bytes, definition.nodes.len());
     for node in &definition.nodes {
         match node {
@@ -935,10 +932,25 @@ fn canonical_definition_bytes(definition: &PureOperatorDefinition) -> Vec<u8> {
 fn push_value_class(bytes: &mut Vec<u8>, class: PureValueClass) {
     match class.spatial_rank() {
         None => bytes.push(0),
-        Some(2) => bytes.push(1),
         Some(rank) => {
-            bytes.push(0x80);
+            bytes.push(1);
             push_u16(bytes, rank);
+        }
+    }
+    match class.scalar_domain() {
+        None => bytes.push(0),
+        Some(eqiora_core::ScalarDomain::Real) => bytes.push(1),
+        Some(eqiora_core::ScalarDomain::Complex) => bytes.push(2),
+        Some(_) => unreachable!("checked pure scalar domain"),
+    }
+    match class.dimension() {
+        None => bytes.push(0),
+        Some(dimension) => {
+            bytes.push(1);
+            for (numerator, denominator) in dimension.exponents() {
+                bytes.extend_from_slice(&numerator.to_be_bytes());
+                bytes.extend_from_slice(&denominator.to_be_bytes());
+            }
         }
     }
 }
@@ -959,3 +971,6 @@ fn push_u32(bytes: &mut Vec<u8>, value: usize) {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod dimension_tests;

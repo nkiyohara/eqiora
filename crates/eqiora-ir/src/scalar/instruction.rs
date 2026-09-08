@@ -8,7 +8,15 @@ pub(super) struct ValueId(pub(super) u32);
 pub(super) enum Instruction {
     Constant(eqiora_core::DynQuantity),
     TypedConstant(u32),
-    Array { start: u32, len: u32 },
+    Array {
+        start: u32,
+        len: u32,
+    },
+    PureOperator {
+        definition: u32,
+        start: u32,
+        len: u32,
+    },
     Index(ValueId, u32),
     Quotient(ValueId, ValueId),
     Remainder(ValueId, ValueId),

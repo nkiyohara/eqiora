@@ -20,7 +20,11 @@ impl<'a> Families<'a> {
         let mut extents = BTreeMap::new();
         for set in sets {
             let result = (|| {
-                let ExprKind::Call { callee, arguments } = set.value().kind() else {
+                let ExprKind::Call {
+                    callee,
+                    arguments: eqiora_lang::CallArguments::Positional(arguments),
+                } = set.value().kind()
+                else {
                     return Err(source_error(
                         codes::LANGUAGE_TYPE_ERROR,
                         file,

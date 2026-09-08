@@ -2,6 +2,7 @@
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, Span};
 
+mod call;
 mod clock;
 mod comments;
 mod compile_time;
@@ -23,14 +24,13 @@ mod value_type;
 
 use crate::ast::{
     BinaryOp, BoundaryConnectionDecl, BoundaryPairingSyntax, BoundaryPortReferenceSyntax,
-    BoundaryPortSelectorSyntax, BoundarySideSyntax, ComponentItem, ComponentParameterDecl,
-    ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorDecl,
-    ConnectorQuantitySyntax, ConnectorSyntax, Document, DomainDecl, DomainSyntax,
-    ExactIntegerSyntax, Expr, ExprKind, FamilyBinderSyntax, FieldDecl, FrameSyntax, InstanceDecl,
-    Item, NamePath, NamedBindingDecl, PortDecl, PortSyntax, PureOperatorBinaryOp, PureOperatorDecl,
-    PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax,
-    SignalDirectionSyntax, SupportSlotDecl, SupportSlotSyntax, TextRange, UnaryOp,
-    ValueShapeSyntax, VisibilitySyntax,
+    BoundaryPortSelectorSyntax, BoundarySideSyntax, CallArguments, ComponentItem,
+    ComponentParameterDecl, ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl,
+    ConnectionSyntax, ConnectorDecl, ConnectorQuantitySyntax, ConnectorSyntax, Document,
+    DomainDecl, DomainSyntax, ExactIntegerSyntax, Expr, ExprKind, FamilyBinderSyntax, FieldDecl,
+    FrameSyntax, InstanceDecl, Item, NamePath, NamedBindingDecl, PortDecl, PortSyntax,
+    PureOperatorDecl, PureOperatorFormal, PureValueClassSyntax, SignalDirectionSyntax,
+    SupportSlotDecl, SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, VisibilitySyntax,
 };
 use crate::lexer::{Token, TokenKind, lex};
 use relation::ParsedRelation;

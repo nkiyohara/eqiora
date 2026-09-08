@@ -3,16 +3,35 @@ use super::*;
 use eqiora_core::{ValueFrame, ValueShape};
 use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};
 
+pub(super) fn arguments(arguments: &eqiora_lang::CallArguments) -> Option<(&Expr, &Expr)> {
+    let bindings = arguments.named()?;
+    if bindings.len() != 2 {
+        return None;
+    }
+    let mut frame = None;
+    let mut components = None;
+    for binding in bindings {
+        match binding.name() {
+            "frame" if frame.is_none() => frame = Some(binding.value()),
+            "components" if components.is_none() => components = Some(binding.value()),
+            _ => return None,
+        }
+    }
+    Some((frame?, components?))
+}
+
 pub(super) fn frame_name(expression: &Expr) -> Option<&str> {
-    let ExprKind::Call { callee, arguments } = expression.kind() else {
+    let ExprKind::Call {
+        callee,
+        arguments: bindings,
+    } = expression.kind()
+    else {
         return None;
     };
     if callee.as_str() != "tensor_value" {
         return None;
     }
-    let [frame, _] = arguments.as_slice() else {
-        return None;
-    };
+    let (frame, _) = arguments(bindings)?;
     match frame.kind() {
         ExprKind::Name(name) => Some(name),
         ExprKind::Path(path) => Some(path.as_str()),
@@ -53,10 +72,15 @@ pub(super) fn evaluate(
             ));
         }
     };
-    let ExprKind::Call { arguments, .. } = expression.kind() else {
+    let ExprKind::Call {
+        arguments: bindings,
+        ..
+    } = expression.kind()
+    else {
         unreachable!()
     };
-    let ExprKind::Array(elements) = arguments[1].kind() else {
+    let (_, components) = arguments(bindings).expect("validated tensor_value bindings");
+    let ExprKind::Array(elements) = components.kind() else {
         return Err(error(
             "tensor_value components must be an explicit rank-one or rank-two array",
         ));
@@ -197,7 +221,7 @@ fn has_named_component_reference(expression: &Expr) -> bool {
             }
             ExprKind::Unary { value, .. } => pending.push(value),
             ExprKind::Binary { left, right, .. } => pending.extend([left.as_ref(), right.as_ref()]),
-            ExprKind::Call { arguments, .. } => pending.extend(arguments),
+            ExprKind::Call { arguments, .. } => pending.extend(arguments.expressions()),
             ExprKind::Array(elements) => pending.extend(elements),
             ExprKind::Index { value, index } => pending.extend([value.as_ref(), index.as_ref()]),
             _ => {}
@@ -210,27 +234,64 @@ fn has_named_component_reference(expression: &Expr) -> bool {
 mod tests {
     use super::*;
     fn expression(components: &str) -> Expr {
-        let source = format!("model M() {{ let components = {components}; }}");
+        let source = format!(
+            "model M() {{ let value = tensor_value(frame = grid, components = {components}); }}"
+        );
         let document = eqiora_lang::parse("tensor.eqi", &source)
             .into_document()
             .unwrap();
         let eqiora_lang::Item::Let(value) = &document.models()[0].items()[0] else {
-            panic!("components");
+            panic!("tensor value");
         };
-        let range = TextRange::new(0, 0);
-        eqiora_lang::SourceAstFactory::expression(
-            ExprKind::Call {
-                callee: eqiora_lang::NamePath::from_segments(["tensor_value"], range).unwrap(),
-                arguments: vec![
-                    eqiora_lang::SourceAstFactory::expression(ExprKind::Name("grid".into()), range)
-                        .unwrap(),
-                    value.value().clone(),
-                ],
-            },
-            TextRange::new(0, u32::try_from(source.len()).unwrap()),
-        )
-        .unwrap()
+        value.value().clone()
     }
+
+    #[test]
+    fn tensor_bindings_resolve_roles_independently_of_order_and_reject_other_shapes() {
+        for (call, accepted) in [
+            ("tensor_value(components = [1,2], frame = grid)", true),
+            ("tensor_value(frame = grid, components = [1,2])", true),
+            ("tensor_value(grid, [1,2])", false),
+            ("tensor_value(frame = grid, other = [1,2])", false),
+            ("tensor_value(frame = grid)", false),
+            (
+                "tensor_value(frame = grid, components = [1,2], other = 0)",
+                false,
+            ),
+        ] {
+            let source = format!("model M() {{ let value = {call}; }}");
+            let document = match eqiora_lang::parse("bindings.eqi", &source).into_document() {
+                Ok(document) => document,
+                Err(diagnostics) => {
+                    assert!(
+                        !accepted,
+                        "valid tensor bindings rejected: {call}: {diagnostics:?}"
+                    );
+                    continue;
+                }
+            };
+            let eqiora_lang::Item::Let(value) = &document.models()[0].items()[0] else {
+                panic!("tensor binding fixture");
+            };
+            assert_eq!(
+                frame_name(value.value()),
+                accepted.then_some("grid"),
+                "{call}"
+            );
+            if accepted {
+                let ExprKind::Call {
+                    arguments: bindings,
+                    ..
+                } = value.value().kind()
+                else {
+                    panic!("tensor call");
+                };
+                let (_, components) = arguments(bindings).unwrap();
+                assert!(matches!(components.kind(), ExprKind::Array(values) if values.len() == 2));
+            }
+        }
+    }
+
     fn construct(
         components: &str,
         target: Option<&ValueType>,
@@ -342,6 +403,8 @@ mod tests {
             "[[[1,2],[3,4]],[[1,2],[3,4]]]",
             "[true,false]",
             "[live,0]",
+            "[math.complex(real = 1, imaginary = 2),0]",
+            "[quotient(left = 4, right = 2),0]",
         ] {
             assert!(
                 construct(components, None, false, true).is_err(),

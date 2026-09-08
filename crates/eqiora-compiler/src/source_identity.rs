@@ -18,7 +18,7 @@ mod compile_time;
 mod component_item;
 use component_item::encode_component_item;
 mod declarations;
-use declarations::{encode_component, encode_connector, encode_pure_operator};
+use declarations::{encode_component, encode_connector, encode_pure_operators};
 mod dimension;
 mod domain;
 pub(crate) mod formulation;
@@ -48,7 +48,6 @@ use crate::connection_sets::{
     ConnectionFragment, ConnectionSetError, ConnectionSetLimits, normalize_connection_sets,
 };
 use crate::identity::IdentityNamespace;
-use crate::pure_operator::compile_definition;
 pub(crate) use alias::ResolvedAliasTarget;
 use alias::encode_type_path;
 use compile_time::{encode_let, encode_parameter};
@@ -87,21 +86,6 @@ impl LocalSourceIdentity {
         limits: LocalSourceIdentityLimits,
     ) -> Result<Self, Diagnostic> {
         let canonical = canonical_source_bytes(document, limits)?;
-        Ok(Self(Sha256::digest(canonical).into()))
-    }
-
-    /// Compute a package declaration identity after structurally replacing
-    /// source import aliases in type references with exact target namespace
-    /// segments.
-    pub(crate) fn from_document_with_resolved_aliases(
-        document: &Document,
-        aliases: &BTreeMap<String, ResolvedAliasTarget>,
-    ) -> Result<Self, Diagnostic> {
-        let canonical = canonical_source_bytes_with_aliases(
-            document,
-            LocalSourceIdentityLimits::default(),
-            aliases.clone(),
-        )?;
         Ok(Self(Sha256::digest(canonical).into()))
     }
 
@@ -146,13 +130,14 @@ fn canonical_source_bytes(
     document: &Document,
     limits: LocalSourceIdentityLimits,
 ) -> Result<Vec<u8>, Diagnostic> {
-    canonical_source_bytes_with_aliases(document, limits, BTreeMap::new())
+    canonical_source_bytes_with_aliases(document, limits, BTreeMap::new(), BTreeMap::new())
 }
 
 fn canonical_source_bytes_with_aliases(
     document: &Document,
     limits: LocalSourceIdentityLimits,
     resolved_aliases: BTreeMap<String, ResolvedAliasTarget>,
+    operator_formals: BTreeMap<String, Vec<String>>,
 ) -> Result<Vec<u8>, Diagnostic> {
     let top_level_count = document
         .dimension_syntax()
@@ -173,6 +158,19 @@ fn canonical_source_bytes_with_aliases(
     }
 
     let mut budget = Budget::with_resolved_aliases(limits, resolved_aliases);
+    budget.operator_formals = operator_formals;
+    budget
+        .operator_formals
+        .extend(document.pure_operators().iter().map(|operator| {
+            (
+                operator.name().to_owned(),
+                operator
+                    .formals()
+                    .iter()
+                    .map(|formal| formal.name().to_owned())
+                    .collect(),
+            )
+        }));
     let dimensions = encode_dimensions(document.dimension_syntax(), &mut budget)?;
     let connectors = encode_sorted_records(document.connectors(), &mut budget, encode_connector)?;
     let property_contract_syntax = document.property_contract_syntax().collect::<Vec<_>>();
@@ -193,8 +191,7 @@ fn canonical_source_bytes_with_aliases(
         &mut budget,
         encode_material_composition,
     )?;
-    let pure_operators =
-        encode_sorted_records(document.pure_operators(), &mut budget, encode_pure_operator)?;
+    let pure_operators = encode_pure_operators(document, &mut budget)?;
     let components = encode_sorted_records(document.components(), &mut budget, encode_component)?;
     let models = encode_sorted_records(document.models(), &mut budget, encode_model)?;
 
@@ -976,16 +973,16 @@ mod tests {
     #[test]
     fn pure_operator_identity_is_definition_semantic_and_order_independent() {
         let first = r#"
-public pure operator outer(left: spatial[1], right: spatial[1]) -> spatial[2]
+public operator outer(input left: spatial[1], input right: spatial[1]): spatial[2]
   = component(left, 0) * component(right, 1);
-private pure operator scale(value: scalar) -> scalar
+private operator scale(input value: scalar): scalar
   = rational(2, 1) * component(value);
 model M() { parameter p: 1 = 1; }
 "#;
         let renamed_and_reordered = r#"
-private pure operator scale(x: scalar) -> scalar
+private operator scale(input x: scalar): scalar
   = rational(2, 1) * component(x);
-public pure operator outer(a: spatial[1], b: spatial[1]) -> spatial[2]
+public operator outer(input a: spatial[1], input b: spatial[1]): spatial[2]
   = component(a, 0) * component(b, 1);
 model M() { parameter p: 1 = 1; }
 "#;

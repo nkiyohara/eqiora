@@ -37,7 +37,11 @@ pub(crate) fn finite_spaces(
                     message,
                 )
             };
-            let ExprKind::Call { callee, arguments } = declaration.value().kind() else {
+            let ExprKind::Call {
+                callee,
+                arguments: eqiora_lang::CallArguments::Positional(arguments),
+            } = declaration.value().kind()
+            else {
                 return Err(invalid(
                     "finite space requires an orthonormal basis declaration",
                 ));
@@ -166,7 +170,11 @@ pub(crate) fn bind_finite_expressions(
 ) -> Result<(), Vec<Diagnostic>> {
     let mut errors = Vec::new();
     SourceAstFactory::visit_expressions(document, |_, expression| {
-        let ExprKind::Call { callee, arguments } = expression.kind() else {
+        let ExprKind::Call {
+            callee,
+            arguments: eqiora_lang::CallArguments::Positional(arguments),
+        } = expression.kind()
+        else {
             return;
         };
         if !matches!(callee.as_str(), "counts" | "coordinates") {
@@ -240,7 +248,11 @@ pub(crate) fn literal(
     let value_type = expression
         .resolved_nominal()
         .ok_or_else(|| invalid("nominal constructor requires exact lexical resolution"))?;
-    let ExprKind::Call { arguments, .. } = expression.kind() else {
+    let ExprKind::Call {
+        arguments: eqiora_lang::CallArguments::Positional(arguments),
+        ..
+    } = expression.kind()
+    else {
         return Err(invalid("nominal literal requires a constructor"));
     };
     let argument = arguments

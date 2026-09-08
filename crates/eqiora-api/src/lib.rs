@@ -745,14 +745,14 @@ model elastic_relation() {
     #[test]
     fn current_authoring_closes_generic_pure_operators() {
         let source = r#"
-public pure operator dyadic(left: spatial[1], right: spatial[1]) -> spatial[2]
+public operator dyadic(input left: spatial[1], input right: spatial[1]): spatial[2]
   = component(left, 0) * component(right, 1);
 model pure_relation() {
   domain body = box(0, 1, 0, 1);
   variable left: vector<1, 2> on body;
   variable right: vector<1, 2> on body;
   relation balance on body {
-    div(div(dyadic(left, right))) = 0;
+    div(div(dyadic(left = left, right = right))) = 0;
   }
 }
 "#;
@@ -761,7 +761,7 @@ model pure_relation() {
         let bytes = current.canonical_json().unwrap();
         let json = String::from_utf8_lossy(&bytes);
         assert!(json.contains("pure-operator-application"));
-        assert!(json.contains("eqiora.model-envelope/v17"));
+        assert!(json.contains("eqiora.model-envelope/v18"));
         let replay = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(replay.canonical_json().unwrap(), bytes);
         assert_eq!(replay.digest().unwrap(), current.digest().unwrap());
@@ -811,7 +811,7 @@ model pure_relation() {
         assert!(
             String::from_utf8(plan.transaction_json().unwrap())
                 .unwrap()
-                .contains("eqiora.model-transaction-envelope/v17")
+                .contains("eqiora.model-transaction-envelope/v18")
         );
 
         let result = document.commit_value_edit(plan.clone()).unwrap();

@@ -28,17 +28,19 @@ impl DraftExpression {
                     vec!["math".to_owned(), "complex".to_owned()],
                     ranges.allocate(path, paths),
                 ),
-                arguments: [*real, *imaginary]
-                    .into_iter()
-                    .map(|number| Expr {
-                        resolved_nominal: None,
-                        kind: ExprKind::Number(
-                            crate::DecimalLiteral::from_f64(number)
-                                .expect("validated native literal"),
-                        ),
-                        range: ranges.allocate(path, paths),
-                    })
-                    .collect(),
+                arguments: crate::CallArguments::Positional(
+                    [*real, *imaginary]
+                        .into_iter()
+                        .map(|number| Expr {
+                            resolved_nominal: None,
+                            kind: ExprKind::Number(
+                                crate::DecimalLiteral::from_f64(number)
+                                    .expect("validated native literal"),
+                            ),
+                            range: ranges.allocate(path, paths),
+                        })
+                        .collect(),
+                ),
             },
             DraftExpressionKind::Array(values) => ExprKind::Array(
                 values
@@ -59,11 +61,11 @@ impl DraftExpression {
             DraftExpressionKind::Reference(reference) => ExprKind::Name(reference.name.clone()),
             DraftExpressionKind::Derivative(reference) => ExprKind::Call {
                 callee: NamePath::single("derivative".to_owned(), ranges.allocate(path, paths)),
-                arguments: vec![Expr {
+                arguments: crate::CallArguments::Positional(vec![Expr {
                     resolved_nominal: None,
                     kind: ExprKind::Name(reference.name.clone()),
                     range: ranges.allocate(path, paths),
-                }],
+                }]),
             },
             DraftExpressionKind::Across(reference) => {
                 physical_accessor_ast("across", reference, path, ranges, paths)
@@ -76,7 +78,7 @@ impl DraftExpression {
                     operator.source_name().to_owned(),
                     ranges.allocate(path, paths),
                 ),
-                arguments: vec![value.ast(path, ranges, paths)],
+                arguments: crate::CallArguments::Positional(vec![value.ast(path, ranges, paths)]),
             },
             DraftExpressionKind::Unary { operator, value } => ExprKind::Unary {
                 op: *operator,

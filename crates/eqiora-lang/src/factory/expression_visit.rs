@@ -8,6 +8,9 @@ impl super::SourceAstFactory {
         document: &mut Document,
         mut visit: impl FnMut(Option<&str>, &mut Expr),
     ) {
+        for operator in &mut document.pure_operators {
+            expression(Some(operator.name.as_str()), &mut operator.body, &mut visit);
+        }
         for release in &mut document.property_releases {
             expression(None, &mut release.source_value, &mut visit);
         }
@@ -117,10 +120,19 @@ fn expression(
             expression(scope, value, visit);
             expression(scope, index, visit);
         }
-        ExprKind::Array(values)
-        | ExprKind::Call {
-            arguments: values, ..
-        } => {
+        ExprKind::Call { arguments, .. } => match arguments {
+            crate::CallArguments::Positional(values) => {
+                for value in values {
+                    expression(scope, value, visit);
+                }
+            }
+            crate::CallArguments::Named(bindings) => {
+                for binding in bindings {
+                    expression(scope, &mut binding.value, visit);
+                }
+            }
+        },
+        ExprKind::Array(values) => {
             for value in values {
                 expression(scope, value, visit);
             }

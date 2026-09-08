@@ -1,7 +1,32 @@
 use eqiora_core::Diagnostic;
 use eqiora_lang::NamePath;
 
-use super::{Budget, Encoder, as_u32, encode_name, encode_path, source_identity_error};
+use super::{
+    Budget, Encoder, LocalSourceIdentity, LocalSourceIdentityLimits, as_u32,
+    canonical_source_bytes_with_aliases, encode_name, encode_path, source_identity_error,
+};
+use eqiora_lang::Document;
+use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
+
+impl LocalSourceIdentity {
+    /// Compute a package declaration identity after structurally replacing
+    /// source import aliases in type references with exact target namespace
+    /// segments.
+    pub(crate) fn from_document_with_resolved_aliases(
+        document: &Document,
+        aliases: &BTreeMap<String, ResolvedAliasTarget>,
+        operator_formals: &BTreeMap<String, Vec<String>>,
+    ) -> Result<Self, Diagnostic> {
+        let canonical = canonical_source_bytes_with_aliases(
+            document,
+            LocalSourceIdentityLimits::default(),
+            aliases.clone(),
+            operator_formals.clone(),
+        )?;
+        Ok(Self(Sha256::digest(canonical).into()))
+    }
+}
 
 // Authored paths contain at most 256 segments, so the high bit is an
 // unambiguous structural discriminant rather than a name-like sentinel.
@@ -129,11 +154,13 @@ mod tests {
             LocalSourceIdentity::from_document_with_resolved_aliases(
                 &source("short"),
                 &aliases("short"),
+                &BTreeMap::new(),
             )
             .unwrap(),
             LocalSourceIdentity::from_document_with_resolved_aliases(
                 &source("renamed"),
                 &aliases("renamed"),
+                &BTreeMap::new(),
             )
             .unwrap(),
         );
@@ -151,6 +178,7 @@ mod tests {
             LocalSourceIdentity::from_document_with_resolved_aliases(
                 &document,
                 &BTreeMap::from([("dependency".to_owned(), target)]),
+                &BTreeMap::new(),
             )
             .expect("resolved source identity")
         };
