@@ -46,10 +46,10 @@ def test_indexed_sampled_equations_compile_from_text_and_file_and_resume(kind, t
     from_file = eqiora.compile(path=path, entry="Network")
     assert from_file.to_bytes() == model.to_bytes()
     output_name = "definition.values" if kind == "component" else "values"
-    session = model.sampled_session(end_time_s=2, max_step_s=0.1, inputs={})
+    session = model.execution_session(end_time_s=2, max_step_s=0.1, inputs={})
     assert session.output(output_name, 0) is None
     assert session.advance_ticks(1) == 1
-    resumed = from_file.resume_sampled(session.checkpoint())
+    resumed = from_file.resume_execution(session.checkpoint())
     # Cell i starts at zero and adds i+1 per phase-zero tick. Publication reads
     # next(memory), so the first published value already includes one update.
     expected = ((1, 2, 3), (2, 4, 6), (3, 6, 9))

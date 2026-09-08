@@ -721,23 +721,43 @@ class ClockDomain:
     def phase_s(self) -> Fraction: ...
 
 @final
-class SampledCheckpoint:
+class ExecutionCheckpoint:
     """An immutable in-memory reference checkpoint bound to its complete Model.
 
-    Authority: ``crates/eqiora-python/src/sampled_session.rs::PySampledCheckpoint``.
+    Authority: ``crates/eqiora-python/src/execution_session.rs::PyExecutionCheckpoint``.
     """
     ...
 
 @final
-class SampledSession:
-    """Bounded reference execution with explicit clock-indexed input and output tables.
+class ExecutionSession:
+    """Reference execution through fully stabilized boundaries with explicit input tables.
 
-    Authority: ``crates/eqiora-python/src/sampled_session.rs::PySampledSession``.
+    Authority: ``crates/eqiora-python/src/execution_session.rs::PyExecutionSession``.
     """
+    def advance(self) -> bool:
+        """Advance to the next stabilized boundary; false means completion.
+
+        Authority: ``crates/eqiora-python/src/execution_session.rs::PyExecutionSession``.
+        """
+        ...
+    @property
+    def progress(self) -> dict[str, float | int]:
+        """Fresh model_time, end_time, accepted_steps, maximum_steps observation.
+
+        Authority: ``crates/eqiora-python/src/execution_session.rs::PyExecutionSession``.
+        """
+        ...
+    @property
+    def activation_sequence(self) -> tuple[tuple[str, ...], ...]:
+        """Exact activation ULIDs per microstep at the last stabilized boundary.
+
+        Authority: ``crates/eqiora-python/src/execution_session.rs::PyExecutionSession``.
+        """
+        ...
     def advance_ticks(self, count: int) -> int: ...
     @property
     def next_tick(self) -> Fraction | None: ...
-    def checkpoint(self) -> SampledCheckpoint: ...
+    def checkpoint(self) -> ExecutionCheckpoint: ...
     def field(self, name: str) -> _TypedValue | None: ...
     def output(self, name: str, tick_index: int) -> tuple[Fraction, _TypedValue] | None: ...
 
@@ -761,11 +781,11 @@ class Model:
     def write(self, path: str | PathLike[str]) -> None: ...
     def preview_value_edit(self, target: str, value: _TypedValue) -> ValueEdit: ...
     def commit(self, edit: ValueEdit) -> Model: ...
-    def sampled_session(
+    def execution_session(
         self, *, end_time_s: float, max_step_s: float,
         inputs: dict[str, tuple[str, list[_TypedValue] | tuple[_TypedValue, ...]]],
-    ) -> SampledSession: ...
-    def resume_sampled(self, checkpoint: SampledCheckpoint) -> SampledSession: ...
+    ) -> ExecutionSession: ...
+    def resume_execution(self, checkpoint: ExecutionCheckpoint) -> ExecutionSession: ...
     def parameter(self, selection: str) -> ParameterRef: ...
     def field(self, selection: str) -> FieldRef: ...
     def domain(self, selection: str) -> DomainRef: ...
@@ -1785,8 +1805,8 @@ __all__ = [
     "CompatibilityError",
     "Connection",
     "ClockDomain",
-    "SampledSession",
-    "SampledCheckpoint",
+    "ExecutionSession",
+    "ExecutionCheckpoint",
     "ConservingPort",
     "ConvergenceReason",
     "DerivativeImplementation",

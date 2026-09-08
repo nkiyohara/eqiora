@@ -45,8 +45,8 @@ def test_coupled_array_updates_are_simultaneous_and_resume_exactly(domain, tmp_p
     permuted, _ = coupled_source(domain, reverse=True)
     reordered = eqiora.compile(source=permuted, entry="CoupledArrays")
     inputs = {"drive": ("tick", [(3, 4), (5, 6), (7, 8)])}
-    session = model.sampled_session(end_time_s=2, max_step_s=0.1, inputs=inputs)
-    other = reordered.sampled_session(end_time_s=2, max_step_s=0.1, inputs=inputs)
+    session = model.execution_session(end_time_s=2, max_step_s=0.1, inputs=inputs)
+    other = reordered.execution_session(end_time_s=2, max_step_s=0.1, inputs=inputs)
     # a'=(a[0]+drive[0], b[1]); b'=(a[1], b[0]+drive[1]),
     # with every RHS reading the same pre-tick pair.
     states = (
@@ -59,7 +59,7 @@ def test_coupled_array_updates_are_simultaneous_and_resume_exactly(domain, tmp_p
     assert session.advance_ticks(1) == other.advance_ticks(1) == 1
     assert session.field("a") == other.field("a") == states[1][0]
     assert session.field("b") == other.field("b") == states[1][1]
-    resumed = from_file.resume_sampled(session.checkpoint())
+    resumed = from_file.resume_execution(session.checkpoint())
     for index in (1, 2):
         for current in (session, other, resumed):
             assert current.advance_ticks(1) == 1
@@ -101,11 +101,11 @@ def overflow_source():
 
 def test_late_integer_array_overflow_keeps_the_entire_previous_tick():
     model = eqiora.compile(source=overflow_source(), entry="AtomicArrays")
-    session = model.sampled_session(end_time_s=2, max_step_s=0.1, inputs={})
+    session = model.execution_session(end_time_s=2, max_step_s=0.1, inputs={})
     assert session.advance_ticks(1) == 1
     assert session.field("safe") == (1.5, 1.75)
     assert session.field("count") == (5, 2**63 - 1)
-    resumed = model.resume_sampled(session.checkpoint())
+    resumed = model.resume_execution(session.checkpoint())
     for current in (session, resumed):
         for _ in range(2):
             # The second integer element overflows after a valid first element.
@@ -125,7 +125,7 @@ def test_integer_array_input_requires_exact_shape_and_component_types(sample):
     source, _ = coupled_source("integer")
     model = eqiora.compile(source=source, entry="CoupledArrays")
     with pytest.raises((TypeError, ValueError)):
-        model.sampled_session(end_time_s=2, max_step_s=0.1,
+        model.execution_session(end_time_s=2, max_step_s=0.1,
                               inputs={"drive": ("tick", [(3, 4), sample, (7, 8)])})
 
 

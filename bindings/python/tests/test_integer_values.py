@@ -168,13 +168,13 @@ def test_integer_sampled_state_output_and_resume_preserve_adjacent_values(tmp_pa
     source.write_eqi(path)
     restored = eqiora.compile(path=path, entry="ExactTicks")
     assert restored.to_bytes() == model.to_bytes()
-    session = model.sampled_session(end_time_s=1, max_step_s=0.1, inputs={})
+    session = model.execution_session(end_time_s=1, max_step_s=0.1, inputs={})
     assert session.output("observed", 0) is None
     assert session.advance_ticks(1) == 1
     assert type(session.field("memory")) is int
     assert session.field("memory") == initial + 1
     assert session.output("observed", 0) == (Fraction(0), initial)
-    resumed = restored.resume_sampled(session.checkpoint())
+    resumed = restored.resume_execution(session.checkpoint())
     assert resumed.advance_ticks(1) == session.advance_ticks(1) == 1
     assert resumed.field("memory") == session.field("memory") == initial + 2
     assert resumed.output("observed", 1) == (Fraction(1), initial + 1)

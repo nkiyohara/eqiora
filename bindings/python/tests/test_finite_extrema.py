@@ -52,9 +52,9 @@ def test_extrema_exact_integer_edit_file_replay_and_sampled_resume(operation, of
     source.write_eqi(path)
     from_file = eqiora.compile(path=path, entry="Extrema")
     assert from_file.to_bytes() == model.to_bytes()
-    session = model.sampled_session(end_time_s=2, max_step_s=0.1, inputs={})
+    session = model.execution_session(end_time_s=2, max_step_s=0.1, inputs={})
     assert session.advance_ticks(1) == 1
-    resumed = from_file.resume_sampled(session.checkpoint())
+    resumed = from_file.resume_execution(session.checkpoint())
     for current in (session, resumed):
         assert current.advance_ticks(2) == 2
         for tick in range(3):
@@ -71,7 +71,7 @@ def test_extrema_exact_integer_edit_file_replay_and_sampled_resume(operation, of
         assert original.parameter(parameter_id).value == 2**53 + 1
         assert eqiora.Model.from_bytes(changed.to_bytes()).digest == changed.digest
     changed = model.commit(model.preview_value_edit(parameter_id, 2**53 + 3))
-    updated = changed.sampled_session(end_time_s=0.1, max_step_s=0.1, inputs={})
+    updated = changed.execution_session(end_time_s=0.1, max_step_s=0.1, inputs={})
     assert updated.advance_ticks(1) == 1
     assert updated.output("result", 0)[1] == 2**53 + 3 + offset
 
@@ -87,7 +87,7 @@ def test_extrema_dimensioned_real_values_keep_their_complete_unit(operation, exp
     owner.relation("emit", at=tick, left=out,
                    right=getattr(owner, operation)(lambda i: lengths[q.ordinal(i)], over=rows))
     model = eqiora.compile(source=source, entry="Lengths")
-    session = model.sampled_session(end_time_s=0.1, max_step_s=0.1, inputs={})
+    session = model.execution_session(end_time_s=0.1, max_step_s=0.1, inputs={})
     assert session.advance_ticks(1) == 1
     assert session.output("result", 0) == (Fraction(0), expected)
 
@@ -103,7 +103,7 @@ def test_extrema_evaluate_every_operand_and_do_not_publish_a_failed_tick(operati
     owner.relation("emit", at=tick, left=out, right=getattr(owner, operation)(
         lambda i: q.quotient(10, denominators[q.ordinal(i)]), over=rows))
     model = eqiora.compile(source=source, entry="Eager")
-    session = model.sampled_session(end_time_s=1, max_step_s=0.1,
+    session = model.execution_session(end_time_s=1, max_step_s=0.1,
                                     inputs={"denominators": ("tick", [(1, 2), (1, 0)])})
     assert session.advance_ticks(1) == 1
     assert session.output("result", 0)[1] == (5 if operation == "min" else 10)

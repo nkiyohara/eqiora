@@ -1,8 +1,8 @@
-//! Thin Python adapter to reference sampled sessions and in-memory checkpoints.
+//! Thin Python adapter to reference execution sessions and in-memory checkpoints.
 
 use eqiora::api::ModelDocument;
 use eqiora::kernel::{KernelNode, SignalDirection};
-use eqiora::sem::{ReferenceConfig, SampledSession};
+use eqiora::sem::{ExecutionSession, ReferenceConfig};
 use eqiora::{EntityKind, RawId};
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
@@ -12,27 +12,27 @@ use crate::{diagnostic_error, modeling::value_literal};
 
 /// Mutable reference execution session bound to one exact compiled Model.
 #[pyclass(
-    name = "SampledSession",
+    name = "ExecutionSession",
     module = "eqiora._eqiora",
     skip_from_py_object
 )]
-pub(crate) struct PySampledSession {
+pub(crate) struct PyExecutionSession {
     document: ModelDocument,
-    value: SampledSession,
+    value: ExecutionSession,
 }
 
 /// Immutable in-memory snapshot resumable only against its exact compiled Model.
 #[pyclass(
-    name = "SampledCheckpoint",
+    name = "ExecutionCheckpoint",
     module = "eqiora._eqiora",
     frozen,
     skip_from_py_object
 )]
-pub(crate) struct PySampledCheckpoint {
-    value: SampledSession,
+pub(crate) struct PyExecutionCheckpoint {
+    value: ExecutionSession,
 }
 
-fn session_repr(name: &str, value: &SampledSession) -> String {
+fn session_repr(name: &str, value: &ExecutionSession) -> String {
     let next = value.next_tick().map_or_else(
         || "None".to_owned(),
         |time| format!("Fraction({}, {})", time.numerator(), time.denominator()),
@@ -41,9 +41,9 @@ fn session_repr(name: &str, value: &SampledSession) -> String {
 }
 
 #[pymethods]
-impl PySampledCheckpoint {
+impl PyExecutionCheckpoint {
     fn __repr__(&self) -> String {
-        session_repr("SampledCheckpoint", &self.value)
+        session_repr("ExecutionCheckpoint", &self.value)
     }
 }
 
@@ -64,7 +64,7 @@ pub(crate) fn start(
     end_time_s: f64,
     max_step_s: f64,
     inputs: &Bound<'_, PyDict>,
-) -> PyResult<PySampledSession> {
+) -> PyResult<PyExecutionSession> {
     let config = ReferenceConfig::new(end_time_s, max_step_s)
         .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
     let mut tables = Vec::new();
@@ -109,9 +109,9 @@ pub(crate) fn start(
         tables.push((input, clock, values));
     }
     let value = py
-        .detach(|| document.sampled_session(config, tables))
+        .detach(|| document.execution_session(config, tables))
         .map_err(|diagnostics| diagnostic_error(py, &diagnostics))?;
-    Ok(PySampledSession {
+    Ok(PyExecutionSession {
         document: document.clone(),
         value,
     })
@@ -120,21 +120,51 @@ pub(crate) fn start(
 pub(crate) fn resume(
     py: Python<'_>,
     document: &ModelDocument,
-    checkpoint: &PySampledCheckpoint,
-) -> PyResult<PySampledSession> {
+    checkpoint: &PyExecutionCheckpoint,
+) -> PyResult<PyExecutionSession> {
     let value = py
-        .detach(|| document.resume_sampled(&checkpoint.value))
+        .detach(|| document.resume_execution(&checkpoint.value))
         .map_err(|diagnostics| diagnostic_error(py, &diagnostics))?;
-    Ok(PySampledSession {
+    Ok(PyExecutionSession {
         document: document.clone(),
         value,
     })
 }
 
 #[pymethods]
-impl PySampledSession {
+impl PyExecutionSession {
     fn __repr__(&self) -> String {
-        session_repr("SampledSession", &self.value)
+        session_repr("ExecutionSession", &self.value)
+    }
+
+    /// Advance to the next fully stabilized boundary; false means execution is complete.
+    fn advance(&mut self, py: Python<'_>) -> PyResult<bool> {
+        py.detach(|| self.value.advance())
+            .map_err(|diagnostics| diagnostic_error(py, &diagnostics))
+    }
+
+    /// Fresh observation of the last accepted boundary, without mutable execution state.
+    #[getter]
+    fn progress(&self, py: Python<'_>) -> PyResult<Py<PyDict>> {
+        let progress = self.value.progress();
+        let result = PyDict::new(py);
+        result.set_item("model_time", progress.model_time())?;
+        result.set_item("end_time", progress.end_time())?;
+        result.set_item("accepted_steps", progress.accepted_steps())?;
+        result.set_item("maximum_steps", progress.maximum_steps())?;
+        Ok(result.unbind())
+    }
+
+    /// Exact activation ULIDs grouped by microstep at the last stabilized boundary.
+    #[getter]
+    fn activation_sequence(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        let steps = self
+            .value
+            .activation_sequence()
+            .iter()
+            .map(|step| PyTuple::new(py, step.iter().map(|id| id.ulid().to_string())))
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(PyTuple::new(py, steps)?.unbind())
     }
 
     fn advance_ticks(&mut self, py: Python<'_>, count: usize) -> PyResult<usize> {
@@ -156,8 +186,8 @@ impl PySampledSession {
             .transpose()
     }
 
-    fn checkpoint(&self) -> PySampledCheckpoint {
-        PySampledCheckpoint {
+    fn checkpoint(&self) -> PyExecutionCheckpoint {
+        PyExecutionCheckpoint {
             value: self.value.checkpoint(),
         }
     }

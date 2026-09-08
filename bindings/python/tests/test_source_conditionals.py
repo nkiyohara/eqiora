@@ -91,7 +91,7 @@ def test_guarded_sqrt_authors_portable_call_and_typed_threshold():
 @pytest.mark.parametrize("value,expected", ((4, 2.0), (-1, 0.0)))
 def test_guarded_sqrt_compiles_and_executes_only_selected_branch(value, expected):
     model = eqiora.compile(source=guarded_sqrt_source(value), entry="Guarded")
-    session = model.sampled_session(end_time_s=0.1, max_step_s=0.1, inputs={})
+    session = model.execution_session(end_time_s=0.1, max_step_s=0.1, inputs={})
     assert session.advance_ticks(1) == 1
     assert session.output("result", 0)[1] == expected
 

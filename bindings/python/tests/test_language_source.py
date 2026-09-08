@@ -1286,7 +1286,7 @@ def test_source_model_sampled_signature_and_exact_snapshot_resume(tmp_path):
     source.write_eqi(path)
     emitted = eqiora.compile(path=path, entry="Sampled", bindings={"tick": clock})
     assert emitted.digest == model.digest
-    session = model.sampled_session(end_time_s=0.2, max_step_s=0.01,
+    session = model.execution_session(end_time_s=0.2, max_step_s=0.01,
                                     inputs={"drive": ("tick", [1.0, 2.0, 3.0])})
     assert session.output("observed", 0) is None
     assert session.next_tick == Fraction(0)
@@ -1294,7 +1294,7 @@ def test_source_model_sampled_signature_and_exact_snapshot_resume(tmp_path):
     assert session.output("observed", 0) == (Fraction(0), 0.0)
     assert session.field("memory") == 1.0
     snapshot = session.checkpoint()
-    resumed = emitted.resume_sampled(snapshot)
+    resumed = emitted.resume_execution(snapshot)
     assert session.advance_ticks(2) == resumed.advance_ticks(2) == 2
     assert resumed.field("memory") == session.field("memory") == 6.0
     assert resumed.output("observed", 1) == (Fraction(1, 10), 1.0)
@@ -1303,7 +1303,7 @@ def test_source_model_sampled_signature_and_exact_snapshot_resume(tmp_path):
     changed = eqiora.compile(source=text, entry="Sampled",
                              bindings={"tick": eqiora.ClockDomain(period_s=Fraction(1, 10))})
     with pytest.raises(eqiora.EqioraError):
-        changed.resume_sampled(snapshot)
+        changed.resume_execution(snapshot)
 
 
 def test_source_signature_borrowing_and_forward_defaults_use_exact_handles():
@@ -1333,7 +1333,7 @@ def test_source_signature_borrowing_and_forward_defaults_use_exact_handles():
     assert "field memory =" not in text
     compiled = eqiora.compile(source=source, entry="Root")
     assert len(compiled.field_ids) == 1
-    session = compiled.sampled_session(end_time_s=0.1, max_step_s=0.01, inputs={})
+    session = compiled.execution_session(end_time_s=0.1, max_step_s=0.01, inputs={})
     assert session.advance_ticks(2) == 2
     assert session.field("memory") == 4.0
 
