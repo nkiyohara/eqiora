@@ -59,6 +59,17 @@ impl ScalarOperatorIr {
                         .ok_or_else(|| {
                             ir_builder_error("pure operator definition is unavailable")
                         })?;
+                    let retained = &definitions[definition];
+                    if !retained.result_rule().is_invariant_scalar()
+                        || retained
+                            .formals()
+                            .iter()
+                            .any(|formal| !formal.is_invariant_scalar())
+                    {
+                        return Err(ir_builder_error(
+                            "tensor pure operators require component expansion before scalar execution",
+                        ));
+                    }
                     let arguments = application.arguments();
                     if array_operands
                         .len()

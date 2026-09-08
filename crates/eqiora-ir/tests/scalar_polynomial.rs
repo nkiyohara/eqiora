@@ -175,3 +175,64 @@ fn finite_partial_does_not_evaluate_an_unused_overflowing_primal() {
         [2e200, 2.]
     );
 }
+
+#[test]
+fn partial_keeps_live_product_rule_order_instead_of_floating_reassociation() {
+    let scalar = PureValueClass::invariant_scalar();
+    let mut definition = CalculusBuilder::new([scalar], scalar).unwrap();
+    let x = definition
+        .push(CalculusNode::FormalComponent {
+            formal: 0,
+            axes: Box::new([]),
+        })
+        .unwrap();
+    let big = definition
+        .push(CalculusNode::Rational(ExactRational::integer(
+            10_000_000_000_000_000,
+        )))
+        .unwrap();
+    let product = definition.push(CalculusNode::Mul(big, x)).unwrap();
+    let sum = definition.push(CalculusNode::Add(product, x)).unwrap();
+    let neg = definition.push(CalculusNode::Neg(product)).unwrap();
+    let root = definition.push(CalculusNode::Add(sum, neg)).unwrap();
+    let definition = definition.finish(root).unwrap();
+    let types = [ExpressionType::<()>::scalar(
+        DimExponents::DIMENSIONLESS,
+        None,
+    )];
+    let scalar = definition
+        .instantiate(&types)
+        .unwrap()
+        .component(&[])
+        .unwrap();
+    let mut builder = ExprDagBuilder::new();
+    let x = builder
+        .constant(DynQuantity::new(1., DimExponents::DIMENSIONLESS))
+        .unwrap();
+    let (first, _) = scalar.partial(&mut builder, &[x], 0, 1).unwrap();
+    let dag = builder.finish([first]).unwrap();
+    // Binary64 evaluates (1e16 + 1) - 1e16 as 0. Exact normalization to 1
+    // would change executable floating semantics and belongs only to proof.
+    assert_eq!(
+        ScalarOperatorIr::lower(&dag)
+            .unwrap()
+            .evaluate(&[])
+            .unwrap(),
+        [0.]
+    );
+}
+
+#[test]
+fn tensor_applications_still_require_existing_component_expansion() {
+    use eqiora_schema::kernel::{SymbolRef, pure_operator::PureOperatorDefinition};
+    let mut builder = ExprDagBuilder::new();
+    let tensor = builder
+        .symbol(SymbolRef::Field(eqiora_core::Id::new()))
+        .unwrap();
+    let root = builder
+        .pure_operator(&PureOperatorDefinition::symmetric_part().unwrap(), [tensor])
+        .unwrap();
+    let dag = builder.finish([root]).unwrap();
+    let error = ScalarOperatorIr::lower(&dag).unwrap_err();
+    assert!(error.to_string().contains("component expansion"));
+}
