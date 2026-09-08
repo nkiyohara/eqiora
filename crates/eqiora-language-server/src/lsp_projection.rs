@@ -70,6 +70,8 @@ pub(crate) const fn symbol_kind(kind: EditorSymbolKind) -> SymbolKind {
     match kind {
         EditorSymbolKind::Import => SymbolKind::NAMESPACE,
         EditorSymbolKind::Dimension => SymbolKind::TYPE_PARAMETER,
+        EditorSymbolKind::Enum => SymbolKind::ENUM,
+        EditorSymbolKind::EnumMember => SymbolKind::ENUM_MEMBER,
         EditorSymbolKind::Property | EditorSymbolKind::Parameter => SymbolKind::PROPERTY,
         EditorSymbolKind::Material => SymbolKind::OBJECT,
         EditorSymbolKind::Connector => SymbolKind::INTERFACE,
@@ -90,6 +92,8 @@ pub(crate) const fn symbol_label(kind: EditorSymbolKind) -> &'static str {
     match kind {
         EditorSymbolKind::Import => "Import",
         EditorSymbolKind::Dimension => "Dimension",
+        EditorSymbolKind::Enum => "Enum",
+        EditorSymbolKind::EnumMember => "Enum member",
         EditorSymbolKind::Property => "Property",
         EditorSymbolKind::Material => "Material",
         EditorSymbolKind::Connector => "Connector",
