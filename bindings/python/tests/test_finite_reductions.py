@@ -18,13 +18,13 @@ def test_reduction_callback_is_called_once_and_body_is_symbolic():
     seen = []
     def body(i):
         seen.append(i)
-        return (q.ordinal(i) + 1) ** 2
+        return (q.ordinal(i) + 1) * (q.ordinal(i) + 1)
     result = owner.sum(body, over=rows)
     assert len(seen) == 1
     observed = owner.field("observed", role=eqiora.FieldRole.Variable,
                            value_type=eqiora.ValueType.integer())
     owner.relation("observe", left=observed, right=result)
-    assert "sum((ordinal(i) + 1) ^ 2, over = (i in Rows))" in source.to_eqi()
+    assert "sum((ordinal(i) + 1) * (ordinal(i) + 1), over = (i in Rows))" in source.to_eqi()
     with pytest.raises(AttributeError):
         seen[0].anything = 1
     with pytest.raises(TypeError, match="truth"):
@@ -36,7 +36,7 @@ def test_finite_reduction_source_file_and_sampled_execution(operation, tmp_path)
     source, owner, rows = owner_and_rows()
     tick = owner.clock("tick", period_s=1)
     out = owner.output("result", value_type=eqiora.ValueType.integer(), at=tick)
-    reduced = getattr(owner, operation)(lambda i: (q.ordinal(i) + 1) ** 2, over=rows)
+    reduced = getattr(owner, operation)(lambda i: (q.ordinal(i) + 1) * (q.ordinal(i) + 1), over=rows)
     owner.relation("emit", at=tick, left=out, right=reduced)
     model = eqiora.compile(source=source, entry="Reduction")
     path = tmp_path / "reduction.eqi"
