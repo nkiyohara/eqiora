@@ -2,7 +2,17 @@
 
 use super::*;
 
-pub(super) fn encode_pure_operator(
+pub(super) fn encode_pure_operators(
+    document: &Document,
+    budget: &mut Budget,
+) -> Result<Vec<Vec<u8>>, Diagnostic> {
+    let definitions = crate::pure_operator::compile_definitions("<source-identity>", document)?;
+    encode_sorted_records(document.pure_operators(), budget, |declaration, budget| {
+        encode_pure_operator(declaration, &definitions[declaration.name()], budget)
+    })
+}
+
+fn encode_pure_operator(
     declaration: &PureOperatorDecl,
     definition: &eqiora_schema::kernel::pure_operator::PureOperatorDefinition,
     budget: &mut Budget,

@@ -271,7 +271,10 @@ fn value_class(
                     "operator scalar contracts require ordinary real scalar types",
                 ));
             }
-            Ok(PureValueClass::invariant_scalar().with_dimension(value_type.dimension()))
+            PureValueClass::invariant_scalar()
+                .with_dimension(value_type.dimension())
+                .with_scalar_domain(eqiora_core::ScalarDomain::Real)
+                .map_err(|error| kernel_error(file, range, error))
         }
         _ => Err(pure_error(file, range, "unsupported operator value class")),
     }

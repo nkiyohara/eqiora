@@ -18,7 +18,7 @@ mod compile_time;
 mod component_item;
 use component_item::encode_component_item;
 mod declarations;
-use declarations::{encode_component, encode_connector, encode_pure_operator};
+use declarations::{encode_component, encode_connector, encode_pure_operators};
 mod dimension;
 mod domain;
 pub(crate) mod formulation;
@@ -48,7 +48,6 @@ use crate::connection_sets::{
     ConnectionFragment, ConnectionSetError, ConnectionSetLimits, normalize_connection_sets,
 };
 use crate::identity::IdentityNamespace;
-use crate::pure_operator::compile_definitions;
 pub(crate) use alias::ResolvedAliasTarget;
 use alias::encode_type_path;
 use compile_time::{encode_let, encode_parameter};
@@ -193,16 +192,7 @@ fn canonical_source_bytes_with_aliases(
         &mut budget,
         encode_material_composition,
     )?;
-    let pure_operators = {
-        let definitions = compile_definitions("<source-identity>", document)?;
-        encode_sorted_records(
-            document.pure_operators(),
-            &mut budget,
-            |declaration, budget| {
-                encode_pure_operator(declaration, &definitions[declaration.name()], budget)
-            },
-        )?
-    };
+    let pure_operators = encode_pure_operators(document, &mut budget)?;
     let components = encode_sorted_records(document.components(), &mut budget, encode_component)?;
     let models = encode_sorted_records(document.models(), &mut budget, encode_model)?;
 

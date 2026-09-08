@@ -25,6 +25,16 @@ fn typed_polynomial_calls_preserve_named_order_and_live_operands() {
     assert!(
         relation
             .expression()
+            .definitions()
+            .values()
+            .all(|definition| definition
+                .formals()
+                .iter()
+                .all(|formal| formal.scalar_domain() == Some(eqiora_core::ScalarDomain::Real)))
+    );
+    assert!(
+        relation
+            .expression()
             .nodes()
             .iter()
             .any(|node| matches!(node, ExprNode::PureOperatorApplication(_)))
@@ -69,6 +79,7 @@ fn named_call_failures_do_not_coerce_or_capture() {
         "conductivity(x=20[K],x=20[K],k0=10[W/m/K],a=0.01[1/K])",
         "conductivity(x=20[m],k0=10[W/m/K],a=0.01[1/K])",
         "conductivity(x=to_integer(20),k0=10[W/m/K],a=0.01[1/K])",
+        "conductivity(x=math.complex(20[K],0[K]),k0=10[W/m/K],a=0.01[1/K])",
     ] {
         assert!(
             compile(
