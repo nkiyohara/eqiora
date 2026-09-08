@@ -261,7 +261,10 @@ pub struct ScalarOperatorIr {
     source_values: Vec<ValueId>,
     typed_constants: Vec<eqiora_core::ValueLiteral>,
     array_operands: Vec<ValueId>,
-    definitions: Vec<eqiora_schema::kernel::pure_operator::PureOperatorDefinition>,
+    definitions: Vec<(
+        eqiora_schema::kernel::pure_operator::OperatorDefinitionDigest,
+        eqiora_schema::kernel::pure_operator::PureOperatorDefinition,
+    )>,
     symbols: Vec<SymbolRef>,
     instructions: Vec<Instruction>,
     roots: Vec<ValueId>,

@@ -15,11 +15,13 @@ struct Jet {
 impl<I: Clone> ScalarCalculus<I> {
     /// Append the ordered first or second formal derivative as an ordinary DAG.
     /// The returned type includes the exact quotient of physical dimensions.
-    /// Product-rule terms retain their order; no floating reassociation occurs.
+    /// Arguments substitute the corresponding checked formal types. Only work
+    /// reachable from the requested derivative is appended. Product-rule terms
+    /// retain their order; no floating reassociation occurs.
     ///
     /// # Errors
     /// Rejects non-real or shaped formals/results, unsupported orders, wrong
-    /// arity, invalid argument IDs, and unrepresentable derivative dimensions.
+    /// arity, invalid derivative operands, and unrepresentable derivative dimensions.
     pub fn partial(
         &self,
         builder: &mut ExprDagBuilder,

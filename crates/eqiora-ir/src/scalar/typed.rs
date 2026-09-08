@@ -116,7 +116,7 @@ impl ScalarOperatorIr {
                         start,
                         len,
                     } => {
-                        let definition = &self.definitions[definition as usize];
+                        let definition = &self.definitions[definition as usize].1;
                         let arguments = self.array_operands
                             [start as usize..start as usize + len as usize]
                             .iter()

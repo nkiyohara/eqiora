@@ -15,8 +15,8 @@ impl ScalarOperatorIr {
     pub fn lower(expression: &ExprDag) -> Result<Self, Diagnostic> {
         let definitions = expression
             .definitions()
-            .values()
-            .cloned()
+            .iter()
+            .map(|(digest, definition)| (*digest, definition.clone()))
             .collect::<Vec<_>>();
         let mut typed_constants = Vec::new();
         let mut array_operands = Vec::new();
@@ -54,12 +54,9 @@ impl ScalarOperatorIr {
                 }
                 ExprNode::PureOperatorApplication(application) => {
                     let definition = definitions
-                        .iter()
-                        .position(|definition| definition.digest() == application.definition())
-                        .ok_or_else(|| {
-                            ir_builder_error("pure operator definition is unavailable")
-                        })?;
-                    let retained = &definitions[definition];
+                        .binary_search_by_key(&application.definition(), |(digest, _)| *digest)
+                        .map_err(|_| ir_builder_error("pure operator definition is unavailable"))?;
+                    let retained = &definitions[definition].1;
                     if !retained.result_rule().is_invariant_scalar()
                         || retained
                             .formals()
