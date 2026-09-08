@@ -349,4 +349,33 @@ mod tests {
             .is_err()
         );
     }
+    #[test]
+    fn indexed_selection_retains_exact_nominal_constructor_metadata() {
+        let reduction = expression("sum(ordinal(i), over = (i in Stages))");
+        let ExprKind::Reduction { binder, .. } = reduction.kind() else {
+            panic!("reduction")
+        };
+        let mut constructor = expression("index(Stages, ordinal(i))");
+        let exact_type = eqiora_core::ValueType::index(eqiora_core::Id::new(), 4).unwrap();
+        let declaration = NamePath::from_segments(["Stages"], constructor.range()).unwrap();
+        SourceAstFactory::bind_nominal_expression(
+            &mut constructor,
+            &declaration,
+            exact_type.clone(),
+        )
+        .unwrap();
+        let result = instantiate("test", &constructor, binder, 3).unwrap();
+        assert_eq!(result.resolved_nominal(), Some(&exact_type));
+        assert_eq!(result.range(), constructor.range());
+        let ExprKind::Call { arguments, .. } = result.kind() else {
+            panic!("index")
+        };
+        assert_eq!(
+            arguments[0],
+            match constructor.kind() {
+                ExprKind::Call { arguments, .. } => arguments[0].clone(),
+                _ => unreachable!(),
+            }
+        );
+    }
 }
