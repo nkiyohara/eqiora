@@ -4,6 +4,8 @@
 //! graph identity, instance path, or provenance. Required public Parameters
 //! are checked separately as symbolic interface obligations.
 
+mod specialization;
+
 use std::collections::BTreeMap;
 
 use eqiora_core::Diagnostic;
@@ -43,7 +45,8 @@ pub(super) fn validate(
         }
     };
     validate_connectors(elaborator, &mut diagnostics);
-    let body_proofs = validate_definition_bodies_and_parameters(elaborator, &mut diagnostics);
+    let body_proofs =
+        validate_definition_bodies_and_parameters(elaborator, checked.as_ref(), &mut diagnostics);
     if let Some(checked) = checked.as_ref() {
         super::physical_closure::validate(checked, &body_proofs, &mut diagnostics);
     }
@@ -58,6 +61,7 @@ pub(super) fn validate(
 
 fn validate_definition_bodies_and_parameters(
     elaborator: &Elaborator<'_>,
+    checked: Option<&CheckedDefinitionGraph>,
     diagnostics: &mut BoundedDiagnostics,
 ) -> super::body_check::DefinitionBodyProofs {
     let mut body_proofs = super::body_check::DefinitionBodyProofs::default();
@@ -103,21 +107,47 @@ fn validate_definition_bodies_and_parameters(
                     diagnostics.extend(errors);
                     continue;
                 }
-                if let (Some(supports), Some(fields)) =
-                    (support_interfaces.get(key), field_interfaces.get(key))
-                {
-                    match super::body_check::validate_component_body(
-                        elaborator, definition, &values, supports, fields,
-                    ) {
-                        Ok(proof) => {
-                            body_proofs.components.insert(key.clone(), proof);
-                        }
-                        Err(errors) => diagnostics.extend(errors),
-                    }
-                }
                 body_values.insert(key.clone(), values);
             }
             Err(errors) => diagnostics.extend(errors),
+        }
+    }
+
+    let contexts = if let Some(checked) = checked
+        && elaborator.components().any(|(key, definition)| {
+            body_values
+                .get(key)
+                .is_some_and(|values| specialization::needs_context(definition, values))
+        }) {
+        match super::definition_graph::component_contexts(elaborator, checked) {
+            Ok(contexts) => contexts,
+            Err(errors) => {
+                diagnostics.extend(errors);
+                BTreeMap::new()
+            }
+        }
+    } else {
+        BTreeMap::new()
+    };
+    for (key, definition) in elaborator.components() {
+        if let (Some(values), Some(supports), Some(fields)) = (
+            body_values.get(key),
+            support_interfaces.get(key),
+            field_interfaces.get(key),
+        ) {
+            match specialization::validate(
+                elaborator,
+                definition,
+                values,
+                contexts.get(key).map(Vec::as_slice),
+                supports,
+                fields,
+            ) {
+                Ok(proof) => {
+                    body_proofs.components.insert(key.clone(), proof);
+                }
+                Err(errors) => diagnostics.extend(errors),
+            }
         }
     }
 

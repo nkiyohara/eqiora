@@ -17,6 +17,29 @@ pub(in crate::hierarchy) fn selected_expansion_size(
     checked: &CheckedDefinitionGraph,
     model: &ModelDefinition<'_>,
 ) -> Result<super::super::preflight::ExpansionSize, Vec<Diagnostic>> {
+    selected_expansion_size_with_contexts(elaborator, checked, model, None)
+}
+
+pub(in crate::hierarchy) type ComponentContexts =
+    BTreeMap<DefinitionKey, Vec<SymbolicParameterMap>>;
+
+pub(in crate::hierarchy) fn component_contexts(
+    elaborator: &Elaborator<'_>,
+    checked: &CheckedDefinitionGraph,
+) -> Result<ComponentContexts, Vec<Diagnostic>> {
+    let mut contexts = ComponentContexts::new();
+    for (_, model) in elaborator.models() {
+        selected_expansion_size_with_contexts(elaborator, checked, model, Some(&mut contexts))?;
+    }
+    Ok(contexts)
+}
+
+fn selected_expansion_size_with_contexts(
+    elaborator: &Elaborator<'_>,
+    checked: &CheckedDefinitionGraph,
+    model: &ModelDefinition<'_>,
+    contexts: Option<&mut ComponentContexts>,
+) -> Result<super::super::preflight::ExpansionSize, Vec<Diagnostic>> {
     let mut values =
         parameters::resolve_model_parameters_symbolically(model.file, model.declaration, |name| {
             clocks::model(model.file, model.declaration, name)
@@ -24,11 +47,16 @@ pub(in crate::hierarchy) fn selected_expansion_size(
     parameters::resolve_model_lets(model.file, model.declaration, &mut values, |name| {
         clocks::model(model.file, model.declaration, name)
     })?;
+    let context_count = contexts
+        .as_ref()
+        .map_or(0, |contexts| contexts.values().map(Vec::len).sum());
     let mut preflight = Selected {
         elaborator,
         checked,
         cache: Vec::new(),
         indexed_subtrees: BTreeMap::new(),
+        contexts,
+        context_count,
     };
     let mut diagnostics = Vec::new();
     let mut local = model_local_footprint(elaborator, model, &mut diagnostics, Some(&values));
@@ -100,13 +128,15 @@ pub(in crate::hierarchy) fn selected_expansion_size(
     })
 }
 
-struct Selected<'a, 'd> {
+struct Selected<'a, 'd, 'c> {
     elaborator: &'a Elaborator<'d>,
     checked: &'a CheckedDefinitionGraph,
     cache: Vec<(DefinitionKey, Values, DefinitionSummary)>,
     indexed_subtrees: BTreeMap<DefinitionKey, (bool, bool)>,
+    contexts: Option<&'c mut ComponentContexts>,
+    context_count: usize,
 }
-impl Selected<'_, '_> {
+impl Selected<'_, '_, '_> {
     fn structural_profile(
         &mut self,
         component: &ComponentDefinition<'_>,
@@ -331,6 +361,18 @@ impl Selected<'_, '_> {
             &mut values,
             |name| clocks::component(component.file, component.declaration, name),
         )?;
+        if let Some(contexts) = self.contexts.as_mut() {
+            if self.context_count >= self.elaborator.limits.max_definition_reachability_pairs {
+                return Err(vec![definition_error(
+                    "concrete Component contexts exceed the definition reachability limit",
+                )]);
+            }
+            self.context_count += 1;
+            contexts
+                .entry(key.clone())
+                .or_default()
+                .push(values.clone());
+        }
         let mut diagnostics = Vec::new();
         let (mut local, local_connectors) =
             component_local_footprint(self.elaborator, component, &mut diagnostics, Some(&values));
