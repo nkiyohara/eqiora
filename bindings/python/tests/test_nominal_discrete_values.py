@@ -36,7 +36,10 @@ def test_native_finite_space_values_preserve_identity_and_exact_components():
     reference = model.parameter("population")
     assert reference.value_type == counts
     assert reference.value == values
-    assert eqiora.Model.from_bytes(model.to_bytes()).parameter("population").value_type == counts
+    replayed = eqiora.Model.from_bytes(model.to_bytes())
+    assert replayed.digest == model.digest
+    assert replayed.parameter(reference.id).value_type == counts
+    assert replayed.parameter(reference.id).value == values
     changed = model.commit(model.preview_value_edit("population", (values[0] + 1, values[1])))
     assert changed.parameter("population").value == (2**53 + 2, 2**53 + 2)
     assert reference.value == values
@@ -63,9 +66,13 @@ def test_native_index_set_values_are_exact_bounded_and_nominal():
     assert kind != eqiora.ValueType.index(other)
     parameter = eqiora.Parameter("selected", value_type=kind, value=2)
     model = native_model("Index", rows, parameter)
-    assert model.parameter("selected").value == 2
-    assert model.parameter("selected").value_type == kind
-    assert eqiora.Model.from_bytes(model.to_bytes()).parameter("selected").value_type == kind
+    reference = model.parameter("selected")
+    assert reference.value == 2
+    assert reference.value_type == kind
+    replayed = eqiora.Model.from_bytes(model.to_bytes())
+    assert replayed.digest == model.digest
+    assert replayed.parameter(reference.id).value_type == kind
+    assert replayed.parameter(reference.id).value == 2
     for invalid in (-1, 3, True, 1.0):
         with pytest.raises((TypeError, ValueError, OverflowError)):
             model.preview_value_edit("selected", invalid)

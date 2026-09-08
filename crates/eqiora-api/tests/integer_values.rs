@@ -13,15 +13,15 @@ fn integer(value: i64) -> ValueLiteral {
 fn indexset_extent_parameters_reject_edits_before_and_after_replay() {
     let source = "model Extent() { parameter n: integer = 3; parameter probe: integer = 7; let count = n + 1; indexset Rows = range(count); variable observed: 1; relation observe { observed = to_real(probe); } }";
     let original = ModelDocument::compile("extent.eqi", source).unwrap();
+    let n = original.aliases()["n"];
+    let probe = original.aliases()["probe"];
     let original_bytes = original.canonical_json().unwrap();
     let replayed = ModelDocument::replay(&original_bytes).unwrap();
     for model in [original, replayed] {
-        let n = model.aliases()["n"];
         let before = model.canonical_json().unwrap();
         let error = model.preview_value_edit(n, integer(4)).unwrap_err();
         assert!(error.message().contains("structural") || error.message().contains("index"));
         assert_eq!(model.canonical_json().unwrap(), before);
-        let probe = model.aliases()["probe"];
         let plan = model.preview_value_edit(probe, integer(8)).unwrap();
         let changed = model.commit_value_edit(plan).unwrap();
         assert_eq!(
