@@ -1,4 +1,4 @@
-public pure operator outer_product(left: spatial[1], right: spatial[1]) -> spatial[2]
+public operator outer_product(input left: spatial[1], input right: spatial[1]): spatial[2]
   = component(left, 0) * component(right, 1);
 
 public connector VelocityTractionBoundary = field_physical(
@@ -81,7 +81,7 @@ model Main() {
   }
   relation fluid_momentum on fluid {
     fluid_density * derivative(fluid_velocity)
-      + div(fluid_density * outer_product(fluid_velocity, fluid_velocity))
+      + div(fluid_density * outer_product(left = fluid_velocity, right = fluid_velocity))
       - div(
         2 * fluid_viscosity * symmetric_part(grad(fluid_velocity))
         - isotropic_lift(fluid_pressure)

@@ -1,4 +1,4 @@
-public pure operator dyadic(left: spatial[1], right: spatial[1]) -> spatial[2]
+public operator dyadic(input left: spatial[1], input right: spatial[1]): spatial[2]
   = component(left, 0) * component(right, 1);
 
 model elastic_relation() {
@@ -11,6 +11,6 @@ model elastic_relation() {
       2 * mu * symmetric_part(grad(displacement))
       + lambda * isotropic_lift(div(displacement))
     ) = 0;
-    div(div(dyadic(displacement, displacement))) = 0;
+    div(div(dyadic(left = displacement, right = displacement))) = 0;
   }
 }

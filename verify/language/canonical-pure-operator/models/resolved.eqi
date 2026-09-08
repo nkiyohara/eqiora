@@ -3,6 +3,6 @@ model Main() {
   variable left: vector<1, 2> on body;
   variable right: vector<1, 2> on body;
   relation balance on body {
-    div(div(ops.dyadic(left, right))) = 0;
+    div(div(ops.dyadic(left = left, right = right))) = 0;
   }
 }

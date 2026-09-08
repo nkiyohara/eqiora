@@ -1,5 +1,5 @@
-public pure operator identity(x: scalar) -> scalar = component(x);
-public pure operator dyadic(a: spatial[1], b: spatial[1]) -> spatial[2]
+public operator identity(input x: scalar): scalar = component(x);
+public operator dyadic(input a: spatial[1], input b: spatial[1]): spatial[2]
   = component(a, 0) * component(b, 1);
 
 model Main() {
@@ -7,6 +7,6 @@ model Main() {
   variable right: vector<1, 2> on body;
   variable left: vector<1, 2> on body;
   relation balance on body {
-    div(div(dyadic(left, right))) = 0;
+    div(div(dyadic(a = left, b = right))) = 0;
   }
 }

@@ -72,7 +72,12 @@ fn operator_release(path: &str, source: &str) -> PackageReleaseV1 {
         .expect("compiler-derived operator release")
 }
 
-fn root_release(operators: &PackageReleaseV1, alias: &str, source_path: &str) -> PackageReleaseV1 {
+fn root_release(
+    operators: &PackageReleaseV1,
+    alias: &str,
+    source_path: &str,
+    resolved_source: &str,
+) -> PackageReleaseV1 {
     let dependency = PackageDependencyV1::new(
         operators
             .package_identity()
@@ -80,7 +85,7 @@ fn root_release(operators: &PackageReleaseV1, alias: &str, source_path: &str) ->
     );
     let source = format!(
         "import {OPERATOR_PACKAGE}.operators as {alias};\n{}",
-        RESOLVED.replace("ops.", &format!("{alias}."))
+        resolved_source.replace("ops.", &format!("{alias}."))
     );
     prepare_package_release_v1(
         source_package(ROOT_PACKAGE, source_path, &source, vec![dependency]),
@@ -185,8 +190,13 @@ fn direct_and_exact_package_variants_share_name_free_meaning() {
         "changing the exact body must change package semantic identity"
     );
 
-    let root = root_release(&operators, "ops", "src/main.eqi");
-    let aliased_root = root_release(&relocated, "algebra", "src/main.eqi");
+    let root = root_release(&operators, "ops", "src/main.eqi", RESOLVED);
+    let aliased_root = root_release(
+        &relocated,
+        "algebra",
+        "src/main.eqi",
+        &RESOLVED.replace("left = left, right = right", "a = left, b = right"),
+    );
     assert_eq!(
         root.package_identity().unwrap(),
         aliased_root.package_identity().unwrap(),
