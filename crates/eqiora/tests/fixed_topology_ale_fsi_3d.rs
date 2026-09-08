@@ -704,7 +704,7 @@ fn realization_plan(
                 )
                 .unwrap(),
             ],
-            trace_quotient(model),
+            [trace_quotient(model)],
             Discretization::new(
                 DiscretizationMethod::ContinuousGalerkin,
                 MeshPolicy::ImportedSimplicial {

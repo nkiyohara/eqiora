@@ -774,7 +774,7 @@ fn realization_plan_with_scales(
                 )
                 .unwrap(),
             ],
-            trace_quotient(model),
+            [trace_quotient(model)],
             Discretization::new(
                 DiscretizationMethod::ContinuousGalerkin,
                 MeshPolicy::ImportedSimplicial {

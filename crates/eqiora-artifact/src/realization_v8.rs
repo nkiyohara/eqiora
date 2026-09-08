@@ -1,4 +1,4 @@
-//! Multi-Domain Field-wise Realization artifact with one exact trace quotient.
+//! Multi-Domain Field-wise Realization artifact with exact trace quotients.
 
 use eqiora_core::{Diagnostic, OntologyId};
 use eqiora_realization::{
@@ -23,8 +23,8 @@ const REALIZATION_SCHEMA: &str = "eqiora.realization-envelope/v8";
 
 /// Versioned serialization of one resolved multi-Domain Field-wise Realization.
 ///
-/// V8 adds a canonical exact Domain/Field inventory, one content-addressed
-/// shared imported mesh, one exact conforming trace quotient, and one fixed
+/// Contains canonical exact Domain/Field and conforming trace-quotient inventories,
+/// one content-addressed shared imported mesh, and one fixed
 /// Backward Euler step, with exact rational physical dimensions.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RealizationEnvelopeV8 {
@@ -274,7 +274,7 @@ impl RealizationEnvelopeV8 {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|error| invalid_artifact(error.to_string()))?;
         if requirements.domains() != selected_domains
-            || requirements.trace_quotient() != plan.spatial().trace_quotient()
+            || requirements.trace_quotients() != plan.spatial().trace_quotients()
             || requirements.eliminated_state() != eliminated
         {
             return Err(invalid_artifact(

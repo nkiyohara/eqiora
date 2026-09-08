@@ -103,7 +103,11 @@ impl<Q: WireQuadratureCodec + Clone> WireAlePlanWith<Q> {
         let motion = value.mesh_motion();
         let fluid_step = value.fluid_time_step();
         let eliminated = coupled.time_step().eliminated_state();
-        let quotient = coupled.spatial().trace_quotient();
+        let [quotient] = coupled.spatial().trace_quotients() else {
+            return Err(invalid_artifact(
+                "fixed-topology ALE requires exactly one trace quotient",
+            ));
+        };
         let mut domain_configurations = coupled
             .spatial()
             .domains()
@@ -216,7 +220,7 @@ impl<Q: WireQuadratureCodec + Clone> WireAlePlanWith<Q> {
                     value.solid_kinematic_relation(),
                     value.coupled().time_step(),
                 )
-            || trace_projection != value.coupled().spatial().trace_quotient()
+            || [trace_projection] != value.coupled().spatial().trace_quotients()
         {
             return Err(invalid_artifact(
                 "ALE action, elimination, or trace projection differs from the common coupled plan",

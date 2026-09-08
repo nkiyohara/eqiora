@@ -170,24 +170,25 @@ impl ResolvedCoupledFieldwiseRealization {
         fields.sort_by_key(|field| field.field.ulid());
         let state = field_reference(&fields, pair.state())?;
         let rate = field_reference(&fields, pair.rate())?;
-        let quotient = spatial.trace_quotient();
-        let endpoints = quotient.endpoints().map(|endpoint| {
-            field_reference(&fields, endpoint.field())
-                .expect("resolved trace endpoint is present in the exact Field inventory")
-        });
-        let transformations = vec![
-            TransformationNode::BackwardEulerElimination {
-                relation: claimed_eliminated_state_relation,
-                state,
-                rate,
-                duration: plan.time_step().duration(),
-                state_scale: eliminated.state_scale(),
-            },
+        let mut transformations = vec![TransformationNode::BackwardEulerElimination {
+            relation: claimed_eliminated_state_relation,
+            state,
+            rate,
+            duration: plan.time_step().duration(),
+            state_scale: eliminated.state_scale(),
+        }];
+        transformations.extend(spatial.trace_quotients().iter().map(|quotient| {
             TransformationNode::ConformingTraceQuotient {
                 connection: quotient.connection(),
-                endpoints,
-            },
-        ];
+                endpoints: quotient.endpoints().map(|endpoint| {
+                    field_reference(&fields, endpoint.field())
+                        .expect("resolved trace endpoint is present in the exact Field inventory")
+                }),
+            }
+        }));
+        let transformation_references = (0..transformations.len())
+            .map(TransformationId::new)
+            .collect();
         let blocks = blocks_from_scaling(&fields, plan.scaling())?;
         let execution = self.requirements().execution();
         let graph = PortableRealizationGraph {
@@ -202,7 +203,7 @@ impl ResolvedCoupledFieldwiseRealization {
             transformations,
             systems: vec![AlgebraicSystemNode {
                 blocks,
-                transformations: vec![TransformationId::new(0), TransformationId::new(1)],
+                transformations: transformation_references,
                 scaling: SystemScaling::SymmetricCongruence(plan.scaling().clone()),
                 operator_properties: plan.operator_properties(),
                 scalar_type: execution.scalar_type(),
@@ -574,7 +575,11 @@ impl ResolvedFixedTopologyAleCoupledRealization {
             quality_gate: motion.quality_gate(),
             solver: motion.solver(),
         }];
-        let quotient = spatial.trace_quotient();
+        let [quotient] = spatial.trace_quotients() else {
+            return Err(invalid_realization(
+                "fixed-topology ALE requires exactly one trace quotient",
+            ));
+        };
         let endpoints = quotient.endpoints().map(|endpoint| {
             field_reference(&fields, endpoint.field())
                 .expect("validated ALE trace endpoint is represented")

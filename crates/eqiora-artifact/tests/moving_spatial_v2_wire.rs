@@ -477,7 +477,7 @@ impl Ids {
                 )
                 .unwrap(),
             ],
-            self.trace(),
+            [self.trace()],
             Discretization::new(
                 DiscretizationMethod::ContinuousGalerkin,
                 MeshPolicy::ImportedSimplicial {
@@ -574,7 +574,7 @@ impl Ids {
                     )
                     .unwrap(),
                 ],
-                self.trace(),
+                [self.trace()],
                 self.state_pair(),
                 RealizationRequirements::new(
                     NonZeroUsize::new(2).unwrap(),

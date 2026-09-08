@@ -439,7 +439,7 @@ fn fixed_topology_ale_fsi_requirements<const D: usize>(
             )
             .expect("lowered ALE solid owns distinct velocity and displacement Fields"),
         ],
-        trace_quotient(model),
+        [trace_quotient(model)],
         state_pair(model),
         RealizationRequirements::new(
             NonZeroUsize::new(D).expect("supported ALE FSI dimension is non-zero"),
@@ -751,7 +751,7 @@ fn same_ale_policy_except_imported_mesh(
         && source_coupled.schedule() == target_coupled.schedule()
         && source_spatial.coordinate_length_scale() == target_spatial.coordinate_length_scale()
         && source_spatial.domains() == target_spatial.domains()
-        && source_spatial.trace_quotient() == target_spatial.trace_quotient()
+        && source_spatial.trace_quotients() == target_spatial.trace_quotients()
         && source_discretization.method() == target_discretization.method()
         && source_discretization.quadrature() == target_discretization.quadrature()
         && matches!(
@@ -1884,7 +1884,7 @@ mod tests {
                     )
                     .unwrap(),
                 ],
-                trace_quotient(model),
+                [trace_quotient(model)],
                 Discretization::new(
                     DiscretizationMethod::ContinuousGalerkin,
                     MeshPolicy::ImportedSimplicial {
@@ -1986,7 +1986,7 @@ mod tests {
                 )
                 .unwrap(),
             ],
-            requirements.coupled().trace_quotient(),
+            requirements.coupled().trace_quotients(),
             requirements.coupled().eliminated_state(),
             requirements.coupled().execution(),
         )

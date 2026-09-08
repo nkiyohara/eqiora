@@ -27,7 +27,7 @@ pub struct RealizationDecoderLimits {
     pub json: crate::JsonDecoderLimits,
     /// Maximum exact Semantic Fields and Field-space bindings.
     pub max_realization_fields: usize,
-    /// Maximum algebraic constraints.
+    /// Maximum entries in an algebraic-constraint or trace-quotient inventory.
     pub max_realization_constraints: usize,
     /// Maximum scaled algebraic blocks.
     pub max_realization_blocks: usize,

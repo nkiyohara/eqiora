@@ -11,7 +11,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CoupledFieldwiseRealizationRequirements {
     domains: Vec<DomainFieldInventory>,
-    trace_quotient: ConformingTraceQuotient,
+    trace_quotients: Vec<ConformingTraceQuotient>,
     eliminated_state: BackwardEulerStatePair,
     execution: RealizationRequirements,
 }
@@ -21,10 +21,11 @@ impl CoupledFieldwiseRealizationRequirements {
     ///
     /// # Errors
     /// Returns `EQ0807` unless at least two Domains are distinct, every Field
-    /// occurs exactly once, and both trace endpoints occur in that inventory.
+    /// occurs exactly once, and every trace endpoint occurs in that inventory.
+    /// The quotient collection must be nonempty without duplicate selections.
     pub fn new(
         domains: impl IntoIterator<Item = DomainFieldInventory>,
-        trace_quotient: ConformingTraceQuotient,
+        trace_quotients: impl AsRef<[ConformingTraceQuotient]>,
         eliminated_state: BackwardEulerStatePair,
         execution: RealizationRequirements,
     ) -> Result<Self, Diagnostic> {
@@ -53,11 +54,19 @@ impl CoupledFieldwiseRealizationRequirements {
                 "coupled field-wise requirements contain a Field in more than one Domain",
             ));
         }
-        if trace_quotient.endpoints().iter().any(|endpoint| {
-            !domains.iter().any(|domain| {
-                domain.domain() == endpoint.domain() && domain.fields().contains(&endpoint.field())
+        let trace_quotients = crate::coupled_fieldwise::canonical_trace_quotients(
+            trace_quotients.as_ref().iter().copied(),
+        )?;
+        if trace_quotients
+            .iter()
+            .flat_map(|quotient| quotient.endpoints())
+            .any(|endpoint| {
+                !domains.iter().any(|domain| {
+                    domain.domain() == endpoint.domain()
+                        && domain.fields().contains(&endpoint.field())
+                })
             })
-        }) {
+        {
             return Err(invalid_realization(
                 "coupled field-wise requirements must contain both exact trace endpoint Fields",
             ));
@@ -77,7 +86,7 @@ impl CoupledFieldwiseRealizationRequirements {
         }
         Ok(Self {
             domains,
-            trace_quotient,
+            trace_quotients,
             eliminated_state,
             execution,
         })
@@ -89,10 +98,10 @@ impl CoupledFieldwiseRealizationRequirements {
         &self.domains
     }
 
-    /// Exact Connection and paired Field traces required by the lowerer.
+    /// Exact Connections and paired Field traces required by the lowerer.
     #[must_use]
-    pub const fn trace_quotient(&self) -> ConformingTraceQuotient {
-        self.trace_quotient
+    pub fn trace_quotients(&self) -> &[ConformingTraceQuotient] {
+        &self.trace_quotients
     }
 
     /// Exact state/rate identity pair selected for Backward Euler elimination.
@@ -245,7 +254,7 @@ pub fn resolve_coupled_fieldwise(
             "coupled field-wise plan must bind the exact lowerer Domain and participating-Field inventory",
         ));
     }
-    if request.plan.spatial().trace_quotient() != requirements.trace_quotient {
+    if request.plan.spatial().trace_quotients() != requirements.trace_quotients {
         return Err(invalid_realization(
             "coupled field-wise plan trace quotient differs from the exact lowerer Connection and Field pair",
         ));

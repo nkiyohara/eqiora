@@ -20,6 +20,64 @@ use crate::{
 };
 
 #[test]
+fn ale_rejects_multiple_trace_quotients_before_projection() {
+    let fixture = Fixture::new();
+    let accepted = fixture.plan();
+    let coupled = accepted.coupled();
+    let first = fixture.trace();
+    let second =
+        ConformingTraceQuotient::new(Id::new(), first.endpoints()[0], first.endpoints()[1])
+            .unwrap();
+    let spatial = CoupledFieldwiseSpatialDiscretization::new(
+        coupled.spatial().coordinate_length_scale(),
+        coupled.spatial().domains().to_vec(),
+        [first, second],
+        coupled.spatial().discretization(),
+    )
+    .unwrap();
+    let multiple = CoupledFieldwiseRealizationPlan::new(
+        spatial,
+        coupled.time_step(),
+        coupled.scaling().clone(),
+        coupled.operator_properties(),
+        coupled.solver(),
+        coupled.target(),
+        coupled.schedule(),
+    )
+    .unwrap();
+    let error = FixedTopologyAleCoupledRealizationPlan::new(
+        multiple,
+        fixture.fluid_step(),
+        fixture.solid_relation,
+        fixture.motion(fixture.displacement, fixture.connection),
+        GclCompatibleAlePullback::new(fixture.fluid_relation, fixture.fluid_velocity),
+        nonlinear_plan(),
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("exactly one trace quotient"));
+    let requirements = fixture.requirements(fixture.fluid_relation, fixture.displacement);
+    let coupled = requirements.coupled();
+    let multiple = CoupledFieldwiseRealizationRequirements::new(
+        coupled.domains().to_vec(),
+        [first, second],
+        coupled.eliminated_state(),
+        coupled.execution(),
+    )
+    .unwrap();
+    let error = FixedTopologyAleCoupledRealizationRequirements::new(
+        multiple,
+        fixture.fluid_domain,
+        fixture.solid_domain,
+        fixture.fluid_relation,
+        fixture.solid_relation,
+        fixture.fluid_velocity,
+        fixture.displacement,
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("exactly one trace quotient"));
+}
+
+#[test]
 fn closed_ale_plan_projects_one_geometry_action_and_nonlinear_root() {
     let fixture = Fixture::new();
     let resolved = fixture.resolve(&capabilities(true));
@@ -378,7 +436,7 @@ impl Fixture {
                 )
                 .unwrap(),
             ],
-            self.trace(),
+            [self.trace()],
             Discretization::new(
                 DiscretizationMethod::ContinuousGalerkin,
                 MeshPolicy::ImportedSimplicial {
@@ -510,7 +568,7 @@ impl Fixture {
                     )
                     .unwrap(),
                 ],
-                self.trace(),
+                [self.trace()],
                 self.state_pair(),
                 execution_requirements_with_dimension(spatial_dimension),
             )
