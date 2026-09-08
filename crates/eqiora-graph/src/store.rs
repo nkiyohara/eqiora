@@ -436,9 +436,9 @@ fn set_value(state: &mut State, target: RawId, value: ValueLiteral) -> Result<()
         .and_then(|node| node.value.as_ref())
         != Some(&value)
         && state.edges.iter().any(|edge| {
-            edge.kind == EdgeKind::DependsOn
-                && edge.to == target
-                && edge.from.kind() == EntityKind::IndexSet
+            edge.kind() == EdgeKind::DependsOn
+                && edge.to() == target
+                && edge.from().kind() == EntityKind::IndexSet
         })
     {
         return Err(Diagnostic::error(codes::INVALID_OPERATION,
