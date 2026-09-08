@@ -3,7 +3,7 @@ use super::*;
 /// Source expression with its exact byte range.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Expr {
-    pub(crate) resolved_nominal: Option<eqiora_core::ValueType>,
+    pub(crate) resolved_nominal: Option<Box<eqiora_core::ValueType>>,
     pub(crate) kind: ExprKind,
     pub(crate) range: TextRange,
 }
@@ -12,7 +12,7 @@ impl Expr {
     /// Checked nominal constructor type supplied by lexical declaration resolution.
     #[must_use]
     pub fn resolved_nominal(&self) -> Option<&eqiora_core::ValueType> {
-        self.resolved_nominal.as_ref()
+        self.resolved_nominal.as_deref()
     }
 
     /// Expression form.

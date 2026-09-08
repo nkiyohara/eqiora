@@ -356,7 +356,7 @@ impl Parser<'_> {
         self.expect(TokenKind::Colon, "`:` before quantity dimension")?;
         Some(ConnectorQuantitySyntax {
             name,
-            dimension: self.parse_dimension_expression()?,
+            dimension: Box::new(self.parse_dimension_expression()?),
         })
     }
 

@@ -127,13 +127,13 @@ impl SourceAstFactory {
         if syntax
             .resolved_nominal
             .as_ref()
-            .is_some_and(|previous| previous != &value)
+            .is_some_and(|previous| previous.as_ref() != &value)
         {
             return Err(AstConstructionError::new(
                 "nominal type cannot be rebound to a foreign declaration",
             ));
         }
-        syntax.resolved_nominal = Some(value);
+        syntax.resolved_nominal = Some(Box::new(value));
         Ok(())
     }
 }
@@ -226,13 +226,13 @@ impl SourceAstFactory {
         if expression
             .resolved_nominal
             .as_ref()
-            .is_some_and(|previous| previous != &value)
+            .is_some_and(|previous| previous.as_ref() != &value)
         {
             return Err(AstConstructionError::new(
                 "nominal expression cannot be rebound to a foreign declaration",
             ));
         }
-        expression.resolved_nominal = Some(value);
+        expression.resolved_nominal = Some(Box::new(value));
         Ok(())
     }
 }

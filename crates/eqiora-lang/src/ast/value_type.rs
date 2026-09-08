@@ -5,9 +5,9 @@ use super::{Expr, TextRange};
 /// Source-level mathematical type, before dimensions and support are resolved.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ValueTypeSyntax {
-    pub(crate) kind: ValueTypeSyntaxKind,
+    pub(crate) kind: Box<ValueTypeSyntaxKind>,
     pub(crate) range: TextRange,
-    pub(crate) resolved_nominal: Option<eqiora_core::ValueType>,
+    pub(crate) resolved_nominal: Option<Box<eqiora_core::ValueType>>,
 }
 
 /// Closed mathematical type constructors. Arrays retain their element type.
@@ -66,7 +66,7 @@ impl ValueTypeSyntax {
     #[must_use]
     pub const fn is_scalar(&self) -> bool {
         matches!(
-            self.kind,
+            *self.kind,
             ValueTypeSyntaxKind::Scalar { .. } | ValueTypeSyntaxKind::Index(_)
         )
     }
@@ -74,7 +74,7 @@ impl ValueTypeSyntax {
     /// Physical dimension of each scalar component.
     #[must_use]
     pub fn dimension(&self) -> &Expr {
-        match &self.kind {
+        match self.kind.as_ref() {
             ValueTypeSyntaxKind::Coordinates(_)
             | ValueTypeSyntaxKind::Counts(_)
             | ValueTypeSyntaxKind::Index(_) => dimensionless_syntax(),
@@ -88,7 +88,7 @@ impl ValueTypeSyntax {
     /// Mathematical domain of each scalar component.
     #[must_use]
     pub fn scalar_domain(&self) -> ScalarDomain {
-        match &self.kind {
+        match self.kind.as_ref() {
             ValueTypeSyntaxKind::Coordinates(_)
             | ValueTypeSyntaxKind::Counts(_)
             | ValueTypeSyntaxKind::Index(_) => ScalarDomain::Integer,
@@ -103,21 +103,21 @@ impl ValueTypeSyntax {
         Self {
             resolved_nominal: None,
             range: dimension.range(),
-            kind: ValueTypeSyntaxKind::Scalar {
+            kind: Box::new(ValueTypeSyntaxKind::Scalar {
                 domain: ScalarDomain::Real,
                 dimension,
-            },
+            }),
         }
     }
 
     /// Checked nominal binding attached by the lexical source-type resolution pass.
     #[must_use]
     pub fn resolved_nominal(&self) -> Option<&eqiora_core::ValueType> {
-        self.resolved_nominal.as_ref()
+        self.resolved_nominal.as_deref()
     }
 
     pub(crate) fn rewrite_dimension(&mut self, rewrite: &mut impl FnMut(&Expr) -> Expr) {
-        match &mut self.kind {
+        match self.kind.as_mut() {
             ValueTypeSyntaxKind::Scalar { dimension, .. } => *dimension = rewrite(dimension),
             ValueTypeSyntaxKind::Vector { scalar, .. }
             | ValueTypeSyntaxKind::Tensor { scalar, .. } => scalar.rewrite_dimension(rewrite),

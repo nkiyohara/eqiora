@@ -154,7 +154,7 @@ pub enum ConnectorSyntax {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ConnectorQuantitySyntax {
     pub(crate) name: String,
-    pub(crate) dimension: Expr,
+    pub(crate) dimension: Box<Expr>,
 }
 
 impl ConnectorQuantitySyntax {

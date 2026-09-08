@@ -80,3 +80,25 @@ model M(output observed:1) {
         assert!(CompiledModel::compile_selected("selector.eqi", &changed, "M", &[]).is_err());
     }
 }
+
+#[test]
+fn unresolved_index_extent_cannot_be_published_as_a_checked_package_definition() {
+    use eqiora_compiler::{CompilationNamespaceId, ResolvedHierarchyInput, ResolvedSourceUnit};
+    let namespace = CompilationNamespaceId::new(["example.indexed", "1.0.0", "digest"]).unwrap();
+    let source = "public component Family(parameter n:integer) { indexset Rows=range(n); }";
+    let unit = ResolvedSourceUnit::new(namespace.clone(), "src/main.eqi", source).unwrap();
+    let analysis = ResolvedHierarchyInput::new(namespace, vec![unit], vec![])
+        .analyze_with_cancellation(|| false)
+        .unwrap()
+        .unwrap();
+    let errors = analysis
+        .validate_definitions()
+        .err()
+        .expect("unresolved extent must fail closed");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message().contains("unresolved IndexSet extent")),
+        "{errors:?}"
+    );
+}

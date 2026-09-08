@@ -1,4 +1,10 @@
 //! Bound selected-root footprint before any occurrence graph allocation.
+struct ChildFootprint<'a> {
+    edges: Vec<Edge<'a>>,
+    summaries: Vec<Option<DefinitionSummary>>,
+    extra_connections: usize,
+}
+
 use super::super::{clocks, parameters};
 use super::*;
 use eqiora_lang::{ExprKind, InstanceDecl, NamedDefinitionDecl};
@@ -50,8 +56,11 @@ pub(in crate::hierarchy) fn selected_expansion_size(
         Item::Instance(value) => Some(value),
         _ => None,
     });
-    let (edges, summaries, extra_connections) =
-        preflight.children(&model.namespace, model.file, instances, &sets, &values, 0)?;
+    let ChildFootprint {
+        edges,
+        summaries,
+        extra_connections,
+    } = preflight.children(&model.namespace, model.file, instances, &sets, &values, 0)?;
     local.connections = local
         .connections
         .checked_add(extra_connections)
@@ -160,7 +169,7 @@ impl Selected<'_, '_> {
         sets: &[&NamedDefinitionDecl],
         values: &SymbolicParameterMap,
         depth: usize,
-    ) -> Result<(Vec<Edge<'i>>, Vec<Option<DefinitionSummary>>, usize), Vec<Diagnostic>> {
+    ) -> Result<ChildFootprint<'i>, Vec<Diagnostic>> {
         let mut edges = Vec::new();
         let mut summaries = Vec::new();
         let mut extra_connections = 0usize;
@@ -283,7 +292,11 @@ impl Selected<'_, '_> {
             });
             summaries.push(Some(summary));
         }
-        Ok((edges, summaries, extra_connections))
+        Ok(ChildFootprint {
+            edges,
+            summaries,
+            extra_connections,
+        })
     }
     fn component(
         &mut self,
@@ -334,7 +347,11 @@ impl Selected<'_, '_> {
             ComponentItem::Instance(value) => Some(value),
             _ => None,
         });
-        let (edges, summaries, extra_connections) = self.children(
+        let ChildFootprint {
+            edges,
+            summaries,
+            extra_connections,
+        } = self.children(
             &component.namespace,
             component.file,
             instances,

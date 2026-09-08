@@ -12,7 +12,7 @@ impl SourceAstFactory {
     ) -> Result<ValueTypeSyntax, AstConstructionError> {
         let result = ValueTypeSyntax {
             resolved_nominal: None,
-            kind,
+            kind: Box::new(kind),
             range: checked_range(range)?,
         };
         let mut current = &result;

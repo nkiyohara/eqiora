@@ -51,8 +51,8 @@ fn rewrite_connector(syntax: &mut ConnectorSyntax, rewrite: &mut impl FnMut(&Exp
             through_type.rewrite_dimension(rewrite);
         }
         ConnectorSyntax::FieldPhysical { trace, flux, .. } => {
-            trace.dimension = rewrite(&trace.dimension);
-            flux.dimension = rewrite(&flux.dimension);
+            *trace.dimension = rewrite(&trace.dimension);
+            *flux.dimension = rewrite(&flux.dimension);
         }
     }
 }

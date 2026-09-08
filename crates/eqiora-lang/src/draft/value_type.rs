@@ -40,7 +40,7 @@ impl ValueTypeSyntax {
         };
         if let Some(kind) = nominal {
             let mut syntax = SourceAstFactory::value_type(kind, crate::TextRange::new(0, 0))?;
-            syntax.resolved_nominal = Some(value.clone());
+            syntax.resolved_nominal = Some(Box::new(value.clone()));
             return Ok(syntax);
         }
 
@@ -51,7 +51,7 @@ impl ValueTypeSyntax {
             &mut HashMap::new(),
             &mut resolve,
         );
-        SourceAstFactory::value_type(syntax.kind, syntax.range)
+        SourceAstFactory::value_type(*syntax.kind, syntax.range)
     }
     /// Validate source type resource bounds independently of lexical name projection.
     ///
@@ -93,10 +93,10 @@ pub(super) fn project(
     }
     let mut syntax = ValueTypeSyntax {
         resolved_nominal: None,
-        kind: ValueTypeSyntaxKind::Scalar {
+        kind: Box::new(ValueTypeSyntaxKind::Scalar {
             domain: value.scalar_domain(),
             dimension: dimension_expression(value.dimension(), path, ranges, paths),
-        },
+        }),
         range: ranges.allocate(path, paths),
     };
     let (arrays, spatial) = value.shape().extents().split_at(value.array_rank());
@@ -114,17 +114,17 @@ pub(super) fn project(
         };
         syntax = ValueTypeSyntax {
             resolved_nominal: None,
-            kind,
+            kind: Box::new(kind),
             range: ranges.allocate(path, paths),
         };
     }
     for extent in arrays.iter().rev() {
         syntax = ValueTypeSyntax {
             resolved_nominal: None,
-            kind: ValueTypeSyntaxKind::Array {
+            kind: Box::new(ValueTypeSyntaxKind::Array {
                 element: Box::new(syntax),
                 extent: extent.get(),
-            },
+            }),
             range: ranges.allocate(path, paths),
         };
     }

@@ -37,7 +37,7 @@ impl Parser<'_> {
                 _ => ValueTypeSyntaxKind::Index(declaration),
             };
             return Some(ValueTypeSyntax {
-                kind,
+                kind: Box::new(kind),
                 range: TextRange::new(start, end),
                 resolved_nominal: None,
             });
@@ -46,7 +46,7 @@ impl Parser<'_> {
             let token = self.bump();
             return Some(ValueTypeSyntax {
                 resolved_nominal: None,
-                kind: ValueTypeSyntaxKind::Scalar {
+                kind: Box::new(ValueTypeSyntaxKind::Scalar {
                     domain: ScalarDomain::Integer,
                     dimension: crate::Expr {
                         resolved_nominal: None,
@@ -55,7 +55,7 @@ impl Parser<'_> {
                         ),
                         range: token.range(),
                     },
-                },
+                }),
                 range: token.range(),
             });
         }
@@ -69,10 +69,10 @@ impl Parser<'_> {
                 .end();
             return Some(ValueTypeSyntax {
                 resolved_nominal: None,
-                kind: ValueTypeSyntaxKind::Scalar {
+                kind: Box::new(ValueTypeSyntaxKind::Scalar {
                     domain: ScalarDomain::Complex,
                     dimension,
-                },
+                }),
                 range: TextRange::new(start, end),
             });
         }

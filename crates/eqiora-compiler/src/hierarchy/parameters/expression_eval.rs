@@ -118,30 +118,30 @@ pub(super) fn evaluate_with_domain(
             resolve_clock,
         );
     }
-    if expected == Some(ScalarDomain::Integer) {
-        if let Some(literal) = exact_signed_literal(expression) {
-            let value = literal.map_err(|error| {
-                source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    file,
-                    expression.range(),
-                    error.message(),
-                )
-            })?;
-            let value_type = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
-            let value = ValueLiteral::from_integer(value_type.clone(), value)
-                .expect("checked integer scalar");
-            return Ok(EvaluatedParameter {
-                expression: Some(LoweringExpression::literal(
-                    value.clone(),
-                    expression.range(),
-                )),
-                value: Some(value),
-                value_type: EvaluatedType::Known(value_type),
-                bare_literal: true,
-                lineage: Some(ParameterLineage::Constant),
-            });
-        }
+    if expected == Some(ScalarDomain::Integer)
+        && let Some(literal) = exact_signed_literal(expression)
+    {
+        let value = literal.map_err(|error| {
+            source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                file,
+                expression.range(),
+                error.message(),
+            )
+        })?;
+        let value_type = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+        let value =
+            ValueLiteral::from_integer(value_type.clone(), value).expect("checked integer scalar");
+        return Ok(EvaluatedParameter {
+            expression: Some(LoweringExpression::literal(
+                value.clone(),
+                expression.range(),
+            )),
+            value: Some(value),
+            value_type: EvaluatedType::Known(value_type),
+            bare_literal: true,
+            lineage: Some(ParameterLineage::Constant),
+        });
     }
     let evaluated = match expression.kind() {
         ExprKind::Number(literal) => {
@@ -262,8 +262,8 @@ pub(super) fn evaluate_with_domain(
                 });
             let lineage = operands
                 .iter()
-                .fold(Some(ParameterLineage::Constant), |lineage, operand| {
-                    combine_lineages(lineage, operand.lineage.clone())
+                .try_fold(ParameterLineage::Constant, |lineage, operand| {
+                    combine_lineages(Some(lineage), operand.lineage.clone())
                 });
             EvaluatedParameter {
                 value,

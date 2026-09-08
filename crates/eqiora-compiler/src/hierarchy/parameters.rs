@@ -172,8 +172,7 @@ impl<'a> SymbolicParameterResolver<'a> {
     ) -> Result<Self, Vec<Diagnostic>> {
         let declarations = parameter_declarations(component);
         let overrides = resolve_instance_overrides(
-            declaration_file,
-            binding_file,
+            (declaration_file, binding_file),
             component,
             instance,
             &declarations,
@@ -354,8 +353,7 @@ fn parameter_declarations(component: &ComponentDecl) -> BTreeMap<String, &Compon
 }
 
 fn resolve_instance_overrides(
-    declaration_file: &str,
-    binding_file: &str,
+    (declaration_file, binding_file): (&str, &str),
     component: &ComponentDecl,
     instance: &InstanceDecl,
     declarations: &BTreeMap<String, &ComponentParameterDecl>,
@@ -487,8 +485,7 @@ pub(super) fn validate_instance_parameters_symbolically(
         ))]);
     }
     let overrides = resolve_instance_overrides(
-        declaration_file,
-        binding_file,
+        (declaration_file, binding_file),
         component,
         instance,
         &declarations,

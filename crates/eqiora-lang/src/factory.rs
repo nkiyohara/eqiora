@@ -106,7 +106,7 @@ impl SourceAstFactory {
         validate_expression(&dimension)?;
         Ok(ConnectorQuantitySyntax {
             name: checked_identifier(name, "Connector quantity")?,
-            dimension,
+            dimension: Box::new(dimension),
         })
     }
 
@@ -121,7 +121,7 @@ impl SourceAstFactory {
         default: Option<Expr>,
         range: TextRange,
     ) -> Result<ComponentParameterDecl, AstConstructionError> {
-        Self::value_type(value_type.kind.clone(), value_type.range)?;
+        Self::value_type(value_type.kind().clone(), value_type.range)?;
         if let Some(default) = &default {
             validate_expression(default)?;
         }
@@ -260,7 +260,7 @@ impl SourceAstFactory {
         if let ActivationSyntax::Periodic(clock) = &activation {
             validate_identifier(clock, "unknown clock")?;
         }
-        Self::value_type(value_type.kind.clone(), value_type.range)?;
+        Self::value_type(value_type.kind().clone(), value_type.range)?;
         Ok(FieldDecl {
             comments: Default::default(),
             name: checked_identifier(name, "unknown")?,
@@ -662,7 +662,7 @@ fn validate_port_syntax(syntax: &PortSyntax) -> Result<(), AstConstructionError>
             if let ActivationSyntax::Periodic(clock) = activation {
                 validate_identifier(clock, "signal clock")?;
             }
-            SourceAstFactory::value_type(value_type.kind.clone(), value_type.range).map(|_| ())
+            SourceAstFactory::value_type(value_type.kind().clone(), value_type.range).map(|_| ())
         }
         PortSyntax::ScalarPhysical { domain } => {
             validate_identifier(domain, "scalar physical Domain")
