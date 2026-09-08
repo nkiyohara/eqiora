@@ -285,3 +285,147 @@ fn native_frame_reference_must_belong_to_the_actual_draft() {
         .is_err()
     );
 }
+
+#[test]
+fn selected_framed_parameter_uses_exact_caller_geometry_and_explicit_expression() {
+    use eqiora::compiler::StaticBindingValue;
+    use eqiora::geometry::CanonicalGeometryV1;
+    use eqiora::language::{Item, parse};
+
+    // Reuse the ordinary caller-Geometry constructor used by package binding tests;
+    // no mesh, runtime state, package store, or numerical solver is required.
+    let geometry = |volume| {
+        CanonicalGeometryV1::from_circular_hole_named_roles(
+            [[0.0, 2.2], [0.0, 0.41]],
+            [0.2, 0.2],
+            0.05,
+            1.0e-12,
+            volume,
+            "inlet",
+            "outlet",
+            "walls",
+            "walls",
+            "cylinder",
+        )
+        .unwrap()
+    };
+    let body = geometry("body");
+    let foreign = geometry("foreign");
+    let expression = |frame: &str| {
+        let source = format!(
+            "model Binding() {{ parameter value: tensor<Pa, 2, 2> = tensor_value(frame={frame}, components=[[2[Pa], 3[Pa]], [5[Pa], 7[Pa]]]); }}"
+        );
+        let syntax = parse("binding.eqi", &source).into_document().unwrap();
+        let Item::Parameter(parameter) = &syntax.models()[0].items()[0] else {
+            panic!("Parameter expression fixture")
+        };
+        parameter.value().clone()
+    };
+    let value = expression("body");
+    let invalid_frame = expression("missing");
+    let expected = expected_values()
+        .into_iter()
+        .find(|(name, _)| *name == "stiffness")
+        .unwrap()
+        .1;
+
+    for kind in ["component", "model"] {
+        let source = format!(
+            "public {kind} Selected(support body: volume(ambient_dimension=2), parameter stiffness: tensor<Pa, 2, 2>) {{ relation witness {{ 0 = 0; }} }}"
+        );
+        let support = || {
+            (
+                "body",
+                StaticBindingValue::GeometrySupport {
+                    geometry: &body,
+                    selection: body.entity_set("body").unwrap(),
+                    parent: None,
+                },
+            )
+        };
+        let document = ModelDocument::compile_selected(
+            "selected-frame.eqi",
+            &source,
+            "Selected",
+            &[
+                support(),
+                ("stiffness", StaticBindingValue::Expression(&value)),
+            ],
+        )
+        .unwrap();
+        let parameters = document
+            .program()
+            .nodes()
+            .filter_map(|node| match node {
+                KernelNode::Parameter(parameter) => Some(parameter.id().erase()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(parameters.len(), 1);
+        assert_eq!(
+            document.program().typed_value(parameters[0]),
+            Some(&expected)
+        );
+        assert_eq!(
+            document
+                .program()
+                .nodes()
+                .filter(|node| matches!(node, KernelNode::Field(_)))
+                .count(),
+            0
+        );
+        assert!(
+            !document
+                .program()
+                .edges()
+                .iter()
+                .any(|edge| edge.kind() == EdgeKind::DefinedOn && edge.from() == parameters[0])
+        );
+        let replay = ModelDocument::replay(&document.canonical_json().unwrap()).unwrap();
+        assert_eq!(replay.program().typed_value(parameters[0]), Some(&expected));
+
+        assert!(
+            ModelDocument::compile_selected(
+                "selected-frame.eqi",
+                &source,
+                "Selected",
+                &[("stiffness", StaticBindingValue::Expression(&value)),]
+            )
+            .is_err(),
+            "an explicit constructor cannot supply missing caller support"
+        );
+        assert!(
+            ModelDocument::compile_selected(
+                "selected-frame.eqi",
+                &source,
+                "Selected",
+                &[
+                    support(),
+                    ("stiffness", StaticBindingValue::Expression(&invalid_frame)),
+                ]
+            )
+            .is_err(),
+            "external expression cannot name an unbound frame"
+        );
+        assert!(
+            ModelDocument::compile_selected(
+                "selected-frame.eqi",
+                &source,
+                "Selected",
+                &[
+                    (
+                        "body",
+                        StaticBindingValue::GeometrySupport {
+                            geometry: &body,
+                            selection: foreign.entity_set("foreign").unwrap(),
+                            parent: None,
+                        }
+                    ),
+                    ("stiffness", StaticBindingValue::Expression(&value)),
+                ]
+            )
+            .is_err(),
+            "foreign Geometry selection cannot borrow another authority's frame"
+        );
+    }
+}
