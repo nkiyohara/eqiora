@@ -15,6 +15,8 @@ mod alias;
 mod compile_time;
 mod component_item;
 use component_item::encode_component_item;
+mod declarations;
+use declarations::{encode_component, encode_connector, encode_pure_operator};
 mod dimension;
 mod domain;
 pub(crate) mod formulation;
@@ -234,113 +236,6 @@ fn canonical_source_bytes_with_aliases(
     if !finite_spaces.is_empty() {
         encoder.field(9, |encoder| encoder.records(&finite_spaces))?;
     }
-    encoder.finish()
-}
-
-fn encode_pure_operator(
-    declaration: &PureOperatorDecl,
-    budget: &mut Budget,
-) -> Result<Vec<u8>, Diagnostic> {
-    let definition = compile_definition("<source-identity>", declaration).map_err(|error| {
-        source_identity_error(format!(
-            "pure operator `{}` has no canonical definition: {}",
-            declaration.name(),
-            error.message()
-        ))
-    })?;
-    let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
-    encoder.field(1, |encoder| {
-        encode_name(encoder, declaration.name(), budget)
-    })?;
-    encoder.field(2, |encoder| encoder.raw(&definition.digest().bytes()))?;
-    if declaration.visibility() == VisibilitySyntax::Public {
-        encoder.field(3, |encoder| {
-            encode_visibility(encoder, declaration.visibility())
-        })?;
-    }
-    encoder.finish()
-}
-
-fn encode_connector(
-    declaration: &ConnectorDecl,
-    budget: &mut Budget,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
-    encoder.field(1, |encoder| {
-        encode_name(encoder, declaration.name(), budget)
-    })?;
-    encoder.field(2, |encoder| match declaration.syntax() {
-        ConnectorSyntax::ScalarPhysical {
-            across_type,
-            through_type,
-        } => {
-            encoder.u16(1)?;
-            encoder.field(1, |encoder| {
-                value_type::encode_value_type(encoder, across_type, budget, 1)
-            })?;
-            encoder.field(2, |encoder| {
-                value_type::encode_value_type(encoder, through_type, budget, 1)
-            })
-        }
-        ConnectorSyntax::FieldPhysical {
-            trace,
-            flux,
-            shape,
-            frame,
-            pairing,
-        } => {
-            encoder.u16(2)?;
-            encoder.field(1, |encoder| {
-                encode_connector_quantity(encoder, trace, budget)
-            })?;
-            encoder.field(2, |encoder| {
-                encode_connector_quantity(encoder, flux, budget)
-            })?;
-            encoder.field(3, |encoder| encode_value_shape(encoder, shape))?;
-            encoder.field(4, |encoder| encode_frame(encoder, *frame))?;
-            encoder.field(5, |encoder| encode_boundary_pairing(encoder, *pairing))
-        }
-        _ => Err(source_identity_error(
-            "Connector syntax is newer than source identity v1",
-        )),
-    })?;
-    if declaration.visibility() == VisibilitySyntax::Public {
-        encoder.field(3, |encoder| {
-            encode_visibility(encoder, declaration.visibility())
-        })?;
-    }
-    encoder.finish()
-}
-
-fn encode_component(
-    declaration: &ComponentDecl,
-    budget: &mut Budget,
-) -> Result<Vec<u8>, Diagnostic> {
-    let member_count = declaration
-        .items()
-        .len()
-        .checked_add(declaration.signature().len())
-        .ok_or_else(|| source_identity_error("component member count overflows usize"))?;
-    budget.account_members(member_count, "component")?;
-    let members = encode_container_records(
-        declaration.items(),
-        budget,
-        component_connection,
-        encode_component_item,
-        COMPONENT_CONNECTION_ITEM_TAG,
-    )?;
-    let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
-    encoder.field(1, |encoder| {
-        encode_name(encoder, declaration.name(), budget)
-    })?;
-    encoder.field(2, |encoder| encoder.records(&members))?;
-    if declaration.visibility() == VisibilitySyntax::Public {
-        encoder.field(3, |encoder| {
-            encode_visibility(encoder, declaration.visibility())
-        })?;
-    }
-    let signature = signature::encode_signature(declaration.signature(), budget)?;
-    encoder.field(4, |encoder| encoder.records(&signature))?;
     encoder.finish()
 }
 
