@@ -43,7 +43,8 @@ fn coincident_periodic_activations_commit_next_fields_simultaneously() {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
             eqiora_schema::kernel::FieldRole::State,
         )),
         initial(left, DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)),
@@ -52,7 +53,8 @@ fn coincident_periodic_activations_commit_next_fields_simultaneously() {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
             eqiora_schema::kernel::FieldRole::State,
         )),
         initial(right, DynQuantity::new(2.0, DimExponents::DIMENSIONLESS)),
@@ -160,7 +162,8 @@ fn equal_periods_do_not_substitute_for_exact_state_clock_ownership() {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
             eqiora_schema::kernel::FieldRole::State,
         )
         .into(),
@@ -224,7 +227,8 @@ fn reference_run_excludes_an_exact_tick_that_rounds_down_to_the_horizon() {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
             eqiora_schema::kernel::FieldRole::State,
         )),
         initial(field, DynQuantity::new(0., DimExponents::DIMENSIONLESS)),

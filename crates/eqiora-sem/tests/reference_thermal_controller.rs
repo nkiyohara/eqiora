@@ -182,7 +182,8 @@ fn thermal_fixture() -> ThermalFixture {
     let nodes = [
         KernelNode::from(FieldDef::new(
             temperature,
-            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, temperature_dimension),
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, temperature_dimension)
+                .expect("valid scalar type"),
             eqiora_schema::kernel::FieldRole::State,
         )),
         initial(temperature, DynQuantity::new(293.0, temperature_dimension)),
@@ -191,7 +192,8 @@ fn thermal_fixture() -> ThermalFixture {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
             eqiora_schema::kernel::FieldRole::State,
         )),
         initial(command, DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)),
@@ -201,7 +203,8 @@ fn thermal_fixture() -> ThermalFixture {
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     temperature_dimension,
-                ),
+                )
+                .expect("valid scalar type"),
                 293.0,
             )
             .expect("valid parameter value"),
@@ -209,7 +212,8 @@ fn thermal_fixture() -> ThermalFixture {
         KernelNode::from(ParameterDef::new(
             time_constant,
             eqiora_core::ValueLiteral::from_real(
-                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, time_dimension),
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, time_dimension)
+                    .expect("valid scalar type"),
                 10.0,
             )
             .expect("valid parameter value"),
@@ -220,7 +224,8 @@ fn thermal_fixture() -> ThermalFixture {
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     temperature_rate_dimension,
-                ),
+                )
+                .expect("valid scalar type"),
                 2.0,
             )
             .expect("valid parameter value"),
@@ -231,7 +236,8 @@ fn thermal_fixture() -> ThermalFixture {
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     temperature_dimension,
-                ),
+                )
+                .expect("valid scalar type"),
                 300.0,
             )
             .expect("valid parameter value"),
@@ -242,7 +248,8 @@ fn thermal_fixture() -> ThermalFixture {
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     inverse_temperature_dimension,
-                ),
+                )
+                .expect("valid scalar type"),
                 0.1,
             )
             .expect("valid parameter value"),
@@ -253,7 +260,8 @@ fn thermal_fixture() -> ThermalFixture {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
         )),
         KernelNode::from(PortDef::signal(
             plant_input,
@@ -261,7 +269,8 @@ fn thermal_fixture() -> ThermalFixture {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
         )),
         KernelNode::from(
             RelationDef::new(

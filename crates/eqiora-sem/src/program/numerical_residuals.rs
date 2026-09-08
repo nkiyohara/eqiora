@@ -116,8 +116,10 @@ mod tests {
 
     #[test]
     fn projection_preserves_arena_sharing_and_complex_zero_promotion() {
-        let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
-        let complex = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS);
+        let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            .expect("valid scalar type");
+        let complex = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+            .expect("valid scalar type");
         let mut builder = ExprDagBuilder::new();
         let left = builder
             .constant(ValueLiteral::from_real(real.clone(), 2.).unwrap())
@@ -153,7 +155,8 @@ mod tests {
 
     #[test]
     fn boolean_and_integer_equations_have_no_numeric_projection() {
-        let integer = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+        let integer = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("valid scalar type");
         for value in [
             ValueLiteral::boolean(false),
             ValueLiteral::from_integer(integer, 0).unwrap(),

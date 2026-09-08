@@ -137,7 +137,8 @@ mod tests {
             let node = KernelNode::from(PortDef::signal(
                 port,
                 direction,
-                ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+                ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                    .expect("valid scalar type"),
             ));
             nodes.insert(node.id(), node.clone());
             transaction.push(Op::DefineKernelNode { node });

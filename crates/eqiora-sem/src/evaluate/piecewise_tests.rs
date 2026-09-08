@@ -24,7 +24,8 @@ fn reference_select_and_require_do_not_evaluate_inactive_domains() {
         let values = evaluate_expression(owner, &dag, &mut |symbol| {
             (symbol == SymbolRef::Parameter(parameter)).then(|| {
                 ValueLiteral::from_real(
-                    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+                    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                        .expect("valid scalar type"),
                     input,
                 )
                 .unwrap()

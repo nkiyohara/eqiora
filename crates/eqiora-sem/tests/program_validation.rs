@@ -34,7 +34,8 @@ fn valid_program_owns_one_snapshot_revision() {
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
-                ),
+                )
+                .expect("valid scalar type"),
                 1.0,
             )
             .expect("valid parameter value"),
@@ -122,7 +123,8 @@ fn symbol_outside_model_is_rejected() {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
             eqiora_schema::kernel::FieldRole::Variable,
         )),
         KernelNode::from(
@@ -193,7 +195,8 @@ fn incompatible_expression_dimensions_are_rejected() {
     for node in [
         KernelNode::from(FieldDef::new(
             field,
-            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, time_dimension),
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, time_dimension)
+                .expect("valid scalar type"),
             eqiora_schema::kernel::FieldRole::State,
         )),
         KernelNode::from(
@@ -284,6 +287,7 @@ fn shaped_relation_roots_are_componentwise_but_activation_roots_remain_scalar() 
                                     eqiora_core::ScalarDomain::Real,
                                     DimExponents::DIMENSIONLESS,
                                 )
+                                .expect("valid scalar type")
                                 .array(2)
                                 .unwrap(),
                                 0.0,
@@ -345,7 +349,8 @@ fn boundary_operator_without_boundary_scope_is_rejected() {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
             eqiora_schema::kernel::FieldRole::State,
         )),
         KernelNode::from(
@@ -417,7 +422,8 @@ fn derivative_dimension_overflow_is_not_misreported_as_missing_symbol() {
     for node in [
         KernelNode::from(FieldDef::new(
             field,
-            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, extreme_dimension),
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, extreme_dimension)
+                .expect("valid scalar type"),
             eqiora_schema::kernel::FieldRole::State,
         )),
         KernelNode::from(
@@ -590,7 +596,8 @@ fn signal_connection_supports_one_to_many_fanout() {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
         )),
         KernelNode::from(PortDef::signal(
             input_a,
@@ -598,7 +605,8 @@ fn signal_connection_supports_one_to_many_fanout() {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
         )),
         KernelNode::from(PortDef::signal(
             input_b,
@@ -606,7 +614,8 @@ fn signal_connection_supports_one_to_many_fanout() {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
         )),
     ] {
         transaction.push(Op::DefineKernelNode { node });
@@ -720,12 +729,14 @@ fn invalid_signal_connection(
         KernelNode::from(PortDef::signal(
             port_ids[0],
             ports[0].0,
-            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, ports[0].1),
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, ports[0].1)
+                .expect("valid scalar type"),
         )),
         KernelNode::from(PortDef::signal(
             port_ids[1],
             ports[1].0,
-            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, ports[1].1),
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, ports[1].1)
+                .expect("valid scalar type"),
         )),
     ] {
         transaction.push(Op::DefineKernelNode { node });
@@ -810,7 +821,8 @@ fn one_port_cannot_belong_to_two_connection_nets() {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
         )),
         KernelNode::from(PortDef::signal(
             output_b,
@@ -818,7 +830,8 @@ fn one_port_cannot_belong_to_two_connection_nets() {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
         )),
         KernelNode::from(PortDef::signal(
             shared_input,
@@ -826,7 +839,8 @@ fn one_port_cannot_belong_to_two_connection_nets() {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
         )),
     ] {
         transaction.push(Op::DefineKernelNode { node });
@@ -924,7 +938,8 @@ fn invalid_spatial_expression(
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
             eqiora_schema::kernel::FieldRole::Variable,
         )),
         KernelNode::from(FieldDef::new(
@@ -932,7 +947,8 @@ fn invalid_spatial_expression(
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
             eqiora_schema::kernel::FieldRole::Variable,
         )),
         KernelNode::from(ParameterDef::new(
@@ -941,7 +957,8 @@ fn invalid_spatial_expression(
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
-                ),
+                )
+                .expect("valid scalar type"),
                 1.0,
             )
             .expect("valid parameter value"),
@@ -1083,6 +1100,7 @@ fn revision_values_preserve_complex_channels_without_scalar_execution_coercion()
     let id = Id::<kinds::Parameter>::new();
     let model = OntologyId::<Model>::new();
     let ty = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+        .expect("valid scalar type")
         .array(2)
         .unwrap();
     let declared = ValueLiteral::new(ty.clone(), [(1.0, 2.0), (3.0, 4.0)]).unwrap();

@@ -93,13 +93,14 @@ fn thermostat_thresholds_rearm_and_omitted_states_remain_continuous() {
     let mut nodes = vec![
         FieldDef::new(
             temperature,
-            ValueType::scalar(eqiora_core::ScalarDomain::Real, kelvin),
+            ValueType::scalar(eqiora_core::ScalarDomain::Real, kelvin).expect("valid scalar type"),
             FieldRole::State,
         )
         .into(),
         FieldDef::new(
             rate,
-            ValueType::scalar(eqiora_core::ScalarDomain::Real, rate_dim),
+            ValueType::scalar(eqiora_core::ScalarDomain::Real, rate_dim)
+                .expect("valid scalar type"),
             FieldRole::State,
         )
         .into(),
@@ -214,20 +215,20 @@ fn grouped_reset_and_post_reset_consistency_failures_leave_accepted_state_unchan
         let mut nodes = vec![
             FieldDef::new(
                 state,
-                ValueType::scalar(eqiora_core::ScalarDomain::Real, d),
+                ValueType::scalar(eqiora_core::ScalarDomain::Real, d).expect("valid scalar type"),
                 FieldRole::State,
             )
             .into(),
             FieldDef::new(
                 algebraic,
-                ValueType::scalar(eqiora_core::ScalarDomain::Real, d),
+                ValueType::scalar(eqiora_core::ScalarDomain::Real, d).expect("valid scalar type"),
                 FieldRole::Variable,
             )
             .into(),
             initial(state, d, 1.),
             FieldDef::new(
                 companion,
-                ValueType::scalar(eqiora_core::ScalarDomain::Real, d),
+                ValueType::scalar(eqiora_core::ScalarDomain::Real, d).expect("valid scalar type"),
                 FieldRole::State,
             )
             .into(),
@@ -338,7 +339,7 @@ fn short_terminal_step_retains_the_solved_derivative_without_subtractive_cancell
         vec![
             FieldDef::new(
                 field,
-                ValueType::scalar(eqiora_core::ScalarDomain::Real, d),
+                ValueType::scalar(eqiora_core::ScalarDomain::Real, d).expect("valid scalar type"),
                 FieldRole::State,
             )
             .into(),
@@ -415,7 +416,7 @@ fn slow_crossing_keeps_arming_through_the_zero_band_and_checkpoint() {
     let mut nodes = vec![
         FieldDef::new(
             field,
-            ValueType::scalar(eqiora_core::ScalarDomain::Real, d),
+            ValueType::scalar(eqiora_core::ScalarDomain::Real, d).expect("valid scalar type"),
             FieldRole::State,
         )
         .into(),
@@ -519,7 +520,7 @@ fn a_clock_only_group_does_not_consume_the_event_microstep_limit() {
         let flow = Id::<kinds::Relation>::new();
         let reset = Id::<kinds::Relation>::new();
         let d = DimExponents::DIMENSIONLESS;
-        let ty = ValueType::scalar(eqiora_core::ScalarDomain::Real, d);
+        let ty = ValueType::scalar(eqiora_core::ScalarDomain::Real, d).expect("valid scalar type");
         let mut b = ExprDagBuilder::new();
         let next = b.symbol(SymbolRef::Next(memory)).unwrap();
         let previous = b.symbol(SymbolRef::Pre(memory)).unwrap();
@@ -693,7 +694,7 @@ fn enum_state_selects_live_numeric_flow_and_resets_without_numeric_storage() {
         FieldDef::new(mode, definition.value_type(), FieldRole::State).into(),
         FieldDef::new(
             position,
-            ValueType::scalar(eqiora_core::ScalarDomain::Real, d),
+            ValueType::scalar(eqiora_core::ScalarDomain::Real, d).expect("valid scalar type"),
             FieldRole::State,
         )
         .into(),

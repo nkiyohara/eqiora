@@ -483,7 +483,8 @@ pub(crate) fn real(value: &ValueLiteral) -> Result<DynQuantity, Diagnostic> {
 
 pub(crate) fn literal(value: DynQuantity) -> Result<ValueLiteral, Diagnostic> {
     ValueLiteral::from_real(
-        ValueType::scalar(ScalarDomain::Real, value.dim()),
+        ValueType::scalar(ScalarDomain::Real, value.dim())
+            .map_err(|error| Diagnostic::error(codes::DIMENSION_MISMATCH, error.to_string()))?,
         value.value(),
     )
     .map_err(|_| {
@@ -656,7 +657,8 @@ mod tests {
     #[test]
     fn channels_construct_index_and_preserve_integer_low_bits() {
         let mut builder = ExprDagBuilder::new();
-        let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+        let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("valid scalar type");
         let high = builder
             .constant(ValueLiteral::from_integer(ty.clone(), 9_007_199_254_740_993).unwrap())
             .unwrap();
@@ -684,6 +686,7 @@ mod tests {
     fn channel_intermediate_budget_and_direct_array_arithmetic_reject() {
         let mut builder = ExprDagBuilder::new();
         let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("valid scalar type")
             .array(600_000)
             .unwrap();
         let input = builder
@@ -704,6 +707,7 @@ mod tests {
         );
         let mut builder = ExprDagBuilder::new();
         let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("valid scalar type")
             .array(2)
             .unwrap();
         let input = builder
@@ -728,7 +732,8 @@ mod tests {
         use eqiora_schema::kernel::ComparisonOp;
         let owner = Id::<kinds::Relation>::new().erase();
         let gate = Id::<kinds::Parameter>::new();
-        let integer = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+        let integer = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("valid scalar type");
         let mut dag = ExprDagBuilder::new();
         let condition = dag.symbol(SymbolRef::Parameter(gate)).unwrap();
         let one = dag
@@ -785,10 +790,11 @@ mod tests {
     #[test]
     fn reference_evaluation_does_not_narrow_typed_constants() {
         let owner = Id::<kinds::Relation>::new().erase();
-        let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+        let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            .expect("valid scalar type");
         for value_type in [
             real.clone(),
-            ValueType::scalar(ScalarDomain::Complex, real.dimension()),
+            ValueType::scalar(ScalarDomain::Complex, real.dimension()).expect("valid scalar type"),
             real.array(3).unwrap(),
         ] {
             let is_real_scalar =
@@ -806,7 +812,8 @@ mod tests {
     #[test]
     fn exact_integer_operations_and_checked_conversion_use_one_backend() {
         let owner = Id::<kinds::Relation>::new().erase();
-        let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+        let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("valid scalar type");
         let mut dag = ExprDagBuilder::new();
         let a = dag
             .constant(ValueLiteral::from_integer(ty.clone(), -7).unwrap())
@@ -849,7 +856,8 @@ mod tests {
                 ValueType::scalar(
                     ScalarDomain::Integer,
                     eqiora_core::DimExponents::DIMENSIONLESS,
-                ),
+                )
+                .expect("valid scalar type"),
                 n,
             )
             .unwrap()

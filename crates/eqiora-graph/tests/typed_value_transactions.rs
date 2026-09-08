@@ -5,6 +5,7 @@ use eqiora_schema::kernel::ParameterDef;
 #[test]
 fn typed_edits_preserve_imaginary_components_snapshots_and_atomic_preconditions() {
     let kind = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+        .expect("valid scalar type")
         .array(2)
         .unwrap();
     let before = ValueLiteral::new(kind.clone(), [(2.0, 3.0), (5.0, 7.0)]).unwrap();
@@ -47,7 +48,8 @@ fn typed_edits_preserve_imaginary_components_snapshots_and_atomic_preconditions(
 
     // A later shape-changing operation rolls back the earlier valid edit too.
     let scalar = ValueLiteral::new(
-        ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS),
+        ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+            .expect("valid scalar type"),
         [(2.0, 3.0)],
     )
     .unwrap();
@@ -69,7 +71,8 @@ fn typed_edits_preserve_imaginary_components_snapshots_and_atomic_preconditions(
 
 #[test]
 fn adjacent_large_integers_remain_distinct_across_edits_and_preconditions() {
-    let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+    let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+        .expect("valid scalar type");
     let before = ValueLiteral::from_integer(ty.clone(), 9_007_199_254_740_992).unwrap();
     let after = ValueLiteral::from_integer(ty, 9_007_199_254_740_993).unwrap();
     let id = Id::<kinds::Parameter>::new();
@@ -120,7 +123,8 @@ fn structural_value_guard_survives_dependency_owner_removal_and_recreation() {
 
     let parameter = Id::<kinds::Parameter>::new();
     let set = Id::<kinds::IndexSet>::new();
-    let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+    let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+        .expect("valid scalar type");
     let before = ValueLiteral::from_integer(ty.clone(), 3).unwrap();
     let after = ValueLiteral::from_integer(ty, 4).unwrap();
     let definition: KernelNode = IndexSetDef::new(set, 3).unwrap().into();

@@ -12,7 +12,8 @@ fn voltage(value: f64) -> ValueLiteral {
         ValueType::scalar(
             ScalarDomain::Real,
             DimExponents::from_integers([1, 2, -3, -1, 0, 0, 0]).unwrap(),
-        ),
+        )
+        .expect("valid scalar type"),
         value,
     )
     .unwrap()
@@ -58,7 +59,8 @@ fn fixture(
         let badzero = dag
             .constant(
                 ValueLiteral::from_real(
-                    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+                    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                        .expect("valid scalar type"),
                     0.,
                 )
                 .unwrap(),

@@ -58,7 +58,10 @@ fn interface_program(
     };
     let connector_contract = BoundaryPhysicalConnector::new(
         trace_type.clone(),
-        trace_type.clone().with_dimension(traction),
+        trace_type
+            .clone()
+            .with_dimension(traction)
+            .expect("valid real tensor dimension"),
         BoundaryPairing::EuclideanBoundaryDuality,
     )
     .unwrap();
@@ -74,7 +77,10 @@ fn interface_program(
             let flux_zero = expression
                 .constant(
                     eqiora_core::ValueLiteral::from_real(
-                        trace_type.clone().with_dimension(traction),
+                        trace_type
+                            .clone()
+                            .with_dimension(traction)
+                            .expect("valid real tensor dimension"),
                         0.0,
                     )
                     .unwrap(),

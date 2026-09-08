@@ -402,7 +402,8 @@ mod tests {
             let field = Id::<kinds::Field>::new();
             let relation = Id::<kinds::Relation>::new();
             let ty =
-                ValueType::scalar(ScalarDomain::Real, eqiora_core::DimExponents::DIMENSIONLESS);
+                ValueType::scalar(ScalarDomain::Real, eqiora_core::DimExponents::DIMENSIONLESS)
+                    .expect("valid scalar type");
             let ty = if components == 1 {
                 ty
             } else {

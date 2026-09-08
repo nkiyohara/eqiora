@@ -30,6 +30,7 @@ fn dimensions() -> (DimExponents, DimExponents) {
 
 fn real(dimension: DimExponents) -> eqiora_core::ValueType {
     eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension)
+        .expect("valid scalar type")
 }
 
 fn ids() -> PhysicalIds {
@@ -58,7 +59,8 @@ fn physical_transaction(ids: PhysicalIds, reverse_insertion: bool) -> Transactio
         KernelNode::from(ParameterDef::new(
             ids.parameter,
             eqiora_core::ValueLiteral::from_real(
-                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, across_dimension),
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, across_dimension)
+                    .expect("valid scalar type"),
                 12.0,
             )
             .expect("valid parameter value"),
@@ -166,8 +168,8 @@ fn complex_physical_quantities_typecheck_without_entering_real_execution() {
     let (across, through) = dimensions();
     let definition = DomainDef::scalar_physical(
         ids.domain,
-        ValueType::scalar(ScalarDomain::Complex, across),
-        ValueType::scalar(ScalarDomain::Complex, through),
+        ValueType::scalar(ScalarDomain::Complex, across).expect("valid scalar type"),
+        ValueType::scalar(ScalarDomain::Complex, through).expect("valid scalar type"),
     )
     .unwrap();
     let mut transaction = Transaction::new("complex physical quantities");
@@ -216,7 +218,7 @@ fn complex_physical_quantities_typecheck_without_entering_real_execution() {
     );
     assert_eq!(
         composed.parameter_types(),
-        &[ValueType::scalar(ScalarDomain::Real, across)]
+        &[ValueType::scalar(ScalarDomain::Real, across).expect("valid scalar type")]
     );
     assert_eq!(
         composed
@@ -399,7 +401,8 @@ fn physical_symbols_reject_signal_ports() {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
         )),
         KernelNode::from(
             RelationDef::new(
@@ -517,7 +520,8 @@ fn physical_relation_admits_state_but_still_requires_continuous_activation_and_c
         .into(),
         FieldDef::new(
             field,
-            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, across_dimension),
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, across_dimension)
+                .expect("valid scalar type"),
             eqiora_schema::kernel::FieldRole::Variable,
         )
         .into(),

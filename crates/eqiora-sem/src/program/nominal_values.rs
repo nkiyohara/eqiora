@@ -114,13 +114,10 @@ mod tests {
         use eqiora_schema::kernel::{EnumDef, ParameterDef};
         let definition = EnumDef::new(Id::new(), ["Off".into(), "On".into()]).unwrap();
         let foreign = EnumDef::new(Id::new(), ["Off".into(), "On".into()]).unwrap();
-        let seconds = DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap();
         for value in [
             definition.value_type(),
             ValueType::enumeration(definition.id(), 3).unwrap(),
             foreign.value_type(),
-            definition.value_type().with_dimension(seconds),
-            ValueType::scalar(ScalarDomain::Enum, DimExponents::DIMENSIONLESS),
         ] {
             let expected = value == definition.value_type();
             for node in [
@@ -206,7 +203,8 @@ mod tests {
         let value = ValueType::scalar(
             eqiora_core::ScalarDomain::Integer,
             DimExponents::DIMENSIONLESS,
-        );
+        )
+        .expect("valid scalar type");
         let nodes = BTreeMap::from([(
             field.erase(),
             FieldDef::new(field, value, FieldRole::State).into(),
@@ -220,7 +218,8 @@ mod tests {
         let field = Id::<kinds::Field>::new();
         let port = Id::<kinds::Port>::new();
         let seconds = DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap();
-        let ordinary = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+        let ordinary = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("valid scalar type");
         let mut cases = Vec::new();
         for value in [
             ValueType::boolean(),
@@ -230,7 +229,16 @@ mod tests {
             index.value_type(),
         ] {
             cases.push((value.clone(), true));
-            cases.push((value.with_dimension(seconds), false));
+            if value.scalar_domain() == ScalarDomain::Boolean {
+                assert!(value.with_dimension(seconds).is_err());
+            } else {
+                cases.push((
+                    value
+                        .with_dimension(seconds)
+                        .expect("constructible integer type; semantic profile rejects dimensions"),
+                    false,
+                ));
+            }
         }
         cases.push((
             ValueType::shaped(
@@ -267,7 +275,8 @@ mod tests {
         let integer = ValueType::scalar(
             ScalarDomain::Integer,
             DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap(),
-        );
+        )
+        .expect("constructible integer type; semantic profile rejects dimensions");
         let domain =
             eqiora_schema::kernel::DomainDef::scalar_physical(Id::new(), integer.clone(), integer)
                 .unwrap();

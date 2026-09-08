@@ -40,7 +40,8 @@ fn commit_is_atomic_and_records_provenance() {
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     dim::VelocityDim::EXPONENTS,
-                ),
+                )
+                .expect("valid scalar type"),
                 0.0,
             )
             .unwrap(),
@@ -89,7 +90,8 @@ fn failed_operation_rolls_back_the_whole_transaction() {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 dim::VelocityDim::EXPONENTS,
-            ),
+            )
+            .expect("valid scalar type"),
             FieldRole::Variable,
         )))
         .push(Op::SetValue {
@@ -121,7 +123,8 @@ fn optimistic_preconditions_preserve_snapshot_isolation() {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 initial.value_type().dimension(),
-            ),
+            )
+            .expect("valid scalar type"),
             initial.real_scalar_value().unwrap().value(),
         )
         .unwrap(),
@@ -172,7 +175,8 @@ fn restored_snapshot_retains_its_revision_and_advances_normally() {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 initial.value_type().dimension(),
-            ),
+            )
+            .expect("valid scalar type"),
             initial.real_scalar_value().unwrap().value(),
         )
         .unwrap(),
@@ -242,7 +246,8 @@ fn dimension_change_is_rejected() {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 dim::LengthDim::EXPONENTS,
-            ),
+            )
+            .expect("valid scalar type"),
             2.0,
         )
         .unwrap(),
@@ -267,7 +272,8 @@ fn set_value_cannot_initialize_scalar_or_shaped_unknowns() {
     let scalar = eqiora_core::ValueType::scalar(
         eqiora_core::ScalarDomain::Real,
         dim::VelocityDim::EXPONENTS,
-    );
+    )
+    .expect("valid scalar type");
     let shaped = eqiora_core::ValueType::shaped(
         eqiora_core::ScalarDomain::Real,
         dim::VelocityDim::EXPONENTS,
@@ -315,7 +321,8 @@ fn graph_boundaries_are_checked_by_edge_kind() {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 dim::LengthDim::EXPONENTS,
-            ),
+            )
+            .expect("valid scalar type"),
             FieldRole::Variable,
         )))
         .push(Op::Connect {
@@ -378,7 +385,8 @@ fn ontology_view_commits_with_its_kernel_members_but_is_not_a_node() {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
         )));
 
     let mut store = InMemoryGraphStore::new();
