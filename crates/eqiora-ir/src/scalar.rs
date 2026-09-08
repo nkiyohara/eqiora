@@ -407,28 +407,7 @@ impl ScalarOperatorIr {
         inputs: &[f64],
         roles: &[DifferentiationRole],
     ) -> Result<ScalarLinearization<'_>, Diagnostic> {
-        if self.instructions.iter().any(|instruction| {
-            matches!(
-                instruction,
-                Instruction::Min(_, _)
-                    | Instruction::Max(_, _)
-                    | Instruction::Array { .. }
-                    | Instruction::Index(_, _)
-            )
-        }) {
-            return Err(invalid_linearization(
-                "channel construction/indexing requires typed execution and is outside scalar automatic differentiation",
-            ));
-        }
-        if inputs.len() != self.symbols.len() || roles.len() != self.symbols.len() {
-            return Err(invalid_linearization(format!(
-                "scalar linearization expects {} point values and roles, received {} values and {} roles",
-                self.symbols.len(),
-                inputs.len(),
-                roles.len()
-            )));
-        }
-        require_finite(inputs, "linearization point")?;
+        validate_linearization_inputs(self, inputs, roles)?;
         let mut unknown_dimension = 0usize;
         let mut parameter_dimension = 0usize;
         let bindings = roles
