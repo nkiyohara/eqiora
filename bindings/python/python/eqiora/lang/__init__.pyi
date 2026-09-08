@@ -5,12 +5,12 @@ Authority: ``bindings/python/python/eqiora/lang/__init__.py``.
 
 import builtins as _builtins
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from fractions import Fraction
 from decimal import Decimal
 from ..units import Unit
 from os import PathLike
-from typing import Final, final, overload
+from typing import Final, final
 from .. import FieldRole, ValueType, FiniteSpace, IndexSet
 
 @final
@@ -40,7 +40,7 @@ class Expression:
     def __pow__(self, exponent: int, /) -> Expression: ...
     def __bool__(self) -> bool: ...
     def __neg__(self) -> Expression: ...
-    def __getitem__(self, index: int) -> Expression: ...
+    def __getitem__(self, index: int | Expression) -> Expression: ...
 
 @final
 class Clock:
@@ -121,6 +121,10 @@ class Component:
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.index``.
         """
         ...
+    def sum(self, body: Callable[[Expression], object], *, over: IndexSet, name: str = "i") -> Expression:
+        """Construct a finite sum; call body once with an exact scoped index."""
+    def product(self, body: Callable[[Expression], object], *, over: IndexSet, name: str = "i") -> Expression:
+        """Construct a finite product; the compiler checks element types and units."""
     def index_set(self, name: str, *, extent: int, doc: str | None = None) -> IndexSet:
         """Declare a constant nominal index set; expression extents require authored source.
 
