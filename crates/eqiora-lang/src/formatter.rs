@@ -289,7 +289,7 @@ fn format_unknown_head(declaration: &FieldDecl, output: &mut crate::formatter::c
     if let Some(domain) = &declaration.domain {
         write!(output, " on {domain}").expect("String write");
     }
-    if let crate::ast::ActivationSyntax::Periodic(clock) = &declaration.activation {
+    if let crate::ast::ActivationSyntax::Named(clock) = &declaration.activation {
         write!(output, " at {clock}").expect("String write");
     }
 }
@@ -345,7 +345,7 @@ fn format_port_syntax(syntax: &PortSyntax, output: &mut crate::formatter::commen
             if let Some(domain) = domain {
                 write!(output, " on {domain}").expect("String write");
             }
-            if let crate::ActivationSyntax::Periodic(clock) = activation {
+            if let crate::ActivationSyntax::Named(clock) = activation {
                 write!(output, " at {clock}").expect("String write");
             }
         }

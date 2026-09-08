@@ -440,7 +440,7 @@ impl Parser<'_> {
         };
         let activation = if self.at_keyword("at") {
             self.bump();
-            crate::ActivationSyntax::Periodic(
+            crate::ActivationSyntax::Named(
                 self.expect_identifier("unknown clock")?.text().to_owned(),
             )
         } else {
@@ -714,7 +714,7 @@ impl Parser<'_> {
         };
         let activation = if self.at_keyword("at") {
             self.bump();
-            crate::ActivationSyntax::Periodic(
+            crate::ActivationSyntax::Named(
                 self.expect_identifier("signal clock")?.text().to_owned(),
             )
         } else {

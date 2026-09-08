@@ -62,7 +62,7 @@ impl SourceAstFactory {
                 "a Relation requires at least one equation",
             ));
         }
-        if let ActivationSyntax::Periodic(clock) = &activation {
+        if let ActivationSyntax::Named(clock) = &activation {
             validate_identifier(clock, "periodic Clock")?;
         }
         if let Some(domain) = &domain {

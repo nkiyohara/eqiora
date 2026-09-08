@@ -8,9 +8,11 @@ mod signature;
 pub use items::{ComponentItem, Item};
 pub use signature::SignatureItem;
 pub(crate) mod document;
+mod event;
 pub(crate) mod formulation;
 mod name_path;
 mod relation;
+pub use event::EventDecl;
 pub use relation::{ActivationSyntax, Equation, InitialDecl, RelationDecl, RelationFamilyDecl};
 mod value_type;
 

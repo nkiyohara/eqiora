@@ -41,7 +41,7 @@ fn model_and_component_index_families_share_ordered_syntax_and_native_factories(
         assert_eq!(relation.relation().domain(), Some("body"));
         assert_eq!(
             relation.relation().activation(),
-            &ActivationSyntax::Periodic("tick".to_owned())
+            &ActivationSyntax::Named("tick".to_owned())
         );
         assert!(document.doc_comment(relation.range()).is_some());
         let constructed = SourceAstFactory::relation_family(

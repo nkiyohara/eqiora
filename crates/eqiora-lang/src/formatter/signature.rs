@@ -53,7 +53,7 @@ pub(super) fn format_signature(items: &[SignatureItem], output: &mut comments::O
                 if let Some(domain) = &value.domain {
                     write!(output, " on {domain}").expect("String write");
                 }
-                if let ActivationSyntax::Periodic(clock) = &value.activation {
+                if let ActivationSyntax::Named(clock) = &value.activation {
                     write!(output, " at {clock}").expect("String write");
                 }
             }

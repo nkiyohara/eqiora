@@ -42,7 +42,7 @@ impl RelationDecl {
         &self.name
     }
 
-    /// Continuous or exact-periodic activation.
+    /// Continuous or named clock/event activation.
     #[must_use]
     pub const fn activation(&self) -> &ActivationSyntax {
         &self.activation
@@ -128,6 +128,6 @@ impl RelationFamilyDecl {
 pub enum ActivationSyntax {
     /// Active throughout model time.
     Continuous,
-    /// Active at ticks of the named ClockDomain.
-    Periodic(String),
+    /// Named clock or event activation, classified by semantic name resolution.
+    Named(String),
 }

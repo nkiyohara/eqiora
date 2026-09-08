@@ -22,6 +22,8 @@ pub enum ComponentItem {
     Initial(InitialDecl),
     /// Private exact periodic clock.
     Clock(ClockDecl),
+    /// Private zero-crossing event activation.
+    Event(EventDecl),
     /// Private implicit residual group.
     Relation(RelationDecl),
     /// Private Relation family over an exact finite set.
@@ -54,6 +56,8 @@ pub enum Item {
     Port(PortDecl),
     /// Exact periodic clock.
     Clock(ClockDecl),
+    /// Private zero-crossing event activation.
+    Event(EventDecl),
     /// Implicit residual group and activation.
     Relation(RelationDecl),
     /// Relation expanded over a finite nominal index set.

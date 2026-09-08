@@ -50,7 +50,7 @@ impl Parser<'_> {
         };
         let activation = if self.at_keyword("at") {
             self.bump();
-            ActivationSyntax::Periodic(
+            ActivationSyntax::Named(
                 self.expect_identifier("Relation Clock activation")?
                     .text()
                     .to_owned(),
