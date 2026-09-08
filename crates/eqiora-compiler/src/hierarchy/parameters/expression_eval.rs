@@ -1,5 +1,8 @@
+mod case;
 mod initializers;
-pub(super) use initializers::{evaluate_initializer, evaluate_initializer_mode};
+pub(super) use initializers::{
+    coerce_parameter, coerce_parameter_with_label, evaluate_initializer, evaluate_initializer_mode,
+};
 mod piecewise;
 use super::*;
 use eqiora_schema::kernel::typing::SpatialSupport;
@@ -108,6 +111,25 @@ pub(super) fn evaluate_mode(
     expected: Option<ScalarDomain>,
     evaluate_values: bool,
 ) -> Result<EvaluatedParameter, Diagnostic> {
+    if expression.resolved_enum().is_some() || matches!(expression.kind(), ExprKind::Case { .. }) {
+        return case::evaluate(
+            file,
+            expression,
+            expected,
+            evaluate_values,
+            |value, expected, demand| {
+                evaluate_mode(
+                    file,
+                    value,
+                    context,
+                    resolve,
+                    (&mut *resolve_clock, &mut *resolve_frame),
+                    expected,
+                    demand,
+                )
+            },
+        );
+    }
     if let ExprKind::Select {
         condition,
         then_value,
@@ -193,10 +215,10 @@ pub(super) fn evaluate_mode(
     {
         return Ok(EvaluatedParameter {
             value: None,
-            value_type: EvaluatedType::Known(ValueType::scalar(
-                ScalarDomain::Integer,
-                DimExponents::DIMENSIONLESS,
-            )),
+            value_type: EvaluatedType::Known(
+                ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                    .expect("valid numeric scalar type"),
+            ),
             expression: None,
             lineage: None,
             bare_literal: false,
@@ -254,7 +276,8 @@ pub(super) fn evaluate_mode(
                 error.message(),
             )
         })?;
-        let value_type = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+        let value_type = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("valid numeric scalar type");
         let value =
             ValueLiteral::from_integer(value_type.clone(), value).expect("checked integer scalar");
         return Ok(EvaluatedParameter {
@@ -333,15 +356,16 @@ pub(super) fn evaluate_mode(
             EvaluatedParameter {
                 value: Some(
                     ValueLiteral::from_real(
-                        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+                        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                            .expect("valid numeric scalar type"),
                         normalize_zero(value),
                     )
                     .expect("finite source literal"),
                 ),
-                value_type: EvaluatedType::Known(ValueType::scalar(
-                    ScalarDomain::Real,
-                    DimExponents::DIMENSIONLESS,
-                )),
+                value_type: EvaluatedType::Known(
+                    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                        .expect("valid numeric scalar type"),
+                ),
                 bare_literal: true,
                 expression: Some(LoweringExpression::quantity(
                     DynQuantity::new(normalize_zero(value), DimExponents::DIMENSIONLESS),
@@ -361,10 +385,10 @@ pub(super) fn evaluate_mode(
             })?;
             EvaluatedParameter {
                 value: Some(ValueLiteral::try_from(quantity).expect("finite quantity")),
-                value_type: EvaluatedType::Known(ValueType::scalar(
-                    ScalarDomain::Real,
-                    quantity.dim(),
-                )),
+                value_type: EvaluatedType::Known(
+                    ValueType::scalar(ScalarDomain::Real, quantity.dim())
+                        .expect("valid numeric scalar type"),
+                ),
                 bare_literal: false,
                 expression: Some(LoweringExpression::quantity(quantity, expression.range())),
                 lineage: Some(ParameterLineage::Constant),
@@ -485,7 +509,8 @@ pub(super) fn evaluate_mode(
                 )
             })?;
             let value_type =
-                ValueType::scalar(ScalarDomain::Real, crate::dimensions::time_dimension());
+                ValueType::scalar(ScalarDomain::Real, crate::dimensions::time_dimension())
+                    .expect("valid numeric scalar type");
             EvaluatedParameter {
                 value: period.map(|period| {
                     ValueLiteral::from_real(value_type.clone(), period.as_seconds_f64())
@@ -510,15 +535,16 @@ pub(super) fn evaluate_mode(
             Some(value) => EvaluatedParameter {
                 value: Some(
                     ValueLiteral::from_real(
-                        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+                        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                            .expect("valid numeric scalar type"),
                         value,
                     )
                     .expect("finite math constant"),
                 ),
-                value_type: EvaluatedType::Known(ValueType::scalar(
-                    ScalarDomain::Real,
-                    DimExponents::DIMENSIONLESS,
-                )),
+                value_type: EvaluatedType::Known(
+                    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                        .expect("valid numeric scalar type"),
+                ),
                 bare_literal: false,
                 expression: Some(LoweringExpression::quantity(
                     DynQuantity::new(value, DimExponents::DIMENSIONLESS),
@@ -816,138 +842,6 @@ pub(crate) fn exact_signed_literal(
         },
         _ => None,
     }
-}
-
-pub(super) fn coerce_parameter(
-    file: &str,
-    range: TextRange,
-    evaluated: EvaluatedParameter,
-    target: ValueType,
-) -> Result<SymbolicParameterValue, Diagnostic> {
-    coerce_parameter_with_label(file, range, evaluated, target, "Parameter binding", false)
-}
-
-pub(super) fn coerce_parameter_with_label(
-    file: &str,
-    range: TextRange,
-    evaluated: EvaluatedParameter,
-    target: ValueType,
-    label: &str,
-    declaration_initializer: bool,
-) -> Result<SymbolicParameterValue, Diagnostic> {
-    if evaluated.bare_literal
-        && (declaration_initializer
-            || evaluated.value.as_ref().is_some_and(ValueLiteral::is_zero)
-            || target.dimension() == DimExponents::DIMENSIONLESS)
-    {
-        let value = evaluated
-            .value
-            .as_ref()
-            .expect("bare literals have a known value");
-        let literal = if target.scalar_domain() == ScalarDomain::Integer {
-            let integer = value.integer_scalar_value().ok_or_else(|| {
-                source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    file,
-                    range,
-                    "integer context requires an exact integer literal",
-                )
-            })?;
-            ValueLiteral::from_integer(target.clone(), integer)
-        } else {
-            let real = value.real_scalar_value().ok_or_else(|| {
-                source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    file,
-                    range,
-                    "integer/real conversion must be explicit",
-                )
-            })?;
-            ValueLiteral::from_real(target.clone(), real.value())
-        }
-        .map_err(|error| {
-            source_error(codes::LANGUAGE_TYPE_ERROR, file, range, error.to_string())
-        })?;
-        return Ok(SymbolicParameterValue {
-            value: Some(literal.clone()),
-            value_type: target,
-            expression: Some(LoweringExpression::literal(literal, range)),
-            lineage: evaluated.lineage,
-        });
-    }
-    match &evaluated.value_type {
-        EvaluatedType::Known(actual) if actual.dimension() != target.dimension() => {
-            return Err(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                file,
-                range,
-                format!(
-                    "{label} has dimension [{}], expected [{}]",
-                    actual.dimension(),
-                    target.dimension()
-                ),
-            ));
-        }
-        EvaluatedType::Known(actual) | EvaluatedType::Deferred(actual)
-            if target.scalar_domain() == ScalarDomain::Real
-                && target.shape().is_scalar()
-                && (actual.scalar_domain() != ScalarDomain::Real
-                    || !actual.shape().is_scalar()) =>
-        {
-            return Err(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                file,
-                range,
-                format!("{label} requires a real scalar type"),
-            ));
-        }
-        _ => {}
-    }
-    use eqiora_schema::kernel::typing::ExpressionType;
-    let actual = evaluated
-        .value_type
-        .value_type()
-        .clone()
-        .with_dimension(target.dimension());
-    let common = ExpressionType::<()>::new(actual.clone(), None)
-        .equation(ExpressionType::new(target.clone(), None))
-        .map_err(|error| {
-            source_error(codes::LANGUAGE_TYPE_ERROR, file, range, error.to_string())
-        })?;
-    if common.value_type != target {
-        return Err(source_error(
-            codes::LANGUAGE_TYPE_ERROR,
-            file,
-            range,
-            format!("{label} cannot implicitly convert complex values to real values"),
-        ));
-    }
-    let embedding = actual.scalar_domain() != target.scalar_domain();
-    let expression = evaluated.expression.map(|expression| {
-        if embedding {
-            expression.embed_complex()
-        } else {
-            expression
-        }
-    });
-    let lineage = if embedding {
-        transform_lineage(evaluated.lineage)
-    } else {
-        evaluated.lineage
-    };
-    Ok(SymbolicParameterValue {
-        value: evaluated
-            .value
-            .map(|value| {
-                crate::typed_values::retype(&value, target.clone()).map_err(|message| {
-                    source_error(codes::LANGUAGE_TYPE_ERROR, file, range, message)
-                })
-            })
-            .transpose()?,
-        value_type: target,
-        expression,
-        lineage,
-    })
 }
 
 pub(super) fn infer_parameter_with_label(

@@ -148,6 +148,9 @@ pub(in crate::hierarchy) fn alias_order<'a>(
             let mut dependencies = BTreeMap::new();
             let mut pending = vec![d.value()];
             while let Some(e) = pending.pop() {
+                if e.resolved_enum().is_some() {
+                    continue;
+                }
                 if e.resolved_nominal().is_some() {
                     continue;
                 }
@@ -156,6 +159,10 @@ pub(in crate::hierarchy) fn alias_order<'a>(
                         dependencies.entry(n.clone()).or_insert(e.range());
                     }
                     eqiora_lang::ExprKind::Reduction { value, .. } => pending.push(value),
+                    eqiora_lang::ExprKind::Case { value, arms } => {
+                        pending.push(value.as_ref());
+                        pending.extend(arms.iter().map(eqiora_lang::CaseArm::value));
+                    }
                     eqiora_lang::ExprKind::Select {
                         condition,
                         then_value,
@@ -229,6 +236,9 @@ pub(in crate::hierarchy) fn alias_order<'a>(
 fn is_static_expression(expression: &eqiora_lang::Expr, values: &SymbolicParameterMap) -> bool {
     let mut pending = vec![expression];
     while let Some(e) = pending.pop() {
+        if e.resolved_enum().is_some() {
+            continue;
+        }
         match e.kind() {
             eqiora_lang::ExprKind::Boolean(_)
             | eqiora_lang::ExprKind::Number(_)
@@ -236,6 +246,10 @@ fn is_static_expression(expression: &eqiora_lang::Expr, values: &SymbolicParamet
             eqiora_lang::ExprKind::Name(n) if values.contains_key(n) => {}
             eqiora_lang::ExprKind::Path(p)
                 if (crate::math::constant(p).is_some() || p.as_str() == "math.i") => {}
+            eqiora_lang::ExprKind::Case { value, arms } => {
+                pending.push(value.as_ref());
+                pending.extend(arms.iter().map(eqiora_lang::CaseArm::value));
+            }
             eqiora_lang::ExprKind::Select {
                 condition,
                 then_value,

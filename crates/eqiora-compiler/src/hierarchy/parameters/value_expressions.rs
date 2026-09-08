@@ -154,7 +154,8 @@ pub(super) fn evaluate_mode(
             (vec![operand], value_type, lowered, value)
         }
         ExprKind::Path(path) if path.as_str() == "math.i" => {
-            let value_type = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS);
+            let value_type = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+                .expect("valid numeric scalar type");
             let value =
                 ValueLiteral::new(value_type.clone(), [(0.0, 1.0)]).expect("imaginary unit");
             (
@@ -175,7 +176,10 @@ pub(super) fn evaluate_mode(
             };
             let scalar_target = target
                 .filter(|target| target.shape().is_scalar())
-                .map(|target| ValueType::scalar(ScalarDomain::Real, target.dimension()));
+                .map(|target| {
+                    ValueType::scalar(ScalarDomain::Real, target.dimension())
+                        .expect("valid numeric scalar type")
+                });
             let mut evaluate = |value| match &scalar_target {
                 Some(target) => super::expression_eval::evaluate_initializer_mode(
                     file,

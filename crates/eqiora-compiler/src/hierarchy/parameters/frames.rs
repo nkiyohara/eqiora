@@ -24,7 +24,14 @@ pub(in crate::hierarchy) fn parameter_type(
     let mut explicit = Vec::new();
     let mut pending = initializer.into_iter().collect::<Vec<_>>();
     while let Some(value) = pending.pop() {
+        if value.resolved_enum().is_some() {
+            continue;
+        }
         match value.kind() {
+            ExprKind::Case { value, arms } => {
+                pending.push(value.as_ref());
+                pending.extend(arms.iter().map(eqiora_lang::CaseArm::value));
+            }
             ExprKind::Select {
                 condition,
                 then_value,
