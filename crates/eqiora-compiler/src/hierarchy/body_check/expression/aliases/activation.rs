@@ -51,6 +51,12 @@ impl DependencyActivation {
             |expression| match expression.kind() {
                 ExprKind::Name(name) => scope.symbols.get(name).map(Self::symbol),
                 ExprKind::Path(path) => scope.resolve_symbol(path).ok().as_ref().map(Self::symbol),
+                ExprKind::Member { .. } => scope
+                    .indexed_member(expression)
+                    .ok()
+                    .and_then(|(path, _)| scope.resolve_symbol(&path).ok())
+                    .as_ref()
+                    .map(Self::symbol),
                 _ => None,
             },
             |clock| clock.to_owned(),
@@ -67,7 +73,9 @@ impl DependencyActivation {
         while let Some(expression) = pending.pop() {
             let contribution = match expression.kind() {
                 ExprKind::Name(name) if name == "time" => Self::Continuous,
-                ExprKind::Name(_) | ExprKind::Path(_) => symbol(expression).unwrap_or(Self::Static),
+                ExprKind::Name(_) | ExprKind::Path(_) | ExprKind::Member { .. } => {
+                    symbol(expression).unwrap_or(Self::Static)
+                }
                 ExprKind::BoundaryPortSelection { .. } => Self::Continuous,
                 ExprKind::Array(elements) => {
                     pending.extend(elements);

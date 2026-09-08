@@ -15,12 +15,17 @@ pub(in crate::hierarchy) fn port_activation(
 }
 
 impl Scope {
-    pub(in crate::hierarchy) fn alias_activation(&self, expression: &Expr) -> DependencyActivation {
+    pub(in crate::hierarchy) fn alias_activation(
+        &self,
+        file: &str,
+        expression: &Expr,
+    ) -> Result<DependencyActivation, Diagnostic> {
         let declared = |activation: &ActivationSyntax| match activation {
             ActivationSyntax::Periodic(clock) => DependencyActivation::Clock(clock.clone()),
             _ => DependencyActivation::Continuous,
         };
-        DependencyActivation::infer_with(
+        let mut invalid_selection = None;
+        let profile = DependencyActivation::infer_with(
             expression,
             |expression| {
                 let symbol = match expression.kind() {
@@ -34,6 +39,13 @@ impl Scope {
                         self.symbol(name)
                     }
                     ExprKind::Path(path) => self.resolve_symbol(path),
+                    ExprKind::Member { .. } => match self.indexed_port(file, expression) {
+                        Ok(symbol) => Some(symbol),
+                        Err(error) => {
+                            invalid_selection = Some(error);
+                            None
+                        }
+                    },
                     _ => None,
                 }?;
                 Some(match &symbol.kind {
@@ -46,6 +58,10 @@ impl Scope {
                 self.symbol(name)
                     .map_or_else(|| name.to_owned(), |symbol| symbol.internal_name.clone())
             },
-        )
+        );
+        match invalid_selection {
+            Some(error) => Err(error),
+            None => Ok(profile),
+        }
     }
 }
