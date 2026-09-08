@@ -786,8 +786,22 @@ fn index_extent_dependencies_survive_replay_and_block_stale_structure_edits() {
     let decoded = ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default()).unwrap();
     assert_eq!(decoded.to_program().unwrap(), original);
     let (seed, _) = decoded.to_transaction().unwrap();
+    // Persist the complete seed through the transaction codec too: Model replay
+    // alone does not exercise the transaction's semantic edge endpoint scope.
+    let transaction_bytes = crate::ModelTransactionEnvelope::from_transaction(&seed)
+        .unwrap()
+        .canonical_json()
+        .unwrap();
+    let replayed_seed = crate::ModelTransactionEnvelope::from_json(
+        &transaction_bytes,
+        ModelDecoderLimits::default(),
+    )
+    .unwrap()
+    .to_transaction()
+    .unwrap();
+    assert_eq!(replayed_seed.ops(), seed.ops());
     let mut store = InMemoryGraphStore::new();
-    store.commit(seed).unwrap();
+    store.commit(replayed_seed).unwrap();
     let snapshot = store.snapshot();
     let mut edit = Transaction::new("cannot leave stale index extent");
     edit.push(Op::SetValue {
