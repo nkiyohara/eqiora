@@ -259,6 +259,7 @@ impl ScalarInputIrBuilder {
 pub struct ScalarOperatorIr {
     source_values: Vec<ValueId>,
     typed_constants: Vec<eqiora_core::ValueLiteral>,
+    array_operands: Vec<ValueId>,
     symbols: Vec<SymbolRef>,
     instructions: Vec<Instruction>,
     roots: Vec<ValueId>,
@@ -406,6 +407,16 @@ impl ScalarOperatorIr {
         inputs: &[f64],
         roles: &[DifferentiationRole],
     ) -> Result<ScalarLinearization<'_>, Diagnostic> {
+        if self.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                Instruction::Array { .. } | Instruction::Index(_, _)
+            )
+        }) {
+            return Err(invalid_linearization(
+                "channel construction/indexing requires typed execution and is outside scalar automatic differentiation",
+            ));
+        }
         if inputs.len() != self.symbols.len() || roles.len() != self.symbols.len() {
             return Err(invalid_linearization(format!(
                 "scalar linearization expects {} point values and roles, received {} values and {} roles",
@@ -463,6 +474,8 @@ impl ScalarOperatorIr {
                 | Instruction::Not(_)
                 | Instruction::And(_, _)
                 | Instruction::Or(_, _)
+                | Instruction::Array { .. }
+                | Instruction::Index(_, _)
                 | Instruction::TypedConstant(_)
                 | Instruction::Quotient(_, _)
                 | Instruction::Remainder(_, _)
@@ -900,6 +913,8 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
                 | Instruction::Not(_)
                 | Instruction::And(_, _)
                 | Instruction::Or(_, _)
+                | Instruction::Array { .. }
+                | Instruction::Index(_, _)
                 | Instruction::TypedConstant(_)
                 | Instruction::Quotient(_, _)
                 | Instruction::Remainder(_, _)
@@ -986,6 +1001,8 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
                 | Instruction::Not(_)
                 | Instruction::And(_, _)
                 | Instruction::Or(_, _)
+                | Instruction::Array { .. }
+                | Instruction::Index(_, _)
                 | Instruction::TypedConstant(_)
                 | Instruction::Quotient(_, _)
                 | Instruction::Remainder(_, _)
@@ -1077,156 +1094,8 @@ enum InputBinding {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct SymbolSlot(u32);
 
-fn read(values: &[f64], id: ValueId, instruction: usize) -> Result<f64, Diagnostic> {
-    usize::try_from(id.0)
-        .ok()
-        .and_then(|index| values.get(index))
-        .copied()
-        .ok_or_else(|| {
-            Diagnostic::error(
-                codes::INVALID_OPERATOR_IR,
-                format!(
-                    "SSA value {} is unavailable at instruction {instruction}",
-                    id.0
-                ),
-            )
-            .with_graph_path(ir_path(instruction))
-        })
-}
-
-fn collect_roots(
-    roots: &[ValueId],
-    instructions: &[Instruction],
-    values: &[f64],
-) -> Result<Vec<f64>, Diagnostic> {
-    roots
-        .iter()
-        .map(|root| read(values, *root, instructions.len()))
-        .collect()
-}
-
-fn slot_index(slot: SymbolSlot, instruction: usize) -> Result<usize, Diagnostic> {
-    usize::try_from(slot.0).map_err(|_| {
-        Diagnostic::error(codes::INVALID_OPERATOR_IR, "symbol slot exceeds usize")
-            .with_graph_path(ir_path(instruction))
-    })
-}
-
-fn write_roots(
-    ir: &ScalarOperatorIr,
-    values: &[f64],
-    output: &mut [f64],
-) -> Result<(), Diagnostic> {
-    for (output, root) in output.iter_mut().zip(&ir.roots) {
-        *output = read(values, *root, ir.instructions.len())?;
-    }
-    Ok(())
-}
-
-fn accumulate(
-    values: &mut [f64],
-    id: ValueId,
-    contribution: f64,
-    instruction: usize,
-) -> Result<(), Diagnostic> {
-    let index = usize::try_from(id.0).map_err(|_| invalid_value_index(id, instruction))?;
-    let value = values
-        .get_mut(index)
-        .ok_or_else(|| invalid_value_index(id, instruction))?;
-    let next = *value + contribution;
-    require_finite_value(next, "VJP", instruction)?;
-    *value = next;
-    Ok(())
-}
-
-fn accumulate_coordinate(
-    values: &mut [f64],
-    coordinate: usize,
-    contribution: f64,
-    name: &str,
-) -> Result<(), Diagnostic> {
-    let next = values[coordinate] + contribution;
-    if !next.is_finite() {
-        return Err(invalid_linearization(format!(
-            "{name} coordinate {coordinate} evaluated to {next}"
-        )));
-    }
-    values[coordinate] = next;
-    Ok(())
-}
-
-fn require_length(values: &[f64], expected: usize, name: &str) -> Result<(), Diagnostic> {
-    if values.len() == expected {
-        Ok(())
-    } else {
-        Err(invalid_linearization(format!(
-            "{name} expects {expected} values, received {}",
-            values.len()
-        )))
-    }
-}
-
-fn require_finite(values: &[f64], name: &str) -> Result<(), Diagnostic> {
-    if values.iter().all(|value| value.is_finite()) {
-        Ok(())
-    } else {
-        Err(invalid_linearization(format!(
-            "{name} must contain only finite values"
-        )))
-    }
-}
-
-fn require_finite_value(value: f64, name: &str, instruction: usize) -> Result<(), Diagnostic> {
-    if value.is_finite() {
-        Ok(())
-    } else {
-        Err(Diagnostic::error(
-            codes::NONFINITE_EVALUATION,
-            format!("scalar Operator IR {name} instruction {instruction} evaluated to {value}"),
-        )
-        .with_graph_path(ir_path(instruction)))
-    }
-}
-
-fn powi_derivative(base: f64, exponent: i32) -> f64 {
-    match exponent {
-        0 => 0.0,
-        i32::MIN => f64::from(exponent) * base.powi(exponent) / base,
-        _ => f64::from(exponent) * base.powi(exponent - 1),
-    }
-}
-
-fn invalid_value_index(id: ValueId, instruction: usize) -> Diagnostic {
-    Diagnostic::error(
-        codes::INVALID_OPERATOR_IR,
-        format!(
-            "SSA value {} is unavailable at reverse instruction {instruction}",
-            id.0
-        ),
-    )
-    .with_graph_path(ir_path(instruction))
-}
-
-fn invalid_linearization(message: impl Into<String>) -> Diagnostic {
-    Diagnostic::error(codes::INVALID_LINEARIZATION, message)
-        .with_graph_path(GraphPath::new(["operator-ir", "linearization"]))
-}
-
-fn ir_size_error() -> Diagnostic {
-    Diagnostic::error(
-        codes::INVALID_OPERATOR_IR,
-        "scalar Operator IR exceeds the u32 slot limit",
-    )
-}
-
-fn ir_builder_error(message: impl Into<String>) -> Diagnostic {
-    Diagnostic::error(codes::INVALID_OPERATOR_IR, message)
-        .with_graph_path(GraphPath::new(["operator-ir", "input-slots"]))
-}
-
-fn ir_path(index: usize) -> GraphPath {
-    GraphPath::new(["operator-ir".to_owned(), index.to_string()])
-}
+mod numeric_support;
+use numeric_support::*;
 
 #[cfg(test)]
 mod tests;

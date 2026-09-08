@@ -27,6 +27,7 @@ impl ScalarOperatorIr {
             Apply(ValueId),
             Logical(ValueId),
         }
+        let mut component_work = 0usize;
         let mut values: Vec<Option<ValueLiteral>> = vec![None; self.instructions.len()];
         for &root in &roots {
             let mut pending = vec![Frame::Demand(root)];
@@ -71,7 +72,17 @@ impl ScalarOperatorIr {
                         Instruction::Constant(_)
                         | Instruction::TypedConstant(_)
                         | Instruction::Read(_) => {}
-                        Instruction::Neg(a)
+                        Instruction::Array { start, len } => {
+                            let operands = self
+                                .array_operands
+                                .get(start as usize..start as usize + len as usize)
+                                .ok_or_else(|| {
+                                    ir_builder_error("array operand range unavailable")
+                                })?;
+                            pending.extend(operands.iter().rev().copied().map(Frame::Demand));
+                        }
+                        Instruction::Index(a, _)
+                        | Instruction::Neg(a)
                         | Instruction::PowI(a, _)
                         | Instruction::ToReal(a)
                         | Instruction::ToInteger(a)
@@ -97,6 +108,52 @@ impl ScalarOperatorIr {
                         .ok_or_else(|| ir_builder_error("typed scalar operand is unavailable"))
                 };
                 let value = match instruction {
+                    Instruction::Array { start, len } => {
+                        let elements = self.array_operands
+                            [start as usize..start as usize + len as usize]
+                            .iter()
+                            .map(|id| read(*id))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        for element in &elements {
+                            require_channels(element.value_type())?;
+                        }
+                        let types = elements
+                            .iter()
+                            .map(|value| {
+                                eqiora_schema::kernel::typing::ExpressionType::<()>::new(
+                                    value.value_type().clone(),
+                                    None,
+                                )
+                            })
+                            .collect::<Vec<_>>();
+                        let ty = eqiora_schema::kernel::typing::ExpressionType::array(&types)
+                            .map_err(|error| ir_builder_error(error.to_string()))?;
+                        let count = ty
+                            .value_type
+                            .shape()
+                            .component_count()
+                            .expect("checked type");
+                        check_component_work(component_work, count)?;
+                        ValueLiteral::array(&elements).map_err(discrete_error)?
+                    }
+                    Instruction::Index(value, index) => {
+                        let value = read(value)?;
+                        require_channels(value.value_type())?;
+                        let ty = eqiora_schema::kernel::typing::ExpressionType::<()>::new(
+                            value.value_type().clone(),
+                            None,
+                        )
+                        .index(index)
+                        .map_err(|error| ir_builder_error(error.to_string()))?;
+                        check_component_work(
+                            component_work,
+                            ty.value_type
+                                .shape()
+                                .component_count()
+                                .expect("checked type"),
+                        )?;
+                        value.index(index).map_err(discrete_error)?
+                    }
                     Instruction::Not(value) => ValueLiteral::boolean(!boolean(read(value)?)?),
                     Instruction::And(_, right) | Instruction::Or(_, right) => {
                         ValueLiteral::boolean(boolean(read(right)?)?)
@@ -110,11 +167,14 @@ impl ScalarOperatorIr {
                         .get(slot_index(slot, index)?)
                         .and_then(|symbol| resolve(*symbol))
                         .ok_or_else(|| ir_builder_error("typed scalar input is unavailable"))?,
-                    Instruction::TypedConstant(slot) => self
-                        .typed_constants
-                        .get(slot as usize)
-                        .cloned()
-                        .ok_or_else(|| ir_builder_error("typed constant is unavailable"))?,
+                    Instruction::TypedConstant(slot) => {
+                        let value = self
+                            .typed_constants
+                            .get(slot as usize)
+                            .ok_or_else(|| ir_builder_error("typed constant is unavailable"))?;
+                        check_component_work(component_work, value.component_count())?;
+                        value.clone()
+                    }
                     Instruction::Quotient(a, b) => read(a)?
                         .checked_quotient(read(b)?)
                         .map_err(discrete_error)?,
@@ -126,6 +186,7 @@ impl ScalarOperatorIr {
                     Instruction::Ordinal(a) => read(a)?.ordinal().map_err(discrete_error)?,
                     Instruction::Neg(value) => {
                         let value = read(value)?;
+                        require_scalar_arithmetic(value)?;
                         if value.value_type().scalar_domain() == ScalarDomain::Integer {
                             value.checked_neg().map_err(discrete_error)?
                         } else {
@@ -135,6 +196,8 @@ impl ScalarOperatorIr {
                     Instruction::Add(left, right) => {
                         let left = read(left)?;
                         let right = read(right)?;
+                        require_scalar_arithmetic(left)?;
+                        require_scalar_arithmetic(right)?;
                         if left.value_type().scalar_domain() == ScalarDomain::Integer {
                             left.checked_add(right).map_err(discrete_error)?
                         } else {
@@ -144,6 +207,8 @@ impl ScalarOperatorIr {
                     Instruction::Sub(left, right) => {
                         let left = read(left)?;
                         let right = read(right)?;
+                        require_scalar_arithmetic(left)?;
+                        require_scalar_arithmetic(right)?;
                         if left.value_type().scalar_domain() == ScalarDomain::Integer {
                             left.checked_sub(right).map_err(discrete_error)?
                         } else {
@@ -153,6 +218,8 @@ impl ScalarOperatorIr {
                     Instruction::Mul(left, right) => {
                         let left = read(left)?;
                         let right = read(right)?;
+                        require_scalar_arithmetic(left)?;
+                        require_scalar_arithmetic(right)?;
                         if left.value_type().scalar_domain() == ScalarDomain::Integer {
                             left.checked_mul(right).map_err(discrete_error)?
                         } else {
@@ -170,6 +237,8 @@ impl ScalarOperatorIr {
                         literal(DynQuantity::new(base.value().powi(exponent), dimension))?
                     }
                 };
+                check_component_work(component_work, value.component_count())?;
+                component_work += value.component_count();
                 values[index] = Some(value);
             }
         }
@@ -254,6 +323,70 @@ mod tests {
     use eqiora_core::{DimExponents, Id, entity::kinds};
     use eqiora_schema::kernel::ExprDagBuilder;
 
+    #[test]
+    fn channels_construct_index_and_preserve_integer_low_bits() {
+        let mut builder = ExprDagBuilder::new();
+        let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+        let high = builder
+            .constant(ValueLiteral::from_integer(ty.clone(), 9_007_199_254_740_993).unwrap())
+            .unwrap();
+        let one = builder
+            .constant(ValueLiteral::from_integer(ty, 1).unwrap())
+            .unwrap();
+        let channels = builder.array([high, one]).unwrap();
+        let selected = builder.index(channels, 0).unwrap();
+        let incremented = builder.add(selected, one).unwrap();
+        let result = builder.array([incremented, selected]).unwrap();
+        let dag = builder.finish([result]).unwrap();
+        let values = ScalarOperatorIr::lower(&dag)
+            .unwrap()
+            .evaluate_typed(&[result], &mut |_| None)
+            .unwrap();
+        assert_eq!(
+            values[0].integer_components().unwrap().collect::<Vec<_>>(),
+            vec![9_007_199_254_740_994, 9_007_199_254_740_993]
+        );
+        let ir = ScalarOperatorIr::lower(&dag).unwrap();
+        assert!(ir.evaluate(&[]).is_err());
+        assert!(ir.linearize(&[], &[]).is_err());
+    }
+    #[test]
+    fn channel_intermediate_budget_and_direct_array_arithmetic_reject() {
+        let mut builder = ExprDagBuilder::new();
+        let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .array(600_000)
+            .unwrap();
+        let input = builder
+            .constant(ValueLiteral::from_integer(ty, 0).unwrap())
+            .unwrap();
+        let result = builder.array([input, input]).unwrap();
+        let dag = builder.finish([result]).unwrap();
+        assert!(
+            ScalarOperatorIr::lower(&dag)
+                .unwrap()
+                .evaluate_typed(&[result], &mut |_| None)
+                .unwrap_err()
+                .message()
+                .contains("component")
+        );
+        let mut builder = ExprDagBuilder::new();
+        let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .array(2)
+            .unwrap();
+        let input = builder
+            .constant(ValueLiteral::from_integer(ty, 0).unwrap())
+            .unwrap();
+        let result = builder.add(input, input).unwrap();
+        let dag = builder.finish([result]).unwrap();
+        assert!(
+            ScalarOperatorIr::lower(&dag)
+                .unwrap()
+                .evaluate_typed(&[result], &mut |_| None)
+                .unwrap_err()
+                .message()
+                .contains("indexing")
+        );
+    }
     #[test]
     fn logical_demand_skips_errors_but_does_not_poison_shared_roots() {
         use eqiora_schema::kernel::ComparisonOp;
@@ -371,4 +504,40 @@ mod tests {
         assert_eq!(values[3].integer_scalar_value(), Some(-2));
         assert_eq!(values[4].integer_scalar_value(), Some(2));
     }
+}
+
+fn require_channels(value_type: &ValueType) -> Result<(), Diagnostic> {
+    if value_type.frame() != eqiora_core::ValueFrame::Invariant
+        || !matches!(
+            value_type.scalar_domain(),
+            ScalarDomain::Real | ScalarDomain::Integer
+        )
+        || value_type.array_rank() != value_type.shape().rank()
+        || value_type.finite_space().is_some()
+        || value_type.index_set().is_some()
+    {
+        return Err(ir_builder_error(
+            "channel execution requires invariant real or integer values",
+        ));
+    }
+    Ok(())
+}
+fn component_budget_error() -> Diagnostic {
+    ir_builder_error("typed evaluation exceeds the one-million component work budget")
+}
+fn check_component_work(used: usize, next: usize) -> Result<(), Diagnostic> {
+    if used.checked_add(next).is_none_or(|total| total > 1_000_000) {
+        Err(component_budget_error())
+    } else {
+        Ok(())
+    }
+}
+
+fn require_scalar_arithmetic(value: &ValueLiteral) -> Result<(), Diagnostic> {
+    if value.value_type().array_rank() > 0 {
+        return Err(ir_builder_error(
+            "channel arrays require explicit indexing before arithmetic",
+        ));
+    }
+    Ok(())
 }

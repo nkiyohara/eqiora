@@ -4,7 +4,7 @@ use eqiora_schema::kernel::ExprDagBuilder;
 use super::*;
 
 #[test]
-fn scalar_ir_rejects_shaped_real_constants() {
+fn scalar_ir_retains_channel_constants_but_rejects_numeric_projection() {
     use eqiora_core::{ScalarDomain, ValueLiteral, ValueType};
     let shaped = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
         .array(3)
@@ -13,12 +13,11 @@ fn scalar_ir_rejects_shaped_real_constants() {
     let root = builder
         .constant(ValueLiteral::from_real(shaped, 0.0).unwrap())
         .unwrap();
-    let error = ScalarOperatorIr::lower(&builder.finish([root]).unwrap()).unwrap_err();
-    assert!(
-        error
-            .message()
-            .contains("real scalar or exact discrete constants")
-    );
+    let ir = ScalarOperatorIr::lower(&builder.finish([root]).unwrap()).unwrap();
+    assert!(ir.evaluate(&[]).is_err());
+    let values = ir.evaluate_typed(&[root], &mut |_| None).unwrap();
+    assert_eq!(values[0].component_count(), 3);
+    assert_eq!(values[0].value_type().array_rank(), 1);
 }
 
 #[test]

@@ -14,6 +14,7 @@ impl ScalarOperatorIr {
     /// contract.
     pub fn lower(expression: &ExprDag) -> Result<Self, Diagnostic> {
         let mut typed_constants = Vec::new();
+        let mut array_operands = Vec::new();
         let mut symbols = Vec::new();
         let mut symbol_slots = HashMap::new();
         let mut instructions = Vec::with_capacity(expression.nodes().len());
@@ -32,7 +33,10 @@ impl ScalarOperatorIr {
                         eqiora_core::ScalarDomain::Integer
                             | eqiora_core::ScalarDomain::Boolean
                             | eqiora_core::ScalarDomain::Complex
-                    ) {
+                    ) || (value.value_type().scalar_domain()
+                        == eqiora_core::ScalarDomain::Real
+                        && value.value_type().frame() == eqiora_core::ValueFrame::Invariant)
+                    {
                         let slot =
                             u32::try_from(typed_constants.len()).map_err(|_| ir_size_error())?;
                         typed_constants.push(value.clone());
@@ -42,6 +46,22 @@ impl ScalarOperatorIr {
                             "scalar IR requires real scalar or exact discrete constants",
                         ));
                     }
+                }
+                ExprNode::Array { elements } => {
+                    if elements.len() > 1_000_000 {
+                        return Err(ir_builder_error(
+                            "array operand count exceeds the component budget",
+                        ));
+                    }
+                    let start = u32::try_from(array_operands.len()).map_err(|_| ir_size_error())?;
+                    let len = u32::try_from(elements.len()).map_err(|_| ir_size_error())?;
+                    for element in elements {
+                        array_operands.push(value_id(*element, &values)?);
+                    }
+                    Instruction::Array { start, len }
+                }
+                ExprNode::Index { value, index } => {
+                    Instruction::Index(value_id(*value, &values)?, *index)
                 }
                 ExprNode::Compare(op, a, b) => {
                     Instruction::Compare(*op, value_id(*a, &values)?, value_id(*b, &values)?)
@@ -107,6 +127,7 @@ impl ScalarOperatorIr {
         Ok(Self {
             source_values: values,
             typed_constants,
+            array_operands,
             symbols,
             instructions,
             roots,

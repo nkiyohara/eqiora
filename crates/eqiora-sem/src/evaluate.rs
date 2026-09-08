@@ -26,9 +26,9 @@ impl ExpressionBackend for ReferenceExpressionBackend {
 
 pub(crate) struct EvalContext<'a> {
     pub(crate) program: &'a KernelProgram,
-    pub(crate) discrete_fields: &'a BTreeMap<RawId, ValueLiteral>,
-    pub(crate) discrete_ports: &'a BTreeMap<RawId, ValueLiteral>,
-    pub(crate) discrete_next: &'a BTreeMap<RawId, ValueLiteral>,
+    pub(crate) typed_fields: &'a BTreeMap<RawId, ValueLiteral>,
+    pub(crate) typed_ports: &'a BTreeMap<RawId, ValueLiteral>,
+    pub(crate) typed_next: &'a BTreeMap<RawId, ValueLiteral>,
     pub(crate) time: f64,
     pub(crate) fields: &'a BTreeMap<RawId, f64>,
     pub(crate) field_candidates: &'a BTreeMap<RawId, f64>,
@@ -60,6 +60,7 @@ fn evaluate_selected(
         Apply(ExprId),
         Logical(ExprId),
     }
+    let mut component_work = 0usize;
     let mut values = vec![None; expression.nodes().len()];
     for &root in roots {
         let mut pending = vec![Frame::Demand(root)];
@@ -100,7 +101,12 @@ fn evaluate_selected(
                 pending.push(Frame::Apply(id));
                 match node {
                     ExprNode::Constant(_) | ExprNode::Symbol(_) => {}
-                    ExprNode::Sample { value, .. }
+                    ExprNode::Array { elements } => {
+                        check_component_work(component_work, elements.len())?;
+                        pending.extend(elements.iter().rev().copied().map(Frame::Demand));
+                    }
+                    ExprNode::Index { value, .. }
+                    | ExprNode::Sample { value, .. }
                     | ExprNode::Hold(value)
                     | ExprNode::Neg(value)
                     | ExprNode::PowI(value, _)
@@ -128,6 +134,54 @@ fn evaluate_selected(
                 continue;
             }
             let value = match node {
+                ExprNode::Array { elements } => {
+                    let elements = elements
+                        .iter()
+                        .map(|id| operand(&values, *id, owner))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    for element in &elements {
+                        require_channels(element.value_type())?;
+                    }
+                    let types = elements
+                        .iter()
+                        .map(|value| {
+                            eqiora_schema::kernel::typing::ExpressionType::<()>::new(
+                                value.value_type().clone(),
+                                None,
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    let ty = eqiora_schema::kernel::typing::ExpressionType::array(&types).map_err(
+                        |error| Diagnostic::error(codes::INVALID_EXPRESSION_DAG, error.to_string()),
+                    )?;
+                    let count = ty
+                        .value_type
+                        .shape()
+                        .component_count()
+                        .expect("checked type");
+                    check_component_work(component_work, count)?;
+                    ValueLiteral::array(&elements).map_err(discrete_error)?
+                }
+                ExprNode::Index { value, index } => {
+                    let value = operand(&values, *value, owner)?;
+                    require_channels(value.value_type())?;
+                    let ty = eqiora_schema::kernel::typing::ExpressionType::<()>::new(
+                        value.value_type().clone(),
+                        None,
+                    )
+                    .index(*index)
+                    .map_err(|error| {
+                        Diagnostic::error(codes::INVALID_EXPRESSION_DAG, error.to_string())
+                    })?;
+                    check_component_work(
+                        component_work,
+                        ty.value_type
+                            .shape()
+                            .component_count()
+                            .expect("checked type"),
+                    )?;
+                    value.index(*index).map_err(discrete_error)?
+                }
                 ExprNode::Not(value) => {
                     ValueLiteral::boolean(!boolean(operand(&values, *value, owner)?)?)
                 }
@@ -139,7 +193,10 @@ fn evaluate_selected(
                     operand(&values, *left, owner)?,
                     operand(&values, *right, owner)?,
                 )?,
-                ExprNode::Constant(value) => value.clone(),
+                ExprNode::Constant(value) => {
+                    check_component_work(component_work, value.component_count())?;
+                    value.clone()
+                }
                 ExprNode::Symbol(symbol) => resolve(*symbol).ok_or_else(|| {
                     Diagnostic::error(
                         codes::MISSING_EXECUTION_INPUT,
@@ -152,6 +209,7 @@ fn evaluate_selected(
                 }
                 ExprNode::Neg(value) => {
                     let value = operand(&values, *value, owner)?;
+                    require_scalar_arithmetic(value)?;
                     if value.value_type().scalar_domain() == ScalarDomain::Integer {
                         value.checked_neg().map_err(discrete_error)?
                     } else {
@@ -161,6 +219,8 @@ fn evaluate_selected(
                 ExprNode::Add(left, right) => {
                     let left = operand(&values, *left, owner)?;
                     let right = operand(&values, *right, owner)?;
+                    require_scalar_arithmetic(left)?;
+                    require_scalar_arithmetic(right)?;
                     if left.value_type().scalar_domain() == ScalarDomain::Integer {
                         left.checked_add(right).map_err(discrete_error)?
                     } else {
@@ -170,6 +230,8 @@ fn evaluate_selected(
                 ExprNode::Sub(left, right) => {
                     let left = operand(&values, *left, owner)?;
                     let right = operand(&values, *right, owner)?;
+                    require_scalar_arithmetic(left)?;
+                    require_scalar_arithmetic(right)?;
                     if left.value_type().scalar_domain() == ScalarDomain::Integer {
                         left.checked_sub(right).map_err(discrete_error)?
                     } else {
@@ -179,6 +241,8 @@ fn evaluate_selected(
                 ExprNode::Mul(left, right) => {
                     let left = operand(&values, *left, owner)?;
                     let right = operand(&values, *right, owner)?;
+                    require_scalar_arithmetic(left)?;
+                    require_scalar_arithmetic(right)?;
                     if left.value_type().scalar_domain() == ScalarDomain::Integer {
                         left.checked_mul(right).map_err(discrete_error)?
                     } else {
@@ -222,6 +286,8 @@ fn evaluate_selected(
                     .with_graph_path(expression_path(owner, index)));
                 }
             };
+            check_component_work(component_work, value.component_count())?;
+            component_work += value.component_count();
             values[index] = Some(value);
         }
     }
@@ -237,9 +303,9 @@ pub(crate) fn resolve_symbol(symbol: SymbolRef, context: &EvalContext<'_>) -> Op
         return context.program.typed_value(id.erase()).cloned();
     }
     let discrete = match symbol {
-        SymbolRef::Field(id) | SymbolRef::Pre(id) => context.discrete_fields.get(&id.erase()),
-        SymbolRef::Next(id) => context.discrete_next.get(&id.erase()),
-        SymbolRef::Port(id) => context.discrete_ports.get(
+        SymbolRef::Field(id) | SymbolRef::Pre(id) => context.typed_fields.get(&id.erase()),
+        SymbolRef::Next(id) => context.typed_next.get(&id.erase()),
+        SymbolRef::Port(id) => context.typed_ports.get(
             context
                 .signal_sources
                 .get(&id.erase())
@@ -415,6 +481,76 @@ mod tests {
     use eqiora_schema::kernel::ExprDagBuilder;
 
     #[test]
+    fn channels_construct_index_and_preserve_integer_low_bits() {
+        let mut builder = ExprDagBuilder::new();
+        let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+        let high = builder
+            .constant(ValueLiteral::from_integer(ty.clone(), 9_007_199_254_740_993).unwrap())
+            .unwrap();
+        let one = builder
+            .constant(ValueLiteral::from_integer(ty, 1).unwrap())
+            .unwrap();
+        let channels = builder.array([high, one]).unwrap();
+        let selected = builder.index(channels, 0).unwrap();
+        let incremented = builder.add(selected, one).unwrap();
+        let result = builder.array([incremented, selected]).unwrap();
+        let dag = builder.finish([result]).unwrap();
+        let values = evaluate_selected(
+            Id::<kinds::Relation>::new().erase(),
+            &dag,
+            &[result],
+            &mut |_| None,
+        )
+        .unwrap();
+        assert_eq!(
+            values[0].integer_components().unwrap().collect::<Vec<_>>(),
+            vec![9_007_199_254_740_994, 9_007_199_254_740_993]
+        );
+    }
+    #[test]
+    fn channel_intermediate_budget_and_direct_array_arithmetic_reject() {
+        let mut builder = ExprDagBuilder::new();
+        let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .array(600_000)
+            .unwrap();
+        let input = builder
+            .constant(ValueLiteral::from_integer(ty, 0).unwrap())
+            .unwrap();
+        let result = builder.array([input, input]).unwrap();
+        let dag = builder.finish([result]).unwrap();
+        assert!(
+            evaluate_selected(
+                Id::<kinds::Relation>::new().erase(),
+                &dag,
+                &[result],
+                &mut |_| None
+            )
+            .unwrap_err()
+            .message()
+            .contains("component")
+        );
+        let mut builder = ExprDagBuilder::new();
+        let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .array(2)
+            .unwrap();
+        let input = builder
+            .constant(ValueLiteral::from_integer(ty, 0).unwrap())
+            .unwrap();
+        let result = builder.add(input, input).unwrap();
+        let dag = builder.finish([result]).unwrap();
+        assert!(
+            evaluate_selected(
+                Id::<kinds::Relation>::new().erase(),
+                &dag,
+                &[result],
+                &mut |_| None
+            )
+            .unwrap_err()
+            .message()
+            .contains("indexing")
+        );
+    }
+    #[test]
     fn logical_demand_skips_errors_but_does_not_poison_shared_roots() {
         use eqiora_schema::kernel::ComparisonOp;
         let owner = Id::<kinds::Relation>::new().erase();
@@ -531,4 +667,45 @@ mod tests {
             evaluate_expression(owner, &dag.finish([converted]).unwrap(), &mut |_| None).is_err()
         );
     }
+}
+
+fn require_channels(value_type: &ValueType) -> Result<(), Diagnostic> {
+    if value_type.frame() != eqiora_core::ValueFrame::Invariant
+        || !matches!(
+            value_type.scalar_domain(),
+            ScalarDomain::Real | ScalarDomain::Integer
+        )
+        || value_type.array_rank() != value_type.shape().rank()
+        || value_type.finite_space().is_some()
+        || value_type.index_set().is_some()
+    {
+        return Err(Diagnostic::error(
+            codes::NOT_IMPLEMENTED,
+            "channel execution requires invariant real or integer values",
+        ));
+    }
+    Ok(())
+}
+fn component_budget_error() -> Diagnostic {
+    Diagnostic::error(
+        codes::NOT_IMPLEMENTED,
+        "expression evaluation exceeds the one-million component work budget",
+    )
+}
+fn check_component_work(used: usize, next: usize) -> Result<(), Diagnostic> {
+    if used.checked_add(next).is_none_or(|total| total > 1_000_000) {
+        Err(component_budget_error())
+    } else {
+        Ok(())
+    }
+}
+
+fn require_scalar_arithmetic(value: &ValueLiteral) -> Result<(), Diagnostic> {
+    if value.value_type().array_rank() > 0 {
+        return Err(Diagnostic::error(
+            codes::NOT_IMPLEMENTED,
+            "channel arrays require explicit indexing before arithmetic",
+        ));
+    }
+    Ok(())
 }
