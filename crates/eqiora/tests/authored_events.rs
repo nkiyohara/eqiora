@@ -125,6 +125,41 @@ fn component_events_keep_their_occurrence_owned_states() {
 }
 
 #[test]
+fn component_event_identities_do_not_merge_equal_guards() {
+    let source = format!(
+        "{} model Root() {{ instance first: Ball(); instance second: Ball(); }}",
+        BALL.replace("model Ball()", "component Ball()")
+    );
+    let (program, symbols) = admit(&source);
+    let first = symbols.get("first.impact").unwrap();
+    let second = symbols.get("second.impact").unwrap();
+    assert_ne!(first, second);
+    for (prefix, event) in [("first", first), ("second", second)] {
+        let Some(KernelNode::Activation(activation)) = program.node(event) else {
+            panic!("authored event must own an Activation");
+        };
+        let eqiora::kernel::ActivationKind::Event { guard, .. } = activation.kind() else {
+            panic!("event cannot become periodic");
+        };
+        let height = symbols.get(&format!("{prefix}.height")).unwrap();
+        assert!(matches!(
+            guard.nodes(),
+            [eqiora::kernel::ExprNode::Symbol(eqiora::kernel::SymbolRef::Field(id))]
+                if id.erase() == height
+        ));
+        let resets = program.edges().iter().filter(|edge| {
+            edge.from() == event && edge.kind() == eqiora::graph::EdgeKind::Activates
+        });
+        let actual = resets
+            .map(|edge| edge.to())
+            .collect::<std::collections::BTreeSet<_>>();
+        let expected = ["reset_height", "reset_velocity"]
+            .map(|name| symbols.get(&format!("{prefix}.{name}")).unwrap());
+        assert_eq!(actual, expected.into_iter().collect());
+    }
+}
+
+#[test]
 fn explicit_thermostat_memory_switches_at_separate_thresholds() {
     let source = r#"
 model Thermostat() {
