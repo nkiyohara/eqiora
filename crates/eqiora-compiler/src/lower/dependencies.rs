@@ -32,6 +32,10 @@ impl LoweringExpression {
                 | LoweringExpressionNode::PureOperator {
                     arguments: values, ..
                 } => pending.extend(values),
+                LoweringExpressionNode::Case { value, arms } => {
+                    pending.push(value);
+                    pending.extend(arms.iter().map(|(_, value)| value));
+                }
                 LoweringExpressionNode::Select {
                     condition,
                     then_value,

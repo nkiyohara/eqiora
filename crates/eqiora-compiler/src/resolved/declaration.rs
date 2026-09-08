@@ -50,6 +50,7 @@ impl AnalyzedResolvedHierarchy {
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 #[non_exhaustive]
 pub enum CanonicalDeclarationKind {
+    Enum,
     PropertyContract,
     PropertyRelease,
     MaterialComposition,
@@ -117,6 +118,13 @@ pub(super) fn collect_declaration_locations(
         }
         for (_, name, _, range) in unit.document.material_composition_syntax() {
             insert(name, CanonicalDeclarationKind::MaterialComposition, range);
+        }
+        for declaration in unit.document.enumerations() {
+            insert(
+                declaration.name(),
+                CanonicalDeclarationKind::Enum,
+                declaration.range(),
+            );
         }
         for declaration in unit.document.connectors() {
             insert(
@@ -232,6 +240,31 @@ pub(super) fn collect_reference_locations(
         let is_composition = |path: &NamePath| {
             resolve(path, CanonicalDeclarationKind::MaterialComposition).is_some()
         };
+        let mut enum_document = unit.document.clone();
+        eqiora_lang::SourceAstFactory::visit_value_types(&mut enum_document, |_, syntax| {
+            if let eqiora_lang::ValueTypeSyntaxKind::Named(path) = syntax.kind()
+                && let Some(target) = resolve(path, CanonicalDeclarationKind::Enum)
+            {
+                references.push((target, unit.file.clone(), path.range()));
+            }
+        });
+        eqiora_lang::SourceAstFactory::visit_expressions(&mut enum_document, |_, expression| {
+            let paths: Vec<_> = match expression.kind() {
+                eqiora_lang::ExprKind::Path(path) => vec![path],
+                eqiora_lang::ExprKind::Case { arms, .. } => {
+                    arms.iter().map(|arm| arm.pattern()).collect()
+                }
+                _ => Vec::new(),
+            };
+            for path in paths {
+                if let Some((prefix, _)) = path.as_str().rsplit_once('.')
+                    && let Ok(prefix) = NamePath::from_segments(prefix.split('.'), path.range())
+                    && let Some(target) = resolve(&prefix, CanonicalDeclarationKind::Enum)
+                {
+                    references.push((target, unit.file.clone(), path.range()));
+                }
+            }
+        });
         let mut push = |path: &NamePath, kind| match resolve_reference(
             &unit.module,
             path,

@@ -2,6 +2,9 @@
 use super::*;
 
 pub(in crate::lower) fn from_source(expression: &Expr) -> LoweringExpression {
+    if let Some(value) = expression.resolved_enum() {
+        return LoweringExpression::literal(value.clone(), expression.range());
+    }
     let kind = match expression.kind() {
         ExprKind::Array(elements) => LoweringExpressionNode::Array(
             elements
@@ -43,6 +46,25 @@ pub(in crate::lower) fn from_source(expression: &Expr) -> LoweringExpression {
                 "math.complex requires exactly two real scalar arguments",
             ),
         },
+        ExprKind::Case { value, arms } => {
+            let arms = arms
+                .iter()
+                .map(|arm| {
+                    arm.resolved_pattern()
+                        .cloned()
+                        .map(|pattern| (pattern, from_source(arm.value())))
+                })
+                .collect::<Option<Vec<_>>>();
+            match arms {
+                Some(arms) => LoweringExpressionNode::Case {
+                    value: from_source(value),
+                    arms,
+                },
+                None => {
+                    LoweringExpressionNode::InvalidValue("case pattern requires exact enum binding")
+                }
+            }
+        }
         ExprKind::Select {
             condition,
             then_value,

@@ -60,6 +60,9 @@ impl Resolver<'_> {
     }
     fn anchor_node(&mut self, value: &LoweringExpression) -> Option<ScalarDomain> {
         match value.node.as_ref() {
+            LoweringExpressionNode::Case { arms, .. } => {
+                arms.iter().find_map(|(_, value)| self.anchor(value))
+            }
             LoweringExpressionNode::Select {
                 then_value,
                 else_value,
@@ -114,6 +117,19 @@ impl Resolver<'_> {
         let node = match expression.node.as_ref() {
             LoweringExpressionNode::Number(value) => {
                 return literal(file, expression, value, expected);
+            }
+            LoweringExpressionNode::Case { value, arms } => {
+                let domain = arms
+                    .iter()
+                    .find_map(|(_, value)| self.anchor(value))
+                    .or(expected);
+                LoweringExpressionNode::Case {
+                    value: self.resolve(value, None)?,
+                    arms: arms
+                        .iter()
+                        .map(|(pattern, value)| Ok((pattern.clone(), self.resolve(value, domain)?)))
+                        .collect::<Result<Vec<_>, Diagnostic>>()?,
+                }
             }
             LoweringExpressionNode::Select {
                 condition,

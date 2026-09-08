@@ -154,6 +154,23 @@ fn expression_type_cached(
         },
         LoweringExpressionNode::Neg(value) => infer(value),
         LoweringExpressionNode::Not(value) => infer(value)?.logical_not().map_err(violation),
+        LoweringExpressionNode::Case { value, arms } => {
+            let selector = infer(value)?;
+            crate::enumeration::validate_patterns(
+                file,
+                expression.range(),
+                &selector.value_type,
+                &arms
+                    .iter()
+                    .map(|(pattern, _)| pattern.clone())
+                    .collect::<Vec<_>>(),
+            )?;
+            let branches = arms
+                .iter()
+                .map(|(_, value)| infer(value))
+                .collect::<Result<Vec<_>, _>>()?;
+            crate::enumeration::result_type(selector, &branches).map_err(violation)
+        }
         LoweringExpressionNode::Select {
             condition,
             then_value,

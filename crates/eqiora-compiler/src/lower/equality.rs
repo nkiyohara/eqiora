@@ -35,9 +35,15 @@ pub(crate) fn check<I: Clone + Eq>(
     contextual_right_zero: bool,
 ) -> Result<CheckedEquality<I>, TypeViolation<I>> {
     if (contextual_left_zero
-        && right.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean)
+        && matches!(
+            right.value_type.scalar_domain(),
+            eqiora_core::ScalarDomain::Boolean | eqiora_core::ScalarDomain::Enum
+        ))
         || (contextual_right_zero
-            && left.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean)
+            && matches!(
+                left.value_type.scalar_domain(),
+                eqiora_core::ScalarDomain::Boolean | eqiora_core::ScalarDomain::Enum
+            ))
     {
         return Err(TypeViolation::ScalarDomainMismatch);
     }

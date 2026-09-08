@@ -107,6 +107,11 @@ fn local_document_in(
         identity.namespace()
     }
     .map_err(|error| vec![error])?;
+    let mut document = document;
+    let enumerations = crate::enumeration::declarations(file, &document, &namespace, |name| {
+        native.and_then(|native| native.nominal_identity(name))
+    })?;
+    crate::enumeration::bind_document(file, &mut document, &enumerations)?;
     let mut document =
         crate::dimensions::elaborate_dimension_aliases(file, &document)?.into_owned();
     let spaces = crate::nominal::finite_spaces(file, &document, &namespace, |name| {
@@ -445,6 +450,24 @@ fn prepare(
                 )
             })?;
         match (target, value) {
+            (SignatureItem::Parameter(parameter), StaticBindingValue::Value(value)) => {
+                let target = parameters::frames::parameter_type(
+                    file,
+                    parameter.value_type(),
+                    None,
+                    &frame_context,
+                )
+                .map_err(|error| vec![error])?;
+                if value.value_type() != &target {
+                    return Err(vec![source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        parameter.range(),
+                        "external checked value requires the exact declared type",
+                    )]);
+                }
+                parameters.push(ExternalParameterBinding::new(name, (*value).clone()));
+            }
             (SignatureItem::Parameter(parameter), StaticBindingValue::Expression(value)) => {
                 let target = parameters::frames::parameter_type(
                     file,

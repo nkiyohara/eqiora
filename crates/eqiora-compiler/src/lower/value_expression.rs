@@ -97,6 +97,17 @@ impl LoweringExpression {
             range,
         }
     }
+    pub(crate) fn case(
+        value: Self,
+        arms: Vec<(eqiora_core::ValueLiteral, Self)>,
+        range: TextRange,
+    ) -> Self {
+        Self {
+            node: Arc::new(LoweringExpressionNode::Case { value, arms }),
+            range,
+        }
+    }
+
     pub(crate) fn require(condition: Self, value: Self, range: TextRange) -> Self {
         Self {
             node: Arc::new(LoweringExpressionNode::Require { condition, value }),

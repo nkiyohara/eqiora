@@ -11,7 +11,8 @@ pub(crate) fn lower_scalar_type(
     file: &str,
     syntax: &ValueTypeSyntax,
 ) -> Result<ValueType, Diagnostic> {
-    if !syntax.is_scalar() {
+    let value = lower_value_type::<()>(file, syntax, None)?;
+    if !value.shape().is_scalar() {
         return Err(source_error(
             codes::LANGUAGE_TYPE_ERROR,
             file,
@@ -19,7 +20,7 @@ pub(crate) fn lower_scalar_type(
             "scalar physical quantities require scalar mathematical types",
         ));
     }
-    lower_value_type::<()>(file, syntax, None)
+    Ok(value)
 }
 
 pub(crate) fn lower_value_type<I>(
@@ -30,6 +31,24 @@ pub(crate) fn lower_value_type<I>(
     let invalid =
         |message: String| source_error(codes::LANGUAGE_TYPE_ERROR, file, syntax.range(), message);
     match syntax.kind() {
+        ValueTypeSyntaxKind::Named(name) => {
+            if let Some(value) = syntax.resolved_nominal() {
+                return Ok(value.clone());
+            }
+            let expression = eqiora_lang::SourceAstFactory::expression(
+                if name.segments().len() == 1 {
+                    eqiora_lang::ExprKind::Name(name.as_str().to_owned())
+                } else {
+                    eqiora_lang::ExprKind::Path(name.clone())
+                },
+                syntax.range(),
+            )
+            .map_err(|error| invalid(error.message().to_owned()))?;
+            Ok(ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                lower_dimension(file, &expression)?,
+            ))
+        }
         ValueTypeSyntaxKind::Coordinates(_)
         | ValueTypeSyntaxKind::Counts(_)
         | ValueTypeSyntaxKind::Index(_) => syntax.resolved_nominal().cloned().ok_or_else(|| {
@@ -48,6 +67,19 @@ pub(crate) fn lower_value_type<I>(
         ValueTypeSyntaxKind::Tensor { scalar, extents } => {
             spatial_type(file, syntax, scalar, extents, support)
         }
+    }
+}
+
+pub(crate) fn component_dimension(
+    file: &str,
+    syntax: &ValueTypeSyntax,
+) -> Result<eqiora_core::DimExponents, Diagnostic> {
+    match syntax.kind() {
+        ValueTypeSyntaxKind::Vector { scalar, .. } | ValueTypeSyntaxKind::Tensor { scalar, .. } => {
+            component_dimension(file, scalar)
+        }
+        ValueTypeSyntaxKind::Array { element, .. } => component_dimension(file, element),
+        _ => lower_value_type::<()>(file, syntax, None).map(|value| value.dimension()),
     }
 }
 

@@ -134,6 +134,8 @@ impl DefinitionKey {
 
 pub(super) struct Elaborator<'a> {
     pub(super) native: Option<&'a eqiora_lang::NativeModelAst>,
+    pub(super) enumerations:
+        BTreeMap<DefinitionNamespace, BTreeMap<String, crate::enumeration::BoundEnum>>,
     pub(super) finite_spaces:
         BTreeMap<DefinitionNamespace, BTreeMap<String, crate::nominal::BoundFiniteSpace>>,
     root_namespace: DefinitionNamespace,
@@ -209,6 +211,12 @@ impl<'a> Elaborator<'a> {
             })?;
         let elaborator = Self {
             native,
+            enumerations: BTreeMap::from([(
+                namespace.clone(),
+                crate::enumeration::declarations(file, document, &identity_namespace, |name| {
+                    native.and_then(|native| native.nominal_identity(name))
+                })?,
+            )]),
             finite_spaces: BTreeMap::from([(namespace.clone(), finite_spaces)]),
             root_namespace: namespace,
             identity_namespace,
@@ -283,6 +291,18 @@ impl<'a> Elaborator<'a> {
             .collect();
         let elaborator = Self {
             native: None,
+            enumerations: analysis
+                .units
+                .iter()
+                .map(|unit| {
+                    let namespace = crate::enumeration::resolved_namespace(&unit.module)
+                        .map_err(|e| vec![e])?;
+                    crate::enumeration::declarations(&unit.file, &unit.document, &namespace, |_| {
+                        None
+                    })
+                    .map(|values| (DefinitionNamespace::Resolved(unit.module.clone()), values))
+                })
+                .collect::<Result<_, _>>()?,
             finite_spaces: BTreeMap::new(),
             root_namespace,
             identity_namespace,

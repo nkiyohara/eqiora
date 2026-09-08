@@ -109,6 +109,14 @@ fn measure<'a>(
         )
     } else {
         let (mut nodes, overhead) = match expression.kind() {
+            ExprKind::Case { arms, .. } => {
+                let folds = arms.len().saturating_sub(1).max(1);
+                (
+                    folds.checked_mul(3).ok_or_else(exceeded)?,
+                    folds.checked_mul(2).ok_or_else(exceeded)?,
+                )
+            }
+
             ExprKind::Call { callee, .. } => {
                 crate::math::piecewise::cost(callee.as_str()).unwrap_or((1, 1))
             }
@@ -159,6 +167,12 @@ fn visit_children<'a>(
     visit: &mut impl FnMut(&'a Expr) -> Result<(), Diagnostic>,
 ) -> Result<(), Diagnostic> {
     match expression.kind() {
+        ExprKind::Case { value, arms } => {
+            visit(value)?;
+            for arm in arms {
+                visit(arm.value())?;
+            }
+        }
         ExprKind::Select {
             condition,
             then_value,

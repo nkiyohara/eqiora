@@ -8,6 +8,16 @@ pub(super) fn encode_expression(
 ) -> Result<(), Diagnostic> {
     budget.account_expression(depth)?;
     match expression.kind() {
+        ExprKind::Case { value, arms } => {
+            encoder.u8(18)?;
+            encode_expression(encoder, value, budget, next_depth(depth)?)?;
+            encoder.u32(as_u32(arms.len(), "case arms")?)?;
+            for arm in arms {
+                encode_type_path(encoder, arm.pattern(), budget)?;
+                encode_expression(encoder, arm.value(), budget, next_depth(depth)?)?;
+            }
+            Ok(())
+        }
         ExprKind::Select {
             condition,
             then_value,

@@ -704,10 +704,35 @@ fn collect_canonical_declarations(
                 diagnostics,
             );
         }
+        for enumeration in unit.document.enumerations() {
+            let document = SourceAstFactory::document(
+                vec![enumeration.clone()],
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
+            .expect("parsed enum document");
+            push_canonical(
+                &mut result,
+                &mut paths,
+                unit.module.owner(),
+                &canonical_declaration_path(&unit.module, enumeration.name()),
+                CanonicalDeclarationKind::Enum,
+                enumeration.visibility(),
+                &document,
+                &resolved_aliases,
+                &operator_formals,
+                diagnostics,
+            );
+        }
         for connector in unit.document.connectors() {
-            let document =
-                SourceAstFactory::document(vec![connector.clone()], Vec::new(), Vec::new())
-                    .expect("one parsed Connector is a valid document");
+            let document = SourceAstFactory::document(
+                Vec::new(),
+                vec![connector.clone()],
+                Vec::new(),
+                Vec::new(),
+            )
+            .expect("one parsed Connector is a valid document");
             push_canonical(
                 &mut result,
                 &mut paths,
@@ -750,9 +775,13 @@ fn collect_canonical_declarations(
             }
         }
         for component in unit.document.components() {
-            let document =
-                SourceAstFactory::document(Vec::new(), vec![component.clone()], Vec::new())
-                    .expect("one parsed component is a valid document");
+            let document = SourceAstFactory::document(
+                Vec::new(),
+                Vec::new(),
+                vec![component.clone()],
+                Vec::new(),
+            )
+            .expect("one parsed component is a valid document");
             push_canonical(
                 &mut result,
                 &mut paths,
@@ -767,8 +796,9 @@ fn collect_canonical_declarations(
             );
         }
         for model in unit.document.models() {
-            let document = SourceAstFactory::document(Vec::new(), Vec::new(), vec![model.clone()])
-                .expect("one parsed Model is a valid document");
+            let document =
+                SourceAstFactory::document(Vec::new(), Vec::new(), Vec::new(), vec![model.clone()])
+                    .expect("one parsed Model is a valid document");
             push_canonical(
                 &mut result,
                 &mut paths,

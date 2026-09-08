@@ -147,6 +147,7 @@ fn canonical_source_bytes_with_aliases(
         .and_then(|count| count.checked_add(document.material_composition_syntax().len()))
         .and_then(|count| count.checked_add(document.connectors().len()))
         .and_then(|count| count.checked_add(document.pure_operators().len()))
+        .and_then(|count| count.checked_add(document.enumerations().len()))
         .and_then(|count| count.checked_add(document.components().len()))
         .and_then(|count| count.checked_add(document.models().len()))
         .ok_or_else(|| source_identity_error("top-level declaration count overflows usize"))?;
@@ -211,6 +212,11 @@ fn canonical_source_bytes_with_aliases(
             encoder.finish()
         },
     )?;
+    let enumerations = encode_sorted_records(
+        document.enumerations(),
+        &mut budget,
+        declarations::encode_enumeration,
+    )?;
     let mut encoder = Encoder::new(limits.max_canonical_bytes);
     encoder.raw(MAGIC)?;
     encoder.u16(CANONICAL_VERSION)?;
@@ -234,6 +240,9 @@ fn canonical_source_bytes_with_aliases(
     }
     if !finite_spaces.is_empty() {
         encoder.field(9, |encoder| encoder.records(&finite_spaces))?;
+    }
+    if !enumerations.is_empty() {
+        encoder.field(10, |encoder| encoder.records(&enumerations))?;
     }
     encoder.finish()
 }

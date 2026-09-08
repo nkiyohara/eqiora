@@ -278,6 +278,9 @@ impl ExpressionChecker<'_, '_, '_> {
     }
 
     fn check(&mut self, expression: &Expr) -> Result<ExpressionType<String>, Diagnostic> {
+        if let Some(value) = expression.resolved_enum() {
+            return Ok(ExpressionType::new(value.value_type().clone(), None));
+        }
         match expression.kind() {
             ExprKind::Reduction { .. } => self.reduction(expression),
             ExprKind::Array(elements) => {
@@ -349,6 +352,21 @@ impl ExpressionChecker<'_, '_, '_> {
                     ));
                 };
                 ExpressionType::complex(self.check(real)?, self.check(imag)?)
+                    .map_err(|error| type_error(self.scope.file, expression, error))
+            }
+            ExprKind::Case { value, arms } => {
+                let selector = self.check(value)?;
+                crate::enumeration::case_patterns(
+                    self.scope.file,
+                    expression.range(),
+                    &selector.value_type,
+                    arms,
+                )?;
+                let branches = arms
+                    .iter()
+                    .map(|arm| self.check(arm.value()))
+                    .collect::<Result<Vec<_>, _>>()?;
+                crate::enumeration::result_type(selector, &branches)
                     .map_err(|error| type_error(self.scope.file, expression, error))
             }
             ExprKind::Select {
