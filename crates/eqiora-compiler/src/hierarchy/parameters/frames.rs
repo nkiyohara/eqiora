@@ -25,6 +25,13 @@ pub(in crate::hierarchy) fn parameter_type(
     let mut pending = initializer.into_iter().collect::<Vec<_>>();
     while let Some(value) = pending.pop() {
         match value.kind() {
+            ExprKind::Select {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                pending.extend([condition.as_ref(), then_value.as_ref(), else_value.as_ref()]);
+            }
             ExprKind::Array(values) => pending.extend(values),
             ExprKind::Call { callee, .. } if callee.as_str() == "tensor_value" => {
                 let name = super::tensor_values::frame_name(value)

@@ -156,6 +156,17 @@ pub(in crate::hierarchy) fn alias_order<'a>(
                         dependencies.entry(n.clone()).or_insert(e.range());
                     }
                     eqiora_lang::ExprKind::Reduction { value, .. } => pending.push(value),
+                    eqiora_lang::ExprKind::Select {
+                        condition,
+                        then_value,
+                        else_value,
+                    } => {
+                        pending.extend([
+                            condition.as_ref(),
+                            then_value.as_ref(),
+                            else_value.as_ref(),
+                        ]);
+                    }
                     eqiora_lang::ExprKind::Array(elements) => pending.extend(elements),
                     eqiora_lang::ExprKind::Index { value, index } => {
                         pending.extend([value.as_ref(), index.as_ref()])
@@ -225,6 +236,13 @@ fn is_static_expression(expression: &eqiora_lang::Expr, values: &SymbolicParamet
             eqiora_lang::ExprKind::Name(n) if values.contains_key(n) => {}
             eqiora_lang::ExprKind::Path(p)
                 if (crate::math::constant(p).is_some() || p.as_str() == "math.i") => {}
+            eqiora_lang::ExprKind::Select {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                pending.extend([condition.as_ref(), then_value.as_ref(), else_value.as_ref()]);
+            }
             eqiora_lang::ExprKind::Array(elements) => pending.extend(elements),
             eqiora_lang::ExprKind::Index { value, index } => {
                 pending.extend([value.as_ref(), index.as_ref()])

@@ -72,6 +72,7 @@ pub(super) fn collect_expression_dependencies(
             }
             ExprKind::Call { callee, arguments }
                 if callee.as_str() == "math.complex"
+                    || crate::math::piecewise::arity(callee.as_str()).is_some()
                     || crate::lower::IntegerBuiltin::named(callee.as_str()).is_some() =>
             {
                 if let Some(arguments) = arguments.positional() {
@@ -87,6 +88,9 @@ pub(super) fn collect_expression_dependencies(
                 expression.range(),
                 context.call_message(callee.as_str()),
             )),
+            ExprKind::Select { condition, then_value, else_value } => {
+                pending.extend([condition.as_ref(), then_value.as_ref(), else_value.as_ref()]);
+            }
             ExprKind::Array(elements) => pending.extend(elements),
             ExprKind::Index { value, index } => pending.extend([value.as_ref(), index.as_ref()]),
             ExprKind::Unary {

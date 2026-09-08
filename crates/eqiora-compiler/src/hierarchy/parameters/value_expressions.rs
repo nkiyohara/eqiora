@@ -1,27 +1,7 @@
 //! Complete static values retain their authored expression dependencies.
 
 use super::*;
-use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};
-
-pub(super) fn evaluate_with_target(
-    file: &str,
-    expression: &Expr,
-    context: ExpressionContext<'_>,
-    resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
-    resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
-    resolve_frame: &mut dyn FnMut(&str) -> Option<SpatialSupport<String>>,
-    target: Option<&ValueType>,
-) -> Result<EvaluatedParameter, Diagnostic> {
-    evaluate_mode(
-        file,
-        expression,
-        context,
-        resolve,
-        (&mut *resolve_clock, &mut *resolve_frame),
-        target,
-        true,
-    )
-}
+use eqiora_schema::kernel::typing::ExpressionType;
 
 pub(super) fn evaluate_mode(
     file: &str,
@@ -53,13 +33,13 @@ pub(super) fn evaluate_mode(
             let operands = elements
                 .iter()
                 .map(|element| match &element_target {
-                    Some(target) => super::expression_eval::evaluate_initializer(
+                    Some(target) => super::expression_eval::evaluate_initializer_mode(
                         file,
                         element,
                         context,
                         resolve,
                         target.clone(),
-                        "declaration initializer",
+                        ("declaration initializer", evaluate_values),
                         (&mut *resolve_clock, &mut *resolve_frame),
                     ),
                     None => super::expression_eval::evaluate_mode(
@@ -197,13 +177,13 @@ pub(super) fn evaluate_mode(
                 .filter(|target| target.shape().is_scalar())
                 .map(|target| ValueType::scalar(ScalarDomain::Real, target.dimension()));
             let mut evaluate = |value| match &scalar_target {
-                Some(target) => super::expression_eval::evaluate_initializer(
+                Some(target) => super::expression_eval::evaluate_initializer_mode(
                     file,
                     value,
                     context,
                     resolve,
                     target.clone(),
-                    "declaration initializer",
+                    ("declaration initializer", evaluate_values),
                     (&mut *resolve_clock, &mut *resolve_frame),
                 ),
                 None => super::expression_eval::evaluate_mode(
