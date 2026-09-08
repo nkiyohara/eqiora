@@ -19,7 +19,7 @@ component Accumulator(clock tick: periodic, input u: integer at tick,
     y = next(memory);
   }}
 }}
-{kind} Network(output values: array<integer, 3> at tick) {{
+public {kind} Network(output values: array<integer, 3> at tick) {{
   clock tick = periodic(1[s]);
   indexset Stages = range(3);
   indexset Other = range(3);
