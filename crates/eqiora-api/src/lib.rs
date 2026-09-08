@@ -10,6 +10,7 @@ pub mod control;
 mod differentiation;
 pub mod editor;
 mod evaluation_map;
+mod execution_session;
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
 mod external_data;
 mod external_spatial;
@@ -19,7 +20,6 @@ pub mod package;
 mod parameter_regeneration;
 mod remeshing_trajectory;
 mod run_request;
-mod sampled_session;
 mod sampling;
 mod value_edit;
 

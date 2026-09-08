@@ -81,7 +81,7 @@ fn two_delays_and_an_integrator_follow_independent_recurrences_across_restart() 
         .with_nonlinear_tolerances(RESIDUAL_TOLERANCE, 0.0)
         .unwrap();
     let interpreter = Interpreter::new();
-    let mut session = interpreter.sampled_session(&program, config, []).unwrap();
+    let mut session = interpreter.execution_session(&program, config, []).unwrap();
     assert!(outputs.iter().all(|id| session.output(*id, 0).is_none()));
     assert_eq!(session.advance_ticks(2).unwrap(), 2);
 
@@ -89,7 +89,7 @@ fn two_delays_and_an_integrator_follow_independent_recurrences_across_restart() 
     // accumulator adds (1/4 s)*(2 V/s)=1/2 V, including at tick zero.
     let expected = [[5.0, -3.0, 1.5], [2.0, 7.0, 2.0], [2.0, 7.0, 2.5]];
     let checkpoint = session.checkpoint();
-    let mut resumed = interpreter.resume_sampled(&program, &checkpoint).unwrap();
+    let mut resumed = interpreter.resume_execution(&program, &checkpoint).unwrap();
     assert_eq!(resumed.advance_ticks(1).unwrap(), 1);
     for (tick, values) in expected.into_iter().enumerate() {
         let observed_session = if tick < 2 { &session } else { &resumed };

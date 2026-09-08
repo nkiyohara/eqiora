@@ -27,7 +27,7 @@ fn exact_stoichiometric_transfers_preserve_species_and_reject_underflow_atomical
     let interpreter = Interpreter::new();
     let config = ReferenceConfig::new(2.0, 1.0).unwrap();
     let mut session = interpreter
-        .sampled_session(document.program(), config, [])
+        .execution_session(document.program(), config, [])
         .unwrap();
     let initial = session.field(population).unwrap();
     assert_eq!(initial.integer_component(0), Some(2));
@@ -66,7 +66,7 @@ fn exact_stoichiometric_transfers_preserve_species_and_reject_underflow_atomical
     // Both the checkpoint and the failed session remain at the same rejected
     // boundary. Repeating the request cannot consume or publish a partial tick.
     let mut resumed = interpreter
-        .resume_sampled(document.program(), &checkpoint)
+        .resume_execution(document.program(), &checkpoint)
         .unwrap();
     assert!(resumed.advance_ticks(1).is_err());
     assert!(session.advance_ticks(1).is_err());
@@ -83,7 +83,7 @@ fn count_overflow_cannot_commit_another_species_decrement() {
     let population = document.aliases()["population"];
     let observed = document.aliases()["observed"];
     let mut session = Interpreter::new()
-        .sampled_session(
+        .execution_session(
             document.program(),
             ReferenceConfig::new(0.0, 1.0).unwrap(),
             [],
