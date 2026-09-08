@@ -133,19 +133,19 @@ copy before native execution. This is not a zero-copy execution-input claim.
 GPU streams, sparse/distributed arrays, and general Run inputs remain separate
 contracts.
 
-## Fixed arrays in sampled sessions
+## Fixed arrays in execution sessions
 
-The bounded reference `Model.sampled_session` path accepts invariant real or exact
+The bounded reference `Model.execution_session` path accepts invariant real or exact
 integer channel arrays through its existing typed input tables. For a Model with
 `drive: array<1, 2> at tick`, pass one complete tuple per tick:
 
 ```python
-session = model.sampled_session(
+session = model.execution_session(
     end_time_s=2, max_step_s=0.1,
     inputs={"drive": ("tick", [(3, 4), (5, 6), (7, 8)])},
 )
 session.advance_ticks(1)
-resumed = model.resume_sampled(session.checkpoint())
+resumed = model.resume_execution(session.checkpoint())
 ```
 
 Array State values and accepted output values are complete nested tuples; exact

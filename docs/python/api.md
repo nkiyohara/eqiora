@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 19 module summaries and all 237 canonical declaration summaries are source-traced; non-dunder member coverage remains **12 authoritative summaries and 703 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 19 module summaries and all 237 canonical declaration summaries are source-traced; non-dunder member coverage remains **15 authoritative summaries and 703 signature-only entries under documented owning types**.
 
-Inventory: 19 modules, 274 literal public spellings, 237 canonical grouped declarations, 934 visible method signatures (715 non-dunder and 219 dunder), and 76 visible class assignments.
+Inventory: 19 modules, 274 literal public spellings, 237 canonical grouped declarations, 937 visible method signatures (718 non-dunder and 219 dunder), and 76 visible class assignments.
 
 Regenerate with:
 
@@ -301,36 +301,41 @@ class ClockDomain:
     def phase_s(self) -> Fraction: ...
 ```
 
-<a id="api-eqiora-SampledSession"></a>
+<a id="api-eqiora-ExecutionSession"></a>
 
-### `eqiora.SampledSession`
+### `eqiora.ExecutionSession`
 
-Bounded reference execution with explicit clock-indexed input and output tables.
+Reference execution through fully stabilized boundaries with explicit input tables.
 
-Authority: [`crates/eqiora-python/src/sampled_session.rs::PySampledSession`](../../crates/eqiora-python/src/sampled_session.rs)
+Authority: [`crates/eqiora-python/src/execution_session.rs::PyExecutionSession`](../../crates/eqiora-python/src/execution_session.rs)
 
 ```python
 @final
-class SampledSession:
+class ExecutionSession:
+    def advance(self) -> bool: ...
+    @property
+    def progress(self) -> dict[str, float | int]: ...
+    @property
+    def activation_sequence(self) -> tuple[tuple[str, ...], ...]: ...
     def advance_ticks(self, count: int) -> int: ...
     @property
     def next_tick(self) -> Fraction | None: ...
-    def checkpoint(self) -> SampledCheckpoint: ...
+    def checkpoint(self) -> ExecutionCheckpoint: ...
     def field(self, name: str) -> _TypedValue | None: ...
     def output(self, name: str, tick_index: int) -> tuple[Fraction, _TypedValue] | None: ...
 ```
 
-<a id="api-eqiora-SampledCheckpoint"></a>
+<a id="api-eqiora-ExecutionCheckpoint"></a>
 
-### `eqiora.SampledCheckpoint`
+### `eqiora.ExecutionCheckpoint`
 
 An immutable in-memory reference checkpoint bound to its complete Model.
 
-Authority: [`crates/eqiora-python/src/sampled_session.rs::PySampledCheckpoint`](../../crates/eqiora-python/src/sampled_session.rs)
+Authority: [`crates/eqiora-python/src/execution_session.rs::PyExecutionCheckpoint`](../../crates/eqiora-python/src/execution_session.rs)
 
 ```python
 @final
-class SampledCheckpoint:
+class ExecutionCheckpoint:
     ...
 ```
 
@@ -1191,8 +1196,8 @@ class Model:
     def write(self, path: str | PathLike[str]) -> None: ...
     def preview_value_edit(self, target: str, value: _TypedValue) -> ValueEdit: ...
     def commit(self, edit: ValueEdit) -> Model: ...
-    def sampled_session(self, *, end_time_s: float, max_step_s: float, inputs: dict[str, tuple[str, list[_TypedValue] | tuple[_TypedValue, ...]]]) -> SampledSession: ...
-    def resume_sampled(self, checkpoint: SampledCheckpoint) -> SampledSession: ...
+    def execution_session(self, *, end_time_s: float, max_step_s: float, inputs: dict[str, tuple[str, list[_TypedValue] | tuple[_TypedValue, ...]]]) -> ExecutionSession: ...
+    def resume_execution(self, checkpoint: ExecutionCheckpoint) -> ExecutionSession: ...
     def parameter(self, selection: str) -> ParameterRef: ...
     def field(self, selection: str) -> FieldRef: ...
     def domain(self, selection: str) -> DomainRef: ...
