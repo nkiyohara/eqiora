@@ -1151,13 +1151,4 @@ fn kernel_path(id: RawId) -> GraphPath {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn reference_config_rejects_non_advancing_steps() {
-        let diagnostic = ReferenceConfig::new(1.0, 0.0).expect_err("zero step");
-
-        assert_eq!(diagnostic.code(), codes::INVALID_EXECUTION_CONFIG);
-    }
-}
+mod tests;
