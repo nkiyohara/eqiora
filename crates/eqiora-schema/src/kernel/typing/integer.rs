@@ -14,7 +14,10 @@ impl<I: Clone + Eq> ExpressionType<I> {
                 || self.dimension() != other.dimension()
                 || self.frame() != other.frame()
             {
-                return Err(TypeViolation::ScalarDomainMismatch);
+                return Err(TypeViolation::AdditiveTypeMismatch {
+                    left: Box::new(self),
+                    right: Box::new(other),
+                });
             }
             let support = super::combine_additive_support(&self.support, &other.support)?;
             return Ok(Self::new(self.value_type, support));
