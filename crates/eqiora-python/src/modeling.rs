@@ -333,6 +333,7 @@ impl PyField {
 }
 
 /// Immutable Parameter declaration owning a complete typed value.
+/// An explicit frame Domain supplies spatial projection context, not distributed support.
 #[pyclass(
     name = "Parameter",
     module = "eqiora._eqiora",
@@ -347,11 +348,12 @@ pub(crate) struct PyParameter {
 #[pymethods]
 impl PyParameter {
     #[new]
-    #[pyo3(signature = (name, *, value_type=None, value))]
+    #[pyo3(signature = (name, *, value_type=None, value, frame=None))]
     fn new(
         name: String,
         value_type: Option<&PyValueType>,
         value: &Bound<'_, PyAny>,
+        frame: Option<&PyDomain>,
     ) -> PyResult<Self> {
         let kind = value_type.map_or_else(
             || {
@@ -367,8 +369,12 @@ impl PyParameter {
             |value| value.value.clone(),
         );
         let literal = value_literal::from_python(value, kind)?;
+        let parameter = DraftParameter::new(name, literal);
         Ok(Self {
-            value: DraftParameter::new(name, literal),
+            value: match frame {
+                Some(frame) => parameter.with_frame(&frame.value),
+                None => parameter,
+            },
         })
     }
 

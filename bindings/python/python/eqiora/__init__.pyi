@@ -434,6 +434,9 @@ class Field:
 class Parameter:
     """Immutable complete typed parameter declaration.
 
+    Nonzero spatial values require an explicit frame Domain registered in the
+    native Model. This is a uniform coefficient, not a distributed Field.
+
     Authority: ``crates/eqiora-python/src/modeling.rs::PyParameter``.
     """
 
@@ -443,6 +446,7 @@ class Parameter:
         *,
         value: _TypedValue,
         value_type: ValueType | None = None,
+        frame: Domain | None = None,
     ) -> Self: ...
     @property
     def name(self) -> str: ...
