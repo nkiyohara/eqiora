@@ -24,7 +24,13 @@ fn complete_parameter_values_keep_imaginary_parts_and_channel_order() {
         .filter_map(|op| match op {
             Op::DefineKernelNode {
                 node: KernelNode::Parameter(value),
-            } => Some(value.value().components().collect::<Vec<_>>()),
+            } => Some(
+                value
+                    .value()
+                    .components()
+                    .expect("real or complex fixture components")
+                    .collect::<Vec<_>>(),
+            ),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -75,7 +81,7 @@ fn indexes_are_constant_channels_and_do_not_narrow_complex_values() {
         "index",
     );
     reject(
-        "model M() { parameter p:array<1,2>=[1,2]; let n=-1; relation r { p[n]=0; } }",
+        "model M() { parameter p:array<1,2>=[1,2]; let n:integer=-1; relation r { p[n]=0; } }",
         "index",
     );
     reject(
@@ -90,10 +96,10 @@ fn indexes_are_constant_channels_and_do_not_narrow_complex_values() {
 
 #[test]
 fn static_channel_operations_and_constant_indexes_share_component_resolution() {
-    let source = "component C(parameter values:array<complex<V>,2>=[math.complex(2,3),math.complex(4,-1)]) {  let chosen=values[which]/2; let which=1-1; variable out:complex<V>; relation r { out=chosen; } } model M() { instance c: C(); }";
+    let source = "component C(parameter values:array<complex<V>,2>=[math.complex(2,3),math.complex(4,-1)]) {  let chosen=values[which]/2; let which:integer=1-1; variable out:complex<V>; relation r { out=chosen; } } model M() { instance c: C(); }";
     compile("typed.eqi", source).unwrap();
     reject(
-        "component C(parameter values:array<1,2>) {  let choice=0*values[0]; let selected=values[choice]; } model M() { variable x:1; relation r { x=0; } }",
+        "component C(parameter values:array<1,2>) {  let choice=to_integer(0*values[0]); let selected=values[choice]; } model M() { variable x:1; relation r { x=0; } }",
         "index",
     );
     reject(
@@ -123,6 +129,7 @@ fn typed_properties_preserve_normalized_complex_channels_and_nominal_contracts()
             .unwrap()
             .5
             .components()
+            .expect("real or complex fixture components")
             .collect::<Vec<_>>(),
         vec![(4.0, 6.0), (8.0, -2.0)]
     );
@@ -158,7 +165,10 @@ fn nested_initializer_zero_inherits_only_the_declared_element_shape() {
         })
         .unwrap();
     assert_eq!(
-        value.components().collect::<Vec<_>>(),
+        value
+            .components()
+            .expect("real or complex fixture components")
+            .collect::<Vec<_>>(),
         vec![(0.0, 0.0), (0.0, 0.0), (1.0, 2.0), (3.0, 0.0)]
     );
     reject(

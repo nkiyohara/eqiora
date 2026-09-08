@@ -78,6 +78,14 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
     }
 
     fn validate(&mut self) {
+        self.scope.static_values = self.compile_time_values.clone();
+        for item in self.definition.declaration.items() {
+            if let ComponentItem::IndexSet(declaration) = item
+                && let Err(error) = self.scope.bind_index_set(declaration)
+            {
+                self.diagnostics.push(error);
+            }
+        }
         self.bind_borrowed_interfaces();
         self.bind_complete_exteriors();
         self.bind_interfaces();
@@ -312,7 +320,7 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                         SymbolContract::Relation,
                     );
                 }
-                ComponentItem::Instance(_) => {}
+                ComponentItem::IndexSet(_) | ComponentItem::Instance(_) => {}
                 ComponentItem::Initial(_)
                 | ComponentItem::Connection(_)
                 | ComponentItem::BoundaryConnection(_) => {}
@@ -363,7 +371,8 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                         self.diagnostics.extend(errors);
                     }
                 }
-                ComponentItem::Let(_)
+                ComponentItem::IndexSet(_)
+                | ComponentItem::Let(_)
                 | ComponentItem::Parameter(_)
                 | ComponentItem::Port(_)
                 | ComponentItem::PortFamily(_) => {}

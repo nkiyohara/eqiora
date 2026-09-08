@@ -15,8 +15,9 @@ Action & Provenance ──┘
 
 ## Semantic Kernel
 
-Only nine node kinds define model meaning: Domain, Representation, Field,
-Parameter, Port, Relation, Activation, Connection, and ClockDomain. A model is
+Kernel nodes define model meaning: Domain, Representation, Field,
+Parameter, Port, Relation, Activation, Connection, ClockDomain, FiniteSpace,
+IndexSet, and PureOperator. A model is
 a network of implicit residual relations activated continuously, periodically,
 by events, or by guards and connected through causal signals or conserving
 physical connections.
@@ -29,6 +30,15 @@ floating-point realization. Field role and activation declare evolution separate
 from spatial support. Initial Relations carry simultaneous fresh-initialization
 equations; they are neither Field literals nor solver guesses. Restart consumes
 accepted State/history rather than reapplying fresh initial equations.
+
+Dimensionless integers retain signed 64-bit components through the same typed
+expression DAG, transaction, and Model artifact as real and complex values.
+Arithmetic and explicit conversions check their bounds; evaluation does not route
+integers through binary64. FiniteSpace owns a nominal ordered basis for signed
+coordinates and nonnegative counts. IndexSet owns a separate bounded ordinal
+domain. Neither is a spatial discretization Space. Nominal value types retain the
+exact declaration, and structural Parameter dependencies prevent edits that would
+invalidate a compiled IndexSet or occurrence family.
 
 Spatial Relations use the same DAG with shape-aware `grad`, `div`, `trace`, and
 `normal` operators. Two physics-neutral tensor structure operators complete a
@@ -535,7 +545,7 @@ single current Model contract and accept no artifact-generation selector.
 Source callers use `compile`, client-neutral `ModelDraft` callers use `define`,
 and persisted current bytes use `replay`; all three converge before artifact
 acceptance.
-Canonical bytes expose the persisted `eqiora.model-envelope/v14` schema as an
+Canonical bytes expose the persisted `eqiora.model-envelope/v15` schema as an
 output fact; the suffix is not a selectable authoring profile. Historical
 Model bytes reject, and replay never sniffs, retries, or migrates them.
 The bounded value-edit and scalar-elliptic application workflows retain exact
@@ -1761,7 +1771,7 @@ owned result arrays do not become unbounded DOM state.
 
 Bridge v5 also retains the first canonical model-edit path without adding UI
 semantics. A finite coherent-SI scalar replacement for a
-`Parameter` becomes the current `eqiora.model-transaction-envelope/v14`,
+`Parameter` becomes the current `eqiora.model-transaction-envelope/v15`,
 containing both `RevisionIs` and typed `ValueEquals` preconditions. Preview
 exposes the transaction's domain-separated identity; exact-key commit
 reconstructs and atomically replays it through the same current owner,

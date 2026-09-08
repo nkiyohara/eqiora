@@ -21,6 +21,11 @@ impl SourceAstFactory {
         range: TextRange,
     ) -> Result<ModelDecl, AstConstructionError> {
         super::signature::validate_signature(&signature)?;
+        for item in &items {
+            if let Item::IndexSet(declaration) = item {
+                super::nominal::validate_definition(declaration, "range")?;
+            }
+        }
         Ok(ModelDecl {
             comments: Default::default(),
             visibility,
@@ -97,6 +102,7 @@ impl SourceAstFactory {
         Ok(Document {
             comments: Default::default(),
             imports: Vec::new(),
+            finite_spaces: Vec::new(),
             dimensions,
             property_contracts: Vec::new(),
             property_releases: Vec::new(),
@@ -128,6 +134,7 @@ impl SourceAstFactory {
         Ok(Document {
             comments: Default::default(),
             imports: Vec::new(),
+            finite_spaces: Vec::new(),
             dimensions: Vec::new(),
             property_contracts: Vec::new(),
             property_releases: Vec::new(),
@@ -161,6 +168,7 @@ impl SourceAstFactory {
         Ok(Document {
             comments: Default::default(),
             imports: Vec::new(),
+            finite_spaces: Vec::new(),
             dimensions: Vec::new(),
             property_contracts: Vec::new(),
             property_releases: Vec::new(),
@@ -185,6 +193,7 @@ impl SourceAstFactory {
         Ok(Document {
             comments: Default::default(),
             imports: Vec::new(),
+            finite_spaces: Vec::new(),
             dimensions: Vec::new(),
             property_contracts: Vec::new(),
             property_releases: Vec::new(),

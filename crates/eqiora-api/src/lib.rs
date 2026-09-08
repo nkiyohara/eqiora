@@ -687,7 +687,8 @@ public component Resistor(
             [DraftExpression::derivative(&state) + rate.expression() * state.expression()],
         );
         let initial = eqiora_lang::DraftDeclaration::Initial(vec![
-            state.expression() - DraftExpression::constant(1.0),
+            state.expression()
+                - DraftExpression::constant(eqiora_lang::DecimalLiteral::from_f64(1.0).unwrap()),
         ]);
         let draft =
             ModelDraft::new("decay", [state.into(), rate.into(), flow.into(), initial]).unwrap();
@@ -757,7 +758,7 @@ model pure_relation() {
         let bytes = current.canonical_json().unwrap();
         let json = String::from_utf8_lossy(&bytes);
         assert!(json.contains("pure-operator-application"));
-        assert!(json.contains("eqiora.model-envelope/v14"));
+        assert!(json.contains("eqiora.model-envelope/v15"));
         let replay = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(replay.canonical_json().unwrap(), bytes);
         assert_eq!(replay.digest().unwrap(), current.digest().unwrap());
@@ -807,7 +808,7 @@ model pure_relation() {
         assert!(
             String::from_utf8(plan.transaction_json().unwrap())
                 .unwrap()
-                .contains("eqiora.model-transaction-envelope/v14")
+                .contains("eqiora.model-transaction-envelope/v15")
         );
 
         let result = document.commit_value_edit(plan.clone()).unwrap();

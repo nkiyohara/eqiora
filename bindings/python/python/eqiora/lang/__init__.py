@@ -18,7 +18,7 @@ import textwrap
 from typing import Final
 from types import MappingProxyType
 
-from .._eqiora import FieldRole, ValueType
+from .._eqiora import FieldRole, ValueType, FiniteSpace, IndexSet, _nominal_type_source
 
 from ..units import Unit
 from .._source_bounds import _MAX_EXPRESSION_DEPTH, _MAX_EXPRESSION_NODES, _MAX_OUTPUT_BYTES
@@ -533,18 +533,46 @@ def test(field: object) -> Expression:
     return _unary("test", field)
 
 
-def dot(left: object, right: object) -> Expression:
+def _binary_function(name: str, left: object, right: object) -> Expression:
     left_expression = _expression(left)
     right_expression = _expression(right)
-    owner = _owner(left_expression, right_expression)
     return Expression(
         _CREATE,
-        f"dot({left_expression._text}, {right_expression._text})",
-        owner,
+        f"{name}({left_expression._text}, {right_expression._text})",
+        _owner(left_expression, right_expression),
         max(left_expression._depth, right_expression._depth) + 1,
         left_expression._nodes + right_expression._nodes + 1,
         100,
     )
+
+
+def dot(left: object, right: object) -> Expression:
+    return _binary_function("dot", left, right)
+
+
+def quotient(left: object, right: object) -> Expression:
+    """Exact integer quotient truncated toward zero; overflow and zero divisors reject."""
+    return _binary_function("quotient", left, right)
+
+
+def remainder(left: object, right: object) -> Expression:
+    """Exact integer remainder with the dividend's sign when nonzero."""
+    return _binary_function("remainder", left, right)
+
+
+def ordinal(value: Expression) -> Expression:
+    """Explicitly read an index's ordinary integer ordinal without changing its set."""
+    return _unary("ordinal", value)
+
+
+def to_real(value: object) -> Expression:
+    """Explicitly convert an integer to real; binary64 rounding can lose integer precision."""
+    return _unary("to_real", value)
+
+
+def to_integer(value: object) -> Expression:
+    """Convert only an integral, finite, dimensionless real in the signed 64-bit range."""
+    return _unary("to_integer", value)
 
 
 def integrate(domain: Support, integrand: object) -> Expression:
@@ -659,6 +687,7 @@ class Component:
         "_causal",
         "_clocks",
         "_initials",
+        "_index_sets",
         "_component_token",
         "_declaration_count",
         "_doc",
@@ -699,7 +728,8 @@ class Component:
         self._names: set[str] = set()
         self._supports: list[tuple[Support, str, object, tuple[str, ...]]] = []
         self._clocks: list[tuple[Clock, Fraction | None, Fraction | None, tuple[str, ...]]] = []
-        self._initials: list[tuple[tuple[Expression, ...], tuple[str, ...]]] = []
+        self._initials: list[tuple[tuple[tuple[Expression, Expression | None], ...], tuple[str, ...]]] = []
+        self._index_sets: list[tuple[IndexSet, tuple[str, ...]]] = []
         self._parameters: list[tuple[_Parameter, str, tuple[str, ...]]] = []
         self._aliases: list[tuple[str, Expression, str | None, Support | None, Clock | None, tuple[str, ...]]] = []
         self._properties: list[
@@ -718,6 +748,45 @@ class Component:
         ] = []
         self._instances: list[tuple[str, Component, tuple[tuple[str, str], ...], tuple[str, ...]]] = []
         self._declaration_count = 0
+
+    def _type_syntax(self, value_type: ValueType) -> str:
+        try:
+            return _nominal_type_source(value_type, [space for space, _ in self._source._spaces], [item for item, _ in self._index_sets])
+        except ValueError as error:
+            raise SourceError(str(error)) from error
+
+    def _nominal_value(self, function: str, name: str, value: Expression) -> Expression:
+        if value._owner is not None and value._owner is not self._component_token:
+            raise SourceError("nominal value components must belong to this Component")
+        return Expression(_CREATE, f"{function}({name}, {value._text})", self._component_token,
+                          value._depth + 1, value._nodes + 2, 100)
+
+    def counts(self, space: FiniteSpace, components: Sequence[object]) -> Expression:
+        """Construct nonnegative counts in an exact basis registered by this Source."""
+        if not isinstance(space, FiniteSpace) or not any(space == item for item, _ in self._source._spaces):
+            raise SourceError("count space must belong to this Source")
+        return self._nominal_value("counts", space.name, array(components))
+
+    def coordinates(self, space: FiniteSpace, components: Sequence[object]) -> Expression:
+        """Construct signed integer coordinates in this Source's exact finite basis."""
+        if not isinstance(space, FiniteSpace) or not any(space == item for item, _ in self._source._spaces):
+            raise SourceError("coordinate space must belong to this Source")
+        return self._nominal_value("coordinates", space.name, array(components))
+
+    def index(self, set: IndexSet, value: object) -> Expression:
+        """Construct a checked ordinal in an index set registered by this Component."""
+        if not isinstance(set, IndexSet) or not any(set == item for item, _ in self._index_sets):
+            raise SourceError("index set must belong to this Component")
+        return self._nominal_value("index", set.name, _expression(value))
+
+    def index_set(self, name: str, *, extent: int, doc: str | None = None) -> IndexSet:
+        """Declare a constant nominal index set; expression extents require authored source."""
+        self._source._ensure_open()
+        doc_lines = _doc(doc)
+        value = IndexSet(_name(name), extent=extent)
+        self._add_name(name)
+        self._index_sets.append((value, doc_lines))
+        return value
 
     def _add_name(self, name: object) -> str:
         self._source._ensure_open()
@@ -760,18 +829,28 @@ class Component:
         self._clocks.append((clock, period, phase, doc_lines))
         return clock
 
-    def initial(self, *residuals: Expression | int | float | complex, doc: str | None = None) -> None:
-        """Add simultaneous fresh-initialization residuals, each equal to zero.
+    def initial(self, *residuals: Expression | int | float | complex,
+                left: Expression | int | float | complex | None = None,
+                right: Expression | int | float | complex | None = None, doc: str | None = None) -> None:
+        """Add simultaneous initial equations or one explicit left/right assignment.
 
         These are equations, not Field guesses or an ordered sequence of writes.
-        The compiler checks State roles and pre/next permissions.
+        The compiler checks State roles and pre/next permissions. Exact discrete
+        State initialization requires explicit left and right sides.
         """
         self._source._ensure_open()
-        expressions = tuple(_expression(value) for value in residuals)
+        if (left is None) != (right is None):
+            raise TypeError("initial requires both left and right")
+        if left is not None and residuals:
+            raise TypeError("initial left/right cannot be combined with residuals")
+        equations = (((_expression(left), _expression(right)),) if left is not None
+                     else tuple((_expression(value), None) for value in residuals))
+        expressions = tuple(value for equation in equations for value in equation if value is not None)
         if any(value._owner is not None and value._owner is not self._component_token
                for value in expressions):
             raise SourceError("initial expressions must belong to this Component")
-        total_nodes = sum(value._nodes for values, _ in self._initials for value in values)
+        total_nodes = sum(value._nodes for equations, _ in self._initials
+                          for equation in equations for value in equation if value is not None)
         total_nodes += sum(value._nodes for value in expressions)
         if total_nodes > _MAX_EXPRESSION_NODES:
             raise SourceError(
@@ -781,7 +860,7 @@ class Component:
         if self._declaration_count >= _MAX_DECLARATIONS:
             raise SourceError(f"Component exceeds the {_MAX_DECLARATIONS}-declaration limit")
         self._declaration_count += 1
-        self._initials.append((expressions, doc_lines))
+        self._initials.append((equations, doc_lines))
 
     def volume(
         self,
@@ -827,7 +906,7 @@ class Component:
     ) -> Expression:
         if not isinstance(value_type, ValueType):
             raise TypeError("value_type must be an eqiora.ValueType")
-        syntax = value_type.to_eqi()
+        syntax = self._type_syntax(value_type)
         doc_lines = _doc(doc)
         admitted = self._add_name(name)
         parameter = _Parameter(self._component_token, admitted)
@@ -892,7 +971,7 @@ class Component:
         if on is not None:
             self._support(on)
         at = self._clock(at)
-        syntax = None if value_type is None else value_type.to_eqi()
+        syntax = None if value_type is None else self._type_syntax(value_type)
         doc_lines = _doc(doc)
         if sum(item[1]._nodes for item in self._aliases) + value._nodes > _MAX_EXPRESSION_NODES:
             raise SourceError(
@@ -937,7 +1016,7 @@ class Component:
             )
         if not isinstance(value_type, ValueType):
             raise TypeError("value_type must be an eqiora.ValueType")
-        syntax = value_type.to_eqi()
+        syntax = self._type_syntax(value_type)
         if not isinstance(role, FieldRole):
             raise TypeError("role must be an eqiora.FieldRole")
         doc_lines = _doc(doc)
@@ -1143,6 +1222,9 @@ class Component:
         lines.append(f"public {self._kind} {self._name}(")
         lines.extend(signature)
         lines.append(") {")
+        for index_set, doc in self._index_sets:
+            lines.extend(_comment(doc, "  "))
+            lines.append(f"  indexset {index_set.name} = range({index_set.extent});")
         for clock, period, phase, doc in self._clocks:
             if clock in self._requirements:
                 continue
@@ -1170,11 +1252,11 @@ class Component:
                 lines.append(f"  {keyword} {field._text}: {value_type}{spatial}{activation};")
         if self._fields and (self._relations or self._instances):
             lines.append("")
-        for residuals, doc in self._initials:
+        for equations, doc in self._initials:
             lines.extend(_comment(doc, "  "))
             lines.append("  initial {")
-            for residual in residuals:
-                lines.extend(_relation_lines(residual, _expression(0)))
+            for left, right in equations:
+                lines.extend(_relation_lines(left, _expression(0) if right is None else right))
             lines.append("  }")
         for index, (name, support, left, right, clock, doc) in enumerate(self._relations):
             lines.extend(_comment(doc, "  "))
@@ -1223,6 +1305,7 @@ class Source:
         "_releases",
         "_materials",
         "_top_names",
+        "_spaces",
     )
 
     def __init__(self) -> None:
@@ -1232,7 +1315,25 @@ class Source:
         self._releases: list[PropertyRelease] = []
         self._materials: list[MaterialComposition] = []
         self._top_names: set[str] = set()
+        self._spaces: list[tuple[FiniteSpace, tuple[str, ...]]] = []
         self._frozen_text: str | None = None
+
+    def _type_syntax(self, value_type: ValueType) -> str:
+        try:
+            return _nominal_type_source(value_type, [space for space, _ in self._spaces], [])
+        except ValueError as error:
+            raise SourceError(str(error)) from error
+
+    def space(self, name: str, *, labels: Sequence[str], doc: str | None = None) -> FiniteSpace:
+        """Declare one exact ordered finite basis shared by this Source's components."""
+        self._ensure_open()
+        doc_lines = _doc(doc)
+        if isinstance(labels, str) or not isinstance(labels, Sequence):
+            raise TypeError("space labels must be an ordered sequence")
+        value = FiniteSpace(_name(name), labels=labels)
+        self._add_top_name(name)
+        self._spaces.append((value, doc_lines))
+        return value
 
     def _ensure_open(self) -> None:
         if self._frozen_text is not None:
@@ -1281,7 +1382,7 @@ class Source:
             raise SourceError("property declarations must precede Components")
         if not isinstance(value_type, ValueType):
             raise TypeError("value_type must be an eqiora.ValueType")
-        value_type.to_eqi()
+        self._type_syntax(value_type)
         doc_lines = _doc(doc)
         admitted = self._add_top_name(name)
         contract = PropertyContract(
@@ -1381,6 +1482,10 @@ class Source:
                     "Source requires at least one public Component before emission"
                 )
             declarations: list[str] = []
+            for space, doc in self._spaces:
+                declarations.extend(_comment(doc, ""))
+                declarations.append(f"space {space.name} = orthonormal({', '.join(space.labels)});")
+                declarations.append("")
             if self._contracts:
                 if not self._releases:
                     raise SourceError(
@@ -1389,7 +1494,7 @@ class Source:
                 for contract in self._contracts:
                     declarations.extend(_comment(contract._doc, ""))
                     declarations.append(
-                        f"public property contract {contract._name}(): {contract._value_type.to_eqi()} {{"
+                        f"public property contract {contract._name}(): {self._type_syntax(contract._value_type)} {{"
                     )
                     declarations.append("  derivatives value_only;")
                     declarations.append("}")
@@ -1491,9 +1596,14 @@ __all__ = [
     "isotropic_lift",
     "math",
     "normal",
+    "ordinal",
     "pre",
     "next",
     "quantity",
+    "quotient",
+    "remainder",
+    "to_real",
+    "to_integer",
     "symmetric_part",
     "test",
     "trace",

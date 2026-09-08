@@ -136,6 +136,10 @@ fn validate_component_item(item: &ComponentItem) -> Result<(), AstConstructionEr
             }
             declaration.range()
         }
+        ComponentItem::IndexSet(declaration) => {
+            super::nominal::validate_definition(declaration, "range")?;
+            declaration.range()
+        }
         ComponentItem::Instance(declaration) => declaration.range(),
     };
     checked_range(range).map(|_| ())

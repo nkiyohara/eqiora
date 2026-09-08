@@ -29,7 +29,11 @@ fn private_aliases_round_trip_with_comments_and_type_assertions() {
 #[test]
 fn one_factory_alias_declaration_can_be_owned_by_either_container() {
     let range = TextRange::new(0, 1);
-    let value = SourceAstFactory::expression(ExprKind::Number(2.0), range).unwrap();
+    let value = SourceAstFactory::expression(
+        ExprKind::Number(eqiora_lang::DecimalLiteral::parse("2.0").expect("exact literal")),
+        range,
+    )
+    .unwrap();
     let alias = SourceAstFactory::let_alias("a", None, None, None, value, range).unwrap();
     let component = SourceAstFactory::component(
         VisibilitySyntax::Private,

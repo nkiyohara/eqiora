@@ -42,7 +42,7 @@ fn arrays_and_postfix_indices_preserve_structure_and_precedence() {
         panic!("index")
     };
     assert!(matches!(value.kind(), ExprKind::Index { .. }));
-    assert!(matches!(index.kind(), ExprKind::Number(0.0)));
+    assert!(matches!(index.kind(), ExprKind::Number(literal) if literal.to_i64().ok() == Some(0)));
     assert!(
         matches!(expression("-a[2]").kind(), ExprKind::Unary { value, .. } if matches!(value.kind(), ExprKind::Index { .. }))
     );
@@ -86,7 +86,11 @@ fn factory_and_reference_rewrite_preserve_index_and_array_structure() {
     let range = TextRange::new(0, 1);
     let value = SourceAstFactory::expression(ExprKind::Name("x".into()), range).unwrap();
     let array = SourceAstFactory::expression(ExprKind::Array(vec![value]), range).unwrap();
-    let index = SourceAstFactory::expression(ExprKind::Number(0.0), range).unwrap();
+    let index = SourceAstFactory::expression(
+        ExprKind::Number(eqiora_lang::DecimalLiteral::parse("0.0").expect("exact literal")),
+        range,
+    )
+    .unwrap();
     let value = SourceAstFactory::expression(
         ExprKind::Index {
             value: Box::new(array),
@@ -103,7 +107,11 @@ fn factory_and_reference_rewrite_preserve_index_and_array_structure() {
     assert_eq!(names, ["x"]);
     assert_eq!(rewritten, value);
     assert!(SourceAstFactory::expression(ExprKind::Array(vec![]), range).is_err());
-    let mut nested = SourceAstFactory::expression(ExprKind::Number(1.0), range).unwrap();
+    let mut nested = SourceAstFactory::expression(
+        ExprKind::Number(eqiora_lang::DecimalLiteral::parse("1.0").expect("exact literal")),
+        range,
+    )
+    .unwrap();
     for _ in 1..256 {
         nested = SourceAstFactory::expression(ExprKind::Array(vec![nested]), range).unwrap();
     }

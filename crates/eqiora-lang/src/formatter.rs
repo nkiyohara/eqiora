@@ -16,19 +16,17 @@ mod relation;
 mod value_type;
 
 use crate::ast::{
-    BoundaryConnectionDecl, BoundaryFamilyBinderSyntax, BoundaryPairingSyntax,
-    BoundaryPortReferenceSyntax, BoundarySideSyntax, ClockDecl, ComponentItem,
-    ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorSyntax, Document,
-    DomainSyntax, FieldDecl, FrameSyntax, InstanceDecl, Item, PortSyntax, PureOperatorBinaryOp,
-    PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind, PureValueClassSyntax,
-    SignalDirectionSyntax, SupportSlotSyntax, ValueShapeSyntax, VisibilitySyntax,
+    BoundaryConnectionDecl, BoundaryPairingSyntax, BoundaryPortReferenceSyntax, BoundarySideSyntax,
+    ClockDecl, ComponentItem, ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax,
+    ConnectorSyntax, Document, DomainSyntax, FamilyBinderSyntax, FieldDecl, FrameSyntax,
+    InstanceDecl, Item, PortSyntax, PureOperatorBinaryOp, PureOperatorDecl, PureOperatorExpr,
+    PureOperatorExprKind, PureValueClassSyntax, SignalDirectionSyntax, SupportSlotSyntax,
+    ValueShapeSyntax, VisibilitySyntax,
 };
 use cartesian::format_cartesian_coordinate;
 use compile_time::{format_let, format_parameter};
 use formulation::format_component;
-use helpers::{
-    format_boundary_port_selector, format_name_paths, format_scalar_physical, write_indent,
-};
+use helpers::{format_boundary_port_selector, format_scalar_physical, write_indent};
 use property::format_properties;
 use relation::{format_relation, format_relation_family};
 
@@ -39,6 +37,17 @@ pub fn format(document: &Document) -> String {
     output.begin(&document.comments);
     let mut declaration_count = document::format_header(document, &mut output);
     format_properties(document, &mut output, &mut declaration_count);
+    for space in &document.finite_spaces {
+        separate_declaration(&mut output, &mut declaration_count);
+        output.begin(&space.comments);
+        if space.visibility == VisibilitySyntax::Public {
+            output.push_str("public ");
+        }
+        write!(output, "space {} = ", space.name()).expect("String write");
+        format_expression(space.value(), 0, &mut output);
+        output.push_str(";\n");
+        output.end();
+    }
     for connector in &document.connectors {
         separate_declaration(&mut output, &mut declaration_count);
         output.begin(&connector.comments);
@@ -272,6 +281,7 @@ fn format_component_item(
         ComponentItem::BoundaryConnection(declaration) => {
             format_boundary_connection(declaration, indent, output);
         }
+        ComponentItem::IndexSet(declaration) => format_index_set(declaration, indent, output),
         ComponentItem::Instance(declaration) => format_instance(declaration, indent, output),
     }
     output.end();
@@ -328,6 +338,7 @@ fn format_item(item: &Item, indent: usize, output: &mut crate::formatter::commen
         Item::BoundaryConnection(declaration) => {
             format_boundary_connection(declaration, indent, output);
         }
+        Item::IndexSet(declaration) => format_index_set(declaration, indent, output),
         Item::Instance(declaration) => format_instance(declaration, indent, output),
     }
     output.end();
@@ -443,7 +454,7 @@ fn format_component_port_family(
 }
 
 fn format_boundary_family_binder(
-    binder: &BoundaryFamilyBinderSyntax,
+    binder: &FamilyBinderSyntax,
     output: &mut crate::formatter::comments::Output,
 ) {
     write!(output, "[{} in {}]", binder.member, binder.set).expect("String write");
@@ -472,17 +483,18 @@ fn format_connection(
         ConnectionSyntax::Signal => {
             output.push_str("connect ");
             if let Some((source, targets)) = declaration.ports.split_first() {
-                write!(output, "{source} -> ").expect("String write");
-                format_name_paths(targets, output);
+                format_expression(source, 0, output);
+                output.push_str(" -> ");
+                format_endpoint_list(targets, output);
             }
         }
         ConnectionSyntax::Conserving => {
             output.push_str("connect conserving ");
-            format_name_paths(&declaration.ports, output);
+            format_endpoint_list(&declaration.ports, output);
         }
         ConnectionSyntax::SpatialPeriodic => {
             output.push_str("connect periodic ");
-            format_name_paths(&declaration.ports, output);
+            format_endpoint_list(&declaration.ports, output);
         }
     }
     output.push_str(";\n");
@@ -529,12 +541,11 @@ fn format_instance(
     output: &mut crate::formatter::comments::Output,
 ) {
     write_indent(output, indent);
-    write!(
-        output,
-        "instance {}: {}",
-        declaration.name, declaration.definition
-    )
-    .expect("String write");
+    write!(output, "instance {}", declaration.name).expect("String write");
+    if let Some(family) = &declaration.family {
+        write!(output, "[{} in {}]", family.member(), family.set()).expect("String write");
+    }
+    write!(output, ": {}", declaration.definition).expect("String write");
     output.push('(');
     for (index, binding) in declaration.bindings.iter().enumerate() {
         if index > 0 {
@@ -559,3 +570,23 @@ fn format_number(value: f64) -> String {
 
 #[cfg(test)]
 mod tests;
+
+fn format_index_set(
+    declaration: &crate::NamedDefinitionDecl,
+    indent: usize,
+    output: &mut comments::Output,
+) {
+    write_indent(output, indent);
+    write!(output, "indexset {} = ", declaration.name()).expect("String write");
+    format_expression(declaration.value(), 0, output);
+    output.push_str(";\n");
+}
+
+fn format_endpoint_list(endpoints: &[crate::Expr], output: &mut comments::Output) {
+    for (index, endpoint) in endpoints.iter().enumerate() {
+        if index > 0 {
+            output.push_str(", ");
+        }
+        format_expression(endpoint, 0, output);
+    }
+}

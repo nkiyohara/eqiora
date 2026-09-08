@@ -1,4 +1,7 @@
 mod lower;
+mod numerical_evaluation;
+mod typed;
+use numerical_evaluation::evaluate_instructions;
 
 use std::collections::HashMap;
 
@@ -119,7 +122,7 @@ impl ScalarInputIrBuilder {
         if !value.value().is_finite() {
             return Err(ir_builder_error("input-slot constant must be finite"));
         }
-        self.push(Instruction::Constant(value.value()))
+        self.push(Instruction::Constant(value))
     }
 
     pub(crate) fn input(
@@ -252,6 +255,8 @@ impl ScalarInputIrBuilder {
 /// Compact scalar SSA Operator IR lowered from one residual DAG.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ScalarOperatorIr {
+    source_values: Vec<ValueId>,
+    typed_constants: Vec<eqiora_core::ValueLiteral>,
     symbols: Vec<SymbolRef>,
     instructions: Vec<Instruction>,
     roots: Vec<ValueId>,
@@ -452,7 +457,15 @@ impl ScalarOperatorIr {
         let mut summaries: Vec<AffineSummary> = Vec::with_capacity(self.instructions.len());
         for (index, instruction) in self.instructions.iter().copied().enumerate() {
             let summary = match instruction {
-                Instruction::Constant(value) => AffineSummary::constant(value, dimension),
+                Instruction::TypedConstant(_)
+                | Instruction::Quotient(_, _)
+                | Instruction::Remainder(_, _)
+                | Instruction::ToReal(_)
+                | Instruction::ToInteger(_)
+                | Instruction::Ordinal(_) => {
+                    return Err(SymbolicLinearityFailure::InvalidProgram { instruction: index });
+                }
+                Instruction::Constant(value) => AffineSummary::constant(value.value(), dimension),
                 Instruction::Read(slot) => {
                     let symbol = self
                         .symbols
@@ -877,6 +890,16 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
         let mut tangents = Vec::with_capacity(self.ir.instructions.len());
         for (index, instruction) in self.ir.instructions.iter().enumerate() {
             let tangent = match *instruction {
+                Instruction::TypedConstant(_)
+                | Instruction::Quotient(_, _)
+                | Instruction::Remainder(_, _)
+                | Instruction::ToReal(_)
+                | Instruction::ToInteger(_)
+                | Instruction::Ordinal(_) => {
+                    return Err(ir_builder_error(
+                        "discrete operations cannot be differentiated",
+                    ));
+                }
                 Instruction::Constant(_) => 0.0,
                 Instruction::Read(slot) => match self.bindings[slot_index(slot, index)?] {
                     InputBinding::Unknown(coordinate) => {
@@ -949,6 +972,16 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
         for (index, instruction) in self.ir.instructions.iter().enumerate().rev() {
             let cotangent = adjoints[index];
             match *instruction {
+                Instruction::TypedConstant(_)
+                | Instruction::Quotient(_, _)
+                | Instruction::Remainder(_, _)
+                | Instruction::ToReal(_)
+                | Instruction::ToInteger(_)
+                | Instruction::Ordinal(_) => {
+                    return Err(ir_builder_error(
+                        "discrete operations cannot be differentiated",
+                    ));
+                }
                 Instruction::Constant(_) => {}
                 Instruction::Read(slot) => match self.bindings[slot_index(slot, index)?] {
                     InputBinding::Unknown(coordinate) => {
@@ -1035,7 +1068,13 @@ struct ValueId(u32);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Instruction {
-    Constant(f64),
+    Constant(eqiora_core::DynQuantity),
+    TypedConstant(u32),
+    Quotient(ValueId, ValueId),
+    Remainder(ValueId, ValueId),
+    ToReal(ValueId),
+    ToInteger(ValueId),
+    Ordinal(ValueId),
     Read(SymbolSlot),
     Neg(ValueId),
     Add(ValueId, ValueId),
@@ -1060,52 +1099,6 @@ fn read(values: &[f64], id: ValueId, instruction: usize) -> Result<f64, Diagnost
             )
             .with_graph_path(ir_path(instruction))
         })
-}
-
-fn evaluate_instructions(
-    instructions: &[Instruction],
-    inputs: &[f64],
-) -> Result<Vec<f64>, Diagnostic> {
-    let mut values = Vec::with_capacity(instructions.len());
-    for (index, instruction) in instructions.iter().enumerate() {
-        let value =
-            match *instruction {
-                Instruction::Constant(value) => value,
-                Instruction::Read(slot) => inputs
-                    .get(slot_index(slot, index)?)
-                    .copied()
-                    .ok_or_else(|| {
-                        Diagnostic::error(
-                            codes::INVALID_OPERATOR_IR,
-                            "scalar input slot is outside the supplied input inventory",
-                        )
-                        .with_graph_path(ir_path(index))
-                    })?,
-                Instruction::Neg(value) => -read(&values, value, index)?,
-                Instruction::Add(left, right) => {
-                    read(&values, left, index)? + read(&values, right, index)?
-                }
-                Instruction::Sub(left, right) => {
-                    read(&values, left, index)? - read(&values, right, index)?
-                }
-                Instruction::Mul(left, right) => {
-                    read(&values, left, index)? * read(&values, right, index)?
-                }
-                Instruction::Div(left, right) => {
-                    read(&values, left, index)? / read(&values, right, index)?
-                }
-                Instruction::PowI(base, exponent) => read(&values, base, index)?.powi(exponent),
-            };
-        if !value.is_finite() {
-            return Err(Diagnostic::error(
-                codes::NONFINITE_EVALUATION,
-                format!("scalar Operator IR instruction {index} evaluated to {value}"),
-            )
-            .with_graph_path(ir_path(index)));
-        }
-        values.push(value);
-    }
-    Ok(values)
 }
 
 fn collect_roots(

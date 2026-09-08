@@ -8,13 +8,14 @@ use eqiora::language::{
     DraftSpatialDomain, FieldRoleSyntax, ModelDraft,
 };
 pub(crate) mod dimension;
+mod nominal;
 pub(crate) mod value_literal;
 mod value_type;
 pub(crate) use value_type::PyValueType;
 
-use pyo3::exceptions::{PyAttributeError, PyTypeError};
+use pyo3::exceptions::{PyAttributeError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyBool, PyComplex, PyModule, PyTuple};
+use pyo3::types::{PyAny, PyBool, PyComplex, PyInt, PyModule, PyTuple};
 
 use crate::diagnostic_error;
 
@@ -823,6 +824,9 @@ fn model_draft(
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyDimension>()?;
     module.add_class::<PyValueType>()?;
+    module.add_class::<nominal::PyFiniteSpace>()?;
+    module.add_class::<nominal::PyIndexSet>()?;
+    module.add_function(wrap_pyfunction!(nominal::_nominal_type_source, module)?)?;
     module.add_class::<PyBoundarySide>()?;
     module.add_class::<PyDomain>()?;
     module.add_class::<PyFieldRole>()?;
@@ -845,6 +849,18 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 
 fn declaration_from_python(value: &Bound<'_, PyAny>) -> PyResult<DraftDeclaration> {
+    if let Ok(space) = value.extract::<PyRef<'_, nominal::PyFiniteSpace>>() {
+        return Ok(DraftDeclaration::FiniteSpace {
+            name: space.name.clone(),
+            definition: space.value.clone(),
+        });
+    }
+    if let Ok(set) = value.extract::<PyRef<'_, nominal::PyIndexSet>>() {
+        return Ok(DraftDeclaration::IndexSet {
+            name: set.name.clone(),
+            definition: set.value.clone(),
+        });
+    }
     if let Ok(domain) = value.extract::<PyRef<'_, PyDomain>>() {
         return Ok(domain.value.clone().into());
     }
@@ -890,10 +906,17 @@ fn expression_from_python(value: &Bound<'_, PyAny>) -> PyResult<DraftExpression>
     if value.is_instance_of::<PyBool>() {
         return Err(expression_type_error());
     }
+    if value.is_instance_of::<PyInt>() {
+        return value_literal::expression(value);
+    }
     value
         .extract::<f64>()
-        .map(DraftExpression::constant)
         .map_err(|_| expression_type_error())
+        .and_then(|value| {
+            eqiora::language::DecimalLiteral::from_f64(value)
+                .map_err(|error| PyValueError::new_err(error.to_string()))
+        })
+        .map(DraftExpression::constant)
 }
 
 #[derive(Debug, Clone, Copy)]

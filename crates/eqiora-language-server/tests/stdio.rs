@@ -309,7 +309,7 @@ fn stdio_workspace_resolves_open_modules_and_tracks_unsaved_changes() {
 }
 
 #[test]
-fn stdio_discards_superseded_workspace_analysis() {
+fn stdio_publishes_current_analysis_after_successive_changes() {
     let uri = "file:///workspace/cancelled.eqi";
     let valid = "model Current() {}\n";
     let mut child = Command::new(SERVER)
@@ -347,7 +347,18 @@ fn stdio_discards_superseded_workspace_analysis() {
         .filter(|message| message["method"] == "textDocument/publishDiagnostics")
         .map(|message| message["params"]["version"].as_i64())
         .collect::<Vec<_>>();
-    assert_eq!(diagnostics, vec![Some(1), Some(3)]);
+    // Revision 2 may finish before the server receives revision 3. Supersession
+    // is tested deterministically at the in-flight revision boundary in protocol tests.
+    assert!(
+        diagnostics == [Some(1), Some(3)] || diagnostics == [Some(1), Some(2), Some(3)],
+        "unexpected diagnostic revisions: {diagnostics:?}"
+    );
+    let latest = messages
+        .iter()
+        .rev()
+        .find(|message| message["method"] == "textDocument/publishDiagnostics")
+        .unwrap();
+    assert_eq!(latest["params"]["diagnostics"], json!([]));
     assert_eq!(response(&messages, 3)["result"][0]["name"], "Current");
     assert!(response(&messages, 4)["result"].is_null());
 }

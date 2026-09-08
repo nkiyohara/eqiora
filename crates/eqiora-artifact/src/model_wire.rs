@@ -16,10 +16,10 @@ use crate::{
     ArtifactDigest, CANONICAL_ENCODING, ModelDecoderLimits, check_json_limits, invalid_artifact,
 };
 
-const MODEL_SCHEMA: &str = "eqiora.model-envelope/v14";
+const MODEL_SCHEMA: &str = "eqiora.model-envelope/v15";
 const MODEL_LABEL: &str = "current Model";
 const ENVELOPE_LABEL: &str = "current Model envelope";
-const DECODE_LABEL: &str = "decode eqiora.model-envelope/v14";
+const DECODE_LABEL: &str = "decode eqiora.model-envelope/v15";
 
 /// Canonical serialization of the single current Semantic Model contract.
 #[derive(Debug, Clone, PartialEq)]
@@ -374,6 +374,9 @@ impl ModelEnvelope {
         }
         for value in &self.wire.values {
             require_reference(&ids, &value.target, "current value")?;
+            if let Some(reference) = value.value.nominal_reference() {
+                require_reference(&ids, reference, "current value nominal basis")?;
+            }
             if value.target.decode_raw()?.kind() != EntityKind::Parameter {
                 return Err(invalid_artifact("only Parameter nodes own current values"));
             }

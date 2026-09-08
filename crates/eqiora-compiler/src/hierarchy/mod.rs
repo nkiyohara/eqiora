@@ -34,9 +34,9 @@ mod flat;
 mod named_bindings;
 mod occurrence_connections;
 mod parameters;
+pub(crate) use parameters::exact_signed_literal;
 mod physical_closure;
 mod preflight;
-pub(crate) use preflight::owned_model_items;
 mod scope;
 pub(crate) mod selected;
 mod supports;
@@ -231,7 +231,7 @@ fn compile_external_component_from_definition<'a>(
         let declaration = SourceAstFactory::parameter(
             declaration.name(),
             declaration.value_type().clone(),
-            SourceAstFactory::value_literal(parameter.value(), range)
+            SourceAstFactory::value_literal(parameter.value(), range, |_| None)
                 .map_err(|error| vec![hierarchy_error(error.message())])?,
             range,
         )
@@ -277,6 +277,7 @@ fn compile_external_component_from_definition<'a>(
     let instance = SourceAstFactory::instance(
         "definition",
         component_path,
+        None,
         parameter_bindings
             .into_iter()
             .chain(support_bindings)
@@ -444,14 +445,6 @@ pub(crate) fn closed_index(expression: &eqiora_lang::Expr) -> Result<u32, Diagno
     parameters::static_index("", expression, &Default::default())
 }
 
-/// Native drafts retain fresh IDs but share source-independent definition validation.
-pub(crate) fn validate_native_model(
-    file: &str,
-    model: &eqiora_lang::ModelDecl,
-) -> Result<(), Vec<Diagnostic>> {
-    let document = SourceAstFactory::document(Vec::new(), Vec::new(), vec![model.clone()])
-        .map_err(|error| vec![hierarchy_error(error.message())])?;
-    let identity = LocalSourceIdentity::from_document(&document).map_err(|error| vec![error])?;
-    let elaborator = Elaborator::new(file, 0, &document, identity, HierarchyLimits::default())?;
-    check::validate(&elaborator).map(|_| ())
-}
+#[cfg(test)]
+#[path = "tests/native_ast.rs"]
+mod native_ast_tests;

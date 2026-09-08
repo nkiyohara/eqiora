@@ -23,9 +23,11 @@ impl Parser<'_> {
         } else {
             let range = self.current().range();
             Expr {
+                resolved_nominal: None,
                 kind: ExprKind::Quantity {
                     value: crate::DecimalLiteral::parse("0").expect("exact zero"),
                     unit: Box::new(Expr {
+                        resolved_nominal: None,
                         kind: ExprKind::Name("s".into()),
                         range,
                     }),

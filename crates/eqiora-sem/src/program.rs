@@ -1,6 +1,7 @@
 //! Whole-model validation and immutable interpreter input.
 
 pub(crate) mod geometry_admission;
+mod nominal_values;
 mod relation_admission;
 mod signal_activation;
 pub(crate) mod signal_connections;
@@ -183,6 +184,15 @@ impl KernelProgram {
                 RootContract::ComponentwiseResidual
             },
         )
+    }
+
+    pub(crate) fn execution_symbol_type(
+        &self,
+        symbol: SymbolRef,
+    ) -> Option<eqiora_core::ValueType> {
+        symbol_type(symbol, &self.nodes, &self.edges, &self.spatial_supports)
+            .ok()
+            .map(|inferred| inferred.value_type)
     }
 
     pub(crate) fn type_derived_residual(
@@ -690,6 +700,11 @@ fn validate_expression(
     root_contract: RootContract,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> BTreeSet<RawId> {
+    for node in expression.nodes() {
+        if let ExprNode::Constant(value) = node {
+            nominal_values::check(owner, value.value_type(), environment.nodes, diagnostics);
+        }
+    }
     let symbols = expression
         .nodes()
         .iter()

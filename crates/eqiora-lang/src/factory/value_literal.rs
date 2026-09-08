@@ -11,11 +11,21 @@ impl SourceAstFactory {
     pub fn value_literal(
         value: &ValueLiteral,
         range: TextRange,
+        mut resolve: impl FnMut(eqiora_core::RawId) -> Option<NamePath>,
     ) -> Result<Expr, AstConstructionError> {
         checked_range(range)?;
-        crate::ValueTypeSyntax::from_checked(value.value_type())?;
-        if value.is_zero() && !value.value_type().shape().is_scalar() {
-            return Self::expression(ExprKind::Number(0.0), range);
+        let syntax = crate::ValueTypeSyntax::from_checked(value.value_type(), &mut resolve)?;
+        let nominal = match syntax.kind() {
+            crate::ValueTypeSyntaxKind::Coordinates(name) => Some(("coordinates", name)),
+            crate::ValueTypeSyntaxKind::Counts(name) => Some(("counts", name)),
+            crate::ValueTypeSyntaxKind::Index(name) => Some(("index", name)),
+            _ => None,
+        };
+        if nominal.is_none() && value.is_zero() && !value.value_type().shape().is_scalar() {
+            return Self::expression(
+                ExprKind::Number(crate::DecimalLiteral::parse("0.0").expect("exact literal")),
+                range,
+            );
         }
         if value.value_type().frame() != ValueFrame::Invariant {
             return Err(AstConstructionError::new(
@@ -25,6 +35,7 @@ impl SourceAstFactory {
         fn nested(value: &ValueLiteral, axis: usize, offset: &mut usize, range: TextRange) -> Expr {
             if let Some(extent) = value.value_type().shape().extents().get(axis) {
                 return Expr {
+                    resolved_nominal: None,
                     kind: ExprKind::Array(
                         (0..extent.get())
                             .map(|_| nested(value, axis + 1, offset, range))
@@ -33,11 +44,25 @@ impl SourceAstFactory {
                     range,
                 };
             }
+            if let Some(integer) = value.integer_component(*offset) {
+                *offset += 1;
+                return Expr {
+                    resolved_nominal: None,
+                    kind: ExprKind::Number(
+                        crate::DecimalLiteral::parse(&integer.to_string()).expect("bounded i64"),
+                    ),
+                    range,
+                };
+            }
             let (real, imaginary) = value.component(*offset).expect("bounded value component");
             *offset += 1;
             let scalar = |number| Expr {
+                resolved_nominal: None,
                 kind: if value.value_type().dimension() == DimExponents::DIMENSIONLESS {
-                    ExprKind::Number(number)
+                    ExprKind::Number(
+                        crate::DecimalLiteral::from_f64(number)
+                            .expect("finite ValueLiteral component"),
+                    )
                 } else {
                     ExprKind::Quantity {
                         value: crate::DecimalLiteral::from_f64(number)
@@ -51,6 +76,7 @@ impl SourceAstFactory {
                 range,
             };
             Expr {
+                resolved_nominal: None,
                 kind: if value.value_type().scalar_domain() == ScalarDomain::Complex {
                     ExprKind::Call {
                         callee: NamePath::from_parsed_segments(
@@ -66,6 +92,24 @@ impl SourceAstFactory {
             }
         }
         let result = nested(value, 0, &mut 0, range);
+        if let Some((constructor, name)) = nominal {
+            let mut expression = Self::expression(
+                ExprKind::Call {
+                    callee: NamePath::single(constructor.to_owned(), range),
+                    arguments: vec![
+                        Expr {
+                            resolved_nominal: None,
+                            kind: ExprKind::Path(name.clone()),
+                            range,
+                        },
+                        result,
+                    ],
+                },
+                range,
+            )?;
+            Self::bind_nominal_expression(&mut expression, name, value.value_type().clone())?;
+            return Ok(expression);
+        }
         Self::expression(result.kind, range)
     }
 }
@@ -80,6 +124,7 @@ pub(crate) fn dimension_expression(
         .filter(|(_, (numerator, _))| *numerator != 0)
         .map(|(name, (numerator, denominator))| {
             let base = Expr {
+                resolved_nominal: None,
                 kind: ExprKind::Name(name.to_owned()),
                 range: range(),
             };
@@ -87,18 +132,27 @@ pub(crate) fn dimension_expression(
                 base
             } else {
                 let numerator = Expr {
-                    kind: ExprKind::Number(f64::from(numerator)),
+                    resolved_nominal: None,
+                    kind: ExprKind::Number(
+                        crate::DecimalLiteral::parse(&numerator.to_string())
+                            .expect("bounded dimension numerator"),
+                    ),
                     range: range(),
                 };
                 let exponent = if denominator == 1 {
                     numerator
                 } else {
                     Expr {
+                        resolved_nominal: None,
                         kind: ExprKind::Binary {
                             op: BinaryOp::Div,
                             left: Box::new(numerator),
                             right: Box::new(Expr {
-                                kind: ExprKind::Number(f64::from(denominator)),
+                                resolved_nominal: None,
+                                kind: ExprKind::Number(
+                                    crate::DecimalLiteral::parse(&denominator.to_string())
+                                        .expect("bounded dimension denominator"),
+                                ),
                                 range: range(),
                             }),
                         },
@@ -106,6 +160,7 @@ pub(crate) fn dimension_expression(
                     }
                 };
                 Expr {
+                    resolved_nominal: None,
                     kind: ExprKind::Binary {
                         op: BinaryOp::Pow,
                         left: Box::new(base),
@@ -120,11 +175,13 @@ pub(crate) fn dimension_expression(
 
     let Some(first) = factors.next() else {
         return Expr {
-            kind: ExprKind::Number(1.0),
+            resolved_nominal: None,
+            kind: ExprKind::Number(crate::DecimalLiteral::parse("1.0").expect("exact literal")),
             range: range(),
         };
     };
     factors.fold(first, |left, right| Expr {
+        resolved_nominal: None,
         kind: ExprKind::Binary {
             op: BinaryOp::Mul,
             left: Box::new(left),
@@ -148,7 +205,8 @@ mod tests {
         .array(2)
         .unwrap();
         let literal = ValueLiteral::new(kind, [(1.0, 2.0), (3.0, 0.0)]).unwrap();
-        let expression = SourceAstFactory::value_literal(&literal, TextRange::new(0, 1)).unwrap();
+        let expression =
+            SourceAstFactory::value_literal(&literal, TextRange::new(0, 1), |_| None).unwrap();
         let ExprKind::Array(elements) = expression.kind() else {
             panic!("channel axis")
         };
@@ -178,14 +236,14 @@ mod tests {
         .unwrap();
         let zero = ValueLiteral::from_real(vector.clone(), 0.0).unwrap();
         assert!(matches!(
-            SourceAstFactory::value_literal(&zero, TextRange::new(0, 1))
+            SourceAstFactory::value_literal(&zero, TextRange::new(0, 1), |_| None)
                 .unwrap()
                 .kind(),
-            ExprKind::Number(0.0)
+            ExprKind::Number(number) if number.is_zero()
         ));
         let value = ValueLiteral::new(vector, [(1.0, 0.0), (2.0, 0.0)]).unwrap();
         assert!(
-            SourceAstFactory::value_literal(&value, TextRange::new(0, 1))
+            SourceAstFactory::value_literal(&value, TextRange::new(0, 1), |_| None)
                 .unwrap_err()
                 .to_string()
                 .contains("frame-bearing")

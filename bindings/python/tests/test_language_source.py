@@ -1125,6 +1125,13 @@ def test_clock_authoring_initial_uses_existing_declaration_and_expression_bounds
     expression = q.math.pi
     for _ in range(11):
         expression = expression + expression
+    explicit_source = q.Source()
+    explicit = explicit_source.component("ExplicitExpressions")
+    # Both authored equality sides count, including an explicitly supplied zero.
+    explicit.initial(left=expression, right=0)
+    with pytest.raises(q.SourceError, match="initial expressions exceed the 4096-node limit"):
+        explicit.initial(left=0, right=0)
+    assert explicit_source.to_eqi().count("initial {") == 1
     bounded.initial(expression, 0)
     with pytest.raises(q.SourceError, match="initial expressions exceed the 4096-node limit"):
         bounded.initial(0)

@@ -12,12 +12,11 @@ mod scalar;
 
 pub use calculus::{
     CalculusBuilder, CalculusError, CalculusNode, CalculusNodeId, ExactRational,
-    FormalDimensionMonomial, FormalTypeRule, NormalizationProof, NormalizationRuleId,
-    OperatorApplicationProof, OperatorDefinitionDigest, OperatorExpansionExt,
-    PureOperatorApplicationProof, PureOperatorDefinition, PureOperatorError,
-    PureOperatorInstantiation, PureValueClass, ResultAxis, ResultTypeRule, ScalarCalculus,
-    ScalarCalculusAtom, ScalarCalculusNode, StandardPureOperator, SupportMap, SupportMapIntent,
-    SupportMapOrientation, SupportMapPairing, SupportMapViolation,
+    FormalDimensionMonomial, NormalizationProof, NormalizationRuleId, OperatorApplicationProof,
+    OperatorDefinitionDigest, OperatorExpansionExt, PureOperatorApplicationProof,
+    PureOperatorDefinition, PureOperatorError, PureOperatorInstantiation, PureValueClass,
+    ResultAxis, ScalarCalculus, ScalarCalculusAtom, ScalarCalculusNode, StandardPureOperator,
+    SupportMap, SupportMapIntent, SupportMapOrientation, SupportMapPairing, SupportMapViolation,
 };
 pub use component::{ComponentScalarRow, ComponentScalarization, ScalarSymbolCoordinate};
 pub use linearization::{

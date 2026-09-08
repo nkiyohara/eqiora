@@ -1,4 +1,4 @@
-//! Typed definitions for the nine Semantic Kernel node kinds.
+//! Typed definitions for Semantic Kernel nodes.
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
@@ -586,6 +586,10 @@ pub enum KernelNode {
     Activation(ActivationDef),
     /// Connection definition.
     Connection(ConnectionDef),
+    /// Ordered nominal finite mathematical basis.
+    FiniteSpace(super::FiniteSpaceDef),
+    /// Fixed structural ordinal set.
+    IndexSet(super::IndexSetDef),
     /// ClockDomain definition.
     ClockDomain(ClockDomainDef),
 }
@@ -604,6 +608,8 @@ impl KernelNode {
             Self::Activation(value) => value.id().erase(),
             Self::Connection(value) => value.id().erase(),
             Self::ClockDomain(value) => value.id().erase(),
+            Self::FiniteSpace(value) => value.id().erase(),
+            Self::IndexSet(value) => value.id().erase(),
         }
     }
 
@@ -620,6 +626,8 @@ impl KernelNode {
             Self::Activation(_) => EntityKind::Activation,
             Self::Connection(_) => EntityKind::Connection,
             Self::ClockDomain(_) => EntityKind::ClockDomain,
+            Self::FiniteSpace(_) => EntityKind::FiniteSpace,
+            Self::IndexSet(_) => EntityKind::IndexSet,
         }
     }
 

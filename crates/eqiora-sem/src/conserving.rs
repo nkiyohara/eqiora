@@ -254,18 +254,43 @@ impl ComposedResidualSystem {
         inputs
             .try_reserve(input_count)
             .map_err(|_| physical_input_error("could not reserve scalar physical input lookup"))?;
-        for (unknown, value) in self.unknowns.iter().zip(unknown_values) {
+        for ((unknown, value), value_type) in self
+            .unknowns
+            .iter()
+            .zip(unknown_values)
+            .zip(&self.unknown_types)
+        {
             let symbol = match unknown {
                 PhysicalUnknown::Across(port) => SymbolRef::Across(*port),
                 PhysicalUnknown::Through(port) => SymbolRef::Through(*port),
             };
-            inputs.insert(symbol, *value);
+            inputs.insert(
+                symbol,
+                eqiora_core::ValueLiteral::from_real(value_type.clone(), *value)
+                    .expect("checked scalar input"),
+            );
         }
-        for (parameter, value) in self.parameters.iter().zip(parameter_values) {
-            inputs.insert(SymbolRef::Parameter(*parameter), *value);
+        for ((parameter, value), value_type) in self
+            .parameters
+            .iter()
+            .zip(parameter_values)
+            .zip(&self.parameter_types)
+        {
+            inputs.insert(
+                SymbolRef::Parameter(*parameter),
+                eqiora_core::ValueLiteral::from_real(value_type.clone(), *value)
+                    .expect("checked scalar input"),
+            );
         }
         if let Some(value) = time {
-            inputs.insert(SymbolRef::Time, value);
+            inputs.insert(
+                SymbolRef::Time,
+                crate::evaluate::literal(eqiora_core::DynQuantity::new(
+                    value,
+                    eqiora_core::DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0])
+                        .expect("time dimension"),
+                ))?,
+            );
         }
 
         let residual_count = self
@@ -284,18 +309,18 @@ impl ComposedResidualSystem {
             physical_input_error("could not reserve scalar physical residual output")
         })?;
         for relation in &self.relations {
-            residuals.extend(evaluate_expression(
+            residuals.extend(crate::evaluate::real_values(evaluate_expression(
                 relation.relation().erase(),
                 relation.dag(),
-                &mut |symbol| inputs.get(&symbol).copied(),
-            )?);
+                &mut |symbol| inputs.get(&symbol).cloned(),
+            )?)?);
         }
         for junction in &self.junctions {
-            residuals.extend(evaluate_expression(
+            residuals.extend(crate::evaluate::real_values(evaluate_expression(
                 junction.connection().erase(),
                 junction.dag(),
-                &mut |symbol| inputs.get(&symbol).copied(),
-            )?);
+                &mut |symbol| inputs.get(&symbol).cloned(),
+            )?)?);
         }
         Ok(residuals)
     }

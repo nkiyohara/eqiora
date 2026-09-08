@@ -30,6 +30,11 @@ pub(crate) fn lower_value_type<I>(
     let invalid =
         |message: String| source_error(codes::LANGUAGE_TYPE_ERROR, file, syntax.range(), message);
     match syntax.kind() {
+        ValueTypeSyntaxKind::Coordinates(_)
+        | ValueTypeSyntaxKind::Counts(_)
+        | ValueTypeSyntaxKind::Index(_) => syntax.resolved_nominal().cloned().ok_or_else(|| {
+            invalid("nominal value type requires its exact lexical declaration binding".into())
+        }),
         ValueTypeSyntaxKind::Scalar { domain, dimension } => Ok(ValueType::scalar(
             *domain,
             lower_dimension(file, dimension)?,

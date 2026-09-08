@@ -176,11 +176,10 @@ pub(super) fn input_connections(
         .map(|binding| {
             let fail = |message: &str| source_error(codes::LANGUAGE_TYPE_ERROR, file, binding.range(), message);
             let source = match binding.value().kind() {
-                ExprKind::Name(name) => NamePath::from_segments([name.as_str()], binding.value().range()).map_err(|error| fail(error.message()))?,
-                ExprKind::Path(path) => path.clone(),
+                ExprKind::Name(_) | ExprKind::Path(_) | ExprKind::Member { .. } => binding.value().clone(),
                 _ => return Err(fail("Input binding requires an exact causal endpoint; arbitrary value expressions do not create a driver")),
             };
             let target = NamePath::from_segments([instance.name(), binding.name()], binding.range()).map_err(|error| fail(error.message()))?;
-            SourceAstFactory::connection(eqiora_lang::ConnectionSyntax::Signal, vec![source, target], binding.range()).map_err(|error| fail(error.message()))
+            SourceAstFactory::connection(eqiora_lang::ConnectionSyntax::Signal, vec![source, SourceAstFactory::expression(ExprKind::Path(target), binding.range()).map_err(|error| fail(error.message()))?], binding.range()).map_err(|error| fail(error.message()))
         }).collect()
 }

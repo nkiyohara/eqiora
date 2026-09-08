@@ -12,7 +12,9 @@ pub(super) fn encode_parameter(
         super::value_type::encode_value_type(encoder, declaration.value_type(), budget, 1)
     })?;
     match declaration.value().kind() {
-        ExprKind::Number(value) => encoder.field(3, |encoder| encoder.f64(*value)),
+        ExprKind::Number(value) => encoder.field(3, |encoder| {
+            super::expression::encode_decimal(encoder, value, false)
+        }),
         ExprKind::Quantity { value, unit } => {
             encoder.field(3, |encoder| {
                 super::expression::encode_decimal(encoder, value, false)
@@ -29,7 +31,9 @@ pub(super) fn encode_parameter(
         {
             // Canonicalize a signed native literal and a parsed unary minus identically.
             match value.kind() {
-                ExprKind::Number(value) => encoder.field(3, |encoder| encoder.f64(-value)),
+                ExprKind::Number(value) => encoder.field(3, |encoder| {
+                    super::expression::encode_decimal(encoder, value, true)
+                }),
                 ExprKind::Quantity { value, unit } => {
                     encoder.field(3, |encoder| {
                         super::expression::encode_decimal(encoder, value, true)
@@ -47,7 +51,7 @@ pub(super) fn encode_parameter(
 
 pub(super) fn encode_let(
     encoder: &mut Encoder,
-    declaration: &eqiora_lang::LetDecl,
+    declaration: &eqiora_lang::NamedDefinitionDecl,
     budget: &mut Budget,
 ) -> Result<(), Diagnostic> {
     encoder.field(1, |encoder| {

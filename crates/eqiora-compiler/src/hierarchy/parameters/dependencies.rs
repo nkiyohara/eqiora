@@ -17,12 +17,18 @@ pub(super) fn collect_expression_dependencies(
     file: &str,
     expression: &Expr,
     contains: impl Fn(&str) -> bool,
-    context: ExpressionContext,
+    context: ExpressionContext<'_>,
 ) -> (BTreeMap<String, TextRange>, Vec<Diagnostic>) {
     let mut dependencies = BTreeMap::new();
     let mut diagnostics = Vec::new();
     let mut pending = vec![expression];
     while let Some(expression) = pending.pop() {
+        if expression.resolved_nominal().is_some() {
+            if let Err(error) = crate::nominal::literal(file, expression) {
+                diagnostics.push(error);
+            }
+            continue;
+        }
         match expression.kind() {
             ExprKind::Number(_) | ExprKind::Quantity { .. } => {}
             ExprKind::Name(name) => {
@@ -55,7 +61,10 @@ pub(super) fn collect_expression_dependencies(
             // Clock identity is resolved separately during typed evaluation, never
             // as an edge in the Parameter default dependency graph.
             ExprKind::Call { callee, .. } if callee.as_str() == "period" => {}
-            ExprKind::Call { callee, arguments } if callee.as_str() == "math.complex" => {
+            ExprKind::Call { callee, arguments }
+                if callee.as_str() == "math.complex"
+                    || crate::lower::IntegerBuiltin::named(callee.as_str()).is_some() =>
+            {
                 pending.extend(arguments)
             }
             ExprKind::Call { callee, .. } => diagnostics.push(source_error(

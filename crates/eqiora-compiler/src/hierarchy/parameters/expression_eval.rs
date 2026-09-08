@@ -1,16 +1,19 @@
 use super::*;
 
 #[derive(Debug, Clone, Copy)]
-pub(super) enum ExpressionContext {
+pub(super) enum ExpressionContext<'a> {
+    IndexedBinding(&'a str),
     Binding,
     Default,
     Let,
 }
 
-impl ExpressionContext {
+impl ExpressionContext<'_> {
     pub(super) fn unknown_name_message(self, name: &str) -> String {
         match self {
-            Self::Binding => format!("unknown Parameter `{name}` in compile-time binding"),
+            Self::Binding | Self::IndexedBinding(_) => {
+                format!("unknown Parameter `{name}` in compile-time binding")
+            }
             Self::Default => format!("unknown component Parameter `{name}`"),
             Self::Let => format!("unknown Parameter or let alias `{name}`"),
         }
@@ -18,7 +21,7 @@ impl ExpressionContext {
 
     pub(super) fn qualified_name_message(self, path: &impl std::fmt::Display) -> String {
         match self {
-            Self::Binding => format!(
+            Self::Binding | Self::IndexedBinding(_) => format!(
                 "qualified name `{path}` is not allowed in a compile-time Parameter binding"
             ),
             Self::Default => {
@@ -30,7 +33,7 @@ impl ExpressionContext {
 
     pub(super) fn call_message(self, callee: &str) -> String {
         match self {
-            Self::Binding => {
+            Self::Binding | Self::IndexedBinding(_) => {
                 format!("operator `{callee}(...)` is not allowed in a compile-time binding")
             }
             Self::Default => {
@@ -44,7 +47,9 @@ impl ExpressionContext {
 
     pub(super) const fn unsupported_message(self) -> &'static str {
         match self {
-            Self::Binding => "binding expression syntax is newer than this compiler",
+            Self::Binding | Self::IndexedBinding(_) => {
+                "binding expression syntax is newer than this compiler"
+            }
             Self::Default => "Parameter default syntax is newer than this compiler",
             Self::Let => "let expression syntax is newer than this compiler",
         }
@@ -54,10 +59,51 @@ impl ExpressionContext {
 pub(super) fn evaluate_parameter_expression(
     file: &str,
     expression: &Expr,
-    context: ExpressionContext,
+    context: ExpressionContext<'_>,
     resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
     resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
 ) -> Result<EvaluatedParameter, Diagnostic> {
+    evaluate_with_domain(file, expression, context, resolve, resolve_clock, None)
+}
+
+pub(super) fn evaluate_with_domain(
+    file: &str,
+    expression: &Expr,
+    context: ExpressionContext<'_>,
+    resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
+    resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
+    expected: Option<ScalarDomain>,
+) -> Result<EvaluatedParameter, Diagnostic> {
+    if let ExpressionContext::IndexedBinding(member) = context
+        && let ExprKind::Call { callee, arguments } = expression.kind()
+        && callee.as_str() == "ordinal"
+        && let [argument] = arguments.as_slice()
+        && matches!(argument.kind(), ExprKind::Name(name) if name == member)
+    {
+        return Ok(EvaluatedParameter {
+            value: None,
+            value_type: EvaluatedType::Known(ValueType::scalar(
+                ScalarDomain::Integer,
+                DimExponents::DIMENSIONLESS,
+            )),
+            expression: None,
+            lineage: None,
+            bare_literal: false,
+        });
+    }
+    if expression.resolved_nominal().is_some() {
+        let value = crate::nominal::literal(file, expression)?;
+        return Ok(EvaluatedParameter {
+            expression: Some(LoweringExpression::literal(
+                value.clone(),
+                expression.range(),
+            )),
+            value_type: EvaluatedType::Known(value.value_type().clone()),
+            value: Some(value),
+            bare_literal: false,
+            lineage: Some(ParameterLineage::Constant),
+        });
+    }
     if matches!(
         expression.kind(),
         ExprKind::Array(_) | ExprKind::Index { .. }
@@ -72,26 +118,61 @@ pub(super) fn evaluate_parameter_expression(
             resolve_clock,
         );
     }
-    let evaluated = match expression.kind() {
-        ExprKind::Number(value) => EvaluatedParameter {
-            value: Some(
-                ValueLiteral::from_real(
-                    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
-                    normalize_zero(*value),
-                )
-                .expect("finite source literal"),
-            ),
-            value_type: EvaluatedType::Known(ValueType::scalar(
-                ScalarDomain::Real,
-                DimExponents::DIMENSIONLESS,
-            )),
-            bare_literal: true,
-            expression: Some(LoweringExpression::quantity(
-                DynQuantity::new(normalize_zero(*value), DimExponents::DIMENSIONLESS),
+    if expected == Some(ScalarDomain::Integer)
+        && let Some(literal) = exact_signed_literal(expression)
+    {
+        let value = literal.map_err(|error| {
+            source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                file,
+                expression.range(),
+                error.message(),
+            )
+        })?;
+        let value_type = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+        let value =
+            ValueLiteral::from_integer(value_type.clone(), value).expect("checked integer scalar");
+        return Ok(EvaluatedParameter {
+            expression: Some(LoweringExpression::literal(
+                value.clone(),
                 expression.range(),
             )),
+            value: Some(value),
+            value_type: EvaluatedType::Known(value_type),
+            bare_literal: true,
             lineage: Some(ParameterLineage::Constant),
-        },
+        });
+    }
+    let evaluated = match expression.kind() {
+        ExprKind::Number(literal) => {
+            let value = literal.to_f64().map_err(|error| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    expression.range(),
+                    error.message(),
+                )
+            })?;
+            EvaluatedParameter {
+                value: Some(
+                    ValueLiteral::from_real(
+                        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+                        normalize_zero(value),
+                    )
+                    .expect("finite source literal"),
+                ),
+                value_type: EvaluatedType::Known(ValueType::scalar(
+                    ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                )),
+                bare_literal: true,
+                expression: Some(LoweringExpression::quantity(
+                    DynQuantity::new(normalize_zero(value), DimExponents::DIMENSIONLESS),
+                    expression.range(),
+                )),
+                lineage: Some(ParameterLineage::Constant),
+            }
+        }
         ExprKind::Quantity { value, unit } => {
             let quantity = crate::units::quantity(value, unit).map_err(|message| {
                 source_error(
@@ -110,6 +191,86 @@ pub(super) fn evaluate_parameter_expression(
                 bare_literal: false,
                 expression: Some(LoweringExpression::quantity(quantity, expression.range())),
                 lineage: Some(ParameterLineage::Constant),
+            }
+        }
+        ExprKind::Call { callee, arguments }
+            if crate::lower::IntegerBuiltin::named(callee.as_str()).is_some() =>
+        {
+            let operator = crate::lower::IntegerBuiltin::named(callee.as_str()).unwrap();
+            if arguments.len() != operator.arity() {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    expression.range(),
+                    format!("{callee} requires {} operands", operator.arity()),
+                ));
+            }
+            let operands = arguments
+                .iter()
+                .map(|argument| {
+                    evaluate_with_domain(
+                        file,
+                        argument,
+                        context,
+                        resolve,
+                        resolve_clock,
+                        Some(operator.operand_domain()),
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let types = operands
+                .iter()
+                .map(|operand| {
+                    eqiora_schema::kernel::typing::ExpressionType::<()>::new(
+                        operand.value_type.value_type().clone(),
+                        None,
+                    )
+                })
+                .collect::<Vec<_>>();
+            let value_type = operator
+                .infer(&types)
+                .map_err(|error| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        expression.range(),
+                        error.to_string(),
+                    )
+                })?
+                .value_type;
+            let value = operands
+                .iter()
+                .map(|operand| operand.value.clone())
+                .collect::<Option<Vec<_>>>()
+                .map(|values| {
+                    operator.evaluate(&values).map_err(|error| {
+                        source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            file,
+                            expression.range(),
+                            error.to_string(),
+                        )
+                    })
+                })
+                .transpose()?;
+            let lowered = operands
+                .iter()
+                .map(|operand| operand.expression.clone())
+                .collect::<Option<Vec<_>>>()
+                .map(|arguments| {
+                    LoweringExpression::integer_call(operator, arguments, expression.range())
+                });
+            let lineage = operands
+                .iter()
+                .try_fold(ParameterLineage::Constant, |lineage, operand| {
+                    combine_lineages(Some(lineage), operand.lineage.clone())
+                });
+            EvaluatedParameter {
+                value,
+                value_type: EvaluatedType::Known(value_type),
+                bare_literal: false,
+                expression: lowered,
+                lineage: transform_lineage(lineage),
             }
         }
         ExprKind::Call { callee, arguments } if callee.as_str() == "period" => {
@@ -289,7 +450,7 @@ pub(super) fn evaluate_parameter_expression(
             value,
         } => {
             let operand =
-                evaluate_parameter_expression(file, value, context, resolve, resolve_clock)?;
+                evaluate_with_domain(file, value, context, resolve, resolve_clock, expected)?;
             let negated = operand
                 .value
                 .map(|value| {
@@ -314,9 +475,28 @@ pub(super) fn evaluate_parameter_expression(
             }
         }
         ExprKind::Binary { op, left, right } => {
-            let left = evaluate_parameter_expression(file, left, context, resolve, resolve_clock)?;
-            let right =
-                evaluate_parameter_expression(file, right, context, resolve, resolve_clock)?;
+            let right_ast = right;
+            let mut right =
+                evaluate_with_domain(file, right, context, resolve, resolve_clock, expected)?;
+            let contextual = expected.or_else(|| {
+                (right.value_type.value_type().scalar_domain() == ScalarDomain::Integer)
+                    .then_some(ScalarDomain::Integer)
+            });
+            let left =
+                evaluate_with_domain(file, left, context, resolve, resolve_clock, contextual)?;
+            if expected.is_none()
+                && left.value_type.value_type().scalar_domain() == ScalarDomain::Integer
+                && right.bare_literal
+            {
+                right = evaluate_with_domain(
+                    file,
+                    right_ast,
+                    context,
+                    resolve,
+                    resolve_clock,
+                    Some(ScalarDomain::Integer),
+                )?;
+            }
             combine_parameters(file, expression.range(), *op, left, right)?
         }
         _ => {
@@ -331,10 +511,34 @@ pub(super) fn evaluate_parameter_expression(
     Ok(evaluated)
 }
 
+pub(crate) fn exact_signed_literal(
+    expression: &Expr,
+) -> Option<Result<i64, eqiora_lang::AstConstructionError>> {
+    match expression.kind() {
+        ExprKind::Number(value) => Some(value.to_i64()),
+        ExprKind::Unary {
+            op: UnaryOp::Neg,
+            value,
+        } => match value.kind() {
+            ExprKind::Number(value) => {
+                let text = value.canonical_text();
+                let signed = if value.is_negative() {
+                    text.trim_start_matches('-').to_owned()
+                } else {
+                    format!("-{text}")
+                };
+                Some(eqiora_lang::DecimalLiteral::parse(&signed).and_then(|value| value.to_i64()))
+            }
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 pub(super) fn evaluate_initializer(
     file: &str,
     expression: &Expr,
-    context: ExpressionContext,
+    context: ExpressionContext<'_>,
     resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
     target: ValueType,
     label: &str,
@@ -352,7 +556,14 @@ pub(super) fn evaluate_initializer(
             resolve_clock,
         )?
     } else {
-        evaluate_parameter_expression(file, expression, context, resolve, resolve_clock)?
+        evaluate_with_domain(
+            file,
+            expression,
+            context,
+            resolve,
+            resolve_clock,
+            (target.scalar_domain() == ScalarDomain::Integer).then_some(ScalarDomain::Integer),
+        )?
     };
     coerce_parameter_with_label(file, expression.range(), evaluated, target, label, true)
         .map(Into::into)
@@ -380,16 +591,31 @@ pub(super) fn coerce_parameter_with_label(
             || evaluated.value.as_ref().is_some_and(ValueLiteral::is_zero)
             || target.dimension() == DimExponents::DIMENSIONLESS)
     {
-        let literal = ValueLiteral::from_real(
-            target.clone(),
-            evaluated
-                .value
-                .as_ref()
-                .expect("bare literals have a known value")
-                .real_scalar_value()
-                .expect("bare real literal")
-                .value(),
-        )
+        let value = evaluated
+            .value
+            .as_ref()
+            .expect("bare literals have a known value");
+        let literal = if target.scalar_domain() == ScalarDomain::Integer {
+            let integer = value.integer_scalar_value().ok_or_else(|| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    range,
+                    "integer context requires an exact integer literal",
+                )
+            })?;
+            ValueLiteral::from_integer(target.clone(), integer)
+        } else {
+            let real = value.real_scalar_value().ok_or_else(|| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    range,
+                    "integer/real conversion must be explicit",
+                )
+            })?;
+            ValueLiteral::from_real(target.clone(), real.value())
+        }
         .map_err(|error| {
             source_error(codes::LANGUAGE_TYPE_ERROR, file, range, error.to_string())
         })?;
@@ -684,5 +910,76 @@ mod tests {
 
         assert!(error.message().contains("dimension cannot be inferred"));
         assert!(error.message().contains("explicit dimension annotation"));
+    }
+}
+
+#[cfg(test)]
+mod exact_integer_tests {
+    use super::*;
+
+    fn closed(source: &str, integer: bool) -> Result<ValueLiteral, Diagnostic> {
+        let source = format!("model M() {{ let value = {source}; }}");
+        let document = eqiora_lang::parse("exact.eqi", &source)
+            .into_document()
+            .unwrap();
+        let eqiora_lang::Item::Let(declaration) = &document.models()[0].items()[0] else {
+            panic!("let")
+        };
+        super::super::closed_value(
+            "exact.eqi",
+            declaration.value(),
+            ValueType::scalar(
+                if integer {
+                    ScalarDomain::Integer
+                } else {
+                    ScalarDomain::Real
+                },
+                DimExponents::DIMENSIONLESS,
+            ),
+        )
+    }
+
+    #[test]
+    fn exact_integer_initializers_use_checked_shared_arithmetic() {
+        for (source, expected) in [
+            ("9007199254740993+1", 9007199254740994),
+            ("-9223372036854775808", i64::MIN),
+            ("quotient(-7,3)", -2),
+            ("remainder(-7,3)", -1),
+            ("to_integer(4)", 4),
+        ] {
+            assert_eq!(
+                closed(source, true).unwrap().integer_scalar_value(),
+                Some(expected),
+                "{source}"
+            );
+        }
+        for source in [
+            "9223372036854775807+1",
+            "-9223372036854775808-1",
+            "quotient(-9223372036854775808,-1)",
+            "remainder(1,0)",
+            "to_integer(1.5)",
+            "1/2",
+            "to_integer(9223372036854775808)",
+        ] {
+            assert!(closed(source, true).is_err(), "{source}");
+        }
+        assert_eq!(
+            closed("1/2", false)
+                .unwrap()
+                .real_scalar_value()
+                .unwrap()
+                .value(),
+            0.5
+        );
+        assert_eq!(
+            closed("to_real(9007199254740993)", false)
+                .unwrap()
+                .real_scalar_value()
+                .unwrap()
+                .value(),
+            9007199254740992.0
+        );
     }
 }

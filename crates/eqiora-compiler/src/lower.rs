@@ -11,8 +11,10 @@ mod domain;
 mod domain_contract;
 mod expression;
 mod external;
-#[cfg(test)]
-mod model_tests;
+mod integer;
+mod native;
+pub(crate) use integer::IntegerBuiltin;
+mod dependencies;
 #[cfg(test)]
 mod tests;
 mod value_expression;
@@ -32,7 +34,7 @@ use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id, OntologyId, RawId};
 use eqiora_graph::{EdgeKind, Op, Transaction};
 use eqiora_lang::{
     ActivationSyntax, BinaryOp, BoundarySideSyntax, ConnectionSyntax, DomainSyntax, Expr, ExprKind,
-    Item, ModelDecl, ModelDraft, PortSyntax, SignalDirectionSyntax, TextRange, UnaryOp,
+    ModelDraft, PortSyntax, SignalDirectionSyntax, TextRange, UnaryOp,
 };
 use eqiora_schema::kernel::pure_operator::PureOperatorDefinition;
 use eqiora_schema::kernel::scalar_connection::{
@@ -47,7 +49,7 @@ use eqiora_schema::kernel::{
 use eqiora_schema::{Model, ModelView};
 
 use crate::connection_sets::{ConnectionFragment, ConnectionSetLimits, normalize_connection_sets};
-use crate::diagnostics::{native_diagnostic, source_error};
+use crate::diagnostics::source_error;
 use crate::dimensions::{dimension_overflow, length_dimension, lower_dimension, time_dimension};
 use crate::formulation::CompiledAuthoredFormulation;
 use crate::projection::PhysicalExposureProjectionMap;
@@ -170,26 +172,7 @@ impl CompiledModel {
 /// Returns graph-path diagnostics for invalid native declarations. No partial
 /// transaction is returned.
 pub fn lower_draft(draft: &ModelDraft) -> Result<CompiledModel, Vec<Diagnostic>> {
-    let native = draft.native_ast();
-    lower_model("<native>", native.model()).map_err(|diagnostics| {
-        diagnostics
-            .into_iter()
-            .map(|diagnostic| native_diagnostic(draft, &native, diagnostic))
-            .collect()
-    })
-}
-
-/// Resolve and lower one parsed model declaration.
-///
-/// Graph IDs are fresh in v0. Persistent source-anchor identity is deliberately
-/// a later incremental-compiler contract rather than a hash hidden here.
-///
-/// # Errors
-/// Returns source-spanned name, dimension, clock, connection, or DAG
-/// diagnostics. No partial transaction is returned.
-pub(crate) fn lower_model(file: &str, model: &ModelDecl) -> Result<CompiledModel, Vec<Diagnostic>> {
-    crate::hierarchy::validate_native_model(file, model)?;
-    lower_model_with_identities(file, model, &mut FreshLoweringIdentities)
+    native::lower(draft)
 }
 
 /// Compiler-owned declaration form consumed by Kernel lowering.
@@ -225,7 +208,12 @@ impl PartialEq for LoweringExpression {
 
 #[derive(Debug, PartialEq)]
 enum LoweringExpressionNode {
+    Number(eqiora_lang::DecimalLiteral),
     Literal(eqiora_core::ValueLiteral),
+    IntegerCall {
+        operator: IntegerBuiltin,
+        arguments: Vec<LoweringExpression>,
+    },
     Name(String),
     Neg(LoweringExpression),
     Array(Vec<LoweringExpression>),
@@ -261,6 +249,11 @@ enum LoweringExpressionNode {
 
 #[derive(Debug, Clone)]
 pub(crate) enum LoweringItem {
+    Nominal {
+        definition: eqiora_schema::kernel::KernelNode,
+        dependencies: Vec<String>,
+        range: TextRange,
+    },
     Domain {
         name: String,
         contract: LoweringDomainContract,
@@ -313,13 +306,9 @@ pub(crate) enum LoweringItem {
         ports: Vec<String>,
         range: TextRange,
     },
-    Unsupported {
-        range: TextRange,
-    },
 }
 
 pub(crate) mod equality;
-mod source;
 /// Identity source for one completely staged lowering.
 ///
 /// Supplies collision-checked hierarchical identities or fresh flat identities.
@@ -343,8 +332,10 @@ pub(crate) trait LoweringIdentities {
     fn connection(&mut self) -> Id<kinds::Connection>;
 }
 
+#[cfg(test)]
 struct FreshLoweringIdentities;
 
+#[cfg(test)]
 impl LoweringIdentities for FreshLoweringIdentities {
     fn model(&mut self, _name: &str) -> OntologyId<Model> {
         OntologyId::new()
@@ -381,18 +372,6 @@ impl LoweringIdentities for FreshLoweringIdentities {
     fn connection(&mut self) -> Id<kinds::Connection> {
         Id::new()
     }
-}
-
-pub(crate) fn lower_model_with_identities(
-    file: &str,
-    model: &ModelDecl,
-    identities: &mut impl LoweringIdentities,
-) -> Result<CompiledModel, Vec<Diagnostic>> {
-    lower_typed_model(
-        file,
-        &LoweringModel::from_source(file, model).map_err(|error| vec![error])?,
-        identities,
-    )
 }
 
 pub(crate) fn lower_typed_model(
@@ -549,13 +528,9 @@ pub(crate) fn lower_typed_model(
                     &mut diagnostics,
                 );
             }
-            LoweringItem::Connection { .. } | LoweringItem::Boundary { .. } => {}
-            LoweringItem::Unsupported { range } => diagnostics.push(source_error(
-                codes::LANGUAGE_LOWERING_ERROR,
-                file,
-                *range,
-                "model item is newer than this compiler",
-            )),
+            LoweringItem::Nominal { .. }
+            | LoweringItem::Connection { .. }
+            | LoweringItem::Boundary { .. } => {}
         }
     }
     if !diagnostics.is_empty() {
@@ -674,6 +649,25 @@ pub(crate) fn lower_typed_model(
                             )),
                         }
                     })
+            }
+            LoweringItem::Nominal {
+                definition,
+                dependencies,
+                range,
+                ..
+            } => {
+                let id = definition.id();
+                let result = dependencies.iter().try_for_each(|name| {
+                    let Some(Binding::Parameter(parameter, _)) = bindings.get(name) else {
+                        return Err(unresolved(file, *range, name, "structural Parameter"));
+                    };
+                    edges.push((id, parameter.erase(), EdgeKind::DependsOn));
+                    Ok(())
+                });
+                if result.is_ok() {
+                    nodes.push(definition.clone());
+                }
+                result
             }
             LoweringItem::Parameter { name, value, .. } => {
                 let Binding::Parameter(id, _) = bindings[name].clone() else {
@@ -842,12 +836,6 @@ pub(crate) fn lower_typed_model(
                 }
                 Ok(())
             }
-            LoweringItem::Unsupported { range } => Err(source_error(
-                codes::LANGUAGE_LOWERING_ERROR,
-                file,
-                *range,
-                "model item is newer than this compiler",
-            )),
         };
         if let Err(diagnostic) = result {
             diagnostics.push(diagnostic);
@@ -892,11 +880,11 @@ pub(crate) fn lower_typed_model(
                 initial: false,
                 ..
             } => Some(name),
-            LoweringItem::Representation { .. }
+            LoweringItem::Nominal { .. }
+            | LoweringItem::Representation { .. }
             | LoweringItem::Relation { initial: true, .. }
             | LoweringItem::Connection { .. }
-            | LoweringItem::Boundary { .. }
-            | LoweringItem::Unsupported { .. } => None,
+            | LoweringItem::Boundary { .. } => None,
         })
         .map(|name| (name.clone(), bindings[name].primary_id()))
         .collect();

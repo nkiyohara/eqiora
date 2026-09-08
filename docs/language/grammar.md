@@ -21,7 +21,9 @@ clock-requirement = "clock" identifier [annotation] ":" "periodic"
 container = ["public"] ("component" | "model") identifier [annotation] signature body
 body = "{" {body-item} "}"
 value-declaration = value-head ["=" expression] ";"
-instance = "instance" identifier [annotation] ":" qualified-name "("
+indexset-declaration = "indexset" identifier [annotation] "=" "range" "(" static-extent ")" ";"
+index-family = "[" identifier "in" qualified-name "]"
+instance = "instance" identifier [annotation] [index-family] ":" qualified-name "("
            [named-argument {"," named-argument}] ")" ";"
 named-argument = identifier "=" expression-or-exact-reference
 initial = "initial" "{" {equation} "}"
@@ -43,6 +45,9 @@ expression. No repeated argument-category words or positional instance bindings 
 A Relation's boundary-family binder is restricted to a Component's complete-exterior
 requirement. It follows notation and precedes `on`; `on` must name the bound member.
 The [core family rules](core.md#boundary-relation-families) define its scope and expansion.
+An instance's index-family instead ranges over an exact finite index set. Its bound index
+cannot substitute for a boundary member. The [numeric catalog](numeric-catalog.md) defines
+its static extent, nominal identity and indexed member references.
 
 Imports precede declarations. Library files may contain declarations without a Model; an
 execution entry selects a Model explicitly. Top-level declaration order does not control
@@ -56,7 +61,7 @@ type = scalar-type | "bool" | "integer" | "index" "<" qualified-name ">"
      | "tensor" "<" scalar-type "," static-extent "," static-extent
        {"," static-extent} ">"
      | "array" "<" type "," static-extent ">"
-     | coordinate-type | map-type | qualified-nominal-type
+     | coordinate-type | map-type | "counts" "<" qualified-name ">" | qualified-nominal-type
 dimension = dimension-product
 dimension-product = dimension-power {("*" | "/") dimension-power}
 dimension-power = dimension-atom ["^" dimension-exponent]

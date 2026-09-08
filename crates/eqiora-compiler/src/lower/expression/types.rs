@@ -74,6 +74,16 @@ fn expression_type_cached(
     let mut infer = |operand| expression_type_cached(file, operand, bindings, support, cache);
     let violation = |error| spatial_type_error(file, expression, error);
     let inferred = match expression.node.as_ref() {
+        LoweringExpressionNode::IntegerCall {
+            operator,
+            arguments,
+        } => {
+            let operands = arguments
+                .iter()
+                .map(&mut infer)
+                .collect::<Result<Vec<_>, _>>()?;
+            operator.infer(&operands).map_err(violation)
+        }
         LoweringExpressionNode::Array(elements) => {
             let elements = elements
                 .iter()
@@ -86,6 +96,9 @@ fn expression_type_cached(
         }
         LoweringExpressionNode::Complex { real, imag } => {
             ExpressionType::complex(infer(real)?, infer(imag)?).map_err(violation)
+        }
+        LoweringExpressionNode::Number(_) => {
+            Ok(ExpressionType::scalar(DimExponents::DIMENSIONLESS, None))
         }
         LoweringExpressionNode::Literal(value) => {
             Ok(ExpressionType::new(value.value_type().clone(), None))
@@ -148,7 +161,8 @@ fn expression_type_cached(
             let left_type = infer(left)?;
             let right_type = infer(right)?;
             match operator {
-                BinaryOp::Add | BinaryOp::Sub => typing::additive(&left_type, &right_type),
+                BinaryOp::Add => left_type.sum(right_type),
+                BinaryOp::Sub => typing::additive(&left_type, &right_type),
                 BinaryOp::Mul => typing::multiply(&left_type, &right_type),
                 BinaryOp::Div => typing::divide(&left_type, &right_type),
                 BinaryOp::Pow => {

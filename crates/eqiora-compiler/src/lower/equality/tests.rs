@@ -51,31 +51,50 @@ fn contextual_zero_adopts_complete_type_but_explicit_zero_never_does() {
 
 #[test]
 fn explicit_complex_rhs_zero_keeps_promotion_in_the_actual_residual() {
-    let document = eqiora_lang::parse(
-        "typed.eqi",
-        "model M() { variable x: 1; initial { x = 1; } relation r { x = 0; } }",
-    )
-    .into_document()
-    .unwrap();
-    let mut model = LoweringModel::from_source("typed.eqi", &document.models()[0]).unwrap();
-    let LoweringItem::Relation { equations, .. } = model
-        .items
-        .iter_mut()
-        .find(|item| matches!(item, LoweringItem::Relation { initial: false, .. }))
-        .unwrap()
-    else {
-        panic!("relation")
-    };
-    let equation = &mut equations[0];
-    equation.right = LoweringExpression::literal(
+    let range = eqiora_lang::TextRange::new(0, 1);
+    let right = LoweringExpression::literal(
         ValueLiteral::from_real(
             ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS),
             -0.0,
         )
         .unwrap(),
-        equation.right.range(),
+        range,
     );
-    equation.contextual_right_zero = false;
+    let value_type = eqiora_lang::ValueTypeSyntax::from_checked(
+        &ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+        |_| None,
+    )
+    .unwrap();
+    let model = LoweringModel {
+        name: "M".into(),
+        range,
+        items: vec![
+            LoweringItem::Field {
+                name: "x".into(),
+                domain: None,
+                representation: None,
+                value_type,
+                role: eqiora_lang::FieldRoleSyntax::Variable,
+                activation: eqiora_lang::ActivationSyntax::Continuous,
+                range,
+            },
+            LoweringItem::Relation {
+                name: "r".into(),
+                domain: None,
+                activation: eqiora_lang::ActivationSyntax::Continuous,
+                initial: false,
+                range,
+                equations: vec![crate::lower::LoweringEquation {
+                    left: LoweringExpression::name("x".into(), range),
+                    right,
+                    contextual_left_zero: false,
+                    contextual_right_zero: false,
+                    literal_right_zero: true,
+                    range,
+                }],
+            },
+        ],
+    };
     let compiled = lower_typed_model("typed.eqi", &model, &mut FreshLoweringIdentities).unwrap();
     let relation = compiled
         .transaction()

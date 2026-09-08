@@ -195,7 +195,7 @@ fn external_supports(
 
 fn external_value(value: f64) -> eqiora_lang::Expr {
     eqiora_lang::SourceAstFactory::expression(
-        eqiora_lang::ExprKind::Number(value),
+        eqiora_lang::ExprKind::Number(eqiora_lang::DecimalLiteral::from_f64(value).unwrap()),
         Default::default(),
     )
     .unwrap()
@@ -370,6 +370,7 @@ fn external_dimensioned_parameter_failures_are_typed() {
         ))
         .unwrap(),
         Default::default(),
+        |_| None,
     )
     .unwrap();
     let mut bindings = external_supports(&geometry);

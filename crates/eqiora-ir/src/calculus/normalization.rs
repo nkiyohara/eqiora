@@ -286,8 +286,8 @@ mod tests {
 
     use super::*;
     use crate::calculus::{
-        CalculusBuilder, CalculusNode, FormalTypeRule, OperatorExpansionExt,
-        PureOperatorDefinition, ResultAxis, ResultTypeRule,
+        CalculusBuilder, CalculusNode, OperatorExpansionExt, PureOperatorDefinition,
+        PureValueClass, ResultAxis,
     };
 
     fn volume_tensor(domain: &str, dimension: DimExponents) -> ExpressionType<&str> {
@@ -304,9 +304,9 @@ mod tests {
     }
 
     fn equivalent_definition(distributed_two: bool) -> PureOperatorDefinition {
-        let tensor = FormalTypeRule::spatial_tensor(2).unwrap();
+        let tensor = PureValueClass::spatial_tensor(2).unwrap();
         let mut builder =
-            CalculusBuilder::new([tensor], ResultTypeRule::spatial_tensor(2).unwrap()).unwrap();
+            CalculusBuilder::new([tensor], PureValueClass::spatial_tensor(2).unwrap()).unwrap();
         let direct = builder
             .push(CalculusNode::FormalComponent {
                 formal: 0,
@@ -401,13 +401,13 @@ mod tests {
         assert!(!dimensionless_proof.same_normal_form(&dimensioned_proof));
 
         let mut complex_type = volume_tensor("body", DimExponents::DIMENSIONLESS);
-        complex_type.value_type =
-            complex_type
-                .value_type
-                .with_common_scalar_domain(&eqiora_core::ValueType::scalar(
-                    eqiora_core::ScalarDomain::Complex,
-                    DimExponents::DIMENSIONLESS,
-                ));
+        complex_type.value_type = complex_type
+            .value_type
+            .with_common_scalar_domain(&eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Complex,
+                DimExponents::DIMENSIONLESS,
+            ))
+            .expect("real values embed into complex");
         let complex = definition
             .instantiate(&[complex_type])
             .unwrap()

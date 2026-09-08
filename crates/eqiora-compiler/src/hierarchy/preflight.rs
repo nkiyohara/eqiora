@@ -14,6 +14,7 @@ use crate::diagnostics::source_error;
 use crate::identity::IdentityNamespace;
 use crate::pure_operator::compile_definition;
 use crate::resolved::{AnalyzedResolvedHierarchy, CompilationModuleId};
+#[cfg(test)]
 use crate::source_identity::LocalSourceIdentity;
 
 use super::HierarchyLimits;
@@ -132,6 +133,9 @@ impl DefinitionKey {
 }
 
 pub(super) struct Elaborator<'a> {
+    pub(super) native: Option<&'a eqiora_lang::NativeModelAst>,
+    pub(super) finite_spaces:
+        BTreeMap<DefinitionNamespace, BTreeMap<String, crate::nominal::BoundFiniteSpace>>,
     root_namespace: DefinitionNamespace,
     pub(super) identity_namespace: IdentityNamespace,
     connectors: BTreeMap<DefinitionKey, ConnectorDefinition<'a>>,
@@ -143,11 +147,30 @@ pub(super) struct Elaborator<'a> {
 }
 
 impl<'a> Elaborator<'a> {
+    #[cfg(test)]
     pub(super) fn new(
         file: &'a str,
         source_bytes: usize,
         document: &'a Document,
         source_identity: LocalSourceIdentity,
+        limits: HierarchyLimits,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        Self::with_identity(
+            file,
+            source_bytes,
+            document,
+            source_identity.namespace().map_err(|error| vec![error])?,
+            None,
+            limits,
+        )
+    }
+
+    pub(super) fn with_identity(
+        file: &'a str,
+        source_bytes: usize,
+        document: &'a Document,
+        identity_namespace: IdentityNamespace,
+        native: Option<&'a eqiora_lang::NativeModelAst>,
         limits: HierarchyLimits,
     ) -> Result<Self, Vec<Diagnostic>> {
         let mut diagnostics = Vec::new();
@@ -180,9 +203,15 @@ impl<'a> Elaborator<'a> {
             &mut diagnostics,
         );
 
+        let finite_spaces =
+            crate::nominal::finite_spaces(file, document, &identity_namespace, |name| {
+                native.and_then(|native| native.nominal_identity(name))
+            })?;
         let elaborator = Self {
+            native,
+            finite_spaces: BTreeMap::from([(namespace.clone(), finite_spaces)]),
             root_namespace: namespace,
-            identity_namespace: source_identity.namespace().map_err(|error| vec![error])?,
+            identity_namespace,
             connectors,
             pure_operators,
             components,
@@ -253,6 +282,8 @@ impl<'a> Elaborator<'a> {
             })
             .collect();
         let elaborator = Self {
+            native: None,
+            finite_spaces: BTreeMap::new(),
             root_namespace,
             identity_namespace,
             connectors,

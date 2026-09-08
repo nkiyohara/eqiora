@@ -965,6 +965,7 @@ name = "eqiora-lang"
 version = "0.1.0-alpha.7"
 dependencies = [
  "eqiora-core",
+ "eqiora-schema",
 ]
 
 [[package]]

@@ -70,6 +70,13 @@ pub(super) struct RelationIdentity {
 
 #[derive(Debug, Clone)]
 pub(super) enum FlatItemBlueprint {
+    Nominal {
+        name: String,
+        definition: eqiora_schema::kernel::KernelNode,
+        dependencies: Vec<String>,
+        range: TextRange,
+        identity: EntityIdentity,
+    },
     Domain {
         name: String,
         contract: LoweringDomainContract,
@@ -136,6 +143,7 @@ pub(super) enum FlatItemBlueprint {
 impl FlatItemBlueprint {
     pub(super) fn sort_key(&self) -> (u8, String) {
         match self {
+            Self::Nominal { name, .. } => (0, name.clone()),
             Self::Domain { name, .. } => (0, name.clone()),
             Self::Representation { name, .. } => (1, name.clone()),
             Self::Field { name, .. } => (2, name.clone()),
@@ -232,6 +240,15 @@ impl ExpandedBlueprint {
                 | FlatItemBlueprint::Port { identity, .. } => {
                     allocator
                         .stage(&identity.key)
+                        .map_err(|error| vec![error])?;
+                }
+                FlatItemBlueprint::Nominal {
+                    definition,
+                    identity,
+                    ..
+                } => {
+                    allocator
+                        .stage_bound_entity(&identity.key, definition.id())
                         .map_err(|error| vec![error])?;
                 }
                 FlatItemBlueprint::Clock {
@@ -368,6 +385,16 @@ impl ExpandedBlueprint {
                     activation: activation.clone(),
                     range: *range,
                 },
+                FlatItemBlueprint::Nominal {
+                    definition,
+                    dependencies,
+                    range,
+                    ..
+                } => LoweringItem::Nominal {
+                    definition: definition.clone(),
+                    dependencies: dependencies.clone(),
+                    range: *range,
+                },
                 FlatItemBlueprint::Parameter {
                     name,
                     value_type,
@@ -480,6 +507,7 @@ impl ExpandedBlueprint {
                 | FlatItemBlueprint::Field { identity, .. }
                 | FlatItemBlueprint::Parameter { identity, .. }
                 | FlatItemBlueprint::Port { identity, .. }
+                | FlatItemBlueprint::Nominal { identity, .. }
                 | FlatItemBlueprint::Clock { identity, .. } => {
                     insert_provenance(&mut builder, identity, staged)?;
                 }
@@ -584,7 +612,7 @@ impl AssignedLoweringIdentities {
                         .connections
                         .push_back(staged.resolve::<kinds::Connection>(identity.full)?.id());
                 }
-                FlatItemBlueprint::Boundary { .. } => {}
+                FlatItemBlueprint::Nominal { .. } | FlatItemBlueprint::Boundary { .. } => {}
             }
         }
         Ok(result)
@@ -649,6 +677,8 @@ fn resolve_entity_raw(
         EntityKind::Field => Ok(staged.resolve::<kinds::Field>(identity)?.id().erase()),
         EntityKind::Parameter => Ok(staged.resolve::<kinds::Parameter>(identity)?.id().erase()),
         EntityKind::Port => Ok(staged.resolve::<kinds::Port>(identity)?.id().erase()),
+        EntityKind::FiniteSpace => Ok(staged.resolve::<kinds::FiniteSpace>(identity)?.id().erase()),
+        EntityKind::IndexSet => Ok(staged.resolve::<kinds::IndexSet>(identity)?.id().erase()),
         EntityKind::ClockDomain => Ok(staged.resolve::<kinds::ClockDomain>(identity)?.id().erase()),
         EntityKind::Relation => Ok(staged.resolve::<kinds::Relation>(identity)?.id().erase()),
         EntityKind::Activation => Ok(staged.resolve::<kinds::Activation>(identity)?.id().erase()),

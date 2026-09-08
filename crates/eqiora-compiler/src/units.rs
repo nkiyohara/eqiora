@@ -8,23 +8,6 @@ use crate::dimensions::rational_literal;
 mod exact_time;
 pub(crate) use exact_time::lower_clock;
 
-pub(crate) fn parameter_literal(
-    file: &str,
-    declaration: &eqiora_lang::ParameterDecl,
-) -> Result<eqiora_core::ValueLiteral, eqiora_core::Diagnostic> {
-    let value_type =
-        crate::value_types::lower_value_type::<()>(file, declaration.value_type(), None)?;
-    typed_literal(file, declaration.value(), value_type)
-}
-
-pub(crate) fn typed_literal(
-    file: &str,
-    expression: &Expr,
-    value_type: eqiora_core::ValueType,
-) -> Result<eqiora_core::ValueLiteral, eqiora_core::Diagnostic> {
-    crate::hierarchy::closed_value(file, expression, value_type)
-}
-
 /// The compiler's closed multiplicative input-unit vocabulary.
 ///
 /// Source lowering and authoring clients share these symbols and prefix rules.
@@ -125,7 +108,7 @@ fn lower_unit(expression: &Expr, depth: usize) -> Result<Unit, &'static str> {
         return Err("input-unit expression exceeds depth 256");
     }
     match expression.kind() {
-        ExprKind::Number(value) if *value == 1.0 => Ok(Unit {
+        ExprKind::Number(value) if value.to_i64().ok() == Some(1) => Ok(Unit {
             dimension: DimExponents::DIMENSIONLESS,
             decimal_power: 0,
         }),

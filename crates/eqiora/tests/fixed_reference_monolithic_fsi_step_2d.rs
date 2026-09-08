@@ -227,7 +227,10 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
         (
             "fluid_density",
             eqiora::language::SourceAstFactory::expression(
-                eqiora::language::ExprKind::Number(2.0),
+                eqiora::language::ExprKind::Number(
+                    eqiora::language::DecimalLiteral::from_f64(2.0)
+                        .expect("finite fixture literal"),
+                ),
                 eqiora::language::TextRange::new(0, 0),
             )
             .unwrap(),
@@ -235,7 +238,10 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
         (
             "fluid_viscosity",
             eqiora::language::SourceAstFactory::expression(
-                eqiora::language::ExprKind::Number(0.5),
+                eqiora::language::ExprKind::Number(
+                    eqiora::language::DecimalLiteral::from_f64(0.5)
+                        .expect("finite fixture literal"),
+                ),
                 eqiora::language::TextRange::new(0, 0),
             )
             .unwrap(),
@@ -243,7 +249,10 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
         (
             "solid_density",
             eqiora::language::SourceAstFactory::expression(
-                eqiora::language::ExprKind::Number(3.0),
+                eqiora::language::ExprKind::Number(
+                    eqiora::language::DecimalLiteral::from_f64(3.0)
+                        .expect("finite fixture literal"),
+                ),
                 eqiora::language::TextRange::new(0, 0),
             )
             .unwrap(),
@@ -251,7 +260,10 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
         (
             "solid_mu",
             eqiora::language::SourceAstFactory::expression(
-                eqiora::language::ExprKind::Number(4.0),
+                eqiora::language::ExprKind::Number(
+                    eqiora::language::DecimalLiteral::from_f64(4.0)
+                        .expect("finite fixture literal"),
+                ),
                 eqiora::language::TextRange::new(0, 0),
             )
             .unwrap(),
@@ -259,7 +271,10 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
         (
             "solid_lambda",
             eqiora::language::SourceAstFactory::expression(
-                eqiora::language::ExprKind::Number(2.0),
+                eqiora::language::ExprKind::Number(
+                    eqiora::language::DecimalLiteral::from_f64(2.0)
+                        .expect("finite fixture literal"),
+                ),
                 eqiora::language::TextRange::new(0, 0),
             )
             .unwrap(),
@@ -267,7 +282,10 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
         (
             "zero_pressure",
             eqiora::language::SourceAstFactory::expression(
-                eqiora::language::ExprKind::Number(0.0),
+                eqiora::language::ExprKind::Number(
+                    eqiora::language::DecimalLiteral::from_f64(0.0)
+                        .expect("finite fixture literal"),
+                ),
                 eqiora::language::TextRange::new(0, 0),
             )
             .unwrap(),

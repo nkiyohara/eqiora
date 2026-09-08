@@ -183,7 +183,7 @@ impl RootExpansion<'_, '_> {
                         },
                     )?;
                 }
-                Item::Let(_) => {}
+                Item::Let(_) | Item::IndexSet(_) => {}
                 Item::Instance(instance) => {
                     self.add_input_bindings(
                         instance,

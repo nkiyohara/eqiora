@@ -315,6 +315,14 @@ fn apply_transaction(
 ) -> Result<State, Vec<Diagnostic>> {
     let initially_present = state.nodes.keys().copied().collect::<BTreeSet<_>>();
     let mut diagnostics = validate_preconditions(&state, transaction.preconditions());
+    // Removing and recreating a dependency owner cannot authorize a value edit.
+    // Also retain the per-operation check for dependencies added in this transaction.
+    diagnostics.extend(transaction.ops().iter().filter_map(|op| match op {
+        Op::SetValue { target, value } => {
+            validate_structural_value_edit(&state, *target, value).err()
+        }
+        _ => None,
+    }));
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
@@ -429,7 +437,32 @@ fn define_kernel_node(state: &mut State, definition: KernelNode) -> Result<(), D
     Ok(())
 }
 
+fn validate_structural_value_edit(
+    state: &State,
+    target: RawId,
+    value: &ValueLiteral,
+) -> Result<(), Diagnostic> {
+    if state
+        .nodes
+        .get(&target)
+        .and_then(|node| node.value.as_ref())
+        != Some(value)
+        && state.edges.iter().any(|edge| {
+            edge.kind() == EdgeKind::DependsOn
+                && edge.to() == target
+                && edge.from().kind() == EntityKind::IndexSet
+        })
+    {
+        return Err(Diagnostic::error(codes::INVALID_OPERATION,
+            "value edit would change a Parameter that determines an IndexSet; recompile the structural definition")
+            .with_graph_path(path_for(target)));
+    }
+
+    Ok(())
+}
+
 fn set_value(state: &mut State, target: RawId, value: ValueLiteral) -> Result<(), Diagnostic> {
+    validate_structural_value_edit(state, target, &value)?;
     let Some(node) = state.nodes.get_mut(&target) else {
         return Err(not_found(target));
     };

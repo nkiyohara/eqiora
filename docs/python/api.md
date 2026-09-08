@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 19 module summaries and all 208 canonical declaration summaries are source-traced; non-dunder member coverage remains **0 authoritative summaries and 692 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 19 module summaries and all 215 canonical declaration summaries are source-traced; non-dunder member coverage remains **6 authoritative summaries and 703 signature-only entries under documented owning types**.
 
-Inventory: 19 modules, 245 literal public spellings, 208 canonical grouped declarations, 908 visible method signatures (692 non-dunder and 216 dunder), and 76 visible class assignments.
+Inventory: 19 modules, 252 literal public spellings, 215 canonical grouped declarations, 927 visible method signatures (709 non-dunder and 218 dunder), and 76 visible class assignments.
 
 Regenerate with:
 
@@ -208,7 +208,7 @@ class SampledSession:
     @property
     def next_tick(self) -> Fraction | None: ...
     def checkpoint(self) -> SampledCheckpoint: ...
-    def field(self, name: str) -> float | None: ...
+    def field(self, name: str) -> _TypedValue | None: ...
     def output(self, name: str, tick_index: int) -> tuple[Fraction, _TypedValue] | None: ...
 ```
 
@@ -656,9 +656,17 @@ Authority: [`crates/eqiora-python/src/modeling/value_type.rs::PyValueType`](../.
 class ValueType:
     def to_eqi(self) -> str: ...
     @staticmethod
+    def integer() -> ValueType: ...
+    @staticmethod
     def real(dimension: Dimension | None=None) -> ValueType: ...
     @staticmethod
     def complex(dimension: Dimension | None=None) -> ValueType: ...
+    @staticmethod
+    def coordinates(space: FiniteSpace) -> ValueType: ...
+    @staticmethod
+    def counts(space: FiniteSpace) -> ValueType: ...
+    @staticmethod
+    def index(set: IndexSet) -> ValueType: ...
     @staticmethod
     def vector(scalar: ValueType, extent: int) -> ValueType: ...
     @staticmethod
@@ -677,6 +685,46 @@ class ValueType:
     def frame(self) -> Literal['invariant', 'spatial_cartesian']: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
+```
+
+<a id="api-eqiora-FiniteSpace"></a>
+
+### `eqiora.FiniteSpace`
+
+Exact nominal ordered basis, distinct from a numerical discretization space.
+
+Authority: [`crates/eqiora-python/src/modeling/nominal.rs::PyFiniteSpace`](../../crates/eqiora-python/src/modeling/nominal.rs)
+
+```python
+@final
+class FiniteSpace:
+    def __new__(cls, name: str, *, labels: list[str] | tuple[str, ...]) -> Self: ...
+    @property
+    def name(self) -> str: ...
+    @property
+    def id(self) -> str: ...
+    @property
+    def labels(self) -> tuple[str, ...]: ...
+```
+
+<a id="api-eqiora-IndexSet"></a>
+
+### `eqiora.IndexSet`
+
+An exact nominal zero-based set with a positive constant integer extent.
+
+Authority: [`crates/eqiora-python/src/modeling/nominal.rs::PyIndexSet`](../../crates/eqiora-python/src/modeling/nominal.rs)
+
+```python
+@final
+class IndexSet:
+    def __new__(cls, name: str, *, extent: int) -> Self: ...
+    @property
+    def name(self) -> str: ...
+    @property
+    def id(self) -> str: ...
+    @property
+    def extent(self) -> int: ...
 ```
 
 <a id="api-eqiora-DomainRef"></a>
@@ -1151,6 +1199,10 @@ Authority: [`crates/eqiora-python/src/model.rs::PyModelParameterRef`](../../crat
 ```python
 @final
 class ParameterRef:
+    @property
+    def value(self) -> _TypedValue: ...
+    @property
+    def value_type(self) -> ValueType: ...
     @property
     def model_digest(self) -> str: ...
     @property
@@ -2414,8 +2466,12 @@ Authority: [`bindings/python/python/eqiora/lang/__init__.py::Component`](../../b
 ```python
 @final
 class Component:
+    def counts(self, space: FiniteSpace, components: Sequence[Expression | int]) -> Expression: ...
+    def coordinates(self, space: FiniteSpace, components: Sequence[Expression | int]) -> Expression: ...
+    def index(self, set: IndexSet, value: Expression | int) -> Expression: ...
+    def index_set(self, name: str, *, extent: int, doc: str | None=None) -> IndexSet: ...
     def clock(self, name: str, *, period_s: Fraction | int, phase_s: Fraction | int=0, doc: str | None=None) -> Clock: ...
-    def initial(self, *residuals: Expression | int | float | complex, doc: str | None=None) -> None: ...
+    def initial(self, *residuals: Expression | int | float | complex, left: Expression | int | float | complex | None=None, right: Expression | int | float | complex | None=None, doc: str | None=None) -> None: ...
     def volume(self, name: str, *, dimensions: int, doc: str | None=None) -> Support: ...
     def boundary(self, name: str, *, parent: Support, doc: str | None=None) -> Support: ...
     def parameter(self, name: str, *, value_type: ValueType, doc: str | None=None) -> Expression: ...
@@ -2523,6 +2579,7 @@ Authority: [`bindings/python/python/eqiora/lang/__init__.py::Source`](../../bind
 ```python
 @final
 class Source:
+    def space(self, name: str, *, labels: Sequence[str], doc: str | None=None) -> FiniteSpace: ...
     def __init__(self) -> None: ...
     def component(self, name: str, *, doc: str | None=None) -> Component: ...
     def model(self, name: str, *, doc: str | None=None) -> Component: ...
@@ -2669,6 +2726,18 @@ Authority: [`bindings/python/python/eqiora/lang/__init__.py::normal`](../../bind
 def normal(value: Expression) -> Expression: ...
 ```
 
+<a id="api-eqiora-lang-ordinal"></a>
+
+### `eqiora.lang.ordinal`
+
+Explicitly project an index's ordinary integer ordinal.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::ordinal`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def ordinal(value: Expression) -> Expression: ...
+```
+
 <a id="api-eqiora-lang-pre"></a>
 
 ### `eqiora.lang.pre`
@@ -2703,6 +2772,54 @@ Authority: [`bindings/python/python/eqiora/lang/__init__.py::quantity`](../../bi
 
 ```python
 def quantity(value: int | float | Decimal, unit: Unit) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-quotient"></a>
+
+### `eqiora.lang.quotient`
+
+Return the checked integer quotient truncated toward zero.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::quotient`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def quotient(left: Expression | int, right: Expression | int) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-remainder"></a>
+
+### `eqiora.lang.remainder`
+
+Return the integer remainder with the dividend's sign.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::remainder`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def remainder(left: Expression | int, right: Expression | int) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-to_real"></a>
+
+### `eqiora.lang.to_real`
+
+Explicitly convert an integer to a real, with possible precision loss.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::to_real`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def to_real(value: Expression | int) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-to_integer"></a>
+
+### `eqiora.lang.to_integer`
+
+Convert an integral finite dimensionless real within the signed integer range.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::to_integer`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def to_integer(value: Expression | float | int) -> Expression: ...
 ```
 
 <a id="api-eqiora-lang-symmetric_part"></a>

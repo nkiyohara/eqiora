@@ -18,6 +18,7 @@ mod hierarchy;
 pub mod identity;
 mod lower;
 mod math;
+mod nominal;
 pub mod projection;
 mod property;
 #[doc(hidden)]
@@ -25,6 +26,7 @@ pub mod provenance;
 mod pure_operator;
 mod resolved;
 mod source_compile;
+mod source_endpoints;
 #[doc(hidden)]
 pub mod source_identity;
 mod typed_values;

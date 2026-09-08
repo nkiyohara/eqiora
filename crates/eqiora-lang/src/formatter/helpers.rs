@@ -1,6 +1,6 @@
 use core::fmt::Write;
 
-use crate::ast::{BoundaryPortSelectorSyntax, NamePath};
+use crate::ast::BoundaryPortSelectorSyntax;
 
 pub(super) fn format_boundary_port_selector(
     selector: &BoundaryPortSelectorSyntax,
@@ -19,18 +19,6 @@ pub(super) fn format_scalar_physical(
     output.push_str(", through = ");
     super::value_type::format_value_type(through, output);
     output.push(')');
-}
-
-pub(super) fn format_name_paths(
-    paths: &[NamePath],
-    output: &mut crate::formatter::comments::Output,
-) {
-    for (index, path) in paths.iter().enumerate() {
-        if index != 0 {
-            output.push_str(", ");
-        }
-        write!(output, "{path}").expect("String write");
-    }
 }
 
 pub(super) fn write_indent(output: &mut crate::formatter::comments::Output, indent: usize) {

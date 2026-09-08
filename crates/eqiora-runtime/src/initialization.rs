@@ -26,7 +26,8 @@ pub(crate) fn initialize(
             initial
                 .fields()
                 .get(&field.erase())
-                .copied()
+                .and_then(eqiora_core::ValueLiteral::real_scalar_value)
+                .map(|value| value.value())
                 .ok_or_else(|| {
                     invalid_time(
                         relation,

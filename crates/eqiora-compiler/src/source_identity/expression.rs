@@ -10,7 +10,7 @@ pub(super) fn encode_expression(
     match expression.kind() {
         ExprKind::Number(value) => {
             encoder.u16(1)?;
-            encoder.f64(*value)
+            encode_decimal(encoder, value, false)
         }
         ExprKind::Quantity { value, unit } => {
             encoder.u16(9)?;
@@ -31,6 +31,13 @@ pub(super) fn encode_expression(
                 encoded.push(bytes);
             }
             encoder.field(1, |encoder| encoder.records(&encoded))
+        }
+        ExprKind::Member { value, member } => {
+            encoder.u16(12)?;
+            encoder.field(1, |encoder| {
+                encode_expression(encoder, value, budget, next_depth(depth)?)
+            })?;
+            encoder.field(2, |encoder| encode_name(encoder, member, budget))
         }
         ExprKind::Index { value, index } => {
             encoder.u16(11)?;
@@ -73,12 +80,10 @@ pub(super) fn encode_expression(
                     encode_expression(encoder, unit, budget, next_depth(literal_depth)?)
                 });
             }
-            if matches!(op, UnaryOp::Neg)
-                && matches!(value.kind(), ExprKind::Number(value) if *value == 0.0)
-            {
+            if let (UnaryOp::Neg, ExprKind::Number(literal)) = (op, value.kind()) {
                 budget.account_expression(next_depth(depth)?)?;
                 encoder.u16(1)?;
-                return encoder.f64(0.0);
+                return encode_decimal(encoder, literal, true);
             }
             encoder.u16(4)?;
             encoder.field(1, |encoder| {

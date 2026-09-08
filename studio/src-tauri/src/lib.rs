@@ -823,7 +823,7 @@ fn project_node(
 }
 
 fn project_type(value_type: &eqiora::ValueType) -> Result<String, ProjectionError> {
-    eqiora::language::ValueTypeSyntax::from_checked(value_type)
+    eqiora::language::ValueTypeSyntax::from_checked(value_type, |_| None)
         .map(|syntax| syntax.to_source())
         .map_err(|_| unsupported_node_contract())
 }

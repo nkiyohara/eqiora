@@ -54,6 +54,10 @@ pub enum EntityKind {
     Connection,
     /// Model-time semantics (continuous, periodic, aperiodic, inherited).
     ClockDomain,
+    /// Nominal finite ordered mathematical basis.
+    FiniteSpace,
+    /// Finite ordinal set with fixed structural extent.
+    IndexSet,
     // --- Realization Graph ---
     /// Discrete function space realizing a field.
     Space,
@@ -140,6 +144,8 @@ impl EntityKind {
             | Self::Relation
             | Self::Activation
             | Self::Connection
+            | Self::IndexSet
+            | Self::FiniteSpace
             | Self::ClockDomain => GraphClass::Semantic,
             Self::Space
             | Self::Discretization
@@ -245,6 +251,15 @@ pub mod kinds {
     define_entity!(
         /// See [`super::EntityKind::ClockDomain`].
         ClockDomain in Semantic
+    );
+
+    define_entity!(
+        /// See [`super::EntityKind::IndexSet`].
+        IndexSet in Semantic
+    );
+    define_entity!(
+        /// See [`super::EntityKind::FiniteSpace`].
+        FiniteSpace in Semantic
     );
 
     define_entity!(

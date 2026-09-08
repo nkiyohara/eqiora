@@ -90,7 +90,7 @@ impl SourceAstFactory {
     /// binder member, and both declarations are structurally valid.
     pub fn relation_family(
         relation: RelationDecl,
-        binder: BoundaryFamilyBinderSyntax,
+        binder: FamilyBinderSyntax,
     ) -> Result<RelationFamilyDecl, AstConstructionError> {
         validate_boundary_family_binder(&binder)?;
         if relation.activation() != &ActivationSyntax::Continuous {

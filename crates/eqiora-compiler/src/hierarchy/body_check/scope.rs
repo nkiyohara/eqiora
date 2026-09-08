@@ -1,3 +1,6 @@
+mod connections;
+mod indexed;
+pub(super) use connections::validate_connection;
 mod ports;
 pub(super) use ports::{component_port_contract, model_port_contract};
 mod child_ports;
@@ -14,11 +17,11 @@ use eqiora_core::ValueFrame;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, ValueShape};
 use eqiora_lang::{
-    BoundaryConnectionDecl, BoundaryFamilyBinderSyntax, BoundaryPairingSyntax,
-    BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax, ComponentItem, ComponentPortDecl,
-    ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorSyntax, FieldDecl,
-    FrameSyntax, InstanceDecl, NamePath, PortDecl, PortSyntax, SignalDirectionSyntax,
-    SupportSlotSyntax, TextRange, ValueShapeSyntax, VisibilitySyntax,
+    BoundaryConnectionDecl, BoundaryPairingSyntax, BoundaryPortReferenceSyntax,
+    BoundaryPortSelectorSyntax, ComponentItem, ComponentPortDecl, ComponentPortFamilyDecl,
+    ConnectionDecl, ConnectionSyntax, ConnectorSyntax, FamilyBinderSyntax, FieldDecl, FrameSyntax,
+    InstanceDecl, NamePath, PortDecl, PortSyntax, SignalDirectionSyntax, SupportSlotSyntax,
+    TextRange, ValueShapeSyntax, VisibilitySyntax,
 };
 use eqiora_schema::kernel::scalar_connection::{
     ScalarConnectionKind, ScalarConnectionViolation, ScalarPortContract, validate_scalar_connection,
@@ -67,7 +70,7 @@ pub(super) enum PortContract {
 
 #[derive(Debug, Clone)]
 pub(super) struct BoundaryPortFamilyContract {
-    binder: BoundaryFamilyBinderSyntax,
+    binder: FamilyBinderSyntax,
     port: PortContract,
 }
 
@@ -150,12 +153,12 @@ impl BoundaryPortFamilyContract {
 /// occurrence expansion replaces it with one exact bound boundary identity.
 #[derive(Debug, Clone)]
 pub(super) struct BoundaryFamilyScope {
-    binder: BoundaryFamilyBinderSyntax,
+    binder: FamilyBinderSyntax,
     support: SpatialSupport<String>,
 }
 
 impl BoundaryFamilyScope {
-    pub(super) const fn binder(&self) -> &BoundaryFamilyBinderSyntax {
+    pub(super) const fn binder(&self) -> &FamilyBinderSyntax {
         &self.binder
     }
 
@@ -227,6 +230,7 @@ pub(super) struct DefinitionScope<'e, 'd> {
     pub(super) symbols: BTreeMap<String, SymbolContract>,
     pub(super) exposed_signals: BTreeSet<String>,
     pub(super) borrowed_clocks: BTreeSet<String>,
+    pub(super) index_sets: BTreeMap<String, Option<u32>>,
     pub(super) static_values: crate::hierarchy::parameters::SymbolicParameterMap,
     pub(super) children: BTreeMap<String, ComponentDefinition<'d>>,
     pub(super) child_instances: BTreeMap<String, &'d InstanceDecl>,
@@ -246,6 +250,7 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
             exposed_signals: BTreeSet::new(),
             borrowed_clocks: BTreeSet::new(),
             static_values: BTreeMap::new(),
+            index_sets: BTreeMap::new(),
             children: BTreeMap::new(),
             child_instances: BTreeMap::new(),
         }
@@ -270,13 +275,14 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
 
     pub(super) fn boundary_family_scope(
         &self,
-        binder: &BoundaryFamilyBinderSyntax,
+        binder: &FamilyBinderSyntax,
     ) -> Result<BoundaryFamilyScope, Diagnostic> {
-        let Some(SymbolContract::CompleteExterior { parent }) = self.symbols.get(binder.set())
+        let Some(SymbolContract::CompleteExterior { parent }) =
+            self.symbols.get(binder.set().as_str())
         else {
             return Err(self.wrong_local_kind(
                 binder.range(),
-                binder.set(),
+                binder.set().as_str(),
                 "complete-exterior support set",
             ));
         };
@@ -287,7 +293,7 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
                 binder.range(),
                 format!(
                     "complete-exterior support set `{}` requires a volume parent",
-                    binder.set()
+                    binder.set().as_str()
                 ),
             ));
         };
@@ -397,15 +403,15 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
     ) -> Result<(), Diagnostic> {
         let segments = port.segments().collect::<Vec<_>>();
         match segments.as_slice() {
-            [_] if family.binder.set() == active.binder.set() => Ok(()),
+            [_] if family.binder.set().as_str() == active.binder.set().as_str() => Ok(()),
             [_] => Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 self.file,
                 range,
                 format!(
                     "local Port family `{port}` belongs to complete exterior `{}`, not active exterior `{}`",
-                    family.binder.set(),
-                    active.binder.set()
+                    family.binder.set().as_str(),
+                    active.binder.set().as_str()
                 ),
             )),
             [instance, _] => {
@@ -413,7 +419,7 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
                     return Err(self.invalid_public_port_selection(port));
                 };
                 if occurrence.bindings().iter().any(|binding| {
-                    binding.name() == family.binder.set() && matches!(binding.value().kind(),eqiora_lang::ExprKind::Name(target) if target==active.binder.set())
+                    binding.name() == family.binder.set().as_str() && matches!(binding.value().kind(),eqiora_lang::ExprKind::Name(target) if target==active.binder.set().as_str())
                 }) {
                     Ok(())
                 } else {
@@ -423,7 +429,7 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
                         range,
                         format!(
                             "child Port family `{port}` is not forwarded from active complete exterior `{}`",
-                            active.binder.set()
+                            active.binder.set().as_str()
                         ),
                     ))
                 }
@@ -577,7 +583,7 @@ pub(super) fn component_port_family_contract(
 
 fn synthetic_component_family_support(
     owner: &ComponentDefinition<'_>,
-    binder: &BoundaryFamilyBinderSyntax,
+    binder: &FamilyBinderSyntax,
 ) -> Result<SpatialSupport<String>, Diagnostic> {
     let exterior = owner
         .declaration
@@ -585,7 +591,7 @@ fn synthetic_component_family_support(
         .iter()
         .find_map(|item| match item {
             eqiora_lang::SignatureItem::Support(declaration)
-                if declaration.name() == binder.set() =>
+                if declaration.name() == binder.set().as_str() =>
             {
                 Some(declaration)
             }
@@ -595,7 +601,7 @@ fn synthetic_component_family_support(
             unresolved(
                 owner.file,
                 binder.range(),
-                binder.set(),
+                binder.set().as_str(),
                 "complete-exterior support set",
             )
         })?;
@@ -604,7 +610,10 @@ fn synthetic_component_family_support(
             codes::LANGUAGE_TYPE_ERROR,
             owner.file,
             exterior.range(),
-            format!("support `{}` is not a complete exterior", binder.set()),
+            format!(
+                "support `{}` is not a complete exterior",
+                binder.set().as_str()
+            ),
         ));
     };
     let parent_declaration = owner
@@ -632,7 +641,7 @@ fn synthetic_component_family_support(
             exterior.range(),
             format!(
                 "complete-exterior support `{}` requires volume parent `{parent}`",
-                binder.set()
+                binder.set().as_str()
             ),
         ));
     };
@@ -643,8 +652,12 @@ fn synthetic_component_family_support(
     })
 }
 
-fn synthetic_boundary_member_identity(binder: &BoundaryFamilyBinderSyntax) -> String {
-    format!("@complete-exterior/{}/{}", binder.set(), binder.member())
+fn synthetic_boundary_member_identity(binder: &FamilyBinderSyntax) -> String {
+    format!(
+        "@complete-exterior/{}/{}",
+        binder.set().as_str(),
+        binder.member()
+    )
 }
 
 pub(super) fn validate_boundary_connection(
@@ -841,110 +854,6 @@ pub(super) fn validate_model_boundary_connection(
         ));
     }
     Ok(deferred_memberships)
-}
-
-pub(super) fn validate_connection(
-    scope: &DefinitionScope<'_, '_>,
-    declaration: &ConnectionDecl,
-    connected_ports: &mut BTreeSet<Vec<String>>,
-    connection_limits: ConnectionSetLimits,
-) -> Result<Option<PhysicalConnectionFragment>, Diagnostic> {
-    let mut keys = Vec::with_capacity(declaration.port_paths().len());
-    let mut contracts = Vec::with_capacity(declaration.port_paths().len());
-    for path in declaration.port_paths() {
-        keys.push(path.segments().map(str::to_owned).collect::<Vec<_>>());
-        let mut contract = scope.resolve_port(path)?;
-        if declaration.syntax() == ConnectionSyntax::Signal
-            && scope.exposed_signals.contains(path.as_str())
-            && let PortContract::Signal { direction, .. } = &mut contract
-        {
-            *direction = match direction {
-                SignalDirectionSyntax::Input => SignalDirectionSyntax::Output,
-                SignalDirectionSyntax::Output => SignalDirectionSyntax::Input,
-            };
-        }
-        contracts.push(contract);
-    }
-    if keys.iter().collect::<BTreeSet<_>>().len() != keys.len() {
-        return Err(source_error(
-            codes::LANGUAGE_TYPE_ERROR,
-            scope.file,
-            declaration.range(),
-            "Connection repeats the same Port",
-        ));
-    }
-    let scalar_physical = matches!(contracts.first(), Some(PortContract::Physical { .. }))
-        && contracts
-            .iter()
-            .all(|contract| matches!(contract, PortContract::Physical { .. }));
-    if scalar_physical {
-        validate_connection_contract(declaration, &contracts, scope.file)?;
-        let endpoints = declaration.port_paths().iter().map(|path| {
-            ResolvedPhysicalEndpoint::from_path(path)
-                .expect("resolved visible Port paths have one or two segments")
-        });
-        return ConnectionFragment::try_new(endpoints, connection_limits)
-            .map(Some)
-            .map_err(|error| connection_fragment_error(scope.file, declaration.range(), error));
-    }
-    let boundary_physical = matches!(
-        contracts.first(),
-        Some(PortContract::BoundaryPhysical { .. })
-    ) && contracts
-        .iter()
-        .all(|contract| matches!(contract, PortContract::BoundaryPhysical { .. }));
-    if boundary_physical {
-        if declaration.syntax() != ConnectionSyntax::Conserving {
-            return Err(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                scope.file,
-                declaration.range(),
-                "field-physical Ports require a conserving Connection",
-            ));
-        }
-        let Some(PortContract::BoundaryPhysical { nominal, .. }) = contracts.first() else {
-            unreachable!("boundary-physical family was established");
-        };
-        if contracts.iter().skip(1).any(|contract| {
-            !matches!(contract, PortContract::BoundaryPhysical { nominal: candidate, .. } if candidate == nominal)
-        }) {
-            return Err(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                scope.file,
-                declaration.range(),
-                "field-physical Connection requires the exact same specialized Connector",
-            ));
-        }
-        let endpoints = declaration.port_paths().iter().map(|path| {
-            ResolvedPhysicalEndpoint::from_path(path)
-                .expect("resolved visible Port paths have one or two segments")
-        });
-        return ConnectionFragment::try_new(endpoints, connection_limits)
-            .map(Some)
-            .map_err(|error| connection_fragment_error(scope.file, declaration.range(), error));
-    }
-    let members = if declaration.syntax() == ConnectionSyntax::Signal {
-        &keys[1..]
-    } else {
-        &keys[..]
-    };
-    if let Some(key) = members
-        .iter()
-        .find(|key| connected_ports.contains(key.as_slice()))
-    {
-        return Err(source_error(
-            codes::LANGUAGE_TYPE_ERROR,
-            scope.file,
-            declaration.range(),
-            format!(
-                "Port `{}` already belongs to another Connection",
-                key.join(".")
-            ),
-        ));
-    }
-    validate_connection_contract(declaration, &contracts, scope.file)?;
-    connected_ports.extend(members.iter().cloned());
-    Ok(None)
 }
 
 #[allow(clippy::too_many_arguments)]

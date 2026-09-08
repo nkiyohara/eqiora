@@ -8,6 +8,10 @@ pub(super) fn encode_component_item(
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
     match item {
+        ComponentItem::IndexSet(declaration) => {
+            encoder.u16(18)?;
+            encode_let(&mut encoder, declaration, budget)?;
+        }
         ComponentItem::Let(declaration) => {
             encoder.u16(17)?;
             encode_let(&mut encoder, declaration, budget)?;
@@ -128,7 +132,10 @@ mod tests {
         assert_eq!(expected, identity(&eqiora_lang::format(&document)));
         let range = TextRange::new(0, 0);
         let aliases = [
-            ("a", ExprKind::Number(1.0)),
+            (
+                "a",
+                ExprKind::Number(eqiora_lang::DecimalLiteral::parse("1.0").expect("exact literal")),
+            ),
             ("b", ExprKind::Name("a".to_owned())),
         ]
         .into_iter()

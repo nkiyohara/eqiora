@@ -4,7 +4,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 use eqiora::api::package::PackagedModelDocument;
-use eqiora::api::{ModelDocument, ModelParameterRef, StructuralSemanticFingerprint, ValueEditPlan};
+use eqiora::api::{ModelDocument, StructuralSemanticFingerprint, ValueEditPlan};
 use eqiora::artifact::{CanonicalModelArtifact, ModelDecoderLimits, ModelEnvelope};
 use eqiora::diagnostic::codes;
 use eqiora::graph::Op;
@@ -19,6 +19,8 @@ use crate::geometry::PyGeometry;
 use crate::model_io::{self, DecodedModel};
 
 mod authored_formulation;
+mod parameter_ref;
+pub(crate) use parameter_ref::PyModelParameterRef;
 
 /// Exact identity of one immutable canonical Model artifact.
 #[pyclass(
@@ -201,59 +203,6 @@ impl PyRevision {
 #[derive(Debug, Clone)]
 pub(crate) struct PyValueEdit {
     plan: ValueEditPlan,
-}
-
-/// Exact canonical Parameter selected from one immutable Model.
-#[pyclass(
-    name = "ParameterRef",
-    module = "eqiora._eqiora",
-    frozen,
-    eq,
-    hash,
-    skip_from_py_object
-)]
-#[derive(Debug, Clone)]
-pub(crate) struct PyModelParameterRef {
-    pub(crate) value: ModelParameterRef,
-    model_digest: String,
-    id: String,
-}
-
-impl PartialEq for PyModelParameterRef {
-    fn eq(&self, other: &Self) -> bool {
-        self.value == other.value
-    }
-}
-
-impl Eq for PyModelParameterRef {}
-
-impl Hash for PyModelParameterRef {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.model_digest.hash(state);
-        self.id.hash(state);
-    }
-}
-
-#[pymethods]
-impl PyModelParameterRef {
-    /// Exact canonical Model artifact digest.
-    #[getter]
-    fn model_digest(&self) -> &str {
-        &self.model_digest
-    }
-
-    /// Stable canonical Parameter ULID.
-    #[getter]
-    fn id(&self) -> &str {
-        &self.id
-    }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "ParameterRef(id={:?}, model_digest={:?})",
-            self.id, self.model_digest
-        )
-    }
 }
 
 /// Exact canonical Field selected from one immutable Model.
@@ -834,16 +783,11 @@ impl PyModel {
     /// Resolve a source alias or exact ULID once into an exact Parameter role.
     fn parameter(&self, py: Python<'_>, selection: &str) -> PyResult<PyModelParameterRef> {
         panic_boundary(py, || {
-            let value = self
+            let document = self
                 .document()
-                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
-                .parameter_ref(selection)
                 .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-            Ok(PyModelParameterRef {
-                model_digest: value.model().artifact().to_string(),
-                id: value.id().ulid().to_string(),
-                value,
-            })
+            PyModelParameterRef::from_document(document, selection)
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))
         })
     }
 

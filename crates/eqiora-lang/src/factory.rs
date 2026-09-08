@@ -9,22 +9,25 @@ mod dimension_rewrite;
 mod document;
 mod domain_validation;
 mod expression;
+mod expression_visit;
 mod signature;
 use expression::validate_expression;
+mod nominal;
 mod operator;
 mod property;
 mod relation;
+mod type_visit;
 pub(crate) mod value_literal;
 mod value_type;
 
 use crate::ast::{
-    ActivationSyntax, BoundaryConnectionDecl, BoundaryFamilyBinderSyntax,
-    BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax, ClockDecl, ComponentParameterDecl,
-    ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorDecl,
+    ActivationSyntax, BoundaryConnectionDecl, BoundaryPortReferenceSyntax,
+    BoundaryPortSelectorSyntax, ClockDecl, ComponentParameterDecl, ComponentPortDecl,
+    ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorDecl,
     ConnectorQuantitySyntax, ConnectorSyntax, DomainDecl, DomainSyntax, Equation,
-    ExactIntegerSyntax, Expr, ExprKind, FieldDecl, InstanceDecl, LetDecl, NamePath,
-    NamedBindingDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl, PureOperatorExpr,
-    PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax, RelationDecl,
+    ExactIntegerSyntax, Expr, ExprKind, FamilyBinderSyntax, FieldDecl, InstanceDecl, NamePath,
+    NamedBindingDecl, NamedDefinitionDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl,
+    PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax, RelationDecl,
     RelationFamilyDecl, SupportSlotDecl, SupportSlotSyntax, TextRange, ValueShapeSyntax,
     VisibilitySyntax,
 };
@@ -103,7 +106,7 @@ impl SourceAstFactory {
         validate_expression(&dimension)?;
         Ok(ConnectorQuantitySyntax {
             name: checked_identifier(name, "Connector quantity")?,
-            dimension,
+            dimension: Box::new(dimension),
         })
     }
 
@@ -118,7 +121,7 @@ impl SourceAstFactory {
         default: Option<Expr>,
         range: TextRange,
     ) -> Result<ComponentParameterDecl, AstConstructionError> {
-        let value_type = Self::value_type(value_type.kind, value_type.range)?;
+        Self::value_type(value_type.kind().clone(), value_type.range)?;
         if let Some(default) = &default {
             validate_expression(default)?;
         }
@@ -159,7 +162,7 @@ impl SourceAstFactory {
     /// the binder member, and both declarations are structurally valid.
     pub fn component_port_family(
         port: ComponentPortDecl,
-        binder: BoundaryFamilyBinderSyntax,
+        binder: FamilyBinderSyntax,
     ) -> Result<ComponentPortFamilyDecl, AstConstructionError> {
         validate_port_syntax(port.syntax())?;
         checked_range(port.range())?;
@@ -188,10 +191,13 @@ impl SourceAstFactory {
         member: impl Into<String>,
         set: impl Into<String>,
         range: TextRange,
-    ) -> Result<BoundaryFamilyBinderSyntax, AstConstructionError> {
-        Ok(BoundaryFamilyBinderSyntax {
+    ) -> Result<FamilyBinderSyntax, AstConstructionError> {
+        Ok(FamilyBinderSyntax {
             member: checked_identifier(member, "boundary family member")?,
-            set: checked_identifier(set, "boundary family support set")?,
+            set: NamePath::single(
+                checked_identifier(set, "boundary family support set")?,
+                range,
+            ),
             range: checked_range(range)?,
         })
     }
@@ -254,7 +260,7 @@ impl SourceAstFactory {
         if let ActivationSyntax::Periodic(clock) = &activation {
             validate_identifier(clock, "unknown clock")?;
         }
-        let value_type = Self::value_type(value_type.kind, value_type.range)?;
+        Self::value_type(value_type.kind().clone(), value_type.range)?;
         Ok(FieldDecl {
             comments: Default::default(),
             name: checked_identifier(name, "unknown")?,
@@ -314,7 +320,7 @@ impl SourceAstFactory {
     /// Returns an error for insufficient members or malformed paths/ranges.
     pub fn connection(
         syntax: ConnectionSyntax,
-        ports: Vec<NamePath>,
+        ports: Vec<Expr>,
         range: TextRange,
     ) -> Result<ConnectionDecl, AstConstructionError> {
         if syntax == ConnectionSyntax::SpatialPeriodic {
@@ -327,8 +333,8 @@ impl SourceAstFactory {
                 "a Connection requires at least two Port paths",
             ));
         }
-        for path in &ports {
-            validate_name_path(path)?;
+        for endpoint in &ports {
+            expression::validate_endpoint(endpoint)?;
         }
         Ok(ConnectionDecl {
             comments: Default::default(),
@@ -344,7 +350,7 @@ impl SourceAstFactory {
     /// Returns an error for fewer than two Ports, malformed references, or a
     /// declaration containing neither a family binder nor a selector.
     pub fn boundary_connection(
-        binder: Option<BoundaryFamilyBinderSyntax>,
+        binder: Option<FamilyBinderSyntax>,
         ports: Vec<BoundaryPortReferenceSyntax>,
         range: TextRange,
     ) -> Result<BoundaryConnectionDecl, AstConstructionError> {
@@ -430,6 +436,7 @@ impl SourceAstFactory {
     pub fn instance(
         name: impl Into<String>,
         definition: NamePath,
+        family: Option<crate::FamilyBinderSyntax>,
         bindings: Vec<NamedBindingDecl>,
         range: TextRange,
     ) -> Result<InstanceDecl, AstConstructionError> {
@@ -441,6 +448,7 @@ impl SourceAstFactory {
             comments: Default::default(),
             name: checked_identifier(name, "instance")?,
             definition,
+            family,
             bindings,
             range: checked_range(range)?,
         })
@@ -471,6 +479,7 @@ impl SourceAstFactory {
     /// expressions, or byte ranges.
     pub fn expression(kind: ExprKind, range: TextRange) -> Result<Expr, AstConstructionError> {
         let expression = Expr {
+            resolved_nominal: None,
             kind,
             range: checked_range(range)?,
         };
@@ -653,7 +662,7 @@ fn validate_port_syntax(syntax: &PortSyntax) -> Result<(), AstConstructionError>
             if let ActivationSyntax::Periodic(clock) = activation {
                 validate_identifier(clock, "signal clock")?;
             }
-            SourceAstFactory::value_type(value_type.kind.clone(), value_type.range).map(|_| ())
+            SourceAstFactory::value_type(value_type.kind().clone(), value_type.range).map(|_| ())
         }
         PortSyntax::ScalarPhysical { domain } => {
             validate_identifier(domain, "scalar physical Domain")
@@ -688,10 +697,10 @@ fn validate_value_shape(shape: &ValueShapeSyntax) -> Result<(), AstConstructionE
 }
 
 fn validate_boundary_family_binder(
-    binder: &BoundaryFamilyBinderSyntax,
+    binder: &FamilyBinderSyntax,
 ) -> Result<(), AstConstructionError> {
     validate_identifier(binder.member(), "boundary family member")?;
-    validate_identifier(binder.set(), "boundary family support set")?;
+    validate_identifier(binder.set().as_str(), "boundary family support set")?;
     checked_range(binder.range()).map(|_| ())
 }
 

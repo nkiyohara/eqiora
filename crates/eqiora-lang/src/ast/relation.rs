@@ -1,6 +1,6 @@
 //! Ordered source equalities and their activation/support owner.
 
-use super::{BoundaryFamilyBinderSyntax, Expr, TextRange};
+use super::{Expr, FamilyBinderSyntax, TextRange};
 
 /// Simultaneous mathematical conditions used only for fresh initialization.
 #[derive(Debug, Clone, PartialEq)]
@@ -99,7 +99,7 @@ impl Equation {
 #[derive(Debug, Clone, PartialEq)]
 pub struct RelationFamilyDecl {
     pub(crate) relation: RelationDecl,
-    pub(crate) binder: BoundaryFamilyBinderSyntax,
+    pub(crate) binder: FamilyBinderSyntax,
 }
 
 impl RelationFamilyDecl {
@@ -111,7 +111,7 @@ impl RelationFamilyDecl {
 
     /// Restricted boundary-member binder.
     #[must_use]
-    pub const fn binder(&self) -> &BoundaryFamilyBinderSyntax {
+    pub const fn binder(&self) -> &FamilyBinderSyntax {
         &self.binder
     }
 

@@ -1,5 +1,5 @@
 use crate::ast::document::ImportDecl;
-use crate::ast::{DimensionDecl, Document, ModelDecl, TextRange, VisibilitySyntax};
+use crate::ast::{Document, ModelDecl, NamedDefinitionDecl, TextRange, VisibilitySyntax};
 use crate::lexer::TokenKind;
 
 use super::Parser;
@@ -8,6 +8,7 @@ impl Parser<'_> {
     pub(super) fn parse_document(&mut self) -> Option<Document> {
         let mut imports = Vec::new();
         let mut dimensions = Vec::new();
+        let mut finite_spaces = Vec::new();
         let mut property_contracts = Vec::new();
         let mut property_releases = Vec::new();
         let mut material_compositions = Vec::new();
@@ -123,6 +124,17 @@ impl Parser<'_> {
                 } else {
                     self.recover_top_level();
                 }
+            } else if self.at_keyword("space") {
+                import_prefix_closed = true;
+                declarations_started = true;
+                if models_started {
+                    self.error_here("finite spaces must precede Model declarations");
+                }
+                if let Some(space) = self.parse_finite_space(declaration_start, visibility) {
+                    finite_spaces.push(space);
+                } else {
+                    self.recover_top_level();
+                }
             } else if self.at_keyword("model") {
                 import_prefix_closed = true;
                 declarations_started = true;
@@ -143,6 +155,7 @@ impl Parser<'_> {
             }
         }
         (!(imports.is_empty()
+            && finite_spaces.is_empty()
             && dimensions.is_empty()
             && property_contracts.is_empty()
             && property_releases.is_empty()
@@ -154,6 +167,7 @@ impl Parser<'_> {
         .then_some(Document {
             comments: Default::default(),
             imports,
+            finite_spaces,
             dimensions,
             property_contracts,
             property_releases,
@@ -222,7 +236,7 @@ impl Parser<'_> {
         })
     }
 
-    fn parse_dimension(&mut self, start: u32) -> Option<DimensionDecl> {
+    fn parse_dimension(&mut self, start: u32) -> Option<NamedDefinitionDecl> {
         self.expect_keyword("dimension")?;
         let name = self
             .expect_identifier("dimension alias name")?
@@ -234,12 +248,12 @@ impl Parser<'_> {
             .expect(TokenKind::Semicolon, "`;` after dimension alias")?
             .range()
             .end();
-        Some(DimensionDecl {
-            comments: Default::default(),
+        Some(NamedDefinitionDecl::plain(
             name,
             expression,
-            range: TextRange::new(start, end),
-        })
+            TextRange::new(start, end),
+            VisibilitySyntax::Private,
+        ))
     }
 }
 

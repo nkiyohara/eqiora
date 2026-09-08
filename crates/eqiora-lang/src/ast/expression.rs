@@ -3,11 +3,18 @@ use super::*;
 /// Source expression with its exact byte range.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Expr {
+    pub(crate) resolved_nominal: Option<Box<eqiora_core::ValueType>>,
     pub(crate) kind: ExprKind,
     pub(crate) range: TextRange,
 }
 
 impl Expr {
+    /// Checked nominal constructor type supplied by lexical declaration resolution.
+    #[must_use]
+    pub fn resolved_nominal(&self) -> Option<&eqiora_core::ValueType> {
+        self.resolved_nominal.as_deref()
+    }
+
     /// Expression form.
     #[must_use]
     pub const fn kind(&self) -> &ExprKind {
@@ -42,7 +49,11 @@ impl Expr {
         rewrite: &mut impl FnMut(&NamePath) -> Option<NamePath>,
     ) -> Self {
         let kind = match &self.kind {
-            ExprKind::Number(value) => ExprKind::Number(*value),
+            ExprKind::Member { value, member } => ExprKind::Member {
+                value: Box::new(value.rewrite_name_paths_with(rewrite)),
+                member: member.clone(),
+            },
+            ExprKind::Number(value) => ExprKind::Number(value.clone()),
             ExprKind::Quantity { value, unit } => ExprKind::Quantity {
                 value: value.clone(),
                 unit: unit.clone(),
@@ -93,6 +104,7 @@ impl Expr {
             },
         };
         Self {
+            resolved_nominal: self.resolved_nominal.clone(),
             kind,
             range: self.range,
         }
@@ -111,8 +123,8 @@ fn expression_name(path: NamePath) -> ExprKind {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ExprKind {
-    /// Floating-point literal.
-    Number(f64),
+    /// Exact decimal literal, interpreted in its required value-domain context.
+    Number(crate::DecimalLiteral),
     /// Numeric literal with an explicit input-unit expression.
     Quantity {
         /// Exact decimal value before unit conversion.
@@ -129,6 +141,8 @@ pub enum ExprKind {
         /// Authored index expression.
         index: Box<Expr>,
     },
+    /// Member of a statically selected indexed component occurrence.
+    Member { value: Box<Expr>, member: String },
     /// Source identifier.
     Name(String),
     /// Qualified lexical or instance-member name.

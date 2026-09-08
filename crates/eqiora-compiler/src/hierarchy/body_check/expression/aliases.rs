@@ -27,7 +27,7 @@ pub(super) struct EvolutionRequirement {
 
 pub(in crate::hierarchy::body_check) fn validate_aliases<'a>(
     scope: &mut DefinitionScope<'_, '_>,
-    declarations: impl Iterator<Item = &'a eqiora_lang::LetDecl>,
+    declarations: impl Iterator<Item = &'a eqiora_lang::NamedDefinitionDecl>,
     static_values: &crate::hierarchy::parameters::SymbolicParameterMap,
 ) -> Result<(), Vec<Diagnostic>> {
     scope.static_values = static_values.clone();

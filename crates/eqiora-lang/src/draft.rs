@@ -7,7 +7,7 @@
 use std::collections::{HashMap, HashSet};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
-use crate::ast::{BinaryOp, Expr, ExprKind, ModelDecl, NamePath, TextRange, UnaryOp};
+use crate::ast::{BinaryOp, Expr, ExprKind, NamePath, TextRange, UnaryOp};
 use crate::draft_spatial::{DraftSpatialDomain, DraftSpatialDomainKind};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, DimExponents, GraphPath, ValueLiteral, ValueType};
@@ -115,7 +115,9 @@ impl ModelDraft {
                 DraftDeclaration::ConservingPort(value) => {
                     ports.insert(value.symbol.clone(), value);
                 }
-                DraftDeclaration::Relation(_)
+                DraftDeclaration::FiniteSpace { .. }
+                | DraftDeclaration::IndexSet { .. }
+                | DraftDeclaration::Relation(_)
                 | DraftDeclaration::Initial(_)
                 | DraftDeclaration::ConservingConnection(_) => {}
             }
@@ -140,7 +142,12 @@ impl ModelDraft {
             }
             match declaration {
                 DraftDeclaration::Field(field) => {
-                    if let Err(message) = value_type::validate(&field.value_type) {
+                    if let Err(message) =
+                        crate::ValueTypeSyntax::from_checked(&field.value_type, |id| {
+                            self.nominal_name(id)
+                        })
+                        .map_err(|error| error.to_string())
+                    {
                         diagnostics.push(native_diagnostic(&self.name, field.name(), message));
                     }
                 }
@@ -148,6 +155,7 @@ impl ModelDraft {
                     if let Err(error) = crate::SourceAstFactory::value_literal(
                         parameter.value(),
                         TextRange::new(0, 1),
+                        |id| self.nominal_name(id),
                     ) {
                         diagnostics.push(native_diagnostic(
                             &self.name,
@@ -349,6 +357,16 @@ impl ModelDraft {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum DraftDeclaration {
+    /// An exact registered atomic finite-space definition.
+    FiniteSpace {
+        name: String,
+        definition: eqiora_schema::kernel::FiniteSpaceDef,
+    },
+    /// An exact registered bounded index-set definition.
+    IndexSet {
+        name: String,
+        definition: eqiora_schema::kernel::IndexSetDef,
+    },
     /// Cartesian volume or one oriented boundary Domain.
     SpatialDomain(DraftSpatialDomain),
     /// Nominal scalar physical Domain.
@@ -374,6 +392,7 @@ pub enum DraftDeclaration {
 impl DraftDeclaration {
     fn name(&self) -> Option<&str> {
         match self {
+            Self::FiniteSpace { name, .. } | Self::IndexSet { name, .. } => Some(name),
             Self::SpatialDomain(value) => Some(value.name()),
             Self::PhysicalDomain(value) => Some(value.name()),
             Self::Field(value) => Some(value.name()),
@@ -386,6 +405,8 @@ impl DraftDeclaration {
 
     fn kind_name(&self) -> &'static str {
         match self {
+            Self::FiniteSpace { .. } => "FiniteSpace",
+            Self::IndexSet { .. } => "IndexSet",
             Self::SpatialDomain(_) => "SpatialDomain",
             Self::PhysicalDomain(_) => "PhysicalDomain",
             Self::Field(_) => "Field",
@@ -771,7 +792,7 @@ pub struct DraftExpression {
 impl DraftExpression {
     /// Dimensionless numeric literal.
     #[must_use]
-    pub const fn constant(value: f64) -> Self {
+    pub const fn constant(value: crate::DecimalLiteral) -> Self {
         Self {
             kind: DraftExpressionKind::Constant(value),
         }
@@ -903,7 +924,7 @@ impl DraftExpression {
 
     fn contains_invalid_literal(&self) -> bool {
         match &self.kind {
-            DraftExpressionKind::Constant(value) => !value.is_finite(),
+            DraftExpressionKind::Constant(_) => false,
             DraftExpressionKind::Complex(real, imaginary) => {
                 !real.is_finite() || !imaginary.is_finite()
             }
@@ -954,7 +975,7 @@ impl_binary_expression_operator!(Div, div, BinaryOp::Div);
 
 #[derive(Debug, Clone)]
 enum DraftExpressionKind {
-    Constant(f64),
+    Constant(crate::DecimalLiteral),
     Complex(f64, f64),
     Array(Vec<DraftExpression>),
     Index {
@@ -1037,43 +1058,18 @@ impl DraftSymbolKind {
     }
 }
 
-/// Synthetic AST plus paths that recover native declaration context.
-#[doc(hidden)]
-#[derive(Debug)]
-pub struct NativeModelAst {
-    model: ModelDecl,
-    paths: HashMap<TextRange, GraphPath>,
-}
-
 mod ast_bridge;
 mod dimension;
 mod expression;
+mod nominal;
 mod symbol;
+mod validation;
 mod value_type;
+pub use ast_bridge::NativeModelAst;
 use ast_bridge::{RangeAllocator, physical_accessor_ast};
 use dimension::dimension_expression;
 pub(crate) use symbol::DraftSymbol;
-
-fn native_diagnostic(model: &str, declaration: &str, message: impl Into<String>) -> Diagnostic {
-    Diagnostic::error(codes::LANGUAGE_TYPE_ERROR, message)
-        .with_graph_path(GraphPath::new([model.to_owned(), declaration.to_owned()]))
-}
-
-fn connection_path(connection: &DraftConservingConnection) -> String {
-    let mut members = connection
-        .ports()
-        .iter()
-        .map(DraftConservingPort::name)
-        .collect::<Vec<_>>();
-    members.sort_unstable();
-    format!("connection[{}]", members.join(","))
-}
-
-fn is_language_identifier(value: &str) -> bool {
-    let mut bytes = value.bytes();
-    matches!(bytes.next(), Some(first) if first.is_ascii_alphabetic() || first == b'_')
-        && bytes.all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
-}
+use validation::{connection_path, is_language_identifier, native_diagnostic};
 
 #[cfg(test)]
 mod tests;

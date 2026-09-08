@@ -6,8 +6,10 @@ use super::*;
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ComponentItem {
+    /// A private bounded nominal index set.
+    IndexSet(NamedDefinitionDecl),
     /// Private immutable static expression, expanded without a Kernel entity.
-    Let(LetDecl),
+    Let(NamedDefinitionDecl),
     /// Scalar compile-time Parameter.
     Parameter(ComponentParameterDecl),
     /// Causal or conserving interface.
@@ -36,6 +38,8 @@ pub enum ComponentItem {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum Item {
+    /// A bounded nominal index set.
+    IndexSet(NamedDefinitionDecl),
     /// Continuous spatial region or one oriented boundary portion.
     Domain(DomainDecl),
     /// Mutable model state.
@@ -45,7 +49,7 @@ pub enum Item {
     /// Revision-local design value.
     Parameter(ParameterDecl),
     /// Typed compile-time expression alias expanded before Kernel lowering.
-    Let(LetDecl),
+    Let(NamedDefinitionDecl),
     /// Causal or conserving interface.
     Port(PortDecl),
     /// Exact periodic clock.

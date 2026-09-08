@@ -1,4 +1,5 @@
 mod aliases;
+mod integer;
 mod transitions;
 pub(in crate::hierarchy) use aliases::DependencyActivation;
 pub(super) use aliases::{AliasContract, validate_aliases};
@@ -215,8 +216,7 @@ impl ExpressionChecker<'_, '_, '_> {
         &mut self,
         equation: &eqiora_lang::Equation,
     ) -> Result<ExpressionType<String>, Diagnostic> {
-        let left = self.check(equation.left())?;
-        let right = self.check(equation.right())?;
+        let (left, right) = self.check_pair(equation.left(), equation.right())?;
         crate::lower::equality::check(
             left,
             right,
@@ -311,6 +311,10 @@ impl ExpressionChecker<'_, '_, '_> {
                     self.scope.resolve_symbol(path)?,
                 ),
             },
+            ExprKind::Member { .. } => {
+                let (path, _) = self.scope.indexed_member(expression)?;
+                self.scalar_contract(expression, path.as_str(), self.scope.resolve_symbol(&path)?)
+            }
             ExprKind::BoundaryPortSelection { port, selector } => {
                 let Some(family_scope) = self.family_scope else {
                     return Err(source_error(
@@ -328,7 +332,17 @@ impl ExpressionChecker<'_, '_, '_> {
             ExprKind::Unary {
                 op: UnaryOp::Neg,
                 value,
-            } => self.check(value),
+            } => {
+                let inferred = self.check(value)?;
+                if inferred.value_type.is_count() || inferred.value_type.index_set().is_some() {
+                    return Err(type_error(
+                        self.scope.file,
+                        expression,
+                        TypeViolation::ScalarDomainMismatch,
+                    ));
+                }
+                Ok(inferred)
+            }
             ExprKind::Binary { op, left, right } => self.check_binary(expression, *op, left, right),
             ExprKind::Call { callee, arguments } => self.check_call(expression, callee, arguments),
             _ => Err(source_error(
@@ -444,6 +458,38 @@ impl ExpressionChecker<'_, '_, '_> {
         arguments: &[Expr],
     ) -> Result<ExpressionType<String>, Diagnostic> {
         let callee_name = callee.as_str();
+        if matches!(callee_name, "counts" | "coordinates" | "index") {
+            return expression
+                .resolved_nominal()
+                .cloned()
+                .map(|value_type| ExpressionType::new(value_type, None))
+                .ok_or_else(|| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.scope.file,
+                        expression.range(),
+                        "nominal constructor requires its resolved lexical declaration",
+                    )
+                });
+        }
+        if let Some(operator) = crate::lower::IntegerBuiltin::named(callee_name) {
+            if arguments.len() != operator.arity() {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.scope.file,
+                    expression.range(),
+                    "invalid integer operation arity",
+                ));
+            }
+            let operands = arguments
+                .iter()
+                .map(|value| self.check_numeric_context(value, operator.operand_domain()))
+                .collect::<Result<Vec<_>, _>>()?;
+            return operator
+                .infer(&operands)
+                .map_err(|error| type_error(self.scope.file, expression, error));
+        }
+
         if callee_name == "period" {
             let [argument] = arguments else {
                 return Err(source_error(
@@ -708,10 +754,15 @@ impl ExpressionChecker<'_, '_, '_> {
             return typing::power(&base, exponent)
                 .map_err(|error| type_error(self.scope.file, expression, error));
         }
-        let left = self.check(left)?;
-        let right = self.check(right)?;
+        let (left, right) = self.check_pair(left, right)?;
         let result = match operator {
-            BinaryOp::Add | BinaryOp::Sub => typing::additive(&left, &right),
+            BinaryOp::Add => left.sum(right),
+            BinaryOp::Sub
+                if left.value_type.is_count() || left.value_type.index_set().is_some() =>
+            {
+                Err(TypeViolation::ScalarDomainMismatch)
+            }
+            BinaryOp::Sub => typing::additive(&left, &right),
             BinaryOp::Mul => typing::multiply(&left, &right),
             BinaryOp::Div => typing::divide(&left, &right),
             BinaryOp::Pow => unreachable!("power handled above"),

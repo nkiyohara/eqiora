@@ -182,6 +182,8 @@ impl WireExpression {
             .iter()
             .filter_map(|node| match node {
                 WireExpressionNode::Symbol { symbol } => symbol.id(),
+                WireExpressionNode::Constant { value } => value.nominal_reference(),
+                WireExpressionNode::Sample { clock, .. } => Some(clock),
                 _ => None,
             })
             .collect()
@@ -283,6 +285,23 @@ pub(crate) enum WireExpressionNode {
     Neg {
         value: u32,
     },
+    Ordinal {
+        value: u32,
+    },
+    ToReal {
+        value: u32,
+    },
+    ToInteger {
+        value: u32,
+    },
+    Quotient {
+        left: u32,
+        right: u32,
+    },
+    Remainder {
+        left: u32,
+        right: u32,
+    },
     Add {
         left: u32,
         right: u32,
@@ -360,6 +379,23 @@ impl WireExpressionNode {
             },
             ExprNode::Symbol(symbol) => Self::Symbol {
                 symbol: WireSymbol::encode(*symbol)?,
+            },
+            ExprNode::Quotient(left, right) => Self::Quotient {
+                left: left.index(),
+                right: right.index(),
+            },
+            ExprNode::Remainder(left, right) => Self::Remainder {
+                left: left.index(),
+                right: right.index(),
+            },
+            ExprNode::Ordinal(value) => Self::Ordinal {
+                value: value.index(),
+            },
+            ExprNode::ToReal(value) => Self::ToReal {
+                value: value.index(),
+            },
+            ExprNode::ToInteger(value) => Self::ToInteger {
+                value: value.index(),
             },
             ExprNode::Neg(value) => Self::Neg {
                 value: value.index(),
@@ -446,6 +482,15 @@ impl WireExpressionNode {
             }
             Self::Hold { value } => builder.hold(operand(ids, *value)?),
             Self::Symbol { symbol } => builder.symbol(symbol.decode()?),
+            Self::Quotient { left, right } => {
+                builder.quotient(operand(ids, *left)?, operand(ids, *right)?)
+            }
+            Self::Remainder { left, right } => {
+                builder.remainder(operand(ids, *left)?, operand(ids, *right)?)
+            }
+            Self::Ordinal { value } => builder.ordinal(operand(ids, *value)?),
+            Self::ToReal { value } => builder.to_real(operand(ids, *value)?),
+            Self::ToInteger { value } => builder.to_integer(operand(ids, *value)?),
             Self::Neg { value } => builder.neg(operand(ids, *value)?),
             Self::Add { left, right } => builder.add(operand(ids, *left)?, operand(ids, *right)?),
             Self::Sub { left, right } => builder.sub(operand(ids, *left)?, operand(ids, *right)?),
@@ -711,5 +756,69 @@ mod transition_tests {
             *value = 2;
         }
         assert!(wrong_operand.decode().is_err());
+    }
+}
+
+#[cfg(test)]
+mod integer_operation_tests {
+    use super::*;
+    use eqiora_core::{DimExponents, ScalarDomain, ValueLiteral, ValueType};
+
+    #[test]
+    fn discrete_operations_preserve_shared_operands_and_reject_forward_references() {
+        let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+        let mut builder = ExprDagBuilder::new();
+        let left = builder
+            .constant(ValueLiteral::from_integer(ty.clone(), 9_007_199_254_740_993).unwrap())
+            .unwrap();
+        let right = builder
+            .constant(ValueLiteral::from_integer(ty, 2).unwrap())
+            .unwrap();
+        let quotient = builder.quotient(left, right).unwrap();
+        let remainder = builder.remainder(left, right).unwrap();
+        let real = builder.to_real(quotient).unwrap();
+        let integer = builder.to_integer(real).unwrap();
+        let expression = builder.finish([remainder, integer]).unwrap();
+        let wire = WireExpression::encode(&expression).unwrap();
+        let json = serde_json::to_value(&wire).unwrap();
+        for (index, expected) in [
+            (2, serde_json::json!({"op":"quotient","left":0,"right":1})),
+            (3, serde_json::json!({"op":"remainder","left":0,"right":1})),
+            (4, serde_json::json!({"op":"to-real","value":2})),
+            (5, serde_json::json!({"op":"to-integer","value":4})),
+        ] {
+            assert_eq!(json["nodes"][index], expected);
+        }
+        assert_eq!(wire.decode().unwrap(), expression);
+        for bad in [
+            WireExpressionNode::Quotient { left: 2, right: 1 },
+            WireExpressionNode::Remainder { left: 0, right: 2 },
+            WireExpressionNode::ToReal { value: 2 },
+            WireExpressionNode::ToInteger { value: 2 },
+        ] {
+            let mut malformed = wire.clone();
+            malformed.nodes[2] = bad;
+            assert!(malformed.decode().is_err());
+        }
+    }
+    #[test]
+    fn ordinal_wire_retains_the_exact_index_set_reference() {
+        let set = eqiora_core::Id::new();
+        let index = ValueLiteral::from_integer(ValueType::index(set, 4).unwrap(), 2).unwrap();
+        let mut builder = ExprDagBuilder::new();
+        let value = builder.constant(index).unwrap();
+        let ordinal = builder.ordinal(value).unwrap();
+        let expression = builder.finish([ordinal]).unwrap();
+        let wire = WireExpression::encode(&expression).unwrap();
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(
+            json["nodes"][1],
+            serde_json::json!({"op":"ordinal","value":0})
+        );
+        assert_eq!(
+            wire.semantic_references(),
+            vec![&WireId::from_raw(set.erase())]
+        );
+        assert_eq!(wire.decode().unwrap(), expression);
     }
 }

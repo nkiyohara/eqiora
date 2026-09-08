@@ -25,6 +25,7 @@ fn imaginary_only_parameter_edit_survives_public_model_replay_without_new_unknow
             .typed_value(channels)
             .unwrap()
             .components()
+            .expect("real channels retain real/complex components")
             .collect::<Vec<_>>(),
         [(5.0, 7.0), (11.0, 13.0)],
     );

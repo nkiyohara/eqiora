@@ -34,12 +34,12 @@ fn rational_dimension_meaning_survives_canonical_model_replay() {
     assert!(model.structurally_equivalent(&replay).unwrap());
     let current_schema = String::from_utf8(bytes).unwrap();
     let old_schema =
-        current_schema.replace("eqiora.model-envelope/v14", "eqiora.model-envelope/v10");
+        current_schema.replace("eqiora.model-envelope/v15", "eqiora.model-envelope/v10");
     assert_ne!(old_schema, current_schema);
     assert!(ModelDocument::replay(old_schema.as_bytes()).is_err());
     assert_eq!(
         model.structural_fingerprint().unwrap().generation(),
-        SemanticFingerprintGeneration::V9
+        SemanticFingerprintGeneration::V10
     );
 }
 
@@ -100,7 +100,7 @@ fn current_generation_is_independent_of_coordinate_vocabulary() {
     for model in [&fixed, &referenced] {
         assert_eq!(
             model.structural_fingerprint().unwrap().generation(),
-            SemanticFingerprintGeneration::V9
+            SemanticFingerprintGeneration::V10
         );
     }
     // Equal endpoint values do not erase the nominal Parameter dependency.
@@ -130,7 +130,7 @@ fn source_native_codec_and_allocation_routes_share_only_structural_identity() {
         );
     }
     let fingerprint = source.structural_fingerprint().unwrap();
-    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V9);
+    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V10);
     assert_eq!(fingerprint.digest().len(), 64);
 
     let replay = eqiora::api::ModelDocument::replay(&source.canonical_json().unwrap()).unwrap();
@@ -330,7 +330,10 @@ fn native_decay(reversed: bool) -> ModelDraft {
         [DraftExpression::derivative(&field) + rate.expression() * field.expression()],
     );
     let initial = eqiora::language::DraftDeclaration::Initial(vec![
-        field.expression() - DraftExpression::constant(1.0),
+        field.expression()
+            - DraftExpression::constant(
+                eqiora::language::DecimalLiteral::from_f64(1.0).expect("finite fixture literal"),
+            ),
     ]);
     let declarations = if reversed {
         vec![relation.into(), rate.into(), field.into(), initial]

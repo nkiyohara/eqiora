@@ -4,6 +4,11 @@ impl Parser<'_> {
     pub(super) fn parse_instance(&mut self) -> Option<InstanceDecl> {
         let start = self.expect_keyword("instance")?.range().start();
         let name = self.expect_identifier("instance name")?.text().to_owned();
+        let family = if self.at(TokenKind::LeftBracket) {
+            Some(self.parse_index_family_binder()?)
+        } else {
+            None
+        };
         self.expect(TokenKind::Colon, "`:` before component definition")?;
         let definition = self.parse_name_path("component definition name")?;
         self.expect(TokenKind::LeftParen, "`(` before named bindings")?;
@@ -34,6 +39,7 @@ impl Parser<'_> {
             comments: Default::default(),
             name,
             definition,
+            family,
             bindings,
             range: TextRange::new(start, end),
         })

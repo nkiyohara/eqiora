@@ -1,4 +1,5 @@
-use eqiora_core::{Diagnostic, ScalarDomain, ValueShape};
+use super::primitive::WireId;
+use eqiora_core::{Diagnostic, ScalarDomain, ValueShape, entity::kinds};
 use eqiora_core::{ValueFrame, ValueType};
 
 use serde::{Deserialize, Serialize};
@@ -17,19 +18,50 @@ pub(crate) struct WireValueType {
     shape: WireValueShape,
     frame: WireValueFrame,
     array_rank: u32,
+    basis: WireValueBasis,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+enum WireValueBasis {
+    Ordinary,
+    Coordinates { space: WireId },
+    Counts { space: WireId },
+    Index { set: WireId, extent: u32 },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 enum WireScalarDomain {
+    Integer,
     Real,
     Complex,
 }
 
 impl WireValueType {
     pub(super) fn encode(value: &ValueType) -> Result<Self, Diagnostic> {
+        let basis = if let Some(set) = value.index_set() {
+            WireValueBasis::Index {
+                set: WireId::from_raw(set.erase()),
+                extent: value.index_extent().expect("checked index type"),
+            }
+        } else if let Some(space) = value.finite_space() {
+            if value.is_count() {
+                WireValueBasis::Counts {
+                    space: WireId::from_raw(space.erase()),
+                }
+            } else {
+                WireValueBasis::Coordinates {
+                    space: WireId::from_raw(space.erase()),
+                }
+            }
+        } else {
+            WireValueBasis::Ordinary
+        };
         Ok(Self {
+            basis,
             domain: match value.scalar_domain() {
+                ScalarDomain::Integer => WireScalarDomain::Integer,
                 ScalarDomain::Real => WireScalarDomain::Real,
                 ScalarDomain::Complex => WireScalarDomain::Complex,
             },
@@ -46,15 +78,55 @@ impl WireValueType {
         let rank = usize::try_from(self.array_rank)
             .map_err(|_| invalid_artifact("array rank exceeds usize"))?;
         if rank > shape.rank()
-            || (self.frame.decode() == ValueFrame::Invariant && rank != shape.rank())
+            || (matches!(self.basis, WireValueBasis::Ordinary)
+                && self.frame.decode() == ValueFrame::Invariant
+                && rank != shape.rank())
         {
             return Err(invalid_artifact(
                 "mathematical type has inconsistent array and spatial axis roles",
             ));
         }
+        match &self.basis {
+            WireValueBasis::Ordinary => {}
+            WireValueBasis::Index { set, extent } => {
+                if self.domain != WireScalarDomain::Integer
+                    || !shape.is_scalar()
+                    || rank != 0
+                    || self.frame.decode() != ValueFrame::Invariant
+                    || self.dimension.decode() != eqiora_core::DimExponents::DIMENSIONLESS
+                {
+                    return Err(invalid_artifact(
+                        "index type requires a dimensionless invariant Integer scalar",
+                    ));
+                }
+                return ValueType::index(set.typed::<kinds::IndexSet>()?, *extent)
+                    .map_err(|error| invalid_artifact(error.to_string()));
+            }
+            WireValueBasis::Coordinates { space } | WireValueBasis::Counts { space } => {
+                if self.domain != WireScalarDomain::Integer
+                    || shape.rank() != 1
+                    || rank != 0
+                    || self.frame.decode() != ValueFrame::Invariant
+                    || self.dimension.decode() != eqiora_core::DimExponents::DIMENSIONLESS
+                {
+                    return Err(invalid_artifact(
+                        "finite-space type requires a dimensionless invariant Integer basis",
+                    ));
+                }
+                let id = space.typed::<kinds::FiniteSpace>()?;
+                let extent = shape.extents()[0].get();
+                return if matches!(self.basis, WireValueBasis::Counts { .. }) {
+                    ValueType::counts(id, extent)
+                } else {
+                    ValueType::coordinates(id, extent)
+                }
+                .map_err(|error| invalid_artifact(error.to_string()));
+            }
+        }
         let (arrays, spatial) = shape.extents().split_at(rank);
         let mut value = ValueType::shaped(
             match self.domain {
+                WireScalarDomain::Integer => ScalarDomain::Integer,
                 WireScalarDomain::Real => ScalarDomain::Real,
                 WireScalarDomain::Complex => ScalarDomain::Complex,
             },
@@ -70,6 +142,14 @@ impl WireValueType {
                 .map_err(|error| invalid_artifact(error.to_string()))?;
         }
         Ok(value)
+    }
+
+    pub(super) fn nominal_reference(&self) -> Option<&WireId> {
+        match &self.basis {
+            WireValueBasis::Ordinary => None,
+            WireValueBasis::Coordinates { space } | WireValueBasis::Counts { space } => Some(space),
+            WireValueBasis::Index { set, .. } => Some(set),
+        }
     }
 
     pub(super) fn ensure_limits(&self, limits: ModelDecoderLimits) -> Result<(), Diagnostic> {

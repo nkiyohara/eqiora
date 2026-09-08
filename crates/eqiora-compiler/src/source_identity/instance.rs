@@ -31,5 +31,12 @@ pub(super) fn encode_instance(
         })?;
         encoder.finish()
     })?;
-    encoder.field(3, |encoder| encoder.records(&bindings))
+    encoder.field(3, |encoder| encoder.records(&bindings))?;
+    if let Some(family) = declaration.family() {
+        encoder.field(4, |encoder| {
+            encode_name(encoder, family.member(), budget)?;
+            encode_path(encoder, family.set(), budget)
+        })?;
+    }
+    Ok(())
 }

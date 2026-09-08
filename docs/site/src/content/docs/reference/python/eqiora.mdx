@@ -15,7 +15,7 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/__init__.pyi" kind="blob">bindings/python/python/eqiora/__init__.pyi</ExactSourceLink>
 
-This module publishes **106** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **108** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
 <a id="api-eqiora-__version__"></a>
 
@@ -200,7 +200,7 @@ class SampledSession:
     @property
     def next_tick(self) -> Fraction | None: ...
     def checkpoint(self) -> SampledCheckpoint: ...
-    def field(self, name: str) -> float | None: ...
+    def field(self, name: str) -> _TypedValue | None: ...
     def output(self, name: str, tick_index: int) -> tuple[Fraction, _TypedValue] | None: ...
 ```
 
@@ -648,9 +648,17 @@ Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/value_type.r
 class ValueType:
     def to_eqi(self) -> str: ...
     @staticmethod
+    def integer() -> ValueType: ...
+    @staticmethod
     def real(dimension: Dimension | None=None) -> ValueType: ...
     @staticmethod
     def complex(dimension: Dimension | None=None) -> ValueType: ...
+    @staticmethod
+    def coordinates(space: FiniteSpace) -> ValueType: ...
+    @staticmethod
+    def counts(space: FiniteSpace) -> ValueType: ...
+    @staticmethod
+    def index(set: IndexSet) -> ValueType: ...
     @staticmethod
     def vector(scalar: ValueType, extent: int) -> ValueType: ...
     @staticmethod
@@ -669,6 +677,46 @@ class ValueType:
     def frame(self) -> Literal['invariant', 'spatial_cartesian']: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
+```
+
+<a id="api-eqiora-FiniteSpace"></a>
+
+## `FiniteSpace`
+
+Exact nominal ordered basis, distinct from a numerical discretization space.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/nominal.rs" kind="blob">crates/eqiora-python/src/modeling/nominal.rs::PyFiniteSpace</ExactSourceLink>
+
+```python
+@final
+class FiniteSpace:
+    def __new__(cls, name: str, *, labels: list[str] | tuple[str, ...]) -> Self: ...
+    @property
+    def name(self) -> str: ...
+    @property
+    def id(self) -> str: ...
+    @property
+    def labels(self) -> tuple[str, ...]: ...
+```
+
+<a id="api-eqiora-IndexSet"></a>
+
+## `IndexSet`
+
+An exact nominal zero-based set with a positive constant integer extent.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/nominal.rs" kind="blob">crates/eqiora-python/src/modeling/nominal.rs::PyIndexSet</ExactSourceLink>
+
+```python
+@final
+class IndexSet:
+    def __new__(cls, name: str, *, extent: int) -> Self: ...
+    @property
+    def name(self) -> str: ...
+    @property
+    def id(self) -> str: ...
+    @property
+    def extent(self) -> int: ...
 ```
 
 <a id="api-eqiora-DomainRef"></a>
@@ -1143,6 +1191,10 @@ Authority: <ExactSourceLink path="crates/eqiora-python/src/model.rs" kind="blob"
 ```python
 @final
 class ParameterRef:
+    @property
+    def value(self) -> _TypedValue: ...
+    @property
+    def value_type(self) -> ValueType: ...
     @property
     def model_digest(self) -> str: ...
     @property

@@ -38,6 +38,7 @@ fn instances_have_only_category_free_named_arguments() {
     let native = SourceAstFactory::instance(
         instance.name(),
         instance.definition().clone(),
+        instance.family().cloned(),
         instance.bindings().to_vec(),
         instance.range(),
     )

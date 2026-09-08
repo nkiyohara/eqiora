@@ -53,6 +53,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         });
         self.materialize_model_items(&root_scope, &identities)
             .map_err(one_diagnostic)?;
+        self.record_index_dependencies(&root_scope);
         self.finalize_physical_connections()
             .map_err(one_diagnostic)?;
         self.items.sort_by_key(FlatItemBlueprint::sort_key);
@@ -308,7 +309,9 @@ fn time_expression(
                 unit: Box::new(
                     F::expression(
                         if unit == "1" {
-                            ExprKind::Number(1.0)
+                            ExprKind::Number(
+                                eqiora_lang::DecimalLiteral::parse("1.0").expect("exact literal"),
+                            )
                         } else {
                             ExprKind::Name(unit.to_owned())
                         },

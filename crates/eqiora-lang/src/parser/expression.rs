@@ -43,6 +43,28 @@ impl Parser<'_> {
     fn parse_expression_inner(&mut self, minimum_binding_power: u8) -> Option<(Expr, usize)> {
         let (mut left, mut depth) = self.parse_primary()?;
         loop {
+            if self.at(TokenKind::Dot) {
+                if !matches!(
+                    left.kind(),
+                    ExprKind::Index { .. } | ExprKind::Member { .. }
+                ) {
+                    self.error_here("member access requires an indexed component occurrence");
+                    return None;
+                }
+                self.bump();
+                let member = self.expect_identifier("indexed occurrence member")?;
+                depth = self.parent_depth(depth)?;
+                let range = TextRange::new(left.range.start(), member.range().end());
+                left = Expr {
+                    resolved_nominal: None,
+                    kind: ExprKind::Member {
+                        value: Box::new(left),
+                        member: member.text().to_owned(),
+                    },
+                    range,
+                };
+                continue;
+            }
             if self.at(TokenKind::LeftBracket) {
                 self.bump();
                 let (index, index_depth) = self.parse_expression_with_depth(0)?;
@@ -53,6 +75,7 @@ impl Parser<'_> {
                     .end();
                 let range = TextRange::new(left.range.start(), end);
                 left = Expr {
+                    resolved_nominal: None,
                     kind: ExprKind::Index {
                         value: Box::new(left),
                         index: Box::new(index),
@@ -77,6 +100,7 @@ impl Parser<'_> {
             depth = self.parent_depth(depth.max(right_depth))?;
             let range = TextRange::new(left.range.start(), right.range.end());
             left = Expr {
+                resolved_nominal: None,
                 kind: ExprKind::Binary {
                     op: operator,
                     left: Box::new(left),
@@ -96,6 +120,7 @@ impl Parser<'_> {
             let depth = self.parent_depth(child_depth)?;
             (
                 Expr {
+                    resolved_nominal: None,
                     range: TextRange::new(start, value.range.end()),
                     kind: ExprKind::Unary {
                         op: UnaryOp::Neg,
@@ -144,6 +169,7 @@ impl Parser<'_> {
                 .end();
             (
                 Expr {
+                    resolved_nominal: None,
                     kind: ExprKind::Array(elements),
                     range: TextRange::new(start, end),
                 },
@@ -189,6 +215,7 @@ impl Parser<'_> {
                     .end();
                 (
                     Expr {
+                        resolved_nominal: None,
                         kind: ExprKind::Call {
                             callee: path.clone(),
                             arguments,
@@ -202,6 +229,7 @@ impl Parser<'_> {
                 let range = TextRange::new(path.range().start(), selector.range().end());
                 (
                     Expr {
+                        resolved_nominal: None,
                         kind: ExprKind::BoundaryPortSelection {
                             port: Box::new(path),
                             selector: Box::new(selector),
@@ -217,7 +245,14 @@ impl Parser<'_> {
                 } else {
                     ExprKind::Name(path.as_str().to_owned())
                 };
-                (Expr { kind, range }, 1)
+                (
+                    Expr {
+                        resolved_nominal: None,
+                        kind,
+                        range,
+                    },
+                    1,
+                )
             }
         };
         Some(result)

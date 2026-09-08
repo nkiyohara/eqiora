@@ -172,13 +172,13 @@ impl<'a> SymbolicParameterResolver<'a> {
     ) -> Result<Self, Vec<Diagnostic>> {
         let declarations = parameter_declarations(component);
         let overrides = resolve_instance_overrides(
-            declaration_file,
-            binding_file,
+            (declaration_file, binding_file),
             component,
             instance,
             &declarations,
             resolve_parent,
             resolve_clock,
+            ExpressionContext::Binding,
         )?;
         Ok(Self {
             declaration_file,
@@ -353,13 +353,13 @@ fn parameter_declarations(component: &ComponentDecl) -> BTreeMap<String, &Compon
 }
 
 fn resolve_instance_overrides(
-    declaration_file: &str,
-    binding_file: &str,
+    (declaration_file, binding_file): (&str, &str),
     component: &ComponentDecl,
     instance: &InstanceDecl,
     declarations: &BTreeMap<String, &ComponentParameterDecl>,
     mut resolve_parent: impl FnMut(&str) -> Option<SymbolicParameterValue>,
     resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
+    context: ExpressionContext<'_>,
 ) -> Result<BTreeMap<String, SymbolicParameterValue>, Vec<Diagnostic>> {
     let mut overrides = BTreeMap::new();
     let mut bound = BTreeSet::new();
@@ -415,10 +415,10 @@ fn resolve_instance_overrides(
                 continue;
             }
         };
-        let value = evaluate_parameter_expression(
+        let value = expression_eval::evaluate_with_domain(
             binding_file,
             binding.value(),
-            ExpressionContext::Binding,
+            context,
             &mut |name, range| {
                 resolve_parent(name).ok_or_else(|| {
                     source_error(
@@ -431,7 +431,8 @@ fn resolve_instance_overrides(
                     )
                 })
             },
-         resolve_clock)
+         resolve_clock,
+         (target.scalar_domain() == ScalarDomain::Integer).then_some(ScalarDomain::Integer))
         .and_then(|value| coerce_parameter(binding_file, binding.range(), value, target));
         match value {
             Ok(value) => {
@@ -485,13 +486,17 @@ pub(super) fn validate_instance_parameters_symbolically(
         ))]);
     }
     let overrides = resolve_instance_overrides(
-        declaration_file,
-        binding_file,
+        (declaration_file, binding_file),
         component,
         instance,
         &declarations,
         |name| parent_parameters.get(name).cloned(),
         &mut resolve_clock,
+        instance
+            .family()
+            .map_or(ExpressionContext::Binding, |family| {
+                ExpressionContext::IndexedBinding(family.member())
+            }),
     )?;
     let diagnostics = declarations
         .into_iter()
@@ -709,16 +714,21 @@ fn combine_types(
     };
     let fallback = DimExponents::DIMENSIONLESS;
     let result = match operator {
-        BinaryOp::Add | BinaryOp::Sub => typing::additive(
-            &projected(
+        BinaryOp::Add | BinaryOp::Sub => {
+            let left = projected(
                 &left,
                 left_dimension.or(right_dimension).unwrap_or(fallback),
-            ),
-            &projected(
+            );
+            let right = projected(
                 &right,
                 right_dimension.or(left_dimension).unwrap_or(fallback),
-            ),
-        ),
+            );
+            if operator == BinaryOp::Add {
+                left.sum(right)
+            } else {
+                typing::additive(&left, &right)
+            }
+        }
         BinaryOp::Mul | BinaryOp::Div => {
             let left = projected(
                 &left,
@@ -866,7 +876,7 @@ pub(in crate::hierarchy) fn static_index(
     expression: &Expr,
     values: &SymbolicParameterMap,
 ) -> Result<u32, Diagnostic> {
-    let evaluated = evaluate_parameter_expression(
+    let evaluated = expression_eval::evaluate_with_domain(
         file,
         expression,
         ExpressionContext::Let,
@@ -881,6 +891,88 @@ pub(in crate::hierarchy) fn static_index(
             })
         },
         &mut |_| None,
+        Some(ScalarDomain::Integer),
     )?;
     value_expressions::checked_index(file, expression.range(), &evaluated)
+}
+
+pub(crate) use expression_eval::exact_signed_literal;
+
+pub(in crate::hierarchy) fn structural_extent(
+    file: &str,
+    expression: &Expr,
+    values: &SymbolicParameterMap,
+) -> Result<Option<(u32, Vec<String>)>, Diagnostic> {
+    let value = structural_index(file, expression, values)?;
+    if value.as_ref().is_some_and(|(extent, _)| *extent == 0) {
+        return Err(source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            expression.range(),
+            "index set extent requires a positive exact integer",
+        ));
+    }
+    Ok(value)
+}
+
+pub(in crate::hierarchy) fn structural_index(
+    file: &str,
+    expression: &Expr,
+    values: &SymbolicParameterMap,
+) -> Result<Option<(u32, Vec<String>)>, Diagnostic> {
+    let evaluated = expression_eval::evaluate_with_domain(
+        file,
+        expression,
+        ExpressionContext::Let,
+        &mut |name, range| {
+            values.get(name).cloned().ok_or_else(|| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    range,
+                    "index set extent depends on an unknown or runtime value",
+                )
+            })
+        },
+        &mut |_| None,
+        Some(ScalarDomain::Integer),
+    )?;
+    let Some(value) = evaluated.value else {
+        return Ok(None);
+    };
+    let extent = value
+        .integer_scalar_value()
+        .and_then(|value| u32::try_from(value).ok())
+        .ok_or_else(|| {
+            source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                file,
+                expression.range(),
+                "structural index requires a nonnegative exact integer within u32 bounds",
+            )
+        })?;
+    let dependencies = evaluated
+        .expression
+        .map(|expression| expression.referenced_names().into_iter().collect())
+        .unwrap_or_default();
+    Ok(Some((extent, dependencies)))
+}
+
+pub(in crate::hierarchy) fn resolve_instance_parameters_symbolically(
+    declaration_file: &str,
+    binding_file: &str,
+    component: &ComponentDecl,
+    instance: &InstanceDecl,
+    parent: &SymbolicParameterMap,
+    resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
+) -> Result<SymbolicParameterMap, Vec<Diagnostic>> {
+    SymbolicParameterResolver::instance(
+        declaration_file,
+        binding_file,
+        component,
+        instance,
+        |name| parent.get(name).cloned(),
+        resolve_clock,
+    )?
+    .resolve_all(resolve_clock)
 }

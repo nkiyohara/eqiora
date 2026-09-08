@@ -14,8 +14,7 @@ impl SourceAstFactory {
         mut rewrite: impl FnMut(&Expr) -> Expr,
     ) {
         for declaration in &mut document.property_contracts {
-            let dimension = declaration.value_type.dimension_mut();
-            *dimension = rewrite(dimension);
+            declaration.value_type.rewrite_dimension(&mut rewrite);
         }
         for declaration in &mut document.property_releases {
             declaration.source_dimension = rewrite(&declaration.source_dimension);
@@ -48,12 +47,12 @@ fn rewrite_connector(syntax: &mut ConnectorSyntax, rewrite: &mut impl FnMut(&Exp
             across_type,
             through_type,
         } => {
-            *across_type.dimension_mut() = rewrite(across_type.dimension());
-            *through_type.dimension_mut() = rewrite(through_type.dimension());
+            across_type.rewrite_dimension(rewrite);
+            through_type.rewrite_dimension(rewrite);
         }
         ConnectorSyntax::FieldPhysical { trace, flux, .. } => {
-            trace.dimension = rewrite(&trace.dimension);
-            flux.dimension = rewrite(&flux.dimension);
+            *trace.dimension = rewrite(&trace.dimension);
+            *flux.dimension = rewrite(&flux.dimension);
         }
     }
 }
@@ -62,23 +61,21 @@ fn rewrite_component_item(item: &mut ComponentItem, rewrite: &mut impl FnMut(&Ex
     match item {
         ComponentItem::Let(declaration) => {
             if let Some(value_type) = &mut declaration.value_type {
-                let dimension = value_type.dimension_mut();
-                *dimension = rewrite(dimension);
+                value_type.rewrite_dimension(rewrite);
             }
         }
         ComponentItem::Parameter(declaration) => {
-            let dimension = declaration.value_type.dimension_mut();
-            *dimension = rewrite(dimension);
+            declaration.value_type.rewrite_dimension(rewrite);
         }
         ComponentItem::Port(declaration) => rewrite_port(&mut declaration.syntax, rewrite),
         ComponentItem::PortFamily(declaration) => {
             rewrite_port(&mut declaration.port.syntax, rewrite);
         }
         ComponentItem::Field(declaration) => {
-            let dimension = declaration.value_type.dimension_mut();
-            *dimension = rewrite(dimension);
+            declaration.value_type.rewrite_dimension(rewrite);
         }
-        ComponentItem::Instance(_)
+        ComponentItem::IndexSet(_)
+        | ComponentItem::Instance(_)
         | ComponentItem::Initial(_)
         | ComponentItem::Clock(_)
         | ComponentItem::Relation(_)
@@ -96,26 +93,24 @@ fn rewrite_item(item: &mut Item, rewrite: &mut impl FnMut(&Expr) -> Expr) {
                 through_type,
             } = &mut declaration.syntax
             {
-                *across_type.dimension_mut() = rewrite(across_type.dimension());
-                *through_type.dimension_mut() = rewrite(through_type.dimension());
+                across_type.rewrite_dimension(rewrite);
+                through_type.rewrite_dimension(rewrite);
             }
         }
         Item::Field(declaration) => {
-            let dimension = declaration.value_type.dimension_mut();
-            *dimension = rewrite(dimension);
+            declaration.value_type.rewrite_dimension(rewrite);
         }
         Item::Parameter(declaration) => {
-            let dimension = declaration.value_type.dimension_mut();
-            *dimension = rewrite(dimension);
+            declaration.value_type.rewrite_dimension(rewrite);
         }
         Item::Let(declaration) => {
             if let Some(value_type) = &mut declaration.value_type {
-                let dimension = value_type.dimension_mut();
-                *dimension = rewrite(dimension);
+                value_type.rewrite_dimension(rewrite);
             }
         }
         Item::Port(declaration) => rewrite_port(&mut declaration.syntax, rewrite),
-        Item::Initial(_)
+        Item::IndexSet(_)
+        | Item::Initial(_)
         | Item::Clock(_)
         | Item::Relation(_)
         | Item::Connection(_)
@@ -126,20 +121,19 @@ fn rewrite_item(item: &mut Item, rewrite: &mut impl FnMut(&Expr) -> Expr) {
 
 fn rewrite_port(syntax: &mut PortSyntax, rewrite: &mut impl FnMut(&Expr) -> Expr) {
     if let PortSyntax::Signal { value_type, .. } = syntax {
-        let dimension = value_type.dimension_mut();
-        *dimension = rewrite(dimension);
+        value_type.rewrite_dimension(rewrite);
     }
 }
 
 fn rewrite_signature(item: &mut crate::SignatureItem, rewrite: &mut impl FnMut(&Expr) -> Expr) {
     match item {
         crate::SignatureItem::Parameter(value) => {
-            *value.value_type.dimension_mut() = rewrite(value.value_type.dimension());
+            value.value_type.rewrite_dimension(rewrite);
         }
         crate::SignatureItem::Input(value)
         | crate::SignatureItem::Output(value)
         | crate::SignatureItem::Field(value) => {
-            *value.value_type.dimension_mut() = rewrite(value.value_type.dimension());
+            value.value_type.rewrite_dimension(rewrite);
         }
         crate::SignatureItem::Port(value) => rewrite_port(&mut value.syntax, rewrite),
         crate::SignatureItem::PortFamily(value) => rewrite_port(&mut value.port.syntax, rewrite),

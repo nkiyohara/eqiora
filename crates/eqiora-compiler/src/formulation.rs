@@ -299,7 +299,11 @@ impl ExpressionContext<'_> {
     fn compile(&mut self, expression: &Expr) -> Result<AuthoredFormExpression, Diagnostic> {
         match expression.kind() {
             ExprKind::Number(value) => Ok(typed(
-                AuthoredFormExpressionKind::Number(*value),
+                AuthoredFormExpressionKind::Number(
+                    value
+                        .to_f64()
+                        .map_err(|e| error(self.file, expression.range(), e.message()))?,
+                ),
                 DimExponents::DIMENSIONLESS,
                 ValueShape::scalar(),
                 None,
@@ -902,19 +906,7 @@ fn require_scalar(
 }
 
 fn integer_literal(expression: &Expr) -> Option<i32> {
-    let value = match expression.kind() {
-        ExprKind::Number(value) => *value,
-        ExprKind::Unary {
-            op: UnaryOp::Neg,
-            value,
-        } => match value.kind() {
-            ExprKind::Number(value) => -*value,
-            _ => return None,
-        },
-        _ => return None,
-    };
-    (value.fract() == 0.0 && value >= f64::from(i32::MIN) && value <= f64::from(i32::MAX))
-        .then_some(value as i32)
+    crate::dimensions::integer_literal(expression)
 }
 
 fn error(file: &str, range: TextRange, message: impl Into<String>) -> Diagnostic {

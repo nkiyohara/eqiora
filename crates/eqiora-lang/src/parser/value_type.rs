@@ -16,6 +16,49 @@ impl Parser<'_> {
             return None;
         }
         let start = self.current().range().start();
+        if ["coordinates", "counts", "index"]
+            .iter()
+            .any(|name| self.at_keyword(name))
+        {
+            let constructor = self.bump().text().to_owned();
+            self.expect(TokenKind::LeftAngle, "`<` before nominal type declaration")?;
+            if constructor == "coordinates" {
+                self.expect_keyword("integer")?;
+                self.expect(TokenKind::Comma, "`,` before finite space")?;
+            }
+            let declaration = self.parse_name_path("nominal type declaration")?;
+            let end = self
+                .expect(TokenKind::RightAngle, "`>` after nominal type")?
+                .range()
+                .end();
+            let kind = match constructor.as_str() {
+                "coordinates" => ValueTypeSyntaxKind::Coordinates(declaration),
+                "counts" => ValueTypeSyntaxKind::Counts(declaration),
+                _ => ValueTypeSyntaxKind::Index(declaration),
+            };
+            return Some(ValueTypeSyntax {
+                kind: Box::new(kind),
+                range: TextRange::new(start, end),
+                resolved_nominal: None,
+            });
+        }
+        if self.at_keyword("integer") {
+            let token = self.bump();
+            return Some(ValueTypeSyntax {
+                resolved_nominal: None,
+                kind: Box::new(ValueTypeSyntaxKind::Scalar {
+                    domain: ScalarDomain::Integer,
+                    dimension: crate::Expr {
+                        resolved_nominal: None,
+                        kind: crate::ExprKind::Number(
+                            crate::DecimalLiteral::parse("1").expect("one"),
+                        ),
+                        range: token.range(),
+                    },
+                }),
+                range: token.range(),
+            });
+        }
         if self.at_keyword("complex") {
             self.bump();
             self.expect(TokenKind::LeftAngle, "`<` after complex")?;
@@ -25,10 +68,11 @@ impl Parser<'_> {
                 .range()
                 .end();
             return Some(ValueTypeSyntax {
-                kind: ValueTypeSyntaxKind::Scalar {
+                resolved_nominal: None,
+                kind: Box::new(ValueTypeSyntaxKind::Scalar {
                     domain: ScalarDomain::Complex,
                     dimension,
-                },
+                }),
                 range: TextRange::new(start, end),
             });
         }

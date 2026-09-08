@@ -3,6 +3,7 @@
 pub(crate) mod comments;
 mod compile_time;
 mod items;
+pub(crate) mod nominal;
 mod signature;
 pub use items::{ComponentItem, Item};
 pub use signature::SignatureItem;
@@ -16,8 +17,7 @@ mod value_type;
 pub use value_type::{ValueTypeSyntax, ValueTypeSyntaxKind};
 
 pub use comments::DocComment;
-pub(crate) use compile_time::DimensionDecl;
-pub use compile_time::{LetDecl, ParameterDecl};
+pub use compile_time::{NamedDefinitionDecl, ParameterDecl};
 pub use document::{Document, ModelDecl};
 
 use formulation::FormulationDecl;
@@ -154,7 +154,7 @@ pub enum ConnectorSyntax {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ConnectorQuantitySyntax {
     pub(crate) name: String,
-    pub(crate) dimension: Expr,
+    pub(crate) dimension: Box<Expr>,
 }
 
 impl ConnectorQuantitySyntax {
@@ -319,7 +319,7 @@ pub struct ComponentPortDecl {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ComponentPortFamilyDecl {
     pub(crate) port: ComponentPortDecl,
-    pub(crate) binder: BoundaryFamilyBinderSyntax,
+    pub(crate) binder: FamilyBinderSyntax,
 }
 
 impl ComponentPortFamilyDecl {
@@ -331,7 +331,7 @@ impl ComponentPortFamilyDecl {
 
     /// Restricted boundary-member binder.
     #[must_use]
-    pub const fn binder(&self) -> &BoundaryFamilyBinderSyntax {
+    pub const fn binder(&self) -> &FamilyBinderSyntax {
         &self.binder
     }
 
@@ -434,13 +434,13 @@ pub enum SupportSlotSyntax {
 
 /// Restricted binder for one member of a complete exterior support set.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct BoundaryFamilyBinderSyntax {
+pub struct FamilyBinderSyntax {
     pub(crate) member: String,
-    pub(crate) set: String,
+    pub(crate) set: NamePath,
     pub(crate) range: TextRange,
 }
 
-impl BoundaryFamilyBinderSyntax {
+impl FamilyBinderSyntax {
     /// Lexical name of the currently expanded boundary member.
     #[must_use]
     pub fn member(&self) -> &str {
@@ -449,7 +449,7 @@ impl BoundaryFamilyBinderSyntax {
 
     /// Complete-exterior support slot traversed by this binder.
     #[must_use]
-    pub fn set(&self) -> &str {
+    pub fn set(&self) -> &NamePath {
         &self.set
     }
 
@@ -466,11 +466,17 @@ pub struct InstanceDecl {
     pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) name: String,
     pub(crate) definition: NamePath,
+    pub(crate) family: Option<FamilyBinderSyntax>,
     pub(crate) bindings: Vec<NamedBindingDecl>,
     pub(crate) range: TextRange,
 }
 
 impl InstanceDecl {
+    /// Optional bounded index-family binder.
+    #[must_use]
+    pub fn family(&self) -> Option<&FamilyBinderSyntax> {
+        self.family.as_ref()
+    }
     /// Source occurrence name.
     #[must_use]
     pub fn name(&self) -> &str {
@@ -773,11 +779,11 @@ impl ClockDecl {
 }
 
 /// Connection declaration.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ConnectionDecl {
     pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) syntax: ConnectionSyntax,
-    pub(crate) ports: Vec<NamePath>,
+    pub(crate) ports: Vec<Expr>,
     pub(crate) range: TextRange,
 }
 
@@ -790,7 +796,7 @@ impl ConnectionDecl {
 
     /// Structurally segmented Port selections in source order.
     #[must_use]
-    pub fn port_paths(&self) -> &[NamePath] {
+    pub fn port_expressions(&self) -> &[Expr] {
         &self.ports
     }
 
@@ -820,7 +826,7 @@ pub enum ConnectionSyntax {
 pub struct BoundaryConnectionDecl {
     pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) syntax: ConnectionSyntax,
-    pub(crate) binder: Option<BoundaryFamilyBinderSyntax>,
+    pub(crate) binder: Option<FamilyBinderSyntax>,
     pub(crate) ports: Vec<BoundaryPortReferenceSyntax>,
     pub(crate) range: TextRange,
 }
@@ -834,7 +840,7 @@ impl BoundaryConnectionDecl {
 
     /// Optional pointwise family binder.
     #[must_use]
-    pub const fn binder(&self) -> Option<&BoundaryFamilyBinderSyntax> {
+    pub const fn binder(&self) -> Option<&FamilyBinderSyntax> {
         self.binder.as_ref()
     }
 

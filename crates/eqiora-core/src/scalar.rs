@@ -1,6 +1,8 @@
 /// Mathematical scalar domain, independent of numerical storage precision.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarDomain {
+    /// Exact signed 64-bit integers, with no implicit real embedding.
+    Integer,
     /// Real-valued mathematics.
     Real,
     /// Complex-valued mathematics.
@@ -10,10 +12,12 @@ pub enum ScalarDomain {
 impl ScalarDomain {
     /// Smallest scalar domain into which both operands embed without loss.
     #[must_use]
-    pub const fn common(self, other: Self) -> Self {
+    pub const fn common(self, other: Self) -> Option<Self> {
         match (self, other) {
-            (Self::Real, Self::Real) => Self::Real,
-            _ => Self::Complex,
+            (Self::Integer, Self::Integer) => Some(Self::Integer),
+            (Self::Integer, _) | (_, Self::Integer) => None,
+            (Self::Real, Self::Real) => Some(Self::Real),
+            _ => Some(Self::Complex),
         }
     }
 }

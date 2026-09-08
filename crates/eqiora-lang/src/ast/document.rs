@@ -1,7 +1,7 @@
 use crate::ast_property::{MaterialCompositionDecl, PropertyContractDecl, PropertyReleaseDecl};
 
 use super::{
-    ComponentDecl, ConnectorDecl, DimensionDecl, Item, NamePath, PureOperatorDecl, TextRange,
+    ComponentDecl, ConnectorDecl, Item, NamePath, NamedDefinitionDecl, PureOperatorDecl, TextRange,
     VisibilitySyntax,
 };
 
@@ -62,7 +62,8 @@ pub(crate) struct ImportDecl {
 pub struct Document {
     pub(crate) comments: super::comments::SourceComments,
     pub(crate) imports: Vec<ImportDecl>,
-    pub(crate) dimensions: Vec<DimensionDecl>,
+    pub(crate) finite_spaces: Vec<super::NamedDefinitionDecl>,
+    pub(crate) dimensions: Vec<NamedDefinitionDecl>,
     pub(crate) property_contracts: Vec<PropertyContractDecl>,
     pub(crate) property_releases: Vec<PropertyReleaseDecl>,
     pub(crate) material_compositions: Vec<MaterialCompositionDecl>,
@@ -73,6 +74,11 @@ pub struct Document {
 }
 
 impl Document {
+    /// Ordered nominal atomic finite-space declarations.
+    #[must_use]
+    pub fn finite_spaces(&self) -> &[super::NamedDefinitionDecl] {
+        &self.finite_spaces
+    }
     /// Explicit semantic imports in authored order.
     #[must_use]
     pub fn imports(&self) -> impl ExactSizeIterator<Item = (&NamePath, &str, TextRange)> {
@@ -88,7 +94,7 @@ impl Document {
     ) -> impl ExactSizeIterator<Item = (&str, &super::Expr, super::TextRange)> {
         self.dimensions
             .iter()
-            .map(|value| (value.name(), value.expression(), value.range()))
+            .map(|value| (value.name(), value.value(), value.range()))
     }
 
     /// Compilation-unit connector declarations in source order.

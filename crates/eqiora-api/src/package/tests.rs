@@ -363,7 +363,9 @@ public component SpatialLaw(
     let resolution = ResolutionRecordV1::from_exact_releases(&root, &[]).expect("resolution");
     let geometry = caller_geometry("fluid");
 
-    let forcing = eqiora_lang::DraftExpression::constant(2.0).source_ast();
+    let forcing =
+        eqiora_lang::DraftExpression::constant(eqiora_lang::DecimalLiteral::from_f64(2.0).unwrap())
+            .source_ast();
     let bindings = [
         (
             "fluid",

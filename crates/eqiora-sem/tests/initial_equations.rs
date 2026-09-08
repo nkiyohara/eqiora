@@ -118,15 +118,47 @@ fn initial_algebraic_condition_and_regular_equations_jointly_determine_state() {
     .unwrap();
     let config = ReferenceConfig::new(0.1, 0.1).unwrap();
     let initial = Interpreter::new().initialize(&model, config).unwrap();
-    assert!((initial.fields()[&x.erase()] - 1.0).abs() < 1e-8);
-    assert!((initial.fields()[&y.erase()] - 2.0).abs() < 1e-8);
+    assert!(
+        (initial.fields()[&x.erase()]
+            .real_scalar_value()
+            .unwrap()
+            .value()
+            - 1.0)
+            .abs()
+            < 1e-8
+    );
+    assert!(
+        (initial.fields()[&y.erase()]
+            .real_scalar_value()
+            .unwrap()
+            .value()
+            - 2.0)
+            .abs()
+            < 1e-8
+    );
     assert!((initial.derivatives()[&x.erase()] + 1.0).abs() < 1e-8);
     for guess in [-4.0, 3.0] {
         let another = Interpreter::new()
             .initialize(&model, config.with_initial_guess(guess).unwrap())
             .unwrap();
-        assert!((another.fields()[&x.erase()] - 1.0).abs() < 1e-8);
-        assert!((another.fields()[&y.erase()] - 2.0).abs() < 1e-8);
+        assert!(
+            (another.fields()[&x.erase()]
+                .real_scalar_value()
+                .unwrap()
+                .value()
+                - 1.0)
+                .abs()
+                < 1e-8
+        );
+        assert!(
+            (another.fields()[&y.erase()]
+                .real_scalar_value()
+                .unwrap()
+                .value()
+                - 2.0)
+                .abs()
+                < 1e-8
+        );
         assert!((another.derivatives()[&x.erase()] + 1.0).abs() < 1e-8);
     }
     assert_eq!(config.initial_guess(), 0.0);
@@ -161,7 +193,13 @@ fn initial_derivative_condition_can_determine_stationary_state() {
     let initial = Interpreter::new()
         .initialize(&model, ReferenceConfig::new(0.0, 0.1).unwrap())
         .unwrap();
-    assert_eq!(initial.fields()[&x.erase()], 0.0);
+    assert_eq!(
+        initial.fields()[&x.erase()]
+            .real_scalar_value()
+            .unwrap()
+            .value(),
+        0.0
+    );
     assert_eq!(initial.derivatives()[&x.erase()], 0.0);
 }
 
@@ -226,7 +264,13 @@ fn initial_pre_is_a_clocked_unknown_and_next_is_not_an_initial_condition() {
     let initial = Interpreter::new()
         .initialize(&model, ReferenceConfig::new(0.0, 0.1).unwrap())
         .unwrap();
-    assert_eq!(initial.fields()[&field.erase()], 3.0);
+    assert_eq!(
+        initial.fields()[&field.erase()]
+            .real_scalar_value()
+            .unwrap()
+            .value(),
+        3.0
+    );
     let invalid = program(
         vec![
             scalar(field, FieldRole::State),
@@ -356,7 +400,15 @@ fn affine_rank_one_descriptor_uses_one_independent_initial_condition() {
         }
         let initial = result.unwrap();
         for field in [x, y] {
-            assert!((initial.fields()[&field.erase()] - 1.0).abs() < 1e-8);
+            assert!(
+                (initial.fields()[&field.erase()]
+                    .real_scalar_value()
+                    .unwrap()
+                    .value()
+                    - 1.0)
+                    .abs()
+                    < 1e-8
+            );
             assert!((initial.derivatives()[&field.erase()] + rate).abs() < 1e-8);
         }
     }

@@ -52,7 +52,17 @@ pub(super) fn infer_node<I: Clone + Eq, E>(
             };
             real.complex(imag)
         }
-        ExprNode::Sample { value, .. } | ExprNode::Hold(value) | ExprNode::Neg(value) => {
+        ExprNode::Neg(value) => {
+            let Some(value) = inferred_type(inferred, *value) else {
+                return NodeInference::Unavailable;
+            };
+            if value.value_type.is_count() || value.value_type.index_set().is_some() {
+                Err(TypeViolation::ScalarDomainMismatch)
+            } else {
+                Ok(value)
+            }
+        }
+        ExprNode::Sample { value, .. } | ExprNode::Hold(value) => {
             return inferred_type(inferred, *value)
                 .map_or(NodeInference::Unavailable, NodeInference::Typed);
         }
@@ -60,7 +70,11 @@ pub(super) fn infer_node<I: Clone + Eq, E>(
             let Some((left, right)) = inferred_binary(inferred, *left, *right) else {
                 return NodeInference::Unavailable;
             };
-            additive(&left, &right)
+            if matches!(node, ExprNode::Add(_, _)) {
+                left.sum(right)
+            } else {
+                additive(&left, &right)
+            }
         }
         ExprNode::Mul(left, right) => {
             let Some((left, right)) = inferred_binary(inferred, *left, *right) else {
@@ -73,6 +87,28 @@ pub(super) fn infer_node<I: Clone + Eq, E>(
                 return NodeInference::Unavailable;
             };
             divide(&left, &right)
+        }
+        ExprNode::Quotient(left, right) | ExprNode::Remainder(left, right) => {
+            let Some((left, right)) = inferred_binary(inferred, *left, *right) else {
+                return NodeInference::Unavailable;
+            };
+            left.integer_quotient(right)
+        }
+        ExprNode::Ordinal(value) => {
+            let Some(value) = inferred_type(inferred, *value) else {
+                return NodeInference::Unavailable;
+            };
+            value.ordinal()
+        }
+        ExprNode::ToReal(value) | ExprNode::ToInteger(value) => {
+            let Some(value) = inferred_type(inferred, *value) else {
+                return NodeInference::Unavailable;
+            };
+            if matches!(node, ExprNode::ToReal(_)) {
+                value.to_real()
+            } else {
+                value.to_integer()
+            }
         }
         ExprNode::PowI(base, exponent) => {
             let Some(base) = inferred_type(inferred, *base) else {

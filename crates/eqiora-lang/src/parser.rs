@@ -6,12 +6,14 @@ mod clock;
 mod comments;
 mod compile_time;
 mod component;
+mod connection;
 mod dimension;
 mod document;
 mod domain;
 mod expression;
 mod formulation;
 mod instance;
+mod nominal;
 mod operator;
 mod property;
 mod recovery;
@@ -20,15 +22,15 @@ mod signature;
 mod value_type;
 
 use crate::ast::{
-    BinaryOp, BoundaryConnectionDecl, BoundaryFamilyBinderSyntax, BoundaryPairingSyntax,
-    BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax, BoundarySideSyntax, ComponentItem,
-    ComponentParameterDecl, ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl,
-    ConnectionSyntax, ConnectorDecl, ConnectorQuantitySyntax, ConnectorSyntax, Document,
-    DomainDecl, DomainSyntax, ExactIntegerSyntax, Expr, ExprKind, FieldDecl, FrameSyntax,
-    InstanceDecl, Item, NamePath, NamedBindingDecl, PortDecl, PortSyntax, PureOperatorBinaryOp,
-    PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal,
-    PureValueClassSyntax, SignalDirectionSyntax, SupportSlotDecl, SupportSlotSyntax, TextRange,
-    UnaryOp, ValueShapeSyntax, VisibilitySyntax,
+    BinaryOp, BoundaryConnectionDecl, BoundaryPairingSyntax, BoundaryPortReferenceSyntax,
+    BoundaryPortSelectorSyntax, BoundarySideSyntax, ComponentItem, ComponentParameterDecl,
+    ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorDecl,
+    ConnectorQuantitySyntax, ConnectorSyntax, Document, DomainDecl, DomainSyntax,
+    ExactIntegerSyntax, Expr, ExprKind, FamilyBinderSyntax, FieldDecl, FrameSyntax, InstanceDecl,
+    Item, NamePath, NamedBindingDecl, PortDecl, PortSyntax, PureOperatorBinaryOp, PureOperatorDecl,
+    PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax,
+    SignalDirectionSyntax, SupportSlotDecl, SupportSlotSyntax, TextRange, UnaryOp,
+    ValueShapeSyntax, VisibilitySyntax,
 };
 use crate::lexer::{Token, TokenKind, lex};
 use relation::ParsedRelation;
@@ -214,6 +216,8 @@ impl Parser<'_> {
             self.parse_initial().map(Item::Initial)
         } else if self.at_keyword("parameter") {
             self.parse_parameter().map(Item::Parameter)
+        } else if self.at_keyword("indexset") {
+            self.parse_index_set().map(Item::IndexSet)
         } else if self.at_keyword("let") {
             self.parse_let().map(Item::Let)
         } else if self.at_keyword("port") {
@@ -352,7 +356,7 @@ impl Parser<'_> {
         self.expect(TokenKind::Colon, "`:` before quantity dimension")?;
         Some(ConnectorQuantitySyntax {
             name,
-            dimension: self.parse_dimension_expression()?,
+            dimension: Box::new(self.parse_dimension_expression()?),
         })
     }
 
@@ -717,167 +721,6 @@ impl Parser<'_> {
             domain,
             activation,
         })
-    }
-
-    fn parse_connection(&mut self, allow_family: bool) -> Option<ParsedConnection> {
-        let start = self.expect_keyword("connect")?.range().start();
-        if !self.at_keyword("conserving") && !self.at_keyword("periodic") {
-            let mut ports = vec![self.parse_name_path("signal output Port")?];
-            self.expect(TokenKind::Arrow, "`->` after signal output")?;
-            ports.extend(self.parse_name_path_list("signal input Port")?);
-            if ports.len() < 2 {
-                self.error_here("Connection requires at least two Ports");
-            }
-            let end = self
-                .expect(TokenKind::Semicolon, "`;` after Connection")?
-                .range()
-                .end();
-            return Some(ParsedConnection::Ordinary(ConnectionDecl {
-                comments: Default::default(),
-                syntax: ConnectionSyntax::Signal,
-                ports,
-                range: TextRange::new(start, end),
-            }));
-        }
-        let syntax = if self.at_keyword("conserving") {
-            ConnectionSyntax::Conserving
-        } else if self.at_keyword("periodic") {
-            ConnectionSyntax::SpatialPeriodic
-        } else {
-            self.error_here(
-                "expected directed Port connection, `conserving`, or `periodic` after `connect`",
-            );
-            return None;
-        };
-        self.bump();
-        if syntax == ConnectionSyntax::SpatialPeriodic && allow_family {
-            self.error_here("spatial-periodic Connections are allowed only in closed Models");
-            return None;
-        }
-        let binder = if self.at(TokenKind::LeftBracket) {
-            if syntax == ConnectionSyntax::SpatialPeriodic {
-                self.error_here("spatial-periodic Connections cannot declare a family binder");
-                return None;
-            }
-            if !allow_family {
-                self.error_here("boundary family binders are allowed only in Components");
-                return None;
-            }
-            Some(self.parse_boundary_family_binder()?)
-        } else {
-            None
-        };
-        let ports = self.parse_boundary_port_reference_list("boundary Port")?;
-        if syntax == ConnectionSyntax::SpatialPeriodic && ports.len() != 2 {
-            self.error_here("spatial-periodic Connection requires exactly two Ports");
-        } else if ports.len() < 2 {
-            self.error_here("Connection requires at least two Ports");
-        }
-        let end = self
-            .expect(TokenKind::Semicolon, "`;` after Connection")?
-            .range()
-            .end();
-        if syntax == ConnectionSyntax::Conserving
-            && binder.is_none()
-            && ports.iter().all(|port| port.selector().is_none())
-        {
-            return Some(ParsedConnection::Ordinary(ConnectionDecl {
-                comments: Default::default(),
-                syntax,
-                ports: ports.into_iter().map(|port| port.port).collect(),
-                range: TextRange::new(start, end),
-            }));
-        }
-        Some(ParsedConnection::Boundary(BoundaryConnectionDecl {
-            comments: Default::default(),
-            syntax,
-            binder,
-            ports,
-            range: TextRange::new(start, end),
-        }))
-    }
-
-    fn parse_name_path_list(&mut self, expected: &str) -> Option<Vec<NamePath>> {
-        let mut names = vec![self.parse_name_path(expected)?];
-        while self.at(TokenKind::Comma) {
-            self.bump();
-            names.push(self.parse_name_path(expected)?);
-        }
-        Some(names)
-    }
-
-    fn parse_boundary_family_binder(&mut self) -> Option<BoundaryFamilyBinderSyntax> {
-        let start = self
-            .expect(TokenKind::LeftBracket, "`[` before boundary family binder")?
-            .range()
-            .start();
-        let member = self
-            .expect_identifier("boundary family member name")?
-            .text()
-            .to_owned();
-        self.expect_keyword("in")?;
-        let set = self
-            .expect_identifier("complete exterior support-set name")?
-            .text()
-            .to_owned();
-        let end = self
-            .expect(TokenKind::RightBracket, "`]` after boundary family binder")?
-            .range()
-            .end();
-        Some(BoundaryFamilyBinderSyntax {
-            member,
-            set,
-            range: TextRange::new(start, end),
-        })
-    }
-
-    fn parse_boundary_port_selector(&mut self) -> Option<BoundaryPortSelectorSyntax> {
-        let start = self
-            .expect(TokenKind::LeftBracket, "`[` before boundary Port selector")?
-            .range()
-            .start();
-        let member = self
-            .expect_identifier("boundary family member name")?
-            .text()
-            .to_owned();
-        self.expect(TokenKind::Equal, "`=` in boundary Port selector")?;
-        let target = self
-            .expect_identifier("boundary selector target")?
-            .text()
-            .to_owned();
-        let end = self
-            .expect(TokenKind::RightBracket, "`]` after boundary Port selector")?
-            .range()
-            .end();
-        Some(BoundaryPortSelectorSyntax {
-            member,
-            target,
-            range: TextRange::new(start, end),
-        })
-    }
-
-    fn parse_boundary_port_reference(
-        &mut self,
-        expected: &str,
-    ) -> Option<BoundaryPortReferenceSyntax> {
-        let port = self.parse_name_path(expected)?;
-        let selector = self
-            .at(TokenKind::LeftBracket)
-            .then(|| self.parse_boundary_port_selector())
-            .flatten();
-        Some(BoundaryPortReferenceSyntax { port, selector })
-    }
-
-    fn parse_boundary_port_reference_list(
-        &mut self,
-        expected: &str,
-    ) -> Option<Vec<BoundaryPortReferenceSyntax>> {
-        let mut ports = vec![self.parse_boundary_port_reference(expected)?];
-        while self.at(TokenKind::Comma) {
-            self.bump();
-            ports.push(self.parse_boundary_port_reference(expected)?);
-        }
-        Some(ports)
     }
 
     fn parse_name_path(&mut self, expected: &str) -> Option<NamePath> {

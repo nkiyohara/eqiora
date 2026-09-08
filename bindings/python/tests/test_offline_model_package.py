@@ -86,6 +86,8 @@ EXPECTED_EQIORA_ALL = [
     "DifferentiationMode",
     "Dimension",
     "ValueType",
+    "FiniteSpace",
+    "IndexSet",
     "DomainRef",
     "Domain",
     "EqioraError",

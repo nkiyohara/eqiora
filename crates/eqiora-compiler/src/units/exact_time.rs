@@ -176,7 +176,7 @@ mod tests {
     #[test]
     fn native_binary64_clock_values_are_rejected() {
         let expression = eqiora_lang::SourceAstFactory::expression(
-            ExprKind::Number(1.0),
+            ExprKind::Number(eqiora_lang::DecimalLiteral::parse("1.0").expect("exact literal")),
             eqiora_lang::TextRange::new(0, 1),
         )
         .unwrap();

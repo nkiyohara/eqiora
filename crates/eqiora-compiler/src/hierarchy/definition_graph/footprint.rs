@@ -12,7 +12,8 @@ pub(super) fn component_local_footprint(
     let mut local_connectors = BTreeSet::new();
     for item in definition.owned_items() {
         match item {
-            ComponentItem::Parameter(_)
+            ComponentItem::IndexSet(_)
+            | ComponentItem::Parameter(_)
             | ComponentItem::Port(_)
             | ComponentItem::Initial(_)
             | ComponentItem::Clock(_) => checked_local_add(
@@ -50,7 +51,7 @@ pub(super) fn component_local_footprint(
             ComponentItem::PortFamily(family) => {
                 if let Some(members) = complete_exterior_cardinality(
                     definition,
-                    family.binder().set(),
+                    family.binder().set().as_str(),
                     family.range(),
                     diagnostics,
                 ) {
@@ -67,7 +68,7 @@ pub(super) fn component_local_footprint(
             ComponentItem::RelationFamily(family) => {
                 if let Some(members) = complete_exterior_cardinality(
                     definition,
-                    family.binder().set(),
+                    family.binder().set().as_str(),
                     family.range(),
                     diagnostics,
                 ) {
@@ -103,7 +104,7 @@ pub(super) fn component_local_footprint(
                 };
                 if let Some(members) = complete_exterior_cardinality(
                     definition,
-                    binder.set(),
+                    binder.set().as_str(),
                     connection.range(),
                     diagnostics,
                 ) {
@@ -330,7 +331,7 @@ fn checked_local_add(
     }
 }
 
-fn input_binding_count(
+pub(super) fn input_binding_count(
     elaborator: &Elaborator<'_>,
     namespace: &super::super::preflight::DefinitionNamespace,
     file: &str,

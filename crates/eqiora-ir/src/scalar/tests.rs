@@ -4,7 +4,7 @@ use eqiora_schema::kernel::ExprDagBuilder;
 use super::*;
 
 #[test]
-fn scalar_ir_rejects_nonreal_or_shaped_constants() {
+fn scalar_ir_rejects_complex_and_shaped_real_constants() {
     use eqiora_core::{ScalarDomain, ValueLiteral, ValueType};
     let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
     for value_type in [
@@ -16,7 +16,11 @@ fn scalar_ir_rejects_nonreal_or_shaped_constants() {
             .constant(ValueLiteral::from_real(value_type, 0.0).unwrap())
             .unwrap();
         let error = ScalarOperatorIr::lower(&builder.finish([root]).unwrap()).unwrap_err();
-        assert!(error.message().contains("real scalar constants"));
+        assert!(
+            error
+                .message()
+                .contains("real scalar or exact discrete constants")
+        );
     }
 }
 

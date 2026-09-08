@@ -40,11 +40,11 @@ fn typed_initial_equations_survive_source_and_model_replay() {
                     eqiora_sem::ReferenceConfig::new(0.0, 0.01).unwrap(),
                 )
                 .unwrap_err();
-            assert!(
-                errors
-                    .iter()
-                    .any(|error| error.message().contains("real scalar Fields"))
-            );
+            assert!(errors.iter().any(|error| {
+                error
+                    .message()
+                    .contains("real scalar or exact discrete Fields")
+            }));
         }
     }
 }
@@ -135,11 +135,11 @@ fn signal_types_survive_model_replay_and_real_execution_rejects_richer_types() {
                     eqiora_sem::ReferenceConfig::new(0.0, 0.01).unwrap(),
                 )
                 .unwrap_err();
-            assert!(
-                errors
-                    .iter()
-                    .any(|error| error.message().contains("real scalar signal Ports"))
-            );
+            assert!(errors.iter().any(|error| {
+                error
+                    .message()
+                    .contains("real scalar or exact discrete signal Ports")
+            }));
         }
     }
 }
@@ -590,4 +590,228 @@ fn typed_expression_edges_and_sharing_affect_structural_identity() {
             StructuralSemanticFingerprint::from_program(&replay).unwrap()
         );
     }
+}
+
+#[test]
+fn integer_model_and_transaction_replay_do_not_round_adjacent_values() {
+    use crate::ModelTransactionEnvelope;
+    use eqiora_core::ValueLiteral;
+    use eqiora_graph::Precondition;
+    let parameter = Id::new();
+    let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+    let before = ValueLiteral::from_integer(ty.clone(), 9_007_199_254_740_992).unwrap();
+    let after = ValueLiteral::from_integer(ty, 9_007_199_254_740_993).unwrap();
+    let program = |value: ValueLiteral| {
+        nominal_program(
+            vec![eqiora_schema::kernel::ParameterDef::new(parameter, value).into()],
+            vec![],
+        )
+        .unwrap()
+    };
+    let left = program(before.clone());
+    let right = program(after.clone());
+    assert_ne!(
+        StructuralSemanticFingerprint::from_program(&left).unwrap(),
+        StructuralSemanticFingerprint::from_program(&right).unwrap()
+    );
+    let envelope = ModelEnvelope::from_program(&right).unwrap();
+    let bytes = envelope.canonical_json().unwrap();
+    let decoded = ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default()).unwrap();
+    assert_eq!(
+        decoded.to_program().unwrap().typed_value(parameter.erase()),
+        Some(&after)
+    );
+    let mut transaction = Transaction::new("integer before and after");
+    transaction.require(Precondition::ValueEquals {
+        target: parameter.erase(),
+        expected: before,
+    });
+    transaction.push(Op::SetValue {
+        target: parameter.erase(),
+        value: after,
+    });
+    let bytes = ModelTransactionEnvelope::from_transaction(&transaction)
+        .unwrap()
+        .canonical_json()
+        .unwrap();
+    let decoded = ModelTransactionEnvelope::from_json(&bytes, ModelDecoderLimits::default())
+        .unwrap()
+        .to_transaction()
+        .unwrap();
+    assert_eq!(decoded.ops(), transaction.ops());
+    assert_eq!(decoded.preconditions(), transaction.preconditions());
+}
+
+fn nominal_program(
+    mut nodes: Vec<KernelNode>,
+    mut edges: Vec<(eqiora_core::RawId, eqiora_core::RawId, EdgeKind)>,
+) -> Result<KernelProgram, Vec<Diagnostic>> {
+    // A Model owns at least one Relation; this closed zero law imposes no
+    // execution claim on the nominal declarations being tested.
+    let relation = Id::new();
+    let activation = Id::new();
+    let mut expression = ExprDagBuilder::new();
+    let zero = expression
+        .constant(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
+        .unwrap();
+    nodes.push(RelationDef::new(relation, expression.finish([zero]).unwrap()).into());
+    nodes.push(ActivationDef::continuous(activation).into());
+    edges.push((activation.erase(), relation.erase(), EdgeKind::Activates));
+    let model = OntologyId::new();
+    let view = ModelView::new(model, nodes.iter().map(KernelNode::id), []).unwrap();
+    let mut transaction = Transaction::new("nominal values");
+    for node in nodes {
+        transaction.push(Op::DefineKernelNode { node });
+    }
+    for (from, to, edge) in edges {
+        transaction.push(Op::Connect { from, to, edge });
+    }
+    transaction.push(Op::DefineOntologyView { view: view.into() });
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    KernelProgram::from_snapshot(&store.snapshot(), model)
+}
+
+#[test]
+fn finite_basis_replay_preserves_order_and_shared_versus_distinct_nominal_identity() {
+    use eqiora_core::ValueLiteral;
+    use eqiora_schema::kernel::{FiniteSpaceDef, ParameterDef};
+    let build = |distinct: bool, counts: bool, reverse: bool| {
+        let a = Id::new();
+        let b = Id::new();
+        let labels = if reverse { ["O", "H"] } else { ["H", "O"] };
+        let ty = |space| {
+            if counts {
+                ValueType::counts(space, 2)
+            } else {
+                ValueType::coordinates(space, 2)
+            }
+            .unwrap()
+        };
+        nominal_program(
+            vec![
+                FiniteSpaceDef::new(a, labels.map(str::to_owned))
+                    .unwrap()
+                    .into(),
+                FiniteSpaceDef::new(b, labels.map(str::to_owned))
+                    .unwrap()
+                    .into(),
+                ParameterDef::new(Id::new(), ValueLiteral::integer(ty(a), [1, 2]).unwrap()).into(),
+                ParameterDef::new(
+                    Id::new(),
+                    ValueLiteral::integer(ty(if distinct { b } else { a }), [3, 4]).unwrap(),
+                )
+                .into(),
+            ],
+            vec![],
+        )
+        .unwrap()
+    };
+    let shared = build(false, true, false);
+    let fingerprint = StructuralSemanticFingerprint::from_program(&shared).unwrap();
+    assert_eq!(
+        fingerprint,
+        StructuralSemanticFingerprint::from_program(&build(false, true, false)).unwrap()
+    );
+    for variant in [
+        build(true, true, false),
+        build(false, false, false),
+        build(false, true, true),
+    ] {
+        assert_ne!(
+            fingerprint,
+            StructuralSemanticFingerprint::from_program(&variant).unwrap()
+        );
+    }
+    let envelope = ModelEnvelope::from_program(&shared).unwrap();
+    let bytes = envelope.canonical_json().unwrap();
+    let replay = ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default())
+        .unwrap()
+        .to_program()
+        .unwrap();
+    assert_eq!(shared, replay);
+    let missing = Id::new();
+    let actual = Id::new();
+    for ty in [
+        ValueType::counts(missing, 2).unwrap(),
+        ValueType::counts(actual, 3).unwrap(),
+    ] {
+        let count = ty.shape().component_count().unwrap();
+        let nodes = vec![
+            FiniteSpaceDef::new(actual, ["H".to_owned(), "O".to_owned()])
+                .unwrap()
+                .into(),
+            ParameterDef::new(
+                Id::new(),
+                ValueLiteral::integer(ty, vec![1; count]).unwrap(),
+            )
+            .into(),
+        ];
+        assert!(
+            nominal_program(nodes, vec![]).is_err(),
+            "foreign or wrong-extent basis cannot be admitted"
+        );
+    }
+}
+
+#[test]
+fn index_extent_dependencies_survive_replay_and_block_stale_structure_edits() {
+    use eqiora_core::ValueLiteral;
+    use eqiora_schema::kernel::{IndexSetDef, ParameterDef};
+    let size = Id::new();
+    let set = Id::new();
+    let selected = Id::new();
+    let integer = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+    let original = nominal_program(
+        vec![
+            ParameterDef::new(
+                size,
+                ValueLiteral::from_integer(integer.clone(), 3).unwrap(),
+            )
+            .into(),
+            IndexSetDef::new(set, 3).unwrap().into(),
+            ParameterDef::new(
+                selected,
+                ValueLiteral::from_integer(ValueType::index(set, 3).unwrap(), 2).unwrap(),
+            )
+            .into(),
+        ],
+        vec![(set.erase(), size.erase(), EdgeKind::DependsOn)],
+    )
+    .unwrap();
+    let bytes = ModelEnvelope::from_program(&original)
+        .unwrap()
+        .canonical_json()
+        .unwrap();
+    let decoded = ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default()).unwrap();
+    assert_eq!(decoded.to_program().unwrap(), original);
+    let (seed, _) = decoded.to_transaction().unwrap();
+    // Persist the complete seed through the transaction codec too: Model replay
+    // alone does not exercise the transaction's semantic edge endpoint scope.
+    let transaction_bytes = crate::ModelTransactionEnvelope::from_transaction(&seed)
+        .unwrap()
+        .canonical_json()
+        .unwrap();
+    let replayed_seed = crate::ModelTransactionEnvelope::from_json(
+        &transaction_bytes,
+        ModelDecoderLimits::default(),
+    )
+    .unwrap()
+    .to_transaction()
+    .unwrap();
+    assert_eq!(replayed_seed.ops(), seed.ops());
+    let mut store = InMemoryGraphStore::new();
+    store.commit(replayed_seed).unwrap();
+    let snapshot = store.snapshot();
+    let mut edit = Transaction::new("cannot leave stale index extent");
+    edit.push(Op::SetValue {
+        target: size.erase(),
+        value: ValueLiteral::from_integer(integer, 4).unwrap(),
+    });
+    assert!(store.commit(edit).is_err());
+    assert_eq!(store.snapshot().revision(), snapshot.revision());
+    assert_eq!(
+        store.snapshot().node(size.erase()).unwrap().value(),
+        snapshot.node(size.erase()).unwrap().value()
+    );
 }

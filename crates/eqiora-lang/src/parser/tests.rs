@@ -285,10 +285,10 @@ model parallel(port positive: conserving on Pin) {
     let Item::Connection(connection) = &document.models()[0].items()[2] else {
         panic!("third model member is a Connection");
     };
-    assert_eq!(
-        connection.port_paths()[0].segments().collect::<Vec<_>>(),
-        ["r2", "positive"]
-    );
+    let ExprKind::Path(path) = connection.port_expressions()[0].kind() else {
+        panic!("qualified connection endpoint retains its path");
+    };
+    assert_eq!(path.segments().collect::<Vec<_>>(), ["r2", "positive"]);
     let crate::SignatureItem::Port(port) = &document.models()[0].signature()[0] else {
         panic!("public physical endpoint belongs to signature");
     };
@@ -689,7 +689,7 @@ exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
         panic!("third component member is a Port family");
     };
     assert_eq!(port.binder().member(), "boundary");
-    assert_eq!(port.binder().set(), "exterior");
+    assert_eq!(port.binder().set().as_str(), "exterior");
 
     let ComponentItem::RelationFamily(relation) = &component.items()[0] else {
         panic!("fourth component member is a Relation family");
@@ -707,7 +707,10 @@ exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
     let ComponentItem::BoundaryConnection(connection) = &component.items()[1] else {
         panic!("fifth component member is a pointwise conserving Connection");
     };
-    assert_eq!(connection.binder().expect("binder").set(), "exterior");
+    assert_eq!(
+        connection.binder().expect("binder").set().as_str(),
+        "exterior"
+    );
 
     let Item::Instance(instance) = &document.models()[0].items()[0] else {
         panic!("first model member is the component instance");

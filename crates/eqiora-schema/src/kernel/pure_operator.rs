@@ -332,12 +332,6 @@ impl PureValueClass {
     }
 }
 
-/// Value-class declaration for one capture-free formal.
-pub type FormalTypeRule = PureValueClass;
-
-/// Declared result value class, independent of its derived SI dimension.
-pub type ResultTypeRule = PureValueClass;
-
 /// Stable local node ID in one topologically ordered calculus definition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CalculusNodeId(u32);
@@ -409,8 +403,8 @@ impl CalculusNode {
 /// Builder enforcing bounded, topologically ordered calculus definitions.
 #[derive(Debug)]
 pub struct CalculusBuilder {
-    formals: Vec<FormalTypeRule>,
-    result: ResultTypeRule,
+    formals: Vec<PureValueClass>,
+    result: PureValueClass,
     nodes: Vec<CalculusNode>,
     depths: Vec<usize>,
 }
@@ -421,8 +415,8 @@ impl CalculusBuilder {
     /// # Errors
     /// Rejects empty or excessive formal sets and invalid result references.
     pub fn new(
-        formals: impl IntoIterator<Item = FormalTypeRule>,
-        result: ResultTypeRule,
+        formals: impl IntoIterator<Item = PureValueClass>,
+        result: PureValueClass,
     ) -> Result<Self, PureOperatorError> {
         let formals = formals.into_iter().collect::<Vec<_>>();
         if formals.is_empty() || formals.len() > MAX_FORMALS {
@@ -619,8 +613,8 @@ impl fmt::Display for OperatorDefinitionDigest {
 /// One bounded, capture-free, content-addressed operator definition.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PureOperatorDefinition {
-    formals: Vec<FormalTypeRule>,
-    result: ResultTypeRule,
+    formals: Vec<PureValueClass>,
+    result: PureValueClass,
     nodes: Vec<CalculusNode>,
     root: CalculusNodeId,
     dimension: FormalDimensionMonomial,
@@ -641,13 +635,13 @@ impl PureOperatorDefinition {
 
     /// Exact formal rules in slot order.
     #[must_use]
-    pub fn formals(&self) -> &[FormalTypeRule] {
+    pub fn formals(&self) -> &[PureValueClass] {
         &self.formals
     }
 
     /// Exact result-type rule.
     #[must_use]
-    pub const fn result_rule(&self) -> ResultTypeRule {
+    pub const fn result_rule(&self) -> PureValueClass {
         self.result
     }
 
@@ -688,7 +682,9 @@ impl PureOperatorDefinition {
         let mut scalar_domain = eqiora_core::ScalarDomain::Real;
         for (rule, argument) in self.formals.iter().zip(arguments) {
             validate_argument_class(*rule, argument)?;
-            scalar_domain = scalar_domain.common(argument.value_type.scalar_domain());
+            scalar_domain = scalar_domain
+                .common(argument.value_type.scalar_domain())
+                .ok_or(PureOperatorError::FormalTypeMismatch)?;
             let Some(support @ SpatialSupport::Volume { .. }) = argument.support.as_ref() else {
                 return Err(PureOperatorError::FormalTypeMismatch);
             };

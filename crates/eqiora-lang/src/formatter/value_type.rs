@@ -21,7 +21,20 @@ pub(super) fn format_value_type(
     output: &mut crate::formatter::comments::Output,
 ) {
     match value.kind() {
+        ValueTypeSyntaxKind::Coordinates(name) => {
+            write!(output, "coordinates<integer, {name}>").expect("String write");
+        }
+        ValueTypeSyntaxKind::Counts(name) => {
+            write!(output, "counts<{name}>").expect("String write");
+        }
+        ValueTypeSyntaxKind::Index(name) => {
+            write!(output, "index<{name}>").expect("String write");
+        }
         ValueTypeSyntaxKind::Scalar { domain, dimension } => {
+            if *domain == ScalarDomain::Integer {
+                output.push_str("integer");
+                return;
+            }
             if *domain == ScalarDomain::Complex {
                 output.push_str("complex<");
             }

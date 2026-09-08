@@ -11,15 +11,32 @@ impl SourceAstFactory {
         range: TextRange,
     ) -> Result<ValueTypeSyntax, AstConstructionError> {
         let result = ValueTypeSyntax {
-            kind,
+            resolved_nominal: None,
+            kind: Box::new(kind),
             range: checked_range(range)?,
         };
         let mut current = &result;
         let mut count = 1_u64;
         for _ in 0..256 {
             let (element, extents) = match current.kind() {
-                ValueTypeSyntaxKind::Scalar { dimension, .. } => {
+                ValueTypeSyntaxKind::Coordinates(name)
+                | ValueTypeSyntaxKind::Counts(name)
+                | ValueTypeSyntaxKind::Index(name) => {
+                    super::validate_name_path(name)?;
+                    if count != 1 {
+                        return Err(AstConstructionError::new(
+                            "nominal discrete types do not admit outer arrays or spatial axes",
+                        ));
+                    }
+                    return Ok(result);
+                }
+                ValueTypeSyntaxKind::Scalar { dimension, domain } => {
                     validate_expression(dimension)?;
+                    if *domain == eqiora_core::ScalarDomain::Integer
+                        && !matches!(dimension.kind(), crate::ExprKind::Number(value) if value.to_i64().ok() == Some(1))
+                    {
+                        return Err(AstConstructionError::new("integer type is dimensionless"));
+                    }
                     return Ok(result);
                 }
                 ValueTypeSyntaxKind::Vector { scalar, extent } => {
@@ -82,7 +99,7 @@ mod tests {
         )
         .array(3)
         .unwrap();
-        let value_type = ValueTypeSyntax::from_checked(&checked).unwrap();
+        let value_type = ValueTypeSyntax::from_checked(&checked, |_| None).unwrap();
         let declaration = SourceAstFactory::component_parameter(
             crate::VisibilitySyntax::Public,
             "channels",
@@ -109,7 +126,11 @@ mod tests {
     #[test]
     fn native_array_nesting_stops_at_the_source_depth_limit() {
         let range = TextRange::new(0, 0);
-        let dimension = SourceAstFactory::expression(ExprKind::Number(1.0), range).unwrap();
+        let dimension = SourceAstFactory::expression(
+            ExprKind::Number(crate::DecimalLiteral::parse("1.0").expect("exact literal")),
+            range,
+        )
+        .unwrap();
         let mut value = ValueTypeSyntax::real(dimension);
         for _ in 0..255 {
             value = SourceAstFactory::value_type(
@@ -163,7 +184,11 @@ mod tests {
         let parameter = SourceAstFactory::parameter(
             "channels",
             array,
-            SourceAstFactory::expression(ExprKind::Number(0.0), range).unwrap(),
+            SourceAstFactory::expression(
+                ExprKind::Number(crate::DecimalLiteral::parse("0.0").expect("exact literal")),
+                range,
+            )
+            .unwrap(),
             range,
         )
         .unwrap();
