@@ -19,7 +19,7 @@ impl ParameterDecl {
 
     /// Returns the declared dimension expression.
     #[must_use]
-    pub fn dimension(&self) -> &Expr {
+    pub fn dimension(&self) -> Option<&Expr> {
         self.value_type.dimension()
     }
 

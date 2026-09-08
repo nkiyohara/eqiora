@@ -13,6 +13,8 @@ pub struct ValueTypeSyntax {
 /// Closed mathematical type constructors. Arrays retain their element type.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ValueTypeSyntaxKind {
+    /// Unresolved type or dimension name, classified only by lexical resolution.
+    Named(super::NamePath),
     /// Integer coordinates in an exact declared atomic finite space.
     Coordinates(super::NamePath),
     /// Nonnegative exact counts indexed by an exact atomic finite space.
@@ -73,12 +75,13 @@ impl ValueTypeSyntax {
 
     /// Physical dimension of each scalar component.
     #[must_use]
-    pub fn dimension(&self) -> &Expr {
+    pub fn dimension(&self) -> Option<&Expr> {
         match self.kind.as_ref() {
+            ValueTypeSyntaxKind::Named(_) => None,
             ValueTypeSyntaxKind::Coordinates(_)
             | ValueTypeSyntaxKind::Counts(_)
-            | ValueTypeSyntaxKind::Index(_) => dimensionless_syntax(),
-            ValueTypeSyntaxKind::Scalar { dimension, .. } => dimension,
+            | ValueTypeSyntaxKind::Index(_) => Some(dimensionless_syntax()),
+            ValueTypeSyntaxKind::Scalar { dimension, .. } => Some(dimension),
             ValueTypeSyntaxKind::Vector { scalar, .. }
             | ValueTypeSyntaxKind::Tensor { scalar, .. } => scalar.dimension(),
             ValueTypeSyntaxKind::Array { element, .. } => element.dimension(),
@@ -87,12 +90,13 @@ impl ValueTypeSyntax {
 
     /// Mathematical domain of each scalar component.
     #[must_use]
-    pub fn scalar_domain(&self) -> ScalarDomain {
+    pub fn scalar_domain(&self) -> Option<ScalarDomain> {
         match self.kind.as_ref() {
+            ValueTypeSyntaxKind::Named(_) => None,
             ValueTypeSyntaxKind::Coordinates(_)
             | ValueTypeSyntaxKind::Counts(_)
-            | ValueTypeSyntaxKind::Index(_) => ScalarDomain::Integer,
-            ValueTypeSyntaxKind::Scalar { domain, .. } => *domain,
+            | ValueTypeSyntaxKind::Index(_) => Some(ScalarDomain::Integer),
+            ValueTypeSyntaxKind::Scalar { domain, .. } => Some(*domain),
             ValueTypeSyntaxKind::Vector { scalar, .. }
             | ValueTypeSyntaxKind::Tensor { scalar, .. } => scalar.scalar_domain(),
             ValueTypeSyntaxKind::Array { element, .. } => element.scalar_domain(),
@@ -122,7 +126,8 @@ impl ValueTypeSyntax {
             ValueTypeSyntaxKind::Vector { scalar, .. }
             | ValueTypeSyntaxKind::Tensor { scalar, .. } => scalar.rewrite_dimension(rewrite),
             ValueTypeSyntaxKind::Array { element, .. } => element.rewrite_dimension(rewrite),
-            ValueTypeSyntaxKind::Coordinates(_)
+            ValueTypeSyntaxKind::Named(_)
+            | ValueTypeSyntaxKind::Coordinates(_)
             | ValueTypeSyntaxKind::Counts(_)
             | ValueTypeSyntaxKind::Index(_) => {}
         }

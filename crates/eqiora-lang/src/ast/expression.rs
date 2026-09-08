@@ -222,6 +222,13 @@ pub enum ExprKind {
         /// Right operand.
         right: Box<Expr>,
     },
+    /// Exhaustive value selection over one nominal enumeration.
+    Case {
+        /// Value whose exact enum determines the required patterns.
+        value: Box<Expr>,
+        /// Authored-order explicit tag arms; no wildcard or pattern binding.
+        arms: Vec<CaseArm>,
+    },
     /// Lazy value selection; both branches remain authored expressions.
     Select {
         /// Boolean scalar predicate.
