@@ -335,7 +335,8 @@ mod tests {
             panic!("one Parameter declaration");
         };
         crate::value_types::lower_value_type::<()>("dimension.eqi", parameter.value_type(), None)
-            .expect("dimension lowers").dimension()
+            .expect("dimension lowers")
+            .dimension()
     }
 
     #[test]

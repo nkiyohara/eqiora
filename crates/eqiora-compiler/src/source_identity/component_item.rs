@@ -160,7 +160,8 @@ mod tests {
         let component =
             SourceAstFactory::component(VisibilitySyntax::Private, "C", Vec::new(), aliases, range)
                 .unwrap();
-        let factory = SourceAstFactory::document(Vec::new(), vec![], vec![component], vec![]).unwrap();
+        let factory =
+            SourceAstFactory::document(Vec::new(), vec![], vec![component], vec![]).unwrap();
         assert_eq!(
             expected,
             LocalSourceIdentity::from_document(&factory).unwrap()

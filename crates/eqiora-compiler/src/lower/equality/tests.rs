@@ -9,8 +9,10 @@ use eqiora_schema::kernel::{ExprNode, KernelNode};
 
 #[test]
 fn contextual_zero_adopts_complete_type_but_explicit_zero_never_does() {
-    let complex = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS).expect("admitted numeric scalar type");
-    let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).expect("admitted numeric scalar type");
+    let complex = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+        .expect("admitted numeric scalar type");
+    let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+        .expect("admitted numeric scalar type");
     let array = complex.clone().array(2).unwrap();
     let support = Some(typing::SpatialSupport::Volume {
         domain: "body",
@@ -55,14 +57,16 @@ fn explicit_complex_rhs_zero_keeps_its_type_in_the_equation_sides() {
     let range = eqiora_lang::TextRange::new(0, 1);
     let right = LoweringExpression::literal(
         ValueLiteral::from_real(
-            ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS).expect("admitted numeric scalar type"),
+            ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+                .expect("admitted numeric scalar type"),
             -0.0,
         )
         .unwrap(),
         range,
     );
     let value_type = eqiora_lang::ValueTypeSyntax::from_checked(
-        &ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).expect("admitted numeric scalar type"),
+        &ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            .expect("admitted numeric scalar type"),
         |_| None,
     )
     .unwrap();

@@ -24,7 +24,8 @@ impl ExpressionLowerer<'_> {
                             eqiora_core::ValueType::scalar(
                                 eqiora_core::ScalarDomain::Real,
                                 dimension,
-                            ).expect("admitted numeric scalar type"),
+                            )
+                            .expect("admitted numeric scalar type"),
                             f64::from(value),
                         )
                         .expect("small exact real coefficient"),

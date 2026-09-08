@@ -1,6 +1,6 @@
 mod aliases;
-mod integer;
 mod enumeration;
+mod integer;
 mod reductions;
 mod transitions;
 pub(in crate::hierarchy) use aliases::DependencyActivation;
@@ -328,7 +328,8 @@ impl ExpressionChecker<'_, '_, '_> {
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Complex,
                     DimExponents::DIMENSIONLESS,
-                ).expect("admitted numeric scalar type"),
+                )
+                .expect("admitted numeric scalar type"),
                 None,
             )),
             ExprKind::Call { callee, .. } if callee.as_str() == "tensor_value" => {
@@ -355,7 +356,7 @@ impl ExpressionChecker<'_, '_, '_> {
                 ExpressionType::complex(self.check(real)?, self.check(imag)?)
                     .map_err(|error| type_error(self.scope.file, expression, error))
             }
-            ExprKind::Case { value, arms } => self.check_case(expression,value,arms,None),
+            ExprKind::Case { value, arms } => self.check_case(expression, value, arms, None),
             ExprKind::Select {
                 condition,
                 then_value,
@@ -662,7 +663,8 @@ impl ExpressionChecker<'_, '_, '_> {
                 ));
             }
             return Ok(ExpressionType::new(
-                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, time_dimension()).expect("admitted numeric scalar type"),
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, time_dimension())
+                    .expect("admitted numeric scalar type"),
                 None,
             ));
         }

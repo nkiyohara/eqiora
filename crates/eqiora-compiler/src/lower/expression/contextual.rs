@@ -299,7 +299,8 @@ fn literal(
 ) -> Result<LoweringExpression, Diagnostic> {
     let literal = if expected == Some(ScalarDomain::Integer) {
         ValueLiteral::from_integer(
-            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS).expect("admitted numeric scalar type"),
+            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                .expect("admitted numeric scalar type"),
             value.to_i64().map_err(|error| {
                 source_error(
                     codes::LANGUAGE_TYPE_ERROR,
@@ -311,7 +312,8 @@ fn literal(
         )
     } else {
         ValueLiteral::from_real(
-            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).expect("admitted numeric scalar type"),
+            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                .expect("admitted numeric scalar type"),
             value.to_f64().map_err(|error| {
                 source_error(
                     codes::LANGUAGE_TYPE_ERROR,

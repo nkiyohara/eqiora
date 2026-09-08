@@ -47,17 +47,18 @@ pub(crate) fn lower_value_type<I>(
             ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 lower_dimension(file, &expression)?,
-            ).map_err(|error| invalid(error.to_string()))
+            )
+            .map_err(|error| invalid(error.to_string()))
         }
         ValueTypeSyntaxKind::Coordinates(_)
         | ValueTypeSyntaxKind::Counts(_)
         | ValueTypeSyntaxKind::Index(_) => syntax.resolved_nominal().cloned().ok_or_else(|| {
             invalid("nominal value type requires its exact lexical declaration binding".into())
         }),
-        ValueTypeSyntaxKind::Scalar { domain, dimension } => ValueType::scalar(
-            *domain,
-            lower_dimension(file, dimension)?,
-        ).map_err(|error| invalid(error.to_string())),
+        ValueTypeSyntaxKind::Scalar { domain, dimension } => {
+            ValueType::scalar(*domain, lower_dimension(file, dimension)?)
+                .map_err(|error| invalid(error.to_string()))
+        }
         ValueTypeSyntaxKind::Array { element, extent } => lower_value_type(file, element, support)?
             .array(*extent)
             .map_err(|error| invalid(error.to_string())),

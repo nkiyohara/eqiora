@@ -329,9 +329,14 @@ fn validate_instance(
             ));
             continue;
         }
-        let quantity =
-            SourceAstFactory::value_literal(&release.value, None, binding_range, |_| None, |_| None)
-                .expect("validated property value and source range");
+        let quantity = SourceAstFactory::value_literal(
+            &release.value,
+            None,
+            binding_range,
+            |_| None,
+            |_| None,
+        )
+        .expect("validated property value and source range");
         values.insert(path.to_string(), quantity);
         projections.push(ResolvedPropertyBinding {
             composition: composition_key.as_ref().map(qualified),
@@ -413,7 +418,8 @@ fn constant(file: &str, expression: &Expr) -> Result<f64, Diagnostic> {
         eqiora_core::ValueType::scalar(
             eqiora_core::ScalarDomain::Real,
             eqiora_core::DimExponents::DIMENSIONLESS,
-        ).expect("admitted numeric scalar type"),
+        )
+        .expect("admitted numeric scalar type"),
     )?
     .real_scalar_value()
     .map(|value| value.value())

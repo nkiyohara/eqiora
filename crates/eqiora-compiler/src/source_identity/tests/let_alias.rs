@@ -202,7 +202,8 @@ fn negative_dimensioned_constructor_values_match_native_and_formatted_identity()
     use eqiora_core::{DimExponents, ScalarDomain, ValueLiteral, ValueType};
     use eqiora_lang::{Item, SourceAstFactory, TextRange, VisibilitySyntax};
     let dimension = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
-    let complex = ValueType::scalar(ScalarDomain::Complex, dimension).expect("admitted numeric scalar type");
+    let complex =
+        ValueType::scalar(ScalarDomain::Complex, dimension).expect("admitted numeric scalar type");
     for (value, initializer, annotation) in [
         (
             ValueLiteral::new(complex.clone(), [(1.0, -2.0)]).unwrap(),
@@ -223,7 +224,8 @@ fn negative_dimensioned_constructor_values_match_native_and_formatted_identity()
             panic!("parameter")
         };
         let range = TextRange::new(0, 0);
-        let expression = SourceAstFactory::value_literal(&value, None, range, |_| None, |_| None).unwrap();
+        let expression =
+            SourceAstFactory::value_literal(&value, None, range, |_| None, |_| None).unwrap();
         let parameter =
             SourceAstFactory::parameter("p", parameter.value_type().clone(), expression, range)
                 .unwrap();

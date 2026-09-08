@@ -406,8 +406,7 @@ fn semantic_structure_and_exact_values_change_identity() {
 fn canonical_identity_is_structural_not_algebraic_equivalence() {
     let folded = "model m() { parameter p: 1 = 2; relation r { p + 2 = 0; } }";
     let unfolded = "model m() { parameter p: 1 = 2; relation r { p + (1 + 1) = 0; } }";
-    let multiplied_dimension =
-        "model m() { parameter area: m * m = 1; relation r { area = 0; } }";
+    let multiplied_dimension = "model m() { parameter area: m * m = 1; relation r { area = 0; } }";
     let powered_dimension = "model m() { parameter area: m ^ 2 = 1; relation r { area = 0; } }";
 
     assert_ne!(identity(folded), identity(unfolded));
@@ -422,7 +421,8 @@ fn interface_visibility_defaults_ports_bindings_and_domains_are_semantic() {
         "component C(input s: 1) { parameter p: 1 = 2;  } model m() { instance x: C(p = 2); }";
     let required =
         "component C(parameter p: 1, input s: 1) {   } model m() { instance x: C(p = 2); }";
-    let output_port = "component C(parameter p: 1 = 2, output s: 1) {   } model m() { instance x: C(p = 2); }";
+    let output_port =
+        "component C(parameter p: 1 = 2, output s: 1) {   } model m() { instance x: C(p = 2); }";
     let changed_binding =
         "component C(parameter p: 1 = 2, input s: 1) {   } model m() { instance x: C(p = 3); }";
     assert_ne!(identity(public_default), identity(private_default));
@@ -440,8 +440,10 @@ fn package_visibility_is_semantic_and_private_is_the_canonical_default() {
     let private =
         "connector Pin = scalar_physical(across = 1, through = A); component Resistor() {}";
     let explicit_private = "private component Resistor() {} private connector Pin = scalar_physical(across = 1, through = A);";
-    let public_connector = "component Resistor() {} public connector Pin = scalar_physical(across = 1, through = A);";
-    let public_component = "public component Resistor() {} connector Pin = scalar_physical(across = 1, through = A);";
+    let public_connector =
+        "component Resistor() {} public connector Pin = scalar_physical(across = 1, through = A);";
+    let public_component =
+        "public component Resistor() {} connector Pin = scalar_physical(across = 1, through = A);";
 
     assert_eq!(identity(private), identity(explicit_private));
     assert_ne!(identity(private), identity(public_connector));
@@ -526,9 +528,7 @@ fn resource_limits_fail_closed() {
         max_expression_nodes: 1,
         ..LocalSourceIdentityLimits::default()
     };
-    assert!(
-        LocalSourceIdentity::from_document_with_limits(&base_document, expressions).is_err()
-    );
+    assert!(LocalSourceIdentity::from_document_with_limits(&base_document, expressions).is_err());
 
     let bytes = LocalSourceIdentityLimits {
         max_canonical_bytes: 8,
@@ -540,9 +540,7 @@ fn resource_limits_fail_closed() {
         max_intermediate_bytes: 1,
         ..LocalSourceIdentityLimits::default()
     };
-    assert!(
-        LocalSourceIdentity::from_document_with_limits(&base_document, intermediate).is_err()
-    );
+    assert!(LocalSourceIdentity::from_document_with_limits(&base_document, intermediate).is_err());
 
     let mixed_bindings = document(
         "component C(support d: volume(ambient_dimension = 1), parameter p: 1) {   } \

@@ -27,7 +27,8 @@ pub(in crate::lower) fn from_source(expression: &Expr) -> LoweringExpression {
                     eqiora_core::ValueType::scalar(
                         eqiora_core::ScalarDomain::Complex,
                         DimExponents::DIMENSIONLESS,
-                    ).expect("admitted numeric scalar type"),
+                    )
+                    .expect("admitted numeric scalar type"),
                     [(0.0, 1.0)],
                 )
                 .expect("imaginary unit"),

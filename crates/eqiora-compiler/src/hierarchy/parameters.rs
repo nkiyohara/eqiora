@@ -749,9 +749,14 @@ fn combine_types(
         _ => unreachable!("predicate operator"),
     };
     let projected = |value: &EvaluatedType, dimension| {
-        value.value_type().clone().with_dimension(dimension)
+        value
+            .value_type()
+            .clone()
+            .with_dimension(dimension)
             .map(|value| ExpressionType::<()>::new(value, None))
-            .map_err(|error| source_error(codes::LANGUAGE_TYPE_ERROR, file, range, error.to_string()))
+            .map_err(|error| {
+                source_error(codes::LANGUAGE_TYPE_ERROR, file, range, error.to_string())
+            })
     };
     let fallback = DimExponents::DIMENSIONLESS;
     let result = match operator {
@@ -809,7 +814,12 @@ fn combine_types(
             if dimension_known {
                 EvaluatedType::Known(value.value_type)
             } else {
-                EvaluatedType::Deferred(value.value_type.with_dimension(fallback).expect("dimensionless projection of checked arithmetic type"))
+                EvaluatedType::Deferred(
+                    value
+                        .value_type
+                        .with_dimension(fallback)
+                        .expect("dimensionless projection of checked arithmetic type"),
+                )
             }
         })
         .map_err(|error| {
