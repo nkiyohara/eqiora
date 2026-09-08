@@ -489,6 +489,7 @@ fn count_expression_terms(
     while let Some(expression) = pending.pop() {
         increment_parameter_terms(terms, 1, elaborator)?;
         match expression.kind() {
+            ExprKind::Reduction { value, .. } => pending.push(value),
             ExprKind::Array(elements) => pending.extend(elements),
             ExprKind::Index { value, index } => pending.extend([value.as_ref(), index.as_ref()]),
             ExprKind::Unary { value, .. } => pending.push(value),

@@ -12,7 +12,7 @@ pub(in crate::hierarchy) enum DependencyActivation {
 }
 
 impl DependencyActivation {
-    fn join(self, other: Self) -> Self {
+    pub(in crate::hierarchy) fn join(self, other: Self) -> Self {
         match (self, other) {
             (Self::Static, value) | (value, Self::Static) => value,
             (left, right) if left == right => left,
@@ -49,6 +49,22 @@ impl DependencyActivation {
         Self::infer_with(
             expression,
             |expression| match expression.kind() {
+                ExprKind::Reduction { binder, value, .. } => {
+                    let extent = scope
+                        .index_sets
+                        .get(binder.set().as_str())
+                        .copied()
+                        .flatten()?;
+                    let mut profile = Self::Static;
+                    for ordinal in 0..extent {
+                        let term = crate::hierarchy::reductions::instantiate(
+                            scope.file, value, binder, ordinal,
+                        )
+                        .ok()?;
+                        profile = profile.join(Self::infer(scope, &term));
+                    }
+                    Some(profile)
+                }
                 ExprKind::Name(name) => scope.symbols.get(name).map(Self::symbol),
                 ExprKind::Path(path) => scope.resolve_symbol(path).ok().as_ref().map(Self::symbol),
                 ExprKind::Member { .. } => scope
@@ -77,6 +93,7 @@ impl DependencyActivation {
                     symbol(expression).unwrap_or(Self::Static)
                 }
                 ExprKind::BoundaryPortSelection { .. } => Self::Continuous,
+                ExprKind::Reduction { .. } => symbol(expression).unwrap_or(Self::Mixed),
                 ExprKind::Array(elements) => {
                     pending.extend(elements);
                     Self::Static

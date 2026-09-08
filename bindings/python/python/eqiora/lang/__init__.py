@@ -6,7 +6,7 @@ lowerer, and compiler remain the sole authority for mathematical meaning.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from fractions import Fraction
 from decimal import Decimal, Context, DecimalException, Inexact, Rounded, Overflow, InvalidOperation, MAX_EMAX, MIN_EMIN
 import math as _stdlib_math
@@ -144,7 +144,7 @@ class MaterialComposition:
 class Expression:
     """A closed Eqiora Language expression; equality is not an equation builder."""
 
-    __slots__ = ("_depth", "_nodes", "_owner", "_precedence", "_text")
+    __slots__ = ("_depth", "_nodes", "_owner", "_precedence", "_text", "_binders")
 
     def __init__(
         self,
@@ -154,6 +154,7 @@ class Expression:
         _depth: int = 0,
         _nodes: int = 0,
         _precedence: int = 0,
+        *, _binders: frozenset[object] = frozenset(),
     ) -> None:
         if _token is not _CREATE:
             raise TypeError(
@@ -167,6 +168,7 @@ class Expression:
             raise SourceError(
                 f"expression exceeds the {_MAX_EXPRESSION_NODES}-node limit"
             )
+        object.__setattr__(self, "_binders", _binders)
         object.__setattr__(self, "_text", _text)
         object.__setattr__(self, "_owner", _owner)
         object.__setattr__(self, "_depth", _depth)
@@ -213,9 +215,18 @@ class Expression:
             self._depth + 1,
             self._nodes + 1,
             30,
+            _binders=self._binders,
         )
 
-    def __getitem__(self, index: int) -> Expression:
+    def __getitem__(self, index: int | Expression) -> Expression:
+        if isinstance(index, Expression):
+            if not index._binders:
+                raise SourceError("symbolic indices require a finite reduction binder")
+            value = f"({self._text})" if self._precedence < 100 else self._text
+            return Expression(_CREATE, f"{value}[{index._text}]", _owner(self, index),
+                              max(self._depth, index._depth) + 1,
+                              self._nodes + index._nodes + 1, 100,
+                              _binders=self._binders | index._binders)
         if isinstance(index, bool) or not isinstance(index, int):
             raise TypeError("expression indices must be nonnegative integers")
         if index < 0:
@@ -223,7 +234,7 @@ class Expression:
         text = _number(index)
         value = f"({self._text})" if self._precedence < 100 else self._text
         return Expression(_CREATE, f"{value}[{text}]", self._owner,
-                          self._depth + 1, self._nodes + 2, 100)
+                          self._depth + 1, self._nodes + 2, 100, _binders=self._binders)
 
     def __bool__(self) -> bool:
         raise TypeError("symbolic Eqiora expressions have no truth value; use explicit predicates")
@@ -237,6 +248,7 @@ class Expression:
             self._depth + 1,
             self._nodes + 1,
             25,
+            _binders=self._binders,
         )
 
 
@@ -250,7 +262,7 @@ class _Math:
         left, right = _expression(real), _expression(imaginary)
         return Expression(_CREATE, f"math.complex({left._text}, {right._text})",
                           _owner(left, right), max(left._depth, right._depth) + 1,
-                          left._nodes + right._nodes + 1, 100)
+                          left._nodes + right._nodes + 1, 100, _binders=left._binders | right._binders)
 
     @staticmethod
     def sin(value: object) -> Expression:
@@ -412,7 +424,7 @@ def tensor_value(*, frame: Support, components: Sequence[object] | Expression) -
         raise SourceError("tensor_value components and frame must belong to the same Component")
     return Expression(_CREATE,
                       f"tensor_value(frame = {frame._name}, components = {value._text})",
-                      frame._component, value._depth + 1, value._nodes + 2, 100)
+                      frame._component, value._depth + 1, value._nodes + 2, 100, _binders=value._binders)
 
 
 def array(values: Sequence[object]) -> Expression:
@@ -439,7 +451,7 @@ def array(values: Sequence[object]) -> Expression:
                 raise SourceError("array expression exceeds the 4096-node limit")
             expressions.append(value)
         return Expression(_CREATE, "[" + ", ".join(value._text for value in expressions) + "]",
-                          owner, max(value._depth for value in expressions) + 1, nodes, 100)
+                          owner, max(value._depth for value in expressions) + 1, nodes, 100, _binders=frozenset().union(*(value._binders for value in expressions)))
     return build(values, 1)
 
 
@@ -521,14 +533,14 @@ def _binary(left: object, operator: str, right: object) -> Expression:
         max(left_expr._depth, right_expr._depth) + 1,
         left_expr._nodes + right_expr._nodes + 1,
         precedence,
-    )
+        _binders=left_expr._binders | right_expr._binders)
 
 
 def _predicate(left: object, operator: str, right: object) -> Expression:
     left, right = _expression(left), _expression(right)
     return Expression(_CREATE, f"({left._text}) {operator} ({right._text})",
                       _owner(left, right), max(left._depth, right._depth) + 1,
-                      left._nodes + right._nodes + 1, 1)
+                      left._nodes + right._nodes + 1, 1, _binders=left._binders | right._binders)
 
 
 def equal(left: object, right: object) -> Expression:
@@ -575,7 +587,7 @@ def logical_not(value: object) -> Expression:
     """Author logical negation without evaluating Python truthiness."""
     value = _expression(value)
     return Expression(_CREATE, f"not ({value._text})", value._owner,
-                      value._depth + 1, value._nodes + 1, 1)
+                      value._depth + 1, value._nodes + 1, 1, _binders=value._binders)
 
 
 def _unary(name: str, value: object) -> Expression:
@@ -587,7 +599,7 @@ def _unary(name: str, value: object) -> Expression:
         expression._depth + 1,
         expression._nodes + 1,
         100,
-    )
+        _binders=expression._binders)
 
 
 def coordinate(axis: int) -> Expression:
@@ -618,7 +630,7 @@ def _binary_function(name: str, left: object, right: object) -> Expression:
         max(left_expression._depth, right_expression._depth) + 1,
         left_expression._nodes + right_expression._nodes + 1,
         100,
-    )
+        _binders=left_expression._binders | right_expression._binders)
 
 
 def dot(left: object, right: object) -> Expression:
@@ -663,7 +675,7 @@ def integrate(domain: Support, integrand: object) -> Expression:
         expression._depth + 1,
         expression._nodes + 1,
         100,
-    )
+        _binders=expression._binders)
 
 
 def div(value: object) -> Expression:
@@ -763,6 +775,8 @@ class Component:
         "_clocks",
         "_initials",
         "_index_sets",
+        "_active_binders",
+        "_reduction_names",
         "_component_token",
         "_declaration_count",
         "_doc",
@@ -800,6 +814,8 @@ class Component:
         self._doc = (
             _doc_value if isinstance(_doc_value, tuple) else _doc(_doc_value)
         )
+        self._active_binders: dict[object, str] = {}
+        self._reduction_names: set[str] = set()
         self._names: set[str] = set()
         self._supports: list[tuple[Support, str, object, tuple[str, ...]]] = []
         self._clocks: list[tuple[Clock, Fraction | None, Fraction | None, tuple[str, ...]]] = []
@@ -834,7 +850,7 @@ class Component:
         if value._owner is not None and value._owner is not self._component_token:
             raise SourceError("nominal value components must belong to this Component")
         return Expression(_CREATE, f"{function}({name}, {value._text})", self._component_token,
-                          value._depth + 1, value._nodes + 2, 100)
+                          value._depth + 1, value._nodes + 2, 100, _binders=value._binders)
 
     def counts(self, space: FiniteSpace, components: Sequence[object]) -> Expression:
         """Construct nonnegative counts in an exact basis registered by this Source."""
@@ -863,9 +879,59 @@ class Component:
         self._index_sets.append((value, doc_lines))
         return value
 
+    def sum(self, body: Callable[[Expression], object], *, over: IndexSet, name: str = "i") -> Expression:
+        """Construct a finite sum; call body once with an exact scoped index."""
+        return self._reduction("sum", body, over, name)
+
+    def product(self, body: Callable[[Expression], object], *, over: IndexSet, name: str = "i") -> Expression:
+        """Construct a finite product; the compiler checks element types and units."""
+        return self._reduction("product", body, over, name)
+
+    def _reduction(self, operation: str, body: Callable[[Expression], object],
+                   over: IndexSet, name: str) -> Expression:
+        self._source._ensure_open()
+        if not isinstance(over, IndexSet) or not any(over == item for item, _ in self._index_sets):
+            raise SourceError("reduction index set must belong to this Component")
+        name = _name(name)
+        if name in self._names or name in self._source._top_names or name in self._active_binders.values():
+            raise SourceError("reduction binder must not capture an existing name")
+        if not callable(body):
+            raise TypeError("reduction body must be callable")
+        if len(self._active_binders) >= _MAX_EXPRESSION_DEPTH:
+            raise SourceError("reduction nesting exceeds the expression depth limit")
+        if name not in self._reduction_names and len(self._reduction_names) >= _MAX_EXPRESSION_NODES:
+            raise SourceError("reduction names exceed the expression node limit")
+        token = object()
+        self._active_binders[token] = name
+        try:
+            index = Expression(_CREATE, name, self._component_token, 1, 1, 100,
+                               _binders=frozenset((token,)))
+            value = _expression(body(index))
+            if value._owner is not None and value._owner is not self._component_token:
+                raise SourceError("reduction body must belong to this Component")
+            if not value._binders <= self._active_binders.keys():
+                raise SourceError("reduction body contains an escaped binder")
+            result = Expression(_CREATE, f"{operation}({value._text}, over = ({name} in {over.name}))",
+                                self._component_token, value._depth + 1, value._nodes + 2, 100,
+                                _binders=value._binders - {token})
+        finally:
+            del self._active_binders[token]
+        self._reduction_names.add(name)
+        return result
+
+    def _closed_expression(self, value: Expression) -> None:
+        if self._active_binders:
+            raise SourceError("reduction callbacks construct expressions, not declarations")
+        if value._binders:
+            raise SourceError("declaration expression contains a free reduction binder")
+
     def _add_name(self, name: object) -> str:
         self._source._ensure_open()
         admitted = _name(name)
+        if self._active_binders:
+            raise SourceError("reduction callbacks construct expressions, not declarations")
+        if admitted in self._reduction_names:
+            raise SourceError("declaration name would capture a reduction binder")
         if admitted in self._names:
             raise SourceError(f"duplicate declaration name {admitted!r}")
         if self._declaration_count >= _MAX_DECLARATIONS:
@@ -921,6 +987,8 @@ class Component:
             raise TypeError("each initial equation requires two explicit sides")
         pairs = tuple((_expression(left), _expression(right)) for left, right in pairs)
         expressions = tuple(value for pair in pairs for value in pair)
+        for value in expressions:
+            self._closed_expression(value)
         if any(value._owner is not None and value._owner is not self._component_token for value in expressions):
             raise SourceError("initial expressions must belong to this Component")
         total_nodes = sum(value._nodes for equations, _ in self._initials for pair in equations for value in pair)
@@ -991,6 +1059,7 @@ class Component:
         if not isinstance(parameter, _Parameter) or parameter not in self._requirements:
             raise SourceError("default target must be this Component's Parameter requirement")
         expression = _expression(value)
+        self._closed_expression(expression)
         if expression._owner is not None and expression._owner is not self._component_token:
             raise SourceError("Parameter defaults must belong to this Component")
         total = expression._nodes + sum(value._nodes for target, value in self._defaults.items() if target is not parameter)
@@ -1035,6 +1104,7 @@ class Component:
         trace, or normal aliases are not admitted.
         """
         value = _expression(expression)
+        self._closed_expression(value)
         if value._owner is not None and value._owner is not self._component_token:
             raise SourceError("alias expressions must belong to this Component")
         if value_type is not None and not isinstance(value_type, ValueType):
@@ -1130,6 +1200,7 @@ class Component:
         on = None if on is None else self._support(on)
         def admit(value: Expression | int | float | complex) -> Expression:
             expression = _expression(value)
+            self._closed_expression(expression)
             if expression._owner is None:
                 return Expression(
                     _CREATE,
@@ -1138,7 +1209,7 @@ class Component:
                     expression._depth,
                     expression._nodes,
                     expression._precedence,
-                )
+                    _binders=expression._binders)
             if expression._owner is not self._component_token:
                 raise SourceError("relation expressions must belong to this Component")
             return expression
@@ -1183,6 +1254,7 @@ class Component:
         left_expression = _expression(left)
         right_expression = _expression(right)
         for expression in (left_expression, right_expression):
+            self._closed_expression(expression)
             if expression._owner is not self._component_token:
                 raise SourceError("form expressions must belong to this Component")
         if self._formulations:
@@ -1237,6 +1309,7 @@ class Component:
                 expression = value._name
             elif component._causal.get(target) == "input":
                 value = _expression(value)
+                self._closed_expression(value)
                 if value._owner is not None and value._owner is not self._component_token:
                     raise SourceError("input bindings must belong to this Component")
                 expression = value._text
@@ -1251,6 +1324,7 @@ class Component:
                 expression = value._name
             else:
                 value = _expression(value)
+                self._closed_expression(value)
                 if value._owner is not None and value._owner is not self._component_token:
                     raise SourceError("instance Parameter values must belong to this Component")
                 expression = value._text
@@ -1412,6 +1486,9 @@ class Source:
 
     def _add_top_name(self, name: object) -> str:
         admitted = _name(name)
+        if any(admitted in component._reduction_names or admitted in component._active_binders.values()
+               for component in self._components):
+            raise SourceError("top-level declaration would capture a reduction binder")
         if admitted in self._top_names:
             raise SourceError(f"duplicate top-level declaration name {admitted!r}")
         if len(self._top_names) >= _MAX_DECLARATIONS:

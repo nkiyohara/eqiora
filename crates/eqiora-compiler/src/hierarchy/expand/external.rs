@@ -12,6 +12,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
     ) -> Result<ExpandedBlueprint, Vec<Diagnostic>> {
         let model = self.model.clone();
         let mut root_scope = Scope::external_root();
+        root_scope.reduction_terms_limit = self.elaborator.limits.max_parameter_terms;
         root_scope.set_pure_operators(self.elaborator.visible_pure_operators(&model.namespace));
         self.allocate_external_clocks(&mut root_scope, clocks)
             .map_err(one_diagnostic)?;

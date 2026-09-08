@@ -248,6 +248,60 @@ impl Parser<'_> {
         Some(result)
     }
 
+    fn parse_reduction(&mut self, path: NamePath) -> Option<(Expr, usize)> {
+        let operation = if path.as_str() == "sum" {
+            crate::ReductionOp::Sum
+        } else {
+            crate::ReductionOp::Product
+        };
+        self.expect(TokenKind::LeftParen, "`(` after reduction operation")?;
+        let (value, child_depth) = self.parse_expression_with_depth(0)?;
+        self.expect(TokenKind::Comma, "`,` before reduction binder")?;
+        if !self.at_keyword("over") {
+            self.error_here("reduction requires `over = (member in IndexSet)`");
+            return None;
+        }
+        self.bump();
+        self.expect(TokenKind::Equal, "`=` after `over`")?;
+        let start = self
+            .expect(TokenKind::LeftParen, "`(` before reduction binder")?
+            .range()
+            .start();
+        let member = self.expect_identifier("reduction member")?;
+        if !self.at_keyword("in") {
+            self.error_here("reduction binder requires `in`");
+            return None;
+        }
+        self.bump();
+        let set = self.parse_name_path("reduction index set")?;
+        let end = self
+            .expect(TokenKind::RightParen, "`)` after reduction binder")?
+            .range()
+            .end();
+        let binder = FamilyBinderSyntax {
+            member: member.text().to_owned(),
+            set,
+            range: TextRange::new(start, end),
+        };
+        let end = self
+            .expect(TokenKind::RightParen, "`)` after reduction")?
+            .range()
+            .end();
+        let depth = self.parent_depth(child_depth)?;
+        Some((
+            Expr {
+                resolved_nominal: None,
+                kind: ExprKind::Reduction {
+                    operation,
+                    binder,
+                    value: Box::new(value),
+                },
+                range: TextRange::new(path.range().start(), end),
+            },
+            depth,
+        ))
+    }
+
     fn parse_named(&mut self) -> Option<(Expr, usize)> {
         let result = {
             let token = self.bump();
@@ -257,6 +311,9 @@ impl Parser<'_> {
             } else {
                 NamePath::single(name, token.range())
             };
+            if self.at(TokenKind::LeftParen) && matches!(path.as_str(), "sum" | "product") {
+                return self.parse_reduction(path);
+            }
             if self.at(TokenKind::LeftParen) {
                 self.bump();
                 let mut arguments = Vec::new();

@@ -105,6 +105,14 @@ pub(super) fn evaluate_mode(
     expected: Option<ScalarDomain>,
     evaluate_values: bool,
 ) -> Result<EvaluatedParameter, Diagnostic> {
+    if matches!(expression.kind(), ExprKind::Reduction { .. }) {
+        return Err(source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            expression.range(),
+            "finite reductions are admitted in Relations and runtime let aliases, not Parameter or extent initializers",
+        ));
+    }
     if let ExpressionContext::IndexedBinding(member) = context
         && let ExprKind::Call { callee, arguments } = expression.kind()
         && callee.as_str() == "ordinal"

@@ -25,6 +25,7 @@ pub(super) use activation::port_activation;
 mod external;
 mod indexed;
 mod lets;
+mod reductions;
 
 #[derive(Debug, Clone)]
 pub(super) struct FlatSymbol {
@@ -96,6 +97,7 @@ impl<'a> ActiveBoundaryMember<'a> {
 
 #[derive(Debug, Default, Clone)]
 pub(super) struct Scope {
+    pub(super) reduction_terms_limit: usize,
     index_sets: BTreeMap<String, indexed::ScopedIndexSet>,
     symbols: BTreeMap<String, FlatSymbol>,
     port_families: BTreeMap<String, BoundaryPortFamilyIndex>,
@@ -501,6 +503,16 @@ pub(super) fn rewrite_equations(
     equations
         .iter()
         .map(|equation| {
+            if scope.reduction_terms_limit > 0 {
+                for value in [equation.left(), equation.right()] {
+                    super::reductions::preflight(
+                        file,
+                        value,
+                        &mut |name| scope.index_set(name).map(|set| set.extent()),
+                        scope.reduction_terms_limit,
+                    )?;
+                }
+            }
             Ok(LoweringEquation::rewritten(
                 equation,
                 rewrite_expression_with_boundary_member(file, equation.left(), scope, active)?,
@@ -523,6 +535,7 @@ pub(super) fn rewrite_expression_with_boundary_member(
         ));
     }
     let lowered = match expression.kind() {
+        ExprKind::Reduction { .. } => return reductions::rewrite(file, expression, scope, active),
         ExprKind::Array(elements) => LoweringExpression::array(
             elements
                 .iter()

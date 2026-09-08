@@ -20,6 +20,14 @@ impl Scope {
         file: &str,
         expression: &Expr,
     ) -> Result<DependencyActivation, Diagnostic> {
+        if self.reduction_terms_limit > 0 {
+            super::super::reductions::preflight(
+                file,
+                expression,
+                &mut |name| self.index_set(name).map(|set| set.extent()),
+                self.reduction_terms_limit,
+            )?;
+        }
         let declared = |activation: &ActivationSyntax| match activation {
             ActivationSyntax::Periodic(clock) => DependencyActivation::Clock(clock.clone()),
             _ => DependencyActivation::Continuous,
@@ -28,6 +36,34 @@ impl Scope {
         let profile = DependencyActivation::infer_with(
             expression,
             |expression| {
+                if let ExprKind::Reduction { binder, value, .. } = expression.kind() {
+                    if let Err(error) = super::super::reductions::preflight(
+                        file,
+                        expression,
+                        &mut |name| self.index_set(name).map(|set| set.extent()),
+                        self.reduction_terms_limit,
+                    ) {
+                        invalid_selection = Some(error);
+                        return None;
+                    }
+                    let Some(set) = self.index_set(binder.set().as_str()) else {
+                        return Some(DependencyActivation::Mixed);
+                    };
+                    let mut profile = DependencyActivation::Static;
+                    for ordinal in 0..set.extent() {
+                        match self
+                            .with_index_member(binder.member(), set, ordinal)
+                            .and_then(|scope| scope.alias_activation(file, value))
+                        {
+                            Ok(term) => profile = profile.join(term),
+                            Err(error) => {
+                                invalid_selection = Some(error);
+                                return None;
+                            }
+                        }
+                    }
+                    return Some(profile);
+                }
                 let symbol = match expression.kind() {
                     ExprKind::Name(name) => {
                         if let Some(value) = self.value_activation(name) {

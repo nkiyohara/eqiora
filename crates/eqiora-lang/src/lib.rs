@@ -27,9 +27,9 @@ pub use ast::{
     FrameSyntax, InitialDecl, InstanceDecl, Item, ModelDecl, NamePath, NamedBindingDecl,
     NamedDefinitionDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorBinaryOp,
     PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal,
-    PureValueClassSyntax, RelationDecl, RelationFamilyDecl, SignalDirectionSyntax, SignatureItem,
-    SupportSlotDecl, SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, ValueTypeSyntax,
-    ValueTypeSyntaxKind, VisibilitySyntax,
+    PureValueClassSyntax, ReductionOp, RelationDecl, RelationFamilyDecl, SignalDirectionSyntax,
+    SignatureItem, SupportSlotDecl, SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax,
+    ValueTypeSyntax, ValueTypeSyntaxKind, VisibilitySyntax,
 };
 pub use cartesian::CartesianCoordinateSyntax;
 pub use decimal::DecimalLiteral;

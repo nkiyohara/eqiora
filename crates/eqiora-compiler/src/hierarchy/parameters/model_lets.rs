@@ -155,6 +155,7 @@ pub(in crate::hierarchy) fn alias_order<'a>(
                     eqiora_lang::ExprKind::Name(n) => {
                         dependencies.entry(n.clone()).or_insert(e.range());
                     }
+                    eqiora_lang::ExprKind::Reduction { value, .. } => pending.push(value),
                     eqiora_lang::ExprKind::Array(elements) => pending.extend(elements),
                     eqiora_lang::ExprKind::Index { value, index } => {
                         pending.extend([value.as_ref(), index.as_ref()])

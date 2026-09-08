@@ -135,7 +135,8 @@ fn local_document_in(
         aliases: &[],
         local_namespace: Some(&module),
     };
-    let elaborator = Elaborator::with_identity(
+    let selected_bound;
+    let mut elaborator = Elaborator::with_identity(
         file,
         source_bytes,
         &units[0].document,
@@ -143,6 +144,31 @@ fn local_document_in(
         native,
         limits,
     )?;
+    if let Some(entry) = entry
+        && !bindings.is_empty()
+        && let Some(model) = elaborator
+            .find_entry_model(entry)
+            .map_err(|message| vec![hierarchy_error(message)])?
+    {
+        let signature = authored_signature(&context, &model.namespace, model.name(), true)
+            .unwrap_or_else(|| model.signature());
+        let prepared = prepare(
+            model.file,
+            model.name(),
+            signature,
+            bindings,
+            |requirement, value| {
+                property(&context, &model.namespace, model.file, requirement, value)
+            },
+        )?;
+        selected_bound = bind_model(model.declaration, &prepared)?;
+        elaborator.bind_selected_model(preflight::ModelDefinition {
+            namespace: model.namespace,
+            file: model.file,
+            owned_interfaces: preflight::owned_model_items(&selected_bound),
+            declaration: &selected_bound,
+        });
+    }
     let checked = check::validate(&elaborator)?;
     let entries = entry.map_or_else(
         || {

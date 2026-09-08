@@ -71,6 +71,48 @@ independent of them. Explicit and indexed
 descriptions can be compared by their mathematical equations
 and occurrence structure; their distinct authored Source is not required to have equal bytes.
 
+### Finite sums and products
+
+A reduction binds one exact finite IndexSet over its expression:
+
+```eqiora
+model Polynomial() {
+  indexset Terms = range(3);
+  variable result: integer;
+  relation value {
+    result = sum((ordinal(i) + 1) * (ordinal(i) + 1), over = (i in Terms));
+  }
+}
+```
+
+The terms are 1, 4 and 9, so the result is 14. `product(expression, over = (i in Terms))`
+uses the same binder grammar. Both expand in ascending ordinal order into a left-associated
+chain of ordinary additions or multiplications. The first term starts the chain; no numeric
+identity is inserted. Extents must be positive, so empty sums and products reject with the
+existing empty-IndexSet policy.
+
+Bodies admit ordinary integer, real and complex scalars. A sum preserves the element's
+unit; a product over `n` equal-dimensional terms multiplies that dimension `n` times.
+For example, three factors of `2 [m]` have product `8 [m^3]`. Boolean, nominal, spatial
+and channel-array results are outside this scalar reduction profile. Complex typing does
+not establish complex numerical execution.
+
+The binder has the exact set's nominal index type. Use `ordinal(i)` for integer arithmetic
+or channel indexing. Nested reductions use distinct lexical binder names and cannot capture
+another declaration. Expansion charges the body size and nested extent products against the
+existing resource bounds before allocation. Ordinary Parameter references remain live expression
+dependencies; structural extent dependencies retain the existing edit restrictions.
+
+Reduction extents must be resolved during definition checking. A selected local Model uses
+its supplied static Parameter bindings before that check. A generic Component with an
+unbound extent cannot yet type a dimensioned reduction result; closed Component extents are
+admitted.
+
+Reductions are admitted in Relations and runtime expression aliases. Parameter defaults and
+IndexSet extent definitions cannot contain reductions in this profile. `min` and `max`,
+runtime-sized reductions, indexed equation/connection families and tensor contractions remain
+separate capabilities.
+
 ### Nominal particle counts
 
 The [finite-space owner](finite-spaces.md#exact-counts-and-signed-changes) supplies ordered

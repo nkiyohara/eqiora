@@ -89,8 +89,10 @@ multiplicative = signed-power {("*" | "/") signed-power}
 signed-power = ("+" | "-") signed-power | power
 power = postfix ["^" signed-power]
 postfix = primary {call-arguments | "[" expression "]" | "." identifier}
-primary = quantity | number | qualified-name | "true" | "false"
+primary = quantity | number | qualified-name | "true" | "false" | finite-reduction
         | "(" expression ")" | "[" [expression {"," expression}] "]"
+finite-reduction = ("sum" | "product") "(" expression "," "over" "="
+                   "(" identifier "in" qualified-name ")" ")"
 call-arguments = "(" [argument {"," argument}] ")"
 argument = expression | named-argument | typed-structural-argument
 ```

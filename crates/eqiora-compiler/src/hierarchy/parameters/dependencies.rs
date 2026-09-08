@@ -30,6 +30,7 @@ pub(super) fn collect_expression_dependencies(
             continue;
         }
         match expression.kind() {
+            ExprKind::Reduction { .. } => diagnostics.push(source_error(codes::LANGUAGE_TYPE_ERROR,file,expression.range(),"finite reductions are admitted in Relations and runtime let aliases, not Parameter or extent initializers")),
             ExprKind::Boolean(_) | ExprKind::Number(_) | ExprKind::Quantity { .. } => {}
             ExprKind::Name(name) => {
                 if contains(name) {

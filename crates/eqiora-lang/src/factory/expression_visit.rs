@@ -103,9 +103,9 @@ fn expression(
     visit: &mut impl FnMut(Option<&str>, &mut Expr),
 ) {
     match &mut value.kind {
-        ExprKind::Unary { value, .. } | ExprKind::Member { value, .. } => {
-            expression(scope, value, visit)
-        }
+        ExprKind::Unary { value, .. }
+        | ExprKind::Member { value, .. }
+        | ExprKind::Reduction { value, .. } => expression(scope, value, visit),
         ExprKind::Binary { left, right, .. } => {
             expression(scope, left, visit);
             expression(scope, right, visit);
