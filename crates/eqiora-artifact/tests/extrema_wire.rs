@@ -84,16 +84,24 @@ fn selector_model_and_transaction_replay_preserve_ordered_shared_edges() {
     let bytes = envelope.canonical_json().unwrap();
     let mut json: Value = serde_json::from_slice(&bytes).unwrap();
     let expression = relation_expression(&mut json);
-    // Independently enumerated DAG: x, 2, 3, min(2,3), max(shared,shared).
+    // x, 2, 3, 2<=3, select(2<=3,2,3), shared>=shared, select(...,shared,shared).
     assert_eq!(
         expression["nodes"][3],
-        json!({"op":"min","left":1,"right":2})
+        json!({"op":"compare","comparison":"less-equal","left":1,"right":2})
     );
     assert_eq!(
         expression["nodes"][4],
-        json!({"op":"max","left":3,"right":3})
+        json!({"op":"select","condition":3,"then_value":1,"else_value":2})
     );
-    assert_eq!(expression["roots"], json!([0, 4]));
+    assert_eq!(
+        expression["nodes"][5],
+        json!({"op":"compare","comparison":"greater-equal","left":4,"right":4})
+    );
+    assert_eq!(
+        expression["nodes"][6],
+        json!({"op":"select","condition":5,"then_value":4,"else_value":4})
+    );
+    assert_eq!(expression["roots"], json!([0, 6]));
     let replay = ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default()).unwrap();
     assert_eq!(replay.to_program().unwrap(), original);
     assert_eq!(replay.canonical_json().unwrap(), bytes);
@@ -145,6 +153,14 @@ fn selector_wire_rejects_bad_references_and_nonordered_operand_types() {
         Err(_) => true,
         Ok(envelope) => envelope.to_program().is_err(),
     };
+    for removed in ["min", "max"] {
+        let mut invalid = original.clone();
+        relation_expression(&mut invalid)["nodes"][3] = json!({"op":removed,"left":1,"right":2});
+        assert!(
+            rejects(invalid),
+            "removed persisted selector must be rejected"
+        );
+    }
     for index in [3, 99] {
         let mut invalid = original.clone();
         relation_expression(&mut invalid)["nodes"][3]["right"] = json!(index);
