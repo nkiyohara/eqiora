@@ -4,28 +4,28 @@ use super::*;
 
 impl ExecutionPlan {
     pub(super) fn new(program: &KernelProgram) -> Result<Self, Diagnostic> {
+        direct_assignments::validate_storage_budget(program)?;
         for node in program.nodes() {
             if let KernelNode::Parameter(parameter) = node
-                && !discrete::supported_type(parameter.value_type())
+                && !direct_assignments::supported_type(parameter.value_type())
                 && !(parameter.value_type().scalar_domain() == eqiora_core::ScalarDomain::Complex
                     && parameter.value_type().shape().is_scalar())
             {
                 return Err(Diagnostic::error(
                     codes::NOT_IMPLEMENTED,
-                    "reference execution requires real scalar or exact discrete Parameters",
+                    "reference execution requires real scalar, invariant real/integer channels, or exact discrete Parameters",
                 ));
             }
             if let KernelNode::Relation(relation) = node
-                && relation.expression().nodes().iter().any(|node| {
-                    matches!(
-                        node,
-                        ExprNode::Array { .. } | ExprNode::Index { .. } | ExprNode::Complex { .. }
-                    )
-                })
+                && relation
+                    .expression()
+                    .nodes()
+                    .iter()
+                    .any(|node| matches!(node, ExprNode::Complex { .. }))
             {
                 return Err(Diagnostic::error(
                     codes::NOT_IMPLEMENTED,
-                    "reference execution does not admit array, index, or complex construction",
+                    "reference execution does not admit complex construction",
                 ));
             }
             if let KernelNode::Domain(domain) = node
@@ -42,11 +42,11 @@ impl ExecutionPlan {
                 ));
             }
             if let KernelNode::Field(field) = node
-                && !discrete::supported_type(field.value_type())
+                && !direct_assignments::supported_type(field.value_type())
             {
                 return Err(Diagnostic::error(
                     codes::NOT_IMPLEMENTED,
-                    "reference execution requires real scalar or exact discrete Fields",
+                    "reference execution requires real scalar, invariant real/integer channels, or exact discrete Fields",
                 ));
             }
             if let KernelNode::Field(field) = node
@@ -74,11 +74,11 @@ impl ExecutionPlan {
             }
             if let KernelNode::Port(port) = node
                 && let Some((_, value_type)) = port.signal_contract()
-                && !discrete::supported_type(value_type)
+                && !direct_assignments::supported_type(value_type)
             {
                 return Err(Diagnostic::error(
                     codes::NOT_IMPLEMENTED,
-                    "reference execution requires real scalar or exact discrete signal Ports",
+                    "reference execution requires real scalar, invariant real/integer channels, or exact discrete signal Ports",
                 ));
             }
         }
@@ -176,8 +176,8 @@ impl ExecutionPlan {
             .with_graph_path(kernel_path(second_clock)));
         }
 
-        let mut discrete_fields = BTreeSet::new();
-        let mut discrete_ports = BTreeSet::new();
+        let mut typed_fields = BTreeSet::new();
+        let mut typed_ports = BTreeSet::new();
         for (relation, is_event) in periodic
             .iter()
             .flat_map(|task| task.relations.iter().map(|relation| (relation, false)))
@@ -190,7 +190,7 @@ impl ExecutionPlan {
             for symbol in relation_symbols(program, *relation)? {
                 match symbol {
                     SymbolRef::Next(field) => {
-                        discrete_fields.insert(field.erase());
+                        typed_fields.insert(field.erase());
                     }
                     SymbolRef::Port(port) => {
                         let source = signal_sources
@@ -208,7 +208,7 @@ impl ExecutionPlan {
                                 )
                                 .is_empty())
                         {
-                            discrete_ports.insert(source);
+                            typed_ports.insert(source);
                         }
                     }
                     _ => {}
@@ -233,7 +233,7 @@ impl ExecutionPlan {
                             .get(&port.erase())
                             .copied()
                             .unwrap_or_else(|| port.erase());
-                        if is_output_port(program, source) && !discrete_ports.contains(&source) {
+                        if is_output_port(program, source) && !typed_ports.contains(&source) {
                             continuous_ports.insert(source);
                         }
                     }
@@ -250,11 +250,11 @@ impl ExecutionPlan {
         }
         for relation in &continuous_relations {
             if let Some(KernelNode::Relation(definition)) = program.node(*relation)
-                && discrete::numerical_roots(program, definition).len()
+                && direct_assignments::numerical_roots(program, definition).len()
                     != definition.expression().roots().len()
             {
                 return Err(execution_error(
-                    "exact discrete updates require an explicit periodic activation",
+                    "typed direct updates require an explicit periodic activation",
                     0.0,
                 ));
             }
@@ -263,7 +263,8 @@ impl ExecutionPlan {
             .difference(&differential_fields)
             .copied()
             .filter(|field| {
-                !discrete_fields.contains(field) && !discrete::is_discrete_id(program, *field)
+                !typed_fields.contains(field)
+                    && !direct_assignments::requires_typed_assignment_id(program, *field)
             })
             .collect();
         let fields = program

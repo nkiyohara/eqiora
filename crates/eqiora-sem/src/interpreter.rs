@@ -1,7 +1,7 @@
 //! Deterministic reference execution for scalar continuous/periodic models.
 
 mod clocked_variables;
-mod discrete;
+mod direct_assignments;
 use clocked_variables::{clear_clocked_variables, is_clocked_variable};
 mod event_localization;
 mod execution_plan;
@@ -440,7 +440,7 @@ impl Interpreter {
         if let Err(diagnostic) = config.validate() {
             return Err(vec![diagnostic]);
         }
-        if program.nodes().any(|node| matches!(node, KernelNode::Field(field) if discrete::is_discrete(program,SymbolRef::Field(field.id())))) {
+        if program.nodes().any(|node| matches!(node, KernelNode::Field(field) if direct_assignments::requires_typed_assignment(program,SymbolRef::Field(field.id())))) {
             return Err(vec![execution_error("DynQuantity trajectories cannot retain exact discrete Fields; use sampled_session",0.0)]);
         }
         let mut plan = ExecutionPlan::new(program).map_err(|diagnostic| vec![diagnostic])?;
@@ -896,7 +896,7 @@ fn execute_activated_relations(
 ) -> Result<(), Diagnostic> {
     let mut accepted_candidate = state.clone();
     clear_clocked_variables(program, &mut accepted_candidate);
-    discrete::stage(
+    direct_assignments::stage(
         program,
         plan,
         &mut accepted_candidate,
@@ -908,7 +908,7 @@ fn execute_activated_relations(
     let mut variables = BTreeSet::new();
     for &relation in relations {
         for symbol in relation_symbols(program, relation)? {
-            if discrete::is_discrete(program, symbol) {
+            if direct_assignments::requires_typed_assignment(program, symbol) {
                 continue;
             }
             match symbol {
@@ -965,8 +965,8 @@ fn execute_activated_relations(
     }?;
     commit_solution(&variables, &solution, &mut accepted_candidate);
     accepted_candidate
-        .discrete_fields
-        .extend(std::mem::take(&mut accepted_candidate.discrete_next));
+        .typed_fields
+        .extend(std::mem::take(&mut accepted_candidate.typed_next));
     solve_consistency(
         program,
         plan,
@@ -1063,9 +1063,9 @@ fn evaluate_relations(
     let context = EvalContext {
         program,
         time,
-        discrete_fields: &state.discrete_fields,
-        discrete_ports: &state.discrete_ports,
-        discrete_next: &state.discrete_next,
+        typed_fields: &state.typed_fields,
+        typed_ports: &state.typed_ports,
+        typed_next: &state.typed_next,
         fields: &state.fields,
         field_candidates,
         derivatives,
@@ -1087,7 +1087,7 @@ fn evaluate_relations(
         residuals.extend(evaluate::numerical_differences(backend.evaluate(
             relation,
             definition.expression(),
-            &discrete::numerical_roots(program, definition),
+            &direct_assignments::numerical_roots(program, definition),
             &mut |symbol| evaluate::resolve_symbol(symbol, &context),
         )?)?);
     }

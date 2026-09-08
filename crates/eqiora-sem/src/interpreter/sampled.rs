@@ -2,7 +2,7 @@
 use super::*;
 use eqiora_core::ValueLiteral;
 
-const MAX_SAMPLED_VALUES: usize = 1_000_000;
+const MAX_SAMPLED_VALUES: usize = super::direct_assignments::MAX_COMPONENTS;
 
 #[derive(Debug, Clone)]
 struct InputTable {
@@ -13,7 +13,7 @@ struct InputTable {
 
 /// A bounded reference run with complete external tick inputs.
 /// The immutable program, exact calendar, and accepted values remain together.
-/// Complete input tables and retained output samples each have a one-million-value cap.
+/// Complete input tables and retained output samples each have a one-million-scalar-component cap.
 #[derive(Debug, Clone)]
 pub struct SampledSession {
     program: KernelProgram,
@@ -121,10 +121,19 @@ impl SampledSession {
                 unreachable!()
             };
             let (_, value_type) = definition.signal_contract().expect("required signal input");
-            if values
-                .iter()
-                .any(|v| v.value_type() != value_type || !discrete::supported_type(v.value_type()))
-            {
+            // Count complete components before scanning or cloning any supplied values.
+            let components = value_type
+                .shape()
+                .component_count()
+                .ok_or_else(|| config_error("sampled input component count exceeds bounds"))?;
+            let extra = values
+                .len()
+                .checked_mul(components.saturating_sub(1))
+                .ok_or_else(|| config_error("sampled input component count exceeds bounds"))?;
+            sample_count = add_sample_count(sample_count, extra, MAX_SAMPLED_VALUES)?;
+            if values.iter().any(|v| {
+                v.value_type() != value_type || !direct_assignments::supported_type(v.value_type())
+            }) {
                 return Err(config_error(
                     "sampled input values must match the complete supported Port type",
                 ));
@@ -206,7 +215,7 @@ impl SampledSession {
         let KernelNode::Field(definition) = self.program.node(field)? else {
             return None;
         };
-        self.state.discrete_fields.get(&field).cloned().or_else(|| {
+        self.state.typed_fields.get(&field).cloned().or_else(|| {
             self.state.fields.get(&field).and_then(|value| {
                 ValueLiteral::from_real(definition.value_type().clone(), *value).ok()
             })
@@ -259,7 +268,7 @@ impl SampledSession {
             .ports
             .retain(|port, _| port_clock(&self.program, *port).ok().flatten().is_none());
         candidate
-            .discrete_ports
+            .typed_ports
             .retain(|port, _| port_clock(&self.program, *port).ok().flatten().is_none());
         for (&port, input) in &self.inputs {
             if let Some(index) = due.get(&input.clock) {
@@ -275,7 +284,7 @@ impl SampledSession {
                 if let Some(real) = value.real_scalar_value() {
                     candidate.ports.insert(port, real.value());
                 } else {
-                    candidate.discrete_ports.insert(port, value.clone());
+                    candidate.typed_ports.insert(port, value.clone());
                 }
             }
         }
@@ -302,7 +311,7 @@ impl SampledSession {
                 continue;
             };
             let source = plan.signal_sources.get(&port).copied().unwrap_or(port);
-            let value = if let Some(value) = candidate.discrete_ports.get(&source) {
+            let value = if let Some(value) = candidate.typed_ports.get(&source) {
                 value.clone()
             } else {
                 let value = candidate
@@ -363,7 +372,16 @@ fn validate_output_budget(
                 *entry.insert(required_ticks(program, clock, config)?)
             }
         };
-        count = add_sample_count(count, ticks, limit)?;
+        let Some(KernelNode::Port(definition)) = program.node(port) else {
+            unreachable!()
+        };
+        let (_, value_type) = definition.signal_contract().expect("output signal");
+        let components = value_type
+            .shape()
+            .component_count()
+            .and_then(|components| components.checked_mul(ticks))
+            .ok_or_else(|| config_error("sampled output component count exceeds bounds"))?;
+        count = add_sample_count(count, components, limit)?;
     }
     Ok(())
 }

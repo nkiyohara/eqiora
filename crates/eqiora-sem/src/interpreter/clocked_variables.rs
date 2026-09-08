@@ -11,7 +11,7 @@ pub(super) fn is_clocked_variable(program: &KernelProgram, field: RawId) -> bool
 
 pub(super) fn clear_clocked_variables(program: &KernelProgram, state: &mut RuntimeState) {
     state
-        .discrete_fields
+        .typed_fields
         .retain(|field, _| !is_clocked_variable(program, *field));
     state
         .fields

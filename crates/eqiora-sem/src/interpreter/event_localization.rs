@@ -111,9 +111,9 @@ fn evaluate_event_guard(
     let context = EvalContext {
         program,
         time,
-        discrete_fields: &state.discrete_fields,
-        discrete_ports: &state.discrete_ports,
-        discrete_next: &state.discrete_next,
+        typed_fields: &state.typed_fields,
+        typed_ports: &state.typed_ports,
+        typed_next: &state.typed_next,
         fields: &state.fields,
         field_candidates: &empty,
         derivatives: &state.derivatives,

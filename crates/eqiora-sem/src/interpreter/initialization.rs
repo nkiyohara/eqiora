@@ -33,7 +33,7 @@ impl Interpreter {
     /// consume accepted State/history instead of invoking this operation.
     ///
     /// # Errors
-    /// Rejects unsupported value profiles or discrete assignment dependencies, non-square real initialization,
+    /// Rejects unsupported value profiles or typed assignment dependencies, non-square real initialization,
     /// singular numerical Jacobians, and inconsistent or nonconvergent systems.
     pub fn initialize(
         &self,
@@ -52,7 +52,7 @@ impl Interpreter {
         )
         .map_err(|error| vec![error])?;
         Ok(InitialState {
-            fields: discrete::typed_fields(program, &state)?,
+            fields: direct_assignments::typed_fields(program, &state)?,
             derivatives: state.derivatives,
         })
     }
@@ -70,12 +70,13 @@ pub(super) fn solve_initialization(
         .union(&plan.initial_relations)
         .copied()
         .collect();
-    discrete::stage(program, plan, state, &relations, 0.0, true, backend)?;
+    direct_assignments::stage(program, plan, state, &relations, 0.0, true, backend)?;
     // Every continuous Field and State memory must be determined;
     // clocked algebraic Variables have no value before their own activation.
     // an unused algebraic declaration is legal mathematics, not an implicit zero.
     let fields = plan.fields.iter().copied().filter(|field| {
-        !is_clocked_variable(program, *field) && !discrete::is_discrete_id(program, *field)
+        !is_clocked_variable(program, *field)
+            && !direct_assignments::requires_typed_assignment_id(program, *field)
     });
     let mut derivatives = plan.differential_fields.clone();
     for relation in &plan.initial_relations {
