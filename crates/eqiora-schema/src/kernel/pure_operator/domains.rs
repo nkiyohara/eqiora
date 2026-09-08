@@ -48,39 +48,7 @@ pub(super) fn validate_result(
     Ok(())
 }
 
-pub(super) fn expression_domain(
-    formals: &[PureValueClass],
-    nodes: &[CalculusNode],
-    root: CalculusNodeId,
-) -> Result<Option<ScalarDomain>, PureOperatorError> {
-    let mut domains = Vec::with_capacity(nodes.len());
-    for node in nodes {
-        let get = |id| {
-            domains
-                .get(definition_index(id, domains.len())?)
-                .copied()
-                .ok_or(PureOperatorError::InvalidNode)
-        };
-        let domain = match node {
-            CalculusNode::Rational(_) | CalculusNode::KroneckerDelta(_, _) => {
-                Some(ScalarDomain::Real)
-            }
-            CalculusNode::FormalComponent { formal, .. } => formals
-                .get(usize::from(*formal))
-                .ok_or(PureOperatorError::InvalidFormal(*formal))?
-                .scalar_domain(),
-            CalculusNode::Neg(value) => get(*value)?,
-            CalculusNode::Add(left, right) | CalculusNode::Mul(left, right) => {
-                common(get(*left)?, get(*right)?)
-            }
-        };
-        domains.push(domain);
-    }
-    domains
-        .get(definition_index(root, domains.len())?)
-        .copied()
-        .ok_or(PureOperatorError::InvalidNode)
-}
+pub(super) use super::dimensions::expression_domain;
 
 #[cfg(test)]
 mod tests {

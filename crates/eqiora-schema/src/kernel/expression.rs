@@ -111,6 +111,15 @@ impl PureOperatorApplication {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ExprNode {
+    /// Demand a Boolean domain condition; false rejects before demanding the value.
+    Require { condition: ExprId, value: ExprId },
+    /// Demand the Boolean condition, then only the selected value arm.
+    /// Both arms remain statically typed and retain their dependencies.
+    Select {
+        condition: ExprId,
+        then_value: ExprId,
+        else_value: ExprId,
+    },
     /// Smaller of two ordered real or integer scalars. Both operands are evaluated;
     /// equal values retain the first operand.
     Min(ExprId, ExprId),
@@ -194,6 +203,19 @@ impl ExprNode {
         mut visit: impl FnMut(ExprId) -> Result<(), E>,
     ) -> Result<(), E> {
         match self {
+            Self::Require { condition, value } => {
+                visit(*condition)?;
+                visit(*value)
+            }
+            Self::Select {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                visit(*condition)?;
+                visit(*then_value)?;
+                visit(*else_value)
+            }
             Self::Array { elements } => elements.iter().copied().try_for_each(visit),
             Self::Sample { value, .. }
             | Self::Ordinal(value)
@@ -385,6 +407,25 @@ impl ExprDagBuilder {
     /// Add a typed symbol reference.
     pub fn symbol(&mut self, symbol: SymbolRef) -> Result<ExprId, Diagnostic> {
         self.push(ExprNode::Symbol(symbol))
+    }
+
+    /// Require a true domain condition before demanding the complete value.
+    pub fn require(&mut self, condition: ExprId, value: ExprId) -> Result<ExprId, Diagnostic> {
+        self.push(ExprNode::Require { condition, value })
+    }
+
+    /// Select one complete value lazily from a Boolean condition.
+    pub fn select(
+        &mut self,
+        condition: ExprId,
+        then_value: ExprId,
+        else_value: ExprId,
+    ) -> Result<ExprId, Diagnostic> {
+        self.push(ExprNode::Select {
+            condition,
+            then_value,
+            else_value,
+        })
     }
 
     /// Select the smaller scalar, retaining the first operand on ties.

@@ -33,7 +33,10 @@ fn conductivity() -> PureOperatorDefinition {
     let k = formal(&mut builder, 1);
     let a = formal(&mut builder, 2);
     let one = builder
-        .push(CalculusNode::Rational(ExactRational::integer(1)))
+        .push(CalculusNode::Rational {
+            value: ExactRational::integer(1),
+            dimension: DimExponents::DIMENSIONLESS,
+        })
         .unwrap();
     let at = builder.push(CalculusNode::Mul(a, t)).unwrap();
     let a2 = builder.push(CalculusNode::Mul(a, a)).unwrap();

@@ -1,108 +1,338 @@
-//! Dimension proofs modulo explicit scalar/tensor formal constraints.
+//! One mixed Boolean/numeric proof for retained calculus nodes and exact dimensions.
 use super::*;
+use eqiora_core::{ScalarDomain, ValueType};
 
+#[derive(Clone)]
+struct Proof {
+    domain: Option<ScalarDomain>,
+    dimension: FormalDimensionMonomial,
+}
+
+pub(super) fn validate_profile(
+    formals: &[PureValueClass],
+    result: PureValueClass,
+    nodes: &[CalculusNode],
+) -> Result<(), PureOperatorError> {
+    if nodes.iter().any(|node| {
+        matches!(
+            node,
+            CalculusNode::Require { .. }
+                | CalculusNode::Boolean(_)
+                | CalculusNode::Compare(..)
+                | CalculusNode::Not(_)
+                | CalculusNode::And(..)
+                | CalculusNode::Or(..)
+                | CalculusNode::Select { .. }
+                | CalculusNode::UnaryMath(..)
+        )
+    }) && formals.iter().chain([&result]).any(|class| {
+        !class.is_invariant_scalar()
+            || class.dimension().is_none()
+            || class.scalar_domain() != Some(ScalarDomain::Real)
+    }) {
+        return Err(PureOperatorError::FormalTypeMismatch);
+    }
+    Ok(())
+}
+
+fn dimensionless(count: usize) -> FormalDimensionMonomial {
+    FormalDimensionMonomial {
+        fixed_dimension: DimExponents::DIMENSIONLESS,
+        exponents: vec![ExactRational::integer(0); count].into_boxed_slice(),
+    }
+}
+fn numeric(proof: &Proof) -> Result<(), PureOperatorError> {
+    if proof.domain == Some(ScalarDomain::Boolean) {
+        Err(PureOperatorError::FormalTypeMismatch)
+    } else {
+        Ok(())
+    }
+}
+fn boolean(proof: &Proof) -> Result<(), PureOperatorError> {
+    if proof.domain == Some(ScalarDomain::Boolean) {
+        Ok(())
+    } else {
+        Err(PureOperatorError::FormalTypeMismatch)
+    }
+}
+fn common(left: Option<ScalarDomain>, right: Option<ScalarDomain>) -> Option<ScalarDomain> {
+    if left == Some(ScalarDomain::Complex) || right == Some(ScalarDomain::Complex) {
+        Some(ScalarDomain::Complex)
+    } else if left == Some(ScalarDomain::Real) && right == Some(ScalarDomain::Real) {
+        Some(ScalarDomain::Real)
+    } else {
+        None
+    }
+}
+fn same_dimension(
+    formals: &[PureValueClass],
+    left: &Proof,
+    right: &Proof,
+) -> Result<(), PureOperatorError> {
+    if normalized(formals, &left.dimension)? != normalized(formals, &right.dimension)? {
+        Err(PureOperatorError::AdditiveDimensionMismatch)
+    } else {
+        Ok(())
+    }
+}
+
+fn prove(
+    formals: &[PureValueClass],
+    nodes: &[CalculusNode],
+) -> Result<Vec<Proof>, PureOperatorError> {
+    let mut proofs: Vec<Proof> = Vec::with_capacity(nodes.len());
+    for node in nodes {
+        let get = |id| {
+            proofs
+                .get(definition_index(id, proofs.len())?)
+                .cloned()
+                .ok_or(PureOperatorError::InvalidNode)
+        };
+        let proof = match node {
+            CalculusNode::Require { condition, value } => {
+                boolean(&get(*condition)?)?;
+                get(*value)?
+            }
+            CalculusNode::Rational { dimension, .. } => {
+                let mut proof = Proof {
+                    domain: Some(ScalarDomain::Real),
+                    dimension: dimensionless(formals.len()),
+                };
+                proof.dimension.fixed_dimension = *dimension;
+                proof
+            }
+            CalculusNode::Boolean(_) => Proof {
+                domain: Some(ScalarDomain::Boolean),
+                dimension: dimensionless(formals.len()),
+            },
+            CalculusNode::KroneckerDelta(..) => Proof {
+                domain: Some(ScalarDomain::Real),
+                dimension: dimensionless(formals.len()),
+            },
+            CalculusNode::FormalComponent { formal, .. } => {
+                let index = usize::from(*formal);
+                let class = formals
+                    .get(index)
+                    .ok_or(PureOperatorError::InvalidFormal(*formal))?;
+                let mut dimension = dimensionless(formals.len());
+                dimension.exponents[index] = ExactRational::integer(1);
+                Proof {
+                    domain: class.scalar_domain(),
+                    dimension,
+                }
+            }
+            CalculusNode::Neg(value) => {
+                let value = get(*value)?;
+                numeric(&value)?;
+                value
+            }
+            CalculusNode::Not(value) => {
+                let value = get(*value)?;
+                boolean(&value)?;
+                value
+            }
+            CalculusNode::And(left, right) | CalculusNode::Or(left, right) => {
+                let left = get(*left)?;
+                let right = get(*right)?;
+                boolean(&left)?;
+                boolean(&right)?;
+                left
+            }
+            CalculusNode::Compare(op, left, right) => {
+                let left = get(*left)?;
+                let right = get(*right)?;
+                if left.domain == Some(ScalarDomain::Boolean)
+                    || right.domain == Some(ScalarDomain::Boolean)
+                {
+                    boolean(&left)?;
+                    boolean(&right)?;
+                    if !matches!(
+                        op,
+                        super::super::ComparisonOp::Equal | super::super::ComparisonOp::NotEqual
+                    ) {
+                        return Err(PureOperatorError::FormalTypeMismatch);
+                    }
+                } else {
+                    if left.domain != Some(ScalarDomain::Real)
+                        || right.domain != Some(ScalarDomain::Real)
+                    {
+                        return Err(PureOperatorError::FormalTypeMismatch);
+                    }
+                    same_dimension(formals, &left, &right)?;
+                }
+                Proof {
+                    domain: Some(ScalarDomain::Boolean),
+                    dimension: dimensionless(formals.len()),
+                }
+            }
+            CalculusNode::Select {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                boolean(&get(*condition)?)?;
+                let left = get(*then_value)?;
+                let right = get(*else_value)?;
+                if left.domain != right.domain {
+                    return Err(PureOperatorError::FormalTypeMismatch);
+                }
+                same_dimension(formals, &left, &right)?;
+                left
+            }
+            CalculusNode::Add(left, right) => {
+                let mut left = get(*left)?;
+                let right = get(*right)?;
+                numeric(&left)?;
+                numeric(&right)?;
+                same_dimension(formals, &left, &right)?;
+                left.domain = common(left.domain, right.domain);
+                left
+            }
+            CalculusNode::Mul(left, right) => {
+                let mut left = get(*left)?;
+                let right = get(*right)?;
+                numeric(&left)?;
+                numeric(&right)?;
+                left.dimension.fixed_dimension = left
+                    .dimension
+                    .fixed_dimension
+                    .mul(right.dimension.fixed_dimension)
+                    .ok_or(PureOperatorError::ResultDimensionOverflow)?;
+                for (left, right) in left
+                    .dimension
+                    .exponents
+                    .iter_mut()
+                    .zip(right.dimension.exponents.iter())
+                {
+                    *left = bounded(left.checked_add(*right)?)?;
+                }
+                left.domain = common(left.domain, right.domain);
+                left
+            }
+            CalculusNode::UnaryMath(function, value) => {
+                let mut value = get(*value)?;
+                if *function != super::super::UnaryMathFunction::Sqrt
+                    || value.domain != Some(ScalarDomain::Real)
+                {
+                    return Err(PureOperatorError::FormalTypeMismatch);
+                }
+                value.dimension.fixed_dimension = value
+                    .dimension
+                    .fixed_dimension
+                    .pow(1, 2)
+                    .ok_or(PureOperatorError::ResultDimensionOverflow)?;
+                for exponent in &mut value.dimension.exponents {
+                    *exponent = bounded(exponent.checked_mul(ExactRational::new(1, 2)?)?)?;
+                }
+                value
+            }
+        };
+        // Check fixed formal dimensions before any downstream component expansion.
+        normalized(formals, &proof.dimension)?;
+        proofs.push(proof);
+    }
+    Ok(proofs)
+}
+
+fn bounded(exponent: ExactRational) -> Result<ExactRational, PureOperatorError> {
+    if i128::from(exponent.numerator()).abs()
+        > i128::from(MAX_FORMAL_EXPONENT) * i128::from(exponent.denominator())
+    {
+        return Err(PureOperatorError::FormalExponentLimit);
+    }
+    fraction(exponent)?;
+    Ok(exponent)
+}
+fn fraction(exponent: ExactRational) -> Result<(i32, i32), PureOperatorError> {
+    Ok((
+        i32::try_from(exponent.numerator())
+            .map_err(|_| PureOperatorError::ResultDimensionOverflow)?,
+        i32::try_from(exponent.denominator())
+            .map_err(|_| PureOperatorError::ResultDimensionOverflow)?,
+    ))
+}
+fn power(
+    dimension: DimExponents,
+    exponent: ExactRational,
+) -> Result<DimExponents, PureOperatorError> {
+    let (n, d) = fraction(exponent)?;
+    dimension
+        .pow(n, d)
+        .ok_or(PureOperatorError::ResultDimensionOverflow)
+}
 pub(super) fn derive_symbolic_dimension(
     formals: &[PureValueClass],
     nodes: &[CalculusNode],
     root: CalculusNodeId,
 ) -> Result<FormalDimensionMonomial, PureOperatorError> {
-    let formal_count = formals.len();
-    let mut dimensions: Vec<Box<[u16]>> = Vec::with_capacity(nodes.len());
-    for node in nodes {
-        let dimension = match node {
-            CalculusNode::Rational(_) | CalculusNode::KroneckerDelta(_, _) => {
-                vec![0; formal_count].into_boxed_slice()
-            }
-            CalculusNode::FormalComponent { formal, .. } => {
-                let formal_index = usize::from(*formal);
-                if formal_index >= formal_count {
-                    return Err(PureOperatorError::InvalidFormal(*formal));
-                }
-                let mut exponents = vec![0; formal_count];
-                exponents[formal_index] = 1;
-                exponents.into_boxed_slice()
-            }
-            CalculusNode::Neg(value) => {
-                dimensions[definition_index(*value, dimensions.len())?].clone()
-            }
-            CalculusNode::Add(left, right) => {
-                let left = dimensions[definition_index(*left, dimensions.len())?].clone();
-                let right = dimensions[definition_index(*right, dimensions.len())?].clone();
-                if normalized(formals, &left)? != normalized(formals, &right)? {
-                    return Err(PureOperatorError::AdditiveDimensionMismatch);
-                }
-                left
-            }
-            CalculusNode::Mul(left, right) => {
-                let left = &dimensions[definition_index(*left, dimensions.len())?];
-                let right = &dimensions[definition_index(*right, dimensions.len())?];
-                let mut exponents = Vec::with_capacity(formal_count);
-                for (left, right) in left.iter().zip(right) {
-                    let exponent = left
-                        .checked_add(*right)
-                        .filter(|exponent| *exponent <= MAX_FORMAL_EXPONENT)
-                        .ok_or(PureOperatorError::FormalExponentLimit)?;
-                    exponents.push(exponent);
-                }
-                exponents.into_boxed_slice()
-            }
-        };
-        dimensions.push(dimension);
-    }
-    Ok(FormalDimensionMonomial {
-        exponents: dimensions[definition_index(root, dimensions.len())?].clone(),
-    })
+    let proofs = prove(formals, nodes)?;
+    let proof = &proofs[definition_index(root, proofs.len())?];
+    numeric(proof)?;
+    Ok(proof.dimension.clone())
 }
-
+pub(super) fn expression_domain(
+    formals: &[PureValueClass],
+    nodes: &[CalculusNode],
+    root: CalculusNodeId,
+) -> Result<Option<ScalarDomain>, PureOperatorError> {
+    let proofs = prove(formals, nodes)?;
+    Ok(proofs[definition_index(root, proofs.len())?].domain)
+}
 pub(super) fn instantiate_dimension<I>(
     monomial: &FormalDimensionMonomial,
     arguments: &[ExpressionType<I>],
-) -> Result<eqiora_core::DimExponents, PureOperatorError> {
-    let mut result = eqiora_core::DimExponents::DIMENSIONLESS;
+) -> Result<DimExponents, PureOperatorError> {
+    let mut result = monomial.fixed_dimension;
     for (argument, exponent) in arguments.iter().zip(monomial.exponents()) {
-        let term = argument
-            .dimension()
-            .pow(i32::from(*exponent), 1)
-            .ok_or(PureOperatorError::ResultDimensionOverflow)?;
         result = result
-            .mul(term)
+            .mul(power(argument.dimension(), *exponent)?)
             .ok_or(PureOperatorError::ResultDimensionOverflow)?;
     }
     Ok(result)
 }
-
 fn normalized(
     formals: &[PureValueClass],
-    exponents: &[u16],
-) -> Result<(DimExponents, Vec<u16>), PureOperatorError> {
-    let mut fixed = DimExponents::DIMENSIONLESS;
+    monomial: &FormalDimensionMonomial,
+) -> Result<(DimExponents, Vec<ExactRational>), PureOperatorError> {
+    let mut fixed = monomial.fixed_dimension;
     let mut free = Vec::with_capacity(formals.len());
-    for (formal, exponent) in formals.iter().zip(exponents) {
+    for (formal, exponent) in formals.iter().zip(monomial.exponents()) {
         if let Some(dimension) = formal.dimension() {
-            let term = dimension
-                .pow(i32::from(*exponent), 1)
-                .ok_or(PureOperatorError::ResultDimensionOverflow)?;
             fixed = fixed
-                .mul(term)
+                .mul(power(dimension, *exponent)?)
                 .ok_or(PureOperatorError::ResultDimensionOverflow)?;
-            free.push(0);
+            free.push(ExactRational::integer(0));
         } else {
             free.push(*exponent);
         }
     }
     Ok((fixed, free))
 }
-
 pub(super) fn validate_result_dimension(
     formals: &[PureValueClass],
     result: PureValueClass,
     monomial: &FormalDimensionMonomial,
 ) -> Result<(), PureOperatorError> {
     if let Some(expected) = result.dimension() {
-        let (fixed, free) = normalized(formals, monomial.exponents())?;
-        if fixed != expected || free.iter().any(|power| *power != 0) {
+        let (fixed, free) = normalized(formals, monomial)?;
+        if fixed != expected || free.iter().any(|power| !power.is_zero()) {
             return Err(PureOperatorError::AdditiveDimensionMismatch);
         }
     }
     Ok(())
+}
+
+impl CalculusBuilder {
+    /// Resolves a concrete scalar component type using the retained calculus proof.
+    /// Unconstrained generic dimensions or scalar domains cannot supply a concrete type.
+    pub fn value_type(&self, node: CalculusNodeId) -> Result<ValueType, PureOperatorError> {
+        let proofs = prove(&self.formals, &self.nodes)?;
+        let proof = &proofs[definition_index(node, proofs.len())?];
+        let domain = proof.domain.ok_or(PureOperatorError::FormalTypeMismatch)?;
+        let (dimension, free) = normalized(&self.formals, &proof.dimension)?;
+        if free.iter().any(|power| !power.is_zero()) {
+            return Err(PureOperatorError::FormalTypeMismatch);
+        }
+        Ok(ValueType::scalar(domain, dimension))
+    }
 }

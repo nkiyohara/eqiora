@@ -4,6 +4,24 @@ use crate::kernel::ComparisonOp;
 use eqiora_core::{ScalarDomain, ValueType};
 
 impl<I: Clone + Eq> ExpressionType<I> {
+    /// Type a Boolean domain condition without changing its required value type.
+    pub fn require(self, mut value: Self) -> Result<Self, TypeViolation<I>> {
+        let condition = self.logical_not()?;
+        value.support = combine_additive_support(&condition.support, &value.support)?;
+        Ok(value)
+    }
+
+    /// Type both exact value arms and the Boolean condition without promotions.
+    pub fn select(self, then_value: Self, else_value: Self) -> Result<Self, TypeViolation<I>> {
+        let condition = self.logical_not()?;
+        if then_value.value_type != else_value.value_type {
+            return Err(TypeViolation::ScalarDomainMismatch);
+        }
+        let mut result = then_value.equation(else_value)?;
+        result.support = combine_additive_support(&condition.support, &result.support)?;
+        Ok(result)
+    }
+
     /// Validate both sides of an equation without performing arithmetic.
     pub fn equation(self, other: Self) -> Result<Self, TypeViolation<I>> {
         for value in [&self, &other] {
