@@ -101,10 +101,10 @@ fn canonical_format_is_idempotent() {
 #[test]
 fn pure_operators_format_before_consumers_with_canonical_exact_integers() {
     let source = r#"component Consumer() {}
-public pure operator dyadic(left: spatial[01], right: scalar) -> spatial[2] = component(left, 00) * component(right) + rational(03, 04) * delta(0, 01);
+public operator dyadic(input left: spatial[01], input right: scalar): spatial[2] = component(left, 00) * component(right) + rational(03, 04) * delta(0, 01);
 model M() {
   variable u: 1;
-  relation law { catalog.dyadic(u, u) = 0; }
+  relation law { catalog.dyadic(left = u, right = u) = 0; }
 }"#;
     let document = parse("pure-format.eqi", source)
         .into_document()
@@ -116,13 +116,13 @@ model M() {
 
     assert_eq!(format(&reparsed), formatted);
     assert!(
-        formatted.find("pure operator").expect("operator")
+        formatted.find("operator").expect("operator")
             < formatted.find("component Consumer").expect("component")
     );
     assert!(formatted.contains(
-        "dyadic(left: spatial[1], right: scalar) -> spatial[2] = component(left, 0) * component(right) + rational(3, 4) * delta(0, 1);"
+        "dyadic(input left: spatial[1], input right: scalar): spatial[2] = component(left, 0) * component(right) + rational(3, 4) * delta(0, 1);"
     ));
-    assert!(formatted.contains("catalog.dyadic(u, u)"));
+    assert!(formatted.contains("catalog.dyadic(left = u, right = u)"));
 }
 
 #[test]

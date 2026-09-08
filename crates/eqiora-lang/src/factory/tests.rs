@@ -230,16 +230,22 @@ fn factory_constructs_exact_pure_operator_documents_without_weakening_legacy_doc
         range(8, 12),
     )
     .expect("formal");
-    let axis = SourceAstFactory::exact_integer("00", range(30, 32)).expect("axis");
-    let body = SourceAstFactory::pure_operator_expression(
-        PureOperatorExprKind::Component {
-            formal: "x".to_owned(),
-            formal_range: range(27, 28),
-            result_axes: vec![axis],
+    let body = SourceAstFactory::expression(
+        ExprKind::Call {
+            callee: NamePath::from_segments(["component"], range(17, 26)).unwrap(),
+            arguments: crate::CallArguments::Positional(vec![
+                SourceAstFactory::expression(ExprKind::Name("x".to_owned()), range(27, 28))
+                    .unwrap(),
+                SourceAstFactory::expression(
+                    ExprKind::Number(crate::DecimalLiteral::parse("00").unwrap()),
+                    range(30, 32),
+                )
+                .unwrap(),
+            ]),
         },
         range(17, 33),
     )
-    .expect("body");
+    .unwrap();
     let operator = SourceAstFactory::pure_operator(
         VisibilitySyntax::Public,
         "identity",
@@ -262,7 +268,7 @@ fn factory_constructs_exact_pure_operator_documents_without_weakening_legacy_doc
     let source = format(&document);
     assert_eq!(
         source,
-        "public pure operator identity(x: spatial[1]) -> spatial[1] = component(x, 0);\n"
+        "public operator identity(input x: spatial[1]): spatial[1] = component(x, 0);\n"
     );
     assert!(parse("factory-pure.eqi", &source).into_document().is_ok());
     assert!(
@@ -431,7 +437,7 @@ fn name_rewrite_preserves_expression_tree_and_ranges() {
     let call = SourceAstFactory::expression(
         ExprKind::Call {
             callee: path(&["across"]),
-            arguments: vec![qualified],
+            arguments: crate::CallArguments::Positional(vec![qualified]),
         },
         range(13, 35),
     )
@@ -473,9 +479,9 @@ fn name_rewrite_preserves_expression_tree_and_ranges() {
     };
     assert_eq!(callee.as_str(), "operators.across");
     assert_eq!(callee.range(), range(0, 0));
-    assert_eq!(arguments[0].range(), range(20, 34));
+    assert_eq!(arguments.positional().unwrap()[0].range(), range(20, 34));
     assert!(matches!(
-        arguments[0].kind(),
+        arguments.positional().unwrap()[0].kind(),
         ExprKind::Name(name) if name == "terminal"
     ));
 }
@@ -604,7 +610,7 @@ fn factory_constructs_complete_exterior_families_and_roundtrips() {
     let residual = SourceAstFactory::expression(
         ExprKind::Call {
             callee: path(&["flux"]),
-            arguments: vec![selected_port],
+            arguments: crate::CallArguments::Positional(vec![selected_port]),
         },
         range(0, 0),
     )
@@ -663,7 +669,7 @@ fn factory_constructs_complete_exterior_families_and_roundtrips() {
     let exterior = SourceAstFactory::expression(
         ExprKind::Call {
             callee: path(&["boundaries"]),
-            arguments: members,
+            arguments: crate::CallArguments::Positional(members),
         },
         range(0, 0),
     )
@@ -697,7 +703,7 @@ fn factory_constructs_complete_exterior_families_and_roundtrips() {
         panic!("model member is an instance");
     };
     assert!(
-        matches!(instance.bindings()[1].value().kind(), ExprKind::Call { arguments, .. } if arguments.len() == 4)
+        matches!(instance.bindings()[1].value().kind(), ExprKind::Call { arguments, .. } if arguments.expressions().len() == 4)
     );
 
     let signal_port = SourceAstFactory::component_port(

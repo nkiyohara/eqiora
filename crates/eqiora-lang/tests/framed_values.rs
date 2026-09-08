@@ -23,12 +23,15 @@ fn named_tensor_values_preserve_frame_components_ranges_and_format() {
         );
         if let ExprKind::Call { callee, arguments } = alias.value().kind() {
             assert_eq!(callee.as_str(), "tensor_value");
-            assert_eq!(arguments.len(), 2);
+            assert_eq!(arguments.expressions().len(), 2);
             assert!(matches!(
-                arguments[0].kind(),
+                arguments.named().unwrap()[0].value().kind(),
                 ExprKind::Name(_) | ExprKind::Path(_)
             ));
-            assert!(matches!(arguments[1].kind(), ExprKind::Array(_)));
+            assert!(matches!(
+                arguments.named().unwrap()[1].value().kind(),
+                ExprKind::Array(_)
+            ));
         }
     }
 }

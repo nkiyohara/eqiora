@@ -123,10 +123,10 @@ component Diffusion(
         };
         assert_eq!(*relation, "balance");
         assert!(
-            matches!(left.kind(), ExprKind::Call { callee, arguments } if callee.as_str() == "integrate" && arguments.len() == 2)
+            matches!(left.kind(), ExprKind::Call { callee, arguments } if callee.as_str() == "integrate" && arguments.expressions().len() == 2)
         );
         assert!(
-            matches!(right.kind(), ExprKind::Call { callee, arguments } if callee.as_str() == "integrate" && arguments.len() == 2)
+            matches!(right.kind(), ExprKind::Call { callee, arguments } if callee.as_str() == "integrate" && arguments.expressions().len() == 2)
         );
         assert!(component.items().iter().all(
             |item| !matches!(item, ComponentItem::Relation(relation) if relation.name() == "primal")

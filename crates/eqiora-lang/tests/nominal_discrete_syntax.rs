@@ -20,7 +20,7 @@ model M(parameter n: integer = 2, output y: integer) {
 "#;
     let document = parse("nominal.eqi", source).into_document().unwrap();
     assert!(
-        matches!(document.finite_spaces()[0].value().kind(), eqiora_lang::ExprKind::Call { callee, arguments } if callee.as_str() == "orthonormal" && arguments.len() == 2)
+        matches!(document.finite_spaces()[0].value().kind(), eqiora_lang::ExprKind::Call { callee, arguments } if callee.as_str() == "orthonormal" && arguments.expressions().len() == 2)
     );
     assert!(
         matches!(&document.models()[0].items()[0], Item::IndexSet(set) if set.name() == "Stages")

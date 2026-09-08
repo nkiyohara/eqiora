@@ -2,13 +2,13 @@ use super::*;
 
 #[test]
 fn parser_retains_exact_pure_operator_syntax_and_qualified_applications() {
-    let source = r#"public pure operator dyadic(left: spatial[01], right: spatial[1]) -> spatial[2] =
+    let source = r#"public operator dyadic(input left: spatial[01], input right: spatial[1]): spatial[2] =
   component(left, 0) * component(right, 1) + rational(03, 4) * delta(0, 1);
 
 model coupled() {
   variable u: 1;
   variable v: 1;
-  relation law { ops.dyadic(u, v) = 0; }
+  relation law { ops.dyadic(left = u, right = v) = 0; }
 }"#;
     let document = parse("pure-operator.eqi", source)
         .into_document()
@@ -33,29 +33,33 @@ model coupled() {
         &source[..source.find("\n\nmodel").expect("model separator")]
     );
 
-    let PureOperatorExprKind::Binary { left, right, .. } = operator.body().kind() else {
+    let ExprKind::Binary { left, right, .. } = operator.body().kind() else {
         panic!("addition is the pure body root");
     };
     assert!(matches!(
         left.kind(),
-        PureOperatorExprKind::Binary {
-            op: PureOperatorBinaryOp::Mul,
+        ExprKind::Binary {
+            op: BinaryOp::Mul,
             ..
         }
     ));
-    let PureOperatorExprKind::Binary {
-        op: PureOperatorBinaryOp::Mul,
+    let ExprKind::Binary {
+        op: BinaryOp::Mul,
         left: rational,
         right: delta,
     } = right.kind()
     else {
         panic!("right term retains exact rational and delta nodes");
     };
-    let PureOperatorExprKind::Rational { numerator, .. } = rational.kind() else {
-        panic!("left factor is rational");
+    let ExprKind::Call { callee, arguments } = rational.kind() else {
+        panic!("rational call");
     };
-    assert_eq!(numerator.spelling(), "03");
-    assert!(matches!(delta.kind(), PureOperatorExprKind::Delta { .. }));
+    assert_eq!(callee.as_str(), "rational");
+    let ExprKind::Number(numerator) = arguments.positional().unwrap()[0].kind() else {
+        panic!("exact number");
+    };
+    assert_eq!(numerator.canonical_text(), "3");
+    assert!(matches!(delta.kind(), ExprKind::Call { callee, .. } if callee.as_str() == "delta"));
 
     let Item::Relation(relation) = &document.models()[0].items()[2] else {
         panic!("model relation retained");
@@ -64,41 +68,48 @@ model coupled() {
         panic!("residual is a qualified application");
     };
     assert_eq!(callee.segments().collect::<Vec<_>>(), ["ops", "dyadic"]);
-    assert_eq!(arguments.len(), 2);
-    assert!(matches!(arguments[0].kind(), ExprKind::Name(name) if name == "u"));
-    assert!(matches!(arguments[1].kind(), ExprKind::Name(name) if name == "v"));
+    assert_eq!(arguments.expressions().len(), 2);
+    assert!(
+        matches!(arguments.named().unwrap()[0].value().kind(), ExprKind::Name(name) if name == "u")
+    );
+    assert!(
+        matches!(arguments.named().unwrap()[1].value().kind(), ExprKind::Name(name) if name == "v")
+    );
 }
 
 #[test]
-fn parser_rejects_operators_outside_the_exact_body_vocabulary() {
+fn parser_rejects_displaced_operator_syntax() {
     for source in [
-        "pure operator bad(x: scalar) -> scalar = rational(1.0, 2);",
-        "pure operator bad(x: scalar) -> scalar = rational(1, 0);",
-        "pure operator bad(x: scalar) -> scalar = rational(1, 2) / rational(3, 4);",
-        "pure operator bad(x: scalar) -> scalar = x;",
-        "pure operator bad() -> scalar = rational(1, 2);",
+        "pure operator bad(input x: scalar): scalar = x;",
+        "operator bad(x: scalar): scalar = x;",
+        "operator bad(input x: scalar) -> scalar = x;",
+        "operator bad(): scalar = 1;",
     ] {
         assert!(
-            parse("invalid-pure-operator.eqi", source)
+            parse("invalid-operator.eqi", source)
                 .into_document()
                 .is_err(),
-            "source must fail closed: {source}"
+            "{source}"
         );
     }
 }
 
 #[test]
 fn parser_represents_scalar_component_selection_with_zero_axes() {
-    let source = "pure operator negate(s: scalar) -> scalar = -component(s);";
+    let source = "operator negate(input s: scalar): scalar = -component(s);";
     let document = parse("scalar-component.eqi", source)
         .into_document()
         .expect("scalar component selection");
-    let PureOperatorExprKind::Neg(value) = document.pure_operators()[0].body().kind() else {
+    let ExprKind::Unary {
+        op: UnaryOp::Neg,
+        value,
+    } = document.pure_operators()[0].body().kind()
+    else {
         panic!("negation retained");
     };
     assert!(matches!(
         value.kind(),
-        PureOperatorExprKind::Component { result_axes, .. } if result_axes.is_empty()
+        ExprKind::Call { callee, arguments } if callee.as_str() == "component" && arguments.positional().unwrap().len() == 1
     ));
 }
 
@@ -106,7 +117,7 @@ fn parser_represents_scalar_component_selection_with_zero_axes() {
 fn parser_requires_pure_operators_before_models_and_nonempty_calls() {
     let late = parse(
         "late-operator.eqi",
-        "model M() {} pure operator identity(x: scalar) -> scalar = component(x, 0);",
+        "model M() {} operator identity(input x: scalar): scalar = component(x, 0);",
     );
     assert!(late.into_document().is_err());
 
@@ -273,7 +284,7 @@ model parallel(port positive: conserving on Pin) {
     let ExprKind::Call { arguments, .. } = left.kind() else {
         panic!("left side is across(...)");
     };
-    let ExprKind::Path(path) = arguments[0].kind() else {
+    let ExprKind::Path(path) = arguments.positional().unwrap()[0].kind() else {
         panic!("instance Port selection is a structured path");
     };
     assert_eq!(path.segments().collect::<Vec<_>>(), ["inner", "positive"]);
@@ -699,7 +710,7 @@ exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
         panic!("family Relation residual contains flux selection");
     };
     assert!(matches!(
-        arguments[0].kind(),
+        arguments.positional().unwrap()[0].kind(),
         ExprKind::BoundaryPortSelection { selector, .. }
             if selector.member() == "boundary" && selector.target() == "boundary"
     ));
@@ -722,7 +733,7 @@ exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
     };
     assert_eq!(
         arguments
-            .iter()
+            .expressions()
             .map(|a| match a.kind() {
                 ExprKind::Name(n) => n.as_str(),
                 _ => panic!("boundary name"),
