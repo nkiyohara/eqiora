@@ -29,7 +29,15 @@ impl Scope {
             )?;
         }
         let declared = |activation: &ActivationSyntax| match activation {
-            ActivationSyntax::Periodic(clock) => DependencyActivation::Clock(clock.clone()),
+            ActivationSyntax::Named(name) => {
+                if self.symbols.values().any(|symbol| {
+                    symbol.internal_name == *name && matches!(symbol.kind, SymbolKind::Event)
+                }) {
+                    DependencyActivation::Event(name.clone())
+                } else {
+                    DependencyActivation::Clock(name.clone())
+                }
+            }
             _ => DependencyActivation::Continuous,
         };
         let mut invalid_selection = None;

@@ -7,6 +7,7 @@ pub(in crate::hierarchy) enum DependencyActivation {
     Static,
     Continuous,
     Clock(String),
+    Event(String),
     Clocks(BTreeSet<String>),
     Mixed,
 }
@@ -16,6 +17,9 @@ impl DependencyActivation {
         match (self, other) {
             (Self::Static, value) | (value, Self::Static) => value,
             (left, right) if left == right => left,
+            (Self::Event(event), Self::Continuous) | (Self::Continuous, Self::Event(event)) => {
+                Self::Event(event)
+            }
             (Self::Clock(left), Self::Clock(right)) => Self::Clocks(BTreeSet::from([left, right])),
             (Self::Clocks(mut clocks), Self::Clock(clock))
             | (Self::Clock(clock), Self::Clocks(mut clocks)) => {
@@ -30,18 +34,26 @@ impl DependencyActivation {
         }
     }
 
-    fn symbol(symbol: &SymbolContract) -> Self {
+    fn symbol(scope: &DefinitionScope<'_, '_>, symbol: &SymbolContract) -> Self {
         match symbol {
-            SymbolContract::Field(_, _, ActivationSyntax::Periodic(clock)) => {
-                Self::Clock(clock.clone())
+            SymbolContract::Field(_, _, ActivationSyntax::Named(clock)) => {
+                Self::named(scope, clock)
             }
             SymbolContract::Port(PortContract::Signal {
-                activation: ActivationSyntax::Periodic(clock),
+                activation: ActivationSyntax::Named(clock),
                 ..
-            }) => Self::Clock(clock.clone()),
+            }) => Self::named(scope, clock),
             SymbolContract::Field(..) | SymbolContract::Port(_) => Self::Continuous,
             SymbolContract::Alias(alias) => alias.activation.clone(),
             _ => Self::Static,
+        }
+    }
+
+    fn named(scope: &DefinitionScope<'_, '_>, name: &str) -> Self {
+        if matches!(scope.symbols.get(name), Some(SymbolContract::Event)) {
+            Self::Event(name.to_owned())
+        } else {
+            Self::Clock(name.to_owned())
         }
     }
 
@@ -65,14 +77,21 @@ impl DependencyActivation {
                     }
                     Some(profile)
                 }
-                ExprKind::Name(name) => scope.symbols.get(name).map(Self::symbol),
-                ExprKind::Path(path) => scope.resolve_symbol(path).ok().as_ref().map(Self::symbol),
+                ExprKind::Name(name) => scope
+                    .symbols
+                    .get(name)
+                    .map(|symbol| Self::symbol(scope, symbol)),
+                ExprKind::Path(path) => scope
+                    .resolve_symbol(path)
+                    .ok()
+                    .as_ref()
+                    .map(|symbol| Self::symbol(scope, symbol)),
                 ExprKind::Member { .. } => scope
                     .indexed_member(expression)
                     .ok()
                     .and_then(|(path, _)| scope.resolve_symbol(&path).ok())
                     .as_ref()
-                    .map(Self::symbol),
+                    .map(|symbol| Self::symbol(scope, symbol)),
                 _ => None,
             },
             |clock| clock.to_owned(),
@@ -150,6 +169,19 @@ impl DependencyActivation {
         let Some(clock) = declaration.activation() else {
             return Ok(());
         };
+        if matches!(scope.symbols.get(clock), Some(SymbolContract::Event)) {
+            if matches!(self, Self::Continuous | Self::Static)
+                || self == &Self::Event(clock.to_owned())
+            {
+                return Ok(());
+            }
+            return Err(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                scope.file,
+                declaration.range(),
+                "let alias event assertion conflicts with its dependency activation",
+            ));
+        }
         if !matches!(scope.symbols.get(clock), Some(SymbolContract::Clock)) {
             return Err(scope.wrong_local_kind(
                 declaration.range(),

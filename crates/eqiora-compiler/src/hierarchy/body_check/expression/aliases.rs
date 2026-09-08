@@ -12,6 +12,8 @@ pub(in crate::hierarchy::body_check) struct AliasContract {
     pub(super) inferred: ExpressionType<String>,
     pub(super) field_target: Option<String>,
     activation: DependencyActivation,
+    event_context: Option<String>,
+    range: eqiora_lang::TextRange,
     dependencies: Vec<Arc<AliasContract>>,
     evolution: Vec<EvolutionRequirement>,
     contextual: Vec<Expr>,
@@ -104,10 +106,17 @@ pub(in crate::hierarchy::body_check) fn validate_aliases<'a>(
                 continue;
             }
         };
-        let activation = DependencyActivation::infer(scope, declaration.value());
+        let mut activation = DependencyActivation::infer(scope, declaration.value());
         if let Err(error) = activation.validate(scope, declaration) {
             errors.push(error);
             continue;
+        }
+        let event_context = declaration
+            .activation()
+            .filter(|name| matches!(scope.symbols.get(*name), Some(SymbolContract::Event)))
+            .map(str::to_owned);
+        if let Some(event) = &event_context {
+            activation = DependencyActivation::Event(event.clone());
         }
         let field_target = match declaration.value().kind() {
             ExprKind::Name(name) => match scope.symbols.get(name) {
@@ -120,6 +129,8 @@ pub(in crate::hierarchy::body_check) fn validate_aliases<'a>(
         let alias = AliasContract {
             inferred,
             activation,
+            event_context,
+            range: declaration.range(),
             field_target,
             dependencies: checker.alias_dependencies,
             evolution: checker.evolution,
@@ -153,6 +164,19 @@ impl ExpressionChecker<'_, '_, '_> {
         while let Some(alias) = pending.pop() {
             if !seen.insert(Arc::as_ptr(&alias) as usize) {
                 continue;
+            }
+            if let Some(event) = &alias.event_context {
+                if self.activation != &ActivationSyntax::Named(event.clone())
+                    || self.initial
+                    || self.sampling
+                {
+                    return Err(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.scope.file,
+                        alias.range,
+                        "event-local let alias requires its exact event activation",
+                    ));
+                }
             }
             self.physical_endpoints
                 .extend(alias.endpoints.iter().cloned());
@@ -194,6 +218,10 @@ impl ExpressionChecker<'_, '_, '_> {
                 format!("{callee_name}(...) requires one Field name"),
             ));
         };
+        if let Some(SymbolContract::Alias(alias)) = self.scope.symbols.get(name) {
+            // Identity aliases retain their use obligations even inside pre/next/derivative.
+            self.use_alias(alias.clone())?;
+        }
         let target = match self.scope.symbols.get(name) {
             Some(SymbolContract::Alias(alias)) => {
                 alias.field_target.as_deref().ok_or_else(|| {
@@ -221,19 +249,29 @@ impl ExpressionChecker<'_, '_, '_> {
                         "evolution operator requires an eligible declared state",
                     ));
                 }
-                if matches!(callee_name, "pre" | "next")
-                    && (!matches!(activation, ActivationSyntax::Periodic(_))
-                        || (!self.intrinsic
-                            && !self.initial
-                            && !self.scope.activation_matches(activation, self.activation))
-                        || (!self.intrinsic && self.initial && callee_name == "next"))
-                {
-                    return Err(source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        self.scope.file,
-                        expression.range(),
-                        "discrete state operator requires the exact clock and cannot assign next during initialization",
-                    ));
+                if matches!(callee_name, "pre" | "next") {
+                    let continuous_state = matches!(activation, ActivationSyntax::Continuous);
+                    let event_reset = matches!(self.activation, ActivationSyntax::Named(name)
+                        if matches!(self.scope.symbols.get(name), Some(SymbolContract::Event)));
+                    let clocked_state = matches!(activation, ActivationSyntax::Named(name)
+                        if matches!(self.scope.symbols.get(name), Some(SymbolContract::Clock)));
+                    let eligible = if self.intrinsic {
+                        continuous_state || clocked_state
+                    } else if self.initial {
+                        clocked_state && callee_name == "pre"
+                    } else {
+                        (continuous_state && event_reset)
+                            || (clocked_state
+                                && self.scope.activation_matches(activation, self.activation))
+                    };
+                    if !eligible {
+                        return Err(source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            self.scope.file,
+                            expression.range(),
+                            "state evolution requires its exact clock or an eligible continuous-state event reset",
+                        ));
+                    }
                 }
                 inferred.clone()
             }
@@ -284,6 +322,50 @@ impl ExpressionChecker<'_, '_, '_> {
                 expression.range(),
                 format!("unknown scalar operator `{callee_name}`"),
             )),
+        }
+    }
+}
+
+#[cfg(test)]
+mod event_alias_tests {
+    fn model(alias: &str, relation: &str) -> String {
+        format!(
+            "model M() {{ state x:1; event impact=crossing(x,direction=falling); event other=crossing(x,direction=rising); clock tick=periodic(1[s]); initial {{x=1;}} {alias} {relation} }}"
+        )
+    }
+
+    #[test]
+    fn event_local_and_deferred_evolution_aliases_keep_exact_context() {
+        for alias in [
+            "let old=pre(x);",
+            "let old at impact=pre(x);",
+            "let local at impact=pre(x); let old=local;",
+        ] {
+            let source = model(alias, "relation reset at impact {next(x)=-old;}");
+            crate::compile("event-alias.eqi", &source)
+                .unwrap_or_else(|errors| panic!("{source}: {errors:?}"));
+        }
+        for (alias, relation) in [
+            ("let old=pre(x);", "relation r {x=old;}"),
+            ("let old=pre(x);", "relation r at tick {x=old;}"),
+            (
+                "let local at impact=x; let old=local;",
+                "relation r {x=old;}",
+            ),
+            (
+                "let local at impact=x; let old=local;",
+                "relation r at other {next(x)=old;}",
+            ),
+            (
+                "let local at impact=x;",
+                "relation r at other {next(x)=pre(local);}",
+            ),
+        ] {
+            let source = model(alias, relation);
+            assert!(
+                crate::compile("event-alias.eqi", &source).is_err(),
+                "{source}"
+            );
         }
     }
 }
