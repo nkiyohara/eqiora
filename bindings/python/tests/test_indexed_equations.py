@@ -45,8 +45,9 @@ def test_indexed_sampled_equations_compile_from_text_and_file_and_resume(kind, t
     path.write_text(source, encoding="utf-8")
     from_file = eqiora.compile(path=path, entry="Network")
     assert from_file.to_bytes() == model.to_bytes()
+    output_name = "definition.values" if kind == "component" else "values"
     session = model.sampled_session(end_time_s=2, max_step_s=0.1, inputs={})
-    assert session.output("values", 0) is None
+    assert session.output(output_name, 0) is None
     assert session.advance_ticks(1) == 1
     resumed = from_file.resume_sampled(session.checkpoint())
     # Cell i starts at zero and adds i+1 per phase-zero tick. Publication reads
@@ -55,11 +56,11 @@ def test_indexed_sampled_equations_compile_from_text_and_file_and_resume(kind, t
     for current in (session, resumed):
         assert current.advance_ticks(2) == 2
         for tick, values in enumerate(expected):
-            output = current.output("values", tick)
+            output = current.output(output_name, tick)
             assert output == (Fraction(tick), values)
             assert isinstance(output[1], tuple)
             assert all(type(value) is int for value in output[1])
-        assert current.output("values", 3) is None
+        assert current.output(output_name, 3) is None
         assert current.next_tick is None
 
 
