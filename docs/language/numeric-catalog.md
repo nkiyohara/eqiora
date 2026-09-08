@@ -115,7 +115,7 @@ Python consumes this source through `eqiora.compile(source=...)` or a source fil
 Source currently exposes exact IndexSet handles and finite reduction callbacks; it does not
 provide new indexed instance/connection handles in this profile.
 
-### Finite sums and products
+### Finite scalar reductions
 
 A reduction binds one exact finite IndexSet over its expression:
 
@@ -141,6 +141,19 @@ For example, three factors of `2 [m]` have product `8 [m^3]`. Boolean, nominal, 
 and channel-array results are outside this scalar reduction profile. Complex typing does
 not establish complex numerical execution.
 
+`min(expression, over = (i in Terms))` and `max(...)` use the same finite binder
+and ascending left fold. They admit ordinary integer or real scalars with identical complete
+types and preserve the element's dimensions. The first element initializes the fold; empty
+sets reject. Comparisons retain exact integer values, including adjacent values above 2^53.
+On an exact tie the earlier element wins. Every term is evaluated, so an error in a term
+cannot be hidden by an earlier winner. Mixed integer/real types, complex values, Booleans,
+nominal indexes/counts and shaped values reject.
+
+Finite extrema retain live Parameter dependencies and use the direct sampled assignment
+path for admitted periodic values. Implicit extrema equations, continuous execution and
+unsupported differentiation reject. These reductions do not establish generic `math.min`
+or `math.max`, conditional branches, smoothing or derivative rules at a tie.
+
 The binder has the exact set's nominal index type. Use `ordinal(i)` for integer arithmetic
 or channel indexing. Nested reductions use distinct lexical binder names and cannot capture
 another declaration. Expansion charges the body size and nested extent products against the
@@ -153,8 +166,8 @@ unbound extent cannot yet type a dimensioned reduction result; closed Component 
 admitted.
 
 Reductions are admitted in Relations and runtime expression aliases. Parameter defaults and
-IndexSet extent definitions cannot contain reductions in this profile. `min` and `max`,
-runtime-sized reductions and tensor contractions remain separate capabilities. Indexed
+IndexSet extent definitions cannot contain reductions in this profile. Runtime-sized
+reductions and tensor contractions remain separate capabilities. Indexed
 equation and connection families follow the rules above.
 
 ### Nominal particle counts

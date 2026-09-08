@@ -92,7 +92,7 @@ power = postfix ["^" signed-power]
 postfix = primary {call-arguments | "[" expression "]" | "." identifier}
 primary = quantity | number | qualified-name | "true" | "false" | finite-reduction
         | "(" expression ")" | "[" [expression {"," expression}] "]"
-finite-reduction = ("sum" | "product") "(" expression "," "over" "="
+finite-reduction = ("sum" | "product" | "min" | "max") "(" expression "," "over" "="
                    "(" identifier "in" qualified-name ")" ")"
 call-arguments = "(" [argument {"," argument}] ")"
 argument = expression | named-argument | typed-structural-argument
