@@ -41,7 +41,8 @@ const GENERATION_V12: u16 = 12;
 #[non_exhaustive]
 pub enum SemanticFingerprintGeneration {
     /// Closed projection retaining Boolean and exact integer payloads, nominal references,
-    /// ordered equation sides, comparisons and finite extrema, initialization, and sample/hold transitions.
+    /// ordered equation sides, comparisons and finite extrema, initialization,
+    /// and sample/hold transitions.
     V12,
 }
 
