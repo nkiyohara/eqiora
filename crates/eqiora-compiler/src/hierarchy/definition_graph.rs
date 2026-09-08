@@ -21,6 +21,7 @@ use super::HierarchyLimits;
 use super::preflight::{ComponentDefinition, DefinitionKey, Elaborator, ModelDefinition};
 
 mod checked;
+mod families;
 mod footprint;
 mod selected;
 /// Compiler-owned proof that Component references are acyclic and every
@@ -45,6 +46,7 @@ pub(super) struct DefinitionSummary {
     ordinary_declarations: LimitedCount,
     declarations: LimitedCount,
     connections: LimitedCount,
+    expression_nodes: LimitedCount,
     identity_nonconnector_entries: LimitedCount,
     provenance_nonconnector_entries: LimitedCount,
     staged_identities: LimitedCount,
@@ -145,6 +147,7 @@ struct CountLimits {
     staged_identities: usize,
     provenance_entries: usize,
     reachability_pairs: usize,
+    expression_nodes: usize,
 }
 
 impl From<HierarchyLimits> for CountLimits {
@@ -157,6 +160,8 @@ impl From<HierarchyLimits> for CountLimits {
             staged_identities: limits.identity.max_staged_identities,
             provenance_entries: limits.provenance.max_entries,
             reachability_pairs: limits.max_definition_reachability_pairs,
+            expression_nodes: crate::source_identity::LocalSourceIdentityLimits::default()
+                .max_expression_nodes,
         }
     }
 }
@@ -165,6 +170,7 @@ impl From<HierarchyLimits> for CountLimits {
 struct LocalFootprint {
     declarations: usize,
     connections: usize,
+    expression_nodes: usize,
 }
 
 struct ReachabilityMemberships {
@@ -370,7 +376,7 @@ fn build_graph<'d>(
         )?;
         sort_edges(&mut edges, &keys);
         let (local, local_connectors) =
-            component_local_footprint(elaborator, definition, diagnostics);
+            component_local_footprint(elaborator, definition, diagnostics, None);
         components.push(ComponentNode {
             key: key.clone(),
             file: definition.file,
@@ -399,7 +405,7 @@ fn build_graph<'d>(
             key: key.clone(),
             file: definition.file,
             range: definition.declaration.range(),
-            local: model_local_footprint(elaborator, definition, diagnostics),
+            local: model_local_footprint(elaborator, definition, diagnostics, None),
             local_connectors: BTreeSet::new(),
             edges,
         });
@@ -577,6 +583,7 @@ fn summarize_component(
     let mut instances = LimitedCount::exact(1);
     let mut ordinary_declarations = LimitedCount::exact(node.local.declarations);
     let mut connections = LimitedCount::exact(node.local.connections);
+    let mut expression_nodes = LimitedCount::exact(node.local.expression_nodes);
     let local_nonconnector = node
         .local
         .declarations
@@ -618,6 +625,12 @@ fn summarize_component(
                 .multiply(edge.multiplicity, limits.connections),
             limits.connections,
         );
+        expression_nodes = expression_nodes.add(
+            child
+                .expression_nodes
+                .multiply(edge.multiplicity, limits.expression_nodes),
+            limits.expression_nodes,
+        );
         identity_nonconnector_entries = identity_nonconnector_entries.add(
             child
                 .identity_nonconnector_entries
@@ -648,6 +661,7 @@ fn summarize_component(
         ordinary_declarations,
         declarations,
         connections,
+        expression_nodes,
         identity_nonconnector_entries,
         provenance_nonconnector_entries,
         staged_identities,
@@ -666,6 +680,7 @@ fn summarize_model(
     let mut instances = LimitedCount::exact(0);
     let mut ordinary_declarations = LimitedCount::exact(node.local.declarations);
     let mut connections = LimitedCount::exact(node.local.connections);
+    let mut expression_nodes = LimitedCount::exact(node.local.expression_nodes);
     let local_nonconnector = node
         .local
         .declarations
@@ -707,6 +722,12 @@ fn summarize_model(
                 .multiply(edge.multiplicity, limits.connections),
             limits.connections,
         );
+        expression_nodes = expression_nodes.add(
+            child
+                .expression_nodes
+                .multiply(edge.multiplicity, limits.expression_nodes),
+            limits.expression_nodes,
+        );
         identity_nonconnector_entries = identity_nonconnector_entries.add(
             child
                 .identity_nonconnector_entries
@@ -737,6 +758,7 @@ fn summarize_model(
         ordinary_declarations,
         declarations,
         connections,
+        expression_nodes,
         identity_nonconnector_entries,
         provenance_nonconnector_entries,
         staged_identities,
@@ -780,6 +802,17 @@ fn append_limit_diagnostics(
             resource,
             depth.observed(),
             limits.max_instance_depth,
+        ));
+    }
+    let expression_limit = CountLimits::from(limits).expression_nodes;
+    if summary.expression_nodes.exceeds(expression_limit) {
+        diagnostics.push(limit_error(
+            file,
+            range,
+            &subject,
+            "expanded expression nodes",
+            summary.expression_nodes.observed(),
+            expression_limit,
         ));
     }
     if summary.instances.exceeds(limits.max_instances) {
@@ -861,113 +894,4 @@ fn definition_error(message: impl Into<String>) -> Diagnostic {
 }
 
 #[cfg(test)]
-mod tests {
-    use eqiora_lang::parse;
-
-    use crate::source_identity::LocalSourceIdentity;
-
-    use super::*;
-
-    fn validate_source(
-        source: &str,
-        limits: HierarchyLimits,
-    ) -> Result<CheckedDefinitionGraph, Vec<Diagnostic>> {
-        let document = parse("definition-graph.eqi", source)
-            .into_compilation_document()
-            .expect("definition graph fixture parses");
-        let source_identity =
-            LocalSourceIdentity::from_document(&document).expect("fixture has canonical identity");
-        let elaborator = Elaborator::new(
-            "definition-graph.eqi",
-            source.len(),
-            &document,
-            source_identity,
-            limits,
-        )
-        .expect("fixture scopes resolve");
-        validate(&elaborator)
-    }
-
-    fn model_summary<'a>(graph: &'a CheckedDefinitionGraph, name: &str) -> &'a DefinitionSummary {
-        graph
-            .model_summaries
-            .iter()
-            .find_map(|(key, summary)| (key.display() == name).then_some(summary))
-            .expect("Model summary exists")
-    }
-
-    #[test]
-    fn future_model_depth_boundary_is_exact() {
-        let source = "component C2() {} component C1() { instance c2: C2(); } component C0() { instance c1: C1(); } model Main() { instance root: C0(); }";
-        let limits = HierarchyLimits {
-            max_instance_depth: 4,
-            ..HierarchyLimits::default()
-        };
-        let graph = validate_source(source, limits).expect("Model plus three Components fits");
-        assert_eq!(model_summary(&graph, "Main").component_levels(), 4);
-
-        let over = "component C3() {} component C2() { instance c3: C3(); } component C1() { instance c2: C2(); } component C0() { instance c1: C1(); } model Main() { instance root: C0(); }";
-        let diagnostics = validate_source(over, limits).expect_err("fifth level fails");
-        assert!(diagnostics.iter().any(|diagnostic| {
-            diagnostic
-                .message()
-                .contains("Model-relative instance depth")
-                && diagnostic.source_span().is_some()
-        }));
-    }
-
-    #[test]
-    fn cycle_detection_is_independent_of_depth_cutoff() {
-        let source = "component C0() { instance c1: C1(); } component C1() { instance c2: C2(); } component C2() { instance c3: C3(); } component C3() { instance c4: C4(); } component C4() { instance c0: C0(); } model Main() {}";
-        let limits = HierarchyLimits {
-            max_instance_depth: 4,
-            ..HierarchyLimits::default()
-        };
-        let diagnostics = validate_source(source, limits).expect_err("cycle fails");
-        assert_eq!(
-            diagnostics
-                .iter()
-                .filter(|diagnostic| diagnostic.message().contains("recursive component"))
-                .count(),
-            1
-        );
-        assert!(diagnostics[0].source_span().is_some());
-    }
-
-    #[test]
-    fn repeated_definition_edges_retain_occurrence_multiplicity() {
-        let source = "component Leaf() {} component Branch() { instance a: Leaf(); instance b: Leaf(); } component Root() { instance x: Branch(); instance y: Branch(); } model Main() { instance root: Root(); }";
-        let graph = validate_source(source, HierarchyLimits::default()).expect("DAG is bounded");
-        let root = model_summary(&graph, "Main");
-        assert_eq!(root.instances(), 7);
-        assert_eq!(root.component_levels(), 4);
-    }
-
-    #[test]
-    fn exponential_occurrence_fails_from_memoized_definition_summary() {
-        let source = "component C10() {} component C9() { instance a:C10(); instance b:C10(); } component C8() { instance a:C9(); instance b:C9(); } component C7() { instance a:C8(); instance b:C8(); } component C6() { instance a:C7(); instance b:C7(); } component C5() { instance a:C6(); instance b:C6(); } component C4() { instance a:C5(); instance b:C5(); } component C3() { instance a:C4(); instance b:C4(); } component C2() { instance a:C3(); instance b:C3(); } component C1() { instance a:C2(); instance b:C2(); } component C0() { instance a:C1(); instance b:C1(); } model Main() {}";
-        let limits = HierarchyLimits {
-            max_instances: 1_000,
-            ..HierarchyLimits::default()
-        };
-        let diagnostics = validate_source(source, limits).expect_err("2^11-1 exceeds bound");
-        assert!(diagnostics.iter().any(|diagnostic| {
-            diagnostic.message().contains("Component instances")
-                && diagnostic.source_span().is_some()
-        }));
-    }
-
-    #[test]
-    fn model_edges_share_the_definition_edge_budget() {
-        let source = "component Leaf() {} model Main() { instance a:Leaf(); instance b:Leaf(); }";
-        let limits = HierarchyLimits {
-            max_definition_edges: 1,
-            ..HierarchyLimits::default()
-        };
-        let diagnostics = validate_source(source, limits).expect_err("second Model edge exceeds");
-        assert!(diagnostics.iter().any(|diagnostic| {
-            diagnostic.message().contains("definition-edge limit")
-                && diagnostic.source_span().is_some()
-        }));
-    }
-}
+mod tests;
