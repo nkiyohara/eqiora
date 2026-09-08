@@ -98,7 +98,7 @@ spatial tensor. Python Source uses the same constructor as
 `q.tensor_value(frame=body, components=((2, 3), (5, 7)))`, where `body` is an exact
 `Component.volume` or `Component.boundary` handle from that Component. The resulting
 expression can supply a Parameter default through `Component.set_default`. Constructor
-components must be closed scalar expressions; referencing a named value, including
+components must be closed scalar expressions; referencing a named model value, including
 a Parameter alias, inside the constructor rejects.
 
 Indices are static exact nonnegative integers; mutable Parameters cannot supply indices.

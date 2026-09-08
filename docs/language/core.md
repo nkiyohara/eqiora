@@ -305,7 +305,7 @@ uniform Parameter spatial support or create another Field. Cartesian boundaries
 supply their ambient frame as well. Components retain their nested axis order,
 with the final axis varying fastest. Channel arrays remain outer arrays of
 explicitly constructed spatial values. Constructor components must be closed scalar
-expressions; named value references, including Parameter aliases, reject. Arithmetic using an
+expressions; named model values, including Parameter aliases, reject. Arithmetic using an
 already framed Parameter retains its ordinary expression graph.
 
 A spatial Parameter requirement or contextual zero may infer its frame only when
