@@ -126,7 +126,7 @@ impl ModelDraft {
                     diagnostics.push(native_diagnostic(
                         &self.name,
                         path,
-                        "equation group requires at least one residual",
+                        "equation group requires at least one equation",
                     ));
                 }
                 if residuals.iter().any(|(left, right)| {
@@ -377,7 +377,7 @@ pub enum DraftDeclaration {
     Parameter(DraftParameter),
     /// Scalar conserving Port on one nominal physical Domain.
     ConservingPort(DraftConservingPort),
-    /// Continuous implicit residual group.
+    /// Continuous implicit equation group.
     Relation(DraftRelation),
     /// Simultaneous fresh-initialization equation sides.
     ///
@@ -727,8 +727,7 @@ impl DraftParameter {
 /// Immutable symbolic expression used only while defining a native model.
 ///
 /// Shape and spatial support remain opaque here. The shared semantic
-/// validator infers them and requires every finalized Relation residual to be
-/// scalar.
+/// validator infers them and checks the compatibility of each equation’s sides.
 #[derive(Debug, Clone)]
 pub struct DraftExpression {
     kind: DraftExpressionKind,
