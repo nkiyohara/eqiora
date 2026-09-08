@@ -18,7 +18,7 @@ import textwrap
 from typing import Final, Literal
 from types import MappingProxyType
 
-from .._eqiora import FieldRole, ValueType, FiniteSpace, IndexSet, _nominal_type_source
+from .._eqiora import FieldRole, ValueType, FiniteSpace, IndexSet, Enum as _NativeEnum, _nominal_type_source
 
 from ..units import Unit
 from .._source_bounds import _MAX_EXPRESSION_DEPTH, _MAX_EXPRESSION_NODES, _MAX_OUTPUT_BYTES
@@ -252,6 +252,47 @@ class Expression:
             25,
             _binders=self._binders,
          _sources=self._sources)
+
+
+class Enum:
+    """A closed enum declaration in one Source; members are exact symbolic paths."""
+
+    __slots__ = ("_source", "_definition")
+
+    def __init__(self, _token: object = _MISSING, *, _source: Source | None = None,
+                 _definition: _NativeEnum | None = None) -> None:
+        if _token is not _CREATE:
+            raise TypeError("Source enum handles are created by Source.enum()")
+        object.__setattr__(self, "_source", _source)
+        object.__setattr__(self, "_definition", _definition)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise AttributeError("Enum handles are immutable")
+
+    @property
+    def name(self) -> str:
+        return self._definition.name
+
+    @property
+    def value_type(self) -> ValueType:
+        return self._definition.value_type
+
+    @property
+    def members(self) -> tuple[str, ...]:
+        return self._definition.members
+
+    def member(self, name: str) -> Expression:
+        self._definition.member(name)
+        return _EnumMember(self, name)
+
+
+class _EnumMember(Expression):
+    __slots__ = ("_enumeration",)
+
+    def __init__(self, enumeration: Enum, name: str) -> None:
+        super().__init__(_CREATE, f"{enumeration.name}.{name}", None, 1, 1, 100,
+                         _sources=frozenset((enumeration._source._owner,)))
+        object.__setattr__(self, "_enumeration", enumeration)
 
 
 class Operator:
@@ -627,6 +668,41 @@ def _ternary(operation: str, first: object, second: object, third: object) -> Ex
                       _sources=frozenset().union(*(value._sources for value in values)))
 
 
+def case(value: object, arms: Sequence[tuple[Expression, object]]) -> Expression:
+    """Author ordered enum cases; the compiler checks exact coverage and branch types."""
+    value = _expression(value)
+    if isinstance(arms, (str, bytes)) or not isinstance(arms, Sequence) or not arms:
+        raise TypeError("case arms must be a nonempty ordered sequence of member/value pairs")
+    if len(arms) >= _MAX_EXPRESSION_NODES:
+        raise SourceError("case arms exceed the expression node limit")
+    checked = []
+    expressions = [value]
+    nodes = value._nodes + 1
+    owner = value._owner
+    for arm in arms:
+        if not isinstance(arm, (tuple, list)) or len(arm) != 2 or not isinstance(arm[0], _EnumMember):
+            raise TypeError("case patterns require declared Source enum members")
+        pattern, result = arm[0], _expression(arm[1])
+        if owner is not None and result._owner is not None and owner is not result._owner:
+            raise SourceError("case expressions must belong to the same Component")
+        if result._owner is not None:
+            owner = result._owner
+        nodes += pattern._nodes + result._nodes
+        if nodes > _MAX_EXPRESSION_NODES:
+            raise SourceError("case exceeds the expression node limit")
+        checked.append((pattern, result))
+        expressions.extend((pattern, result))
+    depth = max(item._depth for item in expressions) + 1
+    if depth > _MAX_EXPRESSION_DEPTH:
+        raise SourceError("case exceeds the expression depth limit")
+    if sum(len(item._text.encode("utf-8")) + 8 for item in expressions) > _MAX_OUTPUT_BYTES:
+        raise SourceError("case exceeds the output byte limit")
+    body = ", ".join(f"{pattern._text} => {result._text}" for pattern, result in checked)
+    return Expression(_CREATE, f"(case {value._text} {{ {body} }})", owner, depth, nodes, 100,
+                      _binders=frozenset().union(*(item._binders for item in expressions)),
+                      _sources=frozenset().union(*(item._sources for item in expressions)))
+
+
 def if_else(condition: object, then_value: object, else_value: object) -> Expression:
     """Author a conditional expression without evaluating Python truthiness.
 
@@ -967,7 +1043,7 @@ class Component:
 
     def _type_syntax(self, value_type: ValueType) -> str:
         try:
-            return _nominal_type_source(value_type, [space for space, _ in self._source._spaces], [item for item, _ in self._index_sets])
+            return _nominal_type_source(value_type, [space for space, _ in self._source._spaces], [item for item, _ in self._index_sets], [item._definition for item, _ in self._source._enums])
         except ValueError as error:
             raise SourceError(str(error)) from error
 
@@ -1626,6 +1702,7 @@ class Source:
         "_materials",
         "_top_names",
         "_spaces",
+        "_enums",
     )
 
     def __init__(self) -> None:
@@ -1638,11 +1715,12 @@ class Source:
         self._materials: list[MaterialComposition] = []
         self._top_names: set[str] = set()
         self._spaces: list[tuple[FiniteSpace, tuple[str, ...]]] = []
+        self._enums: list[tuple[Enum, tuple[str, ...]]] = []
         self._frozen_text: str | None = None
 
     def _type_syntax(self, value_type: ValueType) -> str:
         try:
-            return _nominal_type_source(value_type, [space for space, _ in self._spaces], [])
+            return _nominal_type_source(value_type, [space for space, _ in self._spaces], [], [item._definition for item, _ in self._enums])
         except ValueError as error:
             raise SourceError(str(error)) from error
 
@@ -1690,6 +1768,18 @@ class Source:
                             _result=result, _body=expression, _doc=documentation)
         self._operators.append(operator)
         return operator
+
+    def enum(self, name: str, *, members: Sequence[str], doc: str | None = None) -> Enum:
+        """Declare a closed enum shared by all occurrences in this Source."""
+        self._ensure_open()
+        if isinstance(members, (str, bytes)) or not isinstance(members, Sequence):
+            raise TypeError("enum members must be an ordered sequence of names")
+        definition = _NativeEnum(_name(name), members=members)
+        documentation = _doc(doc)
+        self._add_top_name(name)
+        result = Enum(_CREATE, _source=self, _definition=definition)
+        self._enums.append((result, documentation))
+        return result
 
     def space(self, name: str, *, labels: Sequence[str], doc: str | None = None) -> FiniteSpace:
         """Declare one exact ordered finite basis shared by this Source's components."""
@@ -1856,6 +1946,10 @@ class Source:
                     "Source requires at least one public Component before emission"
                 )
             declarations: list[str] = []
+            for enumeration, doc in self._enums:
+                declarations.extend(_comment(doc, ""))
+                declarations.append(f"public enum {enumeration.name} {{ {', '.join(enumeration.members)} }}")
+                declarations.append("")
             for operator in self._operators:
                 declarations.extend(_comment(operator._doc, ""))
                 inputs = ", ".join(f"input {name}: {kind}" for name, kind in operator._inputs)
@@ -1969,6 +2063,7 @@ __all__ = [
     "Clock",
     "Component",
     "Expression",
+    "Enum",
     "Event",
     "MaterialComposition",
     "Operator",
@@ -1979,6 +2074,7 @@ __all__ = [
     "SourceError",
     "Support",
     "array",
+    "case",
     "coordinate",
     "dot",
     "div",

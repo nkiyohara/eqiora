@@ -145,6 +145,7 @@ impl PyValueType {
     #[getter]
     fn scalar_domain(&self) -> &'static str {
         match self.value.scalar_domain() {
+            ScalarDomain::Enum => "enum",
             ScalarDomain::Boolean => "boolean",
             ScalarDomain::Integer => "integer",
             ScalarDomain::Real => "real",

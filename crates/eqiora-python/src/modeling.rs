@@ -8,6 +8,7 @@ use eqiora::language::{
     DraftSpatialDomain, FieldRoleSyntax, ModelDraft,
 };
 pub(crate) mod dimension;
+pub(crate) mod enumeration;
 mod nominal;
 mod predicates;
 pub(crate) mod value_literal;
@@ -804,6 +805,8 @@ fn model_draft(
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyDimension>()?;
     module.add_class::<PyValueType>()?;
+    module.add_class::<enumeration::PyEnum>()?;
+    module.add_class::<enumeration::PyEnumValue>()?;
     module.add_class::<nominal::PyFiniteSpace>()?;
     module.add_class::<nominal::PyIndexSet>()?;
     module.add_function(wrap_pyfunction!(nominal::_nominal_type_source, module)?)?;
@@ -830,6 +833,15 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 
 fn declaration_from_python(value: &Bound<'_, PyAny>) -> PyResult<DraftDeclaration> {
+    if let Ok(definition) = value.extract::<PyRef<'_, enumeration::PyEnum>>() {
+        let name = definition.name.clone().ok_or_else(|| {
+            PyValueError::new_err("native enum declarations require an authored lexical name")
+        })?;
+        return Ok(DraftDeclaration::Enum {
+            name,
+            definition: definition.value.clone(),
+        });
+    }
     if let Ok(space) = value.extract::<PyRef<'_, nominal::PyFiniteSpace>>() {
         return Ok(DraftDeclaration::FiniteSpace {
             name: space.name.clone(),
@@ -872,6 +884,10 @@ fn declaration_from_python(value: &Bound<'_, PyAny>) -> PyResult<DraftDeclaratio
 }
 
 fn expression_from_python(value: &Bound<'_, PyAny>) -> PyResult<DraftExpression> {
+    if let Ok(value) = value.extract::<PyRef<'_, enumeration::PyEnumValue>>() {
+        return DraftExpression::enum_value(value.value.clone())
+            .map_err(|error| PyValueError::new_err(error.to_string()));
+    }
     if let Ok(expression) = value.extract::<PyRef<'_, PyExpression>>() {
         return Ok(expression.value.clone());
     }

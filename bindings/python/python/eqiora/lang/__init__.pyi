@@ -14,6 +14,20 @@ from typing import Final, Literal, final
 from .. import FieldRole, ValueType, FiniteSpace, IndexSet
 
 @final
+class Enum:
+    """A closed enum declaration shared within its Source.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::Enum``.
+    """
+    @property
+    def name(self) -> str: ...
+    @property
+    def members(self) -> tuple[str, ...]: ...
+    @property
+    def value_type(self) -> ValueType: ...
+    def member(self, name: str) -> Expression: ...
+
+@final
 class Operator:
     """An immutable typed operator declared by one Source; call with named arguments.
 
@@ -271,6 +285,12 @@ class Source:
                  body: Callable[..., object], doc: str | None = None) -> Operator:
         """Declare a closed real-scalar operator from one symbolic callback invocation."""
         ...
+    def enum(self, name: str, *, members: Sequence[str], doc: str | None = None) -> Enum:
+        """Declare a closed enum shared by occurrences in this Source.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::Source.enum``.
+        """
+        ...
     def space(self, name: str, *, labels: Sequence[str], doc: str | None = None) -> FiniteSpace:
         """Declare an exact ordered basis registered in this Source.
 
@@ -376,6 +396,13 @@ class _Math:
 #:
 #: Authority: ``bindings/python/python/eqiora/lang/__init__.py::math``.
 math: _Math
+
+def case(value: object, arms: Sequence[tuple[Expression, object]]) -> Expression:
+    """Author ordered closed-member cases; compiler checks exhaustiveness and types.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::case``.
+    """
+    ...
 
 def if_else(condition: object, then_value: object, else_value: object) -> Expression:
     """Author a conditional with all operands checked and one branch executed.
@@ -547,6 +574,7 @@ __all__ = [
     "Clock",
     "Component",
     "Expression",
+    "Enum",
     "Event",
     "MaterialComposition",
     "Operator",
@@ -557,6 +585,7 @@ __all__ = [
     "SourceError",
     "Support",
     "array",
+    "case",
     "coordinate",
     "dot",
     "div",

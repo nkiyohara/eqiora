@@ -11,7 +11,7 @@ use pyo3::types::{PyBool, PyInt, PyTuple};
 
 use super::PyValueType;
 
-fn name_path(name: &str) -> PyResult<NamePath> {
+pub(super) fn name_path(name: &str) -> PyResult<NamePath> {
     NamePath::from_segments([name], TextRange::default())
         .map_err(|error| PyValueError::new_err(error.to_string()))
 }
@@ -133,13 +133,21 @@ pub(crate) fn _nominal_type_source(
     value_type: &PyValueType,
     spaces: Vec<PyRef<'_, PyFiniteSpace>>,
     sets: Vec<PyRef<'_, PyIndexSet>>,
+    enums: Vec<PyRef<'_, super::enumeration::PyEnum>>,
 ) -> PyResult<String> {
-    let mut names = Vec::with_capacity(spaces.len() + sets.len());
+    let mut names = Vec::with_capacity(spaces.len() + sets.len() + enums.len());
     for space in spaces {
         names.push((space.value.id().erase(), name_path(&space.name)?));
     }
     for set in sets {
         names.push((set.value.id().erase(), name_path(&set.name)?));
+    }
+    for definition in enums {
+        let name = definition
+            .name
+            .as_deref()
+            .ok_or_else(|| PyValueError::new_err("enum has no lexical name"))?;
+        names.push((definition.value.id().erase(), name_path(name)?));
     }
     ValueTypeSyntax::from_checked(&value_type.value, |id| {
         names

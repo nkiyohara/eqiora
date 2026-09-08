@@ -13,6 +13,7 @@ use crate::geometry::PyGeometrySelection;
 
 pub(crate) enum OwnedBinding {
     Expression(Expr),
+    Value(eqiora::ValueLiteral),
     Clock(ClockDomainDef),
     Support(String, Option<String>),
 }
@@ -24,6 +25,7 @@ impl OwnedBinding {
     ) -> StaticBindingValue<'a> {
         match self {
             Self::Expression(expression) => StaticBindingValue::Expression(expression),
+            Self::Value(value) => StaticBindingValue::Value(value),
             Self::Clock(clock) => StaticBindingValue::Clock(clock),
             Self::Support(selection, parent) => {
                 let geometry = geometry.expect("support extraction checks exact authority");
@@ -82,7 +84,11 @@ pub(crate) fn extract(
             ));
         }
         let name = name.to_owned();
-        let binding = if let Ok(clock) = value.extract::<PyRef<'_, PyClockDomain>>() {
+        let binding = if let Ok(value) =
+            value.extract::<PyRef<'_, crate::modeling::enumeration::PyEnumValue>>()
+        {
+            OwnedBinding::Value(value.value.clone())
+        } else if let Ok(clock) = value.extract::<PyRef<'_, PyClockDomain>>() {
             OwnedBinding::Clock(clock.value.clone())
         } else if value.is_instance_of::<PyGeometrySelection>() {
             OwnedBinding::Support(selection(&value, geometry)?, None)
@@ -94,12 +100,16 @@ pub(crate) fn extract(
                 )
             } else {
                 OwnedBinding::Expression(
-                    crate::modeling::value_literal::expression(&value)?.source_ast(),
+                    crate::modeling::value_literal::expression(&value)?
+                        .source_ast(|_| None, |_| None)
+                        .map_err(|error| PyValueError::new_err(error.to_string()))?,
                 )
             }
         } else {
             OwnedBinding::Expression(
-                crate::modeling::value_literal::expression(&value)?.source_ast(),
+                crate::modeling::value_literal::expression(&value)?
+                    .source_ast(|_| None, |_| None)
+                    .map_err(|error| PyValueError::new_err(error.to_string()))?,
             )
         };
         output.push((name, binding));

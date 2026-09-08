@@ -242,6 +242,35 @@ class Dimension:
     def __ne__(self, other: object, /) -> bool: ...
 
 @final
+class Enum:
+    """An exact closed enum declaration; replay may have no retained lexical name.
+
+    Authority: ``crates/eqiora-python/src/modeling/enumeration.rs::PyEnum``.
+    """
+    def __new__(cls, name: str, *, members: Sequence[str]) -> Self: ...
+    @property
+    def name(self) -> str | None: ...
+    @property
+    def id(self) -> str: ...
+    @property
+    def members(self) -> tuple[str, ...]: ...
+    @property
+    def value_type(self) -> ValueType: ...
+    def member(self, name: str) -> EnumValue: ...
+
+@final
+class EnumValue:
+    """An immutable nominal enum member without numeric or Boolean coercion.
+
+    Authority: ``crates/eqiora-python/src/modeling/enumeration.rs::PyEnumValue``.
+    """
+    @property
+    def value_type(self) -> ValueType: ...
+    @property
+    def enum_id(self) -> str: ...
+    def __bool__(self) -> bool: ...
+
+@final
 class FiniteSpace:
     """Exact nominal ordered basis, distinct from a numerical discretization space.
 
@@ -299,7 +328,7 @@ class ValueType:
     @staticmethod
     def array(element: ValueType, extent: int) -> ValueType: ...
     @property
-    def scalar_domain(self) -> Literal["real", "complex"]: ...
+    def scalar_domain(self) -> Literal["real", "complex", "integer", "boolean", "enum"]: ...
     @property
     def dimension(self) -> Dimension: ...
     @property
@@ -786,6 +815,12 @@ class Model:
         inputs: dict[str, tuple[str, list[_TypedValue] | tuple[_TypedValue, ...]]],
     ) -> ExecutionSession: ...
     def resume_execution(self, checkpoint: ExecutionCheckpoint) -> ExecutionSession: ...
+    def enum(self, selection: str) -> Enum:
+        """Inspect an exact enum by source alias or retained canonical ULID.
+
+        Authority: ``crates/eqiora-python/src/model.rs::PyModel``.
+        """
+        ...
     def parameter(self, selection: str) -> ParameterRef: ...
     def field(self, selection: str) -> FieldRef: ...
     def domain(self, selection: str) -> DomainRef: ...
@@ -1531,10 +1566,11 @@ class Run(Generic[_RunResultT]):
     def result(self) -> _RunResultT: ...
     def __await__(self) -> Generator[Any, None, _RunResultT]: ...
 
-_TypedValue = int | float | complex | list["_TypedValue"] | tuple["_TypedValue", ...]
+_TypedValue = EnumValue | int | float | complex | list["_TypedValue"] | tuple["_TypedValue", ...]
 
 _ModelDeclaration = (
-    Domain
+    Enum
+    | Domain
     | Initial
     | Field
     | Parameter
@@ -1826,6 +1862,8 @@ __all__ = [
     "DifferentiationMode",
     "Dimension",
     "ValueType",
+    "Enum",
+    "EnumValue",
     "FiniteSpace",
     "IndexSet",
     "DomainRef",

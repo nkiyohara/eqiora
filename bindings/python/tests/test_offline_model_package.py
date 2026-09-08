@@ -96,6 +96,8 @@ EXPECTED_EQIORA_ALL = [
     "DifferentiationMode",
     "Dimension",
     "ValueType",
+    "Enum",
+    "EnumValue",
     "FiniteSpace",
     "IndexSet",
     "DomainRef",
