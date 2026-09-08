@@ -29,14 +29,14 @@ mod visibility;
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_lang::{
-    ActivationSyntax, BinaryOp, BoundaryConnectionDecl, BoundaryFamilyBinderSyntax,
-    BoundaryPairingSyntax, BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax,
-    BoundarySideSyntax, CartesianCoordinateSyntax, ClockDecl, ComponentDecl, ComponentItem,
-    ComponentParameterDecl, ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl,
-    ConnectionSyntax, ConnectorDecl, ConnectorSyntax, Document, DomainDecl, DomainSyntax, Expr,
-    ExprKind, FieldDecl, FrameSyntax, Item, NamePath, ParameterDecl, PortDecl, PortSyntax,
-    PureOperatorDecl, RelationDecl, RelationFamilyDecl, SignalDirectionSyntax, SupportSlotDecl,
-    SupportSlotSyntax, UnaryOp, ValueShapeSyntax, VisibilitySyntax,
+    ActivationSyntax, BinaryOp, BoundaryConnectionDecl, BoundaryPairingSyntax,
+    BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax, BoundarySideSyntax,
+    CartesianCoordinateSyntax, ClockDecl, ComponentDecl, ComponentItem, ComponentParameterDecl,
+    ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorDecl,
+    ConnectorSyntax, Document, DomainDecl, DomainSyntax, Expr, ExprKind, FamilyBinderSyntax,
+    FieldDecl, FrameSyntax, Item, NamePath, ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl,
+    RelationDecl, RelationFamilyDecl, SignalDirectionSyntax, SupportSlotDecl, SupportSlotSyntax,
+    UnaryOp, ValueShapeSyntax, VisibilitySyntax,
 };
 use sha2::{Digest, Sha256};
 
@@ -194,6 +194,22 @@ fn canonical_source_bytes_with_aliases(
     let components = encode_sorted_records(document.components(), &mut budget, encode_component)?;
     let models = encode_sorted_records(document.models(), &mut budget, encode_model)?;
 
+    let finite_spaces = encode_sorted_records(
+        document.finite_spaces(),
+        &mut budget,
+        |declaration, budget| {
+            let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
+            encoder.u8(
+                if declaration.visibility() == eqiora_lang::VisibilitySyntax::Public {
+                    1
+                } else {
+                    0
+                },
+            )?;
+            encode_let(&mut encoder, declaration, budget)?;
+            encoder.finish()
+        },
+    )?;
     let mut encoder = Encoder::new(limits.max_canonical_bytes);
     encoder.raw(MAGIC)?;
     encoder.u16(CANONICAL_VERSION)?;
@@ -214,6 +230,9 @@ fn canonical_source_bytes_with_aliases(
     }
     if !material_compositions.is_empty() {
         encoder.field(8, |encoder| encoder.records(&material_compositions))?;
+    }
+    if !finite_spaces.is_empty() {
+        encoder.field(9, |encoder| encoder.records(&finite_spaces))?;
     }
     encoder.finish()
 }
@@ -355,7 +374,7 @@ fn encode_container_records<T>(
         if connection.syntax() != ConnectionSyntax::Conserving {
             continue;
         }
-        let members = connection.port_paths().len();
+        let members = connection.port_expressions().len();
         budget.check_connection_members(members, "Connection")?;
         check_connection_set_limit(
             "members in one connection fragment",
@@ -446,8 +465,8 @@ fn encode_conserving_fragment(
     budget: &mut Budget,
     limits: ConnectionSetLimits,
 ) -> Result<ConnectionFragment<Vec<u8>>, Diagnostic> {
-    budget.check_connection_members(declaration.port_paths().len(), "Connection")?;
-    let paths = encode_sorted_paths(declaration.port_paths(), budget)?;
+    budget.check_connection_members(declaration.port_expressions().len(), "Connection")?;
+    let paths = encode_sorted_endpoints(declaration.port_expressions(), budget)?;
     ConnectionFragment::try_new(paths, limits)
         .map_err(|error| connection_set_identity_error("encode", error))
 }
@@ -488,6 +507,10 @@ fn encode_model_item(item: &Item, budget: &mut Budget) -> Result<Vec<u8>, Diagno
         Item::Parameter(declaration) => {
             encoder.u16(4)?;
             encode_parameter(&mut encoder, declaration, budget)?;
+        }
+        Item::IndexSet(declaration) => {
+            encoder.u16(15)?;
+            encode_let(&mut encoder, declaration, budget)?;
         }
         Item::Let(declaration) => {
             encoder.u16(MODEL_LET_ITEM_TAG)?;
@@ -793,7 +816,7 @@ fn encode_connection(
     declaration: &ConnectionDecl,
     budget: &mut Budget,
 ) -> Result<(), Diagnostic> {
-    budget.check_connection_members(declaration.port_paths().len(), "Connection")?;
+    budget.check_connection_members(declaration.port_expressions().len(), "Connection")?;
     encoder.field(1, |encoder| {
         encoder.u8(match declaration.syntax() {
             ConnectionSyntax::Signal => 1,
@@ -803,21 +826,21 @@ fn encode_connection(
     })?;
     encoder.field(2, |encoder| match declaration.syntax() {
         ConnectionSyntax::Conserving => {
-            let paths = encode_sorted_paths(declaration.port_paths(), budget)?;
+            let paths = encode_sorted_endpoints(declaration.port_expressions(), budget)?;
             encoder.records(&paths)
         }
         ConnectionSyntax::Signal => {
-            let Some((output, inputs)) = declaration.port_paths().split_first() else {
+            let Some((output, inputs)) = declaration.port_expressions().split_first() else {
                 return Err(source_identity_error(
                     "signal Connection has no output member",
                 ));
             };
-            encoder.field(1, |encoder| encode_path(encoder, output, budget))?;
-            let inputs = encode_sorted_paths(inputs, budget)?;
+            encoder.field(1, |encoder| encode_expression(encoder, output, budget, 0))?;
+            let inputs = encode_sorted_endpoints(inputs, budget)?;
             encoder.field(2, |encoder| encoder.records(&inputs))
         }
         ConnectionSyntax::SpatialPeriodic => {
-            let paths = encode_sorted_paths(declaration.port_paths(), budget)?;
+            let paths = encode_sorted_endpoints(declaration.port_expressions(), budget)?;
             encoder.records(&paths)
         }
     })
@@ -846,11 +869,13 @@ fn encode_boundary_connection(
 
 fn encode_boundary_family_binder(
     encoder: &mut Encoder,
-    binder: &BoundaryFamilyBinderSyntax,
+    binder: &FamilyBinderSyntax,
     budget: &mut Budget,
 ) -> Result<(), Diagnostic> {
     encoder.field(1, |encoder| encode_name(encoder, binder.member(), budget))?;
-    encoder.field(2, |encoder| encode_name(encoder, binder.set(), budget))
+    encoder.field(2, |encoder| {
+        encode_name(encoder, binder.set().as_str(), budget)
+    })
 }
 
 fn encode_boundary_port_reference(
@@ -917,13 +942,13 @@ fn encode_path(
 mod expression;
 use expression::{encode_expression, encode_relation, encode_relation_family};
 
-fn encode_sorted_paths(
-    paths: &[NamePath],
+fn encode_sorted_endpoints(
+    values: &[Expr],
     budget: &mut Budget,
 ) -> Result<Vec<Vec<u8>>, Diagnostic> {
-    encode_sorted_records(paths, budget, |path, budget| {
+    encode_sorted_records(values, budget, |value, budget| {
         let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
-        encode_path(&mut encoder, path, budget)?;
+        encode_expression(&mut encoder, value, budget, 0)?;
         encoder.finish()
     })
 }

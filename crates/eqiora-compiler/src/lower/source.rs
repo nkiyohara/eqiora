@@ -68,7 +68,14 @@ impl LoweringModel {
                     },
                     Item::Connection(c) => LoweringItem::Connection {
                         syntax: c.syntax(),
-                        ports: c.port_paths().iter().map(|p| p.as_str().into()).collect(),
+                        ports: c
+                            .port_expressions()
+                            .iter()
+                            .map(|expression| {
+                                crate::source_endpoints::path(file, expression)
+                                    .map(|path| path.as_str().to_owned())
+                            })
+                            .collect::<Result<Vec<_>, _>>()?,
                         range: c.range(),
                     },
                     _ => LoweringItem::Unsupported {

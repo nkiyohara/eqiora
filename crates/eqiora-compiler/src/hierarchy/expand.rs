@@ -1184,13 +1184,13 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 ComponentItem::PortFamily(family) => {
                     let declaration = family.port();
                     let set = support_bindings
-                        .boundary_set(family.binder().set())
+                        .boundary_set(family.binder().set().as_str())
                         .ok_or_else(|| {
                             vec![contextualize_diagnostic(
                                 hierarchy_error(format!(
                                     "Port family `{}` has no resolved complete-exterior binding `{}`",
                                     declaration.name(),
-                                    family.binder().set()
+                                    family.binder().set().as_str()
                                 )),
                                 &instance_path,
                             )]
@@ -1372,13 +1372,13 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 ComponentItem::RelationFamily(family) => {
                     let declaration = family.relation();
                     let set = support_bindings
-                        .boundary_set(family.binder().set())
+                        .boundary_set(family.binder().set().as_str())
                         .ok_or_else(|| {
                             vec![contextualize_diagnostic(
                                 hierarchy_error(format!(
                                     "Relation family `{}` has no resolved complete-exterior binding `{}`",
                                     declaration.name(),
-                                    family.binder().set()
+                                    family.binder().set().as_str()
                                 )),
                                 &instance_path,
                             )]
@@ -1482,13 +1482,13 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 ComponentItem::PortFamily(family) => {
                     let declaration = family.port();
                     let set = support_bindings
-                        .boundary_set(family.binder().set())
+                        .boundary_set(family.binder().set().as_str())
                         .ok_or_else(|| {
                             vec![contextualize_diagnostic(
                                 hierarchy_error(format!(
                                     "Port family `{}` has no resolved complete-exterior binding `{}`",
                                     declaration.name(),
-                                    family.binder().set()
+                                    family.binder().set().as_str()
                                 )),
                                 &instance_path,
                             )]
@@ -1671,12 +1671,12 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 ComponentItem::PortFamily(family) => {
                     let declaration = family.port();
                     let set = support_bindings
-                        .boundary_set(family.binder().set())
+                        .boundary_set(family.binder().set().as_str())
                         .ok_or_else(|| {
                             hierarchy_error(format!(
                                 "Port family `{}` has no resolved complete-exterior binding `{}`",
                                 declaration.name(),
-                                family.binder().set()
+                                family.binder().set().as_str()
                             ))
                         })?;
                     for side in set.witness().sides() {
@@ -1768,12 +1768,12 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 ComponentItem::RelationFamily(family) => {
                     let declaration = family.relation();
                     let set = support_bindings
-                        .boundary_set(family.binder().set())
+                        .boundary_set(family.binder().set().as_str())
                         .ok_or_else(|| {
                             hierarchy_error(format!(
                                 "Relation family `{}` has no resolved complete-exterior binding `{}`",
                                 declaration.name(),
-                                family.binder().set()
+                                family.binder().set().as_str()
                             ))
                         })?;
                     for side in set.witness().sides() {
@@ -1838,10 +1838,10 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 }
                 ComponentItem::BoundaryConnection(declaration) => {
                     if let Some(binder) = declaration.binder() {
-                        let set = support_bindings.boundary_set(binder.set()).ok_or_else(|| {
+                        let set = support_bindings.boundary_set(binder.set().as_str()).ok_or_else(|| {
                             hierarchy_error(format!(
                                 "Connection family has no resolved complete-exterior binding `{}`",
-                                binder.set()
+                                binder.set().as_str()
                             ))
                         })?;
                         for side in set.witness().sides() {
@@ -2071,7 +2071,13 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         let ports = resolve_ports(
             &origin.definition_file,
             declaration.range(),
-            declaration.port_paths(),
+            &declaration
+                .port_expressions()
+                .iter()
+                .map(|expression| {
+                    crate::source_endpoints::path(&origin.definition_file, expression)
+                })
+                .collect::<Result<Vec<_>, _>>()?,
             scope,
         )?;
         self.add_resolved_connection(

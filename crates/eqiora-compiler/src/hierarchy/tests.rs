@@ -370,6 +370,7 @@ fn external_dimensioned_parameter_failures_are_typed() {
         ))
         .unwrap(),
         Default::default(),
+        |_| None,
     )
     .unwrap();
     let mut bindings = external_supports(&geometry);

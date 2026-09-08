@@ -51,7 +51,7 @@ pub(super) fn encode_parameter(
 
 pub(super) fn encode_let(
     encoder: &mut Encoder,
-    declaration: &eqiora_lang::LetDecl,
+    declaration: &eqiora_lang::NamedDefinitionDecl,
     budget: &mut Budget,
 ) -> Result<(), Diagnostic> {
     encoder.field(1, |encoder| {

@@ -72,7 +72,7 @@ impl RootExpansion<'_, '_> {
         &self,
         scope: &mut Scope,
         file: &str,
-        declarations: impl Iterator<Item = &'d eqiora_lang::LetDecl>,
+        declarations: impl Iterator<Item = &'d eqiora_lang::NamedDefinitionDecl>,
     ) -> Result<(), Vec<Diagnostic>> {
         let order = crate::hierarchy::parameters::alias_order(file, declarations)?;
         for declaration in order {

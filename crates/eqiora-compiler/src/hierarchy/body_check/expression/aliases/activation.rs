@@ -108,7 +108,7 @@ impl DependencyActivation {
     pub(super) fn validate(
         &self,
         scope: &DefinitionScope<'_, '_>,
-        declaration: &eqiora_lang::LetDecl,
+        declaration: &eqiora_lang::NamedDefinitionDecl,
     ) -> Result<(), Diagnostic> {
         let Some(clock) = declaration.activation() else {
             return Ok(());

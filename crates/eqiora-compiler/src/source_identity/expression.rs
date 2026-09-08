@@ -32,6 +32,13 @@ pub(super) fn encode_expression(
             }
             encoder.field(1, |encoder| encoder.records(&encoded))
         }
+        ExprKind::Member { value, member } => {
+            encoder.u16(12)?;
+            encoder.field(1, |encoder| {
+                encode_expression(encoder, value, budget, next_depth(depth)?)
+            })?;
+            encoder.field(2, |encoder| encode_name(encoder, member, budget))
+        }
         ExprKind::Index { value, index } => {
             encoder.u16(11)?;
             let child_depth = next_depth(depth)?;

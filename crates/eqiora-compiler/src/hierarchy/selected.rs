@@ -497,7 +497,8 @@ fn bind_model(
             else {
                 return Ok(item.clone());
             };
-            let value = SourceAstFactory::value_literal(binding.value(), declaration.range())?;
+            let value =
+                SourceAstFactory::value_literal(binding.value(), declaration.range(), |_| None)?;
             SourceAstFactory::component_parameter(
                 eqiora_lang::VisibilitySyntax::Public,
                 declaration.name(),

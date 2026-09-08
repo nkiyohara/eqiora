@@ -25,6 +25,7 @@ pub mod provenance;
 mod pure_operator;
 mod resolved;
 mod source_compile;
+mod source_endpoints;
 #[doc(hidden)]
 pub mod source_identity;
 mod typed_values;

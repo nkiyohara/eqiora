@@ -50,7 +50,7 @@ pub(super) fn component_local_footprint(
             ComponentItem::PortFamily(family) => {
                 if let Some(members) = complete_exterior_cardinality(
                     definition,
-                    family.binder().set(),
+                    family.binder().set().as_str(),
                     family.range(),
                     diagnostics,
                 ) {
@@ -67,7 +67,7 @@ pub(super) fn component_local_footprint(
             ComponentItem::RelationFamily(family) => {
                 if let Some(members) = complete_exterior_cardinality(
                     definition,
-                    family.binder().set(),
+                    family.binder().set().as_str(),
                     family.range(),
                     diagnostics,
                 ) {
@@ -103,7 +103,7 @@ pub(super) fn component_local_footprint(
                 };
                 if let Some(members) = complete_exterior_cardinality(
                     definition,
-                    binder.set(),
+                    binder.set().as_str(),
                     connection.range(),
                     diagnostics,
                 ) {

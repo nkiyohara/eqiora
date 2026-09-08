@@ -11,6 +11,16 @@ pub(super) fn encode_value_type(
 ) -> Result<(), Diagnostic> {
     budget.account_expression(depth)?;
     match value.kind() {
+        ValueTypeSyntaxKind::Coordinates(name)
+        | ValueTypeSyntaxKind::Counts(name)
+        | ValueTypeSyntaxKind::Index(name) => {
+            encoder.u8(match value.kind() {
+                ValueTypeSyntaxKind::Coordinates(_) => 4,
+                ValueTypeSyntaxKind::Counts(_) => 5,
+                _ => 6,
+            })?;
+            encode_path(encoder, name, budget)
+        }
         ValueTypeSyntaxKind::Scalar { domain, dimension } => {
             encoder.u8(0)?;
             encoder.u8(match domain {

@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_lang::{ComponentDecl, ComponentItem, Item, LetDecl, ModelDecl};
+use eqiora_lang::{ComponentDecl, ComponentItem, Item, ModelDecl, NamedDefinitionDecl};
 
 use crate::diagnostics::{source_error, stable_sort};
 use crate::value_types::lower_value_type;
@@ -52,7 +52,7 @@ pub(in crate::hierarchy) fn resolve_component_lets(
 
 fn resolve_lets<'a>(
     file: &str,
-    declarations: impl Iterator<Item = &'a LetDecl>,
+    declarations: impl Iterator<Item = &'a NamedDefinitionDecl>,
     values: &mut SymbolicParameterMap,
     resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -133,8 +133,8 @@ fn resolve_lets<'a>(
 /// One bounded dependency graph for both static and runtime aliases.
 pub(in crate::hierarchy) fn alias_order<'a>(
     file: &str,
-    declarations: impl Iterator<Item = &'a LetDecl>,
-) -> Result<Vec<&'a LetDecl>, Vec<Diagnostic>> {
+    declarations: impl Iterator<Item = &'a NamedDefinitionDecl>,
+) -> Result<Vec<&'a NamedDefinitionDecl>, Vec<Diagnostic>> {
     let declarations = declarations
         .map(|d| (d.name().to_owned(), d))
         .collect::<BTreeMap<_, _>>();

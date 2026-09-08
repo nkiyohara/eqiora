@@ -223,7 +223,7 @@ fn negative_dimensioned_constructor_values_match_native_and_formatted_identity()
             panic!("parameter")
         };
         let range = TextRange::new(0, 0);
-        let expression = SourceAstFactory::value_literal(&value, range).unwrap();
+        let expression = SourceAstFactory::value_literal(&value, range, |_| None).unwrap();
         let parameter =
             SourceAstFactory::parameter("p", parameter.value_type().clone(), expression, range)
                 .unwrap();
