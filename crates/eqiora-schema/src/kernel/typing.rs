@@ -17,6 +17,7 @@ mod boolean;
 mod construction;
 mod inference;
 mod integer;
+mod ordered_selection;
 use inference::{NodeInference, infer_node, inferred_type};
 mod value;
 pub use value::ExpressionType;
