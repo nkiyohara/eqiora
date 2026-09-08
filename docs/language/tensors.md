@@ -22,7 +22,7 @@ exact admitted Cartesian support. It projects the existing model-global frame an
 uses the support's ambient dimension; the uniform Parameter retains no spatial
 support. Native `DraftParameter.with_frame` and Python `Parameter(frame=...)`
 retain the same explicit support reference during source construction. Components
-must be closed scalar expressions; live or unresolved Parameter components reject.
+must be closed scalar expressions; named value references, including Parameter aliases, reject.
 Arithmetic using already framed Parameters retains its ordinary expression graph. Arbitrary
 local frames and the contraction operations below remain separate capabilities.
 
