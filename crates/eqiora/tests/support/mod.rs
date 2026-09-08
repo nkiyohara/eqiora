@@ -124,20 +124,28 @@ pub(crate) fn canonical_state_dependent_mass_dae() -> CanonicalStateDependentMas
                 relation,
                 {
                     let equation_zero_0 = expression
-                        .constant(eqiora_core::ValueLiteral::zero(
-                            eqiora_core::ValueType::scalar(
-                                eqiora_core::ScalarDomain::Real,
-                                inverse_time,
-                            ),
-                        ))
+                        .constant(
+                            eqiora_core::ValueLiteral::from_real(
+                                eqiora_core::ValueType::scalar(
+                                    eqiora_core::ScalarDomain::Real,
+                                    inverse_time,
+                                ),
+                                0.0,
+                            )
+                            .unwrap(),
+                        )
                         .unwrap();
                     let equation_zero_1 = expression
-                        .constant(eqiora_core::ValueLiteral::zero(
-                            eqiora_core::ValueType::scalar(
-                                eqiora_core::ScalarDomain::Real,
-                                DimExponents::DIMENSIONLESS,
-                            ),
-                        ))
+                        .constant(
+                            eqiora_core::ValueLiteral::from_real(
+                                eqiora_core::ValueType::scalar(
+                                    eqiora_core::ScalarDomain::Real,
+                                    DimExponents::DIMENSIONLESS,
+                                ),
+                                0.0,
+                            )
+                            .unwrap(),
+                        )
                         .unwrap();
                     expression.finish([
                         differential_residual,

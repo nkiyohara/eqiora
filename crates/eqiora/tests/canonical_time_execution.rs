@@ -473,17 +473,25 @@ fn canonical_decay_with_integral() -> (
     let x_residual = expression.sub(negative_x_derivative, decay).unwrap();
     let residuals = {
         let equation_zero_0 = expression
-            .constant(eqiora_core::ValueLiteral::zero(
-                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time),
-            ))
+            .constant(
+                eqiora_core::ValueLiteral::from_real(
+                    eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time),
+                    0.0,
+                )
+                .unwrap(),
+            )
             .unwrap();
         let equation_zero_1 = expression
-            .constant(eqiora_core::ValueLiteral::zero(
-                eqiora_core::ValueType::scalar(
-                    eqiora_core::ScalarDomain::Real,
-                    DimExponents::from_integers([0, 0, -2, 0, 0, 0, 0]).unwrap(),
-                ),
-            ))
+            .constant(
+                eqiora_core::ValueLiteral::from_real(
+                    eqiora_core::ValueType::scalar(
+                        eqiora_core::ScalarDomain::Real,
+                        DimExponents::from_integers([0, 0, -2, 0, 0, 0, 0]).unwrap(),
+                    ),
+                    0.0,
+                )
+                .unwrap(),
+            )
             .unwrap();
         expression.finish([
             integral_residual,
@@ -594,12 +602,16 @@ fn state_dependent_mass_relation() -> (eqiora::sem::KernelProgram, Id<kinds::Rel
                 relation,
                 {
                     let equation_zero_0 = expression
-                        .constant(eqiora_core::ValueLiteral::zero(
-                            eqiora_core::ValueType::scalar(
-                                eqiora_core::ScalarDomain::Real,
-                                inverse_time,
-                            ),
-                        ))
+                        .constant(
+                            eqiora_core::ValueLiteral::from_real(
+                                eqiora_core::ValueType::scalar(
+                                    eqiora_core::ScalarDomain::Real,
+                                    inverse_time,
+                                ),
+                                0.0,
+                            )
+                            .unwrap(),
+                        )
                         .unwrap();
                     expression.finish([residual, equation_zero_0])
                 }
@@ -704,20 +716,28 @@ fn canonical_index_one_dae() -> (
                 relation,
                 {
                     let equation_zero_0 = expression
-                        .constant(eqiora_core::ValueLiteral::zero(
-                            eqiora_core::ValueType::scalar(
-                                eqiora_core::ScalarDomain::Real,
-                                inverse_time,
-                            ),
-                        ))
+                        .constant(
+                            eqiora_core::ValueLiteral::from_real(
+                                eqiora_core::ValueType::scalar(
+                                    eqiora_core::ScalarDomain::Real,
+                                    inverse_time,
+                                ),
+                                0.0,
+                            )
+                            .unwrap(),
+                        )
                         .unwrap();
                     let equation_zero_1 = expression
-                        .constant(eqiora_core::ValueLiteral::zero(
-                            eqiora_core::ValueType::scalar(
-                                eqiora_core::ScalarDomain::Real,
-                                DimExponents::DIMENSIONLESS,
-                            ),
-                        ))
+                        .constant(
+                            eqiora_core::ValueLiteral::from_real(
+                                eqiora_core::ValueType::scalar(
+                                    eqiora_core::ScalarDomain::Real,
+                                    DimExponents::DIMENSIONLESS,
+                                ),
+                                0.0,
+                            )
+                            .unwrap(),
+                        )
                         .unwrap();
                     expression.finish([
                         differential_residual,
@@ -841,20 +861,28 @@ fn canonical_dense_mass_matrix(
                 relation,
                 {
                     let equation_zero_0 = expression
-                        .constant(eqiora_core::ValueLiteral::zero(
-                            eqiora_core::ValueType::scalar(
-                                eqiora_core::ScalarDomain::Real,
-                                inverse_time,
-                            ),
-                        ))
+                        .constant(
+                            eqiora_core::ValueLiteral::from_real(
+                                eqiora_core::ValueType::scalar(
+                                    eqiora_core::ScalarDomain::Real,
+                                    inverse_time,
+                                ),
+                                0.0,
+                            )
+                            .unwrap(),
+                        )
                         .unwrap();
                     let equation_zero_1 = expression
-                        .constant(eqiora_core::ValueLiteral::zero(
-                            eqiora_core::ValueType::scalar(
-                                eqiora_core::ScalarDomain::Real,
-                                inverse_time,
-                            ),
-                        ))
+                        .constant(
+                            eqiora_core::ValueLiteral::from_real(
+                                eqiora_core::ValueType::scalar(
+                                    eqiora_core::ScalarDomain::Real,
+                                    inverse_time,
+                                ),
+                                0.0,
+                            )
+                            .unwrap(),
+                        )
                         .unwrap();
                     expression.finish([
                         first_residual,
@@ -1006,20 +1034,28 @@ fn canonical_bouncing_ball() -> CanonicalBouncingBall {
                 flow,
                 {
                     let equation_zero_0 = flow_expression
-                        .constant(eqiora_core::ValueLiteral::zero(
-                            eqiora_core::ValueType::scalar(
-                                eqiora_core::ScalarDomain::Real,
-                                velocity_dimension,
-                            ),
-                        ))
+                        .constant(
+                            eqiora_core::ValueLiteral::from_real(
+                                eqiora_core::ValueType::scalar(
+                                    eqiora_core::ScalarDomain::Real,
+                                    velocity_dimension,
+                                ),
+                                0.0,
+                            )
+                            .unwrap(),
+                        )
                         .unwrap();
                     let equation_zero_1 = flow_expression
-                        .constant(eqiora_core::ValueLiteral::zero(
-                            eqiora_core::ValueType::scalar(
-                                eqiora_core::ScalarDomain::Real,
-                                acceleration_dimension,
-                            ),
-                        ))
+                        .constant(
+                            eqiora_core::ValueLiteral::from_real(
+                                eqiora_core::ValueType::scalar(
+                                    eqiora_core::ScalarDomain::Real,
+                                    acceleration_dimension,
+                                ),
+                                0.0,
+                            )
+                            .unwrap(),
+                        )
                         .unwrap();
                     flow_expression.finish([
                         height_residual,
@@ -1037,9 +1073,16 @@ fn canonical_bouncing_ball() -> CanonicalBouncingBall {
                 reset_height,
                 {
                     let equation_zero_0 = height_reset
-                        .constant(eqiora_core::ValueLiteral::zero(
-                            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, length),
-                        ))
+                        .constant(
+                            eqiora_core::ValueLiteral::from_real(
+                                eqiora_core::ValueType::scalar(
+                                    eqiora_core::ScalarDomain::Real,
+                                    length,
+                                ),
+                                0.0,
+                            )
+                            .unwrap(),
+                        )
                         .unwrap();
                     height_reset.finish([height_reset_residual, equation_zero_0])
                 }
@@ -1052,12 +1095,16 @@ fn canonical_bouncing_ball() -> CanonicalBouncingBall {
                 reset_velocity,
                 {
                     let equation_zero_0 = velocity_reset
-                        .constant(eqiora_core::ValueLiteral::zero(
-                            eqiora_core::ValueType::scalar(
-                                eqiora_core::ScalarDomain::Real,
-                                velocity_dimension,
-                            ),
-                        ))
+                        .constant(
+                            eqiora_core::ValueLiteral::from_real(
+                                eqiora_core::ValueType::scalar(
+                                    eqiora_core::ScalarDomain::Real,
+                                    velocity_dimension,
+                                ),
+                                0.0,
+                            )
+                            .unwrap(),
+                        )
                         .unwrap();
                     velocity_reset.finish([velocity_reset_residual, equation_zero_0])
                 }

@@ -519,9 +519,13 @@ mod tests {
                     relations[0],
                     {
                         let equation_zero_0 = source_dag
-                            .constant(eqiora_core::ValueLiteral::zero(
-                                eqiora_core::ValueType::scalar(scalar_domain, voltage),
-                            ))
+                            .constant(
+                                eqiora_core::ValueLiteral::from_real(
+                                    eqiora_core::ValueType::scalar(scalar_domain, voltage),
+                                    0.0,
+                                )
+                                .unwrap(),
+                            )
                             .unwrap();
                         source_dag.finish([source_root, equation_zero_0])
                     }
@@ -534,9 +538,13 @@ mod tests {
                     relations[1],
                     {
                         let equation_zero_0 = load_dag
-                            .constant(eqiora_core::ValueLiteral::zero(
-                                eqiora_core::ValueType::scalar(scalar_domain, voltage),
-                            ))
+                            .constant(
+                                eqiora_core::ValueLiteral::from_real(
+                                    eqiora_core::ValueType::scalar(scalar_domain, voltage),
+                                    0.0,
+                                )
+                                .unwrap(),
+                            )
                             .unwrap();
                         load_dag.finish([load_root, equation_zero_0])
                     }

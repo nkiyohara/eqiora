@@ -283,12 +283,16 @@ fn with_unrelated_relation(source: &Transaction, model: OntologyId<Model>) -> Tr
         relation,
         {
             let equation_zero_0 = expression
-                .constant(eqiora_core::ValueLiteral::zero(
-                    eqiora_core::ValueType::scalar(
-                        eqiora_core::ScalarDomain::Real,
-                        DimExponents::DIMENSIONLESS,
-                    ),
-                ))
+                .constant(
+                    eqiora_core::ValueLiteral::from_real(
+                        eqiora_core::ValueType::scalar(
+                            eqiora_core::ScalarDomain::Real,
+                            DimExponents::DIMENSIONLESS,
+                        ),
+                        0.0,
+                    )
+                    .unwrap(),
+                )
                 .unwrap();
             expression.finish([root, equation_zero_0])
         }

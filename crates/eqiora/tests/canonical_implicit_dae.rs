@@ -395,12 +395,16 @@ fn canonical_nonlinear_derivative_relation() -> (
                 relation,
                 {
                     let equation_zero_0 = expression
-                        .constant(eqiora_core::ValueLiteral::zero(
-                            eqiora_core::ValueType::scalar(
-                                eqiora_core::ScalarDomain::Real,
-                                inverse_time_squared,
-                            ),
-                        ))
+                        .constant(
+                            eqiora_core::ValueLiteral::from_real(
+                                eqiora_core::ValueType::scalar(
+                                    eqiora_core::ScalarDomain::Real,
+                                    inverse_time_squared,
+                                ),
+                                0.0,
+                            )
+                            .unwrap(),
+                        )
                         .unwrap();
                     expression.finish([residual, equation_zero_0])
                 }

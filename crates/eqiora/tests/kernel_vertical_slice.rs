@@ -46,12 +46,16 @@ fn public_api_builds_a_clocked_relation_network() {
         relation,
         {
             let equation_zero_0 = expressions
-                .constant(eqiora_core::ValueLiteral::zero(
-                    eqiora_core::ValueType::scalar(
-                        eqiora_core::ScalarDomain::Real,
-                        DimExponents::DIMENSIONLESS,
-                    ),
-                ))
+                .constant(
+                    eqiora_core::ValueLiteral::from_real(
+                        eqiora_core::ValueType::scalar(
+                            eqiora_core::ScalarDomain::Real,
+                            DimExponents::DIMENSIONLESS,
+                        ),
+                        0.0,
+                    )
+                    .unwrap(),
+                )
                 .unwrap();
             expressions.finish([residual, equation_zero_0])
         }

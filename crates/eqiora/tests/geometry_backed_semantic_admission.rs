@@ -213,12 +213,16 @@ fn positive_model(
                 ids.relation,
                 {
                     let equation_zero_0 = expression
-                        .constant(eqiora_core::ValueLiteral::zero(
-                            eqiora_core::ValueType::scalar(
-                                eqiora_core::ScalarDomain::Real,
-                                DimExponents::from_integers([0, -1, 0, 0, 0, 0, 0]).unwrap(),
-                            ),
-                        ))
+                        .constant(
+                            eqiora_core::ValueLiteral::from_real(
+                                eqiora_core::ValueType::scalar(
+                                    eqiora_core::ScalarDomain::Real,
+                                    DimExponents::from_integers([0, -1, 0, 0, 0, 0, 0]).unwrap(),
+                                ),
+                                0.0,
+                            )
+                            .unwrap(),
+                        )
                         .unwrap();
                     expression.finish([divergence, equation_zero_0])
                 }
@@ -304,15 +308,19 @@ fn boundary_relation_model(
                 ids.relation,
                 {
                     let equation_zero_0 = expression
-                        .constant(eqiora_core::ValueLiteral::zero(
-                            eqiora_core::ValueType::shaped(
-                                eqiora_core::ScalarDomain::Real,
-                                DimExponents::DIMENSIONLESS,
-                                ValueShape::new([2]).unwrap(),
-                                ValueFrame::SpatialCartesian,
+                        .constant(
+                            eqiora_core::ValueLiteral::from_real(
+                                eqiora_core::ValueType::shaped(
+                                    eqiora_core::ScalarDomain::Real,
+                                    DimExponents::DIMENSIONLESS,
+                                    ValueShape::new([2]).unwrap(),
+                                    ValueFrame::SpatialCartesian,
+                                )
+                                .unwrap(),
+                                0.0,
                             )
                             .unwrap(),
-                        ))
+                        )
                         .unwrap();
                     expression.finish([trace, equation_zero_0])
                 }
@@ -1357,12 +1365,16 @@ fn admitted_geometry_boundary_support_accepts_relation_scope_only() {
                     relation,
                     {
                         let equation_zero_0 = expression
-                            .constant(eqiora_core::ValueLiteral::zero(
-                                eqiora_core::ValueType::scalar(
-                                    eqiora_core::ScalarDomain::Real,
-                                    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
-                                ),
-                            ))
+                            .constant(
+                                eqiora_core::ValueLiteral::from_real(
+                                    eqiora_core::ValueType::scalar(
+                                        eqiora_core::ScalarDomain::Real,
+                                        DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
+                                    ),
+                                    0.0,
+                                )
+                                .unwrap(),
+                            )
                             .unwrap();
                         expression.finish([x, equation_zero_0])
                     }
