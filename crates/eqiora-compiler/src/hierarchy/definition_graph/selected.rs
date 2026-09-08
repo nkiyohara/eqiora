@@ -95,13 +95,13 @@ struct Selected<'a, 'd> {
     elaborator: &'a Elaborator<'d>,
     checked: &'a CheckedDefinitionGraph,
     cache: Vec<(DefinitionKey, Values, DefinitionSummary)>,
-    indexed_subtrees: BTreeMap<DefinitionKey, bool>,
+    indexed_subtrees: BTreeMap<DefinitionKey, (bool, bool)>,
 }
 impl Selected<'_, '_> {
-    fn has_structural_sets(
+    fn structural_profile(
         &mut self,
         component: &ComponentDefinition<'_>,
-    ) -> Result<bool, Vec<Diagnostic>> {
+    ) -> Result<(bool, bool), Vec<Diagnostic>> {
         let key = DefinitionKey {
             namespace: component.namespace.clone(),
             name: component.name().to_owned(),
@@ -109,10 +109,29 @@ impl Selected<'_, '_> {
         if let Some(found) = self.indexed_subtrees.get(&key) {
             return Ok(*found);
         }
-        let mut found = false;
+        let mut found = (false, false);
         for item in component.owned_items() {
             match item {
-                ComponentItem::IndexSet(_) => found = true,
+                ComponentItem::IndexSet(set) => {
+                    found.0 = true;
+                    let closed = match set.value().kind() {
+                        ExprKind::Call { callee, arguments } if callee.as_str() == "range" => {
+                            match arguments.as_slice() {
+                                [extent] => matches!(
+                                    parameters::structural_extent(
+                                        component.file,
+                                        extent,
+                                        &SymbolicParameterMap::new(),
+                                    ),
+                                    Ok(Some(_))
+                                ),
+                                _ => false,
+                            }
+                        }
+                        _ => false,
+                    };
+                    found.1 |= !closed;
+                }
                 ComponentItem::Instance(instance) => {
                     let child = self
                         .elaborator
@@ -123,7 +142,9 @@ impl Selected<'_, '_> {
                             instance.range(),
                         )
                         .map_err(|e| vec![e])?;
-                    found |= instance.family().is_some() || self.has_structural_sets(&child)?;
+                    let child_profile = self.structural_profile(&child)?;
+                    found.0 |= instance.family().is_some() || child_profile.0;
+                    found.1 |= instance.family().is_some() || child_profile.1;
                 }
                 _ => {}
             }
@@ -184,12 +205,12 @@ impl Selected<'_, '_> {
                         )]
                     })?
                     .0 as usize;
-                if self.has_structural_sets(&child)? {
+                if self.structural_profile(&child)?.1 {
                     return Err(vec![source_error(
                         codes::LANGUAGE_TYPE_ERROR,
                         file,
                         family.range(),
-                        "indexed child structural extents and nested indexed families are outside this bounded expansion profile",
+                        "parameter-dependent child IndexSets and nested indexed families are outside this bounded expansion profile",
                     )]);
                 }
                 (
@@ -199,7 +220,7 @@ impl Selected<'_, '_> {
                         .expect("validated definition graph")
                         .clone(),
                 )
-            } else if !self.has_structural_sets(&child)? {
+            } else if !self.structural_profile(&child)?.0 {
                 (
                     1,
                     self.checked
@@ -429,6 +450,31 @@ mod tests {
             errors
                 .iter()
                 .any(|error| error.message().contains("Component instances")),
+            "{errors:?}"
+        );
+    }
+    #[test]
+    fn closed_child_index_sets_have_a_fixed_per_member_footprint() {
+        let source = "component Cell(parameter value:integer) { indexset Local=range(2); } model M() { indexset S=range(3); instance cell[i in S]:Cell(value=ordinal(i)); }";
+        let admitted = size(source, HierarchyLimits::default()).unwrap();
+        // Root IndexSet plus three copies of a Parameter and a local IndexSet.
+        assert_eq!(admitted.declarations, 7);
+        assert!(
+            size(
+                source,
+                HierarchyLimits {
+                    max_declarations: 6,
+                    ..Default::default()
+                }
+            )
+            .is_err()
+        );
+        let dependent = "component Cell(parameter value:integer) { indexset Local=range(value); } model M() { indexset S=range(3); instance cell[i in S]:Cell(value=ordinal(i)+1); }";
+        let errors = size(dependent, HierarchyLimits::default()).unwrap_err();
+        assert!(
+            errors.iter().any(|error| error
+                .message()
+                .contains("parameter-dependent child IndexSets")),
             "{errors:?}"
         );
     }
