@@ -454,6 +454,20 @@ impl ExpressionChecker<'_, '_, '_> {
         arguments: &[Expr],
     ) -> Result<ExpressionType<String>, Diagnostic> {
         let callee_name = callee.as_str();
+        if matches!(callee_name, "counts" | "coordinates" | "index") {
+            return expression
+                .resolved_nominal()
+                .cloned()
+                .map(|value_type| ExpressionType::new(value_type, None))
+                .ok_or_else(|| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.scope.file,
+                        expression.range(),
+                        "nominal constructor requires its resolved lexical declaration",
+                    )
+                });
+        }
         if let Some(operator) = crate::lower::IntegerBuiltin::named(callee_name) {
             if arguments.len() != operator.arity() {
                 return Err(source_error(
