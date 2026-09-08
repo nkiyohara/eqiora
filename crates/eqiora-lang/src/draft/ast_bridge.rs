@@ -29,6 +29,7 @@ impl super::ModelDraft {
         let mut paths = HashMap::new();
         let mut items = Vec::with_capacity(self.declarations.len());
         let mut finite_spaces = Vec::new();
+        let mut enumerations = Vec::new();
         let mut nominal_ids = HashMap::new();
 
         for declaration in &self.declarations {
@@ -46,6 +47,27 @@ impl super::ModelDraft {
             let path = GraphPath::new([self.name.clone(), declaration_path]);
             let range = ranges.allocate(&path, &mut paths);
             let item = match declaration {
+                DraftDeclaration::Enum { name, definition } => {
+                    let tags = definition
+                        .members()
+                        .iter()
+                        .map(|tag| {
+                            NamePath::from_segments([tag.as_str()], range)
+                                .expect("checked enum tag")
+                        })
+                        .collect();
+                    enumerations.push(
+                        crate::SourceAstFactory::enumeration(
+                            VisibilitySyntax::Private,
+                            name.clone(),
+                            tags,
+                            range,
+                        )
+                        .expect("checked enum declaration"),
+                    );
+                    nominal_ids.insert(name.clone(), definition.id().erase());
+                    continue;
+                }
                 DraftDeclaration::FiniteSpace { name, definition } => {
                     finite_spaces.push(
                         crate::SourceAstFactory::finite_space(
@@ -62,6 +84,7 @@ impl super::ModelDraft {
                 DraftDeclaration::IndexSet { name, definition } => {
                     nominal_ids.insert(name.clone(), definition.id().erase());
                     let extent = Expr {
+                        resolved_enum: None,
                         resolved_nominal: None,
                         kind: ExprKind::Number(
                             crate::DecimalLiteral::parse(&definition.extent().to_string())
@@ -134,6 +157,7 @@ impl super::ModelDraft {
                         parameter.frame_name(range),
                         range,
                         |id| self.nominal_name(id),
+                        |id| self.enum_definition(id),
                     )
                     .expect("validated native Parameter projection"),
                     range,
@@ -158,8 +182,24 @@ impl super::ModelDraft {
                         .equations
                         .iter()
                         .map(|(left, right)| {
-                            let left = left.ast(&path, &mut ranges, &mut paths);
-                            let right = right.ast(&path, &mut ranges, &mut paths);
+                            let left = left
+                                .ast(
+                                    &path,
+                                    &mut ranges,
+                                    &mut paths,
+                                    &mut |id| self.nominal_name(id),
+                                    &mut |id| self.enum_definition(id),
+                                )
+                                .expect("validated native expression scope");
+                            let right = right
+                                .ast(
+                                    &path,
+                                    &mut ranges,
+                                    &mut paths,
+                                    &mut |id| self.nominal_name(id),
+                                    &mut |id| self.enum_definition(id),
+                                )
+                                .expect("validated native expression scope");
                             let range = left.range();
                             Equation { left, right, range }
                         })
@@ -171,8 +211,24 @@ impl super::ModelDraft {
                     equations: residuals
                         .iter()
                         .map(|(left, right)| {
-                            let left = left.ast(&path, &mut ranges, &mut paths);
-                            let right = right.ast(&path, &mut ranges, &mut paths);
+                            let left = left
+                                .ast(
+                                    &path,
+                                    &mut ranges,
+                                    &mut paths,
+                                    &mut |id| self.nominal_name(id),
+                                    &mut |id| self.enum_definition(id),
+                                )
+                                .expect("validated native expression scope");
+                            let right = right
+                                .ast(
+                                    &path,
+                                    &mut ranges,
+                                    &mut paths,
+                                    &mut |id| self.nominal_name(id),
+                                    &mut |id| self.enum_definition(id),
+                                )
+                                .expect("validated native expression scope");
                             let range = left.range();
                             Equation { left, right, range }
                         })
@@ -188,6 +244,7 @@ impl super::ModelDraft {
                             .ports
                             .iter()
                             .map(|port| Expr {
+                                resolved_enum: None,
                                 resolved_nominal: None,
                                 kind: ExprKind::Name(port.name.clone()),
                                 range,
@@ -210,8 +267,9 @@ impl super::ModelDraft {
             items,
             range,
         };
-        let mut document = crate::SourceAstFactory::document(vec![], vec![], vec![model])
-            .expect("native model document");
+        let mut document =
+            crate::SourceAstFactory::document(enumerations, vec![], vec![], vec![model])
+                .expect("native model document");
         document.finite_spaces = finite_spaces;
         NativeModelAst {
             document,
@@ -250,6 +308,7 @@ pub(super) fn physical_accessor_ast(
     ExprKind::Call {
         callee: NamePath::single(callee.to_owned(), ranges.allocate(path, paths)),
         arguments: crate::CallArguments::Positional(vec![Expr {
+            resolved_enum: None,
             resolved_nominal: None,
             kind: ExprKind::Name(reference.name.clone()),
             range: ranges.allocate(path, paths),

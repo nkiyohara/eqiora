@@ -66,7 +66,10 @@ mod tests {
         builder.finish(root).unwrap()
     }
     fn argument(domain: ScalarDomain) -> ExpressionType<u32> {
-        ExpressionType::new(ValueType::scalar(domain, DimExponents::DIMENSIONLESS), None)
+        ExpressionType::new(
+            ValueType::scalar(domain, DimExponents::DIMENSIONLESS).expect("checked scalar type"),
+            None,
+        )
     }
 
     #[test]

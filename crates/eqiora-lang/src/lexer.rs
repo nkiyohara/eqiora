@@ -59,6 +59,8 @@ pub enum TokenKind {
     LeftAngle,
     /// `>` closing a mathematical type constructor.
     RightAngle,
+    /// `=>` in an exhaustive case arm.
+    FatArrow,
     /// `->`.
     Arrow,
     /// Source fragment that is not part of language v0.
@@ -188,6 +190,10 @@ pub fn lex(file: impl Into<String>, source: &str) -> LexResult {
             b';' => single(&mut offset, TokenKind::Semicolon),
             b',' => single(&mut offset, TokenKind::Comma),
             b'.' => single(&mut offset, TokenKind::Dot),
+            b'=' if bytes.get(offset + 1) == Some(&b'>') => {
+                offset += 2;
+                TokenKind::FatArrow
+            }
             b'=' if bytes.get(offset + 1) == Some(&b'=') => {
                 offset += 2;
                 TokenKind::EqualEqual

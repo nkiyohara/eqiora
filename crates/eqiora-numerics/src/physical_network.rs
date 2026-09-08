@@ -491,15 +491,18 @@ mod tests {
             KernelNode::from(
                 DomainDef::scalar_physical(
                     domain,
-                    eqiora_core::ValueType::scalar(scalar_domain, voltage),
-                    eqiora_core::ValueType::scalar(scalar_domain, current),
+                    eqiora_core::ValueType::scalar(scalar_domain, voltage)
+                        .expect("fixture uses a numeric scalar domain"),
+                    eqiora_core::ValueType::scalar(scalar_domain, current)
+                        .expect("fixture uses a numeric scalar domain"),
                 )
                 .unwrap(),
             ),
             KernelNode::from(ParameterDef::new(
                 supply,
                 eqiora_core::ValueLiteral::from_real(
-                    eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage),
+                    eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage)
+                        .expect("numeric scalar type"),
                     12.0,
                 )
                 .unwrap(),
@@ -507,7 +510,8 @@ mod tests {
             KernelNode::from(ParameterDef::new(
                 load,
                 eqiora_core::ValueLiteral::from_real(
-                    eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, resistance),
+                    eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, resistance)
+                        .expect("numeric scalar type"),
                     2.0,
                 )
                 .unwrap(),
@@ -521,7 +525,8 @@ mod tests {
                         let equation_zero_0 = source_dag
                             .constant(
                                 eqiora_core::ValueLiteral::from_real(
-                                    eqiora_core::ValueType::scalar(scalar_domain, voltage),
+                                    eqiora_core::ValueType::scalar(scalar_domain, voltage)
+                                        .expect("fixture uses a numeric scalar domain"),
                                     0.0,
                                 )
                                 .unwrap(),
@@ -540,7 +545,8 @@ mod tests {
                         let equation_zero_0 = load_dag
                             .constant(
                                 eqiora_core::ValueLiteral::from_real(
-                                    eqiora_core::ValueType::scalar(scalar_domain, voltage),
+                                    eqiora_core::ValueType::scalar(scalar_domain, voltage)
+                                        .expect("fixture uses a numeric scalar domain"),
                                     0.0,
                                 )
                                 .unwrap(),

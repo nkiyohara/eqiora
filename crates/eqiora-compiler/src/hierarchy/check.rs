@@ -518,6 +518,7 @@ fn count_expression_terms(
     let mut pending = vec![expression];
     while let Some(expression) = pending.pop() {
         let cost = match expression.kind() {
+            ExprKind::Case { arms, .. } => arms.len().saturating_sub(1).max(1).saturating_mul(3),
             ExprKind::Call { callee, .. } => {
                 crate::math::piecewise::cost(callee.as_str()).map_or(1, |cost| cost.0)
             }
@@ -525,6 +526,10 @@ fn count_expression_terms(
         };
         increment_parameter_terms(terms, cost, elaborator)?;
         match expression.kind() {
+            ExprKind::Case { value, arms } => {
+                pending.push(value);
+                pending.extend(arms.iter().map(|arm| arm.value()));
+            }
             ExprKind::Select {
                 condition,
                 then_value,

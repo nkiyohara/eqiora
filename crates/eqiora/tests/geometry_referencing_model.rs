@@ -141,12 +141,12 @@ fn geometry_identity_names_and_topology_are_fingerprint_meaning() {
         StructuralSemanticFingerprint::from_program(&baseline.program).unwrap();
     assert_eq!(
         baseline_fingerprint.generation(),
-        SemanticFingerprintGeneration::V14
+        SemanticFingerprintGeneration::V15
     );
     assert!(
         baseline_fingerprint
             .to_string()
-            .starts_with("eqiora.structural-semantic-fingerprint/v14:")
+            .starts_with("eqiora.structural-semantic-fingerprint/v15:")
     );
 
     let mut changed_digest = GeometryMeaning::default();
@@ -333,7 +333,8 @@ fn build_transaction(
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
             eqiora::kernel::FieldRole::Variable,
         ))),
         ExtraMeaning::RelationSupport => {}
@@ -342,11 +343,13 @@ fn build_transaction(
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
-                ),
+                )
+                .expect("valid scalar type"),
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
-                ),
+                )
+                .expect("valid scalar type"),
                 BoundaryPairing::EuclideanBoundaryDuality,
             )
             .unwrap();

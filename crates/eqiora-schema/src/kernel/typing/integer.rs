@@ -4,9 +4,13 @@ use eqiora_core::{DimExponents, ScalarDomain, ValueFrame, ValueType};
 impl<I: Clone + Eq> ExpressionType<I> {
     /// Type arithmetic addition, including a count plus same-basis signed change.
     pub fn sum(self, other: Self) -> Result<Self, TypeViolation<I>> {
-        if self.value_type.scalar_domain() == ScalarDomain::Boolean
-            || other.value_type.scalar_domain() == ScalarDomain::Boolean
-            || self.value_type.index_set().is_some()
+        if matches!(
+            self.value_type.scalar_domain(),
+            ScalarDomain::Boolean | ScalarDomain::Enum
+        ) || matches!(
+            other.value_type.scalar_domain(),
+            ScalarDomain::Boolean | ScalarDomain::Enum
+        ) || self.value_type.index_set().is_some()
             || other.value_type.index_set().is_some()
         {
             return Err(TypeViolation::ScalarDomainMismatch);
@@ -35,7 +39,8 @@ impl<I: Clone + Eq> ExpressionType<I> {
             return Err(TypeViolation::ScalarDomainMismatch);
         }
         Ok(Self::new(
-            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                .expect("checked scalar type"),
             self.support,
         ))
     }
@@ -51,7 +56,8 @@ impl<I: Clone + Eq> ExpressionType<I> {
     pub fn to_real(self) -> Result<Self, TypeViolation<I>> {
         integer_scalar(&self)?;
         Ok(Self::new(
-            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                .expect("checked scalar type"),
             self.support,
         ))
     }
@@ -66,7 +72,8 @@ impl<I: Clone + Eq> ExpressionType<I> {
             return Err(TypeViolation::ScalarDomainMismatch);
         }
         Ok(Self::new(
-            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                .expect("checked scalar type"),
             self.support,
         ))
     }
@@ -91,7 +98,8 @@ mod tests {
     #[test]
     fn discrete_domains_require_explicit_conversion_and_have_no_derivative() {
         let integer: ExpressionType<()> = ExpressionType::new(
-            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                .expect("checked scalar type"),
             None,
         );
         let real = integer.clone().to_real().unwrap();
@@ -132,6 +140,7 @@ mod nominal_tests {
         assert_eq!(
             index.ordinal().unwrap().value_type,
             ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                .expect("checked scalar type")
         );
     }
 }

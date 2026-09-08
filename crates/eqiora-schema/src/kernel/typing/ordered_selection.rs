@@ -26,7 +26,7 @@ mod tests {
     #[test]
     fn ordered_selection_retains_dimension_and_exact_support_without_promotion() {
         let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
-        let real = ValueType::scalar(ScalarDomain::Real, length);
+        let real = ValueType::scalar(ScalarDomain::Real, length).expect("checked scalar type");
         let support = SpatialSupport::Volume {
             domain: 7,
             dimensions: 2,
@@ -56,13 +56,14 @@ mod tests {
         assert!(spatial.ordered_selection(foreign).is_err());
         assert!(
             typed(real)
-                .ordered_selection(typed(ValueType::scalar(
-                    ScalarDomain::Real,
-                    DimExponents::DIMENSIONLESS
-                )))
+                .ordered_selection(typed(
+                    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                        .expect("checked scalar type")
+                ))
                 .is_err()
         );
-        let integer = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+        let integer = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("checked scalar type");
         assert_eq!(
             typed(integer.clone())
                 .ordered_selection(typed(integer.clone()))
@@ -71,27 +72,32 @@ mod tests {
         );
         assert!(
             typed(integer)
-                .ordered_selection(typed(ValueType::scalar(
-                    ScalarDomain::Real,
-                    DimExponents::DIMENSIONLESS
-                )))
+                .ordered_selection(typed(
+                    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                        .expect("checked scalar type")
+                ))
                 .is_err()
         );
     }
 
     #[test]
     fn ordered_selection_rejects_unordered_and_shaped_types() {
-        let integer = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
-        let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+        let integer = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("checked scalar type");
+        let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            .expect("checked scalar type");
         for value in [
             ValueType::boolean(),
-            ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+                .expect("checked scalar type"),
             ValueType::index(Id::new(), 2).unwrap(),
             ValueType::counts(Id::new(), 2).unwrap(),
             ValueType::coordinates(Id::new(), 2).unwrap(),
             real.array(2).unwrap(),
             integer.clone().array(2).unwrap(),
-            integer.with_dimension(DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap()),
+            integer
+                .with_dimension(DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap())
+                .expect("checked numeric dimension"),
         ] {
             assert!(
                 typed(value.clone())
@@ -103,7 +109,8 @@ mod tests {
 
     #[test]
     fn ordered_selection_dag_retains_both_ordered_operands_and_checks_rhs() {
-        let integer = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+        let integer = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("checked scalar type");
         let mut builder = ExprDagBuilder::new();
         let left = builder
             .constant(ValueLiteral::from_integer(integer.clone(), 9_007_199_254_740_993).unwrap())
@@ -154,7 +161,8 @@ mod tests {
             let left = incompatible
                 .constant(
                     ValueLiteral::from_real(
-                        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+                        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                            .expect("checked scalar type"),
                         -1.0,
                     )
                     .unwrap(),
@@ -183,7 +191,8 @@ mod tests {
     fn finite_fold_reuses_prior_nodes_and_keeps_first_on_ties() {
         let mut builder = ExprDagBuilder::new();
         let value = ValueLiteral::from_integer(
-            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                .expect("checked scalar type"),
             i64::MAX,
         )
         .unwrap();

@@ -53,7 +53,7 @@ impl ValueLiteral {
                     .iter()
                     .flat_map(|value| value.components().expect("checked common floating domain")),
             ),
-            ScalarDomain::Boolean => Err(InvalidValueLiteral::ScalarDomain),
+            ScalarDomain::Boolean | ScalarDomain::Enum => Err(InvalidValueLiteral::ScalarDomain),
         }
     }
 
@@ -110,7 +110,7 @@ impl ValueLiteral {
                 element,
                 (start..start + count).map(|i| self.component(i).expect("checked element slice")),
             ),
-            ScalarDomain::Boolean => Err(InvalidValueLiteral::ScalarDomain),
+            ScalarDomain::Boolean | ScalarDomain::Enum => Err(InvalidValueLiteral::ScalarDomain),
         }
     }
 }
@@ -121,7 +121,8 @@ mod tests {
     use crate::{DimExponents, ValueFrame};
     #[test]
     fn nested_channels_retain_exact_integer_order_and_element_roles() {
-        let integer = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+        let integer = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("checked scalar type");
         let a = ValueLiteral::from_integer(integer.clone(), 9_007_199_254_740_993).unwrap();
         let b = ValueLiteral::from_integer(integer, i64::MIN).unwrap();
         let row = ValueLiteral::array(&[&a, &b]).unwrap();
@@ -149,6 +150,7 @@ mod tests {
     #[test]
     fn compact_zero_channels_do_not_expand_shape_sized_buffers() {
         let ty = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            .expect("checked scalar type")
             .array(u32::MAX)
             .unwrap();
         let zero = ValueLiteral::from_real(ty, 0.0).unwrap();

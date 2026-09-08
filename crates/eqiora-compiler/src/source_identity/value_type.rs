@@ -11,6 +11,10 @@ pub(super) fn encode_value_type(
 ) -> Result<(), Diagnostic> {
     budget.account_expression(depth)?;
     match value.kind() {
+        ValueTypeSyntaxKind::Named(name) => {
+            encoder.u8(7)?;
+            encode_type_path(encoder, name, budget)
+        }
         ValueTypeSyntaxKind::Coordinates(name)
         | ValueTypeSyntaxKind::Counts(name)
         | ValueTypeSyntaxKind::Index(name) => {
@@ -28,6 +32,11 @@ pub(super) fn encode_value_type(
                 ScalarDomain::Complex => 1,
                 ScalarDomain::Integer => 2,
                 ScalarDomain::Boolean => 3,
+                ScalarDomain::Enum => {
+                    return Err(source_identity_error(
+                        "enum type requires a named declaration",
+                    ));
+                }
             })?;
             encode_expression(encoder, dimension, budget, next_depth(depth)?)
         }

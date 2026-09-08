@@ -21,6 +21,7 @@ pub(super) fn format_value_type(
     output: &mut crate::formatter::comments::Output,
 ) {
     match value.kind() {
+        ValueTypeSyntaxKind::Named(name) => write!(output, "{name}").expect("String write"),
         ValueTypeSyntaxKind::Coordinates(name) => {
             write!(output, "coordinates<integer, {name}>").expect("String write");
         }

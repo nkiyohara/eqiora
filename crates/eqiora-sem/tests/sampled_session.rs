@@ -22,7 +22,7 @@ fn voltage() -> DimExponents {
     DimExponents::from_integers([1, 2, -3, -1, 0, 0, 0]).unwrap()
 }
 fn ty(dimension: DimExponents) -> ValueType {
-    ValueType::scalar(ScalarDomain::Real, dimension)
+    ValueType::scalar(ScalarDomain::Real, dimension).expect("valid scalar type")
 }
 fn connect(t: &mut Transaction, from: RawId, to: RawId, edge: EdgeKind) {
     t.push(Op::Connect { from, to, edge });
@@ -531,7 +531,7 @@ fn forwarding_with_periods(
 }
 
 fn value_type() -> ValueType {
-    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).expect("valid scalar type")
 }
 
 #[test]

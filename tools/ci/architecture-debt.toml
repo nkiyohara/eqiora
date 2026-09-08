@@ -167,12 +167,6 @@ reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
-path = "crates/eqiora-compiler/src/source_identity.rs"
-ceiling = 1505
-reason = "predates the predicate; not yet triaged"
-removal = "split by responsibility in the lane that next modifies it"
-
-[[file_lines]]
 path = "crates/eqiora-io-vtu/src/parse.rs"
 ceiling = 1648
 reason = "predates the predicate; not yet triaged"
@@ -429,11 +423,11 @@ ceiling = 45
 
 [[public_surface]]
 crate = "eqiora-lang"
-ceiling = 82
+ceiling = 84
 # #857 adds ValueTypeSyntax and its closed syntax kind. Parsed and native ASTs
 # need one range-bearing recursive constructor tree; ValueShapeSyntax still
 # serves pure-operator shape patterns and is not a substitute for that tree.
-reason = "the Cartesian endpoint syntax retains typed coordinate ranges; #864 adds Equation as the single ordered lhs/rhs AST shared by parsed source, native authoring, formatting, hierarchy rewriting, and checked lowering, replacing the residual-sentinel representation; NamedDefinitionDecl now shares the range-bearing named RHS payload across let, dimension, finite-space and index-set declarations, with distinct container variants and checked factory boundaries; one FamilyBinderSyntax serves boundary, index and reduction contexts; ReductionOp owns the closed finite reduction choice shared by parser and native SourceAstFactory consumers, replacing untyped call-name dispatch for scoped reductions; CallArguments retains positional expressions or named bindings while shared Expr removes three operator-only expression types"
+reason = "the Cartesian endpoint syntax retains typed coordinate ranges; #864 adds Equation as the single ordered lhs/rhs AST shared by parsed source, native authoring, formatting, hierarchy rewriting, and checked lowering, replacing the residual-sentinel representation; NamedDefinitionDecl now shares the range-bearing named RHS payload across let, dimension, finite-space and index-set declarations, with distinct container variants and checked factory boundaries; one FamilyBinderSyntax serves boundary, index and reduction contexts; ReductionOp owns the closed finite reduction choice shared by parser and native SourceAstFactory consumers, replacing untyped call-name dispatch for scoped reductions; CallArguments retains positional expressions or named bindings while shared Expr removes three operator-only expression types; EnumDecl owns ordered nominal member syntax and CaseArm owns exact pattern/value ranges and checked pattern identity for parser, native factory, compiler rewriting and editor consumers, replacing no existing equivalent owner"
 removal = "lower the ceiling when general coordinate expressions subsume the closed endpoint grammar, or when an accepted equation representation replaces Equation; retain no parallel compatibility AST; lower this allowance when existing public consumers can use a smaller shared source representation without losing typed ranges or declaration admission"
 
 [[public_surface]]
@@ -464,7 +458,7 @@ ceiling = 8
 
 [[public_surface]]
 crate = "eqiora-schema"
-ceiling = 92
+ceiling = 93
 reason = """
 ComparisonOp gives source compilation, typed inference, DAG/SSA execution and exact
 Model replay one closed six-operation comparison vocabulary. This single current
@@ -476,8 +470,11 @@ geometry-expression language. #858 adds FieldRole as the single closed
 algebraic/state ownership value shared by compiler admission, Kernel typing,
 current wire replay and semantic fingerprinting. Constructor-only encodings
 would distribute this same choice across those consumers, not remove it.
+EnumDef is the single exact declaration and ordered-member owner used by native
+authoring, compiler binding, SEM admission and current artifact replay. It
+prevents adapters from fabricating nominal types from labels or numeric tags.
 """
-removal = "withdraw GeometryDigest or the closed coordinate recipes when accepted structural geometry/general coordinate owners subsume them; withdraw FieldRole and lower by one only if an existing shared typed owner carries the same algebraic/state choice without parallel encodings or consumer-specific constructor dispatch"
+removal = "withdraw GeometryDigest or the closed coordinate recipes when accepted structural geometry/general coordinate owners subsume them; withdraw FieldRole and lower by one only if an existing shared typed owner carries the same algebraic/state choice without parallel encodings or consumer-specific constructor dispatch; lower the EnumDef allowance only if another accepted shared declaration owner retains its exact identity and ordered members without adapter-local registries"
 
 [[public_surface]]
 crate = "eqiora-sem"

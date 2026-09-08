@@ -12,6 +12,7 @@ mod expression;
 mod expression_visit;
 mod signature;
 use expression::validate_expression;
+mod enumeration;
 mod event;
 mod nominal;
 mod operator;
@@ -484,6 +485,7 @@ impl SourceAstFactory {
     /// expressions, or byte ranges.
     pub fn expression(kind: ExprKind, range: TextRange) -> Result<Expr, AstConstructionError> {
         let expression = Expr {
+            resolved_enum: None,
             resolved_nominal: None,
             kind,
             range: checked_range(range)?,
@@ -574,7 +576,7 @@ fn validate_pure_value_class(
     value_class: &PureValueClassSyntax,
 ) -> Result<(), AstConstructionError> {
     match value_class {
-        PureValueClassSyntax::Typed(value) => validate_expression(value.dimension()),
+        PureValueClassSyntax::Typed(value) => value_type::validate_syntax(value),
         PureValueClassSyntax::Scalar => Ok(()),
         PureValueClassSyntax::Spatial { rank } => validate_exact_integer(rank),
     }
@@ -586,8 +588,8 @@ fn validate_connector_syntax(syntax: &ConnectorSyntax) -> Result<(), AstConstruc
             across_type,
             through_type,
         } => {
-            validate_expression(across_type.dimension())?;
-            validate_expression(through_type.dimension())
+            value_type::validate_syntax(across_type)?;
+            value_type::validate_syntax(through_type)
         }
         ConnectorSyntax::FieldPhysical {
             trace, flux, shape, ..

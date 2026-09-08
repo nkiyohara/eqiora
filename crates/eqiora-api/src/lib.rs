@@ -668,7 +668,8 @@ public component Resistor(
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
             eqiora_lang::FieldRoleSyntax::State,
         );
         let rate = DraftParameter::new(
@@ -677,7 +678,8 @@ public component Resistor(
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),
-                ),
+                )
+                .expect("valid scalar type"),
                 1.0,
             )
             .unwrap(),
@@ -761,7 +763,7 @@ model pure_relation() {
         let bytes = current.canonical_json().unwrap();
         let json = String::from_utf8_lossy(&bytes);
         assert!(json.contains("pure-operator-application"));
-        assert!(json.contains("eqiora.model-envelope/v19"));
+        assert!(json.contains("eqiora.model-envelope/v20"));
         let replay = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(replay.canonical_json().unwrap(), bytes);
         assert_eq!(replay.digest().unwrap(), current.digest().unwrap());
@@ -811,7 +813,7 @@ model pure_relation() {
         assert!(
             String::from_utf8(plan.transaction_json().unwrap())
                 .unwrap()
-                .contains("eqiora.model-transaction-envelope/v19")
+                .contains("eqiora.model-transaction-envelope/v20")
         );
 
         let result = document.commit_value_edit(plan.clone()).unwrap();

@@ -12,6 +12,10 @@ pub(super) fn encode_literal(
     value: &ValueLiteral,
 ) -> Result<(), Diagnostic> {
     encode_value_type(encoder, value.value_type())?;
+    if let Some(tag) = value.enum_tag() {
+        encoder.u8(4)?;
+        return encoder.u32(tag);
+    }
     if let Some(value) = value.as_bool() {
         encoder.u8(3)?;
         return encoder.bool(value);
@@ -88,6 +92,7 @@ pub(super) fn encode_value_type(
     value_type: &eqiora_core::ValueType,
 ) -> Result<(), Diagnostic> {
     encoder.u8(match value_type.scalar_domain() {
+        eqiora_core::ScalarDomain::Enum => 4,
         eqiora_core::ScalarDomain::Real => 0,
         eqiora_core::ScalarDomain::Complex => 1,
         eqiora_core::ScalarDomain::Integer => 2,
@@ -100,7 +105,10 @@ pub(super) fn encode_value_type(
     encode_dimension(encoder, value_type.dimension())?;
     encode_shape(encoder, value_type.shape())?;
     encode_frame(encoder, value_type.frame())?;
-    if let Some(extent) = value_type.index_extent() {
+    if let Some(count) = value_type.enum_member_count() {
+        encoder.u8(4)?;
+        encoder.u32(count)
+    } else if let Some(extent) = value_type.index_extent() {
         encoder.u8(3)?;
         encoder.u32(extent)
     } else if value_type.finite_space().is_some() {
@@ -121,6 +129,7 @@ pub(super) fn type_reference(
         .finite_space()
         .map(|id| id.erase())
         .or_else(|| value_type.index_set().map(|id| id.erase()))
+        .or_else(|| value_type.enum_definition().map(|id| id.erase()))
     {
         push_reference(
             references,

@@ -62,6 +62,7 @@ pub(crate) struct ImportDecl {
 pub struct Document {
     pub(crate) comments: super::comments::SourceComments,
     pub(crate) imports: Vec<ImportDecl>,
+    pub(crate) enumerations: Vec<super::EnumDecl>,
     pub(crate) finite_spaces: Vec<super::NamedDefinitionDecl>,
     pub(crate) dimensions: Vec<NamedDefinitionDecl>,
     pub(crate) property_contracts: Vec<PropertyContractDecl>,
@@ -74,6 +75,12 @@ pub struct Document {
 }
 
 impl Document {
+    /// Module-level enum declarations in authored order.
+    #[must_use]
+    pub fn enumerations(&self) -> &[super::EnumDecl] {
+        &self.enumerations
+    }
+
     /// Ordered nominal atomic finite-space declarations.
     #[must_use]
     pub fn finite_spaces(&self) -> &[super::NamedDefinitionDecl] {

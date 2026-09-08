@@ -134,6 +134,8 @@ impl DefinitionKey {
 
 pub(super) struct Elaborator<'a> {
     pub(super) native: Option<&'a eqiora_lang::NativeModelAst>,
+    pub(super) enumerations:
+        BTreeMap<DefinitionNamespace, BTreeMap<String, crate::enumeration::BoundEnum>>,
     pub(super) finite_spaces:
         BTreeMap<DefinitionNamespace, BTreeMap<String, crate::nominal::BoundFiniteSpace>>,
     root_namespace: DefinitionNamespace,
@@ -147,6 +149,17 @@ pub(super) struct Elaborator<'a> {
 }
 
 impl<'a> Elaborator<'a> {
+    pub(super) fn enum_definition(
+        &self,
+        id: eqiora_core::RawId,
+    ) -> Option<&eqiora_schema::kernel::EnumDef> {
+        self.enumerations
+            .values()
+            .flat_map(|values| values.values())
+            .map(|value| &value.definition)
+            .find(|definition| definition.id().erase() == id)
+    }
+
     #[cfg(test)]
     pub(super) fn new(
         file: &'a str,
@@ -209,6 +222,12 @@ impl<'a> Elaborator<'a> {
             })?;
         let elaborator = Self {
             native,
+            enumerations: BTreeMap::from([(
+                namespace.clone(),
+                crate::enumeration::declarations(file, document, &identity_namespace, |name| {
+                    native.and_then(|native| native.nominal_identity(name))
+                })?,
+            )]),
             finite_spaces: BTreeMap::from([(namespace.clone(), finite_spaces)]),
             root_namespace: namespace,
             identity_namespace,
@@ -283,6 +302,18 @@ impl<'a> Elaborator<'a> {
             .collect();
         let elaborator = Self {
             native: None,
+            enumerations: analysis
+                .units
+                .iter()
+                .map(|unit| {
+                    let namespace = crate::enumeration::resolved_namespace(&unit.module)
+                        .map_err(|e| vec![e])?;
+                    crate::enumeration::declarations(&unit.file, &unit.document, &namespace, |_| {
+                        None
+                    })
+                    .map(|values| (DefinitionNamespace::Resolved(unit.module.clone()), values))
+                })
+                .collect::<Result<_, _>>()?,
             finite_spaces: BTreeMap::new(),
             root_namespace,
             identity_namespace,
@@ -372,6 +403,35 @@ impl<'a> Elaborator<'a> {
         &self,
     ) -> impl ExactSizeIterator<Item = (&DefinitionKey, &PureOperatorSourceDefinition<'a>)> {
         self.pure_operators.iter()
+    }
+
+    pub(super) fn visible_enumerations(
+        &self,
+        owner: &DefinitionNamespace,
+    ) -> BTreeMap<String, &crate::enumeration::BoundEnum> {
+        let mut visible = self
+            .enumerations
+            .get(owner)
+            .into_iter()
+            .flat_map(|values| values.iter())
+            .map(|(name, value)| (name.clone(), value))
+            .collect::<BTreeMap<_, _>>();
+        for ((declaring, alias), target) in &self.aliases {
+            if declaring != owner {
+                continue;
+            }
+            for (name, value) in self
+                .enumerations
+                .get(target)
+                .into_iter()
+                .flat_map(|values| values.iter())
+            {
+                if value.visibility == eqiora_lang::VisibilitySyntax::Public {
+                    visible.insert(format!("{alias}.{name}"), value);
+                }
+            }
+        }
+        visible
     }
 
     /// Pure definitions visible from one declaration namespace, keyed by the

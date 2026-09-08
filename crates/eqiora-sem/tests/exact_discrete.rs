@@ -183,7 +183,8 @@ fn integer_overflow_keeps_accepted_state_and_output_absence() {
     let ty = ValueType::scalar(
         eqiora_core::ScalarDomain::Integer,
         eqiora_core::DimExponents::DIMENSIONLESS,
-    );
+    )
+    .expect("valid scalar type");
     let initial = ValueLiteral::from_integer(ty.clone(), i64::MAX).unwrap();
     let (program, field, output, input, clock) = fixture(
         initial.clone(),
@@ -212,7 +213,8 @@ fn boolean_assignment_short_circuits_and_failed_tick_preserves_snapshot() {
     let ty = ValueType::scalar(
         eqiora_core::ScalarDomain::Integer,
         eqiora_core::DimExponents::DIMENSIONLESS,
-    );
+    )
+    .expect("valid scalar type");
     let value = |n| ValueLiteral::from_integer(ty.clone(), n).unwrap();
     let (program, field, output, input, clock) =
         fixture(ValueLiteral::boolean(false), value(0), None);
@@ -276,7 +278,8 @@ fn complex_comparisons(
         ParameterDef::new(
             complex,
             ValueLiteral::new(
-                ValueType::scalar(eqiora_core::ScalarDomain::Complex, dimension),
+                ValueType::scalar(eqiora_core::ScalarDomain::Complex, dimension)
+                    .expect("valid scalar type"),
                 [(1., 0.)],
             )
             .unwrap(),
@@ -285,7 +288,8 @@ fn complex_comparisons(
         ParameterDef::new(
             real,
             ValueLiteral::from_real(
-                ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension),
+                ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension)
+                    .expect("valid scalar type"),
                 1.,
             )
             .unwrap(),

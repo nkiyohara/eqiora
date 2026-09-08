@@ -1,6 +1,7 @@
 mod source;
 pub(super) use source::from_source;
 mod contextual;
+mod enumeration;
 mod event;
 mod physical_accessors;
 mod piecewise;
@@ -33,6 +34,10 @@ impl LoweringExpression {
                 LoweringExpressionNode::Array(elements) => pending.extend(elements),
                 LoweringExpressionNode::IntegerCall { arguments, .. } => pending.extend(arguments),
                 LoweringExpressionNode::Complex { real, imag } => pending.extend([real, imag]),
+                LoweringExpressionNode::Case { value, arms } => {
+                    pending.push(value);
+                    pending.extend(arms.iter().map(|(_, value)| value));
+                }
                 LoweringExpressionNode::Select {
                     condition,
                     then_value,
@@ -398,6 +403,9 @@ impl ExpressionLowerer<'_> {
                     })
                     .map_err(|diagnostic| self.builder_error(expression, diagnostic))
             }
+            LoweringExpressionNode::Case { value, arms } => {
+                self.lower_case(expression, value, arms)
+            }
             LoweringExpressionNode::Select {
                 condition,
                 then_value,
@@ -612,7 +620,8 @@ impl ExpressionLowerer<'_> {
             };
             let dimension = crate::dimensions::time_dimension();
             let literal = eqiora_core::ValueLiteral::from_real(
-                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension),
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension)
+                    .expect("admitted numeric scalar type"),
                 period.as_seconds_f64(),
             )
             .expect("bounded positive period");

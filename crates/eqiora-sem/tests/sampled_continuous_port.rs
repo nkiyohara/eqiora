@@ -23,7 +23,8 @@ fn sampled_continuous_source_remains_an_initial_and_continuous_unknown() {
     let measurement = Id::<kinds::Relation>::new();
     let sample = Id::<kinds::Relation>::new();
     let model = OntologyId::<Model>::new();
-    let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+    let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+        .expect("valid scalar type");
     let mut law = ExprDagBuilder::new();
     let measured = law.symbol(SymbolRef::Port(source)).unwrap();
     let time = law.symbol(SymbolRef::Time).unwrap();

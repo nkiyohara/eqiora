@@ -50,6 +50,13 @@ impl LoweringExpression {
             LoweringExpressionNode::Neg(value) => {
                 LoweringExpressionNode::Neg(value.clone_shared(cache))
             }
+            LoweringExpressionNode::Case { value, arms } => LoweringExpressionNode::Case {
+                value: value.clone_shared(cache),
+                arms: arms
+                    .iter()
+                    .map(|(pattern, value)| (pattern.clone(), value.clone_shared(cache)))
+                    .collect(),
+            },
             LoweringExpressionNode::Select {
                 condition,
                 then_value,

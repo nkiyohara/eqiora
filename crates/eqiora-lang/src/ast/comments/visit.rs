@@ -29,6 +29,9 @@ macro_rules! signature {
 
 macro_rules! owners {
     ($document:expr, $visit:ident $(, $mutable:tt)?) => {{
+        for node in &$($mutable)? $document.enumerations {
+            $visit(node.range, &$($mutable)? node.comments);
+        }
         for node in &$($mutable)? $document.finite_spaces {
             $visit(node.range, &$($mutable)? node.comments);
         }

@@ -50,7 +50,7 @@ use eqiora_schema::{Model, ModelView};
 
 use crate::connection_sets::{ConnectionFragment, ConnectionSetLimits, normalize_connection_sets};
 use crate::diagnostics::source_error;
-use crate::dimensions::{dimension_overflow, length_dimension, lower_dimension, time_dimension};
+use crate::dimensions::{dimension_overflow, length_dimension, time_dimension};
 use crate::formulation::CompiledAuthoredFormulation;
 use crate::projection::PhysicalExposureProjectionMap;
 use crate::provenance::ProvenanceMap;
@@ -230,6 +230,10 @@ enum LoweringExpressionNode {
         condition: LoweringExpression,
         then_value: LoweringExpression,
         else_value: LoweringExpression,
+    },
+    Case {
+        value: LoweringExpression,
+        arms: Vec<(eqiora_core::ValueLiteral, LoweringExpression)>,
     },
     Require {
         condition: LoweringExpression,
@@ -465,7 +469,7 @@ pub(crate) fn lower_typed_model(
                 activation,
                 range,
                 ..
-            } => match lower_dimension(file, value_type.dimension()) {
+            } => match crate::value_types::component_dimension(file, value_type) {
                 Ok(dimension) => insert_binding(
                     file,
                     &mut bindings,

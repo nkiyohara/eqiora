@@ -72,15 +72,18 @@ fn closure_transaction(ids: ClosureIds, unrelated: bool, reversed: bool) -> Tran
     let mut nodes = vec![
         DomainDef::scalar_physical(
             ids.domain,
-            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension),
-            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension),
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension)
+                .expect("valid fixture scalar type"),
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension)
+                .expect("valid fixture scalar type"),
         )
         .unwrap()
         .into(),
         ParameterDef::new(
             ids.parameter,
             eqiora_core::ValueLiteral::from_real(
-                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension),
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension)
+                    .expect("valid fixture scalar type"),
                 2.0,
             )
             .unwrap(),

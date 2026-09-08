@@ -182,7 +182,8 @@ fn manually_allocated_expression(reverse: bool, expose_port: bool) -> KernelProg
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
-                ),
+                )
+                .expect("valid fixture scalar type"),
                 eqiora_schema::kernel::FieldRole::Variable,
             )
             .into(),
@@ -193,7 +194,8 @@ fn manually_allocated_expression(reverse: bool, expose_port: bool) -> KernelProg
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
-                ),
+                )
+                .expect("valid fixture scalar type"),
                 eqiora_schema::kernel::FieldRole::Variable,
             )
             .into(),
@@ -211,7 +213,8 @@ fn manually_allocated_expression(reverse: bool, expose_port: bool) -> KernelProg
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
-                ),
+                )
+                .expect("valid fixture scalar type"),
             )
             .into(),
         })

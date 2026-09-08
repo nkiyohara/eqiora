@@ -126,7 +126,8 @@ fn native_typed_operator_uses_the_shared_exact_body() {
         range,
     )
     .unwrap();
-    let document = F::document_with_pure_operators(vec![], vec![], vec![operator], vec![]).unwrap();
+    let document =
+        F::document_with_pure_operators(vec![], vec![], vec![], vec![operator], vec![]).unwrap();
     assert_eq!(
         format(&document),
         "public operator identity(input x: m): m = x;\n"

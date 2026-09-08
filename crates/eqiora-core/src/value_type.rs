@@ -27,6 +27,10 @@ pub struct ValueType {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum Meaning {
     Ordinary,
+    Enum {
+        definition: Id<kinds::Enum>,
+        members: u32,
+    },
     Coordinates(Id<kinds::FiniteSpace>),
     Counts(Id<kinds::FiniteSpace>),
     Index {
@@ -36,10 +40,49 @@ enum Meaning {
 }
 
 impl ValueType {
+    /// Shared finite enum declaration bound; executable case DAGs have separate limits.
+    pub const MAX_ENUM_MEMBERS: u32 = 65_536;
+
+    /// One closed nominal enum declaration; members are not numeric ordinals.
+    pub fn enumeration(
+        definition: Id<kinds::Enum>,
+        member_count: u32,
+    ) -> Result<Self, InvalidValueType> {
+        if member_count == 0 || member_count > Self::MAX_ENUM_MEMBERS {
+            return Err(InvalidValueType::EnumType);
+        }
+        Ok(Self {
+            scalar_domain: ScalarDomain::Enum,
+            dimension: DimExponents::DIMENSIONLESS,
+            shape: ValueShape::scalar(),
+            frame: ValueFrame::Invariant,
+            array_rank: 0,
+            meaning: Meaning::Enum {
+                definition,
+                members: member_count,
+            },
+        })
+    }
+
+    /// Exact enum declaration identity.
+    pub const fn enum_definition(&self) -> Option<Id<kinds::Enum>> {
+        match self.meaning {
+            Meaning::Enum { definition, .. } => Some(definition),
+            _ => None,
+        }
+    }
+    /// Exact declared member count, cross-checked by semantic admission.
+    pub const fn enum_member_count(&self) -> Option<u32> {
+        match self.meaning {
+            Meaning::Enum { members, .. } => Some(members),
+            _ => None,
+        }
+    }
+
     /// Dimensionless invariant logical scalar, distinct from every numeric domain.
     #[must_use]
     pub fn boolean() -> Self {
-        Self::scalar(ScalarDomain::Boolean, DimExponents::DIMENSIONLESS)
+        Self::scalar(ScalarDomain::Boolean, DimExponents::DIMENSIONLESS).expect("canonical Boolean")
     }
 
     /// Bounded ordinal tied to one exact IndexSet declaration.
@@ -47,7 +90,7 @@ impl ValueType {
         if extent == 0 {
             return Err(InvalidValueType::ArrayExtent);
         }
-        let mut value = Self::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+        let mut value = Self::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)?;
         value.meaning = Meaning::Index { set, extent };
         Ok(value)
     }
@@ -86,7 +129,7 @@ impl ValueType {
     #[must_use]
     pub const fn finite_space(&self) -> Option<Id<kinds::FiniteSpace>> {
         match self.meaning {
-            Meaning::Ordinary | Meaning::Index { .. } => None,
+            Meaning::Ordinary | Meaning::Enum { .. } | Meaning::Index { .. } => None,
             Meaning::Coordinates(id) | Meaning::Counts(id) => Some(id),
         }
     }
@@ -132,6 +175,9 @@ impl ValueType {
     /// # Errors
     /// Rejects a zero extent or an unrepresentable component count.
     pub fn array(self, extent: u32) -> Result<Self, InvalidValueType> {
+        if self.scalar_domain == ScalarDomain::Enum {
+            return Err(InvalidValueType::EnumType);
+        }
         if self.scalar_domain == ScalarDomain::Boolean {
             return Err(InvalidValueType::BooleanType);
         }
@@ -160,23 +206,28 @@ impl ValueType {
         self.array_rank
     }
 
-    /// Preserve the scalar domain and component meaning with a derived dimension.
-    #[must_use]
-    pub fn with_dimension(mut self, dimension: DimExponents) -> Self {
+    /// Preserve the scalar domain and component meaning with a checked derived dimension.
+    pub fn with_dimension(mut self, dimension: DimExponents) -> Result<Self, InvalidValueType> {
+        if self.scalar_domain == ScalarDomain::Enum && dimension != DimExponents::DIMENSIONLESS {
+            return Err(InvalidValueType::EnumType);
+        }
+        if self.scalar_domain == ScalarDomain::Boolean && dimension != DimExponents::DIMENSIONLESS {
+            return Err(InvalidValueType::BooleanType);
+        }
         self.dimension = dimension;
-        self
+        Ok(self)
     }
-    /// Construct an invariant scalar type.
-    #[must_use]
-    pub fn scalar(scalar_domain: ScalarDomain, dimension: DimExponents) -> Self {
-        Self {
+    /// Construct a checked invariant scalar type. Nominal enums require `enumeration`.
+    pub fn scalar(
+        scalar_domain: ScalarDomain,
+        dimension: DimExponents,
+    ) -> Result<Self, InvalidValueType> {
+        Self::shaped(
             scalar_domain,
             dimension,
-            shape: ValueShape::scalar(),
-            frame: ValueFrame::Invariant,
-            array_rank: 0,
-            meaning: Meaning::Ordinary,
-        }
+            ValueShape::scalar(),
+            ValueFrame::Invariant,
+        )
     }
 
     /// Construct exact channel axes (invariant) or spatial axes (Cartesian).
@@ -190,6 +241,9 @@ impl ValueType {
         shape: ValueShape,
         frame: ValueFrame,
     ) -> Result<Self, InvalidValueType> {
+        if scalar_domain == ScalarDomain::Enum {
+            return Err(InvalidValueType::EnumType);
+        }
         if scalar_domain == ScalarDomain::Boolean
             && (dimension != DimExponents::DIMENSIONLESS
                 || !shape.is_scalar()
@@ -247,6 +301,8 @@ impl ValueType {
 pub enum InvalidValueType {
     /// Boolean values require dimensionless invariant scalars.
     BooleanType,
+    /// Enums require an exact nonempty declaration and dimensionless invariant scalar shape.
+    EnumType,
     /// Finite basis coordinates cannot acquire implicit channel axes.
     FiniteSpaceShape,
     /// An array axis must contain at least one element.
@@ -260,6 +316,9 @@ pub enum InvalidValueType {
 impl core::fmt::Display for InvalidValueType {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         formatter.write_str(match self {
+            Self::EnumType => {
+                "enum values require a closed nominal dimensionless invariant scalar type"
+            }
             Self::BooleanType => "Boolean values require dimensionless invariant scalar types",
             Self::FiniteSpaceShape => "finite basis coordinates are not channel arrays",
             Self::ArrayExtent => "array extent must be positive",
@@ -300,10 +359,10 @@ mod tests {
             assert!(
                 boolean
                     .clone()
-                    .with_common_scalar_domain(&ValueType::scalar(
-                        domain,
-                        DimExponents::DIMENSIONLESS
-                    ))
+                    .with_common_scalar_domain(
+                        &ValueType::scalar(domain, DimExponents::DIMENSIONLESS)
+                            .expect("checked scalar type")
+                    )
                     .is_none()
             );
         }
@@ -344,8 +403,10 @@ mod tests {
 
     #[test]
     fn scalar_domain_dimension_and_frame_are_independent_type_identity() {
-        let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
-        let complex = ValueType::scalar(ScalarDomain::Complex, real.dimension());
+        let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            .expect("checked scalar type");
+        let complex = ValueType::scalar(ScalarDomain::Complex, real.dimension())
+            .expect("checked scalar type");
         assert_ne!(real, complex);
         assert_eq!(
             real.clone().with_common_scalar_domain(&complex),
@@ -374,7 +435,8 @@ mod tests {
         let dimensioned = ValueType::scalar(
             ScalarDomain::Real,
             DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
-        );
+        )
+        .expect("checked scalar type");
         assert_ne!(real, dimensioned);
     }
 
@@ -398,5 +460,18 @@ mod tests {
             ),
             Err(InvalidValueType::ComponentCountOverflow)
         );
+    }
+}
+
+#[cfg(test)]
+mod enum_bound_tests {
+    use super::*;
+    #[test]
+    fn enum_cardinality_uses_the_shared_finite_declaration_bound() {
+        let id = Id::new();
+        let largest = ValueType::enumeration(id, ValueType::MAX_ENUM_MEMBERS).unwrap();
+        assert_eq!(largest.enum_member_count(), Some(65_536));
+        assert!(ValueType::enumeration(id, 65_537).is_err());
+        assert!(ValueType::enumeration(id, u32::MAX).is_err());
     }
 }

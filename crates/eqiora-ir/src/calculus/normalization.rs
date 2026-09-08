@@ -415,10 +415,13 @@ mod tests {
         let mut complex_type = volume_tensor("body", DimExponents::DIMENSIONLESS);
         complex_type.value_type = complex_type
             .value_type
-            .with_common_scalar_domain(&eqiora_core::ValueType::scalar(
-                eqiora_core::ScalarDomain::Complex,
-                DimExponents::DIMENSIONLESS,
-            ))
+            .with_common_scalar_domain(
+                &eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Complex,
+                    DimExponents::DIMENSIONLESS,
+                )
+                .expect("numeric scalar type"),
+            )
             .expect("real values embed into complex");
         let complex = definition
             .instantiate(&[complex_type])

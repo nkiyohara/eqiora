@@ -38,7 +38,8 @@ fn program(reverse: bool) -> KernelProgram {
         PortDef::signal(
             port,
             SignalDirection::Output,
-            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                .expect("valid fixture scalar type"),
         )
         .into()
     }));

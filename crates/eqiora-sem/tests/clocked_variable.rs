@@ -19,7 +19,7 @@ struct Fixture {
     inputs: [RawId; 2],
 }
 fn value_type() -> ValueType {
-    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).expect("valid scalar type")
 }
 fn fixture(mode: &str) -> Result<Fixture, Vec<eqiora_core::Diagnostic>> {
     let field = Id::<kinds::Field>::new();

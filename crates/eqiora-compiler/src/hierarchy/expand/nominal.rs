@@ -3,6 +3,46 @@ use super::*;
 
 impl<'a, 'd> RootExpansion<'a, 'd> {
     pub(super) fn allocate_finite_spaces(&mut self) -> Result<(), Diagnostic> {
+        for (namespace, enumerations) in &self.elaborator.enumerations {
+            for (name, value) in enumerations {
+                let full = value.key.full_identity()?;
+                let identity = EntityIdentity {
+                    key: value.key.clone(),
+                    full,
+                    definition: SourceLocation::new(&value.file, value.range),
+                    instance: SourceLocation::new(self.model.file, self.model.range()),
+                    bindings: Vec::new(),
+                };
+                let display = if matches!(namespace, DefinitionNamespace::Local) {
+                    name.clone()
+                } else {
+                    format!("{namespace}.{name}")
+                };
+                self.display_symbols.insert(
+                    display,
+                    DisplayIdentity {
+                        full,
+                        kind: EntityKind::Enum,
+                    },
+                );
+                self.items.push(FlatItemBlueprint::Nominal {
+                    name: internal_name(full),
+                    definition: value.definition.clone().into(),
+                    dependencies: Vec::new(),
+                    range: value.range,
+                    identity,
+                });
+            }
+        }
+        for (name, value) in self.elaborator.visible_enumerations(&self.model.namespace) {
+            self.display_symbols.insert(
+                name,
+                DisplayIdentity {
+                    full: value.key.full_identity()?,
+                    kind: EntityKind::Enum,
+                },
+            );
+        }
         for (namespace, spaces) in &self.elaborator.finite_spaces {
             for (name, space) in spaces {
                 let full = space.key.full_identity()?;

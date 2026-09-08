@@ -53,6 +53,7 @@ impl Parser<'_> {
                         ScalarDomain::Integer
                     },
                     dimension: crate::Expr {
+                        resolved_enum: None,
                         resolved_nominal: None,
                         kind: crate::ExprKind::Number(
                             crate::DecimalLiteral::parse("1").expect("one"),
@@ -84,7 +85,23 @@ impl Parser<'_> {
             .iter()
             .any(|name| self.at_keyword(name))
         {
-            return Some(ValueTypeSyntax::real(self.parse_dimension_expression()?));
+            let dimension = self.parse_dimension_expression()?;
+            let path = match dimension.kind() {
+                crate::ExprKind::Name(name) => {
+                    Some(crate::NamePath::single(name.clone(), dimension.range()))
+                }
+                crate::ExprKind::Path(path) => Some(path.clone()),
+                _ => None,
+            };
+            return Some(if let Some(path) = path {
+                ValueTypeSyntax {
+                    kind: Box::new(ValueTypeSyntaxKind::Named(path)),
+                    range: dimension.range(),
+                    resolved_nominal: None,
+                }
+            } else {
+                ValueTypeSyntax::real(dimension)
+            });
         }
         let constructor = self.bump().text().to_owned();
         self.expect(TokenKind::LeftAngle, "`<` after type constructor")?;
@@ -185,7 +202,10 @@ mod tests {
             panic!("vector");
         };
         assert_eq!(*extent, 2);
-        assert_eq!(scalar.scalar_domain(), eqiora_core::ScalarDomain::Complex);
+        assert_eq!(
+            scalar.scalar_domain(),
+            Some(eqiora_core::ScalarDomain::Complex)
+        );
     }
 
     #[test]

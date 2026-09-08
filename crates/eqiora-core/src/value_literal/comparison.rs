@@ -12,6 +12,12 @@ impl ValueLiteral {
             self.value_type().scalar_domain(),
             other.value_type().scalar_domain(),
         ) {
+            (ScalarDomain::Enum, ScalarDomain::Enum) => {
+                if self.value_type() != other.value_type() {
+                    return Err(InvalidValueLiteral::ScalarDomain);
+                }
+                Ok(self.enum_tag() == other.enum_tag())
+            }
             (ScalarDomain::Boolean, ScalarDomain::Boolean) => Ok(self.as_bool() == other.as_bool()),
             (ScalarDomain::Integer, ScalarDomain::Integer) => {
                 if self.value_type() != other.value_type() {
@@ -45,7 +51,9 @@ impl ValueLiteral {
                 .zip(other.real_scalar_value())
                 .and_then(|(left, right)| left.value().partial_cmp(&right.value()))
                 .ok_or(InvalidValueLiteral::ScalarDomain),
-            ScalarDomain::Boolean | ScalarDomain::Complex => Err(InvalidValueLiteral::ScalarDomain),
+            ScalarDomain::Boolean | ScalarDomain::Complex | ScalarDomain::Enum => {
+                Err(InvalidValueLiteral::ScalarDomain)
+            }
         }
     }
 
@@ -70,14 +78,19 @@ mod tests {
 
     fn integer(n: i64) -> ValueLiteral {
         ValueLiteral::from_integer(
-            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                .expect("checked scalar type"),
             n,
         )
         .unwrap()
     }
 
     fn real(n: f64, dimension: DimExponents) -> ValueLiteral {
-        ValueLiteral::from_real(ValueType::scalar(ScalarDomain::Real, dimension), n).unwrap()
+        ValueLiteral::from_real(
+            ValueType::scalar(ScalarDomain::Real, dimension).expect("checked scalar type"),
+            n,
+        )
+        .unwrap()
     }
 
     #[test]
@@ -98,12 +111,12 @@ mod tests {
         assert!(!one.checked_equal(&adjacent).unwrap());
         assert_eq!(one.checked_order(&adjacent).unwrap(), Ordering::Less);
         let complex = ValueLiteral::new(
-            ValueType::scalar(ScalarDomain::Complex, dimension),
+            ValueType::scalar(ScalarDomain::Complex, dimension).expect("checked scalar type"),
             [(1.0, 0.0)],
         )
         .unwrap();
         let imaginary = ValueLiteral::new(
-            ValueType::scalar(ScalarDomain::Complex, dimension),
+            ValueType::scalar(ScalarDomain::Complex, dimension).expect("checked scalar type"),
             [(1.0, 1.0)],
         )
         .unwrap();
@@ -159,6 +172,7 @@ mod tests {
             ValueType::counts(space, 1).unwrap(),
             ValueType::coordinates(space, 1).unwrap(),
             ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                .expect("checked scalar type")
                 .array(1)
                 .unwrap(),
         ] {

@@ -485,7 +485,8 @@ fn exact_package_and_native_residuals_share_only_checked_structural_meaning() {
     let field = |name| {
         DraftField::new(
             name,
-            ValueType::scalar(eqiora::ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(eqiora::ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                .expect("valid scalar type"),
             eqiora::language::FieldRoleSyntax::Variable,
         )
     };

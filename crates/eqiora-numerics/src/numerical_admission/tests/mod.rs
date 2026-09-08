@@ -106,6 +106,7 @@ fn compile_model(
                     None,
                     eqiora_lang::TextRange::default(),
                     |_| None,
+                    |_| None,
                 )
                 .unwrap(),
             )

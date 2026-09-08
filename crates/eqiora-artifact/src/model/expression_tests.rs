@@ -7,7 +7,8 @@ mod typed_operation_tests {
 
     #[test]
     fn array_index_and_complex_preserve_order_and_shared_operands() {
-        let ty = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+        let ty = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            .expect("valid fixture scalar type");
         let mut builder = ExprDagBuilder::new();
         let one = builder
             .constant(ValueLiteral::from_real(ty.clone(), 1.0).unwrap())
@@ -90,7 +91,8 @@ mod integer_operation_tests {
 
     #[test]
     fn discrete_operations_preserve_shared_operands_and_reject_forward_references() {
-        let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+        let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("valid fixture scalar type");
         let mut builder = ExprDagBuilder::new();
         let left = builder
             .constant(ValueLiteral::from_integer(ty.clone(), 9_007_199_254_740_993).unwrap())
@@ -149,7 +151,8 @@ mod integer_operation_tests {
     fn exact_comparison_and_boolean_operations_preserve_ordered_edges() {
         use eqiora_core::{DimExponents, ScalarDomain, ValueLiteral, ValueType};
         let mut builder = ExprDagBuilder::new();
-        let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+        let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("valid fixture scalar type");
         let a = builder
             .constant(ValueLiteral::from_integer(ty.clone(), 9_007_199_254_740_992).unwrap())
             .unwrap();

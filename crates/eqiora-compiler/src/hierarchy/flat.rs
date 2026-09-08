@@ -741,6 +741,7 @@ fn resolve_entity_raw(
         EntityKind::Field => Ok(staged.resolve::<kinds::Field>(identity)?.id().erase()),
         EntityKind::Parameter => Ok(staged.resolve::<kinds::Parameter>(identity)?.id().erase()),
         EntityKind::Port => Ok(staged.resolve::<kinds::Port>(identity)?.id().erase()),
+        EntityKind::Enum => Ok(staged.resolve::<kinds::Enum>(identity)?.id().erase()),
         EntityKind::FiniteSpace => Ok(staged.resolve::<kinds::FiniteSpace>(identity)?.id().erase()),
         EntityKind::IndexSet => Ok(staged.resolve::<kinds::IndexSet>(identity)?.id().erase()),
         EntityKind::ClockDomain => Ok(staged.resolve::<kinds::ClockDomain>(identity)?.id().erase()),

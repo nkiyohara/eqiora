@@ -38,6 +38,7 @@ impl ScalarOperatorIr {
                         eqiora_core::ScalarDomain::Integer
                             | eqiora_core::ScalarDomain::Boolean
                             | eqiora_core::ScalarDomain::Complex
+                            | eqiora_core::ScalarDomain::Enum
                     ) || (value.value_type().scalar_domain()
                         == eqiora_core::ScalarDomain::Real
                         && value.value_type().frame() == eqiora_core::ValueFrame::Invariant)

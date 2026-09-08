@@ -175,6 +175,8 @@ impl ExternalComponentBinding {
 pub enum StaticBindingValue<'a> {
     /// A closed typed initializer or an exact source property reference.
     Expression(&'a eqiora_lang::Expr),
+    /// A checked value retaining its complete nominal type and exact payload.
+    Value(&'a eqiora_core::ValueLiteral),
     /// An existing nominal clock; its identity is preserved.
     Clock(&'a eqiora_schema::kernel::ClockDomainDef),
     /// An authoritative Geometry selection and, for a boundary, its exact parent.

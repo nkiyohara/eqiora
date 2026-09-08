@@ -19,9 +19,11 @@ mod tests {
             ScalarDomain::Complex,
             DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
         )
+        .expect("valid numeric scalar type")
         .array(3)
         .unwrap();
-        let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+        let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            .expect("valid numeric scalar type");
         let evaluated = combine_parameters(
             "types.eqi",
             TextRange::new(0, 1),
@@ -42,11 +44,13 @@ mod tests {
             ValueType::scalar(
                 ScalarDomain::Complex,
                 DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
-            ),
+            )
+            .expect("valid numeric scalar type"),
             ValueType::scalar(
                 ScalarDomain::Real,
                 DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
             )
+            .expect("valid numeric scalar type")
             .array(3)
             .unwrap(),
         ] {
@@ -57,7 +61,8 @@ mod tests {
                 ValueType::scalar(
                     ScalarDomain::Real,
                     DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
-                ),
+                )
+                .expect("valid numeric scalar type"),
             )
             .unwrap_err();
             assert!(error.message().contains("requires a real scalar type"));
@@ -69,7 +74,8 @@ mod tests {
         let scalar = ValueType::scalar(
             ScalarDomain::Real,
             DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
-        );
+        )
+        .expect("valid numeric scalar type");
         let vector = ValueType::shaped(
             ScalarDomain::Real,
             DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
@@ -92,8 +98,10 @@ mod tests {
     #[test]
     fn complex_and_array_exponents_are_rejected_even_at_zero() {
         for value_type in [
-            ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+                .expect("valid numeric scalar type"),
             ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                .expect("valid numeric scalar type")
                 .array(3)
                 .unwrap(),
         ] {
@@ -111,12 +119,16 @@ mod tests {
     #[test]
     fn deferred_dimensions_do_not_erase_complex_domain_or_array_roles() {
         let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
-        let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+        let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            .expect("valid numeric scalar type");
         let deferred = combine_types(
             "types.eqi",
             TextRange::new(0, 1),
             BinaryOp::Pow,
-            EvaluatedType::Known(ValueType::scalar(ScalarDomain::Complex, length)),
+            EvaluatedType::Known(
+                ValueType::scalar(ScalarDomain::Complex, length)
+                    .expect("valid numeric scalar type"),
+            ),
             EvaluatedType::Known(scalar.clone()),
             None,
         )
@@ -130,7 +142,7 @@ mod tests {
                 "types.eqi",
                 TextRange::new(0, 1),
                 evaluated,
-                ValueType::scalar(ScalarDomain::Real, length)
+                ValueType::scalar(ScalarDomain::Real, length).expect("valid numeric scalar type")
             )
             .unwrap_err()
             .message()
@@ -170,10 +182,10 @@ mod tests {
             TextRange::new(0, 1),
             EvaluatedParameter {
                 value: None,
-                value_type: EvaluatedType::Deferred(ValueType::scalar(
-                    ScalarDomain::Real,
-                    DimExponents::DIMENSIONLESS,
-                )),
+                value_type: EvaluatedType::Deferred(
+                    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                        .expect("valid numeric scalar type"),
+                ),
                 bare_literal: false,
                 expression: None,
                 lineage: None,
@@ -209,7 +221,8 @@ mod exact_integer_tests {
                     ScalarDomain::Real
                 },
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid numeric scalar type"),
         )
     }
 

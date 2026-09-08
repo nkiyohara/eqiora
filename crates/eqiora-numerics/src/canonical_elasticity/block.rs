@@ -69,7 +69,7 @@ pub(super) fn conforming_elasticity_pair_block_system(
         fields.push(FieldBlock::coefficient(
             domains[subdomain],
             loads[subdomain],
-            ValueType::scalar(ScalarDomain::Real, PRESSURE),
+            ValueType::scalar(ScalarDomain::Real, PRESSURE).expect("numeric scalar type"),
         ));
     }
 

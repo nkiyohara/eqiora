@@ -103,7 +103,8 @@ fn retained_scalar_application_uses_typed_execution_and_rejects_unprojected_ad_o
     );
     assert!(ir.evaluate(&[]).is_err());
     assert!(ir.linearize(&[], &[]).is_err());
-    let complex = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS);
+    let complex = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+        .expect("numeric scalar type");
     let types = [ExpressionType::<()>::new(complex.clone(), None)];
     let scalar = definition
         .instantiate(&types)

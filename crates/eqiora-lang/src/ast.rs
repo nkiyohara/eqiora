@@ -8,7 +8,9 @@ mod signature;
 pub use items::{ComponentItem, Item};
 pub use signature::SignatureItem;
 pub(crate) mod document;
+mod enumeration;
 mod event;
+pub use enumeration::{CaseArm, EnumDecl};
 pub(crate) mod formulation;
 mod name_path;
 mod relation;
@@ -279,7 +281,7 @@ impl ComponentParameterDecl {
 
     /// Static SI dimension expression.
     #[must_use]
-    pub fn dimension(&self) -> &Expr {
+    pub fn dimension(&self) -> Option<&Expr> {
         self.value_type.dimension()
     }
 
@@ -656,7 +658,7 @@ impl FieldDecl {
 
     /// Static SI dimension expression.
     #[must_use]
-    pub fn dimension(&self) -> &Expr {
+    pub fn dimension(&self) -> Option<&Expr> {
         self.value_type.dimension()
     }
 

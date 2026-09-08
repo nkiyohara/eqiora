@@ -3,7 +3,8 @@ use eqiora_core::{DimExponents, ScalarDomain, ValueLiteral, ValueType};
 
 fn integer(value: i64) -> ValueLiteral {
     ValueLiteral::from_integer(
-        ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+        ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("valid scalar type"),
         value,
     )
     .unwrap()

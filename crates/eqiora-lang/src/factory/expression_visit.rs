@@ -111,6 +111,12 @@ fn expression(
     visit: &mut impl FnMut(Option<&str>, &mut Expr),
 ) {
     match &mut value.kind {
+        ExprKind::Case { value, arms } => {
+            expression(scope, value, visit);
+            for arm in arms {
+                expression(scope, &mut arm.value, visit);
+            }
+        }
         ExprKind::Select {
             condition,
             then_value,

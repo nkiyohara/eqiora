@@ -96,6 +96,7 @@ mod tests {
             .models()[0]
             .clone();
         let document = SourceAstFactory::document_with_dimensions(
+            Vec::new(),
             vec![("Length".to_owned(), expression, range)],
             Vec::new(),
             Vec::new(),

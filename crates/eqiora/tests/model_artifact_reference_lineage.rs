@@ -172,7 +172,8 @@ fn artifact_owner_replays_the_current_model_and_preserves_lineage() {
         eqiora_core::ValueType::scalar(
             eqiora_core::ScalarDomain::Real,
             DimExponents::DIMENSIONLESS,
-        ),
+        )
+        .expect("valid scalar type"),
         eqiora::language::FieldRoleSyntax::State,
     );
     let rate = DraftParameter::new(
@@ -181,7 +182,8 @@ fn artifact_owner_replays_the_current_model_and_preserves_lineage() {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),
-            ),
+            )
+            .expect("valid scalar type"),
             1.0,
         )
         .unwrap(),

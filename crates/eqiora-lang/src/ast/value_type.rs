@@ -13,6 +13,8 @@ pub struct ValueTypeSyntax {
 /// Closed mathematical type constructors. Arrays retain their element type.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ValueTypeSyntaxKind {
+    /// Unresolved type or dimension name, classified only by lexical resolution.
+    Named(super::NamePath),
     /// Integer coordinates in an exact declared atomic finite space.
     Coordinates(super::NamePath),
     /// Nonnegative exact counts indexed by an exact atomic finite space.
@@ -62,7 +64,7 @@ impl ValueTypeSyntax {
         self.range
     }
 
-    /// Whether the type is a mathematical scalar.
+    /// Whether syntax alone proves a scalar type, before resolving named types.
     #[must_use]
     pub const fn is_scalar(&self) -> bool {
         matches!(
@@ -71,28 +73,30 @@ impl ValueTypeSyntax {
         )
     }
 
-    /// Physical dimension of each scalar component.
+    /// Explicit physical dimension, absent while a type name remains unresolved.
     #[must_use]
-    pub fn dimension(&self) -> &Expr {
+    pub fn dimension(&self) -> Option<&Expr> {
         match self.kind.as_ref() {
+            ValueTypeSyntaxKind::Named(_) => None,
             ValueTypeSyntaxKind::Coordinates(_)
             | ValueTypeSyntaxKind::Counts(_)
-            | ValueTypeSyntaxKind::Index(_) => dimensionless_syntax(),
-            ValueTypeSyntaxKind::Scalar { dimension, .. } => dimension,
+            | ValueTypeSyntaxKind::Index(_) => Some(dimensionless_syntax()),
+            ValueTypeSyntaxKind::Scalar { dimension, .. } => Some(dimension),
             ValueTypeSyntaxKind::Vector { scalar, .. }
             | ValueTypeSyntaxKind::Tensor { scalar, .. } => scalar.dimension(),
             ValueTypeSyntaxKind::Array { element, .. } => element.dimension(),
         }
     }
 
-    /// Mathematical domain of each scalar component.
+    /// Explicit scalar domain, absent while a type name remains unresolved.
     #[must_use]
-    pub fn scalar_domain(&self) -> ScalarDomain {
+    pub fn scalar_domain(&self) -> Option<ScalarDomain> {
         match self.kind.as_ref() {
+            ValueTypeSyntaxKind::Named(_) => None,
             ValueTypeSyntaxKind::Coordinates(_)
             | ValueTypeSyntaxKind::Counts(_)
-            | ValueTypeSyntaxKind::Index(_) => ScalarDomain::Integer,
-            ValueTypeSyntaxKind::Scalar { domain, .. } => *domain,
+            | ValueTypeSyntaxKind::Index(_) => Some(ScalarDomain::Integer),
+            ValueTypeSyntaxKind::Scalar { domain, .. } => Some(*domain),
             ValueTypeSyntaxKind::Vector { scalar, .. }
             | ValueTypeSyntaxKind::Tensor { scalar, .. } => scalar.scalar_domain(),
             ValueTypeSyntaxKind::Array { element, .. } => element.scalar_domain(),
@@ -100,13 +104,21 @@ impl ValueTypeSyntax {
     }
 
     pub(crate) fn real(dimension: Expr) -> Self {
-        Self {
-            resolved_nominal: None,
-            range: dimension.range(),
-            kind: Box::new(ValueTypeSyntaxKind::Scalar {
+        let range = dimension.range();
+        let kind = match dimension.kind() {
+            super::ExprKind::Name(name) => {
+                ValueTypeSyntaxKind::Named(super::NamePath::single(name.clone(), range))
+            }
+            super::ExprKind::Path(name) => ValueTypeSyntaxKind::Named(name.clone()),
+            _ => ValueTypeSyntaxKind::Scalar {
                 domain: ScalarDomain::Real,
                 dimension,
-            }),
+            },
+        };
+        Self {
+            resolved_nominal: None,
+            range,
+            kind: Box::new(kind),
         }
     }
 
@@ -117,7 +129,26 @@ impl ValueTypeSyntax {
     }
 
     pub(crate) fn rewrite_dimension(&mut self, rewrite: &mut impl FnMut(&Expr) -> Expr) {
+        if self.resolved_nominal.is_some() {
+            return;
+        }
         match self.kind.as_mut() {
+            ValueTypeSyntaxKind::Named(name) => {
+                let expression = Expr {
+                    resolved_enum: None,
+                    resolved_nominal: None,
+                    kind: if name.is_qualified() {
+                        super::ExprKind::Path(name.clone())
+                    } else {
+                        super::ExprKind::Name(name.as_str().to_owned())
+                    },
+                    range: self.range,
+                };
+                let rewritten = rewrite(&expression);
+                if rewritten != expression {
+                    self.kind = Self::real(rewritten).kind;
+                }
+            }
             ValueTypeSyntaxKind::Scalar { dimension, .. } => *dimension = rewrite(dimension),
             ValueTypeSyntaxKind::Vector { scalar, .. }
             | ValueTypeSyntaxKind::Tensor { scalar, .. } => scalar.rewrite_dimension(rewrite),
@@ -131,6 +162,7 @@ impl ValueTypeSyntax {
 
 fn dimensionless_syntax() -> &'static Expr {
     static ONE: std::sync::LazyLock<Expr> = std::sync::LazyLock::new(|| Expr {
+        resolved_enum: None,
         resolved_nominal: None,
         kind: super::ExprKind::Number(crate::DecimalLiteral::parse("1").expect("one")),
         range: TextRange::new(0, 0),

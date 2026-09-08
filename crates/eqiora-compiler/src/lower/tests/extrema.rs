@@ -11,7 +11,8 @@ fn native_extrema_lower_exact_integer_operands_in_authored_order() {
                 ValueType::scalar(
                     eqiora_core::ScalarDomain::Integer,
                     DimExponents::DIMENSIONLESS,
-                ),
+                )
+                .expect("admitted numeric scalar type"),
                 value,
             )
             .unwrap(),

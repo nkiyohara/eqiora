@@ -15,7 +15,9 @@ fn large_source_and_native_literals_retain_the_same_exact_decimal() {
         panic!("literal")
     };
     assert_eq!(value.to_i64().unwrap(), 9007199254740993);
-    let native = DraftExpression::constant(DecimalLiteral::parse(text).unwrap()).source_ast();
+    let native = DraftExpression::constant(DecimalLiteral::parse(text).unwrap())
+        .source_ast(|_| None, |_| None)
+        .unwrap();
     assert_eq!(native.kind(), alias.value().kind());
     let rebuilt =
         SourceAstFactory::expression(ExprKind::Number(value.clone()), TextRange::new(0, 0))
@@ -44,10 +46,12 @@ fn integer_type_and_native_component_data_share_the_source_boundary() {
     let ty = eqiora_core::ValueType::scalar(
         eqiora_core::ScalarDomain::Integer,
         eqiora_core::DimExponents::DIMENSIONLESS,
-    );
+    )
+    .unwrap();
     let literal = eqiora_core::ValueLiteral::from_integer(ty, 9007199254740993).unwrap();
     let expression =
-        SourceAstFactory::value_literal(&literal, None, TextRange::new(0, 0), |_| None).unwrap();
+        SourceAstFactory::value_literal(&literal, None, TextRange::new(0, 0), |_| None, |_| None)
+            .unwrap();
     assert!(
         matches!(expression.kind(), ExprKind::Number(value) if value.to_i64().ok() == Some(9007199254740993))
     );

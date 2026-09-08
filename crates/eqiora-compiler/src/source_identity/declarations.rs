@@ -148,3 +148,17 @@ pub(super) fn encode_clock(
         encode_expression(encoder, declaration.phase(), budget, 0)
     })
 }
+
+pub(super) fn encode_enumeration(
+    declaration: &eqiora_lang::EnumDecl,
+    budget: &mut Budget,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
+    encode_visibility(&mut encoder, declaration.visibility())?;
+    encode_name(&mut encoder, declaration.name(), budget)?;
+    encoder.u32(as_u32(declaration.tags().len(), "enum members")?)?;
+    for tag in declaration.tags() {
+        encode_name(&mut encoder, tag.as_str(), budget)?;
+    }
+    encoder.finish()
+}

@@ -27,6 +27,23 @@ impl ExpressionChecker<'_, '_, '_> {
             return self.check(value);
         }
         match value.kind() {
+            ExprKind::Case {
+                value: selector,
+                arms,
+            } => return self.check_case(value, selector, arms, Some(domain)),
+            ExprKind::Select {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                return self
+                    .check(condition)?
+                    .select(
+                        self.check_numeric_context(then_value, domain)?,
+                        self.check_numeric_context(else_value, domain)?,
+                    )
+                    .map_err(|error| type_error(self.scope.file, value, error));
+            }
             ExprKind::Array(elements) => {
                 let elements = elements
                     .iter()
@@ -76,7 +93,8 @@ impl ExpressionChecker<'_, '_, '_> {
             _ => unreachable!("numeric tree checked"),
         }
         Ok(ExpressionType::new(
-            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                .expect("admitted numeric scalar type"),
             None,
         ))
     }
@@ -95,9 +113,15 @@ impl ExpressionChecker<'_, '_, '_> {
         })
     }
 }
-fn numeric_tree(value: &Expr) -> bool {
+pub(super) fn numeric_tree(value: &Expr) -> bool {
     match value.kind() {
         ExprKind::Number(_) => true,
+        ExprKind::Case { arms, .. } => arms.iter().all(|arm| numeric_tree(arm.value())),
+        ExprKind::Select {
+            then_value,
+            else_value,
+            ..
+        } => numeric_tree(then_value) && numeric_tree(else_value),
         ExprKind::Array(elements) => elements.iter().all(numeric_tree),
         ExprKind::Unary {
             op: UnaryOp::Neg,

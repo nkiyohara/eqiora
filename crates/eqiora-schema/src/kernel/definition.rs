@@ -610,6 +610,8 @@ pub enum KernelNode {
     FiniteSpace(super::FiniteSpaceDef),
     /// Fixed structural ordinal set.
     IndexSet(super::IndexSetDef),
+    /// One closed nominal enum declaration.
+    Enum(super::EnumDef),
     /// ClockDomain definition.
     ClockDomain(ClockDomainDef),
 }
@@ -629,6 +631,7 @@ impl KernelNode {
             Self::Connection(value) => value.id().erase(),
             Self::ClockDomain(value) => value.id().erase(),
             Self::FiniteSpace(value) => value.id().erase(),
+            Self::Enum(value) => value.id().erase(),
             Self::IndexSet(value) => value.id().erase(),
         }
     }
@@ -647,6 +650,7 @@ impl KernelNode {
             Self::Connection(_) => EntityKind::Connection,
             Self::ClockDomain(_) => EntityKind::ClockDomain,
             Self::FiniteSpace(_) => EntityKind::FiniteSpace,
+            Self::Enum(_) => EntityKind::Enum,
             Self::IndexSet(_) => EntityKind::IndexSet,
         }
     }
@@ -722,11 +726,13 @@ mod tests {
 
     #[test]
     fn parameter_literals_preserve_types_without_real_scalar_narrowing() {
-        let real = ValueType::scalar(eqiora_core::ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+        let real = ValueType::scalar(eqiora_core::ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            .expect("checked scalar type");
         let complex = ValueType::scalar(
             eqiora_core::ScalarDomain::Complex,
             DimExponents::DIMENSIONLESS,
-        );
+        )
+        .expect("checked scalar type");
         let parameter = ParameterDef::new(
             Id::new(),
             ValueLiteral::from_real(real.clone(), 2.0).unwrap(),
@@ -759,8 +765,9 @@ mod tests {
     fn field_roles_preserve_complete_types_without_declaration_values() {
         use eqiora_core::ScalarDomain::{Complex, Real};
         for value_type in [
-            ValueType::scalar(Real, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(Real, DimExponents::DIMENSIONLESS).expect("checked scalar type"),
             ValueType::scalar(Complex, DimExponents::DIMENSIONLESS)
+                .expect("checked scalar type")
                 .array(3)
                 .unwrap(),
         ] {
@@ -781,7 +788,8 @@ mod tests {
         let temperature = ValueType::scalar(
             eqiora_core::ScalarDomain::Real,
             dim::TemperatureDim::EXPONENTS,
-        );
+        )
+        .expect("checked scalar type");
         let mut builder = ExprDagBuilder::new();
         let value = builder.symbol(SymbolRef::Field(field)).unwrap();
         let wrong_dimension = builder

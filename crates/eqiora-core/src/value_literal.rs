@@ -13,12 +13,39 @@ pub struct ValueLiteral {
 #[derive(Debug, Clone, PartialEq)]
 enum Payload {
     Boolean(bool),
+    Enum(u32),
     Zero,
     Components(Box<[(f64, f64)]>),
     Integers(Box<[i64]>),
 }
 
 impl ValueLiteral {
+    /// Construct a checked member of one exact enum type, without numeric coercion.
+    pub fn enum_value(value_type: ValueType, tag: u32) -> Result<Self, InvalidValueLiteral> {
+        let (Some(definition), Some(count)) =
+            (value_type.enum_definition(), value_type.enum_member_count())
+        else {
+            return Err(InvalidValueLiteral::ScalarDomain);
+        };
+        if ValueType::enumeration(definition, count).ok().as_ref() != Some(&value_type) {
+            return Err(InvalidValueLiteral::ScalarDomain);
+        }
+        if tag >= count {
+            return Err(InvalidValueLiteral::NominalRange);
+        }
+        Ok(Self {
+            value_type,
+            payload: Payload::Enum(tag),
+        })
+    }
+    /// Internal declared member selector; no integer or ordinal conversion is implied.
+    pub const fn enum_tag(&self) -> Option<u32> {
+        match self.payload {
+            Payload::Enum(tag) => Some(tag),
+            _ => None,
+        }
+    }
+
     /// Construct a logical truth value without integer or real coercion.
     #[must_use]
     pub fn boolean(value: bool) -> Self {
@@ -147,7 +174,7 @@ impl ValueLiteral {
             return None;
         }
         match &self.payload {
-            Payload::Integers(_) | Payload::Boolean(_) => None,
+            Payload::Integers(_) | Payload::Boolean(_) | Payload::Enum(_) => None,
             Payload::Zero => (index < self.component_count()).then_some((0.0, 0.0)),
             Payload::Components(values) => values.get(index).copied(),
         }
@@ -197,7 +224,7 @@ impl TryFrom<DynQuantity> for ValueLiteral {
     type Error = InvalidValueLiteral;
     fn try_from(value: DynQuantity) -> Result<Self, Self::Error> {
         Self::from_real(
-            ValueType::scalar(ScalarDomain::Real, value.dim()),
+            ValueType::scalar(ScalarDomain::Real, value.dim()).expect("checked scalar type"),
             value.value(),
         )
     }

@@ -64,7 +64,7 @@ impl ValueLiteral {
         match &self.payload {
             Payload::Zero => (index < self.component_count()).then_some(0),
             Payload::Integers(values) => values.get(index).copied(),
-            Payload::Components(_) | Payload::Boolean(_) => None,
+            Payload::Components(_) | Payload::Boolean(_) | Payload::Enum(_) => None,
         }
     }
 
@@ -93,7 +93,8 @@ impl ValueLiteral {
             return Err(InvalidValueLiteral::ScalarDomain);
         }
         Self::from_integer(
-            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                .expect("checked scalar type"),
             self.integer_component(0)
                 .ok_or(InvalidValueLiteral::ScalarDomain)?,
         )
@@ -155,7 +156,8 @@ impl ValueLiteral {
             .integer_scalar_value()
             .ok_or(InvalidValueLiteral::ScalarDomain)?;
         Self::from_real(
-            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                .expect("checked scalar type"),
             value as f64,
         )
     }
@@ -172,7 +174,8 @@ impl ValueLiteral {
             return Err(InvalidValueLiteral::IntegerConversion);
         }
         Self::from_integer(
-            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                .expect("checked scalar type"),
             value as i64,
         )
     }

@@ -643,7 +643,8 @@ model decay() {
                         eqiora_core::ValueType::scalar(
                             eqiora_core::ScalarDomain::Real,
                             inverse_time,
-                        ),
+                        )
+                        .expect("numeric scalar type"),
                         0.0,
                     )
                     .unwrap(),
@@ -655,7 +656,8 @@ model decay() {
                         eqiora_core::ValueType::scalar(
                             eqiora_core::ScalarDomain::Real,
                             inverse_time,
-                        ),
+                        )
+                        .expect("numeric scalar type"),
                         0.0,
                     )
                     .unwrap(),
@@ -692,7 +694,8 @@ model decay() {
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
-                ),
+                )
+                .expect("numeric scalar type"),
                 eqiora_schema::kernel::FieldRole::State,
             )),
             KernelNode::from(FieldDef::new(
@@ -700,13 +703,15 @@ model decay() {
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
-                ),
+                )
+                .expect("numeric scalar type"),
                 eqiora_schema::kernel::FieldRole::State,
             )),
             KernelNode::from(ParameterDef::new(
                 rate,
                 eqiora_core::ValueLiteral::from_real(
-                    eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time),
+                    eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time)
+                        .expect("numeric scalar type"),
                     1.0,
                 )
                 .unwrap(),

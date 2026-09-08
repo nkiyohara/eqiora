@@ -111,7 +111,8 @@ fn evaluate_node(
     Ok(match &nodes[index - count] {
         Primitive::Constant(number, dimension) => {
             let value = ValueLiteral::from_real(
-                ValueType::scalar(ScalarDomain::Real, *dimension),
+                ValueType::scalar(ScalarDomain::Real, *dimension)
+                    .expect("valid numeric scalar type"),
                 f64::from(*number),
             )
             .unwrap();
@@ -278,6 +279,7 @@ mod tests {
             (&mut |_| None, &mut |_| None),
             Some(
                 &ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                    .expect("valid numeric scalar type")
                     .array(2)
                     .unwrap(),
             ),

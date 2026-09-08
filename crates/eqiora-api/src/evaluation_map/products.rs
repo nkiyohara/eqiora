@@ -523,7 +523,7 @@ fn coordinates(mut index: usize, shape: &[usize]) -> Vec<usize> {
 }
 // This scalar describes record slots, not physical derivative component units.
 fn record_type() -> ValueType {
-    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).expect("valid scalar type")
 }
 fn grid_limits() -> axes::Limits {
     axes::Limits {

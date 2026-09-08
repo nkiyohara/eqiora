@@ -91,6 +91,19 @@ pub(super) fn format_expression(
             format_expression(index, 0, output);
             output.push(']');
         }
+        ExprKind::Case { value, arms } => {
+            output.push_str("case ");
+            format_expression(value, 1, output);
+            output.push_str(" { ");
+            for (index, arm) in arms.iter().enumerate() {
+                if index != 0 {
+                    output.push_str(", ");
+                }
+                write!(output, "{} => ", arm.pattern()).expect("String write");
+                format_expression(arm.value(), 0, output);
+            }
+            output.push_str(" }");
+        }
         ExprKind::Select {
             condition,
             then_value,
@@ -145,7 +158,7 @@ pub(super) fn format_expression(
 
 fn expression_precedence(expression: &Expr) -> u8 {
     match &expression.kind {
-        ExprKind::Select { .. } => 0,
+        ExprKind::Select { .. } | ExprKind::Case { .. } => 0,
         ExprKind::Binary {
             op: BinaryOp::Add | BinaryOp::Sub,
             ..

@@ -42,6 +42,7 @@ impl SourceAstFactory {
                 labels
                     .into_iter()
                     .map(|name| Expr {
+                        resolved_enum: None,
                         resolved_nominal: None,
                         kind: crate::ExprKind::Name(name),
                         range,
@@ -112,6 +113,7 @@ impl SourceAstFactory {
     ) -> Result<(), AstConstructionError> {
         crate::ValueTypeSyntax::validate_checked(&value)?;
         let matches = match syntax.kind() {
+            crate::ValueTypeSyntaxKind::Named(_) => value.enum_definition().is_some(),
             crate::ValueTypeSyntaxKind::Coordinates(_) => {
                 value.finite_space().is_some() && !value.is_count()
             }

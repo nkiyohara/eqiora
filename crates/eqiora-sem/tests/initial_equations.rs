@@ -13,7 +13,8 @@ use eqiora_sem::{Interpreter, KernelProgram, ReferenceConfig};
 fn scalar(field: Id<kinds::Field>, role: FieldRole) -> KernelNode {
     FieldDef::new(
         field,
-        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            .expect("valid scalar type"),
         role,
     )
     .into()

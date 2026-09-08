@@ -122,7 +122,7 @@ fn nonzero_framed_coefficients_share_source_native_identity_and_exact_replay() {
         assert!(
             std::str::from_utf8(&bytes)
                 .unwrap()
-                .contains("eqiora.model-envelope/v19")
+                .contains("eqiora.model-envelope/v20")
         );
         let replay = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(replay.canonical_json().unwrap(), bytes);
@@ -206,6 +206,7 @@ fn imaginary_coefficient_edit_preserves_parameter_id_type_and_other_components()
     assert!(changed.commit_value_edit(plan).is_err());
     let channels = ValueLiteral::new(
         ValueType::scalar(ScalarDomain::Complex, before.value_type().dimension())
+            .expect("valid scalar type")
             .array(2)
             .unwrap()
             .array(2)

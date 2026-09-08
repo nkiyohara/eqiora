@@ -14,6 +14,27 @@ pub(in crate::hierarchy) fn rewrite_expression_with_boundary_member(
         ));
     }
     let lowered = match expression.kind() {
+        ExprKind::Case { value, arms } => {
+            let value = rewrite_expression_with_boundary_member(file, value, scope, active)?;
+            let arms = arms
+                .iter()
+                .map(|arm| {
+                    let pattern = arm.resolved_pattern().cloned().ok_or_else(|| {
+                        source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            file,
+                            arm.range(),
+                            "case pattern requires exact enum binding",
+                        )
+                    })?;
+                    Ok((
+                        pattern,
+                        rewrite_expression_with_boundary_member(file, arm.value(), scope, active)?,
+                    ))
+                })
+                .collect::<Result<Vec<_>, Diagnostic>>()?;
+            LoweringExpression::case(value, arms, expression.range())
+        }
         ExprKind::Select {
             condition,
             then_value,
@@ -61,7 +82,8 @@ pub(in crate::hierarchy) fn rewrite_expression_with_boundary_member(
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Complex,
                     DimExponents::DIMENSIONLESS,
-                ),
+                )
+                .expect("admitted numeric scalar type"),
                 [(0.0, 1.0)],
             )
             .expect("imaginary unit"),

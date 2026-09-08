@@ -79,13 +79,15 @@ impl SourceAstFactory {
     /// # Errors
     /// Returns an error when the compilation unit contains no declaration.
     pub fn document_with_dimensions(
+        enumerations: Vec<crate::EnumDecl>,
         dimensions: Vec<(String, Expr, TextRange)>,
         connectors: Vec<ConnectorDecl>,
         components: Vec<ComponentDecl>,
         pure_operators: Vec<PureOperatorDecl>,
         models: Vec<ModelDecl>,
     ) -> Result<Document, AstConstructionError> {
-        if dimensions.is_empty()
+        if enumerations.is_empty()
+            && dimensions.is_empty()
             && connectors.is_empty()
             && components.is_empty()
             && pure_operators.is_empty()
@@ -102,6 +104,7 @@ impl SourceAstFactory {
         Ok(Document {
             comments: Default::default(),
             imports: Vec::new(),
+            enumerations,
             finite_spaces: Vec::new(),
             dimensions,
             property_contracts: Vec::new(),
@@ -122,11 +125,16 @@ impl SourceAstFactory {
     /// # Errors
     /// Returns an error when the compilation unit is empty.
     pub fn document(
+        enumerations: Vec<crate::EnumDecl>,
         connectors: Vec<ConnectorDecl>,
         components: Vec<ComponentDecl>,
         models: Vec<ModelDecl>,
     ) -> Result<Document, AstConstructionError> {
-        if connectors.is_empty() && components.is_empty() && models.is_empty() {
+        if enumerations.is_empty()
+            && connectors.is_empty()
+            && components.is_empty()
+            && models.is_empty()
+        {
             return Err(AstConstructionError::new(
                 "a source document requires at least one top-level declaration",
             ));
@@ -134,6 +142,7 @@ impl SourceAstFactory {
         Ok(Document {
             comments: Default::default(),
             imports: Vec::new(),
+            enumerations,
             finite_spaces: Vec::new(),
             dimensions: Vec::new(),
             property_contracts: Vec::new(),
@@ -151,12 +160,14 @@ impl SourceAstFactory {
     /// # Errors
     /// Returns an error when the compilation unit is empty.
     pub fn document_with_pure_operators(
+        enumerations: Vec<crate::EnumDecl>,
         connectors: Vec<ConnectorDecl>,
         components: Vec<ComponentDecl>,
         pure_operators: Vec<PureOperatorDecl>,
         models: Vec<ModelDecl>,
     ) -> Result<Document, AstConstructionError> {
-        if connectors.is_empty()
+        if enumerations.is_empty()
+            && connectors.is_empty()
             && components.is_empty()
             && pure_operators.is_empty()
             && models.is_empty()
@@ -168,6 +179,7 @@ impl SourceAstFactory {
         Ok(Document {
             comments: Default::default(),
             imports: Vec::new(),
+            enumerations,
             finite_spaces: Vec::new(),
             dimensions: Vec::new(),
             property_contracts: Vec::new(),
@@ -193,6 +205,7 @@ impl SourceAstFactory {
         Ok(Document {
             comments: Default::default(),
             imports: Vec::new(),
+            enumerations: Vec::new(),
             finite_spaces: Vec::new(),
             dimensions: Vec::new(),
             property_contracts: Vec::new(),

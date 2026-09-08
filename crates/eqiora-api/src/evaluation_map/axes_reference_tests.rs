@@ -12,7 +12,7 @@ const LIMITS: Limits = Limits {
 };
 
 fn scalar() -> ValueType {
-    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).expect("valid scalar type")
 }
 
 fn coordinates(mut index: usize, extents: &[usize]) -> Vec<usize> {

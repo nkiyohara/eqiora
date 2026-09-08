@@ -50,7 +50,8 @@ fn dense_descriptor(parameter_initial: bool) -> (KernelProgram, Id<kinds::Relati
     let initial = Id::<kinds::Relation>::new();
     let activation = Id::<kinds::Activation>::new();
     let model = OntologyId::<Model>::new();
-    let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+    let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+        .expect("numeric scalar type");
     let inverse_time = DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).unwrap();
     let mut expression = ExprDagBuilder::new();
     let dx = expression.symbol(SymbolRef::Derivative(x)).unwrap();
@@ -90,7 +91,7 @@ fn dense_descriptor(parameter_initial: bool) -> (KernelProgram, Id<kinds::Relati
         KernelNode::from(ParameterDef::new(
             rate,
             eqiora_core::ValueLiteral::from_real(
-                ValueType::scalar(ScalarDomain::Real, inverse_time),
+                ValueType::scalar(ScalarDomain::Real, inverse_time).expect("numeric scalar type"),
                 2.0,
             )
             .unwrap(),
@@ -197,7 +198,8 @@ fn decay(initial_value: Option<f64>) -> (KernelProgram, Id<kinds::Relation>) {
     let relation = Id::<kinds::Relation>::new();
     let activation = Id::<kinds::Activation>::new();
     let model = OntologyId::<Model>::new();
-    let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+    let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+        .expect("numeric scalar type");
     let inverse_time = DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).unwrap();
     let mut expression = ExprDagBuilder::new();
     let value = expression.symbol(SymbolRef::Field(field)).unwrap();
@@ -210,7 +212,7 @@ fn decay(initial_value: Option<f64>) -> (KernelProgram, Id<kinds::Relation>) {
         KernelNode::from(ParameterDef::new(
             rate,
             eqiora_core::ValueLiteral::from_real(
-                ValueType::scalar(ScalarDomain::Real, inverse_time),
+                ValueType::scalar(ScalarDomain::Real, inverse_time).expect("numeric scalar type"),
                 2.0,
             )
             .unwrap(),

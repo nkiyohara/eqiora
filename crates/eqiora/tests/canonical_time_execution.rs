@@ -475,7 +475,8 @@ fn canonical_decay_with_integral() -> (
         let equation_zero_0 = expression
             .constant(
                 eqiora_core::ValueLiteral::from_real(
-                    eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time),
+                    eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time)
+                        .expect("valid scalar type"),
                     0.0,
                 )
                 .unwrap(),
@@ -487,7 +488,8 @@ fn canonical_decay_with_integral() -> (
                     eqiora_core::ValueType::scalar(
                         eqiora_core::ScalarDomain::Real,
                         DimExponents::from_integers([0, 0, -2, 0, 0, 0, 0]).unwrap(),
-                    ),
+                    )
+                    .expect("valid scalar type"),
                     0.0,
                 )
                 .unwrap(),
@@ -505,7 +507,8 @@ fn canonical_decay_with_integral() -> (
     let mut nodes = vec![
         KernelNode::from(FieldDef::new(
             x,
-            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time),
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time)
+                .expect("valid scalar type"),
             eqiora::kernel::FieldRole::State,
         )),
         KernelNode::from(FieldDef::new(
@@ -513,13 +516,15 @@ fn canonical_decay_with_integral() -> (
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
             eqiora::kernel::FieldRole::State,
         )),
         KernelNode::from(ParameterDef::new(
             rate,
             eqiora_core::ValueLiteral::from_real(
-                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time),
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time)
+                    .expect("valid scalar type"),
                 2.0,
             )
             .unwrap(),
@@ -586,13 +591,15 @@ fn state_dependent_mass_relation() -> (eqiora::sem::KernelProgram, Id<kinds::Rel
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
             eqiora::kernel::FieldRole::State,
         )),
         KernelNode::from(ParameterDef::new(
             rate,
             eqiora_core::ValueLiteral::from_real(
-                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time),
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time)
+                    .expect("valid scalar type"),
                 2.0,
             )
             .unwrap(),
@@ -607,7 +614,8 @@ fn state_dependent_mass_relation() -> (eqiora::sem::KernelProgram, Id<kinds::Rel
                                 eqiora_core::ValueType::scalar(
                                     eqiora_core::ScalarDomain::Real,
                                     inverse_time,
-                                ),
+                                )
+                                .expect("valid scalar type"),
                                 0.0,
                             )
                             .unwrap(),
@@ -692,7 +700,8 @@ fn canonical_index_one_dae() -> (
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
             eqiora::kernel::FieldRole::State,
         )),
         KernelNode::from(FieldDef::new(
@@ -700,13 +709,15 @@ fn canonical_index_one_dae() -> (
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
             eqiora::kernel::FieldRole::Variable,
         )),
         KernelNode::from(ParameterDef::new(
             rate,
             eqiora_core::ValueLiteral::from_real(
-                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time),
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time)
+                    .expect("valid scalar type"),
                 1.0,
             )
             .unwrap(),
@@ -721,7 +732,8 @@ fn canonical_index_one_dae() -> (
                                 eqiora_core::ValueType::scalar(
                                     eqiora_core::ScalarDomain::Real,
                                     inverse_time,
-                                ),
+                                )
+                                .expect("valid scalar type"),
                                 0.0,
                             )
                             .unwrap(),
@@ -733,7 +745,8 @@ fn canonical_index_one_dae() -> (
                                 eqiora_core::ValueType::scalar(
                                     eqiora_core::ScalarDomain::Real,
                                     DimExponents::DIMENSIONLESS,
-                                ),
+                                )
+                                .expect("valid scalar type"),
                                 0.0,
                             )
                             .unwrap(),
@@ -837,7 +850,8 @@ fn canonical_dense_mass_matrix(
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
             eqiora::kernel::FieldRole::State,
         )),
         KernelNode::from(FieldDef::new(
@@ -845,13 +859,15 @@ fn canonical_dense_mass_matrix(
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
             eqiora::kernel::FieldRole::State,
         )),
         KernelNode::from(ParameterDef::new(
             rate,
             eqiora_core::ValueLiteral::from_real(
-                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time),
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time)
+                    .expect("valid scalar type"),
                 1.0,
             )
             .unwrap(),
@@ -866,7 +882,8 @@ fn canonical_dense_mass_matrix(
                                 eqiora_core::ValueType::scalar(
                                     eqiora_core::ScalarDomain::Real,
                                     inverse_time,
-                                ),
+                                )
+                                .expect("valid scalar type"),
                                 0.0,
                             )
                             .unwrap(),
@@ -878,7 +895,8 @@ fn canonical_dense_mass_matrix(
                                 eqiora_core::ValueType::scalar(
                                     eqiora_core::ScalarDomain::Real,
                                     inverse_time,
-                                ),
+                                )
+                                .expect("valid scalar type"),
                                 0.0,
                             )
                             .unwrap(),
@@ -999,12 +1017,14 @@ fn canonical_bouncing_ball() -> CanonicalBouncingBall {
     let mut nodes = vec![
         KernelNode::from(FieldDef::new(
             height,
-            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, length),
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, length)
+                .expect("valid scalar type"),
             eqiora::kernel::FieldRole::State,
         )),
         KernelNode::from(FieldDef::new(
             velocity,
-            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, velocity_dimension),
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, velocity_dimension)
+                .expect("valid scalar type"),
             eqiora::kernel::FieldRole::State,
         )),
         KernelNode::from(ParameterDef::new(
@@ -1013,7 +1033,8 @@ fn canonical_bouncing_ball() -> CanonicalBouncingBall {
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     acceleration_dimension,
-                ),
+                )
+                .expect("valid scalar type"),
                 9.81,
             )
             .unwrap(),
@@ -1024,7 +1045,8 @@ fn canonical_bouncing_ball() -> CanonicalBouncingBall {
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
-                ),
+                )
+                .expect("valid scalar type"),
                 0.8,
             )
             .unwrap(),
@@ -1039,7 +1061,8 @@ fn canonical_bouncing_ball() -> CanonicalBouncingBall {
                                 eqiora_core::ValueType::scalar(
                                     eqiora_core::ScalarDomain::Real,
                                     velocity_dimension,
-                                ),
+                                )
+                                .expect("valid scalar type"),
                                 0.0,
                             )
                             .unwrap(),
@@ -1051,7 +1074,8 @@ fn canonical_bouncing_ball() -> CanonicalBouncingBall {
                                 eqiora_core::ValueType::scalar(
                                     eqiora_core::ScalarDomain::Real,
                                     acceleration_dimension,
-                                ),
+                                )
+                                .expect("valid scalar type"),
                                 0.0,
                             )
                             .unwrap(),
@@ -1078,7 +1102,8 @@ fn canonical_bouncing_ball() -> CanonicalBouncingBall {
                                 eqiora_core::ValueType::scalar(
                                     eqiora_core::ScalarDomain::Real,
                                     length,
-                                ),
+                                )
+                                .expect("valid scalar type"),
                                 0.0,
                             )
                             .unwrap(),
@@ -1100,7 +1125,8 @@ fn canonical_bouncing_ball() -> CanonicalBouncingBall {
                                 eqiora_core::ValueType::scalar(
                                     eqiora_core::ScalarDomain::Real,
                                     velocity_dimension,
-                                ),
+                                )
+                                .expect("valid scalar type"),
                                 0.0,
                             )
                             .unwrap(),

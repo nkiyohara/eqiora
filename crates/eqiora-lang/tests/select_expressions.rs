@@ -144,7 +144,8 @@ fn source_factory_and_draft_share_select_and_rewrite_all_three_children() {
     let constant = |value| DraftExpression::constant(DecimalLiteral::parse(value).unwrap());
     let draft =
         DraftExpression::select(DraftExpression::boolean(true), constant("1"), constant("2"))
-            .source_ast();
+            .source_ast(|_| None, |_| None)
+            .unwrap();
     assert!(
         matches!(draft.kind(), ExprKind::Select { condition, then_value, else_value } if matches!(condition.kind(), ExprKind::Boolean(true)) && matches!(then_value.kind(), ExprKind::Number(value) if value.to_i64().unwrap() == 1) && matches!(else_value.kind(), ExprKind::Number(value) if value.to_i64().unwrap() == 2))
     );
@@ -213,7 +214,7 @@ fn selection_depth_uses_existing_shared_limit() {
 fn native_selection_checks_unselected_branch_ownership_and_literals() {
     use eqiora_core::{DimExponents, ScalarDomain, ValueType};
     use eqiora_lang::{DraftField, DraftRelation, FieldRoleSyntax, ModelDraft};
-    let kind = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+    let kind = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap();
     let included = DraftField::new("x", kind.clone(), FieldRoleSyntax::Variable);
     let foreign = DraftField::new("x", kind, FieldRoleSyntax::Variable);
     let make = |branch| {

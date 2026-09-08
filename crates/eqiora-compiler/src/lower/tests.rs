@@ -94,7 +94,8 @@ fn annotated_let_aliases_preserve_complete_types() {
 #[test]
 fn typed_literal_lowering_preserves_type_through_detachment_and_zero_negation() {
     use eqiora_core::{ScalarDomain, ValueLiteral, ValueType};
-    let scalar = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS);
+    let scalar = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+        .expect("admitted numeric scalar type");
     for value_type in [scalar.clone(), scalar.array(3).unwrap()] {
         let literal = LoweringExpression::literal(
             ValueLiteral::from_real(value_type.clone(), -0.0).unwrap(),
@@ -291,7 +292,8 @@ fn component_array_binding_rejects_extent_mismatch() {
 #[test]
 fn typed_lowering_keeps_parameter_domains_and_array_roles() {
     use eqiora_core::{ScalarDomain, ValueType};
-    let scalar = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS);
+    let scalar = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+        .expect("admitted numeric scalar type");
     for value_type in [scalar.clone(), scalar.array(3).unwrap()] {
         let syntax = eqiora_lang::ValueTypeSyntax::from_checked(&value_type, |_| None).unwrap();
         let source = format!(
@@ -386,8 +388,9 @@ fn typed_cartesian_coordinates_require_real_scalar_lengths() {
     use eqiora_core::{ScalarDomain, ValueType};
     let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
     for value_type in [
-        ValueType::scalar(ScalarDomain::Complex, length),
+        ValueType::scalar(ScalarDomain::Complex, length).expect("admitted numeric scalar type"),
         ValueType::scalar(ScalarDomain::Real, length)
+            .expect("admitted numeric scalar type")
             .array(1)
             .unwrap(),
     ] {
@@ -971,7 +974,8 @@ fn native_lowering_replaces_synthetic_ranges_with_declaration_paths() {
         eqiora_core::ValueType::scalar(
             eqiora_core::ScalarDomain::Real,
             DimExponents::from_integers([0, 0, 0, 0, 1, 0, 0]).expect("bounded dimension"),
-        ),
+        )
+        .expect("admitted numeric scalar type"),
         eqiora_lang::FieldRoleSyntax::State,
     );
     let duration = eqiora_lang::DraftParameter::new(
@@ -980,7 +984,8 @@ fn native_lowering_replaces_synthetic_ranges_with_declaration_paths() {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension"),
-            ),
+            )
+            .expect("admitted numeric scalar type"),
             1.0,
         )
         .unwrap(),
@@ -1071,8 +1076,10 @@ model resistor() {
 
     let electrical = eqiora_lang::DraftPhysicalDomain::new(
         "electrical",
-        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage_dimension()),
-        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, current_dimension()),
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage_dimension())
+            .expect("admitted numeric scalar type"),
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, current_dimension())
+            .expect("admitted numeric scalar type"),
     );
     let positive = eqiora_lang::DraftConservingPort::new("positive", &electrical);
     let negative = eqiora_lang::DraftConservingPort::new("negative", &electrical);
@@ -1080,7 +1087,8 @@ model resistor() {
     let resistance = eqiora_lang::DraftParameter::new(
         "resistance",
         eqiora_core::ValueLiteral::from_real(
-            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, resistance_dimension()),
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, resistance_dimension())
+                .expect("admitted numeric scalar type"),
             2.0,
         )
         .unwrap(),
@@ -1136,8 +1144,10 @@ model resistor() {
 fn native_physical_projection_is_insensitive_to_declaration_and_net_permutation() {
     let electrical = eqiora_lang::DraftPhysicalDomain::new(
         "electrical",
-        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage_dimension()),
-        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, current_dimension()),
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage_dimension())
+            .expect("admitted numeric scalar type"),
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, current_dimension())
+            .expect("admitted numeric scalar type"),
     );
     let positive = eqiora_lang::DraftConservingPort::new("positive", &electrical);
     let negative = eqiora_lang::DraftConservingPort::new("negative", &electrical);

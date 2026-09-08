@@ -3,6 +3,7 @@ use super::*;
 /// Source expression with its exact byte range.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Expr {
+    pub(crate) resolved_enum: Option<Box<eqiora_core::ValueLiteral>>,
     pub(crate) resolved_nominal: Option<Box<eqiora_core::ValueType>>,
     pub(crate) kind: ExprKind,
     pub(crate) range: TextRange,
@@ -12,7 +13,16 @@ impl Expr {
     /// Checked nominal constructor type supplied by lexical declaration resolution.
     #[must_use]
     pub fn resolved_nominal(&self) -> Option<&eqiora_core::ValueType> {
-        self.resolved_nominal.as_deref()
+        self.resolved_enum
+            .as_deref()
+            .map(eqiora_core::ValueLiteral::value_type)
+            .or(self.resolved_nominal.as_deref())
+    }
+
+    /// Checked enum member supplied by lexical declaration resolution.
+    #[must_use]
+    pub fn resolved_enum(&self) -> Option<&eqiora_core::ValueLiteral> {
+        self.resolved_enum.as_deref()
     }
 
     /// Expression form.
@@ -95,6 +105,21 @@ impl Expr {
                 value: Box::new(value.rewrite_name_paths_with(rewrite)),
                 index: Box::new(index.rewrite_name_paths_with(rewrite)),
             },
+            ExprKind::Case { value, arms } => ExprKind::Case {
+                value: Box::new(value.rewrite_name_paths_with(rewrite)),
+                arms: arms
+                    .iter()
+                    .map(|arm| CaseArm {
+                        pattern: rewrite(&arm.pattern).map_or_else(
+                            || arm.pattern.clone(),
+                            |path| path.with_range(arm.pattern.range()),
+                        ),
+                        value: arm.value.rewrite_name_paths_with(rewrite),
+                        resolved_pattern: arm.resolved_pattern.clone(),
+                        range: arm.range,
+                    })
+                    .collect(),
+            },
             ExprKind::Select {
                 condition,
                 then_value,
@@ -154,6 +179,7 @@ impl Expr {
             },
         };
         Self {
+            resolved_enum: self.resolved_enum.clone(),
             resolved_nominal: self.resolved_nominal.clone(),
             kind,
             range: self.range,
@@ -221,6 +247,13 @@ pub enum ExprKind {
         left: Box<Expr>,
         /// Right operand.
         right: Box<Expr>,
+    },
+    /// Exhaustive value selection over one nominal enumeration.
+    Case {
+        /// Value whose exact enum determines the required patterns.
+        value: Box<Expr>,
+        /// Authored-order explicit tag arms; no wildcard or pattern binding.
+        arms: Vec<CaseArm>,
     },
     /// Lazy value selection; both branches remain authored expressions.
     Select {

@@ -168,15 +168,17 @@ mod tests {
     fn signal(direction: SignalDirection, dimension: DimExponents) -> ScalarPortContract<u8> {
         ScalarPortContract::Signal {
             direction,
-            value_type: ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension),
+            value_type: ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension)
+                .expect("checked scalar type"),
         }
     }
 
     #[test]
     fn signal_types_preserve_roles_and_embed_only_toward_complex_inputs() {
         use eqiora_core::{ScalarDomain, ValueFrame, ValueShape};
-        let real = ValueType::scalar(ScalarDomain::Real, LENGTH);
-        let complex = ValueType::scalar(ScalarDomain::Complex, LENGTH);
+        let real = ValueType::scalar(ScalarDomain::Real, LENGTH).expect("checked scalar type");
+        let complex =
+            ValueType::scalar(ScalarDomain::Complex, LENGTH).expect("checked scalar type");
         let array = real.clone().array(3).unwrap();
         let vector = ValueType::shaped(
             ScalarDomain::Real,
@@ -193,7 +195,12 @@ mod tests {
             (array.clone(), vector.clone(), false),
             (vector, array.clone(), false),
             (array, real.clone(), false),
-            (real.clone(), real.with_dimension(UNIT), false),
+            (
+                real.clone(),
+                real.with_dimension(UNIT)
+                    .expect("checked numeric dimension"),
+                false,
+            ),
         ] {
             let ports = [
                 ScalarPortContract::<u8>::Signal {

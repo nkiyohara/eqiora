@@ -111,8 +111,10 @@ pub(super) fn evaluate(
             (false, _) => leaves.push(element),
         }
     }
-    let scalar_target =
-        target.map(|value| ValueType::scalar(value.scalar_domain(), value.dimension()));
+    let scalar_target = target
+        .map(|value| ValueType::scalar(value.scalar_domain(), value.dimension()))
+        .transpose()
+        .map_err(|violation| error(&violation.to_string()))?;
     let mut operands = Vec::with_capacity(leaves.len());
     for leaf in leaves {
         if has_named_component_reference(leaf) {
@@ -212,6 +214,9 @@ pub(super) fn evaluate(
 fn has_named_component_reference(expression: &Expr) -> bool {
     let mut pending = vec![expression];
     while let Some(value) = pending.pop() {
+        if value.resolved_enum().is_some() {
+            continue;
+        }
         match value.kind() {
             ExprKind::Name(_) | ExprKind::Member { .. } => return true,
             ExprKind::Path(path)
@@ -222,6 +227,10 @@ fn has_named_component_reference(expression: &Expr) -> bool {
             ExprKind::Unary { value, .. } => pending.push(value),
             ExprKind::Binary { left, right, .. } => pending.extend([left.as_ref(), right.as_ref()]),
             ExprKind::Call { arguments, .. } => pending.extend(arguments.expressions()),
+            ExprKind::Case { value, arms } => {
+                pending.push(value.as_ref());
+                pending.extend(arms.iter().map(eqiora_lang::CaseArm::value));
+            }
             ExprKind::Select {
                 condition,
                 then_value,
@@ -312,7 +321,8 @@ mod tests {
             &mut |_, _| {
                 Ok(SymbolicParameterValue {
                     value: None,
-                    value_type: ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+                    value_type: ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                        .expect("valid numeric scalar type"),
                     expression: None,
                     lineage: None,
                 })
@@ -373,7 +383,8 @@ mod tests {
                 ExpressionContext::Default,
                 &mut |_, _| {
                     let value = ValueLiteral::from_real(
-                        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+                        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                            .expect("valid numeric scalar type"),
                         2.0,
                     )
                     .unwrap();

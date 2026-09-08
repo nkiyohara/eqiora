@@ -25,8 +25,9 @@ impl<I: Clone + Eq> ExpressionType<I> {
     /// Validate both sides of an equation without performing arithmetic.
     pub fn equation(self, other: Self) -> Result<Self, TypeViolation<I>> {
         for value in [&self, &other] {
-            if value.value_type.scalar_domain() == ScalarDomain::Boolean
-                && value.value_type != ValueType::boolean()
+            if !valid_enum_type(&value.value_type)
+                || value.value_type.scalar_domain() == ScalarDomain::Boolean
+                    && value.value_type != ValueType::boolean()
             {
                 return Err(TypeViolation::ScalarDomainMismatch);
             }
@@ -133,6 +134,16 @@ pub(super) fn numerical_root<I>(value: &ExpressionType<I>) -> Result<(), TypeVio
     }
 }
 
+pub(super) fn valid_enum_type(value: &ValueType) -> bool {
+    if value.scalar_domain() != ScalarDomain::Enum {
+        return true;
+    }
+    let (Some(id), Some(count)) = (value.enum_definition(), value.enum_member_count()) else {
+        return false;
+    };
+    ValueType::enumeration(id, count).ok().as_ref() == Some(value)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -150,14 +161,15 @@ mod tests {
         let dag = builder.finish([root]).unwrap();
         let malformed = ValueType::boolean()
             .with_dimension(DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap());
+        assert!(malformed.is_err());
         for contract in [
             RootContract::ComponentwiseResidual,
             RootContract::InitialResiduals,
         ] {
             for value_type in [
-                malformed.clone(),
                 ValueType::boolean(),
-                ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+                ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                    .expect("checked scalar type"),
             ] {
                 assert!(
                     TypedResidual::<u32>::infer(dag.clone(), None, contract, |_| Ok::<_, ()>(ty(
@@ -171,18 +183,18 @@ mod tests {
 
     #[test]
     fn comparison_domains_do_not_coerce_discrete_values() {
-        let integer = ty(ValueType::scalar(
-            ScalarDomain::Integer,
-            DimExponents::DIMENSIONLESS,
-        ));
-        let real = ty(ValueType::scalar(
-            ScalarDomain::Real,
-            DimExponents::DIMENSIONLESS,
-        ));
-        let complex = ty(ValueType::scalar(
-            ScalarDomain::Complex,
-            DimExponents::DIMENSIONLESS,
-        ));
+        let integer = ty(
+            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                .expect("checked scalar type"),
+        );
+        let real = ty(
+            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                .expect("checked scalar type"),
+        );
+        let complex = ty(
+            ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+                .expect("checked scalar type"),
+        );
         let boolean = ty(ValueType::boolean());
         assert_eq!(
             integer

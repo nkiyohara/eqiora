@@ -51,7 +51,8 @@ fn one_factory_alias_declaration_can_be_owned_by_either_container() {
         range,
     )
     .unwrap();
-    let document = SourceAstFactory::document(vec![], vec![component], vec![model]).unwrap();
+    let document =
+        SourceAstFactory::document(Vec::new(), vec![], vec![component], vec![model]).unwrap();
     let formatted = eqiora_lang::format(&document);
     assert_eq!(formatted.matches("let a = 2;").count(), 2);
     assert!(

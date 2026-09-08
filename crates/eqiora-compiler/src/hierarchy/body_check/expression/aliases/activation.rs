@@ -125,6 +125,11 @@ impl DependencyActivation {
                     pending.push(value);
                     Self::Static
                 }
+                ExprKind::Case { value, arms } => {
+                    pending.push(value);
+                    pending.extend(arms.iter().map(|arm| arm.value()));
+                    Self::Static
+                }
                 ExprKind::Select {
                     condition,
                     then_value,

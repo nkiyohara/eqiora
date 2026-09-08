@@ -17,7 +17,15 @@ impl ValueTypeSyntax {
         mut resolve: impl FnMut(eqiora_core::RawId) -> Option<crate::NamePath>,
     ) -> Result<Self, crate::AstConstructionError> {
         Self::validate_checked(value)?;
-        let nominal = if let Some(id) = value.finite_space() {
+        let nominal = if let Some(id) = value.enum_definition() {
+            Some(ValueTypeSyntaxKind::Named(resolve(id.erase()).ok_or_else(
+                || {
+                    crate::AstConstructionError::new(
+                        "enum is absent from lexical declaration scope",
+                    )
+                },
+            )?))
+        } else if let Some(id) = value.finite_space() {
             let name = resolve(id.erase()).ok_or_else(|| {
                 crate::AstConstructionError::new(
                     "finite space is absent from the lexical declaration scope",
@@ -85,20 +93,29 @@ pub(super) fn project(
     paths: &mut HashMap<TextRange, GraphPath>,
     resolve: &mut dyn FnMut(eqiora_core::RawId) -> Option<crate::NamePath>,
 ) -> ValueTypeSyntax {
-    if value.finite_space().is_some() || value.index_set().is_some() {
+    if value.enum_definition().is_some()
+        || value.finite_space().is_some()
+        || value.index_set().is_some()
+    {
         let mut syntax = ValueTypeSyntax::from_checked(value, resolve)
             .expect("validated nominal declaration scope");
         syntax.range = ranges.allocate(path, paths);
         return syntax;
     }
-    let mut syntax = ValueTypeSyntax {
-        resolved_nominal: None,
-        kind: Box::new(ValueTypeSyntaxKind::Scalar {
-            domain: value.scalar_domain(),
-            dimension: dimension_expression(value.dimension(), path, ranges, paths),
-        }),
-        range: ranges.allocate(path, paths),
+    let dimension = dimension_expression(value.dimension(), path, ranges, paths);
+    let mut syntax = if value.scalar_domain() == eqiora_core::ScalarDomain::Real {
+        ValueTypeSyntax::real(dimension)
+    } else {
+        ValueTypeSyntax {
+            resolved_nominal: None,
+            kind: Box::new(ValueTypeSyntaxKind::Scalar {
+                domain: value.scalar_domain(),
+                dimension,
+            }),
+            range: ranges.allocate(path, paths),
+        }
     };
+    syntax.range = ranges.allocate(path, paths);
     let (arrays, spatial) = value.shape().extents().split_at(value.array_rank());
     if !spatial.is_empty() {
         let kind = if spatial.len() == 1 {
@@ -139,7 +156,7 @@ mod tests {
 
     #[test]
     fn native_parameters_preserve_declared_types_in_source_projection() {
-        let scalar = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS);
+        let scalar = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS).unwrap();
         for (value_type, expected) in [
             (scalar.clone(), "complex<1>"),
             (scalar.array(3).unwrap(), "array<complex<1>, 3>"),
@@ -162,13 +179,19 @@ mod tests {
                     .to_string(),
                 "M.coefficient"
             );
-            let document =
-                SourceAstFactory::document(vec![], vec![], vec![native.model().clone()]).unwrap();
+            let document = SourceAstFactory::document(
+                Vec::new(),
+                vec![],
+                vec![],
+                vec![native.model().clone()],
+            )
+            .unwrap();
             let source = crate::format(&document);
             let parsed = crate::parse("native.eqi", &source).into_document().unwrap();
             assert_eq!(crate::format(&parsed), source);
         }
         let oversized = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            .unwrap()
             .array(65_537)
             .unwrap();
         let parameter = DraftParameter::new(
@@ -195,7 +218,8 @@ mod tests {
         let draft = ModelDraft::new("M", [field.into()]).unwrap();
         let native = draft.native_ast();
         let document =
-            SourceAstFactory::document(vec![], vec![], vec![native.model().clone()]).unwrap();
+            SourceAstFactory::document(Vec::new(), vec![], vec![], vec![native.model().clone()])
+                .unwrap();
         let source = crate::format(&document);
         assert!(source.contains("variable channels: array<vector<complex<1>, 2>, 3>;"));
         let parsed = crate::parse("native.eqi", &source).into_document().unwrap();
@@ -214,7 +238,7 @@ mod tests {
 
     #[test]
     fn native_fields_obey_source_type_limits() {
-        let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+        let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap();
         let oversized = DraftField::new(
             "large",
             scalar.array(65_537).unwrap(),

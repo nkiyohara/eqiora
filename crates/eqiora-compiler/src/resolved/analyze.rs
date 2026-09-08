@@ -136,6 +136,7 @@ pub(super) fn analyze_resolved_hierarchy_with_cancellation(
         property_bindings: Box::new([]),
     };
     let canonical_units = analysis.units.clone();
+    crate::enumeration::bind_resolved(&mut analysis.units, &analysis.aliases)?;
     for unit in &mut analysis.units {
         if is_cancelled() {
             return Ok(None);

@@ -95,8 +95,10 @@ pub(super) fn infer_node<I: Clone + Eq, E>(
             let Some(value) = inferred_type(inferred, *value) else {
                 return NodeInference::Unavailable;
             };
-            if value.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean
-                || value.value_type.is_count()
+            if matches!(
+                value.value_type.scalar_domain(),
+                eqiora_core::ScalarDomain::Boolean | eqiora_core::ScalarDomain::Enum
+            ) || value.value_type.is_count()
                 || value.value_type.index_set().is_some()
             {
                 Err(TypeViolation::ScalarDomainMismatch)
@@ -112,9 +114,13 @@ pub(super) fn infer_node<I: Clone + Eq, E>(
             let Some((left, right)) = inferred_binary(inferred, *left, *right) else {
                 return NodeInference::Unavailable;
             };
-            if left.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean
-                || right.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean
-            {
+            if matches!(
+                left.value_type.scalar_domain(),
+                eqiora_core::ScalarDomain::Boolean | eqiora_core::ScalarDomain::Enum
+            ) || matches!(
+                right.value_type.scalar_domain(),
+                eqiora_core::ScalarDomain::Boolean | eqiora_core::ScalarDomain::Enum
+            ) {
                 return NodeInference::Type(TypeViolation::ScalarDomainMismatch);
             }
             if matches!(node, ExprNode::Add(_, _)) {

@@ -213,6 +213,54 @@ fn locked_root_can_select_one_direct_dependency_public_model() {
 }
 
 #[test]
+fn enum_package_identity_and_locked_replay_preserve_declared_tags() {
+    let dependency = release(
+        "org.example.EnumLibrary",
+        "public enum Mode { Heating, Cooling }",
+        &[],
+    );
+    let enum_declaration = &dependency.semantic().declarations()[0];
+    assert_eq!(enum_declaration.kind(), DeclarationKindV1::Enum);
+    assert_eq!(enum_declaration.visibility(), VisibilityV1::Public);
+    let reordered = release(
+        "org.example.EnumLibrary",
+        "public enum Mode { Cooling, Heating }",
+        &[],
+    );
+    assert_ne!(
+        dependency.package_identity().unwrap(),
+        reordered.package_identity().unwrap()
+    );
+    let dependency = PackageReleaseV1::from_json(&dependency.canonical_json().unwrap()).unwrap();
+    let root = release(
+        "org.example.EnumRoot",
+        "import org.example.EnumLibrary.main as first; import org.example.EnumLibrary.main as second; model Main() { let command = case first.Mode.Heating { second.Mode.Heating => 1, second.Mode.Cooling => -1 }; variable output: 1; relation law { output = command; } }",
+        &[("first", &dependency)],
+    );
+    let resolution =
+        ResolutionRecordV1::from_exact_releases(&root, std::slice::from_ref(&dependency)).unwrap();
+    let mut store = InMemoryPackageStore::default();
+    store.insert(&root).unwrap();
+    store.insert(&dependency).unwrap();
+    let compiled = PackagedModelDocument::compile_locked(&store, &resolution, "Main").unwrap();
+    compiled
+        .compilation()
+        .validate_against(&resolution)
+        .unwrap();
+    let workspace =
+        crate::editor::EditorWorkspaceSnapshot::analyze_locked(1, &store, &resolution).unwrap();
+    assert!(workspace.diagnostics().is_empty());
+    assert_eq!(
+        workspace
+            .definitions()
+            .iter()
+            .filter(|definition| definition.kind() == crate::editor::EditorSymbolKind::Enum)
+            .count(),
+        1
+    );
+}
+
+#[test]
 fn editor_workspace_replays_exact_locked_dependency_sources() {
     let dependency = release(
         "org.example.EditorLibrary",
@@ -365,7 +413,8 @@ public component SpatialLaw(
 
     let forcing =
         eqiora_lang::DraftExpression::constant(eqiora_lang::DecimalLiteral::from_f64(2.0).unwrap())
-            .source_ast();
+            .source_ast(|_| None, |_| None)
+            .expect("numeric constant has no external declarations");
     let bindings = [
         (
             "fluid",

@@ -8,7 +8,7 @@ use eqiora_schema::{Model, ModelView};
 use eqiora_sem::{Interpreter, KernelProgram, ReferenceConfig};
 
 fn scalar(domain: ScalarDomain, value: i64) -> ValueLiteral {
-    let ty = ValueType::scalar(domain, DimExponents::DIMENSIONLESS);
+    let ty = ValueType::scalar(domain, DimExponents::DIMENSIONLESS).expect("valid scalar type");
     if domain == ScalarDomain::Integer {
         ValueLiteral::from_integer(ty, value).unwrap()
     } else {
@@ -18,6 +18,7 @@ fn scalar(domain: ScalarDomain, value: i64) -> ValueLiteral {
 
 fn channels(domain: ScalarDomain, values: [i64; 2]) -> ValueLiteral {
     let ty = ValueType::scalar(domain, DimExponents::DIMENSIONLESS)
+        .expect("valid scalar type")
         .array(2)
         .unwrap();
     if domain == ScalarDomain::Integer {

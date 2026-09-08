@@ -44,7 +44,7 @@ impl Parser<'_> {
     }
 
     fn parse_expression_inner(&mut self, minimum_binding_power: u8) -> Option<(Expr, usize)> {
-        if minimum_binding_power > 0 && self.at_keyword("if") {
+        if minimum_binding_power > 0 && (self.at_keyword("if") || self.at_keyword("case")) {
             self.error_here("conditional operand requires parentheses");
             return None;
         }
@@ -70,6 +70,7 @@ impl Parser<'_> {
                 depth = self.parent_depth(depth)?;
                 let range = TextRange::new(left.range.start(), member.range().end());
                 left = Expr {
+                    resolved_enum: None,
                     resolved_nominal: None,
                     kind: ExprKind::Member {
                         value: Box::new(left),
@@ -89,6 +90,7 @@ impl Parser<'_> {
                     .end();
                 let range = TextRange::new(left.range.start(), end);
                 left = Expr {
+                    resolved_enum: None,
                     resolved_nominal: None,
                     kind: ExprKind::Index {
                         value: Box::new(left),
@@ -151,6 +153,7 @@ impl Parser<'_> {
             depth = self.parent_depth(depth.max(right_depth))?;
             let range = TextRange::new(left.range.start(), right.range.end());
             left = Expr {
+                resolved_enum: None,
                 resolved_nominal: None,
                 kind: ExprKind::Binary {
                     op: operator,
@@ -166,6 +169,9 @@ impl Parser<'_> {
         if self.at_keyword("if") {
             return self.parse_select();
         }
+        if self.at_keyword("case") {
+            return self.parse_case();
+        }
         if self.at_keyword("then") || self.at_keyword("else") {
             self.error_here("expected value expression before conditional branch keyword");
             return None;
@@ -178,6 +184,7 @@ impl Parser<'_> {
             let depth = self.parent_depth(child_depth)?;
             (
                 Expr {
+                    resolved_enum: None,
                     resolved_nominal: None,
                     range: TextRange::new(start, value.range.end()),
                     kind: ExprKind::Unary {
@@ -193,6 +200,7 @@ impl Parser<'_> {
             let depth = self.parent_depth(child_depth)?;
             (
                 Expr {
+                    resolved_enum: None,
                     resolved_nominal: None,
                     range: TextRange::new(start, value.range().end()),
                     kind: ExprKind::Unary {
@@ -206,6 +214,7 @@ impl Parser<'_> {
             let token = self.bump();
             (
                 Expr {
+                    resolved_enum: None,
                     resolved_nominal: None,
                     range: token.range(),
                     kind: ExprKind::Boolean(token.text() == "true"),
@@ -252,6 +261,7 @@ impl Parser<'_> {
                 .end();
             (
                 Expr {
+                    resolved_enum: None,
                     resolved_nominal: None,
                     kind: ExprKind::Array(elements),
                     range: TextRange::new(start, end),
@@ -306,6 +316,7 @@ impl Parser<'_> {
         let depth = self.parent_depth(child_depth)?;
         Some((
             Expr {
+                resolved_enum: None,
                 resolved_nominal: None,
                 kind: ExprKind::Reduction {
                     operation,
@@ -342,6 +353,7 @@ impl Parser<'_> {
                     .end();
                 (
                     Expr {
+                        resolved_enum: None,
                         resolved_nominal: None,
                         kind: ExprKind::Call {
                             callee: path.clone(),
@@ -356,6 +368,7 @@ impl Parser<'_> {
                 let range = TextRange::new(path.range().start(), selector.range().end());
                 (
                     Expr {
+                        resolved_enum: None,
                         resolved_nominal: None,
                         kind: ExprKind::BoundaryPortSelection {
                             port: Box::new(path),
@@ -374,6 +387,7 @@ impl Parser<'_> {
                 };
                 (
                     Expr {
+                        resolved_enum: None,
                         resolved_nominal: None,
                         kind,
                         range,

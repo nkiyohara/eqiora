@@ -749,7 +749,14 @@ fn combine_types(
         _ => unreachable!("predicate operator"),
     };
     let projected = |value: &EvaluatedType, dimension| {
-        ExpressionType::<()>::new(value.value_type().clone().with_dimension(dimension), None)
+        value
+            .value_type()
+            .clone()
+            .with_dimension(dimension)
+            .map(|value| ExpressionType::<()>::new(value, None))
+            .map_err(|error| {
+                source_error(codes::LANGUAGE_TYPE_ERROR, file, range, error.to_string())
+            })
     };
     let fallback = DimExponents::DIMENSIONLESS;
     let result = match operator {
@@ -757,11 +764,11 @@ fn combine_types(
             let left = projected(
                 &left,
                 left_dimension.or(right_dimension).unwrap_or(fallback),
-            );
+            )?;
             let right = projected(
                 &right,
                 right_dimension.or(left_dimension).unwrap_or(fallback),
-            );
+            )?;
             if operator == BinaryOp::Add {
                 left.sum(right)
             } else {
@@ -776,7 +783,7 @@ fn combine_types(
                 } else {
                     fallback
                 },
-            );
+            )?;
             let right = projected(
                 &right,
                 if dimension_known {
@@ -784,7 +791,7 @@ fn combine_types(
                 } else {
                     fallback
                 },
-            );
+            )?;
             if operator == BinaryOp::Mul {
                 typing::multiply(&left, &right)
             } else {
@@ -797,7 +804,7 @@ fn combine_types(
             unreachable!("predicates use checked scalar typing")
         }
         BinaryOp::Pow => typing::power(
-            &projected(&left, left_dimension.unwrap_or(fallback)),
+            &projected(&left, left_dimension.unwrap_or(fallback))?,
             exponent.unwrap_or(1),
         ),
         _ => unreachable!("predicate operator"),
@@ -807,7 +814,12 @@ fn combine_types(
             if dimension_known {
                 EvaluatedType::Known(value.value_type)
             } else {
-                EvaluatedType::Deferred(value.value_type.with_dimension(fallback))
+                EvaluatedType::Deferred(
+                    value
+                        .value_type
+                        .with_dimension(fallback)
+                        .expect("dimensionless projection of checked arithmetic type"),
+                )
             }
         })
         .map_err(|error| {

@@ -237,6 +237,10 @@ pub(crate) fn literal(
     file: &str,
     expression: &eqiora_lang::Expr,
 ) -> Result<eqiora_core::ValueLiteral, Diagnostic> {
+    if let Some(value) = expression.resolved_enum() {
+        return Ok(value.clone());
+    }
+
     let invalid = |message: &str| {
         source_error(
             codes::LANGUAGE_TYPE_ERROR,

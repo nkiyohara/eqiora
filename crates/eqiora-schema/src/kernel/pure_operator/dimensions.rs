@@ -333,6 +333,6 @@ impl CalculusBuilder {
         if free.iter().any(|power| !power.is_zero()) {
             return Err(PureOperatorError::FormalTypeMismatch);
         }
-        Ok(ValueType::scalar(domain, dimension))
+        ValueType::scalar(domain, dimension).map_err(|_| PureOperatorError::FormalTypeMismatch)
     }
 }

@@ -109,6 +109,14 @@ fn measure<'a>(
         )
     } else {
         let (mut nodes, overhead) = match expression.kind() {
+            ExprKind::Case { arms, .. } => {
+                let folds = arms.len().saturating_sub(1).max(1);
+                (
+                    folds.checked_mul(3).ok_or_else(exceeded)?,
+                    folds.checked_mul(2).ok_or_else(exceeded)?,
+                )
+            }
+
             ExprKind::Call { callee, .. } => {
                 crate::math::piecewise::cost(callee.as_str()).unwrap_or((1, 1))
             }
@@ -159,6 +167,12 @@ fn visit_children<'a>(
     visit: &mut impl FnMut(&'a Expr) -> Result<(), Diagnostic>,
 ) -> Result<(), Diagnostic> {
     match expression.kind() {
+        ExprKind::Case { value, arms } => {
+            visit(value)?;
+            for arm in arms {
+                visit(arm.value())?;
+            }
+        }
         ExprKind::Select {
             condition,
             then_value,
@@ -218,6 +232,9 @@ fn substitute(
             "reduction member expression exceeds the depth limit",
         ));
     }
+    if expression.resolved_enum().is_some() {
+        return Ok(expression.clone());
+    }
     let construct = |kind| {
         SourceAstFactory::expression(kind, expression.range())
             .map_err(|failure| error(file, expression, failure.to_string()))
@@ -263,6 +280,16 @@ fn substitute(
                 value: Box::new(child(value)?),
             }
         }
+        ExprKind::Case { value, arms } => ExprKind::Case {
+            value: Box::new(child(value)?),
+            arms: arms
+                .iter()
+                .map(|arm| {
+                    SourceAstFactory::case_arm_value(arm, child(arm.value())?)
+                        .map_err(|failure| error(file, expression, failure.to_string()))
+                })
+                .collect::<Result<_, _>>()?,
+        },
         ExprKind::Select {
             condition,
             then_value,

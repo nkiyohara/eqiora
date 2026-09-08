@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 19 module summaries and all 237 canonical declaration summaries are source-traced; non-dunder member coverage remains **15 authoritative summaries and 703 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 19 module summaries and all 241 canonical declaration summaries are source-traced; non-dunder member coverage remains **17 authoritative summaries and 714 signature-only entries under documented owning types**.
 
-Inventory: 19 modules, 274 literal public spellings, 237 canonical grouped declarations, 937 visible method signatures (718 non-dunder and 219 dunder), and 76 visible class assignments.
+Inventory: 19 modules, 278 literal public spellings, 241 canonical grouped declarations, 952 visible method signatures (731 non-dunder and 221 dunder), and 76 visible class assignments.
 
 Regenerate with:
 
@@ -789,7 +789,7 @@ class ValueType:
     @staticmethod
     def array(element: ValueType, extent: int) -> ValueType: ...
     @property
-    def scalar_domain(self) -> Literal['real', 'complex']: ...
+    def scalar_domain(self) -> Literal['real', 'complex', 'integer', 'boolean', 'enum']: ...
     @property
     def dimension(self) -> Dimension: ...
     @property
@@ -800,6 +800,47 @@ class ValueType:
     def frame(self) -> Literal['invariant', 'spatial_cartesian']: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
+```
+
+<a id="api-eqiora-Enum"></a>
+
+### `eqiora.Enum`
+
+An exact closed enum declaration; replay may have no retained lexical name.
+
+Authority: [`crates/eqiora-python/src/modeling/enumeration.rs::PyEnum`](../../crates/eqiora-python/src/modeling/enumeration.rs)
+
+```python
+@final
+class Enum:
+    def __new__(cls, name: str, *, members: Sequence[str]) -> Self: ...
+    @property
+    def name(self) -> str | None: ...
+    @property
+    def id(self) -> str: ...
+    @property
+    def members(self) -> tuple[str, ...]: ...
+    @property
+    def value_type(self) -> ValueType: ...
+    def member(self, name: str) -> EnumValue: ...
+```
+
+<a id="api-eqiora-EnumValue"></a>
+
+### `eqiora.EnumValue`
+
+An immutable nominal enum member without numeric or Boolean coercion.
+
+Authority: [`crates/eqiora-python/src/modeling/enumeration.rs::PyEnumValue`](../../crates/eqiora-python/src/modeling/enumeration.rs)
+
+```python
+@final
+class EnumValue:
+    @property
+    def value_type(self) -> ValueType: ...
+    @property
+    def enum_id(self) -> str: ...
+    def __bool__(self) -> bool: ...
 ```
 
 <a id="api-eqiora-FiniteSpace"></a>
@@ -1198,6 +1239,7 @@ class Model:
     def commit(self, edit: ValueEdit) -> Model: ...
     def execution_session(self, *, end_time_s: float, max_step_s: float, inputs: dict[str, tuple[str, list[_TypedValue] | tuple[_TypedValue, ...]]]) -> ExecutionSession: ...
     def resume_execution(self, checkpoint: ExecutionCheckpoint) -> ExecutionSession: ...
+    def enum(self, selection: str) -> Enum: ...
     def parameter(self, selection: str) -> ParameterRef: ...
     def field(self, selection: str) -> FieldRef: ...
     def domain(self, selection: str) -> DomainRef: ...
@@ -2739,6 +2781,26 @@ class Expression:
     def __getitem__(self, index: int | Expression) -> Expression: ...
 ```
 
+<a id="api-eqiora-lang-Enum"></a>
+
+### `eqiora.lang.Enum`
+
+A closed enum declaration shared within its Source.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::Enum`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+@final
+class Enum:
+    @property
+    def name(self) -> str: ...
+    @property
+    def members(self) -> tuple[str, ...]: ...
+    @property
+    def value_type(self) -> ValueType: ...
+    def member(self, name: str) -> Expression: ...
+```
+
 <a id="api-eqiora-lang-Event"></a>
 
 ### `eqiora.lang.Event`
@@ -2835,6 +2897,7 @@ Authority: [`bindings/python/python/eqiora/lang/__init__.py::Source`](../../bind
 @final
 class Source:
     def operator(self, name: str, *, inputs: Mapping[str, ValueType], result_type: ValueType, body: Callable[..., object], doc: str | None=None) -> Operator: ...
+    def enum(self, name: str, *, members: Sequence[str], doc: str | None=None) -> Enum: ...
     def space(self, name: str, *, labels: Sequence[str], doc: str | None=None) -> FiniteSpace: ...
     def __init__(self) -> None: ...
     def component(self, name: str, *, doc: str | None=None) -> Component: ...
@@ -2884,6 +2947,18 @@ Authority: [`bindings/python/python/eqiora/lang/__init__.py::array`](../../bindi
 
 ```python
 def array(values: Sequence[object]) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-case"></a>
+
+### `eqiora.lang.case`
+
+Author ordered closed-member cases; compiler checks exhaustiveness and types.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::case`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def case(value: object, arms: Sequence[tuple[Expression, object]]) -> Expression: ...
 ```
 
 <a id="api-eqiora-lang-coordinate"></a>

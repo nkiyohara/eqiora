@@ -3,6 +3,8 @@
 pub enum ScalarDomain {
     /// Logical truth values, with no numeric embedding.
     Boolean,
+    /// Closed nominal alternatives, without numeric embedding.
+    Enum,
     /// Exact signed 64-bit integers, with no implicit real embedding.
     Integer,
     /// Real-valued mathematics.
@@ -16,6 +18,8 @@ impl ScalarDomain {
     #[must_use]
     pub const fn common(self, other: Self) -> Option<Self> {
         match (self, other) {
+            (Self::Enum, Self::Enum) => Some(Self::Enum),
+            (Self::Enum, _) | (_, Self::Enum) => None,
             (Self::Boolean, Self::Boolean) => Some(Self::Boolean),
             (Self::Boolean, _) | (_, Self::Boolean) => None,
             (Self::Integer, Self::Integer) => Some(Self::Integer),

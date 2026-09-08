@@ -23,6 +23,9 @@ pub(super) fn collect_expression_dependencies(
     let mut diagnostics = Vec::new();
     let mut pending = vec![expression];
     while let Some(expression) = pending.pop() {
+        if expression.resolved_enum().is_some() {
+            continue;
+        }
         if expression.resolved_nominal().is_some() {
             if let Err(error) = crate::nominal::literal(file, expression) {
                 diagnostics.push(error);
@@ -88,6 +91,10 @@ pub(super) fn collect_expression_dependencies(
                 expression.range(),
                 context.call_message(callee.as_str()),
             )),
+            ExprKind::Case { value, arms } => {
+                pending.push(value.as_ref());
+                pending.extend(arms.iter().map(eqiora_lang::CaseArm::value));
+            }
             ExprKind::Select { condition, then_value, else_value } => {
                 pending.extend([condition.as_ref(), then_value.as_ref(), else_value.as_ref()]);
             }

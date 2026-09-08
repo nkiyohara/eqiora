@@ -334,7 +334,9 @@ mod tests {
         let eqiora_lang::Item::Parameter(parameter) = &document.models()[0].items()[0] else {
             panic!("one Parameter declaration");
         };
-        lower_dimension("dimension.eqi", parameter.dimension()).expect("dimension lowers")
+        crate::value_types::lower_value_type::<()>("dimension.eqi", parameter.value_type(), None)
+            .expect("dimension lowers")
+            .dimension()
     }
 
     #[test]
@@ -453,6 +455,74 @@ model Example() {
             compiled[0].symbols().iter().count(),
             expanded[0].symbols().iter().count()
         );
+    }
+
+    #[test]
+    fn nested_aliases_preserve_complete_value_types_and_source_ranges() {
+        use eqiora_schema::kernel::typing::SpatialSupport;
+
+        let support = SpatialSupport::Volume {
+            domain: "body",
+            dimensions: 3,
+        };
+        for (aliased, expanded) in [
+            ("array<Length, 2>", "array<m, 2>"),
+            ("array<array<Length, 3>, 2>", "array<array<m, 3>, 2>"),
+            ("array<complex<Length>, 2>", "array<complex<m>, 2>"),
+            ("vector<Length, 3>", "vector<m, 3>"),
+            (
+                "array<tensor<Length, 3, 3>, 2>",
+                "array<tensor<m, 3, 3>, 2>",
+            ),
+        ] {
+            let source = format!("dimension Length = m; model M() {{ variable x: {aliased}; }}");
+            let document = parse("nested-alias.eqi", &source).into_document().unwrap();
+            let eqiora_lang::Item::Field(original) = &document.models()[0].items()[0] else {
+                panic!("field declaration");
+            };
+            let elaborated = super::elaborate_dimension_aliases("nested-alias.eqi", &document)
+                .expect("nested dimension aliases elaborate");
+            let eqiora_lang::Item::Field(field) = &elaborated.models()[0].items()[0] else {
+                panic!("field declaration");
+            };
+            assert_eq!(field.value_type().range(), original.value_type().range());
+            let actual = crate::value_types::lower_value_type(
+                "nested-alias.eqi",
+                field.value_type(),
+                Some(&support),
+            )
+            .unwrap();
+            let expanded_source = format!("model M() {{ variable x: {expanded}; }}");
+            let expanded_document = parse("expanded.eqi", &expanded_source)
+                .into_document()
+                .unwrap();
+            let eqiora_lang::Item::Field(expected) = &expanded_document.models()[0].items()[0]
+            else {
+                panic!("field declaration");
+            };
+            let expected = crate::value_types::lower_value_type(
+                "expanded.eqi",
+                expected.value_type(),
+                Some(&support),
+            )
+            .unwrap();
+            assert_eq!(actual, expected, "{aliased}");
+            assert_eq!(actual.dimension(), super::length_dimension());
+        }
+
+        let source = "dimension Length = m; model M() { variable x: Length; }";
+        let mut document = parse("bound.eqi", source).into_document().unwrap();
+        let bound = eqiora_schema::kernel::EnumDef::new(eqiora_core::Id::new(), ["Member".into()])
+            .unwrap()
+            .value_type();
+        eqiora_lang::SourceAstFactory::visit_value_types(&mut document, |_, syntax| {
+            eqiora_lang::SourceAstFactory::bind_nominal_value_type(syntax, bound.clone()).unwrap();
+        });
+        let elaborated = super::elaborate_dimension_aliases("bound.eqi", &document).unwrap();
+        let eqiora_lang::Item::Field(field) = &elaborated.models()[0].items()[0] else {
+            panic!("field declaration");
+        };
+        assert_eq!(field.value_type().resolved_nominal(), Some(&bound));
     }
 
     #[test]

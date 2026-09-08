@@ -222,13 +222,15 @@ fn bouncing_fixture(direction: EventDirection, reverse_nodes: bool) -> BouncingF
     let mut nodes = vec![
         KernelNode::from(FieldDef::new(
             height,
-            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, length),
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, length)
+                .expect("valid scalar type"),
             eqiora_schema::kernel::FieldRole::State,
         )),
         initial(height, DynQuantity::new(1.0, length)),
         KernelNode::from(FieldDef::new(
             velocity,
-            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, velocity_dimension),
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, velocity_dimension)
+                .expect("valid scalar type"),
             eqiora_schema::kernel::FieldRole::State,
         )),
         initial(velocity, DynQuantity::new(0.0, velocity_dimension)),
@@ -238,7 +240,8 @@ fn bouncing_fixture(direction: EventDirection, reverse_nodes: bool) -> BouncingF
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     acceleration_dimension,
-                ),
+                )
+                .expect("valid scalar type"),
                 9.81,
             )
             .expect("valid parameter value"),
@@ -249,7 +252,8 @@ fn bouncing_fixture(direction: EventDirection, reverse_nodes: bool) -> BouncingF
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
-                ),
+                )
+                .expect("valid scalar type"),
                 0.8,
             )
             .expect("valid parameter value"),
@@ -392,14 +396,16 @@ fn chattering_program() -> KernelProgram {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::DIMENSIONLESS,
-            ),
+            )
+            .expect("valid scalar type"),
             eqiora_schema::kernel::FieldRole::State,
         )),
         initial(state, DynQuantity::new(1.0e-6, DimExponents::DIMENSIONLESS)),
         KernelNode::from(ParameterDef::new(
             rate,
             eqiora_core::ValueLiteral::from_real(
-                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time),
+                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time)
+                    .expect("valid scalar type"),
                 1.0,
             )
             .expect("valid parameter value"),
@@ -410,7 +416,8 @@ fn chattering_program() -> KernelProgram {
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
-                ),
+                )
+                .expect("valid scalar type"),
                 1.0e-6,
             )
             .expect("valid parameter value"),
@@ -507,7 +514,7 @@ fn coincidence_fixture(reverse: bool, conflict: bool, root_shift: f64) -> Coinci
         nodes.push(
             FieldDef::new(
                 field,
-                ValueType::scalar(ScalarDomain::Real, one),
+                ValueType::scalar(ScalarDomain::Real, one).expect("valid scalar type"),
                 FieldRole::State,
             )
             .into(),

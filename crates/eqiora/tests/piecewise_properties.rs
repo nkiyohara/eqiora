@@ -12,7 +12,11 @@ model Device(){parameter voltage:V=-4;parameter forward:S=2;parameter reverse:S=
 relation constitutive{current=law(reverse=reverse,v=voltage,forward=forward);}}
 "#;
 fn real(dimension: DimExponents, value: f64) -> ValueLiteral {
-    ValueLiteral::from_real(ValueType::scalar(ScalarDomain::Real, dimension), value).unwrap()
+    ValueLiteral::from_real(
+        ValueType::scalar(ScalarDomain::Real, dimension).expect("valid scalar type"),
+        value,
+    )
+    .unwrap()
 }
 fn voltage() -> DimExponents {
     DimExponents::from_integers([1, 2, -3, -1, 0, 0, 0]).unwrap()
@@ -231,12 +235,12 @@ fn crossing_program(
     let mut nodes = vec![
         KernelNode::from(FieldDef::new(
             state,
-            ValueType::scalar(ScalarDomain::Real, d),
+            ValueType::scalar(ScalarDomain::Real, d).expect("valid scalar type"),
             FieldRole::State,
         )),
         FieldDef::new(
             output,
-            ValueType::scalar(ScalarDomain::Real, d),
+            ValueType::scalar(ScalarDomain::Real, d).expect("valid scalar type"),
             FieldRole::Variable,
         )
         .into(),

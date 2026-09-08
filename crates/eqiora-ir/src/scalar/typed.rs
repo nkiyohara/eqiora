@@ -363,7 +363,7 @@ fn real(value: &ValueLiteral) -> Result<DynQuantity, Diagnostic> {
 
 fn literal(value: DynQuantity) -> Result<ValueLiteral, Diagnostic> {
     ValueLiteral::from_real(
-        ValueType::scalar(ScalarDomain::Real, value.dim()),
+        ValueType::scalar(ScalarDomain::Real, value.dim()).expect("numeric scalar type"),
         value.value(),
     )
     .map_err(|_| {
@@ -492,7 +492,8 @@ mod tests {
     #[test]
     fn channels_construct_index_and_preserve_integer_low_bits() {
         let mut builder = ExprDagBuilder::new();
-        let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+        let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("numeric scalar type");
         let high = builder
             .constant(ValueLiteral::from_integer(ty.clone(), 9_007_199_254_740_993).unwrap())
             .unwrap();
@@ -520,6 +521,7 @@ mod tests {
     fn channel_intermediate_budget_and_direct_array_arithmetic_reject() {
         let mut builder = ExprDagBuilder::new();
         let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("numeric scalar type")
             .array(600_000)
             .unwrap();
         let input = builder
@@ -537,6 +539,7 @@ mod tests {
         );
         let mut builder = ExprDagBuilder::new();
         let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("numeric scalar type")
             .array(2)
             .unwrap();
         let input = builder
@@ -558,7 +561,8 @@ mod tests {
         use eqiora_schema::kernel::ComparisonOp;
         let owner = Id::<kinds::Relation>::new().erase();
         let gate = Id::<kinds::Parameter>::new();
-        let integer = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+        let integer = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("numeric scalar type");
         let mut dag = ExprDagBuilder::new();
         let condition = dag.symbol(SymbolRef::Parameter(gate)).unwrap();
         let one = dag
@@ -615,7 +619,8 @@ mod tests {
 
     #[test]
     fn requested_integer_rhs_skips_unresolved_target_and_retains_low_bit() {
-        let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+        let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("numeric scalar type");
         let mut dag = ExprDagBuilder::new();
         let target = dag
             .symbol(SymbolRef::Next(Id::<kinds::Field>::new()))
@@ -644,7 +649,8 @@ mod tests {
 
     #[test]
     fn quotient_remainder_and_explicit_conversion_preserve_declared_semantics() {
-        let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+        let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("numeric scalar type");
         let mut dag = ExprDagBuilder::new();
         let a = dag
             .constant(ValueLiteral::from_integer(ty.clone(), -7).unwrap())
@@ -678,7 +684,8 @@ mod tests {
                 ValueType::scalar(
                     ScalarDomain::Integer,
                     eqiora_core::DimExponents::DIMENSIONLESS,
-                ),
+                )
+                .expect("numeric scalar type"),
                 n,
             )
             .unwrap()

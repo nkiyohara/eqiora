@@ -62,7 +62,8 @@ impl<I: Clone + Eq> ExpressionType<I> {
         }
         let result = additive(&real, &imag)?;
         Ok(ExpressionType::new(
-            ValueType::scalar(ScalarDomain::Complex, result.dimension()),
+            ValueType::scalar(ScalarDomain::Complex, result.dimension())
+                .expect("checked scalar type"),
             result.support,
         ))
     }

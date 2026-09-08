@@ -34,12 +34,12 @@ fn rational_dimension_meaning_survives_canonical_model_replay() {
     assert!(model.structurally_equivalent(&replay).unwrap());
     let current_schema = String::from_utf8(bytes).unwrap();
     let old_schema =
-        current_schema.replace("eqiora.model-envelope/v19", "eqiora.model-envelope/v10");
+        current_schema.replace("eqiora.model-envelope/v20", "eqiora.model-envelope/v10");
     assert_ne!(old_schema, current_schema);
     assert!(ModelDocument::replay(old_schema.as_bytes()).is_err());
     assert_eq!(
         model.structural_fingerprint().unwrap().generation(),
-        SemanticFingerprintGeneration::V14
+        SemanticFingerprintGeneration::V15
     );
 }
 
@@ -100,7 +100,7 @@ fn current_generation_is_independent_of_coordinate_vocabulary() {
     for model in [&fixed, &referenced] {
         assert_eq!(
             model.structural_fingerprint().unwrap().generation(),
-            SemanticFingerprintGeneration::V14
+            SemanticFingerprintGeneration::V15
         );
     }
     // Equal endpoint values do not erase the nominal Parameter dependency.
@@ -130,7 +130,7 @@ fn source_native_codec_and_allocation_routes_share_only_structural_identity() {
         );
     }
     let fingerprint = source.structural_fingerprint().unwrap();
-    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V14);
+    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V15);
     assert_eq!(fingerprint.digest().len(), 64);
 
     let replay = eqiora::api::ModelDocument::replay(&source.canonical_json().unwrap()).unwrap();
@@ -311,7 +311,8 @@ fn native_decay(reversed: bool) -> ModelDraft {
         eqiora_core::ValueType::scalar(
             eqiora_core::ScalarDomain::Real,
             DimExponents::DIMENSIONLESS,
-        ),
+        )
+        .expect("valid scalar type"),
         eqiora::language::FieldRoleSyntax::State,
     );
     let rate = DraftParameter::new(
@@ -320,7 +321,8 @@ fn native_decay(reversed: bool) -> ModelDraft {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension"),
-            ),
+            )
+            .expect("valid scalar type"),
             1.0,
         )
         .unwrap(),
@@ -354,11 +356,13 @@ fn native_resistor(reversed: bool) -> ModelDraft {
         eqiora_core::ValueType::scalar(
             eqiora_core::ScalarDomain::Real,
             DimExponents::from_integers([1, 2, -3, -1, 0, 0, 0]).expect("bounded dimension"),
-        ),
+        )
+        .expect("valid scalar type"),
         eqiora_core::ValueType::scalar(
             eqiora_core::ScalarDomain::Real,
             DimExponents::from_integers([0, 0, 0, 1, 0, 0, 0]).expect("bounded dimension"),
-        ),
+        )
+        .expect("valid scalar type"),
     );
     let positive = DraftConservingPort::new("p", &electrical);
     let negative = DraftConservingPort::new("n", &electrical);
@@ -369,7 +373,8 @@ fn native_resistor(reversed: bool) -> ModelDraft {
             eqiora_core::ValueType::scalar(
                 eqiora_core::ScalarDomain::Real,
                 DimExponents::from_integers([1, 2, -3, -2, 0, 0, 0]).expect("bounded dimension"),
-            ),
+            )
+            .expect("valid scalar type"),
             2.0,
         )
         .unwrap(),
@@ -466,7 +471,8 @@ fn manually_allocated_program(reverse_expression: bool, expose_port: bool) -> Ke
                     eqiora_core::ValueType::scalar(
                         eqiora_core::ScalarDomain::Real,
                         DimExponents::DIMENSIONLESS,
-                    ),
+                    )
+                    .expect("valid scalar type"),
                     0.0,
                 )
                 .unwrap(),
@@ -492,7 +498,8 @@ fn manually_allocated_program(reverse_expression: bool, expose_port: bool) -> Ke
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
-                ),
+                )
+                .expect("valid scalar type"),
                 eqiora::kernel::FieldRole::Variable,
             )
             .into(),
@@ -503,7 +510,8 @@ fn manually_allocated_program(reverse_expression: bool, expose_port: bool) -> Ke
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
-                ),
+                )
+                .expect("valid scalar type"),
                 eqiora::kernel::FieldRole::Variable,
             )
             .into(),
@@ -521,7 +529,8 @@ fn manually_allocated_program(reverse_expression: bool, expose_port: bool) -> Ke
                 eqiora_core::ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::DIMENSIONLESS,
-                ),
+                )
+                .expect("valid scalar type"),
             )
             .into(),
         })

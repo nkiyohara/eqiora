@@ -8,13 +8,50 @@ impl SourceAstFactory {
     /// # Errors
     /// Rejects excessive type cardinality/nesting, a frame on an invariant value,
     /// or nonzero spatial components without an explicit frame.
-    pub fn value_literal(
+    pub fn value_literal<'a>(
         value: &ValueLiteral,
         frame: Option<NamePath>,
         range: TextRange,
         mut resolve: impl FnMut(eqiora_core::RawId) -> Option<NamePath>,
+        mut resolve_enum: impl FnMut(eqiora_core::RawId) -> Option<&'a eqiora_schema::kernel::EnumDef>,
     ) -> Result<Expr, AstConstructionError> {
         checked_range(range)?;
+        if let Some(tag) = value.enum_tag() {
+            if frame.is_some() {
+                return Err(AstConstructionError::new(
+                    "enum values cannot supply a spatial frame",
+                ));
+            }
+            let id = value.value_type().enum_definition().ok_or_else(|| {
+                AstConstructionError::new("enum literal requires exact declaration identity")
+            })?;
+            let definition = resolve_enum(id.erase()).ok_or_else(|| {
+                AstConstructionError::new(
+                    "enum member projection requires its exact registered declaration",
+                )
+            })?;
+            if definition.id() != id
+                || &definition.value_type() != value.value_type()
+                || definition.value(tag).ok().as_ref() != Some(value)
+            {
+                return Err(AstConstructionError::new(
+                    "enum literal does not match its registered declaration",
+                ));
+            }
+            let name = resolve(id.erase()).ok_or_else(|| {
+                AstConstructionError::new("enum declaration is absent from lexical scope")
+            })?;
+            let label = definition.members().get(tag as usize).ok_or_else(|| {
+                AstConstructionError::new("enum tag is outside declaration bounds")
+            })?;
+            let member = NamePath::from_segments(
+                name.segments().chain(std::iter::once(label.as_str())),
+                range,
+            )?;
+            let mut expression = Self::expression(ExprKind::Path(member), range)?;
+            Self::bind_enum_member(&mut expression, &name, definition)?;
+            return Ok(expression);
+        }
         if frame.is_some() && value.value_type().frame() == ValueFrame::Invariant {
             return Err(AstConstructionError::new(
                 "invariant values cannot supply a spatial frame",
@@ -60,6 +97,7 @@ impl SourceAstFactory {
             {
                 let components = nested(value, axis, offset, range, None);
                 return Expr {
+                    resolved_enum: None,
                     resolved_nominal: None,
                     kind: ExprKind::Call {
                         callee: NamePath::single("tensor_value".to_owned(), range),
@@ -70,6 +108,7 @@ impl SourceAstFactory {
             }
             if let Some(extent) = value.value_type().shape().extents().get(axis) {
                 return Expr {
+                    resolved_enum: None,
                     resolved_nominal: None,
                     kind: ExprKind::Array(
                         (0..extent.get())
@@ -82,6 +121,7 @@ impl SourceAstFactory {
             if let Some(integer) = value.integer_component(*offset) {
                 *offset += 1;
                 return Expr {
+                    resolved_enum: None,
                     resolved_nominal: None,
                     kind: ExprKind::Number(
                         crate::DecimalLiteral::parse(&integer.to_string()).expect("bounded i64"),
@@ -92,6 +132,7 @@ impl SourceAstFactory {
             let (real, imaginary) = value.component(*offset).expect("bounded value component");
             *offset += 1;
             let scalar = |number| Expr {
+                resolved_enum: None,
                 resolved_nominal: None,
                 kind: if value.value_type().dimension() == DimExponents::DIMENSIONLESS {
                     ExprKind::Number(
@@ -111,6 +152,7 @@ impl SourceAstFactory {
                 range,
             };
             Expr {
+                resolved_enum: None,
                 resolved_nominal: None,
                 kind: if value.value_type().scalar_domain() == ScalarDomain::Complex {
                     ExprKind::Call {
@@ -136,6 +178,7 @@ impl SourceAstFactory {
                     callee: NamePath::single(constructor.to_owned(), range),
                     arguments: crate::CallArguments::Positional(vec![
                         Expr {
+                            resolved_enum: None,
                             resolved_nominal: None,
                             kind: ExprKind::Path(name.clone()),
                             range,
@@ -154,6 +197,7 @@ impl SourceAstFactory {
 
 fn frame_expression(frame: NamePath, range: TextRange) -> Expr {
     Expr {
+        resolved_enum: None,
         resolved_nominal: None,
         kind: if frame.is_qualified() {
             ExprKind::Path(frame)
@@ -196,6 +240,7 @@ pub(crate) fn dimension_expression(
         .filter(|(_, (numerator, _))| *numerator != 0)
         .map(|(name, (numerator, denominator))| {
             let base = Expr {
+                resolved_enum: None,
                 resolved_nominal: None,
                 kind: ExprKind::Name(name.to_owned()),
                 range: range(),
@@ -204,6 +249,7 @@ pub(crate) fn dimension_expression(
                 base
             } else {
                 let numerator = Expr {
+                    resolved_enum: None,
                     resolved_nominal: None,
                     kind: ExprKind::Number(
                         crate::DecimalLiteral::parse(&numerator.to_string())
@@ -215,11 +261,13 @@ pub(crate) fn dimension_expression(
                     numerator
                 } else {
                     Expr {
+                        resolved_enum: None,
                         resolved_nominal: None,
                         kind: ExprKind::Binary {
                             op: BinaryOp::Div,
                             left: Box::new(numerator),
                             right: Box::new(Expr {
+                                resolved_enum: None,
                                 resolved_nominal: None,
                                 kind: ExprKind::Number(
                                     crate::DecimalLiteral::parse(&denominator.to_string())
@@ -232,6 +280,7 @@ pub(crate) fn dimension_expression(
                     }
                 };
                 Expr {
+                    resolved_enum: None,
                     resolved_nominal: None,
                     kind: ExprKind::Binary {
                         op: BinaryOp::Pow,
@@ -247,12 +296,14 @@ pub(crate) fn dimension_expression(
 
     let Some(first) = factors.next() else {
         return Expr {
+            resolved_enum: None,
             resolved_nominal: None,
             kind: ExprKind::Number(crate::DecimalLiteral::parse("1.0").expect("exact literal")),
             range: range(),
         };
     };
     factors.fold(first, |left, right| Expr {
+        resolved_enum: None,
         resolved_nominal: None,
         kind: ExprKind::Binary {
             op: BinaryOp::Mul,
@@ -291,12 +342,18 @@ mod tests {
             ScalarDomain::Complex,
             DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
         )
+        .unwrap()
         .array(2)
         .unwrap();
         let literal = ValueLiteral::new(kind, [(1.0, 2.0), (3.0, 0.0)]).unwrap();
-        let expression =
-            SourceAstFactory::value_literal(&literal, None, TextRange::new(0, 1), |_| None)
-                .unwrap();
+        let expression = SourceAstFactory::value_literal(
+            &literal,
+            None,
+            TextRange::new(0, 1),
+            |_| None,
+            |_| None,
+        )
+        .unwrap();
         let ExprKind::Array(elements) = expression.kind() else {
             panic!("channel axis")
         };
@@ -326,7 +383,7 @@ mod tests {
         .unwrap();
         let zero = ValueLiteral::from_real(vector.clone(), 0.0).unwrap();
         assert!(matches!(
-            SourceAstFactory::value_literal(&zero, None, TextRange::new(0, 1), |_| None)
+            SourceAstFactory::value_literal(&zero, None, TextRange::new(0, 1), |_| None, |_| None)
                 .unwrap()
                 .kind(),
             ExprKind::Number(number) if number.is_zero()
@@ -338,6 +395,7 @@ mod tests {
             Some(NamePath::single("body".to_owned(), range)),
             range,
             |_| None,
+            |_| None,
         )
         .unwrap();
         let ExprKind::Call { arguments, .. } = projected.kind() else {
@@ -347,7 +405,7 @@ mod tests {
             matches!(arguments.named().unwrap()[1].value().kind(), ExprKind::Array(values) if values.len() == 2)
         );
         assert!(
-            SourceAstFactory::value_literal(&value, None, TextRange::new(0, 1), |_| None)
+            SourceAstFactory::value_literal(&value, None, TextRange::new(0, 1), |_| None, |_| None)
                 .unwrap_err()
                 .to_string()
                 .contains("frame-bearing")
@@ -378,9 +436,14 @@ mod tests {
         .unwrap();
         let range = TextRange::new(0, 1);
         let frame = NamePath::single("body".to_owned(), range);
-        let result =
-            SourceAstFactory::value_literal(&literal, Some(frame.clone()), range, |_| None)
-                .unwrap();
+        let result = SourceAstFactory::value_literal(
+            &literal,
+            Some(frame.clone()),
+            range,
+            |_| None,
+            |_| None,
+        )
+        .unwrap();
         let ExprKind::Array(channels) = result.kind() else {
             panic!("channel array")
         };
@@ -428,11 +491,14 @@ mod tests {
             ]
         );
         let invariant = ValueLiteral::from_real(
-            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap(),
             0.0,
         )
         .unwrap();
-        assert!(SourceAstFactory::value_literal(&invariant, Some(frame), range, |_| None).is_err());
+        assert!(
+            SourceAstFactory::value_literal(&invariant, Some(frame), range, |_| None, |_| None)
+                .is_err()
+        );
     }
     #[test]
     fn framed_projection_reuses_type_cardinality_and_expression_depth_bounds() {
@@ -449,7 +515,7 @@ mod tests {
         .unwrap();
         let zero = ValueLiteral::from_real(huge, 0.0).unwrap();
         assert!(
-            SourceAstFactory::value_literal(&zero, Some(frame.clone()), range, |_| None)
+            SourceAstFactory::value_literal(&zero, Some(frame.clone()), range, |_| None, |_| None)
                 .unwrap_err()
                 .message()
                 .contains("65536")

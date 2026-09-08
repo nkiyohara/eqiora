@@ -8,6 +8,7 @@ pub(crate) fn definition_call(
     range: TextRange,
 ) -> super::Expr {
     super::Expr {
+        resolved_enum: None,
         resolved_nominal: None,
         kind: super::ExprKind::Call {
             callee: NamePath::single(name.to_owned(), range),

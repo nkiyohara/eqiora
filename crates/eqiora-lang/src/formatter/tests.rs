@@ -9,6 +9,7 @@ fn factory_negative_literal_power_bases_are_grouped() {
         ExprKind::Quantity {
             value: crate::DecimalLiteral::from_f64(-2.0).unwrap(),
             unit: Box::new(Expr {
+                resolved_enum: None,
                 resolved_nominal: None,
                 kind: ExprKind::Name("m".into()),
                 range: TextRange::new(0, 0),
@@ -16,15 +17,18 @@ fn factory_negative_literal_power_bases_are_grouped() {
         },
     ] {
         let expression = Expr {
+            resolved_enum: None,
             resolved_nominal: None,
             kind: ExprKind::Binary {
                 op: BinaryOp::Pow,
                 left: Box::new(Expr {
+                    resolved_enum: None,
                     resolved_nominal: None,
                     kind,
                     range: TextRange::new(0, 0),
                 }),
                 right: Box::new(Expr {
+                    resolved_enum: None,
                     resolved_nominal: None,
                     kind: ExprKind::Number(
                         crate::DecimalLiteral::parse("2.0").expect("exact literal"),

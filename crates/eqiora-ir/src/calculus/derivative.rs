@@ -144,8 +144,11 @@ fn constant(
 ) -> Result<usize, CalculusError> {
     builder
         .constant(
-            ValueLiteral::from_real(ValueType::scalar(ScalarDomain::Real, dimension), value)
-                .map_err(|error| CalculusError::DerivativeProjection(error.to_string()))?,
+            ValueLiteral::from_real(
+                ValueType::scalar(ScalarDomain::Real, dimension).expect("numeric scalar type"),
+                value,
+            )
+            .map_err(|error| CalculusError::DerivativeProjection(error.to_string()))?,
         )
         .map_err(projection)
 }

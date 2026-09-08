@@ -15,6 +15,9 @@ pub(super) fn supported_type(value: &ValueType) -> bool {
     channels
         || (value.scalar_domain() == ScalarDomain::Real && value.shape().is_scalar())
         || *value == ValueType::boolean()
+        || (value.scalar_domain() == ScalarDomain::Enum
+            && value.shape().is_scalar()
+            && value.array_rank() == 0)
         || (value.scalar_domain() == ScalarDomain::Integer && value.array_rank() == 0)
 }
 
@@ -23,7 +26,7 @@ pub(super) fn requires_typed_assignment(program: &KernelProgram, symbol: SymbolR
         value.array_rank() > 0
             || matches!(
                 value.scalar_domain(),
-                ScalarDomain::Integer | ScalarDomain::Boolean
+                ScalarDomain::Integer | ScalarDomain::Boolean | ScalarDomain::Enum
             )
     })
 }
@@ -266,17 +269,20 @@ mod tests {
     #[test]
     fn channel_profile_keeps_domain_and_spatial_axes_distinct() {
         use eqiora_core::{DimExponents, ValueFrame, ValueShape};
-        let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+        let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            .expect("valid scalar type");
         assert!(supported_type(
             &real.clone().array(2).unwrap().array(3).unwrap()
         ));
         assert!(supported_type(
             &ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                .expect("valid scalar type")
                 .array(2)
                 .unwrap()
         ));
         assert!(!supported_type(
             &ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+                .expect("valid scalar type")
                 .array(2)
                 .unwrap()
         ));
@@ -295,7 +301,8 @@ mod tests {
     #[test]
     fn storage_budget_counts_complete_shapes_before_allocating_values() {
         let scalar =
-            ValueType::scalar(ScalarDomain::Real, eqiora_core::DimExponents::DIMENSIONLESS);
+            ValueType::scalar(ScalarDomain::Real, eqiora_core::DimExponents::DIMENSIONLESS)
+                .expect("valid scalar type");
         let array = scalar.clone().array(3).unwrap();
         assert!(validate_component_total([&array, &scalar].into_iter(), 4).is_ok());
         assert!(validate_component_total([&array, &scalar].into_iter(), 3).is_err());

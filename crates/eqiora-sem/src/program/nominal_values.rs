@@ -7,7 +7,7 @@ pub(super) fn validate(nodes: &BTreeMap<RawId, KernelNode>, diagnostics: &mut Ve
         match node {
             KernelNode::Field(field) => check(owner, field.value_type(), nodes, diagnostics),
             KernelNode::Parameter(parameter) => {
-                check(owner, parameter.value_type(), nodes, diagnostics)
+                check_literal(owner, parameter.value(), nodes, diagnostics)
             }
             KernelNode::Port(port) => {
                 if let Some((_, value_type)) = port.signal_contract() {
@@ -35,6 +35,18 @@ pub(super) fn check(
     nodes: &BTreeMap<RawId, KernelNode>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if value.scalar_domain() == ScalarDomain::Enum {
+        let selected = value
+            .enum_definition()
+            .and_then(|id| nodes.get(&id.erase()));
+        if !matches!(selected,Some(KernelNode::Enum(definition)) if *value==definition.value_type())
+        {
+            diagnostics.push(kernel_error(
+                owner,
+                "enum value requires its exact selected Enum declaration and complete scalar type",
+            ));
+        }
+    }
     if value.scalar_domain() == ScalarDomain::Boolean && *value != ValueType::boolean() {
         diagnostics.push(kernel_error(
             owner,
@@ -70,12 +82,94 @@ pub(super) fn check(
     }
 }
 
+pub(super) fn check_literal(
+    owner: RawId,
+    value: &eqiora_core::ValueLiteral,
+    nodes: &BTreeMap<RawId, KernelNode>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    check(owner, value.value_type(), nodes, diagnostics);
+    if value.value_type().scalar_domain() == ScalarDomain::Enum
+        && !value
+            .enum_tag()
+            .zip(value.value_type().enum_member_count())
+            .is_some_and(|(tag, count)| tag < count)
+    {
+        diagnostics.push(kernel_error(
+            owner,
+            "enum member tag is absent or outside its declaration",
+        ));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use eqiora_schema::kernel::{
         FieldDef, FieldRole, FiniteSpaceDef, IndexSetDef, PortDef, SignalDirection,
     };
+
+    #[test]
+    fn enum_owners_and_literals_require_the_full_selected_declaration() {
+        use eqiora_schema::kernel::{EnumDef, ParameterDef};
+        let definition = EnumDef::new(Id::new(), ["Off".into(), "On".into()]).unwrap();
+        let foreign = EnumDef::new(Id::new(), ["Off".into(), "On".into()]).unwrap();
+        for value in [
+            definition.value_type(),
+            ValueType::enumeration(definition.id(), 3).unwrap(),
+            foreign.value_type(),
+        ] {
+            let expected = value == definition.value_type();
+            for node in [
+                KernelNode::from(FieldDef::new(Id::new(), value.clone(), FieldRole::State)),
+                KernelNode::from(PortDef::signal(
+                    Id::new(),
+                    SignalDirection::Output,
+                    value.clone(),
+                )),
+            ] {
+                let nodes = BTreeMap::from([
+                    (definition.id().erase(), definition.clone().into()),
+                    (node.id(), node),
+                ]);
+                let mut errors = Vec::new();
+                validate(&nodes, &mut errors);
+                assert_eq!(errors.is_empty(), expected, "{value:?}");
+            }
+        }
+        for literal in [
+            definition.value(1).unwrap(),
+            foreign.value(1).unwrap(),
+            eqiora_core::ValueLiteral::enum_value(
+                ValueType::enumeration(definition.id(), 3).unwrap(),
+                2,
+            )
+            .unwrap(),
+        ] {
+            let expected = literal.value_type() == &definition.value_type();
+            let parameter = ParameterDef::new(Id::new(), literal.clone());
+            let nodes = BTreeMap::from([
+                (definition.id().erase(), definition.clone().into()),
+                (parameter.id().erase(), parameter.clone().into()),
+            ]);
+            let mut errors = Vec::new();
+            validate(&nodes, &mut errors);
+            assert_eq!(errors.is_empty(), expected);
+            errors.clear();
+            check_literal(parameter.id().erase(), &literal, &nodes, &mut errors);
+            assert_eq!(errors.is_empty(), expected);
+        }
+        assert!(definition.value(2).is_err());
+        let field = Id::<kinds::Field>::new();
+        let nodes = BTreeMap::from([
+            (definition.id().erase(), definition.clone().into()),
+            (
+                field.erase(),
+                FieldDef::new(field, definition.value_type(), FieldRole::State).into(),
+            ),
+        ]);
+        assert!(symbol_type(SymbolRef::Derivative(field), &nodes, &[], &BTreeMap::new()).is_err());
+    }
 
     #[test]
     fn nominal_cardinality_and_selected_identity_are_both_required() {
@@ -109,7 +203,8 @@ mod tests {
         let value = ValueType::scalar(
             eqiora_core::ScalarDomain::Integer,
             DimExponents::DIMENSIONLESS,
-        );
+        )
+        .expect("valid scalar type");
         let nodes = BTreeMap::from([(
             field.erase(),
             FieldDef::new(field, value, FieldRole::State).into(),
@@ -123,7 +218,8 @@ mod tests {
         let field = Id::<kinds::Field>::new();
         let port = Id::<kinds::Port>::new();
         let seconds = DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap();
-        let ordinary = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+        let ordinary = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("valid scalar type");
         let mut cases = Vec::new();
         for value in [
             ValueType::boolean(),
@@ -133,7 +229,16 @@ mod tests {
             index.value_type(),
         ] {
             cases.push((value.clone(), true));
-            cases.push((value.with_dimension(seconds), false));
+            if value.scalar_domain() == ScalarDomain::Boolean {
+                assert!(value.with_dimension(seconds).is_err());
+            } else {
+                cases.push((
+                    value
+                        .with_dimension(seconds)
+                        .expect("constructible integer type; semantic profile rejects dimensions"),
+                    false,
+                ));
+            }
         }
         cases.push((
             ValueType::shaped(
@@ -170,7 +275,8 @@ mod tests {
         let integer = ValueType::scalar(
             ScalarDomain::Integer,
             DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap(),
-        );
+        )
+        .expect("constructible integer type; semantic profile rejects dimensions");
         let domain =
             eqiora_schema::kernel::DomainDef::scalar_physical(Id::new(), integer.clone(), integer)
                 .unwrap();

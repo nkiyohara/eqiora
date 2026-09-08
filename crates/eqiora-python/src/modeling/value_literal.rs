@@ -52,6 +52,21 @@ pub(crate) fn from_python(
 ) -> PyResult<ValueLiteral> {
     eqiora::language::ValueTypeSyntax::validate_checked(&value_type)
         .map_err(|error| PyValueError::new_err(error.to_string()))?;
+    if value_type.scalar_domain() == ScalarDomain::Enum {
+        let value = value
+            .extract::<PyRef<'_, super::enumeration::PyEnumValue>>()
+            .map_err(|_| {
+                PyTypeError::new_err(
+                    "enum values require an exact EnumValue, not strings or numbers",
+                )
+            })?;
+        if value.value.value_type() != &value_type {
+            return Err(PyValueError::new_err(
+                "enum value belongs to a different nominal type",
+            ));
+        }
+        return Ok(value.value.clone());
+    }
     if value_type.scalar_domain() == ScalarDomain::Boolean {
         if !value.is_instance_of::<PyBool>() {
             return Err(PyTypeError::new_err(
@@ -107,6 +122,15 @@ pub(crate) fn from_python(
 pub(crate) fn to_python(py: Python<'_>, value: &ValueLiteral) -> PyResult<Py<PyAny>> {
     eqiora::language::ValueTypeSyntax::validate_checked(value.value_type())
         .map_err(|error| PyValueError::new_err(error.to_string()))?;
+    if value.enum_tag().is_some() {
+        return Py::new(
+            py,
+            super::enumeration::PyEnumValue {
+                value: value.clone(),
+            },
+        )
+        .map(Py::into_any);
+    }
     if let Some(value) = value.as_bool() {
         return value.into_py_any(py);
     }

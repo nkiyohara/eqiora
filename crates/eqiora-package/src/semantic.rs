@@ -25,6 +25,7 @@ pub enum DeclarationKindV1 {
     PropertyRelease,
     MaterialComposition,
     PureOperator,
+    Enum,
     Connector,
     Component,
     Model,

@@ -8,9 +8,10 @@ use eqiora::api::{ModelDocument, StructuralSemanticFingerprint, ValueEditPlan};
 use eqiora::artifact::{CanonicalModelArtifact, ModelDecoderLimits, ModelEnvelope};
 use eqiora::diagnostic::codes;
 use eqiora::graph::Op;
+use eqiora::kernel::KernelNode;
 use eqiora::package::PackageCompilationRecordV2;
 use eqiora::{Diagnostic, EntityKind, RawId};
-use pyo3::exceptions::PyTypeError;
+use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyModule, PyTuple};
 
@@ -778,6 +779,39 @@ impl PyModel {
             .document()
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
         crate::execution_session::resume(py, document, checkpoint)
+    }
+
+    /// Inspect an exact enum declaration by source alias or retained canonical ULID.
+    #[pyo3(name = "enum")]
+    fn enum_definition(
+        &self,
+        py: Python<'_>,
+        selection: &str,
+    ) -> PyResult<crate::modeling::enumeration::PyEnum> {
+        let document = self
+            .document()
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        let alias = document.aliases().get(selection).copied();
+        let definition = document
+            .program()
+            .nodes()
+            .find_map(|node| {
+                let KernelNode::Enum(value) = node else {
+                    return None;
+                };
+                (alias == Some(value.id().erase()) || value.id().ulid().to_string() == selection)
+                    .then_some(value)
+            })
+            .ok_or_else(|| PyValueError::new_err("selection is not an exact Enum in this Model"))?;
+        let name = document
+            .aliases()
+            .iter()
+            .find(|(_, id)| **id == definition.id().erase())
+            .map(|(name, _)| name.clone());
+        Ok(crate::modeling::enumeration::PyEnum {
+            name,
+            value: definition.clone(),
+        })
     }
 
     /// Resolve a source alias or exact ULID once into an exact Parameter role.

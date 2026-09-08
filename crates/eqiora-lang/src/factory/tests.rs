@@ -201,8 +201,9 @@ fn owned_declaration_only_document_preserves_package_visibility() {
         range(0, 0),
     )
     .expect("component");
-    let document = SourceAstFactory::document(vec![connector], vec![component], Vec::new())
-        .expect("declaration-only document");
+    let document =
+        SourceAstFactory::document(Vec::new(), vec![connector], vec![component], Vec::new())
+            .expect("declaration-only document");
 
     let source = format(&document);
     let reparsed = parse("library.eqi", &source)
@@ -218,7 +219,7 @@ fn owned_declaration_only_document_preserves_package_visibility() {
         VisibilitySyntax::Public
     );
     assert_eq!(format(&reparsed), source);
-    assert!(SourceAstFactory::document(Vec::new(), Vec::new(), Vec::new()).is_err());
+    assert!(SourceAstFactory::document(Vec::new(), Vec::new(), Vec::new(), Vec::new()).is_err());
 }
 
 #[test]
@@ -260,6 +261,7 @@ fn factory_constructs_exact_pure_operator_documents_without_weakening_legacy_doc
     let document = SourceAstFactory::document_with_pure_operators(
         Vec::new(),
         Vec::new(),
+        Vec::new(),
         vec![operator],
         Vec::new(),
     )
@@ -273,6 +275,7 @@ fn factory_constructs_exact_pure_operator_documents_without_weakening_legacy_doc
     assert!(parse("factory-pure.eqi", &source).into_document().is_ok());
     assert!(
         SourceAstFactory::document_with_pure_operators(
+            Vec::new(),
             Vec::new(),
             Vec::new(),
             Vec::new(),
@@ -328,8 +331,8 @@ fn owned_support_slots_and_bindings_format_and_parse_identically() {
     )
     .expect("support-aware instance");
     let model = private_model("coupled", vec![Item::Instance(instance)]);
-    let document =
-        SourceAstFactory::document(vec![], vec![component], vec![model]).expect("document");
+    let document = SourceAstFactory::document(Vec::new(), vec![], vec![component], vec![model])
+        .expect("document");
 
     let source = format(&document);
     let reparsed = parse("supports.eqi", &source)
@@ -405,8 +408,8 @@ fn owned_field_slots_and_bindings_format_and_parse_identically() {
     )
     .expect("slot-aware instance");
     let model = private_model("coupled", vec![Item::Instance(instance)]);
-    let document =
-        SourceAstFactory::document(vec![], vec![component], vec![model]).expect("document");
+    let document = SourceAstFactory::document(Vec::new(), vec![], vec![component], vec![model])
+        .expect("document");
 
     let source = format(&document);
     let reparsed = parse("field-slots.eqi", &source)
@@ -538,8 +541,8 @@ fn factory_constructs_closed_field_physical_source_shapes() {
         range(0, 0),
     )
     .expect("model");
-    let document =
-        SourceAstFactory::document(vec![connector], Vec::new(), vec![model]).expect("document");
+    let document = SourceAstFactory::document(Vec::new(), vec![connector], Vec::new(), vec![model])
+        .expect("document");
     let source = format(&document);
 
     assert_eq!(
@@ -691,8 +694,8 @@ fn factory_constructs_complete_exterior_families_and_roundtrips() {
     )
     .unwrap();
     let model = private_model("coupled", vec![Item::Instance(instance)]);
-    let document =
-        SourceAstFactory::document(Vec::new(), vec![component], vec![model]).expect("document");
+    let document = SourceAstFactory::document(Vec::new(), Vec::new(), vec![component], vec![model])
+        .expect("document");
 
     let source = format(&document);
     let reparsed = parse("complete-exterior-factory.eqi", &source)
@@ -761,6 +764,7 @@ fn construction_rejects_unrepresentable_source_shapes() {
         SourceAstFactory::named_binding(
             "body",
             crate::Expr {
+                resolved_enum: None,
                 resolved_nominal: None,
                 kind: ExprKind::Name("not-valid".into()),
                 range: range(0, 0)

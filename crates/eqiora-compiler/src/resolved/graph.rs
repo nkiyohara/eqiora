@@ -155,6 +155,12 @@ fn top_level_names(document: &eqiora_lang::Document) -> BTreeSet<&str> {
                 .iter()
                 .map(eqiora_lang::PureOperatorDecl::name),
         )
+        .chain(
+            document
+                .enumerations()
+                .iter()
+                .map(eqiora_lang::EnumDecl::name),
+        )
         .chain(document.models().iter().map(eqiora_lang::ModelDecl::name))
         .collect()
 }

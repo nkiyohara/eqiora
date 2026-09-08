@@ -3,9 +3,9 @@
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
 use eqiora_schema::kernel::{
-    ActivationDef, BoundaryPhysicalConnector, ConnectionDef, DomainDef, DomainKind, FieldDef,
-    FiniteSpaceDef, GeometryDigest, IndexSetDef, KernelNode, ParameterDef, PortDef, PortPayload,
-    RelationDef, RepresentationDef,
+    ActivationDef, BoundaryPhysicalConnector, ConnectionDef, DomainDef, DomainKind, EnumDef,
+    FieldDef, FiniteSpaceDef, GeometryDigest, IndexSetDef, KernelNode, ParameterDef, PortDef,
+    PortPayload, RelationDef, RepresentationDef,
 };
 use serde::{Deserialize, Serialize};
 
@@ -18,6 +18,9 @@ use super::{expression::*, primitive::*, vocabulary::*};
 impl WireNode {
     pub(crate) fn encode(node: &KernelNode) -> Result<Self, Diagnostic> {
         let definition = match node {
+            KernelNode::Enum(value) => WireNodeDefinition::Enum {
+                members: value.members().to_vec(),
+            },
             KernelNode::FiniteSpace(value) => WireNodeDefinition::FiniteSpace {
                 labels: value.labels().to_vec(),
             },
@@ -84,6 +87,11 @@ impl WireNode {
 
     pub(crate) fn decode(&self) -> Result<KernelNode, Diagnostic> {
         match &self.definition {
+            WireNodeDefinition::Enum { members } => {
+                EnumDef::new(self.id.typed::<kinds::Enum>()?, members.iter().cloned())
+                    .map(Into::into)
+                    .map_err(|error| invalid_artifact(error.to_string()))
+            }
             WireNodeDefinition::FiniteSpace { labels } => FiniteSpaceDef::new(
                 self.id.typed::<kinds::FiniteSpace>()?,
                 labels.iter().cloned(),
@@ -232,8 +240,9 @@ impl WireNode {
         limits: ModelDecoderLimits,
     ) -> Result<(), Diagnostic> {
         match &self.definition {
-            WireNodeDefinition::FiniteSpace { labels } => require_decoder_count(
-                "finite-space labels",
+            WireNodeDefinition::Enum { members: labels }
+            | WireNodeDefinition::FiniteSpace { labels } => require_decoder_count(
+                "nominal declaration members",
                 labels.len(),
                 limits.max_value_shape_components,
             ),
@@ -324,6 +333,9 @@ impl WireNode {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub(crate) enum WireNodeDefinition {
+    Enum {
+        members: Vec<String>,
+    },
     FiniteSpace {
         labels: Vec<String>,
     },

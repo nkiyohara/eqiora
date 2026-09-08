@@ -15,12 +15,14 @@ fn forward_shared_aliases_preserve_the_explicit_parameter_expression() {
                         eqiora_core::ValueType::scalar(
                             eqiora_core::ScalarDomain::Real,
                             eqiora_core::DimExponents::DIMENSIONLESS,
-                        ),
+                        )
+                        .expect("valid numeric scalar type"),
                         value,
                     )
                     .unwrap(),
                 ),
-                value_type: ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+                value_type: ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                    .expect("valid numeric scalar type"),
                 expression: Some(LoweringExpression::name(
                     name.to_owned(),
                     TextRange::new(0, 0),

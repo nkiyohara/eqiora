@@ -30,7 +30,8 @@ fn native_kernel_admission_rejects_time_operators_outside_their_activation() {
                 ValueType::scalar(
                     eqiora_core::ScalarDomain::Real,
                     eqiora_core::DimExponents::DIMENSIONLESS,
-                ),
+                )
+                .expect("valid scalar type"),
                 eqiora_schema::kernel::FieldRole::State,
             )),
             KernelNode::from(

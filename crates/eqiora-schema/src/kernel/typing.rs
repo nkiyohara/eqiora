@@ -18,7 +18,9 @@ mod construction;
 mod inference;
 mod integer;
 mod ordered_selection;
+mod support;
 use inference::{NodeInference, infer_node, inferred_type};
+use support::{combine_additive_support, combine_support};
 mod value;
 pub use value::ExpressionType;
 
@@ -405,8 +407,9 @@ impl<I: Clone + Eq> TypedResidual<I> {
             );
             let value = match result {
                 NodeInference::Typed(value) => {
-                    if value.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean
-                        && value.value_type != eqiora_core::ValueType::boolean()
+                    if !boolean::valid_enum_type(&value.value_type)
+                        || value.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean
+                            && value.value_type != eqiora_core::ValueType::boolean()
                     {
                         errors.push(TypedResidualError::Type {
                             node_index,
@@ -487,9 +490,13 @@ pub fn additive<I: Clone + Eq>(
     left: &ExpressionType<I>,
     right: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
-    if left.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean
-        || right.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean
-    {
+    if matches!(
+        left.value_type.scalar_domain(),
+        eqiora_core::ScalarDomain::Boolean | eqiora_core::ScalarDomain::Enum
+    ) || matches!(
+        right.value_type.scalar_domain(),
+        eqiora_core::ScalarDomain::Boolean | eqiora_core::ScalarDomain::Enum
+    ) {
         return Err(TypeViolation::ScalarDomainMismatch);
     }
     equation_compatible(left, right)
@@ -523,9 +530,13 @@ pub fn multiply<I: Clone + Eq>(
     left: &ExpressionType<I>,
     right: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
-    if left.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean
-        || right.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean
-    {
+    if matches!(
+        left.value_type.scalar_domain(),
+        eqiora_core::ScalarDomain::Boolean | eqiora_core::ScalarDomain::Enum
+    ) || matches!(
+        right.value_type.scalar_domain(),
+        eqiora_core::ScalarDomain::Boolean | eqiora_core::ScalarDomain::Enum
+    ) {
         return Err(TypeViolation::ScalarDomainMismatch);
     }
 
@@ -559,7 +570,8 @@ pub fn multiply<I: Clone + Eq>(
                 TypeViolation::DimensionOverflow {
                     operation: "multiplication",
                 },
-            )?),
+            )?)
+            .map_err(|_| TypeViolation::ScalarDomainMismatch)?,
         combine_support(&left.support, &right.support)?,
     ))
 }
@@ -569,9 +581,13 @@ pub fn divide<I: Clone + Eq>(
     numerator: &ExpressionType<I>,
     denominator: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
-    if numerator.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean
-        || denominator.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean
-    {
+    if matches!(
+        numerator.value_type.scalar_domain(),
+        eqiora_core::ScalarDomain::Boolean | eqiora_core::ScalarDomain::Enum
+    ) || matches!(
+        denominator.value_type.scalar_domain(),
+        eqiora_core::ScalarDomain::Boolean | eqiora_core::ScalarDomain::Enum
+    ) {
         return Err(TypeViolation::ScalarDomainMismatch);
     }
 
@@ -591,7 +607,8 @@ pub fn divide<I: Clone + Eq>(
                 TypeViolation::DimensionOverflow {
                     operation: "division",
                 },
-            )?),
+            )?)
+            .map_err(|_| TypeViolation::ScalarDomainMismatch)?,
         combine_support(&numerator.support, &denominator.support)?,
     ))
 }
@@ -601,7 +618,10 @@ pub fn power<I: Clone>(
     base: &ExpressionType<I>,
     exponent: i32,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
-    if base.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean {
+    if matches!(
+        base.value_type.scalar_domain(),
+        eqiora_core::ScalarDomain::Boolean | eqiora_core::ScalarDomain::Enum
+    ) {
         return Err(TypeViolation::ScalarDomainMismatch);
     }
 
@@ -647,7 +667,10 @@ pub fn unary_math<I: Clone>(
     function: UnaryMathFunction,
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
-    if operand.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean {
+    if matches!(
+        operand.value_type.scalar_domain(),
+        eqiora_core::ScalarDomain::Boolean | eqiora_core::ScalarDomain::Enum
+    ) {
         return Err(TypeViolation::ScalarDomainMismatch);
     }
 
@@ -665,7 +688,10 @@ pub fn unary_math<I: Clone>(
             .ok_or(TypeViolation::DimensionOverflow {
                 operation: "square root",
             })?;
-        result.value_type = result.value_type.with_dimension(dimension);
+        result.value_type = result
+            .value_type
+            .with_dimension(dimension)
+            .map_err(|_| TypeViolation::ScalarDomainMismatch)?;
         return Ok(result);
     }
     if !operand.shape().is_scalar()
@@ -681,7 +707,10 @@ pub fn unary_math<I: Clone>(
 pub fn gradient<I: Clone>(
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
-    if operand.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean {
+    if matches!(
+        operand.value_type.scalar_domain(),
+        eqiora_core::ScalarDomain::Boolean | eqiora_core::ScalarDomain::Enum
+    ) {
         return Err(TypeViolation::ScalarDomainMismatch);
     }
 
@@ -722,7 +751,10 @@ pub fn gradient<I: Clone>(
 pub fn divergence<I: Clone>(
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
-    if operand.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean {
+    if matches!(
+        operand.value_type.scalar_domain(),
+        eqiora_core::ScalarDomain::Boolean | eqiora_core::ScalarDomain::Enum
+    ) {
         return Err(TypeViolation::ScalarDomainMismatch);
     }
 
@@ -763,7 +795,10 @@ pub fn divergence<I: Clone>(
 pub fn symmetric_part<I: Clone>(
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
-    if operand.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean {
+    if matches!(
+        operand.value_type.scalar_domain(),
+        eqiora_core::ScalarDomain::Boolean | eqiora_core::ScalarDomain::Enum
+    ) {
         return Err(TypeViolation::ScalarDomainMismatch);
     }
 
@@ -787,7 +822,10 @@ pub fn symmetric_part<I: Clone>(
 pub fn isotropic_lift<I: Clone>(
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
-    if operand.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean {
+    if matches!(
+        operand.value_type.scalar_domain(),
+        eqiora_core::ScalarDomain::Boolean | eqiora_core::ScalarDomain::Enum
+    ) {
         return Err(TypeViolation::ScalarDomainMismatch);
     }
 
@@ -860,7 +898,10 @@ pub fn scalar_root<I: Clone + Eq>(
 pub fn time_derivative<I: Clone>(
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
-    if operand.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean {
+    if matches!(
+        operand.value_type.scalar_domain(),
+        eqiora_core::ScalarDomain::Boolean | eqiora_core::ScalarDomain::Enum
+    ) {
         return Err(TypeViolation::ScalarDomainMismatch);
     }
 
@@ -868,14 +909,21 @@ pub fn time_derivative<I: Clone>(
         return Err(TypeViolation::ScalarDomainMismatch);
     }
     Ok(ExpressionType::new(
-        operand.value_type.clone().with_dimension(
-            operand
-                .dimension()
-                .div(DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension"))
-                .ok_or(TypeViolation::DimensionOverflow {
-                    operation: "Field derivative",
-                })?,
-        ),
+        operand
+            .value_type
+            .clone()
+            .with_dimension(
+                operand
+                    .dimension()
+                    .div(
+                        DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0])
+                            .expect("bounded dimension"),
+                    )
+                    .ok_or(TypeViolation::DimensionOverflow {
+                        operation: "Field derivative",
+                    })?,
+            )
+            .map_err(|_| TypeViolation::ScalarDomainMismatch)?,
         operand.support.clone(),
     ))
 }
@@ -934,54 +982,6 @@ fn boundary_operator<I: Clone + Eq>(
             dimensions: *dimensions,
         }),
     )
-}
-
-fn combine_support<I: Clone + Eq>(
-    left: &Option<SpatialSupport<I>>,
-    right: &Option<SpatialSupport<I>>,
-) -> Result<Option<SpatialSupport<I>>, TypeViolation<I>> {
-    match (left, right) {
-        (None, support) | (support, None) => Ok(support.clone()),
-        (Some(left), Some(right)) if left == right => Ok(Some(left.clone())),
-        (
-            Some(SpatialSupport::Volume { domain, dimensions }),
-            Some(
-                boundary @ SpatialSupport::Boundary {
-                    parent,
-                    dimensions: boundary_dimensions,
-                    ..
-                },
-            ),
-        )
-        | (
-            Some(
-                boundary @ SpatialSupport::Boundary {
-                    parent,
-                    dimensions: boundary_dimensions,
-                    ..
-                },
-            ),
-            Some(SpatialSupport::Volume { domain, dimensions }),
-        ) if domain == parent && dimensions == boundary_dimensions => Ok(Some(boundary.clone())),
-        (Some(left), Some(right)) => Err(TypeViolation::IncompatibleSupport {
-            left: Box::new(left.clone()),
-            right: Box::new(right.clone()),
-        }),
-    }
-}
-
-fn combine_additive_support<I: Clone + Eq>(
-    left: &Option<SpatialSupport<I>>,
-    right: &Option<SpatialSupport<I>>,
-) -> Result<Option<SpatialSupport<I>>, TypeViolation<I>> {
-    match (left, right) {
-        (None, support) | (support, None) => Ok(support.clone()),
-        (Some(left), Some(right)) if left == right => Ok(Some(left.clone())),
-        (Some(left), Some(right)) => Err(TypeViolation::IncompatibleSupport {
-            left: Box::new(left.clone()),
-            right: Box::new(right.clone()),
-        }),
-    }
 }
 
 fn spatial_derivative_dimension<I>(

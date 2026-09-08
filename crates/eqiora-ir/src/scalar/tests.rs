@@ -24,6 +24,7 @@ fn array_operand_budget_is_aggregate_across_instructions() {
 fn scalar_ir_retains_channel_constants_but_rejects_numeric_projection() {
     use eqiora_core::{ScalarDomain, ValueLiteral, ValueType};
     let shaped = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+        .expect("numeric scalar type")
         .array(3)
         .unwrap();
     let mut builder = ExprDagBuilder::new();
@@ -42,7 +43,8 @@ fn scalar_ir_preserves_complex_comparison_values_without_numerical_projection() 
     use eqiora_core::{ScalarDomain, ValueLiteral, ValueType};
     use eqiora_schema::kernel::ComparisonOp;
 
-    let complex = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS);
+    let complex = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+        .expect("numeric scalar type");
     let zero = ValueLiteral::from_real(complex.clone(), 0.0).unwrap();
     let imaginary = ValueLiteral::new(complex, [(0.0, 1.0)]).unwrap();
     let mut builder = ExprDagBuilder::new();

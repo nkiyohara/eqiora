@@ -53,7 +53,8 @@ fn canonical_rational_parts_cover_the_complete_unsigned_denominator_wire() {
 #[test]
 fn polynomial_operators_preserve_common_scalar_domain_and_exact_component_roles() {
     use eqiora_core::{ScalarDomain, ValueType};
-    let complex = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS);
+    let complex = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+        .expect("checked scalar type");
     let mut tensor = volume_tensor("body");
     tensor.value_type = tensor
         .value_type

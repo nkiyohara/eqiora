@@ -37,19 +37,24 @@ pub(super) fn combine(
     let error = |message: String| source_error(codes::LANGUAGE_TYPE_ERROR, file, range, message);
     let comparison = crate::lower::comparison_operator(operator);
     let project = |value: &EvaluatedParameter, peer: &EvaluatedParameter| {
-        ExpressionType::<()>::new(
-            value.value_type.value_type().clone().with_dimension(
-                value
-                    .value_type
-                    .dimension()
-                    .or(peer.value_type.dimension())
-                    .unwrap_or(DimExponents::DIMENSIONLESS),
-            ),
+        Ok::<_, Diagnostic>(ExpressionType::<()>::new(
+            value
+                .value_type
+                .value_type()
+                .clone()
+                .with_dimension(
+                    value
+                        .value_type
+                        .dimension()
+                        .or(peer.value_type.dimension())
+                        .unwrap_or(DimExponents::DIMENSIONLESS),
+                )
+                .map_err(|violation| error(violation.to_string()))?,
             None,
-        )
+        ))
     };
-    let lhs = project(&left, &right);
-    let rhs = project(&right, &left);
+    let lhs = project(&left, &right)?;
+    let rhs = project(&right, &left)?;
     if let Some(op) = comparison {
         lhs.compare(op, rhs)
     } else {
@@ -141,7 +146,8 @@ mod tests {
                     ));
                 }
                 let value = ValueLiteral::from_integer(
-                    ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+                    ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                        .expect("valid numeric scalar type"),
                     9_007_199_254_740_993,
                 )
                 .unwrap();

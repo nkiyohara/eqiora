@@ -7,11 +7,15 @@ pub(crate) fn retype(value: &ValueLiteral, target: ValueType) -> Result<ValueLit
     if target == *value.value_type() {
         return Ok(value.clone());
     }
-    if target.scalar_domain() == ScalarDomain::Boolean
-        || value.value_type().scalar_domain() == ScalarDomain::Boolean
-    {
+    if matches!(
+        target.scalar_domain(),
+        ScalarDomain::Boolean | ScalarDomain::Enum
+    ) || matches!(
+        value.value_type().scalar_domain(),
+        ScalarDomain::Boolean | ScalarDomain::Enum
+    ) {
         return Err(
-            "Boolean values require the exact Boolean type; numeric coercion is not admitted"
+            "Boolean and enum values require their exact type; numeric coercion is not admitted"
                 .into(),
         );
     }
