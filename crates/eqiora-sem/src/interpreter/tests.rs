@@ -8,6 +8,14 @@ use eqiora_schema::kernel::{
 use eqiora_schema::{Model, ModelView};
 
 fn program(nodes: Vec<KernelNode>, activations: &[(RawId, RawId)]) -> KernelProgram {
+    program_with_edges(nodes, activations, &[])
+}
+
+fn program_with_edges(
+    nodes: Vec<KernelNode>,
+    activations: &[(RawId, RawId)],
+    edges: &[(RawId, RawId, EdgeKind)],
+) -> KernelProgram {
     let model = OntologyId::<Model>::new();
     let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();
     let mut tx = Transaction::new("native event contract");
@@ -45,6 +53,9 @@ fn program(nodes: Vec<KernelNode>, activations: &[(RawId, RawId)]) -> KernelProg
             to,
             edge: EdgeKind::Activates,
         });
+    }
+    for &(from, to, edge) in edges {
+        tx.push(Op::Connect { from, to, edge });
     }
     tx.push(Op::DefineOntologyView {
         view: ModelView::new(model, members, []).unwrap().into(),
@@ -491,4 +502,170 @@ fn slow_crossing_keeps_arming_through_the_zero_band_and_checkpoint() {
             .value(),
         1.25
     );
+}
+
+#[test]
+fn a_clock_only_group_does_not_consume_the_event_microstep_limit() {
+    use eqiora_schema::kernel::ClockDomainDef;
+    for cascade in [false, true] {
+        let memory = Id::<kinds::Field>::new();
+        let state = Id::<kinds::Field>::new();
+        let clock = Id::<kinds::ClockDomain>::new();
+        let tick = Id::<kinds::Activation>::new();
+        let continuous = Id::<kinds::Activation>::new();
+        let first = Id::<kinds::Activation>::new();
+        let second = Id::<kinds::Activation>::new();
+        let update = Id::<kinds::Relation>::new();
+        let flow = Id::<kinds::Relation>::new();
+        let reset = Id::<kinds::Relation>::new();
+        let d = DimExponents::DIMENSIONLESS;
+        let ty = ValueType::scalar(eqiora_core::ScalarDomain::Real, d);
+        let mut b = ExprDagBuilder::new();
+        let next = b.symbol(SymbolRef::Next(memory)).unwrap();
+        let previous = b.symbol(SymbolRef::Pre(memory)).unwrap();
+        let one = b.neg(previous).unwrap();
+        let mut nodes = vec![
+            FieldDef::new(memory, ty.clone(), FieldRole::State).into(),
+            FieldDef::new(state, ty, FieldRole::State).into(),
+            initial(memory, d, -1.),
+            initial(state, d, -1.),
+            ClockDomainDef::periodic(clock, RationalTime::new(1, 1).unwrap(), RationalTime::ZERO)
+                .unwrap()
+                .into(),
+            ActivationDef::periodic(tick).into(),
+            ActivationDef::continuous(continuous).into(),
+            RelationDef::new(update, b.finish([next, one]).unwrap())
+                .unwrap()
+                .into(),
+        ];
+        let mut b = ExprDagBuilder::new();
+        let derivative = b.symbol(SymbolRef::Derivative(state)).unwrap();
+        let zero = b
+            .constant(DynQuantity::new(
+                0.,
+                DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).unwrap(),
+            ))
+            .unwrap();
+        nodes.push(
+            RelationDef::new(flow, b.finish([derivative, zero]).unwrap())
+                .unwrap()
+                .into(),
+        );
+        let mut b = ExprDagBuilder::new();
+        let memory_value = b.symbol(SymbolRef::Field(memory)).unwrap();
+        let guard = b.hold(memory_value).unwrap();
+        nodes.push(
+            ActivationDef::new(
+                first,
+                ActivationKind::Event {
+                    guard: b.finish([guard]).unwrap(),
+                    direction: EventDirection::Rising,
+                },
+            )
+            .unwrap()
+            .into(),
+        );
+        let mut b = ExprDagBuilder::new();
+        let next = b.symbol(SymbolRef::Next(state)).unwrap();
+        let one = b.constant(DynQuantity::new(1., d)).unwrap();
+        nodes.push(
+            RelationDef::new(reset, b.finish([next, one]).unwrap())
+                .unwrap()
+                .into(),
+        );
+        let mut activations = vec![
+            (tick.erase(), update.erase()),
+            (continuous.erase(), flow.erase()),
+            (first.erase(), reset.erase()),
+        ];
+        if cascade {
+            let reset = Id::<kinds::Relation>::new();
+            let mut b = ExprDagBuilder::new();
+            let guard = b.symbol(SymbolRef::Field(state)).unwrap();
+            nodes.push(
+                ActivationDef::new(
+                    second,
+                    ActivationKind::Event {
+                        guard: b.finish([guard]).unwrap(),
+                        direction: EventDirection::Rising,
+                    },
+                )
+                .unwrap()
+                .into(),
+            );
+            let mut b = ExprDagBuilder::new();
+            let next = b.symbol(SymbolRef::Next(state)).unwrap();
+            let two = b.constant(DynQuantity::new(2., d)).unwrap();
+            nodes.push(
+                RelationDef::new(reset, b.finish([next, two]).unwrap())
+                    .unwrap()
+                    .into(),
+            );
+            activations.push((second.erase(), reset.erase()));
+        }
+        let program = program_with_edges(
+            nodes,
+            &activations,
+            &[
+                (memory.erase(), clock.erase(), EdgeKind::ClockedBy),
+                (tick.erase(), clock.erase(), EdgeKind::ClockedBy),
+            ],
+        );
+        let config = ReferenceConfig::new(2., 1.)
+            .unwrap()
+            .with_event_limits(80, 1)
+            .unwrap();
+        let mut session = Interpreter::new()
+            .execution_session(&program, config, [])
+            .unwrap();
+        let before = session.checkpoint();
+        if cascade {
+            let errors = session.advance().unwrap_err();
+            assert_eq!(errors[0].code(), codes::INVALID_EXECUTION_CONFIG);
+            assert!(errors[0].message().contains(&first.erase().to_string()));
+            assert!(errors[0].message().contains(&second.erase().to_string()));
+            assert_eq!(session.progress(), before.progress());
+            assert_eq!(session.next_tick(), before.next_tick());
+            assert_eq!(session.activation_sequence(), before.activation_sequence());
+            assert_eq!(session.state.fields, before.state.fields);
+            assert_eq!(session.state.derivatives, before.state.derivatives);
+            assert_eq!(session.field(memory.erase()), before.field(memory.erase()));
+        } else {
+            assert!(session.advance().unwrap());
+            assert_eq!(
+                session.activation_sequence(),
+                [vec![tick.erase()], vec![first.erase()]]
+            );
+            assert_eq!(
+                session
+                    .field(state.erase())
+                    .unwrap()
+                    .real_scalar_value()
+                    .unwrap()
+                    .value(),
+                1.
+            );
+            assert_eq!(
+                session
+                    .field(memory.erase())
+                    .unwrap()
+                    .real_scalar_value()
+                    .unwrap()
+                    .value(),
+                1.
+            );
+            // A later tick alone does not spend an event commit; the next
+            // rising crossing starts a new physical-time event count.
+            assert!(session.advance().unwrap());
+            assert_eq!(session.progress().model_time(), 1.);
+            assert_eq!(session.activation_sequence(), [vec![tick.erase()]]);
+            assert!(session.advance().unwrap());
+            assert_eq!(session.progress().model_time(), 2.);
+            assert_eq!(
+                session.activation_sequence(),
+                [vec![tick.erase()], vec![first.erase()]]
+            );
+            assert!(!session.advance().unwrap());
+        }
+    }
 }

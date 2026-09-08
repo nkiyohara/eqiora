@@ -173,24 +173,28 @@ impl ExecutionSession {
         let mut microstep = 0;
         let mut last_event_time = self.last_event_time;
         let mut zero_time_events = self.zero_time_events;
-        if !active_events.is_empty() {
-            zero_time_events = if last_event_time.is_some_and(|old| {
-                event::same_instant(old, target, self.config.event_time_tolerance)
-            }) {
-                zero_time_events + 1
-            } else {
-                1
-            };
-            last_event_time = Some(target);
-        }
         loop {
             if !active.is_empty() || (microstep == 0 && nominal.is_some()) {
-                if microstep >= self.config.max_zero_time_events
-                    || zero_time_events > self.config.max_zero_time_events
+                if plan
+                    .events
+                    .iter()
+                    .any(|event| active.contains(&event.activation))
                 {
-                    return Err(Diagnostic::error(codes::INVALID_EXECUTION_CONFIG,
-                        format!("bounded event iteration exceeded its microstep limit at microstep {microstep}; possible Zeno behavior; owners={}",owner_labels(active.iter().copied())))
-                        .with_graph_path(execution_path("activation-boundary",target)));
+                    zero_time_events = if last_event_time.is_some_and(|old| {
+                        event::same_instant(old, target, self.config.event_time_tolerance)
+                    }) {
+                        zero_time_events
+                            .checked_add(1)
+                            .ok_or_else(|| config_error("event commit counter overflow"))?
+                    } else {
+                        1
+                    };
+                    last_event_time = Some(target);
+                    if zero_time_events > self.config.max_zero_time_events {
+                        return Err(Diagnostic::error(codes::INVALID_EXECUTION_CONFIG,
+                            format!("bounded event iteration exceeded its event-commit limit at microstep {microstep}; possible Zeno behavior; owners={}",owner_labels(sequence.iter().flatten().copied().chain(active.iter().copied()))))
+                            .with_graph_path(execution_path("activation-boundary",target)));
+                    }
                 }
                 let mut relations = relations_for(&self.program, &active);
                 reject_conflicts(&self.program, &active, target)?;
@@ -262,8 +266,6 @@ impl ExecutionSession {
                 active_events.clear();
                 // Subsequent microsteps never repeat tick inputs or outputs.
                 microstep += 1;
-                zero_time_events += 1;
-                last_event_time = Some(target);
             } else {
                 if capture {
                     self.record_boundary(&plan, &candidate, target, &mut samples, &mut physical)?;
