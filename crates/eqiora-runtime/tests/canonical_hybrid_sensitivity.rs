@@ -129,7 +129,7 @@ fn bouncing_ball(direction: EventDirection) -> BouncingBall {
     let height_rate = flow_expression
         .symbol(SymbolRef::Derivative(height))
         .unwrap();
-    let velocity_value = flow_expression.symbol(SymbolRef::Field(velocity)).unwrap();
+    let flow_velocity_value = flow_expression.symbol(SymbolRef::Field(velocity)).unwrap();
 
     let velocity_rate = flow_expression
         .symbol(SymbolRef::Derivative(velocity))
@@ -224,7 +224,7 @@ fn bouncing_ball(direction: EventDirection) -> BouncingBall {
                 flow_expression
                     .finish([
                         height_rate,
-                        velocity_value,
+                        flow_velocity_value,
                         velocity_residual,
                         acceleration_zero,
                     ])
