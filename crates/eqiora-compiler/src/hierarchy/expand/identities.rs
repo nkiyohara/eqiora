@@ -2,6 +2,60 @@
 use super::*;
 
 impl RootExpansion<'_, '_> {
+    pub(super) fn register_symbol(
+        &mut self,
+        display_name: String,
+        local_name: &str,
+        identity: &EntityIdentity,
+        kind: SymbolKind,
+        scope: &mut Scope,
+    ) -> Result<(), Diagnostic> {
+        let internal_name = internal_name(identity.full);
+        if matches!(kind, SymbolKind::Domain) {
+            let key = identity.key.support_representation()?;
+            let representation = EntityIdentity {
+                full: key.full_identity()?,
+                key,
+                definition: identity.definition.clone(),
+                instance: identity.instance.clone(),
+                bindings: identity.bindings.clone(),
+            };
+            self.support_representations
+                .insert(internal_name.clone(), (representation, false));
+        }
+        let symbol = FlatSymbol {
+            internal_name,
+            display_name: display_name.clone(),
+            full_identity: identity.full,
+            kind,
+        };
+        if scope
+            .insert_symbol(local_name.to_owned(), symbol.clone())
+            .is_some()
+        {
+            return Err(hierarchy_error(format!(
+                "duplicate flattened scope symbol `{local_name}`"
+            )));
+        }
+        if self
+            .display_symbols
+            .insert(
+                display_name,
+                DisplayIdentity {
+                    full: identity.full,
+                    kind: identity.key.entity_kind(),
+                },
+            )
+            .is_some()
+        {
+            return Err(hierarchy_error(format!(
+                "duplicate flattened display symbol `{}`",
+                symbol.display_name
+            )));
+        }
+        Ok(())
+    }
+
     pub(super) fn entity_identity(
         &self,
         instance_path: &InstancePath,
