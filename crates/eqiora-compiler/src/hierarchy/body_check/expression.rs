@@ -282,6 +282,11 @@ impl ExpressionChecker<'_, '_, '_> {
         if let Some(value) = expression.resolved_enum() {
             return Ok(ExpressionType::new(value.value_type().clone(), None));
         }
+        if let Some((port, member)) = super::super::quantity_member::split(expression)
+            && self.physical_port_contract(&port).is_some()
+        {
+            return self.check_physical_member(member, &port);
+        }
         match expression.kind() {
             ExprKind::Reduction { .. } => self.reduction(expression),
             ExprKind::Array(elements) => {
@@ -695,10 +700,13 @@ impl ExpressionChecker<'_, '_, '_> {
                 format!("builtin operator `{callee_name}` requires exactly one argument"),
             ));
         };
-        if matches!(callee_name, "across" | "through" | "flux")
-            || (callee_name == "trace" && self.is_boundary_port_selection(argument))
-        {
-            return self.check_physical_accessor(callee_name, argument);
+        if callee_name == "trace" && self.is_boundary_port_selection(argument) {
+            return Err(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                self.scope.file,
+                expression.range(),
+                "physical Port quantities require their declared `port.member` name",
+            ));
         }
         if self.intrinsic && matches!(callee_name, "coordinate" | "trace" | "normal") {
             return Err(source_error(
@@ -752,9 +760,21 @@ impl ExpressionChecker<'_, '_, '_> {
     }
 
     fn is_boundary_port_selection(&self, expression: &Expr) -> bool {
+        matches!(
+            self.physical_port_contract(expression),
+            Some(PortContract::BoundaryPhysical { .. })
+        )
+    }
+
+    fn physical_port_contract(&self, expression: &Expr) -> Option<PortContract> {
         let contract = match expression.kind() {
             ExprKind::Name(name) => self.scope.symbols.get(name).cloned(),
             ExprKind::Path(path) => self.scope.resolve_symbol(path).ok(),
+            ExprKind::Member { .. } => self
+                .scope
+                .indexed_member(expression)
+                .ok()
+                .and_then(|(path, _)| self.scope.resolve_symbol(&path).ok()),
             ExprKind::BoundaryPortSelection { port, selector } => self
                 .family_scope
                 .and_then(|family_scope| {
@@ -765,15 +785,15 @@ impl ExpressionChecker<'_, '_, '_> {
                 .map(SymbolContract::Port),
             _ => None,
         };
-        matches!(
-            contract,
-            Some(SymbolContract::Port(PortContract::BoundaryPhysical { .. }))
-        )
+        match contract {
+            Some(SymbolContract::Port(value)) if value.is_physical() => Some(value),
+            _ => None,
+        }
     }
 
-    fn check_physical_accessor(
+    fn check_physical_member(
         &mut self,
-        callee: &str,
+        member: &str,
         argument: &Expr,
     ) -> Result<ExpressionType<String>, Diagnostic> {
         let (display, contract, endpoint) = match argument.kind() {
@@ -835,20 +855,35 @@ impl ExpressionChecker<'_, '_, '_> {
                     codes::LANGUAGE_TYPE_ERROR,
                     self.scope.file,
                     argument.range(),
-                    format!("`{callee}(...)` requires one scalar physical Port selection"),
+                    format!("quantity `{member}` requires one exact physical Port selection"),
                 ));
             }
         };
         if let Some(endpoint) = endpoint {
             self.physical_endpoints.insert(endpoint);
         }
+        let role = match &contract {
+            SymbolContract::Port(
+                PortContract::Physical { quantities, .. }
+                | PortContract::BoundaryPhysical { quantities, .. },
+            ) => quantities.role(member),
+            _ => None,
+        }
+        .ok_or_else(|| {
+            source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                self.scope.file,
+                argument.range(),
+                format!("Port `{display}` has no declared quantity `{member}`"),
+            )
+        })?;
         match contract {
             SymbolContract::Port(PortContract::Physical {
                 across_type,
                 through_type,
                 ..
-            }) if matches!(callee, "across" | "through") => Ok(ExpressionType::new(
-                if callee == "across" {
+            }) if matches!(role, "across" | "through") => Ok(ExpressionType::new(
+                if role == "across" {
                     across_type
                 } else {
                     through_type
@@ -857,8 +892,8 @@ impl ExpressionChecker<'_, '_, '_> {
             )),
             SymbolContract::Port(PortContract::BoundaryPhysical {
                 connector, support, ..
-            }) if matches!(callee, "trace" | "flux") => Ok(ExpressionType::new(
-                if callee == "trace" {
+            }) if matches!(role, "trace" | "flux") => Ok(ExpressionType::new(
+                if role == "trace" {
                     connector.trace_type().clone()
                 } else {
                     connector.flux_type().clone()
@@ -870,14 +905,14 @@ impl ExpressionChecker<'_, '_, '_> {
                 self.scope.file,
                 argument.range(),
                 format!(
-                    "field-physical Port `{display}` must be read as `trace({display})` or `flux({display})`"
+                    "field-physical Port `{display}` requires its declared trace or flux quantity"
                 ),
             )),
             _ => Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 self.scope.file,
                 argument.range(),
-                format!("`{display}` is not compatible with `{callee}(...)`"),
+                format!("`{display}` is not compatible with quantity `{member}`"),
             )),
         }
     }

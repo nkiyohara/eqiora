@@ -27,10 +27,7 @@ pub(crate) fn is_builtin_operator(path: &eqiora_lang::NamePath) -> bool {
         || (!path.is_qualified()
             && matches!(
                 path.as_str(),
-                "across"
-                    | "through"
-                    | "flux"
-                    | "trace"
+                "trace"
                     | "coordinate"
                     | "grad"
                     | "div"

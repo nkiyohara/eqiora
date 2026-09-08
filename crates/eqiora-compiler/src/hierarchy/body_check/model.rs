@@ -225,7 +225,9 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                     ))),
                     DomainSyntax::Boundary { .. } => Ok(None),
                     DomainSyntax::ScalarPhysical {
+                        across_name,
                         across_type,
+                        through_name,
                         through_type,
                     } => crate::value_types::lower_scalar_type(self.scope.file, across_type)
                         .and_then(|across| {
@@ -234,6 +236,11 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                                     Some((
                                         declaration.name(),
                                         SymbolContract::Domain(DomainContract::Physical {
+                                            quantities:
+                                                super::super::scope::PhysicalMemberNames::Scalar {
+                                                    across: across_name.clone(),
+                                                    through: through_name.clone(),
+                                                },
                                             across_type: across,
                                             through_type: through,
                                         }),

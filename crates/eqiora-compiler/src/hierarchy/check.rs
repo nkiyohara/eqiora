@@ -573,6 +573,7 @@ fn validate_connectors(elaborator: &Elaborator<'_>, diagnostics: &mut BoundedDia
             ConnectorSyntax::ScalarPhysical {
                 across_type,
                 through_type,
+                ..
             } => {
                 if let Err(error) =
                     crate::value_types::lower_scalar_type(definition.file, across_type)

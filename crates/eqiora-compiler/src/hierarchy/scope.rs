@@ -43,7 +43,10 @@ pub(super) enum SymbolKind {
     Domain,
     Field,
     Parameter,
-    Port(ActivationSyntax),
+    Port {
+        activation: ActivationSyntax,
+        quantities: Option<PhysicalMemberNames>,
+    },
     Clock(eqiora_schema::kernel::RationalTime),
     Event,
     Relation,
@@ -51,7 +54,47 @@ pub(super) enum SymbolKind {
 
 impl FlatSymbol {
     fn is_port(&self) -> bool {
-        matches!(self.kind, SymbolKind::Port(_))
+        matches!(self.kind, SymbolKind::Port { .. })
+    }
+}
+
+/// Presentation names on an already nominally resolved Port contract.
+/// These never participate in physical compatibility or junction synthesis.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum PhysicalMemberNames {
+    Scalar { across: String, through: String },
+    Boundary { trace: String, flux: String },
+}
+
+impl PhysicalMemberNames {
+    pub(super) fn from_connector(syntax: &eqiora_lang::ConnectorSyntax) -> Option<Self> {
+        match syntax {
+            eqiora_lang::ConnectorSyntax::ScalarPhysical {
+                across_name,
+                through_name,
+                ..
+            } => Some(Self::Scalar {
+                across: across_name.clone(),
+                through: through_name.clone(),
+            }),
+            eqiora_lang::ConnectorSyntax::FieldPhysical { trace, flux, .. } => {
+                Some(Self::Boundary {
+                    trace: trace.name().to_owned(),
+                    flux: flux.name().to_owned(),
+                })
+            }
+            _ => None,
+        }
+    }
+
+    pub(super) fn role(&self, member: &str) -> Option<&'static str> {
+        match self {
+            Self::Scalar { across, .. } if member == across => Some("across"),
+            Self::Scalar { through, .. } if member == through => Some("through"),
+            Self::Boundary { trace, .. } if member == trace => Some("trace"),
+            Self::Boundary { flux, .. } if member == flux => Some("flux"),
+            _ => None,
+        }
     }
 }
 

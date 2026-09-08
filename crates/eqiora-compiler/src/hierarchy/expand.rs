@@ -59,7 +59,7 @@ use super::preflight::{
     ExpansionSize, ModelDefinition,
 };
 use super::scope::{
-    ActiveBoundaryMember, FlatSymbol, InstanceInterface, Scope, SymbolKind,
+    ActiveBoundaryMember, FlatSymbol, InstanceInterface, PhysicalMemberNames, Scope, SymbolKind,
     resolve_boundary_port_reference, resolve_local_kind, rewrite_equations, rewrite_field_scope,
     rewrite_model_port, rewrite_relation,
 };
@@ -128,6 +128,7 @@ struct PhysicalPortMaterialization {
 }
 
 struct PortFamilyMemberRegistration<'a> {
+    quantities: PhysicalMemberNames,
     file: &'a str,
     range: eqiora_lang::TextRange,
     display_name: String,
@@ -262,7 +263,10 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             internal_name: internal_name(registration.identity.full),
             display_name: registration.display_name.clone(),
             full_identity: registration.identity.full,
-            kind: SymbolKind::Port(eqiora_lang::ActivationSyntax::Continuous),
+            kind: SymbolKind::Port {
+                activation: eqiora_lang::ActivationSyntax::Continuous,
+                quantities: Some(registration.quantities),
+            },
         };
         scope.insert_port_family_member(
             registration.file,
@@ -492,12 +496,20 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 Item::Port(value) => (
                     value.name(),
                     EntityKind::Port,
-                    SymbolKind::Port(super::scope::port_activation(
-                        model.file,
-                        value.syntax(),
-                        value.range(),
-                        scope,
-                    )?),
+                    SymbolKind::Port {
+                        activation: super::scope::port_activation(
+                            model.file,
+                            value.syntax(),
+                            value.range(),
+                            scope,
+                        )?,
+                        quantities: self.port_quantities(
+                            value.syntax(),
+                            &model.namespace,
+                            model.file,
+                            value.range(),
+                        )?,
+                    },
                     None,
                     value.range(),
                 ),
@@ -987,15 +999,23 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         display_child(&display_prefix, declaration.name()),
                         declaration.name(),
                         &identity,
-                        SymbolKind::Port(
-                            super::scope::port_activation(
+                        SymbolKind::Port {
+                            activation: super::scope::port_activation(
                                 component.file,
                                 declaration.syntax(),
                                 declaration.range(),
                                 &scope,
                             )
                             .map_err(one_diagnostic)?,
-                        ),
+                            quantities: self
+                                .port_quantities(
+                                    declaration.syntax(),
+                                    &component.namespace,
+                                    component.file,
+                                    declaration.range(),
+                                )
+                                .map_err(one_diagnostic)?,
+                        },
                         &mut scope,
                     )
                     .map_err(one_diagnostic)?;
@@ -1052,6 +1072,19 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                             .map_err(one_diagnostic)?;
                         self.register_port_family_member(
                             PortFamilyMemberRegistration {
+                                quantities: self
+                                    .port_quantities(
+                                        declaration.syntax(),
+                                        &component.namespace,
+                                        component.file,
+                                        declaration.range(),
+                                    )
+                                    .map_err(one_diagnostic)?
+                                    .ok_or_else(|| {
+                                        one_diagnostic(hierarchy_error(
+                                            "physical Port family is missing named quantities",
+                                        ))
+                                    })?,
                                 file: component.file,
                                 range: family.range(),
                                 display_name: boundary_family_display(

@@ -57,7 +57,9 @@ pub(in crate::hierarchy::body_check) fn component_port_contract(
                 .resolve_connector(&owner.namespace, connector, file, declaration.range())
                 .map_err(|error| vec![error])?;
             let eqiora_lang::ConnectorSyntax::ScalarPhysical {
+                across_name,
                 across_type,
+                through_name,
                 through_type,
             } = connector.declaration.syntax()
             else {
@@ -81,6 +83,10 @@ pub(in crate::hierarchy::body_check) fn component_port_contract(
                         namespace: connector.namespace,
                         name: connector.declaration.name().to_owned(),
                     }),
+                    quantities: PhysicalMemberNames::Scalar {
+                        across: across_name.clone(),
+                        through: through_name.clone(),
+                    },
                     across_type,
                     through_type,
                 }),
@@ -170,10 +176,12 @@ pub(in crate::hierarchy::body_check) fn model_port_contract(
         }
         PortSyntax::ScalarPhysical { domain } => match scope.symbols.get(domain) {
             Some(SymbolContract::Domain(DomainContract::Physical {
+                quantities,
                 across_type,
                 through_type,
             })) => Ok(PortContract::Physical {
                 nominal: PhysicalNominal::ModelDomain(domain.clone()),
+                quantities: quantities.clone(),
                 across_type: across_type.clone(),
                 through_type: through_type.clone(),
             }),
