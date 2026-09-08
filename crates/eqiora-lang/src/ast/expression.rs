@@ -3,6 +3,7 @@ use super::*;
 /// Source expression with its exact byte range.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Expr {
+    pub(crate) resolved_enum: Option<Box<eqiora_core::ValueLiteral>>,
     pub(crate) resolved_nominal: Option<Box<eqiora_core::ValueType>>,
     pub(crate) kind: ExprKind,
     pub(crate) range: TextRange,
@@ -12,7 +13,16 @@ impl Expr {
     /// Checked nominal constructor type supplied by lexical declaration resolution.
     #[must_use]
     pub fn resolved_nominal(&self) -> Option<&eqiora_core::ValueType> {
-        self.resolved_nominal.as_deref()
+        self.resolved_enum
+            .as_deref()
+            .map(eqiora_core::ValueLiteral::value_type)
+            .or(self.resolved_nominal.as_deref())
+    }
+
+    /// Checked enum member supplied by lexical declaration resolution.
+    #[must_use]
+    pub fn resolved_enum(&self) -> Option<&eqiora_core::ValueLiteral> {
+        self.resolved_enum.as_deref()
     }
 
     /// Expression form.
@@ -105,6 +115,7 @@ impl Expr {
                             |path| path.with_range(arm.pattern.range()),
                         ),
                         value: arm.value.rewrite_name_paths_with(rewrite),
+                        resolved_pattern: arm.resolved_pattern.clone(),
                         range: arm.range,
                     })
                     .collect(),
@@ -168,6 +179,7 @@ impl Expr {
             },
         };
         Self {
+            resolved_enum: self.resolved_enum.clone(),
             resolved_nominal: self.resolved_nominal.clone(),
             kind,
             range: self.range,

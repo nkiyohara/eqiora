@@ -764,6 +764,7 @@ fn construction_rejects_unrepresentable_source_shapes() {
         SourceAstFactory::named_binding(
             "body",
             crate::Expr {
+                resolved_enum: None,
                 resolved_nominal: None,
                 kind: ExprKind::Name("not-valid".into()),
                 range: range(0, 0)

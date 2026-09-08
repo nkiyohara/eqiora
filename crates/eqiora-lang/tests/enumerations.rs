@@ -227,3 +227,64 @@ fn nested_cases_and_selects_share_precedence_and_depth_limits() {
         );
     }
 }
+
+#[test]
+fn checked_members_and_patterns_keep_exact_declaration_through_qualified_rewrites() {
+    use eqiora_core::Id;
+    use eqiora_schema::kernel::EnumDef;
+    let definition = EnumDef::new(Id::new(), ["Heating".into(), "Cooling".into()]).unwrap();
+    let foreign = EnumDef::new(Id::new(), ["Heating".into(), "Cooling".into()]).unwrap();
+    let range = TextRange::new(0, 0);
+    let declaration = NamePath::from_segments(["Controls", "Mode"], range).unwrap();
+    let path = NamePath::from_segments(["Controls", "Mode", "Cooling"], range).unwrap();
+    let mut member = F::expression(ExprKind::Path(path.clone()), range).unwrap();
+    F::bind_enum_member(&mut member, &declaration, &definition).unwrap();
+    assert_eq!(member.resolved_enum(), Some(&definition.value(1).unwrap()));
+    assert_eq!(member.resolved_nominal(), Some(&definition.value_type()));
+    assert!(F::bind_enum_member(&mut member, &declaration, &foreign).is_err());
+    let mut arm = F::case_arm(path, member.clone(), range).unwrap();
+    F::bind_case_pattern(&mut arm, &declaration, &definition).unwrap();
+    assert!(F::bind_case_pattern(&mut arm, &declaration, &foreign).is_err());
+    let expression = F::expression(
+        ExprKind::Case {
+            value: Box::new(member),
+            arms: vec![arm],
+        },
+        range,
+    )
+    .unwrap();
+    let rewritten = expression.rewrite_name_paths(|name| {
+        NamePath::from_segments(
+            ["Alias"].into_iter().chain(name.segments().skip(1)),
+            name.range(),
+        )
+        .ok()
+    });
+    let ExprKind::Case { value, arms } = rewritten.kind() else {
+        panic!("case")
+    };
+    assert_eq!(value.resolved_enum(), Some(&definition.value(1).unwrap()));
+    assert_eq!(
+        arms[0].resolved_pattern(),
+        Some(&definition.value(1).unwrap())
+    );
+    assert_eq!(arms[0].pattern().as_str(), "Alias.Mode.Cooling");
+    let mut ty = F::value_type(ValueTypeSyntaxKind::Named(declaration.clone()), range).unwrap();
+    F::bind_nominal_value_type(&mut ty, definition.value_type()).unwrap();
+    assert_eq!(ty.resolved_nominal(), Some(&definition.value_type()));
+    assert!(F::bind_nominal_value_type(&mut ty, foreign.value_type()).is_err());
+    let projected = eqiora_lang::ValueTypeSyntax::from_checked(&definition.value_type(), |id| {
+        (id == definition.id().erase()).then(|| declaration.clone())
+    })
+    .unwrap();
+    assert!(matches!(projected.kind(), ValueTypeSyntaxKind::Named(name) if name == &declaration));
+    assert_eq!(projected.resolved_nominal(), Some(&definition.value_type()));
+    for bad in [["Wrong", "Mode", "Heating"], ["Controls", "Mode", "Absent"]] {
+        let mut expression = F::expression(
+            ExprKind::Path(NamePath::from_segments(bad, range).unwrap()),
+            range,
+        )
+        .unwrap();
+        assert!(F::bind_enum_member(&mut expression, &declaration, &definition).is_err());
+    }
+}

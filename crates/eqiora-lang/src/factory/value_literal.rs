@@ -15,6 +15,12 @@ impl SourceAstFactory {
         mut resolve: impl FnMut(eqiora_core::RawId) -> Option<NamePath>,
     ) -> Result<Expr, AstConstructionError> {
         checked_range(range)?;
+        if value.enum_tag().is_some() {
+            return Err(AstConstructionError::new(
+                "enum member projection requires its exact declaration labels",
+            ));
+        }
+
         if frame.is_some() && value.value_type().frame() == ValueFrame::Invariant {
             return Err(AstConstructionError::new(
                 "invariant values cannot supply a spatial frame",
@@ -60,6 +66,7 @@ impl SourceAstFactory {
             {
                 let components = nested(value, axis, offset, range, None);
                 return Expr {
+                    resolved_enum: None,
                     resolved_nominal: None,
                     kind: ExprKind::Call {
                         callee: NamePath::single("tensor_value".to_owned(), range),
@@ -70,6 +77,7 @@ impl SourceAstFactory {
             }
             if let Some(extent) = value.value_type().shape().extents().get(axis) {
                 return Expr {
+                    resolved_enum: None,
                     resolved_nominal: None,
                     kind: ExprKind::Array(
                         (0..extent.get())
@@ -82,6 +90,7 @@ impl SourceAstFactory {
             if let Some(integer) = value.integer_component(*offset) {
                 *offset += 1;
                 return Expr {
+                    resolved_enum: None,
                     resolved_nominal: None,
                     kind: ExprKind::Number(
                         crate::DecimalLiteral::parse(&integer.to_string()).expect("bounded i64"),
@@ -92,6 +101,7 @@ impl SourceAstFactory {
             let (real, imaginary) = value.component(*offset).expect("bounded value component");
             *offset += 1;
             let scalar = |number| Expr {
+                resolved_enum: None,
                 resolved_nominal: None,
                 kind: if value.value_type().dimension() == DimExponents::DIMENSIONLESS {
                     ExprKind::Number(
@@ -111,6 +121,7 @@ impl SourceAstFactory {
                 range,
             };
             Expr {
+                resolved_enum: None,
                 resolved_nominal: None,
                 kind: if value.value_type().scalar_domain() == ScalarDomain::Complex {
                     ExprKind::Call {
@@ -136,6 +147,7 @@ impl SourceAstFactory {
                     callee: NamePath::single(constructor.to_owned(), range),
                     arguments: crate::CallArguments::Positional(vec![
                         Expr {
+                            resolved_enum: None,
                             resolved_nominal: None,
                             kind: ExprKind::Path(name.clone()),
                             range,
@@ -154,6 +166,7 @@ impl SourceAstFactory {
 
 fn frame_expression(frame: NamePath, range: TextRange) -> Expr {
     Expr {
+        resolved_enum: None,
         resolved_nominal: None,
         kind: if frame.is_qualified() {
             ExprKind::Path(frame)
@@ -196,6 +209,7 @@ pub(crate) fn dimension_expression(
         .filter(|(_, (numerator, _))| *numerator != 0)
         .map(|(name, (numerator, denominator))| {
             let base = Expr {
+                resolved_enum: None,
                 resolved_nominal: None,
                 kind: ExprKind::Name(name.to_owned()),
                 range: range(),
@@ -204,6 +218,7 @@ pub(crate) fn dimension_expression(
                 base
             } else {
                 let numerator = Expr {
+                    resolved_enum: None,
                     resolved_nominal: None,
                     kind: ExprKind::Number(
                         crate::DecimalLiteral::parse(&numerator.to_string())
@@ -215,11 +230,13 @@ pub(crate) fn dimension_expression(
                     numerator
                 } else {
                     Expr {
+                        resolved_enum: None,
                         resolved_nominal: None,
                         kind: ExprKind::Binary {
                             op: BinaryOp::Div,
                             left: Box::new(numerator),
                             right: Box::new(Expr {
+                                resolved_enum: None,
                                 resolved_nominal: None,
                                 kind: ExprKind::Number(
                                     crate::DecimalLiteral::parse(&denominator.to_string())
@@ -232,6 +249,7 @@ pub(crate) fn dimension_expression(
                     }
                 };
                 Expr {
+                    resolved_enum: None,
                     resolved_nominal: None,
                     kind: ExprKind::Binary {
                         op: BinaryOp::Pow,
@@ -247,12 +265,14 @@ pub(crate) fn dimension_expression(
 
     let Some(first) = factors.next() else {
         return Expr {
+            resolved_enum: None,
             resolved_nominal: None,
             kind: ExprKind::Number(crate::DecimalLiteral::parse("1.0").expect("exact literal")),
             range: range(),
         };
     };
     factors.fold(first, |left, right| Expr {
+        resolved_enum: None,
         resolved_nominal: None,
         kind: ExprKind::Binary {
             op: BinaryOp::Mul,

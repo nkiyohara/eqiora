@@ -36,11 +36,18 @@ impl EnumDecl {
 /// One explicit qualified enum-tag pattern and its authored result expression.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CaseArm {
+    pub(crate) resolved_pattern: Option<Box<eqiora_core::ValueLiteral>>,
     pub(crate) pattern: NamePath,
     pub(crate) value: Expr,
     pub(crate) range: TextRange,
 }
 impl CaseArm {
+    /// Exact enum member selected by this pattern after lexical checking.
+    #[must_use]
+    pub fn resolved_pattern(&self) -> Option<&eqiora_core::ValueLiteral> {
+        self.resolved_pattern.as_deref()
+    }
+
     /// Qualified enum tag, resolved against the scrutinee's exact enum identity.
     #[must_use]
     pub const fn pattern(&self) -> &NamePath {

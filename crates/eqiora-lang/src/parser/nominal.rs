@@ -44,6 +44,7 @@ impl Parser<'_> {
                 labels
                     .into_iter()
                     .map(|name| Expr {
+                        resolved_enum: None,
                         resolved_nominal: None,
                         kind: crate::ExprKind::Name(name),
                         range: TextRange::new(start, end),

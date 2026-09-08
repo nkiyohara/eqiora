@@ -15,7 +15,7 @@ impl Parser<'_> {
         let mut tags = Vec::new();
         let mut seen = HashSet::new();
         while !self.at(TokenKind::RightBrace) {
-            if tags.len() >= 65_536 {
+            if tags.len() >= eqiora_core::ValueType::MAX_ENUM_MEMBERS as usize {
                 self.error_here("enum exceeds the 65536-tag limit");
                 return None;
             }
@@ -56,7 +56,7 @@ impl Parser<'_> {
         let mut arms = Vec::new();
         let mut seen = HashSet::new();
         while !self.at(TokenKind::RightBrace) {
-            if arms.len() >= 65_536 {
+            if arms.len() >= eqiora_core::ValueType::MAX_ENUM_MEMBERS as usize {
                 self.error_here("case exceeds the 65536-arm limit");
                 return None;
             }
@@ -73,6 +73,7 @@ impl Parser<'_> {
             child_depth = child_depth.max(depth);
             let range = TextRange::new(pattern.range().start(), arm_value.range().end());
             arms.push(CaseArm {
+                resolved_pattern: None,
                 pattern,
                 value: arm_value,
                 range,
@@ -93,6 +94,7 @@ impl Parser<'_> {
         let depth = self.parent_depth(child_depth)?;
         Some((
             Expr {
+                resolved_enum: None,
                 resolved_nominal: None,
                 kind: ExprKind::Case {
                     value: Box::new(value),

@@ -136,6 +136,7 @@ impl ValueTypeSyntax {
 
 fn dimensionless_syntax() -> &'static Expr {
     static ONE: std::sync::LazyLock<Expr> = std::sync::LazyLock::new(|| Expr {
+        resolved_enum: None,
         resolved_nominal: None,
         kind: super::ExprKind::Number(crate::DecimalLiteral::parse("1").expect("one")),
         range: TextRange::new(0, 0),

@@ -17,7 +17,15 @@ impl ValueTypeSyntax {
         mut resolve: impl FnMut(eqiora_core::RawId) -> Option<crate::NamePath>,
     ) -> Result<Self, crate::AstConstructionError> {
         Self::validate_checked(value)?;
-        let nominal = if let Some(id) = value.finite_space() {
+        let nominal = if let Some(id) = value.enum_definition() {
+            Some(ValueTypeSyntaxKind::Named(resolve(id.erase()).ok_or_else(
+                || {
+                    crate::AstConstructionError::new(
+                        "enum is absent from lexical declaration scope",
+                    )
+                },
+            )?))
+        } else if let Some(id) = value.finite_space() {
             let name = resolve(id.erase()).ok_or_else(|| {
                 crate::AstConstructionError::new(
                     "finite space is absent from the lexical declaration scope",
@@ -85,7 +93,10 @@ pub(super) fn project(
     paths: &mut HashMap<TextRange, GraphPath>,
     resolve: &mut dyn FnMut(eqiora_core::RawId) -> Option<crate::NamePath>,
 ) -> ValueTypeSyntax {
-    if value.finite_space().is_some() || value.index_set().is_some() {
+    if value.enum_definition().is_some()
+        || value.finite_space().is_some()
+        || value.index_set().is_some()
+    {
         let mut syntax = ValueTypeSyntax::from_checked(value, resolve)
             .expect("validated nominal declaration scope");
         syntax.range = ranges.allocate(path, paths);

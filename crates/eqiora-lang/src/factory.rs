@@ -485,6 +485,7 @@ impl SourceAstFactory {
     /// expressions, or byte ranges.
     pub fn expression(kind: ExprKind, range: TextRange) -> Result<Expr, AstConstructionError> {
         let expression = Expr {
+            resolved_enum: None,
             resolved_nominal: None,
             kind,
             range: checked_range(range)?,

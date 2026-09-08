@@ -13,6 +13,7 @@ impl Parser<'_> {
         let range = TextRange::new(start, else_value.range().end());
         Some((
             Expr {
+                resolved_enum: None,
                 resolved_nominal: None,
                 kind: ExprKind::Select {
                     condition: Box::new(condition),
