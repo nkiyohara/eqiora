@@ -11,9 +11,11 @@ mod domain_validation;
 mod expression;
 mod signature;
 use expression::validate_expression;
+mod nominal;
 mod operator;
 mod property;
 mod relation;
+mod type_visit;
 pub(crate) mod value_literal;
 mod value_type;
 
@@ -314,7 +316,7 @@ impl SourceAstFactory {
     /// Returns an error for insufficient members or malformed paths/ranges.
     pub fn connection(
         syntax: ConnectionSyntax,
-        ports: Vec<NamePath>,
+        ports: Vec<Expr>,
         range: TextRange,
     ) -> Result<ConnectionDecl, AstConstructionError> {
         if syntax == ConnectionSyntax::SpatialPeriodic {
@@ -327,8 +329,8 @@ impl SourceAstFactory {
                 "a Connection requires at least two Port paths",
             ));
         }
-        for path in &ports {
-            validate_name_path(path)?;
+        for endpoint in &ports {
+            expression::validate_endpoint(endpoint)?;
         }
         Ok(ConnectionDecl {
             comments: Default::default(),
@@ -430,6 +432,7 @@ impl SourceAstFactory {
     pub fn instance(
         name: impl Into<String>,
         definition: NamePath,
+        family: Option<crate::IndexFamilyBinderSyntax>,
         bindings: Vec<NamedBindingDecl>,
         range: TextRange,
     ) -> Result<InstanceDecl, AstConstructionError> {
@@ -441,6 +444,7 @@ impl SourceAstFactory {
             comments: Default::default(),
             name: checked_identifier(name, "instance")?,
             definition,
+            family,
             bindings,
             range: checked_range(range)?,
         })

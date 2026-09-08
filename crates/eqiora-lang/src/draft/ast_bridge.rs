@@ -19,6 +19,8 @@ impl super::ModelDraft {
         let mut ranges = RangeAllocator::default();
         let mut paths = HashMap::new();
         let mut items = Vec::with_capacity(self.declarations.len());
+        let mut finite_spaces = Vec::new();
+        let mut nominal_ids = HashMap::new();
 
         for declaration in &self.declarations {
             let declaration_path =
@@ -35,6 +37,33 @@ impl super::ModelDraft {
             let path = GraphPath::new([self.name.clone(), declaration_path]);
             let range = ranges.allocate(&path, &mut paths);
             let item = match declaration {
+                DraftDeclaration::FiniteSpace { name, definition } => {
+                    finite_spaces.push(
+                        crate::SourceAstFactory::finite_space(
+                            VisibilitySyntax::Private,
+                            name.clone(),
+                            definition.labels().to_vec(),
+                            range,
+                        )
+                        .expect("checked finite space"),
+                    );
+                    nominal_ids.insert(name.clone(), definition.id().erase());
+                    continue;
+                }
+                DraftDeclaration::IndexSet { name, definition } => {
+                    nominal_ids.insert(name.clone(), definition.id().erase());
+                    let extent = Expr {
+                        kind: ExprKind::Number(
+                            crate::DecimalLiteral::parse(&definition.extent().to_string())
+                                .expect("bounded extent"),
+                        ),
+                        range,
+                    };
+                    Item::IndexSet(
+                        crate::SourceAstFactory::index_set(name.clone(), extent, range)
+                            .expect("checked index set"),
+                    )
+                }
                 DraftDeclaration::SpatialDomain(domain) => Item::Domain(DomainDecl {
                     comments: Default::default(),
                     name: domain.name().to_owned(),
@@ -50,12 +79,14 @@ impl super::ModelDraft {
                             &path,
                             &mut ranges,
                             &mut paths,
+                            &mut |id| self.nominal_name(id),
                         ),
                         through_type: value_type::project(
                             &domain.through_type,
                             &path,
                             &mut ranges,
                             &mut paths,
+                            &mut |id| self.nominal_name(id),
                         ),
                     },
                     range,
@@ -74,6 +105,7 @@ impl super::ModelDraft {
                         &path,
                         &mut ranges,
                         &mut paths,
+                        &mut |id| self.nominal_name(id),
                     ),
                     range,
                 }),
@@ -85,9 +117,12 @@ impl super::ModelDraft {
                         &path,
                         &mut ranges,
                         &mut paths,
+                        &mut |id| self.nominal_name(id),
                     ),
-                    value: crate::SourceAstFactory::value_literal(parameter.value(), range)
-                        .expect("validated native Parameter projection"),
+                    value: crate::SourceAstFactory::value_literal(parameter.value(), range, |id| {
+                        self.nominal_name(id)
+                    })
+                    .expect("validated native Parameter projection"),
                     range,
                 }),
                 DraftDeclaration::ConservingPort(port) => Item::Port(PortDecl {
@@ -154,7 +189,10 @@ impl super::ModelDraft {
                         ports: connection
                             .ports
                             .iter()
-                            .map(|port| NamePath::single(port.name.clone(), range))
+                            .map(|port| Expr {
+                                kind: ExprKind::Name(port.name.clone()),
+                                range,
+                            })
                             .collect(),
                         range,
                     })
@@ -165,15 +203,20 @@ impl super::ModelDraft {
 
         let model_path = GraphPath::new([self.name.clone()]);
         let range = ranges.allocate(&model_path, &mut paths);
+        let model = ModelDecl {
+            signature: Vec::new(),
+            comments: Default::default(),
+            visibility: VisibilitySyntax::Private,
+            name: self.name.clone(),
+            items,
+            range,
+        };
+        let mut document = crate::SourceAstFactory::document(vec![], vec![], vec![model])
+            .expect("native model document");
+        document.finite_spaces = finite_spaces;
         NativeModelAst {
-            model: ModelDecl {
-                signature: Vec::new(),
-                comments: Default::default(),
-                visibility: VisibilitySyntax::Private,
-                name: self.name.clone(),
-                items,
-                range,
-            },
+            document,
+            nominal_ids,
             paths,
         }
     }
@@ -217,8 +260,18 @@ pub(super) fn physical_accessor_ast(
 impl NativeModelAst {
     /// Source-shaped model consumed by the shared compiler lowerer.
     #[must_use]
-    pub const fn model(&self) -> &ModelDecl {
-        &self.model
+    pub fn model(&self) -> &ModelDecl {
+        &self.document.models[0]
+    }
+
+    /// Complete source unit including nominal declarations.
+    pub fn document(&self) -> &crate::Document {
+        &self.document
+    }
+
+    /// Exact identity supplied by a native nominal declaration.
+    pub fn nominal_identity(&self, name: &str) -> Option<eqiora_core::RawId> {
+        self.nominal_ids.get(name).copied()
     }
 
     /// Native declaration path associated with one synthetic range.

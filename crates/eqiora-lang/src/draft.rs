@@ -7,7 +7,7 @@
 use std::collections::{HashMap, HashSet};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
-use crate::ast::{BinaryOp, Expr, ExprKind, ModelDecl, NamePath, TextRange, UnaryOp};
+use crate::ast::{BinaryOp, Expr, ExprKind, NamePath, TextRange, UnaryOp};
 use crate::draft_spatial::{DraftSpatialDomain, DraftSpatialDomainKind};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, DimExponents, GraphPath, ValueLiteral, ValueType};
@@ -48,6 +48,24 @@ impl ModelDraft {
     #[must_use]
     pub fn declarations(&self) -> &[DraftDeclaration] {
         &self.declarations
+    }
+
+    fn nominal_name(&self, id: eqiora_core::RawId) -> Option<NamePath> {
+        self.declarations
+            .iter()
+            .find_map(|declaration| match declaration {
+                DraftDeclaration::FiniteSpace { name, definition }
+                    if definition.id().erase() == id =>
+                {
+                    Some(NamePath::single(name.clone(), TextRange::new(0, 0)))
+                }
+                DraftDeclaration::IndexSet { name, definition }
+                    if definition.id().erase() == id =>
+                {
+                    Some(NamePath::single(name.clone(), TextRange::new(0, 0)))
+                }
+                _ => None,
+            })
     }
 
     fn validate(&self) -> Result<(), Vec<Diagnostic>> {
@@ -115,7 +133,9 @@ impl ModelDraft {
                 DraftDeclaration::ConservingPort(value) => {
                     ports.insert(value.symbol.clone(), value);
                 }
-                DraftDeclaration::Relation(_)
+                DraftDeclaration::FiniteSpace { .. }
+                | DraftDeclaration::IndexSet { .. }
+                | DraftDeclaration::Relation(_)
                 | DraftDeclaration::Initial(_)
                 | DraftDeclaration::ConservingConnection(_) => {}
             }
@@ -140,7 +160,12 @@ impl ModelDraft {
             }
             match declaration {
                 DraftDeclaration::Field(field) => {
-                    if let Err(message) = value_type::validate(&field.value_type) {
+                    if let Err(message) =
+                        crate::ValueTypeSyntax::from_checked(&field.value_type, |id| {
+                            self.nominal_name(id)
+                        })
+                        .map_err(|error| error.to_string())
+                    {
                         diagnostics.push(native_diagnostic(&self.name, field.name(), message));
                     }
                 }
@@ -148,6 +173,7 @@ impl ModelDraft {
                     if let Err(error) = crate::SourceAstFactory::value_literal(
                         parameter.value(),
                         TextRange::new(0, 1),
+                        |id| self.nominal_name(id),
                     ) {
                         diagnostics.push(native_diagnostic(
                             &self.name,
@@ -349,6 +375,16 @@ impl ModelDraft {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum DraftDeclaration {
+    /// An exact registered atomic finite-space definition.
+    FiniteSpace {
+        name: String,
+        definition: eqiora_schema::kernel::FiniteSpaceDef,
+    },
+    /// An exact registered bounded index-set definition.
+    IndexSet {
+        name: String,
+        definition: eqiora_schema::kernel::IndexSetDef,
+    },
     /// Cartesian volume or one oriented boundary Domain.
     SpatialDomain(DraftSpatialDomain),
     /// Nominal scalar physical Domain.
@@ -374,6 +410,7 @@ pub enum DraftDeclaration {
 impl DraftDeclaration {
     fn name(&self) -> Option<&str> {
         match self {
+            Self::FiniteSpace { name, .. } | Self::IndexSet { name, .. } => Some(name),
             Self::SpatialDomain(value) => Some(value.name()),
             Self::PhysicalDomain(value) => Some(value.name()),
             Self::Field(value) => Some(value.name()),
@@ -386,6 +423,8 @@ impl DraftDeclaration {
 
     fn kind_name(&self) -> &'static str {
         match self {
+            Self::FiniteSpace { .. } => "FiniteSpace",
+            Self::IndexSet { .. } => "IndexSet",
             Self::SpatialDomain(_) => "SpatialDomain",
             Self::PhysicalDomain(_) => "PhysicalDomain",
             Self::Field(_) => "Field",
@@ -1041,7 +1080,8 @@ impl DraftSymbolKind {
 #[doc(hidden)]
 #[derive(Debug)]
 pub struct NativeModelAst {
-    model: ModelDecl,
+    document: crate::Document,
+    nominal_ids: HashMap<String, eqiora_core::RawId>,
     paths: HashMap<TextRange, GraphPath>,
 }
 

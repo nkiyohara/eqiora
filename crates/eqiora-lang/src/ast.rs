@@ -3,6 +3,8 @@
 pub(crate) mod comments;
 mod compile_time;
 mod items;
+pub(crate) mod nominal;
+pub use nominal::{FiniteSpaceDecl, IndexFamilyBinderSyntax, IndexSetDecl};
 mod signature;
 pub use items::{ComponentItem, Item};
 pub use signature::SignatureItem;
@@ -466,11 +468,17 @@ pub struct InstanceDecl {
     pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) name: String,
     pub(crate) definition: NamePath,
+    pub(crate) family: Option<IndexFamilyBinderSyntax>,
     pub(crate) bindings: Vec<NamedBindingDecl>,
     pub(crate) range: TextRange,
 }
 
 impl InstanceDecl {
+    /// Optional bounded index-family binder.
+    #[must_use]
+    pub fn family(&self) -> Option<&IndexFamilyBinderSyntax> {
+        self.family.as_ref()
+    }
     /// Source occurrence name.
     #[must_use]
     pub fn name(&self) -> &str {
@@ -773,11 +781,11 @@ impl ClockDecl {
 }
 
 /// Connection declaration.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ConnectionDecl {
     pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) syntax: ConnectionSyntax,
-    pub(crate) ports: Vec<NamePath>,
+    pub(crate) ports: Vec<Expr>,
     pub(crate) range: TextRange,
 }
 
@@ -790,7 +798,7 @@ impl ConnectionDecl {
 
     /// Structurally segmented Port selections in source order.
     #[must_use]
-    pub fn port_paths(&self) -> &[NamePath] {
+    pub fn port_expressions(&self) -> &[Expr] {
         &self.ports
     }
 

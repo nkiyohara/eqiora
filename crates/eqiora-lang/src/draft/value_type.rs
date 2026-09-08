@@ -2,7 +2,7 @@ use super::*;
 use crate::{SourceAstFactory, ValueTypeSyntax, ValueTypeSyntaxKind};
 
 pub(super) fn validate(value: &ValueType) -> Result<(), String> {
-    ValueTypeSyntax::from_checked(value)
+    ValueTypeSyntax::validate_checked(value)
         .map(|_| ())
         .map_err(|error| error.to_string())
 }
@@ -12,7 +12,52 @@ impl ValueTypeSyntax {
     ///
     /// # Errors
     /// Rejects types exceeding source constructor or component-count limits.
-    pub fn from_checked(value: &ValueType) -> Result<Self, crate::AstConstructionError> {
+    pub fn from_checked(
+        value: &ValueType,
+        mut resolve: impl FnMut(eqiora_core::RawId) -> Option<crate::NamePath>,
+    ) -> Result<Self, crate::AstConstructionError> {
+        Self::validate_checked(value)?;
+        let nominal = if let Some(id) = value.finite_space() {
+            let name = resolve(id.erase()).ok_or_else(|| {
+                crate::AstConstructionError::new(
+                    "finite space is absent from the lexical declaration scope",
+                )
+            })?;
+            Some(if value.is_count() {
+                ValueTypeSyntaxKind::Counts(name)
+            } else {
+                ValueTypeSyntaxKind::Coordinates(name)
+            })
+        } else if let Some(id) = value.index_set() {
+            let name = resolve(id.erase()).ok_or_else(|| {
+                crate::AstConstructionError::new(
+                    "index set is absent from the lexical declaration scope",
+                )
+            })?;
+            Some(ValueTypeSyntaxKind::Index(name))
+        } else {
+            None
+        };
+        if let Some(kind) = nominal {
+            let mut syntax = SourceAstFactory::value_type(kind, crate::TextRange::new(0, 0))?;
+            syntax.resolved_nominal = Some(value.clone());
+            return Ok(syntax);
+        }
+
+        let syntax = project(
+            value,
+            &GraphPath::new(["value-type"]),
+            &mut RangeAllocator::default(),
+            &mut HashMap::new(),
+            &mut resolve,
+        );
+        SourceAstFactory::value_type(syntax.kind, syntax.range)
+    }
+    /// Validate source type resource bounds independently of lexical name projection.
+    ///
+    /// # Errors
+    /// Rejects excessive nesting, rank, or component count.
+    pub fn validate_checked(value: &ValueType) -> Result<(), crate::AstConstructionError> {
         // Bound projection work before constructing the source AST. The shared
         // factory then applies the exact source constructor and element-count rules.
         if value.array_rank() >= 256 || value.shape().rank() - value.array_rank() > 4 {
@@ -20,13 +65,16 @@ impl ValueTypeSyntax {
                 "mathematical type exceeds source nesting or spatial-rank limits",
             ));
         }
-        let syntax = project(
-            value,
-            &GraphPath::new(["value-type"]),
-            &mut RangeAllocator::default(),
-            &mut HashMap::new(),
-        );
-        SourceAstFactory::value_type(syntax.kind, syntax.range)
+        if value
+            .shape()
+            .component_count()
+            .is_none_or(|count| count > 65_536)
+        {
+            return Err(crate::AstConstructionError::new(
+                "source type exceeds the 65536-component limit",
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -35,8 +83,16 @@ pub(super) fn project(
     path: &GraphPath,
     ranges: &mut RangeAllocator,
     paths: &mut HashMap<TextRange, GraphPath>,
+    resolve: &mut dyn FnMut(eqiora_core::RawId) -> Option<crate::NamePath>,
 ) -> ValueTypeSyntax {
+    if value.finite_space().is_some() || value.index_set().is_some() {
+        let mut syntax = ValueTypeSyntax::from_checked(value, resolve)
+            .expect("validated nominal declaration scope");
+        syntax.range = ranges.allocate(path, paths);
+        return syntax;
+    }
     let mut syntax = ValueTypeSyntax {
+        resolved_nominal: None,
         kind: ValueTypeSyntaxKind::Scalar {
             domain: value.scalar_domain(),
             dimension: dimension_expression(value.dimension(), path, ranges, paths),
@@ -57,12 +113,14 @@ pub(super) fn project(
             }
         };
         syntax = ValueTypeSyntax {
+            resolved_nominal: None,
             kind,
             range: ranges.allocate(path, paths),
         };
     }
     for extent in arrays.iter().rev() {
         syntax = ValueTypeSyntax {
+            resolved_nominal: None,
             kind: ValueTypeSyntaxKind::Array {
                 element: Box::new(syntax),
                 extent: extent.get(),

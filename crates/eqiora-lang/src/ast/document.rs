@@ -62,6 +62,7 @@ pub(crate) struct ImportDecl {
 pub struct Document {
     pub(crate) comments: super::comments::SourceComments,
     pub(crate) imports: Vec<ImportDecl>,
+    pub(crate) finite_spaces: Vec<super::FiniteSpaceDecl>,
     pub(crate) dimensions: Vec<DimensionDecl>,
     pub(crate) property_contracts: Vec<PropertyContractDecl>,
     pub(crate) property_releases: Vec<PropertyReleaseDecl>,
@@ -73,6 +74,11 @@ pub struct Document {
 }
 
 impl Document {
+    /// Ordered nominal atomic finite-space declarations.
+    #[must_use]
+    pub fn finite_spaces(&self) -> &[super::FiniteSpaceDecl] {
+        &self.finite_spaces
+    }
     /// Explicit semantic imports in authored order.
     #[must_use]
     pub fn imports(&self) -> impl ExactSizeIterator<Item = (&NamePath, &str, TextRange)> {

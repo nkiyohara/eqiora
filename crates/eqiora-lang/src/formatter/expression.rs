@@ -15,6 +15,10 @@ pub(super) fn format_expression(
         output.push('(');
     }
     match &expression.kind {
+        ExprKind::Member { value, member } => {
+            format_expression(value, 11, output);
+            write!(output, ".{member}").expect("String write");
+        }
         ExprKind::Number(value) => output.push_str(&value.canonical_text()),
         ExprKind::Quantity { value, unit } => {
             output.push_str(&value.canonical_text());
@@ -106,6 +110,7 @@ fn expression_precedence(expression: &Expr) -> u8 {
         // than as Unary(Neg). Its printed sign still needs a grouped power base.
         ExprKind::Number(value) if value.is_negative() => 6,
         ExprKind::Quantity { value, .. } if value.is_negative() => 6,
+        ExprKind::Member { .. } => 11,
         ExprKind::Number(_)
         | ExprKind::Quantity { .. }
         | ExprKind::Name(_)

@@ -24,9 +24,10 @@ pub use ast::{
     ComponentParameterDecl, ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl,
     ConnectionSyntax, ConnectorDecl, ConnectorQuantitySyntax, ConnectorSyntax, DocComment,
     Document, DomainDecl, DomainSyntax, Equation, ExactIntegerSyntax, Expr, ExprKind, FieldDecl,
-    FieldRoleSyntax, FrameSyntax, InitialDecl, InstanceDecl, Item, LetDecl, ModelDecl, NamePath,
-    NamedBindingDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorBinaryOp, PureOperatorDecl,
-    PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax, RelationDecl,
+    FieldRoleSyntax, FiniteSpaceDecl, FrameSyntax, IndexFamilyBinderSyntax, IndexSetDecl,
+    InitialDecl, InstanceDecl, Item, LetDecl, ModelDecl, NamePath, NamedBindingDecl, ParameterDecl,
+    PortDecl, PortSyntax, PureOperatorBinaryOp, PureOperatorDecl, PureOperatorExpr,
+    PureOperatorExprKind, PureOperatorFormal, PureValueClassSyntax, RelationDecl,
     RelationFamilyDecl, SignalDirectionSyntax, SignatureItem, SupportSlotDecl, SupportSlotSyntax,
     TextRange, UnaryOp, ValueShapeSyntax, ValueTypeSyntax, ValueTypeSyntaxKind, VisibilitySyntax,
 };

@@ -52,7 +52,7 @@ impl Parser<'_> {
         self.expect(TokenKind::Equal, "`=` before index set definition")?;
         self.expect_keyword("range")?;
         self.expect(TokenKind::LeftParen, "`(` before index set extent")?;
-        let extent = self.parse_expression()?;
+        let extent = self.parse_expression(0)?;
         self.expect(TokenKind::RightParen, "`)` after index set extent")?;
         let end = self
             .expect(TokenKind::Semicolon, "`;` after index set")?

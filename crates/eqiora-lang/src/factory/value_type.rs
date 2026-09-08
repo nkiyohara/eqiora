@@ -11,6 +11,7 @@ impl SourceAstFactory {
         range: TextRange,
     ) -> Result<ValueTypeSyntax, AstConstructionError> {
         let result = ValueTypeSyntax {
+            resolved_nominal: None,
             kind,
             range: checked_range(range)?,
         };
@@ -18,6 +19,17 @@ impl SourceAstFactory {
         let mut count = 1_u64;
         for _ in 0..256 {
             let (element, extents) = match current.kind() {
+                ValueTypeSyntaxKind::Coordinates(name)
+                | ValueTypeSyntaxKind::Counts(name)
+                | ValueTypeSyntaxKind::Index(name) => {
+                    super::validate_name_path(name)?;
+                    if count != 1 {
+                        return Err(AstConstructionError::new(
+                            "nominal discrete types do not admit outer arrays or spatial axes",
+                        ));
+                    }
+                    return Ok(result);
+                }
                 ValueTypeSyntaxKind::Scalar { dimension, domain } => {
                     validate_expression(dimension)?;
                     if *domain == eqiora_core::ScalarDomain::Integer
@@ -87,7 +99,7 @@ mod tests {
         )
         .array(3)
         .unwrap();
-        let value_type = ValueTypeSyntax::from_checked(&checked).unwrap();
+        let value_type = ValueTypeSyntax::from_checked(&checked, |_| None).unwrap();
         let declaration = SourceAstFactory::component_parameter(
             crate::VisibilitySyntax::Public,
             "channels",

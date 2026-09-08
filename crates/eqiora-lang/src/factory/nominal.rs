@@ -80,3 +80,49 @@ impl SourceAstFactory {
         })
     }
 }
+
+impl SourceAstFactory {
+    /// Add one checked nominal space to an existing compilation unit.
+    pub fn with_finite_space(
+        mut document: crate::Document,
+        declaration: FiniteSpaceDecl,
+    ) -> crate::Document {
+        document.finite_spaces.push(declaration);
+        document
+    }
+
+    /// Attach a checked lexical nominal binding while retaining authored syntax.
+    ///
+    /// # Errors
+    /// Rejects a value type with a different nominal role or invalid source bounds.
+    pub fn bind_nominal_value_type(
+        syntax: &mut crate::ValueTypeSyntax,
+        value: eqiora_core::ValueType,
+    ) -> Result<(), AstConstructionError> {
+        crate::ValueTypeSyntax::validate_checked(&value)?;
+        let matches = match syntax.kind() {
+            crate::ValueTypeSyntaxKind::Coordinates(_) => {
+                value.finite_space().is_some() && !value.is_count()
+            }
+            crate::ValueTypeSyntaxKind::Counts(_) => value.is_count(),
+            crate::ValueTypeSyntaxKind::Index(_) => value.index_set().is_some(),
+            _ => false,
+        };
+        if !matches {
+            return Err(AstConstructionError::new(
+                "nominal type binding has a different declaration role",
+            ));
+        }
+        if syntax
+            .resolved_nominal
+            .as_ref()
+            .is_some_and(|previous| previous != &value)
+        {
+            return Err(AstConstructionError::new(
+                "nominal type cannot be rebound to a foreign declaration",
+            ));
+        }
+        syntax.resolved_nominal = Some(value);
+        Ok(())
+    }
+}

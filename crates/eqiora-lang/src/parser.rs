@@ -12,6 +12,7 @@ mod domain;
 mod expression;
 mod formulation;
 mod instance;
+mod nominal;
 mod operator;
 mod property;
 mod recovery;
@@ -214,6 +215,8 @@ impl Parser<'_> {
             self.parse_initial().map(Item::Initial)
         } else if self.at_keyword("parameter") {
             self.parse_parameter().map(Item::Parameter)
+        } else if self.at_keyword("indexset") {
+            self.parse_index_set().map(Item::IndexSet)
         } else if self.at_keyword("let") {
             self.parse_let().map(Item::Let)
         } else if self.at_keyword("port") {
@@ -722,9 +725,24 @@ impl Parser<'_> {
     fn parse_connection(&mut self, allow_family: bool) -> Option<ParsedConnection> {
         let start = self.expect_keyword("connect")?.range().start();
         if !self.at_keyword("conserving") && !self.at_keyword("periodic") {
-            let mut ports = vec![self.parse_name_path("signal output Port")?];
+            let mut ports = vec![self.parse_expression(0)?];
             self.expect(TokenKind::Arrow, "`->` after signal output")?;
-            ports.extend(self.parse_name_path_list("signal input Port")?);
+            ports.push(self.parse_expression(0)?);
+            while self.at(TokenKind::Comma) {
+                self.bump();
+                ports.push(self.parse_expression(0)?);
+            }
+            for endpoint in &ports {
+                if !matches!(
+                    endpoint.kind(),
+                    ExprKind::Name(_) | ExprKind::Path(_) | ExprKind::Member { .. }
+                ) {
+                    self.error_here(
+                        "Connection endpoint requires an exact declared Port selection",
+                    );
+                    return None;
+                }
+            }
             if ports.len() < 2 {
                 self.error_here("Connection requires at least two Ports");
             }
@@ -784,7 +802,13 @@ impl Parser<'_> {
             return Some(ParsedConnection::Ordinary(ConnectionDecl {
                 comments: Default::default(),
                 syntax,
-                ports: ports.into_iter().map(|port| port.port).collect(),
+                ports: ports
+                    .into_iter()
+                    .map(|port| Expr {
+                        range: port.port.range(),
+                        kind: ExprKind::Path(port.port),
+                    })
+                    .collect(),
                 range: TextRange::new(start, end),
             }));
         }
@@ -795,15 +819,6 @@ impl Parser<'_> {
             ports,
             range: TextRange::new(start, end),
         }))
-    }
-
-    fn parse_name_path_list(&mut self, expected: &str) -> Option<Vec<NamePath>> {
-        let mut names = vec![self.parse_name_path(expected)?];
-        while self.at(TokenKind::Comma) {
-            self.bump();
-            names.push(self.parse_name_path(expected)?);
-        }
-        Some(names)
     }
 
     fn parse_boundary_family_binder(&mut self) -> Option<BoundaryFamilyBinderSyntax> {

@@ -29,6 +29,9 @@ macro_rules! signature {
 
 macro_rules! owners {
     ($document:expr, $visit:ident $(, $mutable:tt)?) => {{
+        for node in &$($mutable)? $document.finite_spaces {
+            $visit(node.range, &$($mutable)? node.comments);
+        }
         for node in &$($mutable)? $document.imports {
             $visit(node.range, &$($mutable)? node.comments);
         }
@@ -64,6 +67,7 @@ macro_rules! owners {
             }
             for item in &$($mutable)? node.items {
                 match item {
+                    ComponentItem::IndexSet(value) => $visit(value.range, &$($mutable)? value.comments),
                     ComponentItem::Let(value) => $visit(value.range, &$($mutable)? value.comments),
                     ComponentItem::Parameter(value) => $visit(value.range, &$($mutable)? value.comments),
                     ComponentItem::Port(value) => $visit(value.range, &$($mutable)? value.comments),
@@ -87,6 +91,7 @@ macro_rules! owners {
             $visit(node.range, &$($mutable)? node.comments);
             for item in &$($mutable)? node.items {
                 match item {
+                    Item::IndexSet(value) => $visit(value.range, &$($mutable)? value.comments),
                     Item::Domain(value) => $visit(value.range, &$($mutable)? value.comments),
                     Item::Field(value) => $visit(value.range, &$($mutable)? value.comments),
                     Item::Initial(value) => $visit(value.range, &$($mutable)? value.comments),
@@ -166,6 +171,7 @@ impl Item {
             Self::Relation(node) => &node.comments,
             Self::Connection(node) => &node.comments,
             Self::BoundaryConnection(node) => &node.comments,
+            Self::IndexSet(node) => &node.comments,
             Self::Instance(node) => &node.comments,
         }
     }
@@ -185,6 +191,7 @@ impl ComponentItem {
             Self::RelationFamily(node) => &node.relation.comments,
             Self::Connection(node) => &node.comments,
             Self::BoundaryConnection(node) => &node.comments,
+            Self::IndexSet(node) => &node.comments,
             Self::Instance(node) => &node.comments,
         }
     }

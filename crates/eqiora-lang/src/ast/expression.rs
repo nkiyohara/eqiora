@@ -42,6 +42,10 @@ impl Expr {
         rewrite: &mut impl FnMut(&NamePath) -> Option<NamePath>,
     ) -> Self {
         let kind = match &self.kind {
+            ExprKind::Member { value, member } => ExprKind::Member {
+                value: Box::new(value.rewrite_name_paths_with(rewrite)),
+                member: member.clone(),
+            },
             ExprKind::Number(value) => ExprKind::Number(value.clone()),
             ExprKind::Quantity { value, unit } => ExprKind::Quantity {
                 value: value.clone(),
@@ -129,6 +133,8 @@ pub enum ExprKind {
         /// Authored index expression.
         index: Box<Expr>,
     },
+    /// Member of a statically selected indexed component occurrence.
+    Member { value: Box<Expr>, member: String },
     /// Source identifier.
     Name(String),
     /// Qualified lexical or instance-member name.

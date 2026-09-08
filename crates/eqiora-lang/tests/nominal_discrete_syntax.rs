@@ -1,0 +1,80 @@
+use eqiora_core::{Id, ValueLiteral, entity::kinds};
+use eqiora_lang::{
+    DecimalLiteral, DraftDeclaration, DraftParameter, Item, ModelDraft, SourceAstFactory,
+    ValueTypeSyntaxKind, format, parse,
+};
+use eqiora_schema::kernel::FiniteSpaceDef;
+
+#[test]
+fn nominal_declarations_family_members_and_connections_round_trip() {
+    let source = r#"
+space Species = orthonormal(A, B);
+component Cell(parameter value: integer, output y: integer) { relation r { y = value; } }
+model M(parameter n: integer = 2, output y: integer) {
+  // Ordered, bounded occurrences.
+  indexset Stages = range(n);
+  parameter population: counts<Species> = counts(Species, [2, 9007199254740993]);
+  instance cell[i in Stages]: Cell(value = ordinal(i));
+  connect cell[index(Stages, 0)].y -> y;
+}
+"#;
+    let document = parse("nominal.eqi", source).into_document().unwrap();
+    assert_eq!(document.finite_spaces()[0].labels(), &["A", "B"]);
+    assert!(
+        matches!(&document.models()[0].items()[0], Item::IndexSet(set) if set.name() == "Stages")
+    );
+    let rendered = format(&document);
+    assert_eq!(
+        format(&parse("rendered.eqi", &rendered).into_document().unwrap()),
+        rendered
+    );
+    assert!(rendered.contains("9007199254740993"));
+    assert!(rendered.contains("cell[index(Stages, 0)].y"));
+}
+
+#[test]
+fn native_nominal_projection_requires_registered_exact_declaration_identity() {
+    let definition = FiniteSpaceDef::new(
+        Id::<kinds::FiniteSpace>::new(),
+        ["A".to_owned(), "B".to_owned()],
+    )
+    .unwrap();
+    let value = ValueLiteral::integer(definition.counts(), [2, 9007199254740993]).unwrap();
+    let parameter = DraftParameter::new("population", value.clone());
+    assert!(ModelDraft::new("M", [parameter.clone().into()]).is_err());
+    let draft = ModelDraft::new(
+        "M",
+        [
+            DraftDeclaration::FiniteSpace {
+                name: "Species".into(),
+                definition: definition.clone(),
+            },
+            parameter.into(),
+        ],
+    )
+    .unwrap();
+    let native = draft.native_ast();
+    assert_eq!(
+        native.nominal_identity("Species"),
+        Some(definition.id().erase())
+    );
+    assert_eq!(native.document().finite_spaces()[0].name(), "Species");
+    let Item::Parameter(parameter) = &native.model().items()[0] else {
+        panic!("parameter")
+    };
+    assert!(
+        matches!(parameter.value_type().kind(), ValueTypeSyntaxKind::Counts(name) if name.as_str() == "Species")
+    );
+    assert_eq!(
+        parameter.value_type().resolved_nominal(),
+        Some(value.value_type())
+    );
+    assert!(format(native.document()).contains("9007199254740993"));
+    assert!(
+        SourceAstFactory::expression(
+            eqiora_lang::ExprKind::Number(DecimalLiteral::parse("1").unwrap()),
+            eqiora_lang::TextRange::new(0, 0)
+        )
+        .is_ok()
+    );
+}

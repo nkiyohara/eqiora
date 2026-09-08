@@ -97,6 +97,7 @@ impl SourceAstFactory {
         Ok(Document {
             comments: Default::default(),
             imports: Vec::new(),
+            finite_spaces: Vec::new(),
             dimensions,
             property_contracts: Vec::new(),
             property_releases: Vec::new(),
@@ -128,6 +129,7 @@ impl SourceAstFactory {
         Ok(Document {
             comments: Default::default(),
             imports: Vec::new(),
+            finite_spaces: Vec::new(),
             dimensions: Vec::new(),
             property_contracts: Vec::new(),
             property_releases: Vec::new(),
@@ -161,6 +163,7 @@ impl SourceAstFactory {
         Ok(Document {
             comments: Default::default(),
             imports: Vec::new(),
+            finite_spaces: Vec::new(),
             dimensions: Vec::new(),
             property_contracts: Vec::new(),
             property_releases: Vec::new(),
@@ -185,6 +188,7 @@ impl SourceAstFactory {
         Ok(Document {
             comments: Default::default(),
             imports: Vec::new(),
+            finite_spaces: Vec::new(),
             dimensions: Vec::new(),
             property_contracts: Vec::new(),
             property_releases: Vec::new(),

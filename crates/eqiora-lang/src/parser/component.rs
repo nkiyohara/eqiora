@@ -36,7 +36,9 @@ impl Parser<'_> {
                     }))
                 });
         }
-        let item = if self.at_keyword("let") {
+        let item = if self.at_keyword("indexset") {
+            self.parse_index_set().map(ComponentItem::IndexSet)
+        } else if self.at_keyword("let") {
             self.parse_let().map(ComponentItem::Let)
         } else if self.at_keyword("variable") || self.at_keyword("state") {
             self.parse_field(true).map(ComponentItem::Field)

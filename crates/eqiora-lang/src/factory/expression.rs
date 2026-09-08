@@ -18,6 +18,18 @@ fn validate_expression_depth(expression: &Expr, depth: usize) -> Result<(), AstC
     checked_range(expression.range())?;
     match expression.kind() {
         ExprKind::Number(_) => Ok(()),
+        ExprKind::Member { value, member } => {
+            if !matches!(
+                value.kind(),
+                ExprKind::Index { .. } | ExprKind::Member { .. }
+            ) {
+                return Err(AstConstructionError::new(
+                    "member access requires an indexed component occurrence",
+                ));
+            }
+            validate_identifier(member, "indexed occurrence member")?;
+            validate_expression_depth(value, depth + 1)
+        }
         ExprKind::Quantity { unit, .. } => validate_expression_depth(unit, depth + 1),
         ExprKind::Name(name) => validate_identifier(name, "expression name"),
         ExprKind::Path(path) => validate_name_path(path),
@@ -57,5 +69,15 @@ fn validate_expression_depth(expression: &Expr, depth: usize) -> Result<(), AstC
             }
             Ok(())
         }
+    }
+}
+
+pub(super) fn validate_endpoint(expression: &Expr) -> Result<(), AstConstructionError> {
+    validate_expression(expression)?;
+    match expression.kind() {
+        ExprKind::Name(_) | ExprKind::Path(_) | ExprKind::Member { .. } => Ok(()),
+        _ => Err(AstConstructionError::new(
+            "Connection endpoint requires an exact declared Port selection",
+        )),
     }
 }

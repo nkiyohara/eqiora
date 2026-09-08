@@ -11,10 +11,17 @@ impl SourceAstFactory {
     pub fn value_literal(
         value: &ValueLiteral,
         range: TextRange,
+        mut resolve: impl FnMut(eqiora_core::RawId) -> Option<NamePath>,
     ) -> Result<Expr, AstConstructionError> {
         checked_range(range)?;
-        crate::ValueTypeSyntax::from_checked(value.value_type())?;
-        if value.is_zero() && !value.value_type().shape().is_scalar() {
+        let syntax = crate::ValueTypeSyntax::from_checked(value.value_type(), &mut resolve)?;
+        let nominal = match syntax.kind() {
+            crate::ValueTypeSyntaxKind::Coordinates(name) => Some(("coordinates", name)),
+            crate::ValueTypeSyntaxKind::Counts(name) => Some(("counts", name)),
+            crate::ValueTypeSyntaxKind::Index(name) => Some(("index", name)),
+            _ => None,
+        };
+        if nominal.is_none() && value.is_zero() && !value.value_type().shape().is_scalar() {
             return Self::expression(
                 ExprKind::Number(crate::DecimalLiteral::parse("0.0").expect("exact literal")),
                 range,
@@ -81,6 +88,21 @@ impl SourceAstFactory {
             }
         }
         let result = nested(value, 0, &mut 0, range);
+        if let Some((constructor, name)) = nominal {
+            return Self::expression(
+                ExprKind::Call {
+                    callee: NamePath::single(constructor.to_owned(), range),
+                    arguments: vec![
+                        Expr {
+                            kind: ExprKind::Path(name.clone()),
+                            range,
+                        },
+                        result,
+                    ],
+                },
+                range,
+            );
+        }
         Self::expression(result.kind, range)
     }
 }
@@ -169,7 +191,8 @@ mod tests {
         .array(2)
         .unwrap();
         let literal = ValueLiteral::new(kind, [(1.0, 2.0), (3.0, 0.0)]).unwrap();
-        let expression = SourceAstFactory::value_literal(&literal, TextRange::new(0, 1)).unwrap();
+        let expression =
+            SourceAstFactory::value_literal(&literal, TextRange::new(0, 1), |_| None).unwrap();
         let ExprKind::Array(elements) = expression.kind() else {
             panic!("channel axis")
         };
@@ -199,14 +222,14 @@ mod tests {
         .unwrap();
         let zero = ValueLiteral::from_real(vector.clone(), 0.0).unwrap();
         assert!(matches!(
-            SourceAstFactory::value_literal(&zero, TextRange::new(0, 1))
+            SourceAstFactory::value_literal(&zero, TextRange::new(0, 1), |_| None)
                 .unwrap()
                 .kind(),
             ExprKind::Number(number) if number.is_zero()
         ));
         let value = ValueLiteral::new(vector, [(1.0, 0.0), (2.0, 0.0)]).unwrap();
         assert!(
-            SourceAstFactory::value_literal(&value, TextRange::new(0, 1))
+            SourceAstFactory::value_literal(&value, TextRange::new(0, 1), |_| None)
                 .unwrap_err()
                 .to_string()
                 .contains("frame-bearing")

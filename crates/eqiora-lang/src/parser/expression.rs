@@ -43,6 +43,27 @@ impl Parser<'_> {
     fn parse_expression_inner(&mut self, minimum_binding_power: u8) -> Option<(Expr, usize)> {
         let (mut left, mut depth) = self.parse_primary()?;
         loop {
+            if self.at(TokenKind::Dot) {
+                if !matches!(
+                    left.kind(),
+                    ExprKind::Index { .. } | ExprKind::Member { .. }
+                ) {
+                    self.error_here("member access requires an indexed component occurrence");
+                    return None;
+                }
+                self.bump();
+                let member = self.expect_identifier("indexed occurrence member")?;
+                depth = self.parent_depth(depth)?;
+                let range = TextRange::new(left.range.start(), member.range().end());
+                left = Expr {
+                    kind: ExprKind::Member {
+                        value: Box::new(left),
+                        member: member.text().to_owned(),
+                    },
+                    range,
+                };
+                continue;
+            }
             if self.at(TokenKind::LeftBracket) {
                 self.bump();
                 let (index, index_depth) = self.parse_expression_with_depth(0)?;

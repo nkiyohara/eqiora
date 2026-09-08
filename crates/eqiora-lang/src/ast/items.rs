@@ -6,6 +6,8 @@ use super::*;
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ComponentItem {
+    /// A private bounded nominal index set.
+    IndexSet(IndexSetDecl),
     /// Private immutable static expression, expanded without a Kernel entity.
     Let(LetDecl),
     /// Scalar compile-time Parameter.
@@ -36,6 +38,8 @@ pub enum ComponentItem {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum Item {
+    /// A bounded nominal index set.
+    IndexSet(IndexSetDecl),
     /// Continuous spatial region or one oriented boundary portion.
     Domain(DomainDecl),
     /// Mutable model state.
