@@ -26,7 +26,8 @@ fn fixture(
     let relation = Id::new();
     let activation = Id::new();
     let mut dag = ExprDagBuilder::new();
-    dag.constant(ValueLiteral::enum_value(first.value_type(), 0).unwrap())
+    let member = dag
+        .constant(ValueLiteral::enum_value(first.value_type(), 0).unwrap())
         .unwrap();
     let zero = dag
         .constant(eqiora_core::DynQuantity::new(
@@ -35,7 +36,7 @@ fn fixture(
         ))
         .unwrap();
     let nodes: Vec<KernelNode> = vec![
-        RelationDef::new(relation, dag.finish([zero, zero]).unwrap())
+        RelationDef::new(relation, dag.finish([member, member, zero, zero]).unwrap())
             .unwrap()
             .into(),
         ActivationDef::continuous(activation).into(),
@@ -172,13 +173,38 @@ fn enum_identity_binds_order_tag_and_shared_versus_distinct_nominal_owners() {
 
 #[test]
 fn enum_reopen_rejects_numeric_spellings_and_wrong_nominal_profiles() {
-    let original: Value = serde_json::from_slice(
+    let mut original: Value = serde_json::from_slice(
         &ModelEnvelope::from_program(&fixture(["Off", "On"], 0, true).0)
             .unwrap()
             .canonical_json()
             .unwrap(),
     )
     .unwrap();
+    // Decoder admission must validate nominal literals even outside the root closure.
+    // Fingerprint positives above instead use a fully reachable expression DAG.
+    let relation = original["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|node| node["definition"]["kind"] == "relation")
+        .unwrap();
+    relation["definition"]["expression"]["roots"]
+        .as_array_mut()
+        .unwrap()
+        .drain(..2);
+    let unused = ModelEnvelope::from_json(
+        &serde_json::to_vec(&original).unwrap(),
+        ModelDecoderLimits::default(),
+    )
+    .unwrap()
+    .to_program()
+    .unwrap();
+    assert!(
+        StructuralSemanticFingerprint::from_program(&unused)
+            .unwrap_err()
+            .message()
+            .contains("unreachable expression nodes")
+    );
     for mutation in 0..10 {
         let mut invalid = original.clone();
         let nodes = invalid["nodes"].as_array_mut().unwrap();
