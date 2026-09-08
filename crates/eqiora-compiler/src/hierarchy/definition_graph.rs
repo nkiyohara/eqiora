@@ -22,6 +22,7 @@ use super::preflight::{ComponentDefinition, DefinitionKey, Elaborator, ModelDefi
 
 mod checked;
 mod footprint;
+mod selected;
 /// Compiler-owned proof that Component references are acyclic and every
 /// reusable definition has a bounded possible occurrence footprint.
 ///
@@ -30,6 +31,7 @@ mod footprint;
 /// The value remains private to hierarchy elaboration.
 pub(crate) use checked::CheckedDefinitionGraph;
 use footprint::{component_local_footprint, model_local_footprint};
+pub(super) use selected::selected_expansion_size;
 
 /// Saturating footprint of one Component occurrence or one Model root.
 ///
@@ -91,6 +93,16 @@ impl LimitedCount {
         match self.value.checked_add(other.value) {
             Some(value) if value <= limit => Self::exact(value),
             Some(_) | None => Self::beyond(limit),
+        }
+    }
+
+    fn multiply(self, count: usize, limit: usize) -> Self {
+        if self.exceeded {
+            return Self::beyond(limit);
+        }
+        match self.value.checked_mul(count) {
+            Some(value) if value <= limit => Self::exact(value),
+            _ => Self::beyond(limit),
         }
     }
 
@@ -203,6 +215,7 @@ impl ReachabilityMemberships {
 #[derive(Clone, Debug)]
 struct Edge<'a> {
     target: usize,
+    multiplicity: usize,
     occurrence: String,
     file: &'a str,
     range: TextRange,
@@ -470,6 +483,7 @@ fn component_edges<'d>(
                 match index.get(&key).copied() {
                     Some(target) => edges.push(Edge {
                         target,
+                        multiplicity: 1,
                         occurrence: instance.name().to_owned(),
                         file: definition.file,
                         range: instance.range(),
@@ -531,6 +545,7 @@ fn model_edges<'d>(
                 match index.get(&key).copied() {
                     Some(target) => edges.push(Edge {
                         target,
+                        multiplicity: 1,
                         occurrence: instance.name().to_owned(),
                         file: definition.file,
                         range: instance.range(),
@@ -585,16 +600,34 @@ fn summarize_component(
             .as_ref()
             .expect("finish order summarizes children first");
         depth = depth.max(child.component_levels.increment(limits.depth));
-        instances = instances.add(child.instances, limits.instances);
-        ordinary_declarations =
-            ordinary_declarations.add(child.ordinary_declarations, limits.declarations);
-        connections = connections.add(child.connections, limits.connections);
+        instances = instances.add(
+            child
+                .instances
+                .multiply(edge.multiplicity, limits.instances),
+            limits.instances,
+        );
+        ordinary_declarations = ordinary_declarations.add(
+            child
+                .ordinary_declarations
+                .multiply(edge.multiplicity, limits.declarations),
+            limits.declarations,
+        );
+        connections = connections.add(
+            child
+                .connections
+                .multiply(edge.multiplicity, limits.connections),
+            limits.connections,
+        );
         identity_nonconnector_entries = identity_nonconnector_entries.add(
-            child.identity_nonconnector_entries,
+            child
+                .identity_nonconnector_entries
+                .multiply(edge.multiplicity, limits.staged_identities),
             limits.staged_identities,
         );
         provenance_nonconnector_entries = provenance_nonconnector_entries.add(
-            child.provenance_nonconnector_entries,
+            child
+                .provenance_nonconnector_entries
+                .multiply(edge.multiplicity, limits.provenance_entries),
             limits.provenance_entries,
         );
         for connector in &child.connector_domains {
@@ -656,16 +689,34 @@ fn summarize_model(
             .as_ref()
             .expect("all Component summaries exist");
         depth = depth.max(child.component_levels.increment(limits.depth));
-        instances = instances.add(child.instances, limits.instances);
-        ordinary_declarations =
-            ordinary_declarations.add(child.ordinary_declarations, limits.declarations);
-        connections = connections.add(child.connections, limits.connections);
+        instances = instances.add(
+            child
+                .instances
+                .multiply(edge.multiplicity, limits.instances),
+            limits.instances,
+        );
+        ordinary_declarations = ordinary_declarations.add(
+            child
+                .ordinary_declarations
+                .multiply(edge.multiplicity, limits.declarations),
+            limits.declarations,
+        );
+        connections = connections.add(
+            child
+                .connections
+                .multiply(edge.multiplicity, limits.connections),
+            limits.connections,
+        );
         identity_nonconnector_entries = identity_nonconnector_entries.add(
-            child.identity_nonconnector_entries,
+            child
+                .identity_nonconnector_entries
+                .multiply(edge.multiplicity, limits.staged_identities),
             limits.staged_identities,
         );
         provenance_nonconnector_entries = provenance_nonconnector_entries.add(
-            child.provenance_nonconnector_entries,
+            child
+                .provenance_nonconnector_entries
+                .multiply(edge.multiplicity, limits.provenance_entries),
             limits.provenance_entries,
         );
         for connector in &child.connector_domains {

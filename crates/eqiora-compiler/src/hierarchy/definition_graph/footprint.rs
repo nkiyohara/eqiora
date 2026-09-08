@@ -12,7 +12,8 @@ pub(super) fn component_local_footprint(
     let mut local_connectors = BTreeSet::new();
     for item in definition.owned_items() {
         match item {
-            ComponentItem::Parameter(_)
+            ComponentItem::IndexSet(_)
+            | ComponentItem::Parameter(_)
             | ComponentItem::Port(_)
             | ComponentItem::Initial(_)
             | ComponentItem::Clock(_) => checked_local_add(
@@ -330,7 +331,7 @@ fn checked_local_add(
     }
 }
 
-fn input_binding_count(
+pub(super) fn input_binding_count(
     elaborator: &Elaborator<'_>,
     namespace: &super::super::preflight::DefinitionNamespace,
     file: &str,

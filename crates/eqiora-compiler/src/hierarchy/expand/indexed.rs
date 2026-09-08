@@ -149,26 +149,7 @@ mod tests {
         assert!(model.symbols().get("cell.value").is_none());
     }
     #[test]
-    fn nested_families_keep_parent_and_local_binder_identity() {
-        let compiled=crate::compile("nested-indexed.eqi", "component Cell(parameter value:integer) {} component Row(parameter offset:integer) { indexset Columns=range(2); instance cell[j in Columns]:Cell(value=offset+ordinal(j)); } model M() { indexset Rows=range(2); instance row[i in Rows]:Row(offset=ordinal(i)*10); }").unwrap_or_else(|errors|panic!("{errors:?}"));
-        for (name, expected) in [
-            ("row[0].cell[0].value", 0),
-            ("row[0].cell[1].value", 1),
-            ("row[1].cell[0].value", 10),
-            ("row[1].cell[1].value", 11),
-        ] {
-            let id = compiled[0].symbols().get(name).expect("nested occurrence");
-            let actual = compiled[0]
-                .transaction()
-                .ops()
-                .iter()
-                .find_map(|op| match op {
-                    eqiora_graph::Op::DefineKernelNode {
-                        node: eqiora_schema::kernel::KernelNode::Parameter(parameter),
-                    } if parameter.id().erase() == id => parameter.value().integer_scalar_value(),
-                    _ => None,
-                });
-            assert_eq!(actual, Some(expected));
-        }
+    fn nested_families_are_explicitly_outside_the_bounded_profile() {
+        assert!(crate::compile("nested-indexed.eqi", "component Cell(parameter value:integer) {} component Row(parameter n:integer) { indexset Columns=range(n); instance cell[j in Columns]:Cell(value=ordinal(j)); } model M() { indexset Rows=range(2); instance row[i in Rows]:Row(n=ordinal(i)+1); }").is_err());
     }
 }
