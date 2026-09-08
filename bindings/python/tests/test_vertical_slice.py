@@ -102,7 +102,7 @@ def test_compile_artifact_run_and_owned_numpy_result() -> None:
     )
     result = eqiora.run(
         plan,
-        state=eqiora.State.initial((plan, 0)),
+        state=eqiora.State.initial(plan),
         until_s=0.2,
         output_times_s=(0.1, 0.2),
     )
@@ -234,7 +234,7 @@ def test_native_declarations_share_the_canonical_compile_and_run_path() -> None:
     )
     result = eqiora.run(
         plan,
-        state=eqiora.State.initial((plan, 0)),
+        state=eqiora.State.initial(plan),
         until_s=0.2,
         output_times_s=(0.1, 0.2),
     )

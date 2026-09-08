@@ -52,7 +52,7 @@ def test_model_first_no_mesh_decay_owns_exact_lineage_and_adaptive_series() -> N
     assert plan.capability.backend == "eqiora.time.diffsol"
     assert plan.capability.backend_version == "0.16.2"
 
-    initial = eqiora.State.initial((plan, 0))
+    initial = eqiora.State.initial(plan)
     assert initial.model is model
     assert initial.mesh is None
     assert initial.time_s == 0.0
@@ -118,7 +118,7 @@ def test_output_cadence_changes_results_without_changing_model_identity() -> Non
     for output_times in ((0.2,), (0.1, 0.2)):
         result = eqiora.run(
             plan,
-            state=eqiora.State.initial((plan, 0)),
+            state=eqiora.State.initial(plan),
             until_s=0.2,
             output_times_s=output_times,
         )
@@ -134,7 +134,7 @@ def test_restart_is_a_new_adaptive_run_and_step_controls_are_rejected() -> None:
     plan, field = resolve_decay(model)
     first = eqiora.run(
         plan,
-        state=eqiora.State.initial((plan, 0)),
+        state=eqiora.State.initial(plan),
         until_s=0.1,
         output_times_s=(0.1,),
     )
@@ -164,7 +164,7 @@ def test_async_run_and_array_ownership_use_the_same_common_result() -> None:
         plan, field = resolve_decay(model)
         submitted = eqiora.submit(
             plan,
-            state=eqiora.State.initial((plan, 0)),
+            state=eqiora.State.initial(plan),
             until_s=0.2,
             output_times_s=(0.1, 0.2),
         )

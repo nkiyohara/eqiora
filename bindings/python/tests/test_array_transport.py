@@ -35,7 +35,7 @@ def result_array() -> tuple[eqiora.Result, eqiora.Array]:
     )
     result = eqiora.run(
         plan,
-        state=eqiora.State.initial((plan, 0)),
+        state=eqiora.State.initial(plan),
         until_s=0.2,
         output_times_s=(0.05, 0.1, 0.2),
     )

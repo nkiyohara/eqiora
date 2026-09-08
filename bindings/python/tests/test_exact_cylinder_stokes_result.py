@@ -137,7 +137,7 @@ model decay() {
     )
     ode_result = eqiora.run(
         ode_plan,
-        state=eqiora.State.initial((ode_plan, 0)),
+        state=eqiora.State.initial(ode_plan),
         until_s=0.1,
         output_times_s=(0.1,),
     )
