@@ -117,27 +117,35 @@ fn source_conductance_batches_match_reference_cpu_and_point_bound_slopes() {
             .unwrap();
         assert_eq!(result, [slope]);
     }
-    let config = ReferenceConfig::new(0., 1.)
-        .unwrap()
-        .with_nonlinear_tolerances(1e-13, 0.)
-        .unwrap();
-    for (v, expected) in [(-4., -2.), (0., 0.), (3., 6.)] {
-        let changed = (v != -4.).then(|| {
-            let edit = document
-                .preview_value_edit(document.aliases()["voltage"], real(voltage(), v))
-                .unwrap();
-            document.commit_value_edit(edit).unwrap().into_document()
-        });
-        let edited = changed.as_ref().unwrap_or(&document);
-        for trajectory in [
-            Interpreter::new().run(edited.program(), config).unwrap(),
-            CpuExecutor::new()
-                .run(&CpuProgram::lower(edited.program()).unwrap(), config)
-                .unwrap(),
+    for tolerance in [1e-9, 1e-13] {
+        let config = ReferenceConfig::new(0., 1.)
+            .unwrap()
+            .with_nonlinear_tolerances(tolerance, 0.)
+            .unwrap();
+        for (v, expected) in [
+            (-4., -2.),
+            (-1e-6, -0.5e-6),
+            (0., 0.),
+            (1e-6, 2e-6),
+            (3., 6.),
         ] {
-            let actual = trajectory.last_value(edited.aliases()["current"]).unwrap();
-            assert!((actual.value() - expected).abs() < 2e-12);
-            assert_eq!(actual.dim(), current());
+            let changed = (v != -4.).then(|| {
+                let edit = document
+                    .preview_value_edit(document.aliases()["voltage"], real(voltage(), v))
+                    .unwrap();
+                document.commit_value_edit(edit).unwrap().into_document()
+            });
+            let edited = changed.as_ref().unwrap_or(&document);
+            for trajectory in [
+                Interpreter::new().run(edited.program(), config).unwrap(),
+                CpuExecutor::new()
+                    .run(&CpuProgram::lower(edited.program()).unwrap(), config)
+                    .unwrap(),
+            ] {
+                let actual = trajectory.last_value(edited.aliases()["current"]).unwrap();
+                assert!((actual.value() - expected).abs() < 2e-12);
+                assert_eq!(actual.dim(), current());
+            }
         }
     }
 }
@@ -297,35 +305,76 @@ fn crossing_program(
 fn memoryless_branch_crossing_requires_a_separately_declared_reset_event() {
     // Constant dx/dt=-1 is integrated exactly by backward Euler. Without an
     // event x=1-t. The explicit event resets x from0 to1 at t=1.
-    let config = ReferenceConfig::new(1.5, 0.6)
-        .unwrap()
-        .with_nonlinear_tolerances(1e-12, 0.)
-        .unwrap()
-        .with_event_tolerances(1e-11, 1e-10)
-        .unwrap();
-    for (with_event, expected_x, expected_y) in [(false, -0.5, -0.25), (true, 0.5, 1.)] {
-        let (program, state, output) = crossing_program(with_event);
-        let trajectory = Interpreter::new().run(&program, config).unwrap();
-        assert!((trajectory.last_value(state).unwrap().value() - expected_x).abs() < 2e-8);
-        assert!((trajectory.last_value(output).unwrap().value() - expected_y).abs() < 4e-8);
-        let samples = trajectory
-            .samples()
-            .iter()
-            .filter(|sample| sample.field() == state)
-            .collect::<Vec<_>>();
-        let reset = samples
-            .windows(2)
-            .find(|pair| (pair[0].time() - pair[1].time()).abs() < 1e-13);
-        if with_event {
-            let pair = reset.expect("explicit event records pre/post samples");
-            assert!((pair[0].time() - 1.).abs() < 2e-9);
-            assert!(pair[0].value().value().abs() < 2e-9);
-            assert_eq!(pair[1].value().value(), 1.);
-        } else {
-            assert!(
-                reset.is_none(),
-                "memoryless selection must not synthesize an event"
-            );
+    for tolerance in [1e-9, 1e-12] {
+        let config = ReferenceConfig::new(1.5, 0.6)
+            .unwrap()
+            .with_nonlinear_tolerances(tolerance, 0.)
+            .unwrap()
+            .with_event_tolerances(1e-11, 1e-10)
+            .unwrap();
+        for (with_event, expected_x, expected_y) in [(false, -0.5, -0.25), (true, 0.5, 1.)] {
+            let (program, state, output) = crossing_program(with_event);
+            let trajectory = Interpreter::new().run(&program, config).unwrap();
+            assert!((trajectory.last_value(state).unwrap().value() - expected_x).abs() < 2e-8);
+            assert!((trajectory.last_value(output).unwrap().value() - expected_y).abs() < 4e-8);
+            let samples = trajectory
+                .samples()
+                .iter()
+                .filter(|sample| sample.field() == state)
+                .collect::<Vec<_>>();
+            let reset = samples
+                .windows(2)
+                .find(|pair| (pair[0].time() - pair[1].time()).abs() < 1e-13);
+            if with_event {
+                let pair = reset.expect("explicit event records pre/post samples");
+                assert!((pair[0].time() - 1.).abs() < 2e-9);
+                assert!(pair[0].value().value().abs() < 2e-9);
+                assert_eq!(pair[1].value().value(), 1.);
+            } else {
+                assert!(
+                    reset.is_none(),
+                    "memoryless selection must not synthesize an event"
+                );
+            }
         }
+    }
+}
+
+#[test]
+fn source_and_native_absolute_value_share_active_slopes_and_zero_rejection() {
+    let source = r#"operator magnitude(input x:V):V=math.abs(x);
+model Magnitude(){parameter x:V=-3;variable y:V;relation value{y=magnitude(x=x);}}"#;
+    let document = ModelDocument::compile("absolute-value.eqi", source).unwrap();
+    let (source_ir, source_root) = property_ir(&document);
+    let mut builder = ExprDagBuilder::new();
+    let x = builder.symbol(source_ir.symbols()[0]).unwrap();
+    let zero = builder.constant(real(voltage(), 0.)).unwrap();
+    let nonnegative = builder
+        .compare(eqiora::kernel::ComparisonOp::GreaterEqual, x, zero)
+        .unwrap();
+    let negative = builder.neg(x).unwrap();
+    let native_root = builder.select(nonnegative, x, negative).unwrap();
+    let native_ir = ScalarOperatorIr::lower(&builder.finish([native_root]).unwrap()).unwrap();
+    for (ir, root) in [(&source_ir, source_root), (&native_ir, native_root)] {
+        let rows = [-3., 0., 4.].map(|x| vec![real(voltage(), x)]);
+        let values = ir.evaluate_typed_batch(&[root], &rows).unwrap();
+        assert_eq!(
+            values.iter().map(|row| scalar(&row[0])).collect::<Vec<_>>(),
+            [3., 0., 4.]
+        );
+        for (point, slope) in [(0, -1.), (2, 1.)] {
+            let linear = ir
+                .linearize_typed(&rows[point], &[DifferentiationRole::Unknown])
+                .unwrap();
+            let mut derivative = [0.];
+            linear
+                .jvp(RelationTangent::Unknown(&[1.]), &mut derivative)
+                .unwrap();
+            assert_eq!(derivative, [slope]);
+        }
+        assert!(
+            ir.linearize_typed(&rows[1], &[DifferentiationRole::Unknown])
+                .is_err()
+        );
     }
 }
