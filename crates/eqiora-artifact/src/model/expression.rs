@@ -344,6 +344,14 @@ pub(crate) enum WireExpressionNode {
     ToInteger {
         value: u32,
     },
+    Min {
+        left: u32,
+        right: u32,
+    },
+    Max {
+        left: u32,
+        right: u32,
+    },
     Quotient {
         left: u32,
         right: u32,
@@ -445,6 +453,14 @@ impl WireExpressionNode {
             },
             ExprNode::Symbol(symbol) => Self::Symbol {
                 symbol: WireSymbol::encode(*symbol)?,
+            },
+            ExprNode::Min(left, right) => Self::Min {
+                left: left.index(),
+                right: right.index(),
+            },
+            ExprNode::Max(left, right) => Self::Max {
+                left: left.index(),
+                right: right.index(),
             },
             ExprNode::Quotient(left, right) => Self::Quotient {
                 left: left.index(),
@@ -560,6 +576,8 @@ impl WireExpressionNode {
             Self::And { left, right } => builder.and(operand(ids, *left)?, operand(ids, *right)?),
             Self::Or { left, right } => builder.or(operand(ids, *left)?, operand(ids, *right)?),
             Self::Symbol { symbol } => builder.symbol(symbol.decode()?),
+            Self::Min { left, right } => builder.min(operand(ids, *left)?, operand(ids, *right)?),
+            Self::Max { left, right } => builder.max(operand(ids, *left)?, operand(ids, *right)?),
             Self::Quotient { left, right } => {
                 builder.quotient(operand(ids, *left)?, operand(ids, *right)?)
             }

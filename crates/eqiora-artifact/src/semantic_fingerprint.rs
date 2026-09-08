@@ -557,6 +557,12 @@ fn encode_expression(
                 binary_expr(encoder, 30, *left, *right, &canonical_index)?
             }
             ExprNode::Or(left, right) => binary_expr(encoder, 31, *left, *right, &canonical_index)?,
+            ExprNode::Min(left, right) => {
+                binary_expr(encoder, 32, *left, *right, &canonical_index)?
+            }
+            ExprNode::Max(left, right) => {
+                binary_expr(encoder, 33, *left, *right, &canonical_index)?
+            }
             ExprNode::Quotient(left, right) => {
                 binary_expr(encoder, 23, *left, *right, &canonical_index)?
             }
@@ -758,6 +764,8 @@ fn expression_operands(node: &ExprNode) -> Vec<eqiora_schema::kernel::ExprId> {
         | ExprNode::Compare(_, left, right)
         | ExprNode::And(left, right)
         | ExprNode::Or(left, right)
+        | ExprNode::Min(left, right)
+        | ExprNode::Max(left, right)
         | ExprNode::Quotient(left, right)
         | ExprNode::Remainder(left, right)
         | ExprNode::Div(left, right) => vec![*left, *right],
