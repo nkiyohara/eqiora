@@ -186,7 +186,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-ir/src/scalar.rs"
-ceiling = 1089
+ceiling = 1017
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
