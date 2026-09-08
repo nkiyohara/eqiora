@@ -165,7 +165,11 @@ pub(in crate::hierarchy) fn alias_order<'a>(
                         pending.push(right);
                         pending.push(left);
                     }
-                    eqiora_lang::ExprKind::Call { callee, arguments } if callee.as_str() == "tensor_value" => { pending.extend(arguments.iter().skip(1)); }
+                    eqiora_lang::ExprKind::Call { callee, arguments }
+                        if callee.as_str() == "tensor_value" =>
+                    {
+                        pending.extend(arguments.iter().skip(1));
+                    }
                     eqiora_lang::ExprKind::Call { arguments, .. } => {
                         pending.extend(arguments.iter().rev())
                     }
@@ -223,7 +227,11 @@ fn is_static_expression(expression: &eqiora_lang::Expr, values: &SymbolicParamet
                 pending.push(right);
             }
             eqiora_lang::ExprKind::Call { callee, .. } if callee.as_str() == "period" => {}
-            eqiora_lang::ExprKind::Call { callee, arguments } if callee.as_str() == "tensor_value" => { pending.extend(arguments.iter().skip(1)); }
+            eqiora_lang::ExprKind::Call { callee, arguments }
+                if callee.as_str() == "tensor_value" =>
+            {
+                pending.extend(arguments.iter().skip(1));
+            }
             eqiora_lang::ExprKind::Call { callee, arguments }
                 if !matches!(
                     callee.as_str(),

@@ -214,17 +214,26 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                         "Domain syntax is newer than definition-body validation",
                     )),
                 },
-                Item::Parameter(declaration) => crate::value_types::lower_value_type::<String>(
-                    self.scope.file,
-                    declaration.value_type(),
-                    None,
-                )
-                .map(|value_type| {
-                    Some((
-                        declaration.name(),
-                        SymbolContract::Parameter(ExpressionType::new(value_type, None)),
-                    ))
-                }),
+                Item::Parameter(declaration) => self
+                    .compile_time_values
+                    .get(declaration.name())
+                    .map(|value| {
+                        Some((
+                            declaration.name(),
+                            SymbolContract::Parameter(ExpressionType::new(
+                                value.value_type.clone(),
+                                None,
+                            )),
+                        ))
+                    })
+                    .ok_or_else(|| {
+                        source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            self.scope.file,
+                            declaration.range(),
+                            "Parameter type was not resolved in the static declaration context",
+                        )
+                    }),
                 Item::Let(declaration) => {
                     Ok(self
                         .compile_time_values

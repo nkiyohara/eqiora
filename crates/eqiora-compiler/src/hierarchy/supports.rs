@@ -275,7 +275,7 @@ pub(super) fn signature_support_interface(
 }
 
 mod spatial;
-pub(super) use spatial::{model_spatial_supports, component_spatial_supports};
+pub(super) use spatial::{component_spatial_supports, model_spatial_supports};
 
 /// Per-elaboration accounting for explicit complete-exterior memberships.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

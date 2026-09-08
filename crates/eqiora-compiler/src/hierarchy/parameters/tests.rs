@@ -111,6 +111,7 @@ instance child: Child(base = length, exponent = 2);
         &parent_parameters,
         &child_interface,
         |_| None,
+        |_| None,
     )
     .expect("cached interface validates the definition edge");
 }
@@ -170,6 +171,7 @@ instance missing: Child();
             instances[instance],
             &parent_parameters,
             &child_interface,
+            |_| None,
             |_| None,
         )
         .expect_err("invalid binding fails closed");

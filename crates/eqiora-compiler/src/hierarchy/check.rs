@@ -178,6 +178,12 @@ fn validate_definition_bodies_and_parameters(
                 parent,
                 child_interface,
                 |name| super::clocks::component(definition.file, definition.declaration, name),
+                |name| {
+                    support_interfaces
+                        .get(key)
+                        .and_then(|supports| supports.get(name))
+                        .map(|contract| contract.support().clone())
+                },
             ) {
                 occurrences_valid = false;
                 diagnostics.extend(errors);
@@ -318,6 +324,12 @@ fn validate_definition_bodies_and_parameters(
                 &parameters,
                 child_interface,
                 |name| super::clocks::model(definition.file, definition.declaration, name),
+                |name| {
+                    model_supports
+                        .as_ref()
+                        .and_then(|supports| supports.get(name))
+                        .cloned()
+                },
             ) {
                 occurrences_valid = false;
                 diagnostics.extend(errors);

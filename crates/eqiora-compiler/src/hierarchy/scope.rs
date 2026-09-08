@@ -543,6 +543,21 @@ pub(super) fn rewrite_expression_with_boundary_member(
             .expect("imaginary unit"),
             expression.range(),
         ),
+        ExprKind::Call { callee, .. } if callee.as_str() == "tensor_value" => {
+            LoweringExpression::literal(
+                super::parameters::frames::literal(
+                    file,
+                    expression,
+                    &scope.symbolic_parameters(),
+                    &mut |name| {
+                        scope
+                            .spatial_support(name)
+                            .map(super::parameters::frames::occurrence)
+                    },
+                )?,
+                expression.range(),
+            )
+        }
         ExprKind::Call { callee, arguments } if callee.as_str() == "math.complex" => {
             let [real, imag] = arguments.as_slice() else {
                 return Err(source_error(

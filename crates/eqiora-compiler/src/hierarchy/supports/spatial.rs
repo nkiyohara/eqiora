@@ -1,19 +1,32 @@
 //! Exact declared Cartesian support contexts before numeric bound evaluation.
 use super::*;
 
-
 pub(in crate::hierarchy) fn model_spatial_supports(
     file: &str,
     model: &ModelDecl,
 ) -> Result<BTreeMap<String, SpatialSupport<String>>, Vec<Diagnostic>> {
-    declared_spatial_supports(file, model.signature(), model.items().iter().filter_map(|item| match item { Item::Domain(value) => Some(value), _ => None }))
+    declared_spatial_supports(
+        file,
+        model.signature(),
+        model.items().iter().filter_map(|item| match item {
+            Item::Domain(value) => Some(value),
+            _ => None,
+        }),
+    )
 }
 
-pub(in crate::hierarchy) fn component_spatial_supports(file: &str, component: &ComponentDecl) -> Result<BTreeMap<String, SpatialSupport<String>>, Vec<Diagnostic>> {
+pub(in crate::hierarchy) fn component_spatial_supports(
+    file: &str,
+    component: &ComponentDecl,
+) -> Result<BTreeMap<String, SpatialSupport<String>>, Vec<Diagnostic>> {
     declared_spatial_supports(file, component.signature(), std::iter::empty())
 }
 
-fn declared_spatial_supports<'a>(file: &str, signature: &[eqiora_lang::SignatureItem], domains: impl Iterator<Item=&'a eqiora_lang::DomainDecl>) -> Result<BTreeMap<String, SpatialSupport<String>>, Vec<Diagnostic>> {
+fn declared_spatial_supports<'a>(
+    file: &str,
+    signature: &[eqiora_lang::SignatureItem],
+    domains: impl Iterator<Item = &'a eqiora_lang::DomainDecl>,
+) -> Result<BTreeMap<String, SpatialSupport<String>>, Vec<Diagnostic>> {
     let interface = signature_support_interface(file, signature)?;
     let mut supports = interface
         .iter()
@@ -70,4 +83,3 @@ fn declared_spatial_supports<'a>(file: &str, signature: &[eqiora_lang::Signature
         Err(diagnostics)
     }
 }
-
