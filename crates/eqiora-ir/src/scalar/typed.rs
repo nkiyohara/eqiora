@@ -212,6 +212,42 @@ fn discrete_error(error: eqiora_core::InvalidValueLiteral) -> Diagnostic {
     ir_builder_error(format!("exact discrete operation rejected: {error:?}"))
 }
 
+fn boolean(value: &ValueLiteral) -> Result<bool, Diagnostic> {
+    value.as_bool().ok_or_else(|| {
+        Diagnostic::error(
+            codes::NOT_IMPLEMENTED,
+            "logical execution requires a scalar Boolean",
+        )
+    })
+}
+
+fn compare(
+    op: eqiora_schema::kernel::ComparisonOp,
+    left: &ValueLiteral,
+    right: &ValueLiteral,
+) -> Result<ValueLiteral, Diagnostic> {
+    use eqiora_schema::kernel::ComparisonOp;
+    use std::cmp::Ordering;
+    let value = match op {
+        ComparisonOp::Equal => left.checked_equal(right),
+        ComparisonOp::NotEqual => left.checked_equal(right).map(|value| !value),
+        ComparisonOp::Less => left
+            .checked_order(right)
+            .map(|value| value == Ordering::Less),
+        ComparisonOp::LessEqual => left
+            .checked_order(right)
+            .map(|value| value != Ordering::Greater),
+        ComparisonOp::Greater => left
+            .checked_order(right)
+            .map(|value| value == Ordering::Greater),
+        ComparisonOp::GreaterEqual => left
+            .checked_order(right)
+            .map(|value| value != Ordering::Less),
+    }
+    .map_err(discrete_error)?;
+    Ok(ValueLiteral::boolean(value))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -335,40 +371,4 @@ mod tests {
         assert_eq!(values[3].integer_scalar_value(), Some(-2));
         assert_eq!(values[4].integer_scalar_value(), Some(2));
     }
-}
-
-fn boolean(value: &ValueLiteral) -> Result<bool, Diagnostic> {
-    value.as_bool().ok_or_else(|| {
-        Diagnostic::error(
-            codes::NOT_IMPLEMENTED,
-            "logical execution requires a scalar Boolean",
-        )
-    })
-}
-
-fn compare(
-    op: eqiora_schema::kernel::ComparisonOp,
-    left: &ValueLiteral,
-    right: &ValueLiteral,
-) -> Result<ValueLiteral, Diagnostic> {
-    use eqiora_schema::kernel::ComparisonOp;
-    use std::cmp::Ordering;
-    let value = match op {
-        ComparisonOp::Equal => left.checked_equal(right),
-        ComparisonOp::NotEqual => left.checked_equal(right).map(|value| !value),
-        ComparisonOp::Less => left
-            .checked_order(right)
-            .map(|value| value == Ordering::Less),
-        ComparisonOp::LessEqual => left
-            .checked_order(right)
-            .map(|value| value != Ordering::Greater),
-        ComparisonOp::Greater => left
-            .checked_order(right)
-            .map(|value| value == Ordering::Greater),
-        ComparisonOp::GreaterEqual => left
-            .checked_order(right)
-            .map(|value| value != Ordering::Less),
-    }
-    .map_err(discrete_error)?;
-    Ok(ValueLiteral::boolean(value))
 }
