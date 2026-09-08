@@ -1,5 +1,7 @@
 //! Inspectable expression DAG.
 
+mod scalar_projection;
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::diagnostic::codes;

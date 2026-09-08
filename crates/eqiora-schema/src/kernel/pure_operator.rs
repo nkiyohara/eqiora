@@ -13,6 +13,7 @@ use sha2::{Digest, Sha256};
 
 use super::typing::{ExpressionType, SpatialSupport};
 use eqiora_core::{DimExponents, ValueFrame};
+mod composition;
 mod dimensions;
 use dimensions::{derive_symbolic_dimension, instantiate_dimension, validate_result_dimension};
 
@@ -456,7 +457,10 @@ impl CalculusBuilder {
         formals: impl IntoIterator<Item = PureValueClass>,
         result: PureValueClass,
     ) -> Result<Self, PureOperatorError> {
-        let formals = formals.into_iter().collect::<Vec<_>>();
+        let formals = formals
+            .into_iter()
+            .take(MAX_FORMALS + 1)
+            .collect::<Vec<_>>();
         if formals.is_empty() || formals.len() > MAX_FORMALS {
             return Err(PureOperatorError::FormalLimit);
         }
@@ -941,3 +945,6 @@ fn push_u32(bytes: &mut Vec<u8>, value: usize) {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod dimension_tests;
