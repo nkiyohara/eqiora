@@ -79,7 +79,9 @@ impl RootExpansion<'_, '_> {
             if scope.parameter(declaration.name()).is_some() {
                 continue;
             }
-            let activation = scope.alias_activation(declaration.value());
+            let activation = scope
+                .alias_activation(file, declaration.value())
+                .map_err(|error| vec![error])?;
             if let Some(clock) = declaration.activation() {
                 let exact = scope.symbol(clock).map(|symbol| &symbol.internal_name);
                 if !matches!((&activation, exact), (crate::hierarchy::body_check::DependencyActivation::Clock(actual), Some(expected)) if actual == expected)
