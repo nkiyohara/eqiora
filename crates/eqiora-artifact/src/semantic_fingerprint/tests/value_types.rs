@@ -35,16 +35,78 @@ fn typed_initial_equations_survive_source_and_model_replay() {
         );
         if field.value_type().scalar_domain() != ScalarDomain::Real || !field.shape().is_scalar() {
             let errors = eqiora_sem::Interpreter::new()
-                .run(
+                .initialize(
                     &original,
                     eqiora_sem::ReferenceConfig::new(0.0, 0.01).unwrap(),
                 )
                 .unwrap_err();
             assert!(errors.iter().any(|error| {
-                error
-                    .message()
-                    .contains("real scalar or exact discrete Fields")
+                error.message().contains(
+                    "real scalar, invariant real/integer channels, or exact discrete Fields",
+                )
             }));
+        }
+    }
+}
+
+#[test]
+fn sampled_channel_initial_values_and_outputs_survive_model_replay() {
+    use eqiora_core::ValueLiteral;
+    for (syntax, domain) in [
+        ("1", ScalarDomain::Real),
+        ("integer", ScalarDomain::Integer),
+    ] {
+        let original = program(&format!(
+            "model M(output y: array<{syntax}, 2> at tick) {{
+                clock tick = periodic(1[s]);
+                state x: array<{syntax}, 2> at tick;
+                initial {{ pre(x) = [2, 3]; }}
+                relation update at tick {{ next(x) = pre(x); y = pre(x); }}
+            }}"
+        ));
+        let bytes = ModelEnvelope::from_program(&original)
+            .unwrap()
+            .canonical_json()
+            .unwrap();
+        let replay = ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default())
+            .unwrap()
+            .to_program()
+            .unwrap();
+        assert!(structurally_equivalent(&original, &replay).unwrap());
+        let kind = ValueType::scalar(domain, DimExponents::DIMENSIONLESS)
+            .array(2)
+            .unwrap();
+        let expected = if domain == ScalarDomain::Integer {
+            ValueLiteral::integer(kind, [2, 3]).unwrap()
+        } else {
+            ValueLiteral::new(kind, [(2.0, 0.0), (3.0, 0.0)]).unwrap()
+        };
+        for program in [&original, &replay] {
+            let field = program
+                .nodes()
+                .find_map(|node| match node {
+                    KernelNode::Field(field) => Some(field.id().erase()),
+                    _ => None,
+                })
+                .unwrap();
+            let port = program
+                .nodes()
+                .find_map(|node| match node {
+                    KernelNode::Port(port) => Some(port.id().erase()),
+                    _ => None,
+                })
+                .unwrap();
+            let mut session = eqiora_sem::Interpreter::new()
+                .sampled_session(
+                    program,
+                    eqiora_sem::ReferenceConfig::new(1.0, 0.1).unwrap(),
+                    [],
+                )
+                .unwrap();
+            assert_eq!(session.field(field), Some(expected.clone()));
+            assert_eq!(session.advance_ticks(1).unwrap(), 1);
+            assert_eq!(session.field(field), Some(expected.clone()));
+            assert_eq!(session.output(port, 0).unwrap().1, &expected);
         }
     }
 }
@@ -135,7 +197,7 @@ fn signal_types_survive_model_replay_and_real_execution_rejects_richer_types() {
                     .to_owned()
             )
         );
-        if value_type.scalar_domain() == ScalarDomain::Complex || !value_type.shape().is_scalar() {
+        if value_type.scalar_domain() == ScalarDomain::Complex {
             let errors = eqiora_sem::Interpreter::new()
                 .run(
                     &program,
@@ -143,9 +205,9 @@ fn signal_types_survive_model_replay_and_real_execution_rejects_richer_types() {
                 )
                 .unwrap_err();
             assert!(errors.iter().any(|error| {
-                error
-                    .message()
-                    .contains("real scalar or exact discrete signal Ports")
+                error.message().contains(
+                    "real scalar, invariant real/integer channels, or exact discrete signal Ports",
+                )
             }));
         }
     }
