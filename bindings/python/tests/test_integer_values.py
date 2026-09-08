@@ -162,7 +162,7 @@ def test_integer_sampled_state_output_and_resume_preserve_adjacent_values(tmp_pa
     memory = owner.field("memory", value_type=kind, role=eqiora.FieldRole.State, at=tick)
     observed = owner.output("observed", value_type=kind, at=tick)
     initial = 2**53 + 1
-    owner.initial(q.pre(memory) - initial)
+    owner.initial(left=q.pre(memory), right=initial)
     owner.relation("increment", at=tick, left=q.next(memory), right=q.pre(memory) + 1)
     owner.relation("observe", at=tick, left=observed, right=q.pre(memory))
     model = eqiora.compile(source=source, entry="ExactTicks")
@@ -182,3 +182,25 @@ def test_integer_sampled_state_output_and_resume_preserve_adjacent_values(tmp_pa
     assert resumed.output("observed", 1) == (Fraction(1), initial + 1)
     assert type(resumed.output("observed", 1)[1]) is int
     assert resumed.output("observed", 2) is None
+
+
+def test_explicit_initial_authoring_rejects_invalid_forms_without_mutation():
+    q = eqiora.lang
+    source = q.Source()
+    owner = source.model("InitialSides")
+    other = source.component("Other")
+    memory = owner.field("memory", value_type=eqiora.ValueType.integer(), role=eqiora.FieldRole.State)
+    foreign = other.field("memory", value_type=eqiora.ValueType.integer(), role=eqiora.FieldRole.State)
+    for kwargs in ({"left": memory}, {"right": 1}):
+        with pytest.raises(TypeError, match="both"):
+            owner.initial(**kwargs)
+    with pytest.raises(TypeError, match="combined"):
+        owner.initial(memory, left=memory, right=1)
+    with pytest.raises(q.SourceError, match="Component"):
+        owner.initial(left=memory, right=foreign)
+    owner.initial(left=q.pre(memory), right=2**53 + 1, doc="Exact initial assignment.")
+    text = source.to_eqi()
+    assert text.count("  initial {") == 1
+    assert "/// Exact initial assignment.\n  initial {\n    pre(memory) = 9007199254740993;" in text
+    with pytest.raises(q.SourceError, match="frozen"):
+        owner.initial(left=memory, right=0)

@@ -13,7 +13,7 @@ pub(crate) mod value_literal;
 mod value_type;
 pub(crate) use value_type::PyValueType;
 
-use pyo3::exceptions::{PyAttributeError, PyTypeError};
+use pyo3::exceptions::{PyAttributeError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyComplex, PyInt, PyModule, PyTuple};
 
@@ -913,7 +913,8 @@ fn expression_from_python(value: &Bound<'_, PyAny>) -> PyResult<DraftExpression>
         .extract::<f64>()
         .map_err(|_| expression_type_error())
         .and_then(|value| {
-            eqiora::language::DecimalLiteral::from_f64(value).map_err(|_| expression_type_error())
+            eqiora::language::DecimalLiteral::from_f64(value)
+                .map_err(|error| PyValueError::new_err(error.to_string()))
         })
         .map(DraftExpression::constant)
 }

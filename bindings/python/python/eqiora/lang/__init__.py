@@ -728,7 +728,7 @@ class Component:
         self._names: set[str] = set()
         self._supports: list[tuple[Support, str, object, tuple[str, ...]]] = []
         self._clocks: list[tuple[Clock, Fraction | None, Fraction | None, tuple[str, ...]]] = []
-        self._initials: list[tuple[tuple[Expression, ...], tuple[str, ...]]] = []
+        self._initials: list[tuple[tuple[tuple[Expression, Expression], ...], tuple[str, ...]]] = []
         self._index_sets: list[tuple[IndexSet, tuple[str, ...]]] = []
         self._parameters: list[tuple[_Parameter, str, tuple[str, ...]]] = []
         self._aliases: list[tuple[str, Expression, str | None, Support | None, Clock | None, tuple[str, ...]]] = []
@@ -829,18 +829,28 @@ class Component:
         self._clocks.append((clock, period, phase, doc_lines))
         return clock
 
-    def initial(self, *residuals: Expression | int | float | complex, doc: str | None = None) -> None:
-        """Add simultaneous fresh-initialization residuals, each equal to zero.
+    def initial(self, *residuals: Expression | int | float | complex,
+                left: Expression | int | float | complex | None = None,
+                right: Expression | int | float | complex | None = None, doc: str | None = None) -> None:
+        """Add simultaneous initial equations or one explicit left/right assignment.
 
         These are equations, not Field guesses or an ordered sequence of writes.
-        The compiler checks State roles and pre/next permissions.
+        The compiler checks State roles and pre/next permissions. Exact discrete
+        State initialization requires explicit left and right sides.
         """
         self._source._ensure_open()
-        expressions = tuple(_expression(value) for value in residuals)
+        if (left is None) != (right is None):
+            raise TypeError("initial requires both left and right")
+        if left is not None and residuals:
+            raise TypeError("initial left/right cannot be combined with residuals")
+        equations = (((_expression(left), _expression(right)),) if left is not None
+                     else tuple((_expression(value), _expression(0)) for value in residuals))
+        expressions = tuple(value for equation in equations for value in equation)
         if any(value._owner is not None and value._owner is not self._component_token
                for value in expressions):
             raise SourceError("initial expressions must belong to this Component")
-        total_nodes = sum(value._nodes for values, _ in self._initials for value in values)
+        total_nodes = sum(value._nodes for equations, _ in self._initials
+                          for equation in equations for value in equation)
         total_nodes += sum(value._nodes for value in expressions)
         if total_nodes > _MAX_EXPRESSION_NODES:
             raise SourceError(
@@ -850,7 +860,7 @@ class Component:
         if self._declaration_count >= _MAX_DECLARATIONS:
             raise SourceError(f"Component exceeds the {_MAX_DECLARATIONS}-declaration limit")
         self._declaration_count += 1
-        self._initials.append((expressions, doc_lines))
+        self._initials.append((equations, doc_lines))
 
     def volume(
         self,
@@ -1242,11 +1252,11 @@ class Component:
                 lines.append(f"  {keyword} {field._text}: {value_type}{spatial}{activation};")
         if self._fields and (self._relations or self._instances):
             lines.append("")
-        for residuals, doc in self._initials:
+        for equations, doc in self._initials:
             lines.extend(_comment(doc, "  "))
             lines.append("  initial {")
-            for residual in residuals:
-                lines.extend(_relation_lines(residual, _expression(0)))
+            for left, right in equations:
+                lines.extend(_relation_lines(left, right))
             lines.append("  }")
         for index, (name, support, left, right, clock, doc) in enumerate(self._relations):
             lines.extend(_comment(doc, "  "))

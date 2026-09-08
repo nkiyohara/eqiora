@@ -130,7 +130,18 @@ class Component:
         self, name: str, *, period_s: Fraction | int,
         phase_s: Fraction | int = 0, doc: str | None = None,
     ) -> Clock: ...
-    def initial(self, *residuals: Expression | int | float | complex, doc: str | None = None) -> None: ...
+    def initial(self, *residuals: Expression | int | float | complex,
+                left: Expression | int | float | complex | None = None,
+                right: Expression | int | float | complex | None = None,
+                doc: str | None = None) -> None:
+        """Add zero residuals or an explicit left/right initial assignment.
+
+        Exact discrete State initialization requires explicit sides. The forms
+        are mutually exclusive and all expressions retain Component ownership.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.initial``.
+        """
+        ...
     def volume(
         self,
         name: str,
