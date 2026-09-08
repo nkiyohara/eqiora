@@ -17,7 +17,7 @@ mod composition;
 mod dimensions;
 use dimensions::{derive_symbolic_dimension, instantiate_dimension, validate_result_dimension};
 
-const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v2\0";
+const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v3\0";
 
 /// Maximum number of formal arguments in a definition.
 pub const MAX_FORMALS: usize = 64;
