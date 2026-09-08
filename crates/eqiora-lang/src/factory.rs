@@ -320,6 +320,7 @@ impl SourceAstFactory {
     /// Returns an error for insufficient members or malformed paths/ranges.
     pub fn connection(
         syntax: ConnectionSyntax,
+        binder: Option<FamilyBinderSyntax>,
         ports: Vec<Expr>,
         range: TextRange,
     ) -> Result<ConnectionDecl, AstConstructionError> {
@@ -333,12 +334,16 @@ impl SourceAstFactory {
                 "a Connection requires at least two Port paths",
             ));
         }
+        if let Some(binder) = &binder {
+            validate_boundary_family_binder(binder)?;
+        }
         for endpoint in &ports {
             expression::validate_endpoint(endpoint)?;
         }
         Ok(ConnectionDecl {
             comments: Default::default(),
             syntax,
+            binder,
             ports,
             range: checked_range(range)?,
         })
@@ -700,7 +705,7 @@ fn validate_boundary_family_binder(
     binder: &FamilyBinderSyntax,
 ) -> Result<(), AstConstructionError> {
     validate_identifier(binder.member(), "boundary family member")?;
-    validate_identifier(binder.set().as_str(), "boundary family support set")?;
+    validate_name_path(binder.set())?;
     checked_range(binder.range()).map(|_| ())
 }
 

@@ -181,6 +181,7 @@ impl super::ModelDraft {
                 }),
                 DraftDeclaration::ConservingConnection(connection) => {
                     Item::Connection(ConnectionDecl {
+                        binder: None,
                         comments: Default::default(),
                         syntax: ConnectionSyntax::Conserving,
                         ports: connection

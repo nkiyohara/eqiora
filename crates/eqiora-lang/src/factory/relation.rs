@@ -83,26 +83,16 @@ impl SourceAstFactory {
         })
     }
 
-    /// Construct one continuous Relation family over a complete exterior.
+    /// Construct one Relation family over an exact finite set.
     ///
     /// # Errors
-    /// Returns an error unless the Relation is continuous, is attached to the
-    /// binder member, and both declarations are structurally valid.
+    /// Rejects malformed binders or equations. The compiler determines the
+    /// set kind and checks support and activation restrictions.
     pub fn relation_family(
         relation: RelationDecl,
         binder: FamilyBinderSyntax,
     ) -> Result<RelationFamilyDecl, AstConstructionError> {
         validate_boundary_family_binder(&binder)?;
-        if relation.activation() != &ActivationSyntax::Continuous {
-            return Err(AstConstructionError::new(
-                "a boundary Relation family must be continuous",
-            ));
-        }
-        if relation.domain() != Some(binder.member()) {
-            return Err(AstConstructionError::new(
-                "a boundary Relation family Domain must name its binder member",
-            ));
-        }
         checked_range(relation.range())?;
         for equation in relation.equations() {
             validate_expression(equation.left())?;

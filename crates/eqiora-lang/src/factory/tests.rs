@@ -119,6 +119,7 @@ fn owned_flat_model_formats_and_parses_identically() {
     .expect("Relation");
     let connection = SourceAstFactory::connection(
         ConnectionSyntax::Signal,
+        None,
         vec![
             SourceAstFactory::expression(ExprKind::Path(path(&["output"])), range(0, 0)).unwrap(),
             SourceAstFactory::expression(ExprKind::Path(path(&["input"])), range(0, 0)).unwrap(),
@@ -723,6 +724,7 @@ fn construction_rejects_unrepresentable_source_shapes() {
     assert!(
         SourceAstFactory::connection(
             ConnectionSyntax::Conserving,
+            None,
             vec![
                 SourceAstFactory::expression(ExprKind::Path(path(&["only_one"])), range(0, 0))
                     .unwrap()

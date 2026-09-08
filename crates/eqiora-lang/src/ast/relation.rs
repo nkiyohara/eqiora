@@ -95,7 +95,7 @@ impl Equation {
     }
 }
 
-/// One continuous Relation expanded once per complete-exterior member.
+/// One Relation expanded once per member of an exact finite set.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RelationFamilyDecl {
     pub(crate) relation: RelationDecl,
@@ -103,7 +103,7 @@ pub struct RelationFamilyDecl {
 }
 
 impl RelationFamilyDecl {
-    /// Underlying continuous Relation declaration.
+    /// Underlying Relation declaration, including support and activation.
     #[must_use]
     pub const fn relation(&self) -> &RelationDecl {
         &self.relation
