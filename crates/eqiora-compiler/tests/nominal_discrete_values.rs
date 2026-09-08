@@ -147,3 +147,29 @@ model M(parameter n:integer,output first:1) {
     assert!(model.symbols().get("cell[1].y").is_some());
     assert!(model.symbols().get("cell[2].y").is_none());
 }
+
+#[test]
+fn source_index_parameter_default_uses_its_retained_kernel_index_set() {
+    let source = "model M() { indexset Rows=range(3); parameter selected:index<Rows>=index(Rows,2); variable y:1; relation law {y=0;} }";
+    let model = CompiledModel::compile_selected("index.eqi", source, "M", &[])
+        .unwrap_or_else(|errors| panic!("{errors:?}"));
+    let set = model.symbols().get("Rows").unwrap();
+    let parameter = model.symbols().get("selected").unwrap();
+    let value = model
+        .transaction()
+        .ops()
+        .iter()
+        .find_map(|op| match op {
+            eqiora_graph::Op::DefineKernelNode {
+                node: eqiora_schema::kernel::KernelNode::Parameter(value),
+            } if value.id().erase() == parameter => Some(value.value()),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(value.value_type().index_set().unwrap().erase(), set);
+    assert_eq!(value.ordinal().unwrap().integer_scalar_value(), Some(2));
+    for initializer in ["index(Rows,3)", "index(Rows,-1)"] {
+        let invalid = source.replace("index(Rows,2)", initializer);
+        assert!(CompiledModel::compile_selected("index.eqi", &invalid, "M", &[]).is_err());
+    }
+}
