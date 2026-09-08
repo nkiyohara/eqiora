@@ -194,18 +194,17 @@ impl ExpressionChecker<'_, '_, '_> {
             if !seen.insert(Arc::as_ptr(&alias) as usize) {
                 continue;
             }
-            if let Some(event) = &alias.event_context {
-                if self.activation != &ActivationSyntax::Named(event.clone())
+            if let Some(event) = &alias.event_context
+                && (self.activation != &ActivationSyntax::Named(event.clone())
                     || self.initial
-                    || self.sampling
-                {
-                    return Err(source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        self.scope.file,
-                        alias.range,
-                        "event-local let alias requires its exact event activation",
-                    ));
-                }
+                    || self.sampling)
+            {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.scope.file,
+                    alias.range,
+                    "event-local let alias requires its exact event activation",
+                ));
             }
             self.physical_endpoints
                 .extend(alias.endpoints.iter().cloned());
