@@ -17,7 +17,7 @@ pub(super) fn collect_expression_dependencies(
     file: &str,
     expression: &Expr,
     contains: impl Fn(&str) -> bool,
-    context: ExpressionContext,
+    context: ExpressionContext<'_>,
 ) -> (BTreeMap<String, TextRange>, Vec<Diagnostic>) {
     let mut dependencies = BTreeMap::new();
     let mut diagnostics = Vec::new();

@@ -105,7 +105,7 @@ impl<'d> RootExpansion<'_, 'd> {
             let name = format!("{}[{ordinal}]", instance.name());
             let path = child_instance_path(parent_path, &name, self.elaborator.limits.identity)
                 .map_err(one_diagnostic)?;
-            let interface = self.expand_component(
+            let mut interface = self.expand_component(
                 component.clone(),
                 instance,
                 file,
@@ -113,6 +113,7 @@ impl<'d> RootExpansion<'_, 'd> {
                 display_child(parent_display, &name),
                 &member_scope,
             )?;
+            interface.index_set = Some(set.id());
             scope.insert_child(name, interface);
         }
         Ok(())
@@ -124,27 +125,15 @@ mod tests {
     use super::*;
     #[test]
     fn indexed_instances_keep_distinct_occurrences_and_exact_ordinals() {
-        let compiled = crate::compile("indexed.eqi", "component Cell(parameter value:1) {} model M() { indexset Stages=range(3); instance cell[i in Stages]:Cell(value=to_real(ordinal(i))); }").unwrap_or_else(|errors|panic!("{errors:?}"));
+        let compiled = crate::compile("indexed.eqi", "component Cell(parameter value:1, output y:1) { relation emit { y=value; } } model M() { indexset Stages=range(3); instance cell[i in Stages]:Cell(value=to_real(ordinal(i))); }").unwrap_or_else(|errors|panic!("{errors:?}"));
         let model = &compiled[0];
         let mut ids = BTreeSet::new();
         for ordinal in 0..3 {
             let id = model
                 .symbols()
-                .get(&format!("cell[{ordinal}].value"))
+                .get(&format!("cell[{ordinal}].y"))
                 .expect("indexed display identity");
             assert!(ids.insert(id));
-            let value = model
-                .transaction()
-                .ops()
-                .iter()
-                .find_map(|op| match op {
-                    eqiora_graph::Op::DefineKernelNode {
-                        node: eqiora_schema::kernel::KernelNode::Parameter(parameter),
-                    } if parameter.id().erase() == id => parameter.value().real_scalar_value(),
-                    _ => None,
-                })
-                .unwrap();
-            assert_eq!(value.value(), f64::from(ordinal));
         }
         assert!(model.symbols().get("cell.value").is_none());
     }

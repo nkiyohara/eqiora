@@ -179,6 +179,7 @@ impl<'a> SymbolicParameterResolver<'a> {
             &declarations,
             resolve_parent,
             resolve_clock,
+            ExpressionContext::Binding,
         )?;
         Ok(Self {
             declaration_file,
@@ -360,6 +361,7 @@ fn resolve_instance_overrides(
     declarations: &BTreeMap<String, &ComponentParameterDecl>,
     mut resolve_parent: impl FnMut(&str) -> Option<SymbolicParameterValue>,
     resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
+    context: ExpressionContext<'_>,
 ) -> Result<BTreeMap<String, SymbolicParameterValue>, Vec<Diagnostic>> {
     let mut overrides = BTreeMap::new();
     let mut bound = BTreeSet::new();
@@ -418,7 +420,7 @@ fn resolve_instance_overrides(
         let value = evaluate_parameter_expression(
             binding_file,
             binding.value(),
-            ExpressionContext::Binding,
+            context,
             &mut |name, range| {
                 resolve_parent(name).ok_or_else(|| {
                     source_error(
@@ -492,6 +494,11 @@ pub(super) fn validate_instance_parameters_symbolically(
         &declarations,
         |name| parent_parameters.get(name).cloned(),
         &mut resolve_clock,
+        instance
+            .family()
+            .map_or(ExpressionContext::Binding, |family| {
+                ExpressionContext::IndexedBinding(family.member())
+            }),
     )?;
     let diagnostics = declarations
         .into_iter()
@@ -893,6 +900,23 @@ pub(in crate::hierarchy) fn structural_extent(
     expression: &Expr,
     values: &SymbolicParameterMap,
 ) -> Result<Option<(u32, Vec<String>)>, Diagnostic> {
+    let value = structural_index(file, expression, values)?;
+    if value.as_ref().is_some_and(|(extent, _)| *extent == 0) {
+        return Err(source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            expression.range(),
+            "index set extent requires a positive exact integer",
+        ));
+    }
+    Ok(value)
+}
+
+pub(in crate::hierarchy) fn structural_index(
+    file: &str,
+    expression: &Expr,
+    values: &SymbolicParameterMap,
+) -> Result<Option<(u32, Vec<String>)>, Diagnostic> {
     let evaluated = expression_eval::evaluate_with_domain(
         file,
         expression,
@@ -916,13 +940,12 @@ pub(in crate::hierarchy) fn structural_extent(
     let extent = value
         .integer_scalar_value()
         .and_then(|value| u32::try_from(value).ok())
-        .filter(|value| *value > 0)
         .ok_or_else(|| {
             source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 file,
                 expression.range(),
-                "index set extent requires a positive exact integer within u32 bounds",
+                "structural index requires a nonnegative exact integer within u32 bounds",
             )
         })?;
     let dependencies = evaluated

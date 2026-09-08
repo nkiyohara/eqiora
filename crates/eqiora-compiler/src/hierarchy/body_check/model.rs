@@ -60,6 +60,14 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
     }
 
     fn validate(&mut self) {
+        self.scope.static_values = self.compile_time_values.clone();
+        for item in self.definition.declaration.items() {
+            if let Item::IndexSet(declaration) = item
+                && let Err(error) = self.scope.bind_index_set(declaration)
+            {
+                self.diagnostics.push(error);
+            }
+        }
         self.bind_non_boundary_interfaces();
         self.bind_boundaries();
         self.bind_fields_and_ports();
@@ -235,7 +243,7 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                 Item::Relation(declaration) => {
                     Ok(Some((declaration.name(), SymbolContract::Relation)))
                 }
-                Item::Instance(_) => Ok(None),
+                Item::IndexSet(_) | Item::Instance(_) => Ok(None),
                 Item::Initial(_)
                 | Item::Field(_)
                 | Item::Port(_)
@@ -362,7 +370,7 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                 }
                 Item::Domain(declaration) => self.validate_domain(declaration),
                 Item::Field(declaration) => self.validate_field(declaration),
-                Item::Parameter(_) | Item::Let(_) | Item::Port(_) => {}
+                Item::IndexSet(_) | Item::Parameter(_) | Item::Let(_) | Item::Port(_) => {}
                 Item::Instance(instance) => {
                     if let Err(error) = super::scope::validate_input_bindings(
                         &self.scope,

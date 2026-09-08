@@ -123,3 +123,17 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         Ok(())
     }
 }
+
+impl RootExpansion<'_, '_> {
+    pub(super) fn record_index_dependencies(&mut self, scope: &Scope) {
+        for (id, names) in scope.index_dependencies() {
+            if let Some(FlatItemBlueprint::Nominal { dependencies, .. }) = self.items.iter_mut().find(|item| {
+                matches!(item, FlatItemBlueprint::Nominal { definition, .. } if definition.id() == id)
+            }) {
+                dependencies.extend(names);
+                dependencies.sort();
+                dependencies.dedup();
+            }
+        }
+    }
+}

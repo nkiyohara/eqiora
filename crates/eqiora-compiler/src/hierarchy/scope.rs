@@ -52,6 +52,7 @@ impl FlatSymbol {
 
 #[derive(Debug, Clone)]
 pub(super) struct InstanceInterface {
+    pub(super) index_set: Option<eqiora_core::Id<eqiora_core::entity::kinds::IndexSet>>,
     pub(super) public_ports: BTreeMap<String, FlatSymbol>,
     public_port_families: BTreeMap<String, BoundaryPortFamilyIndex>,
 }
@@ -62,6 +63,7 @@ impl InstanceInterface {
         public_port_families: BTreeMap<String, BoundaryPortFamilyIndex>,
     ) -> Self {
         Self {
+            index_set: None,
             public_ports,
             public_port_families,
         }
@@ -94,7 +96,7 @@ impl<'a> ActiveBoundaryMember<'a> {
 
 #[derive(Debug, Default, Clone)]
 pub(super) struct Scope {
-    index_sets: BTreeMap<String, eqiora_schema::kernel::IndexSetDef>,
+    index_sets: BTreeMap<String, indexed::ScopedIndexSet>,
     symbols: BTreeMap<String, FlatSymbol>,
     port_families: BTreeMap<String, BoundaryPortFamilyIndex>,
     boundary_sets: BTreeMap<String, ResolvedBoundarySet<FullElaborationIdentity>>,
@@ -526,6 +528,10 @@ pub(super) fn rewrite_expression_with_boundary_member(
             crate::hierarchy::parameters::static_index(file, index, &scope.symbolic_parameters())?,
             expression.range(),
         ),
+        ExprKind::Member { .. } => LoweringExpression::name(
+            scope.indexed_port(file, expression)?.internal_name.clone(),
+            expression.range(),
+        ),
         ExprKind::Path(path) if path.as_str() == "math.i" => LoweringExpression::literal(
             eqiora_core::ValueLiteral::new(
                 eqiora_core::ValueType::scalar(
@@ -908,45 +914,6 @@ fn resolve_exact_boundary(
             ),
         )),
     }
-}
-
-pub(super) fn resolve_ports<'a>(
-    file: &str,
-    range: TextRange,
-    paths: &[NamePath],
-    scope: &'a Scope,
-) -> Result<Vec<&'a FlatSymbol>, Diagnostic> {
-    let ports = resolve_visible_ports(file, paths, scope)?;
-    if ports.len() < 2 {
-        Err(source_error(
-            codes::LANGUAGE_TYPE_ERROR,
-            file,
-            range,
-            "Connection requires at least two visible Ports",
-        ))
-    } else {
-        Ok(ports)
-    }
-}
-
-pub(super) fn resolve_visible_ports<'a>(
-    file: &str,
-    paths: &[NamePath],
-    scope: &'a Scope,
-) -> Result<Vec<&'a FlatSymbol>, Diagnostic> {
-    paths
-        .iter()
-        .map(|path| {
-            scope.resolve_port(path).ok_or_else(|| {
-                source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    file,
-                    path.range(),
-                    format!("`{path}` does not select a visible Port in this scope"),
-                )
-            })
-        })
-        .collect()
 }
 
 pub(super) fn resolve_local_kind<'a>(

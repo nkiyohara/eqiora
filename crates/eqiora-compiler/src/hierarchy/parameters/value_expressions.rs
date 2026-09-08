@@ -6,7 +6,7 @@ use eqiora_schema::kernel::typing::ExpressionType;
 pub(super) fn evaluate(
     file: &str,
     expression: &Expr,
-    context: ExpressionContext,
+    context: ExpressionContext<'_>,
     resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
     resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
 ) -> Result<EvaluatedParameter, Diagnostic> {
@@ -16,7 +16,7 @@ pub(super) fn evaluate(
 pub(super) fn evaluate_with_target(
     file: &str,
     expression: &Expr,
-    context: ExpressionContext,
+    context: ExpressionContext<'_>,
     resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
     target: Option<&ValueType>,
     resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,

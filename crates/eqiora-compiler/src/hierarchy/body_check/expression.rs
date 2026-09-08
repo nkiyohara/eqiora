@@ -311,6 +311,10 @@ impl ExpressionChecker<'_, '_, '_> {
                     self.scope.resolve_symbol(path)?,
                 ),
             },
+            ExprKind::Member { .. } => {
+                let (path, _) = self.scope.indexed_member(expression)?;
+                self.scalar_contract(expression, path.as_str(), self.scope.resolve_symbol(&path)?)
+            }
             ExprKind::BoundaryPortSelection { port, selector } => {
                 let Some(family_scope) = self.family_scope else {
                     return Err(source_error(

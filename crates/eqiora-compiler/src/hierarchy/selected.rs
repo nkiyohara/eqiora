@@ -201,7 +201,8 @@ fn compile(
             owned_interfaces: preflight::owned_model_items(&bound),
             declaration: &bound,
         };
-        let mut size = checked_model_expansion_size(checked, &model)?;
+        let mut size =
+            super::definition_graph::selected_expansion_size(elaborator, checked, &definition)?;
         size.declarations = checked_external_footprint(
             "declarations",
             size.declarations,

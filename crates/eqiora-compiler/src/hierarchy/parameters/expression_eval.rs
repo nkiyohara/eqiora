@@ -1,16 +1,19 @@
 use super::*;
 
 #[derive(Debug, Clone, Copy)]
-pub(super) enum ExpressionContext {
+pub(super) enum ExpressionContext<'a> {
+    IndexedBinding(&'a str),
     Binding,
     Default,
     Let,
 }
 
-impl ExpressionContext {
+impl ExpressionContext<'_> {
     pub(super) fn unknown_name_message(self, name: &str) -> String {
         match self {
-            Self::Binding => format!("unknown Parameter `{name}` in compile-time binding"),
+            Self::Binding | Self::IndexedBinding(_) => {
+                format!("unknown Parameter `{name}` in compile-time binding")
+            }
             Self::Default => format!("unknown component Parameter `{name}`"),
             Self::Let => format!("unknown Parameter or let alias `{name}`"),
         }
@@ -18,7 +21,7 @@ impl ExpressionContext {
 
     pub(super) fn qualified_name_message(self, path: &impl std::fmt::Display) -> String {
         match self {
-            Self::Binding => format!(
+            Self::Binding | Self::IndexedBinding(_) => format!(
                 "qualified name `{path}` is not allowed in a compile-time Parameter binding"
             ),
             Self::Default => {
@@ -30,7 +33,7 @@ impl ExpressionContext {
 
     pub(super) fn call_message(self, callee: &str) -> String {
         match self {
-            Self::Binding => {
+            Self::Binding | Self::IndexedBinding(_) => {
                 format!("operator `{callee}(...)` is not allowed in a compile-time binding")
             }
             Self::Default => {
@@ -44,7 +47,9 @@ impl ExpressionContext {
 
     pub(super) const fn unsupported_message(self) -> &'static str {
         match self {
-            Self::Binding => "binding expression syntax is newer than this compiler",
+            Self::Binding | Self::IndexedBinding(_) => {
+                "binding expression syntax is newer than this compiler"
+            }
             Self::Default => "Parameter default syntax is newer than this compiler",
             Self::Let => "let expression syntax is newer than this compiler",
         }
@@ -54,7 +59,7 @@ impl ExpressionContext {
 pub(super) fn evaluate_parameter_expression(
     file: &str,
     expression: &Expr,
-    context: ExpressionContext,
+    context: ExpressionContext<'_>,
     resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
     resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
 ) -> Result<EvaluatedParameter, Diagnostic> {
@@ -64,11 +69,28 @@ pub(super) fn evaluate_parameter_expression(
 pub(super) fn evaluate_with_domain(
     file: &str,
     expression: &Expr,
-    context: ExpressionContext,
+    context: ExpressionContext<'_>,
     resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
     resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
     expected: Option<ScalarDomain>,
 ) -> Result<EvaluatedParameter, Diagnostic> {
+    if let ExpressionContext::IndexedBinding(member) = context
+        && let ExprKind::Call { callee, arguments } = expression.kind()
+        && callee.as_str() == "ordinal"
+        && let [argument] = arguments.as_slice()
+        && matches!(argument.kind(), ExprKind::Name(name) if name == member)
+    {
+        return Ok(EvaluatedParameter {
+            value: None,
+            value_type: EvaluatedType::Known(ValueType::scalar(
+                ScalarDomain::Integer,
+                DimExponents::DIMENSIONLESS,
+            )),
+            expression: None,
+            lineage: None,
+            bare_literal: false,
+        });
+    }
     if expression.resolved_nominal().is_some() {
         let value = crate::nominal::literal(file, expression)?;
         return Ok(EvaluatedParameter {
@@ -516,7 +538,7 @@ pub(crate) fn exact_signed_literal(
 pub(super) fn evaluate_initializer(
     file: &str,
     expression: &Expr,
-    context: ExpressionContext,
+    context: ExpressionContext<'_>,
     resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
     target: ValueType,
     label: &str,

@@ -55,8 +55,8 @@ use super::preflight::{
 };
 use super::scope::{
     ActiveBoundaryMember, FlatSymbol, InstanceInterface, Scope, SymbolKind,
-    resolve_boundary_port_reference, resolve_local_kind, resolve_ports, rewrite_equations,
-    rewrite_field_scope, rewrite_model_port, rewrite_relation,
+    resolve_boundary_port_reference, resolve_local_kind, rewrite_equations, rewrite_field_scope,
+    rewrite_model_port, rewrite_relation,
 };
 use super::supports::{
     CompleteExteriorMembershipBudget, ResolvedBoundaryTarget, ResolvedSupportBindings,
@@ -600,6 +600,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         if let Err(error) = self.materialize_model_items(&root_scope, &identities) {
             return Err(vec![error]);
         }
+        self.record_index_dependencies(&root_scope);
         if let Err(error) = self.finalize_physical_connections() {
             return Err(vec![error]);
         }
@@ -1595,6 +1596,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 _ => None,
             })
             .collect();
+        self.record_index_dependencies(&scope);
         Ok(InstanceInterface::with_public_port_families(
             public_ports,
             public_port_families,
@@ -2059,18 +2061,11 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         declaration_path: Vec<String>,
         origin: ConnectionOrigin,
     ) -> Result<(), Diagnostic> {
-        let ports = resolve_ports(
-            &origin.definition_file,
-            declaration.range(),
-            &declaration
-                .port_expressions()
-                .iter()
-                .map(|expression| {
-                    crate::source_endpoints::path(&origin.definition_file, expression)
-                })
-                .collect::<Result<Vec<_>, _>>()?,
-            scope,
-        )?;
+        let ports = declaration
+            .port_expressions()
+            .iter()
+            .map(|expression| scope.endpoint(&origin.definition_file, expression))
+            .collect::<Result<Vec<_>, _>>()?;
         self.add_resolved_connection(
             declaration.syntax(),
             ports,
@@ -2124,6 +2119,14 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         declaration_path: Vec<String>,
         origin: ConnectionOrigin,
     ) -> Result<(), Diagnostic> {
+        if ports.len() < 2 {
+            return Err(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                &origin.definition_file,
+                range,
+                "Connection requires at least two visible Ports",
+            ));
+        }
         match syntax {
             ConnectionSyntax::Conserving | ConnectionSyntax::SpatialPeriodic => {
                 ports.sort_unstable_by_key(|port| port.full_identity);
