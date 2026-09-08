@@ -558,6 +558,19 @@ fn encode_expression(
                 binary_expr(encoder, 30, *left, *right, &canonical_index)?
             }
             ExprNode::Or(left, right) => binary_expr(encoder, 31, *left, *right, &canonical_index)?,
+            ExprNode::Select {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                encoder.u8(34)?;
+                for operand in [condition, then_value, else_value] {
+                    encoder.u32(canonical_expr_id(*operand, &canonical_index)?)?;
+                }
+            }
+            ExprNode::Require { condition, value } => {
+                binary_expr(encoder, 35, *condition, *value, &canonical_index)?
+            }
             ExprNode::Min(left, right) => {
                 binary_expr(encoder, 32, *left, *right, &canonical_index)?
             }
@@ -770,6 +783,12 @@ fn expression_operands(node: &ExprNode) -> Vec<eqiora_schema::kernel::ExprId> {
         | ExprNode::Quotient(left, right)
         | ExprNode::Remainder(left, right)
         | ExprNode::Div(left, right) => vec![*left, *right],
+        ExprNode::Select {
+            condition,
+            then_value,
+            else_value,
+        } => vec![*condition, *then_value, *else_value],
+        ExprNode::Require { condition, value } => vec![*condition, *value],
         ExprNode::PureOperatorApplication(application) => application.arguments().to_vec(),
         ExprNode::Constant(_) | ExprNode::Symbol(_) | ExprNode::SpatialCoordinate(_) => Vec::new(),
         _ => Vec::new(),
