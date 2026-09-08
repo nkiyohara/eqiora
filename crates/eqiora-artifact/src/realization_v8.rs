@@ -26,6 +26,8 @@ const REALIZATION_SCHEMA: &str = "eqiora.realization-envelope/v8";
 /// Contains canonical exact Domain/Field and conforming trace-quotient inventories,
 /// one content-addressed shared imported mesh, and one fixed
 /// Backward Euler step, with exact rational physical dimensions.
+/// Current coupled payloads require plural trace inventories, including when nested
+/// in an ALE envelope; the displaced singular `trace_quotient` field is rejected.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RealizationEnvelopeV8 {
     wire: WireRealizationEnvelopeV8,
