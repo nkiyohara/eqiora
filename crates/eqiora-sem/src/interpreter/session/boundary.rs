@@ -150,6 +150,7 @@ impl ExecutionSession {
             })
             .unwrap_or_default();
         if !due.is_empty() {
+            clear_clocked_variables(&self.program, &mut candidate);
             self.install_inputs(&mut candidate, &due)?;
         }
         let mut active = active_events

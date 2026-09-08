@@ -49,7 +49,6 @@ pub(crate) fn root_is_left_of(
     direction: EventDirection,
     left_guard: f64,
     midpoint_guard: f64,
-    _guard_tolerance: f64,
 ) -> bool {
     crosses(direction, left_guard, midpoint_guard, 0.)
 }

@@ -675,7 +675,6 @@ fn execute_activated_relations(
     backend: &impl ExpressionBackend,
 ) -> Result<(), Diagnostic> {
     let mut accepted_candidate = state.clone();
-    clear_clocked_variables(program, &mut accepted_candidate);
     direct_assignments::stage(
         program,
         plan,

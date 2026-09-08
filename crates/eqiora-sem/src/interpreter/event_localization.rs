@@ -70,12 +70,7 @@ pub(super) fn locate_event_bracket(
         if midpoint_guard == 0.0 {
             return Ok((midpoint, midpoint));
         }
-        if event::root_is_left_of(
-            task.direction,
-            left_guard,
-            midpoint_guard,
-            config.event_guard_tolerance,
-        ) {
+        if event::root_is_left_of(task.direction, left_guard, midpoint_guard) {
             right_time = midpoint;
         } else {
             left_time = midpoint;
