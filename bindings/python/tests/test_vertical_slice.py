@@ -222,7 +222,7 @@ def test_native_declarations_share_the_canonical_compile_and_run_path() -> None:
     )
 
     model = eqiora.Model.define("decay", state, rate, flow, eqiora.Initial((state, 1.0)))
-    assert json.loads(model.to_bytes())["schema"] == "eqiora.model-envelope/v16"
+    assert json.loads(model.to_bytes())["schema"] == "eqiora.model-envelope/v17"
     field = model.field(model.field_ids[0])
     plan = eqiora.resolve(
         model,
