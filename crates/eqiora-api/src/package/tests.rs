@@ -234,7 +234,7 @@ fn enum_package_identity_and_locked_replay_preserve_declared_tags() {
     let dependency = PackageReleaseV1::from_json(&dependency.canonical_json().unwrap()).unwrap();
     let root = release(
         "org.example.EnumRoot",
-        "import org.example.EnumLibrary.main as first; import org.example.EnumLibrary.main as second; model Main() { let command = case first.Mode.Heating { second.Mode.Heating => 1, second.Mode.Cooling => -1 }; }",
+        "import org.example.EnumLibrary.main as first; import org.example.EnumLibrary.main as second; model Main() { let command = case first.Mode.Heating { second.Mode.Heating => 1, second.Mode.Cooling => -1 }; variable output: 1; relation law { output = command; } }",
         &[("first", &dependency)],
     );
     let resolution =
