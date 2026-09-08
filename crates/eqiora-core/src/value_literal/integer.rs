@@ -64,7 +64,7 @@ impl ValueLiteral {
         match &self.payload {
             Payload::Zero => (index < self.component_count()).then_some(0),
             Payload::Integers(values) => values.get(index).copied(),
-            Payload::Components(_) | Payload::Boolean(_) => None,
+            Payload::Components(_) | Payload::Boolean(_) | Payload::Enum(_) => None,
         }
     }
 

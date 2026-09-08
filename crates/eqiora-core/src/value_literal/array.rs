@@ -53,7 +53,7 @@ impl ValueLiteral {
                     .iter()
                     .flat_map(|value| value.components().expect("checked common floating domain")),
             ),
-            ScalarDomain::Boolean => Err(InvalidValueLiteral::ScalarDomain),
+            ScalarDomain::Boolean | ScalarDomain::Enum => Err(InvalidValueLiteral::ScalarDomain),
         }
     }
 
@@ -110,7 +110,7 @@ impl ValueLiteral {
                 element,
                 (start..start + count).map(|i| self.component(i).expect("checked element slice")),
             ),
-            ScalarDomain::Boolean => Err(InvalidValueLiteral::ScalarDomain),
+            ScalarDomain::Boolean | ScalarDomain::Enum => Err(InvalidValueLiteral::ScalarDomain),
         }
     }
 }

@@ -27,6 +27,10 @@ pub struct ValueType {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum Meaning {
     Ordinary,
+    Enum {
+        definition: Id<kinds::Enum>,
+        members: u32,
+    },
     Coordinates(Id<kinds::FiniteSpace>),
     Counts(Id<kinds::FiniteSpace>),
     Index {
@@ -36,6 +40,36 @@ enum Meaning {
 }
 
 impl ValueType {
+    /// One closed nominal enum declaration; members are not numeric ordinals.
+    pub fn enumeration(
+        definition: Id<kinds::Enum>,
+        member_count: u32,
+    ) -> Result<Self, InvalidValueType> {
+        if member_count == 0 {
+            return Err(InvalidValueType::EnumType);
+        }
+        let mut value = Self::scalar(ScalarDomain::Enum, DimExponents::DIMENSIONLESS);
+        value.meaning = Meaning::Enum {
+            definition,
+            members: member_count,
+        };
+        Ok(value)
+    }
+    /// Exact enum declaration identity.
+    pub const fn enum_definition(&self) -> Option<Id<kinds::Enum>> {
+        match self.meaning {
+            Meaning::Enum { definition, .. } => Some(definition),
+            _ => None,
+        }
+    }
+    /// Exact declared member count, cross-checked by semantic admission.
+    pub const fn enum_member_count(&self) -> Option<u32> {
+        match self.meaning {
+            Meaning::Enum { members, .. } => Some(members),
+            _ => None,
+        }
+    }
+
     /// Dimensionless invariant logical scalar, distinct from every numeric domain.
     #[must_use]
     pub fn boolean() -> Self {
@@ -86,7 +120,7 @@ impl ValueType {
     #[must_use]
     pub const fn finite_space(&self) -> Option<Id<kinds::FiniteSpace>> {
         match self.meaning {
-            Meaning::Ordinary | Meaning::Index { .. } => None,
+            Meaning::Ordinary | Meaning::Enum { .. } | Meaning::Index { .. } => None,
             Meaning::Coordinates(id) | Meaning::Counts(id) => Some(id),
         }
     }
@@ -132,6 +166,9 @@ impl ValueType {
     /// # Errors
     /// Rejects a zero extent or an unrepresentable component count.
     pub fn array(self, extent: u32) -> Result<Self, InvalidValueType> {
+        if self.scalar_domain == ScalarDomain::Enum {
+            return Err(InvalidValueType::EnumType);
+        }
         if self.scalar_domain == ScalarDomain::Boolean {
             return Err(InvalidValueType::BooleanType);
         }
@@ -190,6 +227,9 @@ impl ValueType {
         shape: ValueShape,
         frame: ValueFrame,
     ) -> Result<Self, InvalidValueType> {
+        if scalar_domain == ScalarDomain::Enum {
+            return Err(InvalidValueType::EnumType);
+        }
         if scalar_domain == ScalarDomain::Boolean
             && (dimension != DimExponents::DIMENSIONLESS
                 || !shape.is_scalar()
@@ -247,6 +287,8 @@ impl ValueType {
 pub enum InvalidValueType {
     /// Boolean values require dimensionless invariant scalars.
     BooleanType,
+    /// Enums require an exact nonempty declaration and dimensionless invariant scalar shape.
+    EnumType,
     /// Finite basis coordinates cannot acquire implicit channel axes.
     FiniteSpaceShape,
     /// An array axis must contain at least one element.
@@ -260,6 +302,9 @@ pub enum InvalidValueType {
 impl core::fmt::Display for InvalidValueType {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         formatter.write_str(match self {
+            Self::EnumType => {
+                "enum values require a closed nominal dimensionless invariant scalar type"
+            }
             Self::BooleanType => "Boolean values require dimensionless invariant scalar types",
             Self::FiniteSpaceShape => "finite basis coordinates are not channel arrays",
             Self::ArrayExtent => "array extent must be positive",

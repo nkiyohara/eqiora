@@ -342,3 +342,53 @@ fn booleans_never_coerce_to_numeric_values_or_zero() {
         assert!(ValueLiteral::new(ValueType::boolean(), [(real_number, 0.0)]).is_err());
     }
 }
+
+#[test]
+fn enum_values_preserve_nominality_without_numeric_coercion() {
+    let id = crate::Id::new();
+    let ty = ValueType::enumeration(id, 2).unwrap();
+    let first = ValueLiteral::enum_value(ty.clone(), 0).unwrap();
+    let second = ValueLiteral::enum_value(ty.clone(), 1).unwrap();
+    assert_eq!(first.enum_tag(), Some(0));
+    assert!(!first.is_zero());
+    assert!(!first.checked_equal(&second).unwrap());
+    assert!(first.checked_equal(&first).unwrap());
+    assert!(
+        first
+            .checked_equal(
+                &ValueLiteral::enum_value(ValueType::enumeration(crate::Id::new(), 2).unwrap(), 0)
+                    .unwrap()
+            )
+            .is_err()
+    );
+    assert!(ValueType::enumeration(id, 0).is_err());
+    assert!(ValueLiteral::enum_value(ty.clone(), 2).is_err());
+    assert!(ValueLiteral::enum_value(ty.clone(), u32::MAX).is_err());
+    assert!(ty.clone().array(2).is_err());
+    assert!(ValueLiteral::from_integer(ty.clone(), 0).is_err());
+    assert!(ValueLiteral::from_real(ty.clone(), 0.).is_err());
+    assert!(
+        ValueLiteral::enum_value(
+            ty.with_dimension(DimExponents::from_integers([1, 0, 0, 0, 0, 0, 0]).unwrap()),
+            0
+        )
+        .is_err()
+    );
+    assert!(
+        ValueLiteral::enum_value(
+            ValueType::scalar(ScalarDomain::Enum, DimExponents::DIMENSIONLESS),
+            0
+        )
+        .is_err()
+    );
+    assert!(first.component(0).is_none());
+    assert!(first.components().is_none());
+    assert!(first.integer_component(0).is_none());
+    assert!(first.integer_scalar_value().is_none());
+    assert!(first.as_bool().is_none());
+    assert!(first.checked_order(&second).is_err());
+    assert!(first.checked_add(&second).is_err());
+    assert!(first.checked_neg().is_err());
+    assert!(first.to_real().is_err());
+    assert!(first.to_integer().is_err());
+}

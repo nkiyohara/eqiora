@@ -25,8 +25,9 @@ impl<I: Clone + Eq> ExpressionType<I> {
     /// Validate both sides of an equation without performing arithmetic.
     pub fn equation(self, other: Self) -> Result<Self, TypeViolation<I>> {
         for value in [&self, &other] {
-            if value.value_type.scalar_domain() == ScalarDomain::Boolean
-                && value.value_type != ValueType::boolean()
+            if !valid_enum_type(&value.value_type)
+                || value.value_type.scalar_domain() == ScalarDomain::Boolean
+                    && value.value_type != ValueType::boolean()
             {
                 return Err(TypeViolation::ScalarDomainMismatch);
             }
@@ -131,6 +132,16 @@ pub(super) fn numerical_root<I>(value: &ExpressionType<I>) -> Result<(), TypeVio
     } else {
         Err(TypeViolation::ScalarDomainMismatch)
     }
+}
+
+pub(super) fn valid_enum_type(value: &ValueType) -> bool {
+    if value.scalar_domain() != ScalarDomain::Enum {
+        return true;
+    }
+    let (Some(id), Some(count)) = (value.enum_definition(), value.enum_member_count()) else {
+        return false;
+    };
+    ValueType::enumeration(id, count).ok().as_ref() == Some(value)
 }
 
 #[cfg(test)]

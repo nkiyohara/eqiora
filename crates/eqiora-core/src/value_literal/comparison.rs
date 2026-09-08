@@ -12,6 +12,12 @@ impl ValueLiteral {
             self.value_type().scalar_domain(),
             other.value_type().scalar_domain(),
         ) {
+            (ScalarDomain::Enum, ScalarDomain::Enum) => {
+                if self.value_type() != other.value_type() {
+                    return Err(InvalidValueLiteral::ScalarDomain);
+                }
+                Ok(self.enum_tag() == other.enum_tag())
+            }
             (ScalarDomain::Boolean, ScalarDomain::Boolean) => Ok(self.as_bool() == other.as_bool()),
             (ScalarDomain::Integer, ScalarDomain::Integer) => {
                 if self.value_type() != other.value_type() {
@@ -45,7 +51,9 @@ impl ValueLiteral {
                 .zip(other.real_scalar_value())
                 .and_then(|(left, right)| left.value().partial_cmp(&right.value()))
                 .ok_or(InvalidValueLiteral::ScalarDomain),
-            ScalarDomain::Boolean | ScalarDomain::Complex => Err(InvalidValueLiteral::ScalarDomain),
+            ScalarDomain::Boolean | ScalarDomain::Complex | ScalarDomain::Enum => {
+                Err(InvalidValueLiteral::ScalarDomain)
+            }
         }
     }
 

@@ -58,6 +58,8 @@ pub enum EntityKind {
     FiniteSpace,
     /// Finite ordinal set with fixed structural extent.
     IndexSet,
+    /// One nominal declaration of closed finite alternatives.
+    Enum,
     // --- Realization Graph ---
     /// Discrete function space realizing a field.
     Space,
@@ -144,6 +146,7 @@ impl EntityKind {
             | Self::Relation
             | Self::Activation
             | Self::Connection
+            | Self::Enum
             | Self::IndexSet
             | Self::FiniteSpace
             | Self::ClockDomain => GraphClass::Semantic,
@@ -256,6 +259,10 @@ pub mod kinds {
     define_entity!(
         /// See [`super::EntityKind::IndexSet`].
         IndexSet in Semantic
+    );
+    define_entity!(
+        /// See [`super::EntityKind::Enum`].
+        Enum in Semantic
     );
     define_entity!(
         /// See [`super::EntityKind::FiniteSpace`].

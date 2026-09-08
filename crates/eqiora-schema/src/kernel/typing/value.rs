@@ -23,7 +23,8 @@ impl<I> ExpressionType<I> {
     ) -> Result<Self, TypeViolation<I>> {
         let value_type = ValueType::shaped(scalar_domain, dimension, shape, frame).map_err(
             |error| match error {
-                InvalidValueType::BooleanType
+                InvalidValueType::EnumType
+                | InvalidValueType::BooleanType
                 | InvalidValueType::FiniteSpaceShape
                 | InvalidValueType::ScalarFrame => TypeViolation::IncompatibleFrame,
                 InvalidValueType::ComponentCountOverflow | InvalidValueType::ArrayExtent => {

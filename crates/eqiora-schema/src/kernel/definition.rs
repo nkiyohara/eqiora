@@ -610,6 +610,8 @@ pub enum KernelNode {
     FiniteSpace(super::FiniteSpaceDef),
     /// Fixed structural ordinal set.
     IndexSet(super::IndexSetDef),
+    /// One closed nominal enum declaration.
+    Enum(super::EnumDef),
     /// ClockDomain definition.
     ClockDomain(ClockDomainDef),
 }
@@ -629,6 +631,7 @@ impl KernelNode {
             Self::Connection(value) => value.id().erase(),
             Self::ClockDomain(value) => value.id().erase(),
             Self::FiniteSpace(value) => value.id().erase(),
+            Self::Enum(value) => value.id().erase(),
             Self::IndexSet(value) => value.id().erase(),
         }
     }
@@ -647,6 +650,7 @@ impl KernelNode {
             Self::Connection(_) => EntityKind::Connection,
             Self::ClockDomain(_) => EntityKind::ClockDomain,
             Self::FiniteSpace(_) => EntityKind::FiniteSpace,
+            Self::Enum(_) => EntityKind::Enum,
             Self::IndexSet(_) => EntityKind::IndexSet,
         }
     }
