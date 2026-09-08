@@ -18,6 +18,7 @@ mod model_tests;
 #[cfg(test)]
 mod tests;
 mod value_expression;
+mod dependencies;
 use crate::units::lower_clock;
 use binding::{
     Binding, DomainContract, FieldContract, PortContract, ResolvedPortContract, bind_domain,

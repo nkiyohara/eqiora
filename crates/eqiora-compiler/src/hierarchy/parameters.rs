@@ -887,3 +887,12 @@ pub(in crate::hierarchy) fn static_index(
 }
 
 pub(crate) use expression_eval::exact_signed_literal;
+
+
+pub(in crate::hierarchy) fn structural_extent(file: &str, expression: &Expr, values: &SymbolicParameterMap) -> Result<Option<(u32, Vec<String>)>, Diagnostic> {
+    let evaluated = expression_eval::evaluate_with_domain(file, expression, ExpressionContext::Let, &mut |name, range| values.get(name).cloned().ok_or_else(|| source_error(codes::LANGUAGE_TYPE_ERROR, file, range, "index set extent depends on an unknown or runtime value")), &mut |_| None, Some(ScalarDomain::Integer))?;
+    let Some(value) = evaluated.value else { return Ok(None); };
+    let extent = value.integer_scalar_value().and_then(|value| u32::try_from(value).ok()).filter(|value| *value > 0).ok_or_else(|| source_error(codes::LANGUAGE_TYPE_ERROR, file, expression.range(), "index set extent requires a positive exact integer within u32 bounds"))?;
+    let dependencies = evaluated.expression.map(|expression| expression.referenced_names().into_iter().collect()).unwrap_or_default();
+    Ok(Some((extent, dependencies)))
+}
