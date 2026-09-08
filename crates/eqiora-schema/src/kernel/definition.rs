@@ -295,36 +295,44 @@ impl PortDef {
     }
 }
 
-/// Implicit residual Relation definition.
+/// Simultaneous equations retaining both authored sides.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RelationDef {
     id: Id<kinds::Relation>,
-    residuals: ExprDag,
+    expression: ExprDag,
     initial: bool,
 }
 
 impl RelationDef {
-    /// Define one or more residual equations represented by an expression DAG.
-    #[must_use]
-    pub const fn new(id: Id<kinds::Relation>, residuals: ExprDag) -> Self {
-        Self {
+    /// Define equations from consecutive `(left, right)` output-root pairs.
+    ///
+    /// # Errors
+    /// Rejects an odd number of output roots.
+    pub fn new(id: Id<kinds::Relation>, expression: ExprDag) -> Result<Self, Diagnostic> {
+        if expression.roots().len() % 2 != 0 {
+            return Err(Diagnostic::error(
+                codes::INVALID_KERNEL_DEFINITION,
+                "Relation equations require consecutive left/right root pairs",
+            ));
+        }
+        Ok(Self {
             id,
-            residuals,
+            expression,
             initial: false,
-        }
+        })
     }
 
-    /// Define simultaneous fresh-initialization equations using the same residual DAG.
-    #[must_use]
-    pub const fn initial(id: Id<kinds::Relation>, residuals: ExprDag) -> Self {
-        Self {
-            id,
-            residuals,
-            initial: true,
-        }
+    /// Define simultaneous fresh-initialization equations with paired output roots.
+    ///
+    /// # Errors
+    /// Rejects an odd number of output roots.
+    pub fn initial(id: Id<kinds::Relation>, expression: ExprDag) -> Result<Self, Diagnostic> {
+        let mut definition = Self::new(id, expression)?;
+        definition.initial = true;
+        Ok(definition)
     }
 
-    /// Whether this mathematics applies only to fresh initialization, never restart.
+    /// Whether these equations apply only to fresh initialization, never restart.
     #[must_use]
     pub const fn is_initial(&self) -> bool {
         self.initial
@@ -336,10 +344,20 @@ impl RelationDef {
         self.id
     }
 
-    /// Residual DAG; every root denotes `root = 0`.
+    /// Shared expression arena retaining the authored equation sides.
     #[must_use]
-    pub const fn residuals(&self) -> &ExprDag {
-        &self.residuals
+    pub const fn expression(&self) -> &ExprDag {
+        &self.expression
+    }
+
+    /// Left/right sides in authored equation order.
+    pub fn equation_sides(
+        &self,
+    ) -> impl ExactSizeIterator<Item = (super::ExprId, super::ExprId)> + '_ {
+        self.expression
+            .roots()
+            .chunks_exact(2)
+            .map(|pair| (pair[0], pair[1]))
     }
 }
 

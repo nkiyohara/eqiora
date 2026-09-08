@@ -1,4 +1,4 @@
-//! Inspectable residual-expression DAG.
+//! Inspectable expression DAG.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -63,6 +63,23 @@ pub enum UnaryMathFunction {
     Sqrt,
 }
 
+/// Exact scalar comparison operation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ComparisonOp {
+    /// Equal values.
+    Equal,
+    /// Unequal values.
+    NotEqual,
+    /// Strictly less.
+    Less,
+    /// Less or equal.
+    LessEqual,
+    /// Strictly greater.
+    Greater,
+    /// Greater or equal.
+    GreaterEqual,
+}
+
 /// One content-addressed application of a closed pure-operator definition.
 ///
 /// Construction is intentionally owned by [`ExprDagBuilder::pure_operator`].
@@ -88,10 +105,18 @@ impl PureOperatorApplication {
     }
 }
 
-/// One node in a topologically ordered residual-expression DAG.
+/// One node in a topologically ordered expression DAG.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ExprNode {
+    /// Scalar comparison retaining exact operand domains.
+    Compare(ComparisonOp, ExprId, ExprId),
+    /// Boolean negation.
+    Not(ExprId),
+    /// Short-circuit Boolean conjunction.
+    And(ExprId, ExprId),
+    /// Short-circuit Boolean disjunction.
+    Or(ExprId, ExprId),
     /// Constant retaining its complete mathematical type.
     Constant(ValueLiteral),
     /// Kernel symbol reference.
@@ -164,6 +189,7 @@ impl ExprNode {
             Self::Array { elements } => elements.iter().copied().try_for_each(visit),
             Self::Sample { value, .. }
             | Self::Ordinal(value)
+            | Self::Not(value)
             | Self::ToReal(value)
             | Self::ToInteger(value)
             | Self::Hold(value)
@@ -181,6 +207,9 @@ impl ExprNode {
                 real: left,
                 imag: right,
             }
+            | Self::Compare(_, left, right)
+            | Self::And(left, right)
+            | Self::Or(left, right)
             | Self::Add(left, right)
             | Self::Sub(left, right)
             | Self::Mul(left, right)
@@ -198,7 +227,7 @@ impl ExprNode {
     }
 }
 
-/// A non-empty, structurally validated expression arena with residual roots.
+/// A non-empty, structurally validated expression arena with output roots.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprDag {
     nodes: Vec<ExprNode>,
@@ -213,7 +242,7 @@ impl ExprDag {
         &self.nodes
     }
 
-    /// Residual roots. Every root is evaluated as an equation `root = 0`.
+    /// Output roots in caller-defined order; their meaning belongs to the consumer.
     #[must_use]
     pub fn roots(&self) -> &[ExprId] {
         &self.roots
@@ -342,6 +371,28 @@ impl ExprDagBuilder {
     /// Add a typed symbol reference.
     pub fn symbol(&mut self, symbol: SymbolRef) -> Result<ExprId, Diagnostic> {
         self.push(ExprNode::Symbol(symbol))
+    }
+
+    /// Compare two scalar expressions.
+    pub fn compare(
+        &mut self,
+        op: ComparisonOp,
+        left: ExprId,
+        right: ExprId,
+    ) -> Result<ExprId, Diagnostic> {
+        self.push(ExprNode::Compare(op, left, right))
+    }
+    /// Negate a Boolean expression.
+    pub fn not(&mut self, value: ExprId) -> Result<ExprId, Diagnostic> {
+        self.push(ExprNode::Not(value))
+    }
+    /// Short-circuit Boolean conjunction.
+    pub fn and(&mut self, left: ExprId, right: ExprId) -> Result<ExprId, Diagnostic> {
+        self.push(ExprNode::And(left, right))
+    }
+    /// Short-circuit Boolean disjunction.
+    pub fn or(&mut self, left: ExprId, right: ExprId) -> Result<ExprId, Diagnostic> {
+        self.push(ExprNode::Or(left, right))
     }
 
     /// Add unary negation.
@@ -489,7 +540,7 @@ impl ExprDagBuilder {
         Ok(id)
     }
 
-    /// Finish a DAG with one or more residual roots.
+    /// Finish a DAG with one or more output roots.
     ///
     /// # Errors
     /// Returns `EQ0301` when the arena or root set is empty, or a root is not
@@ -499,7 +550,7 @@ impl ExprDagBuilder {
         if self.nodes.is_empty() || roots.is_empty() {
             return Err(Diagnostic::error(
                 codes::INVALID_EXPRESSION_DAG,
-                "expression DAG requires at least one node and one residual root",
+                "expression DAG requires at least one node and one output root",
             ));
         }
         for root in &roots {

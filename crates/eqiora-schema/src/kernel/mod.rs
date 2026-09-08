@@ -28,7 +28,7 @@ pub use definition::{
     SignalDirection,
 };
 pub use expression::{
-    ExprDag, ExprDagBuilder, ExprId, ExprNode, PureOperatorApplication, SymbolRef,
+    ComparisonOp, ExprDag, ExprDagBuilder, ExprId, ExprNode, PureOperatorApplication, SymbolRef,
     UnaryMathFunction,
 };
 pub use time::RationalTime;
