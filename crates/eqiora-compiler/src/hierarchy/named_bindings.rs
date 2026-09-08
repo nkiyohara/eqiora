@@ -180,6 +180,6 @@ pub(super) fn input_connections(
                 _ => return Err(fail("Input binding requires an exact causal endpoint; arbitrary value expressions do not create a driver")),
             };
             let target = NamePath::from_segments([instance.name(), binding.name()], binding.range()).map_err(|error| fail(error.message()))?;
-            SourceAstFactory::connection(eqiora_lang::ConnectionSyntax::Signal, vec![source, SourceAstFactory::expression(ExprKind::Path(target), binding.range()).map_err(|error| fail(error.message()))?], binding.range()).map_err(|error| fail(error.message()))
+            SourceAstFactory::connection(eqiora_lang::ConnectionSyntax::Signal, None, vec![source, SourceAstFactory::expression(ExprKind::Path(target), binding.range()).map_err(|error| fail(error.message()))?], binding.range()).map_err(|error| fail(error.message()))
         }).collect()
 }
