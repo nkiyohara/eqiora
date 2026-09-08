@@ -1,0 +1,81 @@
+//! Ordered affine dependency analysis of the scalar numerical instruction profile.
+use super::*;
+
+impl ScalarOperatorIr {
+    pub(super) fn affine_summaries(
+        &self,
+        columns: &HashMap<SymbolRef, usize>,
+        constants: Option<&HashMap<SymbolRef, f64>>,
+    ) -> Result<Vec<AffineSummary>, SymbolicLinearityFailure> {
+        let dimension = columns.len();
+        let mut summaries: Vec<AffineSummary> = Vec::with_capacity(self.instructions.len());
+        for (index, instruction) in self.instructions.iter().copied().enumerate() {
+            let summary = match instruction {
+                Instruction::PureOperator { .. }
+                | Instruction::Min(_, _)
+                | Instruction::Max(_, _)
+                | Instruction::Compare(_, _, _)
+                | Instruction::Not(_)
+                | Instruction::And(_, _)
+                | Instruction::Or(_, _)
+                | Instruction::Array { .. }
+                | Instruction::Index(_, _)
+                | Instruction::TypedConstant(_)
+                | Instruction::Quotient(_, _)
+                | Instruction::Remainder(_, _)
+                | Instruction::ToReal(_)
+                | Instruction::ToInteger(_)
+                | Instruction::Ordinal(_) => {
+                    return Err(SymbolicLinearityFailure::InvalidProgram { instruction: index });
+                }
+                Instruction::Constant(value) => AffineSummary::constant(value.value(), dimension),
+                Instruction::Read(slot) => {
+                    let symbol = self
+                        .symbols
+                        .get(usize::try_from(slot.0).map_err(|_| {
+                            SymbolicLinearityFailure::InvalidProgram { instruction: index }
+                        })?)
+                        .copied()
+                        .ok_or(SymbolicLinearityFailure::InvalidProgram { instruction: index })?;
+                    if let Some(column) = columns.get(&symbol).copied() {
+                        AffineSummary::variable(column, dimension)
+                    } else if let Some(value) = constants.and_then(|values| values.get(&symbol)) {
+                        AffineSummary::constant(*value, dimension)
+                    } else {
+                        AffineSummary::independent(dimension)
+                    }
+                }
+                Instruction::Neg(value) => {
+                    summaries[summary_index(value, index)?].scaled(-1.0, index)?
+                }
+                Instruction::Add(left, right) => AffineSummary::sum(
+                    &summaries[summary_index(left, index)?],
+                    &summaries[summary_index(right, index)?],
+                    1.0,
+                    index,
+                )?,
+                Instruction::Sub(left, right) => AffineSummary::sum(
+                    &summaries[summary_index(left, index)?],
+                    &summaries[summary_index(right, index)?],
+                    -1.0,
+                    index,
+                )?,
+                Instruction::Mul(left, right) => AffineSummary::product(
+                    &summaries[summary_index(left, index)?],
+                    &summaries[summary_index(right, index)?],
+                    index,
+                )?,
+                Instruction::Div(left, right) => AffineSummary::quotient(
+                    &summaries[summary_index(left, index)?],
+                    &summaries[summary_index(right, index)?],
+                    index,
+                )?,
+                Instruction::PowI(base, exponent) => {
+                    summaries[summary_index(base, index)?].integer_power(exponent, index)?
+                }
+            };
+            summaries.push(summary);
+        }
+        Ok(summaries)
+    }
+}

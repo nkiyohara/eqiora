@@ -7,28 +7,29 @@ pub(super) fn evaluate_instructions(
 ) -> Result<Vec<f64>, Diagnostic> {
     let mut values = Vec::with_capacity(instructions.len());
     for (index, instruction) in instructions.iter().enumerate() {
-        let value =
-            match *instruction {
-                Instruction::Min(_, _)
-                | Instruction::Max(_, _)
-                | Instruction::Compare(_, _, _)
-                | Instruction::Not(_)
-                | Instruction::And(_, _)
-                | Instruction::Or(_, _)
-                | Instruction::Array { .. }
-                | Instruction::Index(_, _)
-                | Instruction::TypedConstant(_)
-                | Instruction::Quotient(_, _)
-                | Instruction::Remainder(_, _)
-                | Instruction::ToReal(_)
-                | Instruction::ToInteger(_)
-                | Instruction::Ordinal(_) => {
-                    return Err(ir_builder_error(
-                        "discrete operations require typed execution",
-                    ));
-                }
-                Instruction::Constant(value) => value.value(),
-                Instruction::Read(slot) => inputs
+        let value = match *instruction {
+            Instruction::PureOperator { .. }
+            | Instruction::Min(_, _)
+            | Instruction::Max(_, _)
+            | Instruction::Compare(_, _, _)
+            | Instruction::Not(_)
+            | Instruction::And(_, _)
+            | Instruction::Or(_, _)
+            | Instruction::Array { .. }
+            | Instruction::Index(_, _)
+            | Instruction::TypedConstant(_)
+            | Instruction::Quotient(_, _)
+            | Instruction::Remainder(_, _)
+            | Instruction::ToReal(_)
+            | Instruction::ToInteger(_)
+            | Instruction::Ordinal(_) => {
+                return Err(ir_builder_error(
+                    "discrete operations and retained pure applications require typed execution",
+                ));
+            }
+            Instruction::Constant(value) => value.value(),
+            Instruction::Read(slot) => {
+                inputs
                     .get(slot_index(slot, index)?)
                     .copied()
                     .ok_or_else(|| {
@@ -37,22 +38,23 @@ pub(super) fn evaluate_instructions(
                             "scalar input slot is outside the supplied input inventory",
                         )
                         .with_graph_path(ir_path(index))
-                    })?,
-                Instruction::Neg(value) => -read(&values, value, index)?,
-                Instruction::Add(left, right) => {
-                    read(&values, left, index)? + read(&values, right, index)?
-                }
-                Instruction::Sub(left, right) => {
-                    read(&values, left, index)? - read(&values, right, index)?
-                }
-                Instruction::Mul(left, right) => {
-                    read(&values, left, index)? * read(&values, right, index)?
-                }
-                Instruction::Div(left, right) => {
-                    read(&values, left, index)? / read(&values, right, index)?
-                }
-                Instruction::PowI(base, exponent) => read(&values, base, index)?.powi(exponent),
-            };
+                    })?
+            }
+            Instruction::Neg(value) => -read(&values, value, index)?,
+            Instruction::Add(left, right) => {
+                read(&values, left, index)? + read(&values, right, index)?
+            }
+            Instruction::Sub(left, right) => {
+                read(&values, left, index)? - read(&values, right, index)?
+            }
+            Instruction::Mul(left, right) => {
+                read(&values, left, index)? * read(&values, right, index)?
+            }
+            Instruction::Div(left, right) => {
+                read(&values, left, index)? / read(&values, right, index)?
+            }
+            Instruction::PowI(base, exponent) => read(&values, base, index)?.powi(exponent),
+        };
         if !value.is_finite() {
             return Err(Diagnostic::error(
                 codes::NONFINITE_EVALUATION,

@@ -13,6 +13,11 @@ impl ScalarOperatorIr {
     /// Returns `EQ0701` if an operand/root index is inconsistent with the DAG
     /// contract.
     pub fn lower(expression: &ExprDag) -> Result<Self, Diagnostic> {
+        let definitions = expression
+            .definitions()
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
         let mut typed_constants = Vec::new();
         let mut array_operands = Vec::new();
         let mut symbols = Vec::new();
@@ -45,6 +50,33 @@ impl ScalarOperatorIr {
                         return Err(ir_builder_error(
                             "scalar IR requires real scalar or exact discrete constants",
                         ));
+                    }
+                }
+                ExprNode::PureOperatorApplication(application) => {
+                    let definition = definitions
+                        .iter()
+                        .position(|definition| definition.digest() == application.definition())
+                        .ok_or_else(|| {
+                            ir_builder_error("pure operator definition is unavailable")
+                        })?;
+                    let arguments = application.arguments();
+                    if array_operands
+                        .len()
+                        .checked_add(arguments.len())
+                        .is_none_or(|n| n > 1_000_000)
+                    {
+                        return Err(ir_builder_error(
+                            "operator argument count exceeds the component budget",
+                        ));
+                    }
+                    let start = u32::try_from(array_operands.len()).map_err(|_| ir_size_error())?;
+                    for argument in arguments {
+                        array_operands.push(value_id(*argument, &values)?);
+                    }
+                    Instruction::PureOperator {
+                        definition: definition as u32,
+                        start,
+                        len: arguments.len() as u32,
                     }
                 }
                 ExprNode::Array { elements } => {
@@ -137,6 +169,7 @@ impl ScalarOperatorIr {
         Ok(Self {
             source_values: values,
             typed_constants,
+            definitions,
             array_operands,
             symbols,
             instructions,

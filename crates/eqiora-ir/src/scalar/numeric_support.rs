@@ -169,14 +169,15 @@ pub(super) fn validate_linearization_inputs(
     if ir.instructions.iter().any(|instruction| {
         matches!(
             instruction,
-            Instruction::Min(_, _)
+            Instruction::PureOperator { .. }
+                | Instruction::Min(_, _)
                 | Instruction::Max(_, _)
                 | Instruction::Array { .. }
                 | Instruction::Index(_, _)
         )
     }) {
         return Err(invalid_linearization(
-            "channel construction/indexing requires typed execution and is outside scalar automatic differentiation",
+            "retained pure applications, ordered selections and channel operations require explicit scalar projection before automatic differentiation",
         ));
     }
     if inputs.len() != ir.symbols.len() || roles.len() != ir.symbols.len() {
