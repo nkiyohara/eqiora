@@ -48,13 +48,11 @@ fn native_conductivity() -> PureOperatorDefinition {
     let scalar = PureValueClass::invariant_scalar();
     let mut b = CalculusBuilder::new(
         [
-            scalar.with_dimension(t()).expect("valid scalar type"),
-            scalar.with_dimension(k()).expect("valid scalar type"),
-            scalar
-                .with_dimension(t().pow(-1, 1).unwrap())
-                .expect("valid scalar type"),
+            scalar.with_dimension(t()),
+            scalar.with_dimension(k()),
+            scalar.with_dimension(t().pow(-1, 1).unwrap()),
         ],
-        scalar.with_dimension(k()).expect("valid scalar type"),
+        scalar.with_dimension(k()),
     )
     .unwrap();
     let mut formal = |formal| {
