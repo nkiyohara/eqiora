@@ -704,7 +704,7 @@ fn validate_expression(
 ) -> BTreeSet<RawId> {
     for node in expression.nodes() {
         if let ExprNode::Constant(value) = node {
-            nominal_values::check(owner, value.value_type(), environment.nodes, diagnostics);
+            nominal_values::check_literal(owner, value, environment.nodes, diagnostics);
         }
     }
     let symbols = expression

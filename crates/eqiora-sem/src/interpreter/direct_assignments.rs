@@ -15,6 +15,9 @@ pub(super) fn supported_type(value: &ValueType) -> bool {
     channels
         || (value.scalar_domain() == ScalarDomain::Real && value.shape().is_scalar())
         || *value == ValueType::boolean()
+        || (value.scalar_domain() == ScalarDomain::Enum
+            && value.shape().is_scalar()
+            && value.array_rank() == 0)
         || (value.scalar_domain() == ScalarDomain::Integer && value.array_rank() == 0)
 }
 
@@ -23,7 +26,7 @@ pub(super) fn requires_typed_assignment(program: &KernelProgram, symbol: SymbolR
         value.array_rank() > 0
             || matches!(
                 value.scalar_domain(),
-                ScalarDomain::Integer | ScalarDomain::Boolean
+                ScalarDomain::Integer | ScalarDomain::Boolean | ScalarDomain::Enum
             )
     })
 }

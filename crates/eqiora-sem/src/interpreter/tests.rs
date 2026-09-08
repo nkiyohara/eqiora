@@ -669,3 +669,130 @@ fn a_clock_only_group_does_not_consume_the_event_microstep_limit() {
         }
     }
 }
+
+#[test]
+fn enum_state_selects_live_numeric_flow_and_resets_without_numeric_storage() {
+    use eqiora_schema::kernel::{ComparisonOp, EnumDef};
+    let definition = EnumDef::new(Id::new(), ["Slow".into(), "Fast".into()]).unwrap();
+    let mode = Id::<kinds::Field>::new();
+    let position = Id::<kinds::Field>::new();
+    let flow = Id::<kinds::Relation>::new();
+    let reset = Id::<kinds::Relation>::new();
+    let initial_mode = Id::<kinds::Relation>::new();
+    let continuous = Id::<kinds::Activation>::new();
+    let event = Id::<kinds::Activation>::new();
+    let d = DimExponents::DIMENSIONLESS;
+    let rate = DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).unwrap();
+    let mut b = ExprDagBuilder::new();
+    let target = b.symbol(SymbolRef::Field(mode)).unwrap();
+    let slow = b.constant(definition.value(0).unwrap()).unwrap();
+    let mode_initial =
+        RelationDef::initial(initial_mode, b.finish([target, slow]).unwrap()).unwrap();
+    let mut nodes = vec![
+        definition.clone().into(),
+        FieldDef::new(mode, definition.value_type(), FieldRole::State).into(),
+        FieldDef::new(
+            position,
+            ValueType::scalar(eqiora_core::ScalarDomain::Real, d),
+            FieldRole::State,
+        )
+        .into(),
+        initial(position, d, 0.),
+        ActivationDef::continuous(continuous).into(),
+    ];
+    let mut b = ExprDagBuilder::new();
+    let mode_read = b.symbol(SymbolRef::Field(mode)).unwrap();
+    let slow = b.constant(definition.value(0).unwrap()).unwrap();
+    let condition = b.compare(ComparisonOp::Equal, mode_read, slow).unwrap();
+    let one = b.constant(DynQuantity::new(1., rate)).unwrap();
+    let two = b.constant(DynQuantity::new(2., rate)).unwrap();
+    let selected = b.select(condition, one, two).unwrap();
+    let derivative = b.symbol(SymbolRef::Derivative(position)).unwrap();
+    nodes.push(
+        RelationDef::new(flow, b.finish([derivative, selected]).unwrap())
+            .unwrap()
+            .into(),
+    );
+    let mut b = ExprDagBuilder::new();
+    let x = b.symbol(SymbolRef::Field(position)).unwrap();
+    let threshold = b.constant(DynQuantity::new(1., d)).unwrap();
+    let guard = b.sub(x, threshold).unwrap();
+    nodes.push(
+        ActivationDef::new(
+            event,
+            ActivationKind::Event {
+                guard: b.finish([guard]).unwrap(),
+                direction: EventDirection::Rising,
+            },
+        )
+        .unwrap()
+        .into(),
+    );
+    let mut b = ExprDagBuilder::new();
+    let previous = b.symbol(SymbolRef::Pre(mode)).unwrap();
+    let slow = b.constant(definition.value(0).unwrap()).unwrap();
+    let fast = b.constant(definition.value(1).unwrap()).unwrap();
+    let condition = b.compare(ComparisonOp::Equal, previous, slow).unwrap();
+    let selected = b.select(condition, fast, previous).unwrap();
+    let next = b.symbol(SymbolRef::Next(mode)).unwrap();
+    nodes.push(
+        RelationDef::new(reset, b.finish([next, selected]).unwrap())
+            .unwrap()
+            .into(),
+    );
+    let edges = [
+        (continuous.erase(), flow.erase()),
+        (event.erase(), reset.erase()),
+    ];
+    let missing = program(nodes.clone(), &edges);
+    let config = ReferenceConfig::new(1.5, 0.5).unwrap();
+    assert!(
+        Interpreter::new()
+            .execution_session(&missing, config, [])
+            .unwrap_err()[0]
+            .message()
+            .contains("explicit initial")
+    );
+    nodes.push(mode_initial.into());
+    let program = program(nodes, &edges);
+    let interpreter = Interpreter::new();
+    let mut session = interpreter.execution_session(&program, config, []).unwrap();
+    assert_eq!(session.field(mode.erase()).unwrap().enum_tag(), Some(0));
+    assert!(!session.state.fields.contains_key(&mode.erase()));
+    assert!(session.advance().unwrap());
+    let checkpoint = session.checkpoint();
+    assert!(session.advance().unwrap());
+    assert_eq!(session.activation_sequence(), [vec![event.erase()]]);
+    assert_eq!(
+        session.field(mode.erase()).unwrap(),
+        definition.value(1).unwrap()
+    );
+    let mut resumed = interpreter.resume_execution(&program, &checkpoint).unwrap();
+    assert!(resumed.advance().unwrap());
+    assert_eq!(resumed.field(mode.erase()), session.field(mode.erase()));
+    assert!(session.advance().unwrap());
+    assert!(resumed.advance().unwrap());
+    // x'=1 to t1, then x'=2 for half a second: x(1.5)=2 exactly.
+    assert_eq!(
+        session
+            .field(position.erase())
+            .unwrap()
+            .real_scalar_value()
+            .unwrap()
+            .value(),
+        2.
+    );
+    assert_eq!(
+        resumed.field(position.erase()),
+        session.field(position.erase())
+    );
+    assert_eq!(
+        session.field(mode.erase()).unwrap().real_scalar_value(),
+        None
+    );
+    assert!(
+        interpreter.run(&program, config).unwrap_err()[0]
+            .message()
+            .contains("exact discrete Fields")
+    );
+}
