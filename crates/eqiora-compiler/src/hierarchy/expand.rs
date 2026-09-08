@@ -620,12 +620,16 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
     fn allocate_model_scope(&mut self, scope: &mut Scope) -> Result<ScopeIdentities, Diagnostic> {
         let model = self.model.clone();
         let mut identities = ScopeIdentities::default();
-        let parameters =
-            super::parameters::resolve_model_parameters(model.file, model.declaration, |name| {
+        let parameters = super::parameters::resolve_model_parameters(
+            model.file,
+            model.declaration,
+            |name| {
                 super::clocks::occurrence(scope, name)
                     .or_else(|| super::clocks::model(model.file, model.declaration, name))
-            })
-            .map_err(|mut errors| errors.remove(0))?;
+            },
+            scope.frame_supports(),
+        )
+        .map_err(|mut errors| errors.remove(0))?;
         let mut owned_items = model.owned_items().collect::<Vec<_>>();
         owned_items.sort_by_key(|item| !matches!(item, Item::Clock(_)));
         for item in owned_items {

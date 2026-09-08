@@ -236,6 +236,13 @@ impl Scope {
         self.spatial_supports.get(name)
     }
 
+    pub(super) fn frame_supports(&self) -> BTreeMap<String, SpatialSupport<String>> {
+        self.spatial_supports
+            .iter()
+            .map(|(name, support)| (name.clone(), super::parameters::frames::occurrence(support)))
+            .collect()
+    }
+
     pub(super) fn spatial_support_by_identity(
         &self,
         identity: FullElaborationIdentity,
