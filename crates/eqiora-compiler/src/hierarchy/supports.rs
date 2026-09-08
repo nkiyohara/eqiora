@@ -274,69 +274,8 @@ pub(super) fn signature_support_interface(
     }
 }
 
-pub(super) fn model_spatial_supports(
-    file: &str,
-    model: &ModelDecl,
-) -> Result<BTreeMap<String, SpatialSupport<String>>, Vec<Diagnostic>> {
-    let interface = signature_support_interface(file, model.signature())?;
-    let mut supports = interface
-        .iter()
-        .map(|(name, contract)| (name.to_owned(), contract.support().clone()))
-        .collect::<BTreeMap<_, _>>();
-    let mut boundaries = Vec::new();
-    for item in model.items() {
-        let Item::Domain(declaration) = item else {
-            continue;
-        };
-        match declaration.syntax() {
-            DomainSyntax::CartesianBox(bounds) if !bounds.is_empty() => {
-                supports.insert(
-                    declaration.name().to_owned(),
-                    SpatialSupport::Volume {
-                        domain: declaration.name().to_owned(),
-                        dimensions: bounds.len(),
-                    },
-                );
-            }
-            DomainSyntax::Boundary { parent, .. } => boundaries.push((declaration, parent)),
-            _ => {}
-        }
-    }
-
-    let mut diagnostics = Vec::new();
-    for (declaration, parent) in boundaries {
-        match supports.get(parent) {
-            Some(SpatialSupport::Volume { dimensions, .. }) => {
-                supports.insert(
-                    declaration.name().to_owned(),
-                    SpatialSupport::Boundary {
-                        domain: declaration.name().to_owned(),
-                        parent: parent.clone(),
-                        dimensions: *dimensions,
-                    },
-                );
-            }
-            Some(SpatialSupport::Boundary { .. }) => diagnostics.push(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                file,
-                declaration.range(),
-                "boundary support binding cannot use a boundary-of-boundary Domain",
-            )),
-            Some(SpatialSupport::Interface { .. }) => diagnostics.push(source_error(
-                codes::LANGUAGE_LOWERING_ERROR,
-                file,
-                declaration.range(),
-                "derived interface support cannot appear in source Domain resolution",
-            )),
-            None => {}
-        }
-    }
-    if diagnostics.is_empty() {
-        Ok(supports)
-    } else {
-        Err(diagnostics)
-    }
-}
+mod spatial;
+pub(super) use spatial::{model_spatial_supports, component_spatial_supports};
 
 /// Per-elaboration accounting for explicit complete-exterior memberships.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -231,7 +231,7 @@ fn compile_external_component_from_definition<'a>(
         let declaration = SourceAstFactory::parameter(
             declaration.name(),
             declaration.value_type().clone(),
-            SourceAstFactory::value_literal(parameter.value(), range, |_| None)
+            SourceAstFactory::value_literal(parameter.value(), None, range, |_| None)
                 .map_err(|error| vec![hierarchy_error(error.message())])?,
             range,
         )

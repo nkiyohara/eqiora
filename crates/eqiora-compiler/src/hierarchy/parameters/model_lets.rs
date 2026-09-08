@@ -5,7 +5,7 @@ use eqiora_core::diagnostic::codes;
 use eqiora_lang::{ComponentDecl, ComponentItem, Item, ModelDecl, NamedDefinitionDecl};
 
 use crate::diagnostics::{source_error, stable_sort};
-use crate::value_types::lower_value_type;
+use eqiora_schema::kernel::typing::SpatialSupport;
 
 use super::expression_eval::{
     ExpressionContext, coerce_parameter_with_label, evaluate_parameter_expression,
@@ -30,6 +30,7 @@ pub(in crate::hierarchy) fn resolve_model_lets(
         }),
         values,
         &mut resolve_clock,
+        &super::super::supports::model_spatial_supports(file, model)?,
     )
 }
 
@@ -47,6 +48,7 @@ pub(in crate::hierarchy) fn resolve_component_lets(
         }),
         values,
         &mut resolve_clock,
+        &super::super::supports::component_spatial_supports(file, component)?,
     )
 }
 
@@ -55,6 +57,7 @@ fn resolve_lets<'a>(
     declarations: impl Iterator<Item = &'a NamedDefinitionDecl>,
     values: &mut SymbolicParameterMap,
     resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
+    frames: &BTreeMap<String, SpatialSupport<String>>,
 ) -> Result<(), Vec<Diagnostic>> {
     let declarations = declarations
         .map(|declaration| (declaration.name().to_owned(), declaration))
@@ -69,7 +72,7 @@ fn resolve_lets<'a>(
         }
         let target = match declaration
             .value_type()
-            .map(|ty| lower_value_type::<()>(file, ty, None))
+            .map(|ty| super::frames::parameter_type(file, ty, Some(declaration.value()), frames))
             .transpose()
         {
             Ok(target) => target,
@@ -97,6 +100,7 @@ fn resolve_lets<'a>(
                 target.clone(),
                 "let alias",
                 resolve_clock,
+                &mut |name| frames.get(name).cloned(),
             ),
             None => evaluate_parameter_expression(
                 file,
@@ -104,6 +108,7 @@ fn resolve_lets<'a>(
                 ExpressionContext::Let,
                 &mut resolve,
                 resolve_clock,
+                &mut |name| frames.get(name).cloned(),
             ),
         };
         let range = declaration.range();
@@ -160,6 +165,7 @@ pub(in crate::hierarchy) fn alias_order<'a>(
                         pending.push(right);
                         pending.push(left);
                     }
+                    eqiora_lang::ExprKind::Call { callee, arguments } if callee.as_str() == "tensor_value" => { pending.extend(arguments.iter().skip(1)); }
                     eqiora_lang::ExprKind::Call { arguments, .. } => {
                         pending.extend(arguments.iter().rev())
                     }
@@ -217,6 +223,7 @@ fn is_static_expression(expression: &eqiora_lang::Expr, values: &SymbolicParamet
                 pending.push(right);
             }
             eqiora_lang::ExprKind::Call { callee, .. } if callee.as_str() == "period" => {}
+            eqiora_lang::ExprKind::Call { callee, arguments } if callee.as_str() == "tensor_value" => { pending.extend(arguments.iter().skip(1)); }
             eqiora_lang::ExprKind::Call { callee, arguments }
                 if !matches!(
                     callee.as_str(),

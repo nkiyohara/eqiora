@@ -369,6 +369,7 @@ fn external_dimensioned_parameter_failures_are_typed() {
             DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
         ))
         .unwrap(),
+        None,
         Default::default(),
         |_| None,
     )

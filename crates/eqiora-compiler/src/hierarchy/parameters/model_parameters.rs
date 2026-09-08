@@ -41,6 +41,7 @@ fn resolve(
         overrides: BTreeMap::new(),
         resolved: BTreeMap::new(),
         required_policy,
+        frames: super::super::supports::model_spatial_supports(file, model)?,
     }
     .resolve_all(resolve_clock)
 }

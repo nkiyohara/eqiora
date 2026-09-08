@@ -329,7 +329,7 @@ fn validate_instance(
             ));
             continue;
         }
-        let quantity = SourceAstFactory::value_literal(&release.value, binding_range, |_| None)
+        let quantity = SourceAstFactory::value_literal(&release.value, None, binding_range, |_| None)
             .expect("validated property value and source range");
         values.insert(path.to_string(), quantity);
         projections.push(ResolvedPropertyBinding {
