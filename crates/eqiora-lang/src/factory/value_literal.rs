@@ -263,6 +263,23 @@ pub(crate) fn dimension_expression(
     })
 }
 
+fn tensor_arguments(frame: NamePath, components: Expr, range: TextRange) -> crate::CallArguments {
+    crate::CallArguments::Named(vec![
+        crate::NamedBindingDecl {
+            comments: Default::default(),
+            name: "frame".to_owned(),
+            value: frame_expression(frame, range),
+            range,
+        },
+        crate::NamedBindingDecl {
+            comments: Default::default(),
+            name: "components".to_owned(),
+            value: components,
+            range,
+        },
+    ])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -451,21 +468,4 @@ mod tests {
             SourceAstFactory::expression(ExprKind::Array(vec![components]), range).unwrap();
         assert!(SourceAstFactory::tensor_value(frame, components, range).is_err());
     }
-}
-
-fn tensor_arguments(frame: NamePath, components: Expr, range: TextRange) -> crate::CallArguments {
-    crate::CallArguments::Named(vec![
-        crate::NamedBindingDecl {
-            comments: Default::default(),
-            name: "frame".to_owned(),
-            value: frame_expression(frame, range),
-            range,
-        },
-        crate::NamedBindingDecl {
-            comments: Default::default(),
-            name: "components".to_owned(),
-            value: components,
-            range,
-        },
-    ])
 }

@@ -88,12 +88,16 @@ fn validate_expression_depth(expression: &Expr, depth: usize) -> Result<(), AstC
             if callee.as_str() == "tensor_value"
                 && !arguments.named().is_some_and(|bindings| {
                     bindings.len() == 2
-                        && bindings[0].name() == "frame"
-                        && bindings[1].name() == "components"
-                        && matches!(
-                            bindings[0].value().kind(),
-                            ExprKind::Name(_) | ExprKind::Path(_)
-                        )
+                        && bindings
+                            .iter()
+                            .any(|binding| binding.name() == "components")
+                        && bindings.iter().any(|binding| {
+                            binding.name() == "frame"
+                                && matches!(
+                                    binding.value().kind(),
+                                    ExprKind::Name(_) | ExprKind::Path(_)
+                                )
+                        })
                 })
             {
                 return Err(AstConstructionError::new(

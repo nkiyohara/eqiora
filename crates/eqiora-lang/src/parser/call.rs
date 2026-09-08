@@ -64,12 +64,14 @@ impl Parser<'_> {
         }
         if path.as_str() == "tensor_value"
             && (named.len() != 2
-                || named[0].name() != "frame"
-                || named[1].name() != "components"
-                || !matches!(
-                    named[0].value().kind(),
-                    ExprKind::Name(_) | ExprKind::Path(_)
-                ))
+                || !named.iter().any(|binding| binding.name() == "components")
+                || !named.iter().any(|binding| {
+                    binding.name() == "frame"
+                        && matches!(
+                            binding.value().kind(),
+                            ExprKind::Name(_) | ExprKind::Path(_)
+                        )
+                }))
         {
             self.error_here("tensor_value requires frame = support_name, components = expression");
             return None;

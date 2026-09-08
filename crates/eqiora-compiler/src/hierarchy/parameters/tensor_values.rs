@@ -260,9 +260,16 @@ mod tests {
             ),
         ] {
             let source = format!("model M() {{ let value = {call}; }}");
-            let document = eqiora_lang::parse("bindings.eqi", &source)
-                .into_document()
-                .unwrap();
+            let document = match eqiora_lang::parse("bindings.eqi", &source).into_document() {
+                Ok(document) => document,
+                Err(diagnostics) => {
+                    assert!(
+                        !accepted,
+                        "valid tensor bindings rejected: {call}: {diagnostics:?}"
+                    );
+                    continue;
+                }
+            };
             let eqiora_lang::Item::Let(value) = &document.models()[0].items()[0] else {
                 panic!("tensor binding fixture");
             };
