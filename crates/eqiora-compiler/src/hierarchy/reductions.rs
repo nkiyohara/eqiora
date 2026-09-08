@@ -59,7 +59,12 @@ fn measure<'a>(
     if source_depth > depth_limit {
         return Err(exceeded());
     }
-    let result = if let ExprKind::Reduction { binder, value, .. } = expression.kind() {
+    let result = if let ExprKind::Reduction {
+        operation,
+        binder,
+        value,
+    } = expression.kind()
+    {
         if binders.contains(&binder.member()) {
             return Err(error(
                 file,
@@ -86,12 +91,21 @@ fn measure<'a>(
             binders,
         )?;
         binders.pop();
+        let fold_cost = if matches!(
+            operation,
+            eqiora_lang::ReductionOp::Min | eqiora_lang::ReductionOp::Max
+        ) {
+            2
+        } else {
+            1
+        };
+        let fold_work = (extent - 1).checked_mul(fold_cost).ok_or_else(exceeded)?;
         (
             nodes
                 .checked_mul(extent)
-                .and_then(|n| n.checked_add(extent - 1))
+                .and_then(|n| n.checked_add(fold_work))
                 .ok_or_else(exceeded)?,
-            depth.checked_add(extent - 1).ok_or_else(exceeded)?,
+            depth.checked_add(fold_work).ok_or_else(exceeded)?,
         )
     } else {
         let (mut nodes, overhead) = match expression.kind() {
@@ -354,6 +368,15 @@ mod tests {
             panic!("alias")
         };
         value.value().clone()
+    }
+
+    #[test]
+    fn extrema_charge_comparison_and_selection_before_copying() {
+        let value = expression("min(1, over=(i in A))");
+        assert!(preflight("test", &value, &mut |_| Some(3), 7).is_ok());
+        assert!(preflight("test", &value, &mut |_| Some(3), 6).is_err());
+        assert!(preflight("test", &value, &mut |_| Some(128), 1000).is_ok());
+        assert!(preflight("test", &value, &mut |_| Some(129), 1000).is_err());
     }
 
     #[test]
