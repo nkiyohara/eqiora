@@ -4,24 +4,60 @@ use eqiora_schema::kernel::ExprDagBuilder;
 use super::*;
 
 #[test]
-fn scalar_ir_rejects_complex_and_shaped_real_constants() {
+fn scalar_ir_rejects_shaped_real_constants() {
     use eqiora_core::{ScalarDomain, ValueLiteral, ValueType};
-    let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
-    for value_type in [
-        ValueType::scalar(ScalarDomain::Complex, real.dimension()),
-        real.array(3).unwrap(),
-    ] {
-        let mut builder = ExprDagBuilder::new();
-        let root = builder
-            .constant(ValueLiteral::from_real(value_type, 0.0).unwrap())
-            .unwrap();
-        let error = ScalarOperatorIr::lower(&builder.finish([root]).unwrap()).unwrap_err();
-        assert!(
-            error
-                .message()
-                .contains("real scalar or exact discrete constants")
-        );
-    }
+    let shaped = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+        .array(3)
+        .unwrap();
+    let mut builder = ExprDagBuilder::new();
+    let root = builder
+        .constant(ValueLiteral::from_real(shaped, 0.0).unwrap())
+        .unwrap();
+    let error = ScalarOperatorIr::lower(&builder.finish([root]).unwrap()).unwrap_err();
+    assert!(
+        error
+            .message()
+            .contains("real scalar or exact discrete constants")
+    );
+}
+
+#[test]
+fn scalar_ir_preserves_complex_comparison_values_without_numerical_projection() {
+    use eqiora_core::{ScalarDomain, ValueLiteral, ValueType};
+    use eqiora_schema::kernel::ComparisonOp;
+
+    let complex = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS);
+    let zero = ValueLiteral::from_real(complex.clone(), 0.0).unwrap();
+    let imaginary = ValueLiteral::new(complex, [(0.0, 1.0)]).unwrap();
+    let mut builder = ExprDagBuilder::new();
+    let left = builder.constant(zero.clone()).unwrap();
+    let right = builder.constant(imaginary.clone()).unwrap();
+    let equal = builder.compare(ComparisonOp::Equal, left, right).unwrap();
+    let unequal = builder
+        .compare(ComparisonOp::NotEqual, left, right)
+        .unwrap();
+    let roots = [left, right, equal, unequal];
+    let ir = ScalarOperatorIr::lower(&builder.finish(roots).unwrap()).unwrap();
+    assert_eq!(
+        ir.evaluate_typed(&roots, &mut |_| None).unwrap(),
+        vec![
+            zero,
+            imaginary,
+            ValueLiteral::boolean(false),
+            ValueLiteral::boolean(true)
+        ]
+    );
+    assert_eq!(
+        ir.evaluate(&[]).unwrap_err().code(),
+        codes::INVALID_OPERATOR_IR
+    );
+    let linearization = ir.linearize(&[], &[]).unwrap();
+    assert!(linearization.primal(&mut [0.0; 4]).is_err());
+    assert!(
+        linearization
+            .jvp(RelationTangent::Unknown(&[]), &mut [0.0; 4])
+            .is_err()
+    );
 }
 
 #[test]
