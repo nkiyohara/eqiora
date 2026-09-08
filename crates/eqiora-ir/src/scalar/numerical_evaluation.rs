@@ -9,7 +9,9 @@ pub(super) fn evaluate_instructions(
     for (index, instruction) in instructions.iter().enumerate() {
         let value =
             match *instruction {
-                Instruction::Compare(_, _, _)
+                Instruction::Min(_, _)
+                | Instruction::Max(_, _)
+                | Instruction::Compare(_, _, _)
                 | Instruction::Not(_)
                 | Instruction::And(_, _)
                 | Instruction::Or(_, _)

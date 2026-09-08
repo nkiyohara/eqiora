@@ -114,7 +114,9 @@ fn evaluate_selected(
                     | ExprNode::ToInteger(value)
                     | ExprNode::Ordinal(value)
                     | ExprNode::Not(value) => pending.push(Frame::Demand(*value)),
-                    ExprNode::Compare(_, a, b)
+                    ExprNode::Min(a, b)
+                    | ExprNode::Max(a, b)
+                    | ExprNode::Compare(_, a, b)
                     | ExprNode::Add(a, b)
                     | ExprNode::Sub(a, b)
                     | ExprNode::Mul(a, b)
@@ -187,6 +189,21 @@ fn evaluate_selected(
                 }
                 ExprNode::And(_, right) | ExprNode::Or(_, right) => {
                     ValueLiteral::boolean(boolean(operand(&values, *right, owner)?)?)
+                }
+                ExprNode::Min(left, right) | ExprNode::Max(left, right) => {
+                    let left = operand(&values, *left, owner)?;
+                    let right = operand(&values, *right, owner)?;
+                    let order = left.checked_order(right).map_err(discrete_error)?;
+                    let take_right = if matches!(node, ExprNode::Min(_, _)) {
+                        order == std::cmp::Ordering::Greater
+                    } else {
+                        order == std::cmp::Ordering::Less
+                    };
+                    if take_right {
+                        right.clone()
+                    } else {
+                        left.clone()
+                    }
                 }
                 ExprNode::Compare(op, left, right) => compare(
                     *op,
@@ -706,6 +723,61 @@ mod tests {
         let converted = dag.to_integer(a).unwrap();
         assert!(
             evaluate_expression(owner, &dag.finish([converted]).unwrap(), &mut |_| None).is_err()
+        );
+    }
+    #[test]
+    fn extrema_keep_adjacent_integers_exact_and_evaluate_both_operands() {
+        use eqiora_core::{Id, entity::kinds};
+        use eqiora_schema::kernel::ExprDagBuilder;
+        let integer = |n| {
+            ValueLiteral::from_integer(
+                ValueType::scalar(
+                    ScalarDomain::Integer,
+                    eqiora_core::DimExponents::DIMENSIONLESS,
+                ),
+                n,
+            )
+            .unwrap()
+        };
+        let mut builder = ExprDagBuilder::new();
+        let first = builder.constant(integer(9_007_199_254_740_993)).unwrap();
+        let second = builder.constant(integer(9_007_199_254_740_992)).unwrap();
+        let smallest = builder.min(first, second).unwrap();
+        let largest = builder.max(first, second).unwrap();
+        let tie = builder.min(first, first).unwrap();
+        let roots = [smallest, largest, tie];
+        let dag = builder.finish(roots).unwrap();
+        assert_eq!(
+            evaluate_selected(
+                Id::<kinds::Relation>::new().erase(),
+                &dag,
+                &roots,
+                &mut |_| None
+            )
+            .unwrap(),
+            vec![
+                integer(9_007_199_254_740_992),
+                integer(9_007_199_254_740_993),
+                integer(9_007_199_254_740_993)
+            ]
+        );
+        let mut builder = ExprDagBuilder::new();
+        let zero = builder.constant(integer(0)).unwrap();
+        let max = builder.constant(integer(i64::MAX)).unwrap();
+        let one = builder.constant(integer(1)).unwrap();
+        let bad = builder.add(max, one).unwrap();
+        // Even though every valid positive candidate would lose to zero, overflow is demanded.
+        let selected = builder.min(zero, bad).unwrap();
+        let roots = [selected];
+        let dag = builder.finish(roots).unwrap();
+        assert!(
+            evaluate_selected(
+                Id::<kinds::Relation>::new().erase(),
+                &dag,
+                &roots,
+                &mut |_| None
+            )
+            .is_err()
         );
     }
 }

@@ -15,6 +15,8 @@ pub(super) enum Instruction {
     ToReal(ValueId),
     ToInteger(ValueId),
     Ordinal(ValueId),
+    Min(ValueId, ValueId),
+    Max(ValueId, ValueId),
     Compare(eqiora_schema::kernel::ComparisonOp, ValueId, ValueId),
     Not(ValueId),
     And(ValueId, ValueId),
