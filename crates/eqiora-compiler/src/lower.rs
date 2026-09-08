@@ -226,6 +226,15 @@ enum LoweringExpressionNode {
         real: LoweringExpression,
         imag: LoweringExpression,
     },
+    Select {
+        condition: LoweringExpression,
+        then_value: LoweringExpression,
+        else_value: LoweringExpression,
+    },
+    Require {
+        condition: LoweringExpression,
+        value: LoweringExpression,
+    },
     Extremum {
         minimum: bool,
         left: LoweringExpression,

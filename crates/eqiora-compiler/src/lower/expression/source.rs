@@ -43,6 +43,15 @@ pub(in crate::lower) fn from_source(expression: &Expr) -> LoweringExpression {
                 "math.complex requires exactly two real scalar arguments",
             ),
         },
+        ExprKind::Select {
+            condition,
+            then_value,
+            else_value,
+        } => LoweringExpressionNode::Select {
+            condition: LoweringExpression::from_source(condition),
+            then_value: LoweringExpression::from_source(then_value),
+            else_value: LoweringExpression::from_source(else_value),
+        },
         ExprKind::Quantity { value, unit } => match crate::units::quantity(value, unit) {
             Ok(value) => return LoweringExpression::quantity(value, expression.range()),
             Err(message) => LoweringExpressionNode::InvalidValue(message),

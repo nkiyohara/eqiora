@@ -140,6 +140,15 @@ fn visit_children<'a>(
     visit: &mut impl FnMut(&'a Expr) -> Result<(), Diagnostic>,
 ) -> Result<(), Diagnostic> {
     match expression.kind() {
+        ExprKind::Select {
+            condition,
+            then_value,
+            else_value,
+        } => {
+            visit(condition)?;
+            visit(then_value)?;
+            visit(else_value)?;
+        }
         ExprKind::Quantity { unit, .. } => visit(unit)?,
         ExprKind::Unary { value, .. }
         | ExprKind::Member { value, .. }
@@ -235,6 +244,15 @@ fn substitute(
                 value: Box::new(child(value)?),
             }
         }
+        ExprKind::Select {
+            condition,
+            then_value,
+            else_value,
+        } => ExprKind::Select {
+            condition: Box::new(child(condition)?),
+            then_value: Box::new(child(then_value)?),
+            else_value: Box::new(child(else_value)?),
+        },
         ExprKind::Quantity { value, unit } => ExprKind::Quantity {
             value: value.clone(),
             unit: Box::new(child(unit)?),

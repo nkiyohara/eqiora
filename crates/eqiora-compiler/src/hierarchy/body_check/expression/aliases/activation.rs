@@ -106,6 +106,14 @@ impl DependencyActivation {
                     pending.push(value);
                     Self::Static
                 }
+                ExprKind::Select {
+                    condition,
+                    then_value,
+                    else_value,
+                } => {
+                    pending.extend([condition.as_ref(), then_value.as_ref(), else_value.as_ref()]);
+                    Self::Static
+                }
                 ExprKind::Binary { left, right, .. } => {
                     pending.extend([left.as_ref(), right.as_ref()]);
                     Self::Static

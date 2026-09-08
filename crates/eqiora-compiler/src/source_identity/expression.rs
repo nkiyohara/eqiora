@@ -8,6 +8,23 @@ pub(super) fn encode_expression(
 ) -> Result<(), Diagnostic> {
     budget.account_expression(depth)?;
     match expression.kind() {
+        ExprKind::Select {
+            condition,
+            then_value,
+            else_value,
+        } => {
+            encoder.u16(17)?;
+            let child_depth = next_depth(depth)?;
+            encoder.field(1, |encoder| {
+                encode_expression(encoder, condition, budget, child_depth)
+            })?;
+            encoder.field(2, |encoder| {
+                encode_expression(encoder, then_value, budget, child_depth)
+            })?;
+            encoder.field(3, |encoder| {
+                encode_expression(encoder, else_value, budget, child_depth)
+            })
+        }
         ExprKind::Reduction {
             operation,
             binder,

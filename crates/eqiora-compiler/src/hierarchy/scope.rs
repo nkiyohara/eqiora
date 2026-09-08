@@ -526,6 +526,16 @@ pub(super) fn rewrite_expression_with_boundary_member(
         ));
     }
     let lowered = match expression.kind() {
+        ExprKind::Select {
+            condition,
+            then_value,
+            else_value,
+        } => LoweringExpression::select(
+            rewrite_expression_with_boundary_member(file, condition, scope, active)?,
+            rewrite_expression_with_boundary_member(file, then_value, scope, active)?,
+            rewrite_expression_with_boundary_member(file, else_value, scope, active)?,
+            expression.range(),
+        ),
         ExprKind::Reduction { .. } => return reductions::rewrite(file, expression, scope, active),
         ExprKind::Array(elements) => LoweringExpression::array(
             elements
