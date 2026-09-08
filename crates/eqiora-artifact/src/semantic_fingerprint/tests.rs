@@ -2,7 +2,7 @@ use super::*;
 mod value_types;
 use eqiora_compiler::compile;
 use eqiora_core::entity::kinds;
-use eqiora_core::{Id, OntologyId};
+use eqiora_core::{DimExponents, DynQuantity, Id, OntologyId};
 use eqiora_graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora_schema::kernel::{
     ActivationDef, ExprDagBuilder, FieldDef, PortDef, RelationDef, SignalDirection, SymbolRef,
@@ -161,7 +161,10 @@ fn manually_allocated_expression(reverse: bool, expose_port: bool) -> KernelProg
         (left_value, right_value)
     };
     let root = expression.add(left_value, right_value).unwrap();
-    let expression = expression.finish([root]).unwrap();
+    let zero = expression
+        .constant(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
+        .unwrap();
+    let expression = expression.finish([root, zero]).unwrap();
     let members = [
         left.erase(),
         right.erase(),
@@ -196,7 +199,7 @@ fn manually_allocated_expression(reverse: bool, expose_port: bool) -> KernelProg
             .into(),
         })
         .push(Op::DefineKernelNode {
-            node: RelationDef::new(relation, expression).into(),
+            node: RelationDef::new(relation, expression).unwrap().into(),
         })
         .push(Op::DefineKernelNode {
             node: ActivationDef::continuous(activation).into(),

@@ -69,12 +69,19 @@ fn typed_symbol_program(node: KernelNode, symbol: SymbolRef) -> KernelProgram {
     let mut expression = ExprDagBuilder::new();
     let value = expression.symbol(symbol).unwrap();
     let root = expression.sub(value, value).unwrap();
+    let value_type = match &node {
+        KernelNode::Parameter(parameter) => parameter.value().value_type().clone(),
+        KernelNode::Port(port) => port.signal_contract().unwrap().1.clone(),
+        _ => panic!("typed symbol fixture requires Parameter or signal Port"),
+    };
+    let zero = expression
+        .constant(eqiora_core::ValueLiteral::from_real(value_type, 0.0).unwrap())
+        .unwrap();
     let nodes = [
         node,
-        KernelNode::from(RelationDef::new(
-            relation,
-            expression.finish([root]).unwrap(),
-        )),
+        KernelNode::from(
+            RelationDef::new(relation, expression.finish([root, zero]).unwrap()).unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(activation)),
     ];
     let view = ModelView::new(model, nodes.iter().map(KernelNode::id), []).unwrap();
@@ -158,7 +165,9 @@ fn constant_types_survive_model_replay_and_change_structural_identity() {
             .constant(eqiora_core::ValueLiteral::from_real(value_type, 0.0).unwrap())
             .unwrap();
         let nodes = [
-            KernelNode::from(RelationDef::new(relation, builder.finish([root]).unwrap())),
+            KernelNode::from(
+                RelationDef::new(relation, builder.finish([root, root]).unwrap()).unwrap(),
+            ),
             KernelNode::from(ActivationDef::continuous(activation)),
         ];
         let view = ModelView::new(model, nodes.iter().map(KernelNode::id), []).unwrap();
@@ -244,6 +253,9 @@ fn spatial_program(value_type: ValueType) -> Result<KernelProgram, Vec<Diagnosti
     let mut expression = ExprDagBuilder::new();
     let value = expression.symbol(SymbolRef::Field(field)).unwrap();
     let root = expression.sub(value, value).unwrap();
+    let zero = expression
+        .constant(eqiora_core::ValueLiteral::from_real(value_type.clone(), 0.0).unwrap())
+        .unwrap();
     let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
     let bounds =
         AxisBounds::new(DynQuantity::new(0.0, length), DynQuantity::new(1.0, length)).unwrap();
@@ -255,10 +267,9 @@ fn spatial_program(value_type: ValueType) -> Result<KernelProgram, Vec<Diagnosti
             value_type,
             eqiora_schema::kernel::FieldRole::Variable,
         )),
-        KernelNode::from(RelationDef::new(
-            relation,
-            expression.finish([root]).unwrap(),
-        )),
+        KernelNode::from(
+            RelationDef::new(relation, expression.finish([root, zero]).unwrap()).unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(activation)),
     ];
     let view = ModelView::new(model, nodes.iter().map(KernelNode::id), []).unwrap();
@@ -542,11 +553,22 @@ fn typed_expression_edges_and_sharing_affect_structural_identity() {
             builder.complex(selected, two)
         }
         .unwrap();
+        let zero = builder
+            .constant(
+                eqiora_core::ValueLiteral::from_real(
+                    ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS),
+                    0.0,
+                )
+                .unwrap(),
+            )
+            .unwrap();
         let relation = Id::new();
         let activation = Id::new();
         let model = OntologyId::new();
         let nodes = [
-            KernelNode::from(RelationDef::new(relation, builder.finish([root]).unwrap())),
+            KernelNode::from(
+                RelationDef::new(relation, builder.finish([root, zero]).unwrap()).unwrap(),
+            ),
             KernelNode::from(ActivationDef::continuous(activation)),
         ];
         let view = ModelView::new(model, nodes.iter().map(KernelNode::id), []).unwrap();
@@ -654,7 +676,11 @@ fn nominal_program(
     let zero = expression
         .constant(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
         .unwrap();
-    nodes.push(RelationDef::new(relation, expression.finish([zero]).unwrap()).into());
+    nodes.push(
+        RelationDef::new(relation, expression.finish([zero, zero]).unwrap())
+            .unwrap()
+            .into(),
+    );
     nodes.push(ActivationDef::continuous(activation).into());
     edges.push((activation.erase(), relation.erase(), EdgeKind::Activates));
     let model = OntologyId::new();
@@ -814,4 +840,138 @@ fn index_extent_dependencies_survive_replay_and_block_stale_structure_edits() {
         store.snapshot().node(size.erase()).unwrap().value(),
         snapshot.node(size.erase()).unwrap().value()
     );
+}
+
+#[test]
+fn boolean_values_keep_exact_model_transaction_and_fingerprint_identity() {
+    use eqiora_core::ValueLiteral;
+    use eqiora_schema::kernel::ParameterDef;
+    let id = Id::new();
+    let build = |value| nominal_program(vec![ParameterDef::new(id, value).into()], vec![]).unwrap();
+    let false_model = build(ValueLiteral::boolean(false));
+    let true_model = build(ValueLiteral::boolean(true));
+    let numeric_zero = build(
+        ValueLiteral::from_integer(
+            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+            0,
+        )
+        .unwrap(),
+    );
+    let fingerprint =
+        |model: &KernelProgram| StructuralSemanticFingerprint::from_program(model).unwrap();
+    assert_ne!(fingerprint(&false_model), fingerprint(&true_model));
+    assert_ne!(fingerprint(&false_model), fingerprint(&numeric_zero));
+    let envelope = ModelEnvelope::from_program(&false_model).unwrap();
+    let bytes = envelope.canonical_json().unwrap();
+    let replay = ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default()).unwrap();
+    assert_eq!(replay.to_program().unwrap(), false_model);
+    let (seed, _) = replay.to_transaction().unwrap();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(seed).unwrap();
+    let mut edit = Transaction::new("exact Boolean edit");
+    edit.require(eqiora_graph::Precondition::ValueEquals {
+        target: id.erase(),
+        expected: ValueLiteral::boolean(false),
+    });
+    edit.push(Op::SetValue {
+        target: id.erase(),
+        value: ValueLiteral::boolean(true),
+    });
+    let bytes = crate::ModelTransactionEnvelope::from_transaction(&edit)
+        .unwrap()
+        .canonical_json()
+        .unwrap();
+    let decoded = crate::ModelTransactionEnvelope::from_json(&bytes, ModelDecoderLimits::default())
+        .unwrap()
+        .to_transaction()
+        .unwrap();
+    assert_eq!(decoded.ops(), edit.ops());
+    assert_eq!(decoded.preconditions(), edit.preconditions());
+    store.commit(decoded).unwrap();
+    assert_eq!(
+        store
+            .snapshot()
+            .node(id.erase())
+            .unwrap()
+            .value()
+            .unwrap()
+            .as_bool(),
+        Some(true)
+    );
+}
+
+#[test]
+fn comparison_opcode_and_authored_equation_sides_affect_fingerprint() {
+    use eqiora_core::ValueLiteral;
+    use eqiora_schema::kernel::ComparisonOp;
+    let mut fingerprints = std::collections::BTreeSet::new();
+    for operation in [
+        ComparisonOp::Equal,
+        ComparisonOp::NotEqual,
+        ComparisonOp::Less,
+        ComparisonOp::LessEqual,
+        ComparisonOp::Greater,
+        ComparisonOp::GreaterEqual,
+    ] {
+        for reversed in [false, true] {
+            let mut builder = ExprDagBuilder::new();
+            let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+            let left = builder
+                .constant(ValueLiteral::from_integer(ty.clone(), 9_007_199_254_740_992).unwrap())
+                .unwrap();
+            let right = builder
+                .constant(ValueLiteral::from_integer(ty, 9_007_199_254_740_993).unwrap())
+                .unwrap();
+            let compared = builder.compare(operation, left, right).unwrap();
+            let truth = builder.constant(ValueLiteral::boolean(true)).unwrap();
+            let expression = builder
+                .finish(if reversed {
+                    [truth, compared]
+                } else {
+                    [compared, truth]
+                })
+                .unwrap();
+            let relation = Id::new();
+            let activation = Id::new();
+            let program = nominal_program(
+                vec![
+                    RelationDef::new(relation, expression).unwrap().into(),
+                    ActivationDef::continuous(activation).into(),
+                ],
+                vec![(activation.erase(), relation.erase(), EdgeKind::Activates)],
+            )
+            .unwrap();
+            let fingerprint = StructuralSemanticFingerprint::from_program(&program).unwrap();
+            assert!(
+                fingerprints.insert(fingerprint),
+                "opcode and lhs/rhs are authored identity"
+            );
+            let envelope = ModelEnvelope::from_program(&program).unwrap();
+            assert_eq!(envelope.to_program().unwrap(), program);
+            let bytes = envelope.canonical_json().unwrap();
+            // Two equations, one comparison equality and the helper's zero law,
+            // retain four actual side roots, regardless of DAG node sharing.
+            assert!(
+                ModelEnvelope::from_json(
+                    &bytes,
+                    ModelDecoderLimits {
+                        max_expression_roots: 4,
+                        ..Default::default()
+                    }
+                )
+                .is_ok()
+            );
+            assert!(
+                ModelEnvelope::from_json(
+                    &bytes,
+                    ModelDecoderLimits {
+                        max_expression_roots: 3,
+                        ..Default::default()
+                    }
+                )
+                .is_err()
+            );
+        }
+    }
+    assert_eq!(fingerprints.len(), 12);
 }

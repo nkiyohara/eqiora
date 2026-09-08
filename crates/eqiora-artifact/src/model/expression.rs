@@ -9,7 +9,7 @@ use eqiora_core::Diagnostic;
 use eqiora_core::entity::kinds;
 use eqiora_schema::kernel::pure_operator::PureOperatorDefinition;
 use eqiora_schema::kernel::{
-    ExprDag, ExprDagBuilder, ExprId, ExprNode, SymbolRef, UnaryMathFunction,
+    ComparisonOp, ExprDag, ExprDagBuilder, ExprId, ExprNode, SymbolRef, UnaryMathFunction,
 };
 use serde::{Deserialize, Serialize};
 
@@ -255,9 +255,59 @@ impl PureOperatorWireCounts {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum WireComparisonOp {
+    Equal,
+    NotEqual,
+    Less,
+    LessEqual,
+    Greater,
+    GreaterEqual,
+}
+
+impl WireComparisonOp {
+    fn encode(op: ComparisonOp) -> Self {
+        match op {
+            ComparisonOp::Equal => Self::Equal,
+            ComparisonOp::NotEqual => Self::NotEqual,
+            ComparisonOp::Less => Self::Less,
+            ComparisonOp::LessEqual => Self::LessEqual,
+            ComparisonOp::Greater => Self::Greater,
+            ComparisonOp::GreaterEqual => Self::GreaterEqual,
+        }
+    }
+    fn decode(self) -> ComparisonOp {
+        match self {
+            Self::Equal => ComparisonOp::Equal,
+            Self::NotEqual => ComparisonOp::NotEqual,
+            Self::Less => ComparisonOp::Less,
+            Self::LessEqual => ComparisonOp::LessEqual,
+            Self::Greater => ComparisonOp::Greater,
+            Self::GreaterEqual => ComparisonOp::GreaterEqual,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "kebab-case", deny_unknown_fields)]
 pub(crate) enum WireExpressionNode {
+    Compare {
+        comparison: WireComparisonOp,
+        left: u32,
+        right: u32,
+    },
+    Not {
+        value: u32,
+    },
+    And {
+        left: u32,
+        right: u32,
+    },
+    Or {
+        left: u32,
+        right: u32,
+    },
     Constant {
         value: WireValueLiteral,
     },
@@ -356,6 +406,22 @@ pub(crate) enum WireExpressionNode {
 impl WireExpressionNode {
     pub(crate) fn encode(node: &ExprNode) -> Result<Self, Diagnostic> {
         Ok(match node {
+            ExprNode::Compare(op, left, right) => Self::Compare {
+                comparison: WireComparisonOp::encode(*op),
+                left: left.index(),
+                right: right.index(),
+            },
+            ExprNode::Not(value) => Self::Not {
+                value: value.index(),
+            },
+            ExprNode::And(left, right) => Self::And {
+                left: left.index(),
+                right: right.index(),
+            },
+            ExprNode::Or(left, right) => Self::Or {
+                left: left.index(),
+                right: right.index(),
+            },
             ExprNode::Constant(value) => Self::Constant {
                 value: WireValueLiteral::encode(value)?,
             },
@@ -481,6 +547,18 @@ impl WireExpressionNode {
                 builder.sample(operand(ids, *value)?, clock.typed::<kinds::ClockDomain>()?)
             }
             Self::Hold { value } => builder.hold(operand(ids, *value)?),
+            Self::Compare {
+                comparison,
+                left,
+                right,
+            } => builder.compare(
+                comparison.decode(),
+                operand(ids, *left)?,
+                operand(ids, *right)?,
+            ),
+            Self::Not { value } => builder.not(operand(ids, *value)?),
+            Self::And { left, right } => builder.and(operand(ids, *left)?, operand(ids, *right)?),
+            Self::Or { left, right } => builder.or(operand(ids, *left)?, operand(ids, *right)?),
             Self::Symbol { symbol } => builder.symbol(symbol.decode()?),
             Self::Quotient { left, right } => {
                 builder.quotient(operand(ids, *left)?, operand(ids, *right)?)
@@ -820,5 +898,64 @@ mod integer_operation_tests {
             vec![&WireId::from_raw(set.erase())]
         );
         assert_eq!(wire.decode().unwrap(), expression);
+    }
+    #[test]
+    fn exact_comparison_and_boolean_operations_preserve_ordered_edges() {
+        use eqiora_core::{DimExponents, ScalarDomain, ValueLiteral, ValueType};
+        let mut builder = ExprDagBuilder::new();
+        let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+        let a = builder
+            .constant(ValueLiteral::from_integer(ty.clone(), 9_007_199_254_740_992).unwrap())
+            .unwrap();
+        let b = builder
+            .constant(ValueLiteral::from_integer(ty, 9_007_199_254_740_993).unwrap())
+            .unwrap();
+        let operations = [
+            (ComparisonOp::Equal, "equal"),
+            (ComparisonOp::NotEqual, "not-equal"),
+            (ComparisonOp::Less, "less"),
+            (ComparisonOp::LessEqual, "less-equal"),
+            (ComparisonOp::Greater, "greater"),
+            (ComparisonOp::GreaterEqual, "greater-equal"),
+        ];
+        let mut roots = Vec::new();
+        for (op, _) in operations {
+            roots.push(builder.compare(op, a, b).unwrap());
+        }
+        let negated = builder.not(roots[0]).unwrap();
+        let both = builder.and(roots[1], negated).unwrap();
+        let either = builder.or(both, roots[2]).unwrap();
+        roots.extend([negated, both, either]);
+        let expression = builder.finish(roots).unwrap();
+        let wire = WireExpression::encode(&expression).unwrap();
+        let json = serde_json::to_value(&wire).unwrap();
+        for (index, (_, spelling)) in operations.into_iter().enumerate() {
+            assert_eq!(
+                json["nodes"][index + 2],
+                serde_json::json!({
+                    "op":"compare", "comparison":spelling, "left":0, "right":1,
+                })
+            );
+        }
+        assert_eq!(json["nodes"][8], serde_json::json!({"op":"not","value":2}));
+        assert_eq!(
+            json["nodes"][9],
+            serde_json::json!({"op":"and","left":3,"right":8})
+        );
+        assert_eq!(
+            json["nodes"][10],
+            serde_json::json!({"op":"or","left":9,"right":4})
+        );
+        assert_eq!(wire.decode().unwrap(), expression);
+        let mut invalid = wire;
+        invalid.nodes[2] = WireExpressionNode::Compare {
+            comparison: WireComparisonOp::Equal,
+            left: 0,
+            right: 2,
+        };
+        assert!(
+            invalid.decode().is_err(),
+            "self references are not earlier operands"
+        );
     }
 }

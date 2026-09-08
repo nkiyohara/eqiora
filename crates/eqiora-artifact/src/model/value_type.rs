@@ -33,6 +33,7 @@ enum WireValueBasis {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 enum WireScalarDomain {
+    Boolean,
     Integer,
     Real,
     Complex,
@@ -61,6 +62,7 @@ impl WireValueType {
         Ok(Self {
             basis,
             domain: match value.scalar_domain() {
+                ScalarDomain::Boolean => WireScalarDomain::Boolean,
                 ScalarDomain::Integer => WireScalarDomain::Integer,
                 ScalarDomain::Real => WireScalarDomain::Real,
                 ScalarDomain::Complex => WireScalarDomain::Complex,
@@ -126,6 +128,7 @@ impl WireValueType {
         let (arrays, spatial) = shape.extents().split_at(rank);
         let mut value = ValueType::shaped(
             match self.domain {
+                WireScalarDomain::Boolean => ScalarDomain::Boolean,
                 WireScalarDomain::Integer => ScalarDomain::Integer,
                 WireScalarDomain::Real => ScalarDomain::Real,
                 WireScalarDomain::Complex => ScalarDomain::Complex,
@@ -329,11 +332,16 @@ mod tests {
         ] {
             let mut builder = ExprDagBuilder::new();
             let root = builder
+                .constant(ValueLiteral::from_real(value_type.clone(), 0.0).unwrap())
+                .unwrap();
+            let paired = builder.finish([root, root]).unwrap();
+            let mut guard = ExprDagBuilder::new();
+            let root = guard
                 .constant(ValueLiteral::from_real(value_type, 0.0).unwrap())
                 .unwrap();
-            let expression = builder.finish([root]).unwrap();
+            let expression = guard.finish([root]).unwrap();
             for node in [
-                KernelNode::from(RelationDef::new(Id::new(), expression.clone())),
+                KernelNode::from(RelationDef::new(Id::new(), paired).unwrap()),
                 KernelNode::from(
                     ActivationDef::new(Id::new(), ActivationKind::Guard { guard: expression })
                         .unwrap(),
