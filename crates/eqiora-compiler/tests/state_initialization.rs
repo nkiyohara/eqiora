@@ -51,8 +51,10 @@ fn native_symbols_exclude_unnamed_initial_relations() {
         ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
         FieldRoleSyntax::State,
     );
-    let condition = state.expression()
-        - DraftExpression::constant(eqiora_lang::DecimalLiteral::parse("1").unwrap());
+    let condition = (
+        state.expression(),
+        DraftExpression::constant(eqiora_lang::DecimalLiteral::parse("1").unwrap()),
+    );
     let draft = ModelDraft::new(
         "M",
         [state.into(), DraftDeclaration::Initial(vec![condition])],

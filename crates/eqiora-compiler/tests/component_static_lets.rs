@@ -66,7 +66,7 @@ model M() {
         .iter()
         .map(|relation| {
             let mut references = relation
-                .residuals()
+                .expression()
                 .nodes()
                 .iter()
                 .filter_map(|node| match node {

@@ -119,7 +119,7 @@ fn runtime_diamond_stays_a_shared_dag_without_alias_entities() {
         })
         .collect::<Vec<_>>();
     assert_eq!(relations.len(), 1);
-    assert!(relations[0].residuals().nodes().len() < 100);
+    assert!(relations[0].expression().nodes().len() < 100);
 }
 
 #[test]

@@ -256,7 +256,7 @@ fn external_geometry_supports_enter_the_ordinary_component_lowerer() {
                 assert_eq!(definition.value().component(0).unwrap().0, 2.0);
             }
             KernelNode::Relation(relation) => {
-                parameter_references.extend(relation.residuals().nodes().iter().filter_map(
+                parameter_references.extend(relation.expression().nodes().iter().filter_map(
                     |node| match node {
                         ExprNode::Symbol(SymbolRef::Parameter(parameter)) => {
                             Some(parameter.erase())
@@ -310,7 +310,7 @@ fn omitted_external_parameter_default_remains_an_expression_constant() {
             return true;
         };
         relation
-            .residuals()
+            .expression()
             .nodes()
             .iter()
             .all(|node| !matches!(node, ExprNode::Symbol(SymbolRef::Parameter(_))))
@@ -615,7 +615,7 @@ model Coupled() {
             KernelNode::Field(_) => fields += 1,
             KernelNode::Relation(relation) => {
                 bound_target = relation
-                    .residuals()
+                    .expression()
                     .nodes()
                     .iter()
                     .find_map(|node| match node {
@@ -679,7 +679,7 @@ model Coupled() {
         match node {
             KernelNode::Parameter(_) => parameters += 1,
             KernelNode::Relation(relation) => {
-                bound_targets.extend(relation.residuals().nodes().iter().filter_map(|node| {
+                bound_targets.extend(relation.expression().nodes().iter().filter_map(|node| {
                     match node {
                         ExprNode::Symbol(SymbolRef::Parameter(parameter)) => {
                             Some(parameter.erase())
@@ -730,7 +730,7 @@ model Coupled() {
             } => Some((
                 relation.id().erase(),
                 relation
-                    .residuals()
+                    .expression()
                     .nodes()
                     .iter()
                     .filter_map(|node| match node {
@@ -811,7 +811,7 @@ model Coupled() {
             Op::DefineKernelNode {
                 node: KernelNode::Relation(relation),
             } => relation
-                .residuals()
+                .expression()
                 .nodes()
                 .iter()
                 .find_map(|node| match node {
@@ -1492,7 +1492,7 @@ model Coupled() {
             }
             KernelNode::Relation(relation) => {
                 flux_count += relation
-                    .residuals()
+                    .expression()
                     .nodes()
                     .iter()
                     .filter(|node| matches!(node, ExprNode::Symbol(SymbolRef::PortFlux(_))))

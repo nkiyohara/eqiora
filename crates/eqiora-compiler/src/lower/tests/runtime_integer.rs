@@ -10,7 +10,7 @@ fn exact_runtime_integer_literals_and_operations_retain_order_and_identity() {
         .filter_map(|op| match op {
             Op::DefineKernelNode {
                 node: KernelNode::Relation(r),
-            } => Some(r.residuals().nodes()),
+            } => Some(r.expression().nodes()),
             _ => None,
         })
         .flatten()
@@ -51,12 +51,19 @@ fn integer_calls_are_explicit_and_zero_assignment_retains_target() {
                 node: KernelNode::Relation(r),
             } = op
             {
-                for root in r.residuals().roots() {
-                    assert!(matches!(
-                        r.residuals().node(*root),
-                        Some(eqiora_schema::kernel::ExprNode::Sub(..))
-                    ));
-                }
+                assert_eq!(r.equation_sides().len(), 1);
+                let (left, right) = r.equation_sides().next().unwrap();
+                let state = compiled[0].symbols().get("n").unwrap();
+                assert!(match r.expression().node(left) {
+                    Some(eqiora_schema::kernel::ExprNode::Symbol(SymbolRef::Field(id)))
+                        if r.is_initial() =>
+                        id.erase() == state,
+                    Some(eqiora_schema::kernel::ExprNode::Symbol(SymbolRef::Next(id)))
+                        if !r.is_initial() =>
+                        id.erase() == state,
+                    _ => false,
+                });
+                assert_ne!(left, right);
             }
         }
     }
