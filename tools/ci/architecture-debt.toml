@@ -447,11 +447,11 @@ ceiling = 45
 
 [[public_surface]]
 crate = "eqiora-lang"
-ceiling = 83
+ceiling = 81
 # #857 adds ValueTypeSyntax and its closed syntax kind. Parsed and native ASTs
 # need one range-bearing recursive constructor tree; ValueShapeSyntax still
 # serves pure-operator shape patterns and is not a substitute for that tree.
-reason = "the Cartesian endpoint syntax retains typed coordinate ranges; #864 adds Equation as the single ordered lhs/rhs AST shared by parsed source, native authoring, formatting, hierarchy rewriting, and checked lowering, replacing the residual-sentinel representation; NamedDefinitionDecl now shares the range-bearing named RHS payload across let, dimension, finite-space and index-set declarations, with distinct container variants and checked factory boundaries; one FamilyBinderSyntax serves boundary, index and reduction contexts; ReductionOp owns the closed sum/product choice shared by parser and native SourceAstFactory consumers, replacing untyped call-name dispatch for scoped reductions"
+reason = "the Cartesian endpoint syntax retains typed coordinate ranges; #864 adds Equation as the single ordered lhs/rhs AST shared by parsed source, native authoring, formatting, hierarchy rewriting, and checked lowering, replacing the residual-sentinel representation; NamedDefinitionDecl now shares the range-bearing named RHS payload across let, dimension, finite-space and index-set declarations, with distinct container variants and checked factory boundaries; one FamilyBinderSyntax serves boundary, index and reduction contexts; ReductionOp owns the closed finite reduction choice shared by parser and native SourceAstFactory consumers, replacing untyped call-name dispatch for scoped reductions; CallArguments retains positional expressions or named bindings while shared Expr removes three operator-only expression types"
 removal = "lower the ceiling when general coordinate expressions subsume the closed endpoint grammar, or when an accepted equation representation replaces Equation; retain no parallel compatibility AST; lower this allowance when existing public consumers can use a smaller shared source representation without losing typed ranges or declaration admission"
 
 [[public_surface]]
