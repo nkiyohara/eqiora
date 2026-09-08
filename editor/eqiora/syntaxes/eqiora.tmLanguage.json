@@ -24,7 +24,7 @@
           "captures": { "1": { "name": "keyword.declaration.eqiora" }, "2": { "name": "entity.name.namespace.eqiora" } }
         },
         {
-          "match": "\\b(?:(public|private)\\s+)?(?:(property)\\s+(contract|release)|(material)\\s+(composition)|(pure)\\s+(operator)|(component|connector|model|dimension|indexset|space))\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "match": "\\b(?:(public|private)\\s+)?(?:(property)\\s+(contract|release)|(material)\\s+(composition)|(pure)\\s+(operator)|(component|connector|model|dimension|enum|indexset|space))\\s+([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
             "1": { "name": "keyword.declaration.eqiora" }, "2": { "name": "keyword.declaration.eqiora" },
             "3": { "name": "keyword.declaration.eqiora" }, "4": { "name": "keyword.declaration.eqiora" },
@@ -48,7 +48,7 @@
     "keywords": {
       "patterns": [{
         "name": "keyword.control.eqiora",
-        "match": "\\b(?:across|ambient_dimension|as|at|axis|boundaries|boundary|citation|clock|complete_exterior|component|components|composition|connect|connector|conserving|contract|crossing|delta|derivatives|dimension|direction|discrete|domain|else|event|field|for|form|frame|if|implements|import|in|initial|input|instance|license|let|lower|material|model|on|operator|output|over|parameter|parent|period|periodic|phase|port|primal|private|property|public|pure|rational|relation|release|scalar|shape|side|signal|source_unit|spatial|state|support|then|through|unconditional|upper|validity|value|value_only|variable|volume)\\b"
+        "match": "\\b(?:across|ambient_dimension|as|at|axis|boundaries|boundary|case|citation|clock|complete_exterior|component|components|composition|connect|connector|conserving|contract|crossing|delta|derivatives|dimension|direction|discrete|domain|else|enum|event|field|for|form|frame|if|implements|import|in|initial|input|instance|license|let|lower|material|model|on|operator|output|over|parameter|parent|period|periodic|phase|port|primal|private|property|public|pure|rational|relation|release|scalar|shape|side|signal|source_unit|spatial|state|support|then|through|unconditional|upper|validity|value|value_only|variable|volume)\\b"
       }]
     },
     "functions": {
@@ -69,7 +69,7 @@
     "numbers": {
       "patterns": [{ "name": "constant.numeric.eqiora", "match": "(?<![A-Za-z0-9_])(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?" }]
     },
-    "operators": { "patterns": [{ "name": "keyword.operator.eqiora", "match": "\\b(?:and|not|or)\\b|->|==|!=|<=|>=|[<>=+\\-*/^]" }] },
+    "operators": { "patterns": [{ "name": "keyword.operator.eqiora", "match": "\\b(?:and|not|or)\\b|->|=>|==|!=|<=|>=|[<>=+\\-*/^]" }] },
     "punctuation": {
       "patterns": [
         { "name": "punctuation.section.eqiora", "match": "[{}()\\[\\]]" },
