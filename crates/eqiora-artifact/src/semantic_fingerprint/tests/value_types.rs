@@ -1,7 +1,7 @@
 use super::*;
 use crate::{ModelDecoderLimits, ModelEnvelope};
 use eqiora_core::ScalarDomain;
-use eqiora_core::ValueType;
+use eqiora_core::{ValueFrame, ValueShape, ValueType};
 use eqiora_schema::kernel::{AxisBounds, DomainDef, RepresentationDef};
 
 #[test]
