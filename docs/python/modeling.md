@@ -17,16 +17,16 @@ rate = eqiora.Parameter(
 )
 flow = eqiora.Relation(
     "flow",
-    residual=eqiora.derivative(x) + rate * x,
+    equations=((eqiora.derivative(x) + rate * x, 0),),
 )
-model = eqiora.Model.define("decay", x, rate, eqiora.Initial(x - 1), flow)
+model = eqiora.Model.define("decay", x, rate, eqiora.Initial((x, 1)), flow)
 ```
 
 `Field.value_type` holds its mathematical scalar domain, physical dimension and
 component roles. `FieldRole.Variable` declares an algebraic unknown;
 `FieldRole.State` declares evolution or history independently of support.
 Omitted types are dimensionless real scalars. `Initial` supplies simultaneous
-zero-valued residuals for fresh initialization; the Field stores no initial literal.
+ordered left/right equation pairs for fresh initialization; the Field stores no initial literal.
 Fresh scalar ODE and admitted index-one DAE initialization checks the initial and
 regular equations together. Missing state data, contradictory constraints, or an
 unsupported initialization profile reject; this is not a general high-index DAE
@@ -90,7 +90,7 @@ population = eqiora.Parameter(
     value=(2, 9007199254740993),
 )
 observed = eqiora.Field("observed", role=eqiora.FieldRole.Variable)
-relation = eqiora.Relation("observation", residual=observed - 0)
+relation = eqiora.Relation("observation", equations=((observed, 0),))
 model = eqiora.Model.define("Population", species, population, observed, relation)
 assert model.parameter("population").value == (2, 9007199254740993)
 ```
@@ -108,7 +108,7 @@ with `component.index_set(..., extent=3)`. Its `counts`, `coordinates`, and `ind
 constructors require handles from the owning Source or Component. The closed
 `eqiora.lang.quotient`, `remainder`, `to_real`, `to_integer`, and `ordinal`
 expressions use the shared compiler's explicit conversion and arithmetic rules.
-Products, dual spaces, general maps, Boolean execution, and dynamic indexing remain
+Products, dual spaces, general maps, and dynamic indexing remain
 outside this bounded discrete profile.
 
 A numeric Parameter default uses the declared dimension's coherent unit.
@@ -117,8 +117,11 @@ For example, `parameter rate: 1 / s = 1;` gives the same value as
 conversions. This context applies only to numeric Parameter defaults;
 nonzero literals in general expressions do not silently acquire units.
 
-A relation receives an explicit zero-valued residual. Symbolic equality and
-Python truth testing are not modeling syntax. Declarations and expressions
+A native Relation receives ordered `equations=((left, right), ...)` pairs.
+Use `(residual, 0)` for a numerical residual equation. Named `equal`, `not_equal`,
+`less`, `less_equal`, `greater`, and `greater_equal` functions produce predicates;
+`logical_not`, `logical_and`, and `logical_or` compose them. Python `==` retains
+handle identity, and symbolic Python truth testing rejects. Declarations and expressions
 are frozen; validation and artifact creation happen atomically in Rust.
 
 ## Author Eqiora Language source
@@ -199,7 +202,7 @@ memory = component.field(
     "memory", on=body, role=eqiora.FieldRole.State,
     value_type=eqiora.ValueType.real(), at=tick,
 )
-component.initial(q.pre(memory) - 1)
+component.initial(left=q.pre(memory), right=1)
 observed = component.let_alias("observed", memory, on=body, at=tick)
 component.relation(
     "update", on=body, at=tick, left=q.next(memory), right=q.pre(memory),
@@ -894,7 +897,7 @@ left = eqiora.ConservingPort("left", domain=electrical)
 right = eqiora.ConservingPort("right", domain=electrical)
 component = eqiora.Relation(
     "component",
-    residuals=(eqiora.across(left), eqiora.through(right)),
+    equations=((eqiora.across(left), 0), (eqiora.through(right), 0)),
 )
 physical_model = eqiora.Model.define(
     "physical_pair",
@@ -947,17 +950,17 @@ model = eqiora.Model.define(
     eqiora.Relation(
         "balance",
         domain=interval,
-        residual=-eqiora.div(eqiora.grad(potential)) - source,
+        equations=((-eqiora.div(eqiora.grad(potential)) - source, 0),),
     ),
     eqiora.Relation(
         "lower_value",
         domain=lower,
-        residual=eqiora.trace(potential),
+        equations=((eqiora.trace(potential), 0),),
     ),
     eqiora.Relation(
         "upper_value",
         domain=upper,
-        residual=eqiora.trace(potential),
+        equations=((eqiora.trace(potential), 0),),
     ),
 )
 ```
@@ -1038,7 +1041,7 @@ assert same.revision == child.revision
 ```
 
 The canonical bytes still expose the persisted
-`eqiora.model-envelope/v15` schema, but callers do not select that suffix.
+`eqiora.model-envelope/v16` schema, but callers do not select that suffix.
 `.eqi` remains source text; `.eqmodel` is the canonical compiled Model artifact.
 Only the current schema is accepted; decoding never sniffs, retries, or silently
 migrates an older artifact.
@@ -1069,10 +1072,10 @@ native_model = eqiora.Model.define(
     "decay",
     x,
     rate,
-    eqiora.Initial(x - 1),
+    eqiora.Initial((x, 1)),
     eqiora.Relation(
         "flow",
-        residual=eqiora.derivative(x) + rate * x,
+        equations=((eqiora.derivative(x) + rate * x, 0),),
     ),
 )
 

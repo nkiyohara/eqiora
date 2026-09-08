@@ -81,6 +81,29 @@ conversion. A signed stoichiometric change uses `coordinates<integer, Species>`;
 to counts requires the exact same Space and rejects any component underflow or overflow.
 Every component and the enclosing tick are validated before committing state or outputs.
 
+## Boolean predicates
+
+`bool` is a dimensionless invariant scalar with the values `true` and `false`.
+It has no numerical zero, arithmetic, implicit numeric conversion, or continuous derivative.
+The current scalar profile rejects Boolean arrays and spatial vectors.
+
+`==` and `!=` produce Boolean values. Ordinary integers compare exactly, including adjacent
+values above 2^53; real and complex scalars may share equality at compatible dimensions.
+`<`, `<=`, `>`, and `>=` admit dimension-compatible real scalars or ordinary exact integers
+of the same domain. Complex and Boolean ordering reject. Nominal indexes support equality
+only within the same declared set; use `ordinal` explicitly for integer ordering. Counts,
+coordinates, and channel arrays have no comparison in this bounded profile.
+
+`not`, `and`, and `or` require Boolean operands. Conjunction evaluates its right operand only
+when its left value is true; disjunction does so only when its left value is false. Both sides
+must still pass static type, support, and activation checks. Sharing a skipped expression
+with a separately requested output does not exempt that output from evaluation.
+
+A Relation equality remains `left = right`; it does not become the predicate `left == right`.
+Direct Boolean initialization and sampled assignments use the existing typed state and output
+owners. This profile does not establish conditional expressions, masked batched evaluation,
+a Boolean implicit solver, predicate derivatives, or automatic crossing events.
+
 ## Real elementary functions
 
 Except where stated otherwise, the following functions require real dimensionless scalar

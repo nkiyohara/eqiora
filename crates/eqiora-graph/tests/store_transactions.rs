@@ -25,7 +25,8 @@ fn zero_relation(id: Id<kinds::Relation>) -> RelationDef {
                 .unwrap(),
         )
         .expect("one constant fits the arena");
-    RelationDef::new(id, expressions.finish([zero]).expect("one residual root"))
+    RelationDef::new(id, expressions.finish([zero, zero]).expect("one equation"))
+        .expect("paired equation roots")
 }
 
 #[test]
