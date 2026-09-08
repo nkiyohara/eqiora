@@ -15,7 +15,10 @@ from .. import FieldRole, ValueType, FiniteSpace, IndexSet
 
 @final
 class Operator:
-    """An immutable typed operator declared by one Source; call with named arguments."""
+    """An immutable typed operator declared by one Source; call with named arguments.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::Operator``.
+    """
     def __call__(self, /, **arguments: object) -> Expression: ...
 
 @final
