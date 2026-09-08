@@ -149,14 +149,8 @@ reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
-path = "crates/eqiora-compiler/src/hierarchy/body_check/scope.rs"
-ceiling = 1004
-reason = "predates the predicate; not yet triaged"
-removal = "split by responsibility in the lane that next modifies it"
-
-[[file_lines]]
 path = "crates/eqiora-compiler/src/hierarchy/expand.rs"
-ceiling = 2247
+ceiling = 2195
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
