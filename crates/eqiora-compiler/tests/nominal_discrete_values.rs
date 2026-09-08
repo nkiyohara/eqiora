@@ -173,3 +173,28 @@ fn source_index_parameter_default_uses_its_retained_kernel_index_set() {
         assert!(CompiledModel::compile_selected("index.eqi", &invalid, "M", &[]).is_err());
     }
 }
+
+#[test]
+fn static_count_addition_retains_checked_nominal_operation() {
+    let source = "space Species=orthonormal(A,B); space Other=orthonormal(A,B); model M() { parameter population:counts<Species>=counts(Species,[9007199254740993,2]); parameter added:counts<Species>=population+coordinates(Species,[1,0]); variable y:1; relation law {y=0;} }";
+    let model = CompiledModel::compile_selected("count-add.eqi", source, "M", &[])
+        .unwrap_or_else(|errors| panic!("{errors:?}"));
+    let added = model.symbols().get("added").unwrap();
+    let value = model
+        .transaction()
+        .ops()
+        .iter()
+        .find_map(|op| match op {
+            eqiora_graph::Op::DefineKernelNode {
+                node: eqiora_schema::kernel::KernelNode::Parameter(value),
+            } if value.id().erase() == added => Some(value.value()),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(value.integer_component(0), Some(9007199254740994));
+    let foreign = source.replace(
+        "population+coordinates(Species",
+        "population+coordinates(Other",
+    );
+    assert!(CompiledModel::compile_selected("count-add.eqi", &foreign, "M", &[]).is_err());
+}

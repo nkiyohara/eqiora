@@ -714,16 +714,21 @@ fn combine_types(
     };
     let fallback = DimExponents::DIMENSIONLESS;
     let result = match operator {
-        BinaryOp::Add | BinaryOp::Sub => typing::additive(
-            &projected(
+        BinaryOp::Add | BinaryOp::Sub => {
+            let left = projected(
                 &left,
                 left_dimension.or(right_dimension).unwrap_or(fallback),
-            ),
-            &projected(
+            );
+            let right = projected(
                 &right,
                 right_dimension.or(left_dimension).unwrap_or(fallback),
-            ),
-        ),
+            );
+            if operator == BinaryOp::Add {
+                left.sum(right)
+            } else {
+                typing::additive(&left, &right)
+            }
+        }
         BinaryOp::Mul | BinaryOp::Div => {
             let left = projected(
                 &left,
