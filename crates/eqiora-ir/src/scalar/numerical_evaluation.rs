@@ -11,8 +11,6 @@ pub(super) fn evaluate_instructions(
             Instruction::Select { .. }
             | Instruction::Require { .. }
             | Instruction::PureOperator { .. }
-            | Instruction::Min(_, _)
-            | Instruction::Max(_, _)
             | Instruction::Compare(_, _, _)
             | Instruction::Not(_)
             | Instruction::And(_, _)

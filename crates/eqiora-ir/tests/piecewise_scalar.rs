@@ -202,3 +202,34 @@ fn require_enforces_clamp_domain_without_invalid_math_sentinels() {
         .unwrap();
     assert_eq!(tangent, [1.]);
 }
+
+#[test]
+fn extrema_use_point_bound_selection_derivatives_and_reject_ties() {
+    let mut builder = ExprDagBuilder::new();
+    let x = builder
+        .symbol(SymbolRef::Field(Id::<kinds::Field>::new()))
+        .unwrap();
+    let cap = builder.constant(real(voltage(), 2.)).unwrap();
+    let minimum = builder.min(x, cap).unwrap();
+    let maximum = builder.max(x, cap).unwrap();
+    let ir = ScalarOperatorIr::lower(&builder.finish([minimum, maximum]).unwrap()).unwrap();
+    for (point, expected, slopes) in [(1., [1., 2.], [1., 0.]), (3., [2., 3.], [0., 1.])] {
+        let inputs = [real(voltage(), point)];
+        let values = ir
+            .evaluate_typed(&[minimum, maximum], &mut |_| Some(inputs[0].clone()))
+            .unwrap();
+        assert_eq!(values.iter().map(value).collect::<Vec<_>>(), expected);
+        let linear = ir
+            .linearize_typed(&inputs, &[DifferentiationRole::Unknown])
+            .unwrap();
+        let mut tangent = [0.; 2];
+        linear
+            .jvp(RelationTangent::Unknown(&[1.]), &mut tangent)
+            .unwrap();
+        assert_eq!(tangent, slopes);
+    }
+    assert!(
+        ir.linearize_typed(&[real(voltage(), 2.)], &[DifferentiationRole::Unknown])
+            .is_err()
+    );
+}

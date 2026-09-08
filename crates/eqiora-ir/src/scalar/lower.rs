@@ -123,12 +123,6 @@ impl ScalarOperatorIr {
                 ExprNode::Index { value, index } => {
                     Instruction::Index(value_id(*value, &values)?, *index)
                 }
-                ExprNode::Min(a, b) => {
-                    Instruction::Min(value_id(*a, &values)?, value_id(*b, &values)?)
-                }
-                ExprNode::Max(a, b) => {
-                    Instruction::Max(value_id(*a, &values)?, value_id(*b, &values)?)
-                }
                 ExprNode::Compare(op, a, b) => {
                     Instruction::Compare(*op, value_id(*a, &values)?, value_id(*b, &values)?)
                 }

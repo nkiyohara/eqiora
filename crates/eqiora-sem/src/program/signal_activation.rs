@@ -154,8 +154,6 @@ pub(crate) fn operands(node: &ExprNode) -> Vec<ExprId> {
         | ExprNode::Trace(value)
         | ExprNode::NormalComponent(value) => vec![*value],
         ExprNode::Complex { real: a, imag: b }
-        | ExprNode::Min(a, b)
-        | ExprNode::Max(a, b)
         | ExprNode::Compare(_, a, b)
         | ExprNode::And(a, b)
         | ExprNode::Or(a, b)

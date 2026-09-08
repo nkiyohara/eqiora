@@ -144,9 +144,7 @@ impl ScalarOperatorIr {
                         | Instruction::ToInteger(a)
                         | Instruction::Ordinal(a)
                         | Instruction::Not(a) => pending.push(Frame::Demand(a)),
-                        Instruction::Min(a, b)
-                        | Instruction::Max(a, b)
-                        | Instruction::Compare(_, a, b)
+                        Instruction::Compare(_, a, b)
                         | Instruction::Add(a, b)
                         | Instruction::Sub(a, b)
                         | Instruction::Mul(a, b)
@@ -255,21 +253,6 @@ impl ScalarOperatorIr {
                     Instruction::Not(value) => ValueLiteral::boolean(!boolean(read(value)?)?),
                     Instruction::And(_, right) | Instruction::Or(_, right) => {
                         ValueLiteral::boolean(boolean(read(right)?)?)
-                    }
-                    Instruction::Min(left, right) | Instruction::Max(left, right) => {
-                        let left = read(left)?;
-                        let right = read(right)?;
-                        let order = left.checked_order(right).map_err(discrete_error)?;
-                        let take_right = if matches!(instruction, Instruction::Min(_, _)) {
-                            order == std::cmp::Ordering::Greater
-                        } else {
-                            order == std::cmp::Ordering::Less
-                        };
-                        if take_right {
-                            right.clone()
-                        } else {
-                            left.clone()
-                        }
                     }
                     Instruction::Compare(op, left, right) => {
                         compare(op, read(left)?, read(right)?)?

@@ -16,12 +16,6 @@ impl KernelProgram {
                 "numerical projection requires a Relation",
             ));
         };
-        if crate::ordered_selection::contains(definition.expression()) {
-            return Err(Diagnostic::error(
-                codes::NOT_IMPLEMENTED,
-                "min/max requires explicit sampled assignment; numerical residuals and derivatives are unsupported",
-            ));
-        }
         let scope = edge_targets(&self.edges, relation, EdgeKind::AppliesOn)
             .first()
             .copied();

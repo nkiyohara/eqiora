@@ -4,7 +4,6 @@ use super::*;
 #[allow(clippy::too_many_arguments)]
 pub(super) fn evaluate_relations(
     program: &KernelProgram,
-    ordered_selection: bool,
     relations: &BTreeSet<RawId>,
     time: f64,
     state: &RuntimeState,
@@ -44,7 +43,7 @@ pub(super) fn evaluate_relations(
         residuals.extend(evaluate::numerical_differences(backend.evaluate(
             relation,
             definition.expression(),
-            &direct_assignments::numerical_roots(program, definition, ordered_selection),
+            &direct_assignments::numerical_roots(program, definition),
             &mut |symbol| evaluate::resolve_symbol(symbol, &context),
         )?)?);
     }

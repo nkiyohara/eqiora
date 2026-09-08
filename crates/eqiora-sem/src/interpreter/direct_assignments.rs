@@ -18,23 +18,9 @@ pub(super) fn supported_type(value: &ValueType) -> bool {
         || (value.scalar_domain() == ScalarDomain::Integer && value.array_rank() == 0)
 }
 
-pub(super) fn requires_typed_assignment(
-    program: &KernelProgram,
-    symbol: SymbolRef,
-    ordered_selection: bool,
-) -> bool {
+pub(super) fn requires_typed_assignment(program: &KernelProgram, symbol: SymbolRef) -> bool {
     program.execution_symbol_type(symbol).is_some_and(|value| {
-        (ordered_selection
-            && match symbol {
-                SymbolRef::Field(id) | SymbolRef::Pre(id) | SymbolRef::Next(id) => {
-                    !edge_targets(program, id.erase(), eqiora_graph::EdgeKind::ClockedBy).is_empty()
-                }
-                SymbolRef::Port(id) => {
-                    !edge_targets(program, id.erase(), eqiora_graph::EdgeKind::ClockedBy).is_empty()
-                }
-                _ => false,
-            })
-            || value.array_rank() > 0
+        value.array_rank() > 0
             || matches!(
                 value.scalar_domain(),
                 ScalarDomain::Integer | ScalarDomain::Boolean
@@ -42,17 +28,13 @@ pub(super) fn requires_typed_assignment(
     })
 }
 
-pub(super) fn requires_typed_assignment_id(
-    program: &KernelProgram,
-    id: RawId,
-    ordered_selection: bool,
-) -> bool {
+pub(super) fn requires_typed_assignment_id(program: &KernelProgram, id: RawId) -> bool {
     match program.node(id) {
         Some(KernelNode::Field(field)) => {
-            requires_typed_assignment(program, SymbolRef::Field(field.id()), ordered_selection)
+            requires_typed_assignment(program, SymbolRef::Field(field.id()))
         }
         Some(KernelNode::Port(port)) => {
-            requires_typed_assignment(program, SymbolRef::Port(port.id()), ordered_selection)
+            requires_typed_assignment(program, SymbolRef::Port(port.id()))
         }
         _ => false,
     }
@@ -63,7 +45,6 @@ fn assignment(
     dag: &ExprDag,
     a: ExprId,
     b: ExprId,
-    ordered_selection: bool,
 ) -> Option<(SymbolRef, ExprId)> {
     for (target, rhs) in [(a, b), (b, a)] {
         if let Some(ExprNode::Symbol(symbol)) = dag.nodes().get(target.index() as usize)
@@ -71,7 +52,7 @@ fn assignment(
                 symbol,
                 SymbolRef::Field(_) | SymbolRef::Pre(_) | SymbolRef::Next(_) | SymbolRef::Port(_)
             )
-            && requires_typed_assignment(program, *symbol, ordered_selection)
+            && requires_typed_assignment(program, *symbol)
         {
             return Some((*symbol, rhs));
         }
@@ -82,13 +63,10 @@ fn assignment(
 pub(super) fn numerical_roots(
     program: &KernelProgram,
     relation: &eqiora_schema::kernel::RelationDef,
-    ordered_selection: bool,
 ) -> Vec<ExprId> {
     relation
         .equation_sides()
-        .filter(|(a, b)| {
-            assignment(program, relation.expression(), *a, *b, ordered_selection).is_none()
-        })
+        .filter(|(a, b)| assignment(program, relation.expression(), *a, *b).is_none())
         .flat_map(|(a, b)| [a, b])
         .collect()
 }
@@ -128,13 +106,7 @@ pub(super) fn stage(
             continue;
         };
         for (left, right) in relation.equation_sides() {
-            if let Some((target, rhs)) = assignment(
-                program,
-                relation.expression(),
-                left,
-                right,
-                plan.ordered_selection,
-            ) {
+            if let Some((target, rhs)) = assignment(program, relation.expression(), left, right) {
                 let target = if initial {
                     match target {
                         SymbolRef::Pre(id) => SymbolRef::Field(id),
@@ -188,7 +160,7 @@ pub(super) fn stage(
             let result = backend.evaluate(owner, dag, &[rhs], &mut |symbol| {
                 let value = if initial
                     && !matches!(symbol, SymbolRef::Parameter(_))
-                    && !requires_typed_assignment(program, symbol, plan.ordered_selection)
+                    && !requires_typed_assignment(program, symbol)
                 {
                     None
                 } else {
@@ -240,7 +212,7 @@ pub(super) fn stage(
     }
     if initial
         && plan.fields.iter().any(|id| {
-            requires_typed_assignment_id(program, *id, plan.ordered_selection)
+            requires_typed_assignment_id(program, *id)
                 && !is_clocked_variable(program, *id)
                 && !state.typed_fields.contains_key(id)
         })

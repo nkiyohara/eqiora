@@ -160,9 +160,7 @@ fn evaluate_selected(
                     | ExprNode::ToInteger(value)
                     | ExprNode::Ordinal(value)
                     | ExprNode::Not(value) => pending.push(Frame::Demand(*value)),
-                    ExprNode::Min(a, b)
-                    | ExprNode::Max(a, b)
-                    | ExprNode::Compare(_, a, b)
+                    ExprNode::Compare(_, a, b)
                     | ExprNode::Add(a, b)
                     | ExprNode::Sub(a, b)
                     | ExprNode::Mul(a, b)
@@ -279,21 +277,6 @@ fn evaluate_selected(
                 }
                 ExprNode::And(_, right) | ExprNode::Or(_, right) => {
                     ValueLiteral::boolean(boolean(operand(&values, *right, owner)?)?)
-                }
-                ExprNode::Min(left, right) | ExprNode::Max(left, right) => {
-                    let left = operand(&values, *left, owner)?;
-                    let right = operand(&values, *right, owner)?;
-                    let order = left.checked_order(right).map_err(discrete_error)?;
-                    let take_right = if matches!(node, ExprNode::Min(_, _)) {
-                        order == std::cmp::Ordering::Greater
-                    } else {
-                        order == std::cmp::Ordering::Less
-                    };
-                    if take_right {
-                        right.clone()
-                    } else {
-                        left.clone()
-                    }
                 }
                 ExprNode::Compare(op, left, right) => compare(
                     *op,
