@@ -413,7 +413,8 @@ public component SpatialLaw(
 
     let forcing =
         eqiora_lang::DraftExpression::constant(eqiora_lang::DecimalLiteral::from_f64(2.0).unwrap())
-            .source_ast();
+            .source_ast(|_| None, |_| None)
+            .expect("numeric constant has no external declarations");
     let bindings = [
         (
             "fluid",
