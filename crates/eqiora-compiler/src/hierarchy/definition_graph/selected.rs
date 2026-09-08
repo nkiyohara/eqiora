@@ -503,6 +503,28 @@ impl Selected<'_, '_, '_> {
     }
 }
 
+fn unresolved_extents<'a>(
+    file: &str,
+    sets: impl IntoIterator<Item = &'a NamedDefinitionDecl>,
+    values: &SymbolicParameterMap,
+) -> Result<bool, Vec<Diagnostic>> {
+    for set in sets {
+        let ExprKind::Call { arguments, .. } = set.value().kind() else {
+            return Err(vec![definition_error("index set requires range(extent)")]);
+        };
+        let [extent] = arguments.as_slice() else {
+            return Err(vec![definition_error("range requires one extent")]);
+        };
+        if parameters::structural_extent(file, extent, values)
+            .map_err(|error| vec![error])?
+            .is_none()
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -613,26 +635,4 @@ mod tests {
             "{errors:?}"
         );
     }
-}
-
-fn unresolved_extents<'a>(
-    file: &str,
-    sets: impl IntoIterator<Item = &'a NamedDefinitionDecl>,
-    values: &SymbolicParameterMap,
-) -> Result<bool, Vec<Diagnostic>> {
-    for set in sets {
-        let ExprKind::Call { arguments, .. } = set.value().kind() else {
-            return Err(vec![definition_error("index set requires range(extent)")]);
-        };
-        let [extent] = arguments.as_slice() else {
-            return Err(vec![definition_error("range requires one extent")]);
-        };
-        if parameters::structural_extent(file, extent, values)
-            .map_err(|error| vec![error])?
-            .is_none()
-        {
-            return Ok(true);
-        }
-    }
-    Ok(false)
 }
