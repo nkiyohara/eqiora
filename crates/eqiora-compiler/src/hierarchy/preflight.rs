@@ -14,6 +14,7 @@ use crate::diagnostics::source_error;
 use crate::identity::IdentityNamespace;
 use crate::pure_operator::compile_definition;
 use crate::resolved::{AnalyzedResolvedHierarchy, CompilationModuleId};
+#[cfg(test)]
 use crate::source_identity::LocalSourceIdentity;
 
 use super::HierarchyLimits;
@@ -146,6 +147,7 @@ pub(super) struct Elaborator<'a> {
 }
 
 impl<'a> Elaborator<'a> {
+    #[cfg(test)]
     pub(super) fn new(
         file: &'a str,
         source_bytes: usize,

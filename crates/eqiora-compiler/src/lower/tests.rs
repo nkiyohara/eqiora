@@ -101,15 +101,28 @@ fn typed_literal_lowering_preserves_type_through_detachment_and_zero_negation() 
         );
         let literal = LoweringExpression::neg(literal.detached_clone(), TextRange::new(0, 1));
         assert_eq!(expression::lowering_integer_literal(&literal), None);
-        let parsed = parse("literal.eqi", "model M() { relation r { 0 = 0; } }")
-            .into_document()
-            .unwrap();
-        let mut model = LoweringModel::from_source("literal.eqi", &parsed.models()[0]).unwrap();
-        let LoweringItem::Relation { equations, .. } = &mut model.items[0] else {
-            panic!("relation");
+        let model = LoweringModel {
+            name: "M".into(),
+            range: TextRange::new(0, 1),
+            items: vec![LoweringItem::Relation {
+                name: "r".into(),
+                activation: ActivationSyntax::Continuous,
+                domain: None,
+                initial: false,
+                range: TextRange::new(0, 1),
+                equations: vec![LoweringEquation {
+                    left: literal,
+                    right: LoweringExpression::number(
+                        eqiora_lang::DecimalLiteral::parse("0").unwrap(),
+                        TextRange::new(0, 1),
+                    ),
+                    contextual_left_zero: false,
+                    contextual_right_zero: true,
+                    literal_right_zero: true,
+                    range: TextRange::new(0, 1),
+                }],
+            }],
         };
-        equations[0].left = literal;
-        equations[0].contextual_left_zero = false;
         let compiled =
             lower_typed_model("literal.eqi", &model, &mut FreshLoweringIdentities).unwrap();
         let constant = compiled
@@ -518,9 +531,61 @@ model assigned() {
         connection: Id::new(),
     };
 
-    let compiled =
-        lower_model_with_identities("assigned.eqi", &document.models()[0], &mut identities)
-            .expect("assigned identities lower");
+    let declaration = &document.models()[0];
+    let domain = declaration
+        .items()
+        .iter()
+        .find_map(|item| match item {
+            eqiora_lang::Item::Domain(value) => Some(value),
+            _ => None,
+        })
+        .unwrap();
+    let relation = declaration
+        .items()
+        .iter()
+        .find_map(|item| match item {
+            eqiora_lang::Item::Relation(value) => Some(value),
+            _ => None,
+        })
+        .unwrap();
+    let mut items = vec![LoweringItem::Domain {
+        name: "electrical".into(),
+        contract: LoweringDomainContract::Source(domain.syntax().clone()),
+        range: domain.range(),
+    }];
+    for name in ["positive", "negative"] {
+        items.push(LoweringItem::Port {
+            name: name.into(),
+            contract: LoweringPortContract::Source(PortSyntax::ScalarPhysical {
+                domain: "electrical".into(),
+            }),
+            range: declaration.range(),
+        });
+    }
+    items.push(LoweringItem::Relation {
+        name: "equal".into(),
+        activation: ActivationSyntax::Continuous,
+        domain: None,
+        equations: relation
+            .equations()
+            .iter()
+            .map(LoweringEquation::from_source)
+            .collect(),
+        initial: false,
+        range: relation.range(),
+    });
+    items.push(LoweringItem::Connection {
+        syntax: ConnectionSyntax::Conserving,
+        ports: vec!["positive".into(), "negative".into()],
+        range: declaration.range(),
+    });
+    let model = LoweringModel {
+        name: "assigned".into(),
+        range: declaration.range(),
+        items,
+    };
+    let compiled = lower_typed_model("assigned.eqi", &model, &mut identities)
+        .expect("assigned identities lower");
 
     assert_eq!(compiled.model(), identities.model);
     assert_eq!(
@@ -1214,10 +1279,7 @@ fn flat_lowering_consumes_the_shared_scalar_connection_contract() {
         ),
     ];
     for (name, source, message) in cases {
-        let document = parse("connections.eqi", source)
-            .into_document()
-            .expect("fixture parses");
-        let diagnostics = lower_model("connections.eqi", &document.models()[0]).expect_err(name);
+        let diagnostics = compile("connections.eqi", source).expect_err(name);
         assert!(
             diagnostics.iter().any(|diagnostic| {
                 diagnostic.source_span().is_some() && diagnostic.message().contains(message)

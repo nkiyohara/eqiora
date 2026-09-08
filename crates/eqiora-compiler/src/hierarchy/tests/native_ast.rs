@@ -1,6 +1,22 @@
 //! Native AST validation remains inside the one compiler lowering owner.
 
-use super::lower_model;
+fn compile_model(
+    file: &str,
+    model: &eqiora_lang::ModelDecl,
+) -> Result<crate::CompiledModel, Vec<eqiora_core::Diagnostic>> {
+    let document =
+        eqiora_lang::SourceAstFactory::document(Vec::new(), Vec::new(), vec![model.clone()])
+            .unwrap();
+    crate::hierarchy::selected::local_document(
+        file,
+        0,
+        document,
+        None,
+        &[],
+        crate::hierarchy::HierarchyLimits::default(),
+    )
+    .map(|mut models| models.remove(0))
+}
 use crate::compile;
 
 #[test]
@@ -49,7 +65,7 @@ fn source_and_factory_retain_volume_only_field_support() {
     )
     .unwrap();
     assert!(is_support_error(
-        lower_model("factory.eqi", &rebuilt).unwrap_err()
+        compile_model("factory.eqi", &rebuilt).unwrap_err()
     ));
     assert!(is_support_error(compile("required.eqi", "component C(support body: volume(ambient_dimension = 1), support wall: boundary(parent = body), state x: 1 on wall) {} model M() { variable y: 1; relation r { y = 0; } }").unwrap_err()));
 }
@@ -75,7 +91,7 @@ fn invalid_unused_clock_definitions_keep_operand_ranges() {
     let document = eqiora_lang::parse("clock.eqi", source)
         .into_document()
         .unwrap();
-    let errors = lower_model("clock.eqi", &document.models()[0]).unwrap_err();
+    let errors = compile_model("clock.eqi", &document.models()[0]).unwrap_err();
     let span = errors
         .iter()
         .find(|error| error.message().contains("equal dimensions"))
