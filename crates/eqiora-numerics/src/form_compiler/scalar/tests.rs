@@ -458,3 +458,98 @@ fn centered_scalar_gradient(
         })
         .collect()
 }
+
+#[test]
+fn projected_zero_storage_does_not_hide_unconsumed_operations() {
+    use eqiora_core::{DimExponents, Id, ScalarDomain, ValueLiteral, ValueType, entity::kinds};
+    use eqiora_schema::kernel::ExprDagBuilder;
+    let owner = Id::<kinds::Relation>::new().erase();
+    for (domain, extra_operation) in [
+        (ScalarDomain::Real, false),
+        (ScalarDomain::Complex, false),
+        (ScalarDomain::Real, true),
+        (ScalarDomain::Complex, true),
+    ] {
+        let mut builder = ExprDagBuilder::new();
+        let root = builder
+            .constant(
+                ValueLiteral::from_real(
+                    ValueType::scalar(domain, DimExponents::DIMENSIONLESS),
+                    1.0,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        let zero = builder
+            .constant(
+                ValueLiteral::from_real(
+                    ValueType::scalar(domain, DimExponents::DIMENSIONLESS),
+                    0.0,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        // The extra exact zero is inert storage, even though its ExprId remains.
+        // An unused operation on that zero is still an unconsumed operation.
+        if extra_operation {
+            builder.neg(zero).unwrap();
+        }
+        let dag = builder.finish([root]).unwrap();
+        if extra_operation {
+            assert_gate(require_closed_dag(&dag, owner), "derivation certificate");
+        } else {
+            require_closed_dag(&dag, owner).unwrap();
+        }
+    }
+}
+
+#[test]
+fn non_numeric_or_nonzero_unused_storage_remains_unconsumed() {
+    use eqiora_core::{DimExponents, Id, ScalarDomain, ValueLiteral, ValueType, entity::kinds};
+    use eqiora_schema::kernel::ExprDagBuilder;
+    let owner = Id::<kinds::Relation>::new().erase();
+    for extra in [
+        ValueLiteral::boolean(false),
+        ValueLiteral::from_integer(
+            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+            0,
+        )
+        .unwrap(),
+        ValueLiteral::from_real(
+            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+            2.0,
+        )
+        .unwrap(),
+    ] {
+        let mut builder = ExprDagBuilder::new();
+        let root = builder
+            .constant(
+                ValueLiteral::from_real(
+                    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+                    1.0,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        builder.constant(extra).unwrap();
+        assert_gate(
+            require_closed_dag(&builder.finish([root]).unwrap(), owner),
+            "derivation certificate",
+        );
+    }
+}
+
+#[test]
+fn reachable_extra_strong_form_term_is_not_dropped() {
+    let source = SOURCE.replace(
+        "-div(grad(potential))",
+        "-div(grad(potential)) + div(grad(potential))",
+    );
+    assert_ne!(source, SOURCE);
+    let program = compile_program(&source);
+    let domain = box_domain(&program);
+    assert_gate(
+        derive_candidate(&program, domain).map(|_| ()),
+        "derivation certificate",
+    );
+}
