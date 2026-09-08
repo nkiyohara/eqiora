@@ -26,10 +26,9 @@ def assert_inlined_coefficient(model, kind, values):
     assert len(relations) == 1
     expression = relations[0]["expression"]
     assert len(expression["roots"]) == 2
-    right = expression["nodes"][expression["roots"][1]]
-    assert right["op"] == "constant"
-    literal = right["value"]
-    value_type = literal["value_type"]
+    fields = [node for node in definitions if node["kind"] == "field"]
+    assert len(fields) == 1
+    value_type = fields[0]["value_type"]
     assert value_type["domain"] == kind.scalar_domain
     assert value_type["shape"] == list(kind.shape)
     assert value_type["array_rank"] == kind.array_rank
@@ -42,10 +41,25 @@ def assert_inlined_coefficient(model, kind, values):
         number = complex(value)
         return [[number.real, number.imag]]
 
-    assert literal["components"] == {"kind": "dense", "values": flatten(values)}
-    fields = [node for node in definitions if node["kind"] == "field"]
-    assert len(fields) == 1
-    assert fields[0]["value_type"] == value_type
+    # Only declared outer channel axes are Array operations. Spatial axes stay
+    # inside each complete constant's payload, preserving vector/tensor meaning.
+    leaves = [(expression["roots"][1], values)]
+    for extent in kind.shape[:kind.array_rank]:
+        children = []
+        for node_id, expected in leaves:
+            array = expression["nodes"][node_id]
+            assert array["op"] == "array"
+            assert len(array["elements"]) == len(expected) == extent
+            children.extend(zip(array["elements"], expected))
+        leaves = children
+    spatial_type = dict(value_type, shape=list(kind.shape[kind.array_rank:]), array_rank=0)
+    assert leaves
+    for node_id, expected in leaves:
+        constant = expression["nodes"][node_id]
+        assert constant["op"] == "constant"
+        literal = constant["value"]
+        assert literal["value_type"] == spatial_type
+        assert literal["components"] == {"kind": "dense", "values": flatten(expected)}
     field_id = next(node["id"] for node in nodes if node["definition"]["kind"] == "field")
     assert expression["nodes"][expression["roots"][0]] == {
         "op": "symbol", "symbol": {"kind": "field", "id": field_id},
