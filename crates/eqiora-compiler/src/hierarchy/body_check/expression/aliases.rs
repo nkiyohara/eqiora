@@ -116,6 +116,35 @@ pub(in crate::hierarchy::body_check) fn validate_aliases<'a>(
             .filter(|name| matches!(scope.symbols.get(*name), Some(SymbolContract::Event)))
             .map(str::to_owned);
         if let Some(event) = &event_context {
+            let eligible = |requirement: &EvolutionRequirement| {
+                matches!(requirement.operator.as_str(), "pre" | "next")
+                    && matches!(
+                        scope.symbols.get(&requirement.target),
+                        Some(SymbolContract::Field(
+                            _,
+                            eqiora_lang::FieldRoleSyntax::State,
+                            ActivationSyntax::Continuous
+                        ))
+                    )
+            };
+            let mut has_reset = checker.evolution.iter().any(eligible);
+            let mut pending = checker.alias_dependencies.clone();
+            let mut seen = BTreeSet::new();
+            while let Some(alias) = pending.pop() {
+                if seen.insert(Arc::as_ptr(&alias) as usize) {
+                    has_reset |= alias.evolution.iter().any(eligible);
+                    pending.extend(alias.dependencies.iter().cloned());
+                }
+            }
+            if !has_reset {
+                errors.push(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    scope.file,
+                    declaration.range(),
+                    "event-local let assertion requires a continuous-state reset use",
+                ));
+                continue;
+            }
             activation = DependencyActivation::Event(event.clone());
         }
         let field_target = match declaration.value().kind() {
@@ -349,16 +378,20 @@ mod event_alias_tests {
             ("let old=pre(x);", "relation r {x=old;}"),
             ("let old=pre(x);", "relation r at tick {x=old;}"),
             (
-                "let local at impact=x; let old=local;",
+                "let local at impact=pre(x); let old=local;",
                 "relation r {x=old;}",
             ),
             (
-                "let local at impact=x; let old=local;",
+                "let local at impact=pre(x); let old=local;",
                 "relation r at other {next(x)=old;}",
             ),
             (
                 "let local at impact=x;",
-                "relation r at other {next(x)=pre(local);}",
+                "relation r at impact {next(x)=local;}",
+            ),
+            (
+                "let local at impact=1;",
+                "relation r at impact {next(x)=local;}",
             ),
         ] {
             let source = model(alias, relation);
