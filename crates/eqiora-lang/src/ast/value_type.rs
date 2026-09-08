@@ -129,13 +129,31 @@ impl ValueTypeSyntax {
     }
 
     pub(crate) fn rewrite_dimension(&mut self, rewrite: &mut impl FnMut(&Expr) -> Expr) {
+        if self.resolved_nominal.is_some() {
+            return;
+        }
         match self.kind.as_mut() {
+            ValueTypeSyntaxKind::Named(name) => {
+                let expression = Expr {
+                    resolved_enum: None,
+                    resolved_nominal: None,
+                    kind: if name.is_qualified() {
+                        super::ExprKind::Path(name.clone())
+                    } else {
+                        super::ExprKind::Name(name.as_str().to_owned())
+                    },
+                    range: self.range,
+                };
+                let rewritten = rewrite(&expression);
+                if rewritten != expression {
+                    self.kind = Self::real(rewritten).kind;
+                }
+            }
             ValueTypeSyntaxKind::Scalar { dimension, .. } => *dimension = rewrite(dimension),
             ValueTypeSyntaxKind::Vector { scalar, .. }
             | ValueTypeSyntaxKind::Tensor { scalar, .. } => scalar.rewrite_dimension(rewrite),
             ValueTypeSyntaxKind::Array { element, .. } => element.rewrite_dimension(rewrite),
-            ValueTypeSyntaxKind::Named(_)
-            | ValueTypeSyntaxKind::Coordinates(_)
+            ValueTypeSyntaxKind::Coordinates(_)
             | ValueTypeSyntaxKind::Counts(_)
             | ValueTypeSyntaxKind::Index(_) => {}
         }

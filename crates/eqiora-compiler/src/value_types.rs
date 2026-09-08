@@ -11,14 +11,25 @@ pub(crate) fn lower_scalar_type(
     file: &str,
     syntax: &ValueTypeSyntax,
 ) -> Result<ValueType, Diagnostic> {
-    let value = lower_value_type::<()>(file, syntax, None)?;
-    if !value.shape().is_scalar() {
-        return Err(source_error(
+    let non_scalar = || {
+        source_error(
             codes::LANGUAGE_TYPE_ERROR,
             file,
             syntax.range(),
             "scalar physical quantities require scalar mathematical types",
-        ));
+        )
+    };
+    if matches!(
+        syntax.kind(),
+        ValueTypeSyntaxKind::Array { .. }
+            | ValueTypeSyntaxKind::Vector { .. }
+            | ValueTypeSyntaxKind::Tensor { .. }
+    ) {
+        return Err(non_scalar());
+    }
+    let value = lower_value_type::<()>(file, syntax, None)?;
+    if !value.shape().is_scalar() {
+        return Err(non_scalar());
     }
     Ok(value)
 }
