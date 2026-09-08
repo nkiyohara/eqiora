@@ -135,6 +135,12 @@ impl ExecutionPlan {
                     });
                 }
                 ActivationKind::Event { guard, direction } => {
+                    if ordered_selection || crate::ordered_selection::contains(guard) {
+                        return Err(execution_error(
+                            "min/max event execution is unsupported",
+                            0.0,
+                        ));
+                    }
                     events.push(EventTask {
                         activation: activation_id,
                         relations,

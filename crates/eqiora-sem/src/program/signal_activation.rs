@@ -128,10 +128,12 @@ pub(super) fn validate(
     }
 }
 
-fn operands(node: &ExprNode) -> Vec<ExprId> {
+pub(crate) fn operands(node: &ExprNode) -> Vec<ExprId> {
     match node {
         ExprNode::Array { elements } => elements.clone(),
-        ExprNode::Index { value, .. }
+        ExprNode::Sample { value, .. }
+        | ExprNode::Hold(value)
+        | ExprNode::Index { value, .. }
         | ExprNode::Not(value)
         | ExprNode::ToReal(value)
         | ExprNode::ToInteger(value)
@@ -146,6 +148,8 @@ fn operands(node: &ExprNode) -> Vec<ExprId> {
         | ExprNode::Trace(value)
         | ExprNode::NormalComponent(value) => vec![*value],
         ExprNode::Complex { real: a, imag: b }
+        | ExprNode::Min(a, b)
+        | ExprNode::Max(a, b)
         | ExprNode::Compare(_, a, b)
         | ExprNode::And(a, b)
         | ExprNode::Or(a, b)
