@@ -136,10 +136,10 @@ pub(crate) fn _nominal_type_source(
 ) -> PyResult<String> {
     let mut names = Vec::with_capacity(spaces.len() + sets.len());
     for space in spaces {
-        names.push((space.value.id().into(), name_path(&space.name)?));
+        names.push((space.value.id().erase(), name_path(&space.name)?));
     }
     for set in sets {
-        names.push((set.value.id().into(), name_path(&set.name)?));
+        names.push((set.value.id().erase(), name_path(&set.name)?));
     }
     ValueTypeSyntax::from_checked(&value_type.value, |id| {
         names

@@ -93,7 +93,7 @@ impl SourceAstFactory {
         }
         let result = nested(value, 0, &mut 0, range);
         if let Some((constructor, name)) = nominal {
-            return Self::expression(
+            let mut expression = Self::expression(
                 ExprKind::Call {
                     callee: NamePath::single(constructor.to_owned(), range),
                     arguments: vec![
@@ -106,7 +106,9 @@ impl SourceAstFactory {
                     ],
                 },
                 range,
-            );
+            )?;
+            Self::bind_nominal_expression(&mut expression, name, value.value_type().clone())?;
+            return Ok(expression);
         }
         Self::expression(result.kind, range)
     }

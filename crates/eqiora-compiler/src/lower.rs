@@ -12,6 +12,7 @@ mod domain_contract;
 mod expression;
 mod external;
 mod integer;
+mod native;
 pub(crate) use integer::IntegerBuiltin;
 mod dependencies;
 #[cfg(test)]
@@ -50,7 +51,7 @@ use eqiora_schema::kernel::{
 use eqiora_schema::{Model, ModelView};
 
 use crate::connection_sets::{ConnectionFragment, ConnectionSetLimits, normalize_connection_sets};
-use crate::diagnostics::{native_diagnostic, source_error};
+use crate::diagnostics::source_error;
 use crate::dimensions::{dimension_overflow, length_dimension, lower_dimension, time_dimension};
 use crate::formulation::CompiledAuthoredFormulation;
 use crate::projection::PhysicalExposureProjectionMap;
@@ -173,13 +174,7 @@ impl CompiledModel {
 /// Returns graph-path diagnostics for invalid native declarations. No partial
 /// transaction is returned.
 pub fn lower_draft(draft: &ModelDraft) -> Result<CompiledModel, Vec<Diagnostic>> {
-    let native = draft.native_ast();
-    lower_model("<native>", native.model()).map_err(|diagnostics| {
-        diagnostics
-            .into_iter()
-            .map(|diagnostic| native_diagnostic(draft, &native, diagnostic))
-            .collect()
-    })
+    native::lower(draft)
 }
 
 /// Resolve and lower one parsed model declaration.
@@ -270,7 +265,6 @@ enum LoweringExpressionNode {
 #[derive(Debug, Clone)]
 pub(crate) enum LoweringItem {
     Nominal {
-        name: String,
         definition: eqiora_schema::kernel::KernelNode,
         dependencies: Vec<String>,
         range: TextRange,

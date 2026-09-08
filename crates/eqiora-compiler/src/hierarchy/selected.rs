@@ -69,18 +69,54 @@ pub(super) fn local_document(
     bindings: &[(&str, StaticBindingValue<'_>)],
     limits: HierarchyLimits,
 ) -> Result<Vec<CompiledModel>, Vec<Diagnostic>> {
+    local_document_in(file, source_bytes, document, entry, bindings, limits, None)
+}
+
+pub(crate) fn native_document(
+    native: &eqiora_lang::NativeModelAst,
+) -> Result<CompiledModel, Vec<Diagnostic>> {
+    let mut models = local_document_in(
+        "<native>",
+        0,
+        native.document().clone(),
+        Some(native.model().name()),
+        &[],
+        HierarchyLimits::default(),
+        Some(native),
+    )?;
+    Ok(models.remove(0))
+}
+
+fn local_document_in(
+    file: &str,
+    source_bytes: usize,
+    document: Document,
+    entry: Option<&str>,
+    bindings: &[(&str, StaticBindingValue<'_>)],
+    limits: HierarchyLimits,
+    native: Option<&eqiora_lang::NativeModelAst>,
+) -> Result<Vec<CompiledModel>, Vec<Diagnostic>> {
     source_budget(file, source_bytes, limits)?;
     let identity = LocalSourceIdentity::from_document(&document).map_err(|error| vec![error])?;
+    let namespace = if native.is_some() {
+        crate::identity::IdentityNamespace::new([
+            "native".to_owned(),
+            eqiora_core::OntologyId::<eqiora_schema::Model>::new().to_string(),
+        ])
+    } else {
+        identity.namespace()
+    }
+    .map_err(|error| vec![error])?;
     let mut document =
         crate::dimensions::elaborate_dimension_aliases(file, &document)?.into_owned();
-    let spaces = crate::nominal::finite_spaces(
-        file,
-        &document,
-        &identity.namespace().map_err(|error| vec![error])?,
-        |_| None,
-    )?;
+    let spaces = crate::nominal::finite_spaces(file, &document, &namespace, |name| {
+        native.and_then(|native| native.nominal_identity(name))
+    })?;
     crate::nominal::bind_finite_types(file, &mut document, &spaces)?;
     crate::nominal::bind_finite_expressions(file, &mut document, &spaces)?;
+    crate::nominal::bind_local_index_types(file, &mut document, &namespace, |name| {
+        native.and_then(|native| native.nominal_identity(name))
+    })?;
     // This private lookup namespace never enters local source/occurrence identity.
     let module = CompilationModuleId::new(
         CompilationNamespaceId::new(["eqiora.local"]).map_err(|error| vec![error])?,
@@ -99,7 +135,14 @@ pub(super) fn local_document(
         aliases: &[],
         local_namespace: Some(&module),
     };
-    let elaborator = Elaborator::new(file, source_bytes, &units[0].document, identity, limits)?;
+    let elaborator = Elaborator::with_identity(
+        file,
+        source_bytes,
+        &units[0].document,
+        namespace,
+        native,
+        limits,
+    )?;
     let checked = check::validate(&elaborator)?;
     let entries = entry.map_or_else(
         || {

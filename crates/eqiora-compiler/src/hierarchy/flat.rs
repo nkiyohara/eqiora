@@ -386,13 +386,11 @@ impl ExpandedBlueprint {
                     range: *range,
                 },
                 FlatItemBlueprint::Nominal {
-                    name,
                     definition,
                     dependencies,
                     range,
                     ..
                 } => LoweringItem::Nominal {
-                    name: name.clone(),
                     definition: definition.clone(),
                     dependencies: dependencies.clone(),
                     range: *range,

@@ -87,12 +87,27 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 SourceLocation::new(file, declaration.range()),
                 Vec::new(),
             )?;
-            let mut staging = crate::identity::StagingIdAllocator::new();
-            let full = staging.stage(&identity.key)?;
-            let id = staging
-                .finish()
-                .resolve::<eqiora_core::entity::kinds::IndexSet>(full)?
-                .id();
+            let full = identity.full;
+            let supplied = (instance_path == &self.root_path)
+                .then(|| {
+                    self.elaborator
+                        .native
+                        .and_then(|native| native.nominal_identity(declaration.name()))
+                })
+                .flatten();
+            let id = if let Some(id) = supplied {
+                id.downcast::<eqiora_core::entity::kinds::IndexSet>()
+                    .ok_or_else(|| {
+                        invalid("native index declaration has a different entity kind")
+                    })?
+            } else {
+                let mut staging = crate::identity::StagingIdAllocator::new();
+                let full = staging.stage(&identity.key)?;
+                staging
+                    .finish()
+                    .resolve::<eqiora_core::entity::kinds::IndexSet>(full)?
+                    .id()
+            };
             let definition = eqiora_schema::kernel::IndexSetDef::new(id, extent)
                 .map_err(|error| invalid(error.message()))?;
             scope.insert_index_set(declaration.name().to_owned(), definition.clone())?;
