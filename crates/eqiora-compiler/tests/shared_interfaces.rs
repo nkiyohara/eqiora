@@ -225,7 +225,7 @@ fn borrowed_alias_clocks_are_checked_at_the_exact_occurrence() {
             assert!(
                 errors.iter().any(|error| error
                     .message()
-                    .contains("exact occurrence dependency clock")),
+                    .contains("exact occurrence context")),
                 "{errors:?}"
             );
         }
