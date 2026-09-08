@@ -96,3 +96,37 @@ fn context_dependent_physical_proofs_are_not_reused() {
         "{errors:?}"
     );
 }
+
+#[test]
+fn unrelated_symbolic_models_keep_their_existing_admission() {
+    let generic = "component Cell(output y:1){relation r{y=0;}} public model Generic(parameter n:integer){indexset I=range(n);instance cell[i in I]:Cell();}";
+    let baseline = format!("{generic} model M(){{relation r{{1=1;}}}}");
+    eqiora_compiler::CompiledModel::compile_selected("generic.eqi", &baseline, "M", &[])
+        .unwrap_or_else(|errors| panic!("baseline: {errors:?}"));
+    let concrete = format!(
+        "component Total(parameter n:integer,output y:1){{indexset I=range(n);relation r{{y=sum(to_real(ordinal(i)),over=(i in I));}}}} {generic} model M(){{instance total:Total(n=3);}}"
+    );
+    eqiora_compiler::CompiledModel::compile_selected("generic.eqi", &concrete, "M", &[])
+        .unwrap_or_else(|errors| panic!("with reduction: {errors:?}"));
+    let nested = concrete.replace("public model Generic(parameter n:integer){indexset I=range(n);instance cell[i in I]:Cell();}",
+        "component Holder(parameter n:integer){indexset I=range(n);instance cell[i in I]:Cell();} public model Generic(parameter n:integer){instance holder:Holder(n=n);}");
+    eqiora_compiler::CompiledModel::compile_selected("generic.eqi", &nested, "M", &[])
+        .unwrap_or_else(|errors| panic!("symbolic nested extent: {errors:?}"));
+    let known_only = concrete.replace("model M(){instance total:Total(n=3);}",
+        "public model Known(parameter unused:integer){instance total:Total(n=3);} model M(){relation r{1=1;}}");
+    eqiora_compiler::CompiledModel::compile_selected("generic.eqi", &known_only, "M", &[])
+        .unwrap_or_else(|errors| panic!("unused required Parameter: {errors:?}"));
+    let invalid = concrete.replace(
+        "instance cell[i in I]:Cell();",
+        "instance cell[i in I]:Cell();relation bad{missing=0;}",
+    );
+    let errors =
+        eqiora_compiler::CompiledModel::compile_selected("generic.eqi", &invalid, "M", &[])
+            .unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message().contains("missing")),
+        "{errors:?}"
+    );
+}
