@@ -23,6 +23,21 @@ pub(super) fn equation(
     ))
 }
 
+pub(super) fn value(
+    file: &str,
+    expression: &LoweringExpression,
+    bindings: &BTreeMap<String, Binding>,
+) -> Result<LoweringExpression, Diagnostic> {
+    Resolver {
+        file,
+        bindings,
+        support: None,
+        anchors: HashMap::new(),
+        resolved: HashMap::new(),
+    }
+    .resolve(expression, None)
+}
+
 // Caches live for one equation: support and binding interpretation are fixed,
 // while one shared node may legitimately be used in different scalar contexts.
 struct Resolver<'a> {

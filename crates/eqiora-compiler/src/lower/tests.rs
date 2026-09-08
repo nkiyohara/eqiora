@@ -482,6 +482,10 @@ impl LoweringIdentities for AssignedTestIdentities {
         panic!("fixture has no ClockDomain")
     }
 
+    fn activation(&mut self, _name: &str) -> Id<kinds::Activation> {
+        panic!("fixture has no Event")
+    }
+
     fn relation(&mut self, _name: &str) -> (Id<kinds::Relation>, Id<kinds::Activation>) {
         (self.relation, self.activation)
     }
@@ -638,28 +642,29 @@ model invalid() {
 }
 
 #[test]
-fn compiler_rejects_unresolved_periodic_clock() {
+fn compiler_rejects_unresolved_named_activation() {
     let source =
         "model m() { state x: 1; initial { x = 0; } relation r at missing { next(x) = 0; } }";
-    let diagnostics = compile("missing.eqi", source).expect_err("clock is unresolved");
+    let diagnostics = compile("missing.eqi", source).expect_err("named activation is unresolved");
 
     assert!(
         diagnostics
             .iter()
-            .any(|diagnostic| diagnostic.message().contains("periodic ClockDomain"))
+            .any(|diagnostic| diagnostic.message().contains("ClockDomain or Event"))
     );
 }
 
 #[test]
 fn compiler_rejects_discrete_symbols_in_continuous_relations() {
     let source = "model m() { state x: 1; initial { x = 0; } relation r { next(x) = 0; } }";
-    let diagnostics = compile("activation.eqi", source).expect_err("Next needs a tick");
+    let diagnostics =
+        compile("activation.eqi", source).expect_err("Next requires an admitted reset activation");
 
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
                 .message()
-                .contains("discrete state operator requires the exact clock")
+                .contains("state evolution requires its exact clock")
         }),
         "{diagnostics:?}"
     );

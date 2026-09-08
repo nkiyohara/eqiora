@@ -1,3 +1,4 @@
+mod activations;
 mod connections;
 mod identities;
 mod indexed_relations;
@@ -252,60 +253,6 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         Ok(Some(name))
     }
 
-    fn register_symbol(
-        &mut self,
-        display_name: String,
-        local_name: &str,
-        identity: &EntityIdentity,
-        kind: SymbolKind,
-        scope: &mut Scope,
-    ) -> Result<(), Diagnostic> {
-        let internal_name = internal_name(identity.full);
-        if matches!(kind, SymbolKind::Domain) {
-            let key = identity.key.support_representation()?;
-            let representation = EntityIdentity {
-                full: key.full_identity()?,
-                key,
-                definition: identity.definition.clone(),
-                instance: identity.instance.clone(),
-                bindings: identity.bindings.clone(),
-            };
-            self.support_representations
-                .insert(internal_name.clone(), (representation, false));
-        }
-        let symbol = FlatSymbol {
-            internal_name,
-            display_name: display_name.clone(),
-            full_identity: identity.full,
-            kind,
-        };
-        if scope
-            .insert_symbol(local_name.to_owned(), symbol.clone())
-            .is_some()
-        {
-            return Err(hierarchy_error(format!(
-                "duplicate flattened scope symbol `{local_name}`"
-            )));
-        }
-        if self
-            .display_symbols
-            .insert(
-                display_name,
-                DisplayIdentity {
-                    full: identity.full,
-                    kind: identity.key.entity_kind(),
-                },
-            )
-            .is_some()
-        {
-            return Err(hierarchy_error(format!(
-                "duplicate flattened display symbol `{}`",
-                symbol.display_name
-            )));
-        }
-        Ok(())
-    }
-
     fn register_port_family_member(
         &mut self,
         registration: PortFamilyMemberRegistration<'_>,
@@ -551,6 +498,13 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         value.range(),
                         scope,
                     )?),
+                    None,
+                    value.range(),
+                ),
+                Item::Event(value) => (
+                    value.name(),
+                    EntityKind::Activation,
+                    SymbolKind::Event,
                     None,
                     value.range(),
                 ),
@@ -956,8 +910,8 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             scope.insert_symbol(slot.clone(), symbol);
             let requirement = field_interface.field(&slot).expect("resolved requirement");
             let activation = match &requirement.activation {
-                eqiora_lang::ActivationSyntax::Periodic(clock) => {
-                    eqiora_lang::ActivationSyntax::Periodic(clocks[clock].clone())
+                eqiora_lang::ActivationSyntax::Named(clock) => {
+                    eqiora_lang::ActivationSyntax::Named(clocks[clock].clone())
                 }
                 other => other.clone(),
             };
@@ -1174,41 +1128,20 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         ))]);
                     }
                 }
-                ComponentItem::Clock(declaration) => {
-                    let identity = self
-                        .entity_identity(
-                            &instance_path,
-                            definition_path(
-                                &component.namespace,
-                                "component",
-                                component.name(),
-                                declaration.name(),
-                            ),
-                            EntityKind::ClockDomain,
-                            SourceLocation::new(component.file, declaration.range()),
-                            SourceLocation::new(instance_file, instance.range()),
-                            bindings.clone(),
-                        )
-                        .map_err(one_diagnostic)?;
-                    self.register_symbol(
-                        display_child(&display_prefix, declaration.name()),
-                        declaration.name(),
-                        &identity,
-                        SymbolKind::Clock(
-                            crate::units::lower_clock(
-                                component.file,
-                                declaration.period(),
-                                declaration.phase(),
-                            )
-                            .map_err(one_diagnostic)?
-                            .0,
-                        ),
+                ComponentItem::Event(_) | ComponentItem::Clock(_) => {
+                    self.allocate_local_activation(
+                        item,
+                        &ComponentOccurrence {
+                            definition: &component,
+                            instance,
+                            instance_file,
+                            instance_path: &instance_path,
+                            display_prefix: &display_prefix,
+                        },
+                        &bindings,
                         &mut scope,
-                    )
-                    .map_err(one_diagnostic)?;
-                    identities
-                        .entities
-                        .insert(declaration.name().to_owned(), identity);
+                        &mut identities,
+                    )?;
                 }
                 ComponentItem::Relation(declaration) => {
                     let identity = self
@@ -1604,6 +1537,21 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         value_type: declaration.value_type().clone(),
                         role: declaration.role(),
                         activation,
+                        range: declaration.range(),
+                        identity,
+                    });
+                }
+                ComponentItem::Event(declaration) => {
+                    let identity = identities.entities[declaration.name()].clone();
+                    self.items.push(FlatItemBlueprint::Event {
+                        name: internal_name(identity.full),
+                        guard: crate::hierarchy::scope::rewrite_expression_with_boundary_member(
+                            component.file,
+                            declaration.guard(),
+                            scope,
+                            None,
+                        )?,
+                        direction: declaration.direction(),
                         range: declaration.range(),
                         identity,
                     });

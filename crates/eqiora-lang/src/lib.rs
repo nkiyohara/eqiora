@@ -23,12 +23,12 @@ pub use ast::{
     ClockDecl, ClockRequirementDecl, ComponentDecl, ComponentItem, ComponentParameterDecl,
     ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorDecl,
     ConnectorQuantitySyntax, ConnectorSyntax, DocComment, Document, DomainDecl, DomainSyntax,
-    Equation, ExactIntegerSyntax, Expr, ExprKind, FamilyBinderSyntax, FieldDecl, FieldRoleSyntax,
-    FrameSyntax, InitialDecl, InstanceDecl, Item, ModelDecl, NamePath, NamedBindingDecl,
-    NamedDefinitionDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl, PureOperatorFormal,
-    PureValueClassSyntax, ReductionOp, RelationDecl, RelationFamilyDecl, SignalDirectionSyntax,
-    SignatureItem, SupportSlotDecl, SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax,
-    ValueTypeSyntax, ValueTypeSyntaxKind, VisibilitySyntax,
+    Equation, EventDecl, ExactIntegerSyntax, Expr, ExprKind, FamilyBinderSyntax, FieldDecl,
+    FieldRoleSyntax, FrameSyntax, InitialDecl, InstanceDecl, Item, ModelDecl, NamePath,
+    NamedBindingDecl, NamedDefinitionDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl,
+    PureOperatorFormal, PureValueClassSyntax, ReductionOp, RelationDecl, RelationFamilyDecl,
+    SignalDirectionSyntax, SignatureItem, SupportSlotDecl, SupportSlotSyntax, TextRange, UnaryOp,
+    ValueShapeSyntax, ValueTypeSyntax, ValueTypeSyntaxKind, VisibilitySyntax,
 };
 pub use cartesian::CartesianCoordinateSyntax;
 pub use decimal::DecimalLiteral;

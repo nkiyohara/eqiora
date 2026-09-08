@@ -118,6 +118,13 @@ pub(super) enum FlatItemBlueprint {
         range: TextRange,
         identity: EntityIdentity,
     },
+    Event {
+        name: String,
+        guard: crate::lower::LoweringExpression,
+        direction: eqiora_schema::kernel::EventDirection,
+        range: TextRange,
+        identity: EntityIdentity,
+    },
     Relation {
         name: String,
         activation: ActivationSyntax,
@@ -148,6 +155,7 @@ impl FlatItemBlueprint {
             Self::Field { name, .. } => (2, name.clone()),
             Self::Parameter { name, .. } => (3, name.clone()),
             Self::Port { name, .. } => (4, name.clone()),
+            Self::Event { name, .. } => (5, name.clone()),
             Self::Clock { name, .. } => (5, name.clone()),
             Self::Relation { name, .. } => (6, name.clone()),
             Self::Connection { identity, .. } => (7, identity.full.to_string()),
@@ -193,6 +201,16 @@ pub(super) struct PhysicalExposureProjectionBlueprint {
 }
 
 impl ExpandedBlueprint {
+    fn event_identities(&self) -> BTreeMap<&str, &EntityIdentity> {
+        self.items
+            .iter()
+            .filter_map(|item| match item {
+                FlatItemBlueprint::Event { name, identity, .. } => Some((name.as_str(), identity)),
+                _ => None,
+            })
+            .collect()
+    }
+
     pub(super) fn new(
         model_name: String,
         model_source: SourceLocation,
@@ -217,6 +235,7 @@ impl ExpandedBlueprint {
         &self,
         limits: HierarchyLimits,
     ) -> Result<CompiledModel, Vec<Diagnostic>> {
+        let events = self.event_identities();
         let mut allocator = StagingIdAllocator::with_projector_and_limits(
             crate::identity::Sha256PrefixProjector,
             limits.identity,
@@ -226,17 +245,27 @@ impl ExpandedBlueprint {
             .map_err(|error| vec![error])?;
         for item in &self.items {
             match item {
-                FlatItemBlueprint::Relation { identity, .. } => {
+                FlatItemBlueprint::Relation {
+                    identity,
+                    activation,
+                    ..
+                } => {
                     allocator
                         .stage(&identity.entity.key)
-                        .and_then(|_| allocator.stage(&identity.activation_key))
                         .map_err(|error| vec![error])?;
+                    if !matches!(activation, ActivationSyntax::Named(name) if events.contains_key(name.as_str()))
+                    {
+                        allocator
+                            .stage(&identity.activation_key)
+                            .map_err(|error| vec![error])?;
+                    }
                 }
                 FlatItemBlueprint::Domain { identity, .. }
                 | FlatItemBlueprint::Representation { identity, .. }
                 | FlatItemBlueprint::Field { identity, .. }
                 | FlatItemBlueprint::Parameter { identity, .. }
-                | FlatItemBlueprint::Port { identity, .. } => {
+                | FlatItemBlueprint::Port { identity, .. }
+                | FlatItemBlueprint::Event { identity, .. } => {
                     allocator
                         .stage(&identity.key)
                         .map_err(|error| vec![error])?;
@@ -411,6 +440,18 @@ impl ExpandedBlueprint {
                     contract: contract.clone(),
                     range: *range,
                 },
+                FlatItemBlueprint::Event {
+                    name,
+                    guard,
+                    direction,
+                    range,
+                    ..
+                } => LoweringItem::Event {
+                    name: name.clone(),
+                    guard: guard.clone(),
+                    direction: *direction,
+                    range: *range,
+                },
                 FlatItemBlueprint::Clock {
                     name,
                     period,
@@ -468,6 +509,7 @@ impl ExpandedBlueprint {
         limits: ProvenanceLimits,
         staged: &StagedIdentities,
     ) -> Result<crate::provenance::ProvenanceMap, Diagnostic> {
+        let events = self.event_identities();
         let mut builder = ProvenanceBuilder::with_limits(limits);
         builder.insert(
             self.model_full,
@@ -478,10 +520,15 @@ impl ExpandedBlueprint {
         for item in &self.items {
             match item {
                 FlatItemBlueprint::Relation {
-                    identity, initial, ..
+                    identity,
+                    initial,
+                    activation,
+                    ..
                 } => {
                     insert_provenance(&mut builder, &identity.entity, staged)?;
-                    if *initial {
+                    if *initial
+                        || matches!(activation, ActivationSyntax::Named(name) if events.contains_key(name.as_str()))
+                    {
                         continue;
                     }
                     builder.insert_graph(
@@ -502,7 +549,8 @@ impl ExpandedBlueprint {
                 | FlatItemBlueprint::Parameter { identity, .. }
                 | FlatItemBlueprint::Port { identity, .. }
                 | FlatItemBlueprint::Nominal { identity, .. }
-                | FlatItemBlueprint::Clock { identity, .. } => {
+                | FlatItemBlueprint::Clock { identity, .. }
+                | FlatItemBlueprint::Event { identity, .. } => {
                     insert_provenance(&mut builder, identity, staged)?;
                 }
                 FlatItemBlueprint::Connection { identity, .. } => {
@@ -532,12 +580,14 @@ struct AssignedLoweringIdentities {
     parameters: BTreeMap<String, Id<kinds::Parameter>>,
     ports: BTreeMap<String, Id<kinds::Port>>,
     clocks: BTreeMap<String, Id<kinds::ClockDomain>>,
+    events: BTreeMap<String, Id<kinds::Activation>>,
     relations: BTreeMap<String, (Id<kinds::Relation>, Id<kinds::Activation>)>,
     connections: VecDeque<Id<kinds::Connection>>,
 }
 
 impl AssignedLoweringIdentities {
     fn new(blueprint: &ExpandedBlueprint, staged: &StagedIdentities) -> Result<Self, Diagnostic> {
+        let events = blueprint.event_identities();
         let model = staged.resolve_model_view(blueprint.model_full)?.id();
         let mut result = Self {
             model,
@@ -547,6 +597,7 @@ impl AssignedLoweringIdentities {
             parameters: BTreeMap::new(),
             ports: BTreeMap::new(),
             clocks: BTreeMap::new(),
+            events: BTreeMap::new(),
             relations: BTreeMap::new(),
             connections: VecDeque::new(),
         };
@@ -582,22 +633,37 @@ impl AssignedLoweringIdentities {
                         staged.resolve::<kinds::Port>(identity.full)?.id(),
                     );
                 }
+                FlatItemBlueprint::Event { name, identity, .. } => {
+                    result.events.insert(
+                        name.clone(),
+                        staged.resolve::<kinds::Activation>(identity.full)?.id(),
+                    );
+                }
                 FlatItemBlueprint::Clock { name, identity, .. } => {
                     result.clocks.insert(
                         name.clone(),
                         staged.resolve::<kinds::ClockDomain>(identity.full)?.id(),
                     );
                 }
-                FlatItemBlueprint::Relation { name, identity, .. } => {
+                FlatItemBlueprint::Relation {
+                    name,
+                    identity,
+                    activation,
+                    ..
+                } => {
+                    let activation_full = match activation {
+                        ActivationSyntax::Named(name) => events
+                            .get(name.as_str())
+                            .map_or(identity.activation_full, |event| event.full),
+                        _ => identity.activation_full,
+                    };
                     result.relations.insert(
                         name.clone(),
                         (
                             staged
                                 .resolve::<kinds::Relation>(identity.entity.full)?
                                 .id(),
-                            staged
-                                .resolve::<kinds::Activation>(identity.activation_full)?
-                                .id(),
+                            staged.resolve::<kinds::Activation>(activation_full)?.id(),
                         ),
                     );
                 }
@@ -640,6 +706,10 @@ impl LoweringIdentities for AssignedLoweringIdentities {
 
     fn clock(&mut self, name: &str) -> Id<kinds::ClockDomain> {
         self.clocks[name]
+    }
+
+    fn activation(&mut self, name: &str) -> Id<kinds::Activation> {
+        self.events[name]
     }
 
     fn relation(&mut self, name: &str) -> (Id<kinds::Relation>, Id<kinds::Activation>) {

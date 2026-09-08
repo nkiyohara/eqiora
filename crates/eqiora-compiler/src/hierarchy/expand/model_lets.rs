@@ -79,21 +79,42 @@ impl RootExpansion<'_, '_> {
             if scope.parameter(declaration.name()).is_some() {
                 continue;
             }
-            let activation = scope
+            let mut activation = scope
                 .alias_activation(file, declaration.value())
                 .map_err(|error| vec![error])?;
             if let Some(clock) = declaration.activation() {
-                let exact = scope.symbol(clock).map(|symbol| &symbol.internal_name);
-                if !matches!((&activation, exact), (crate::hierarchy::body_check::DependencyActivation::Clock(actual), Some(expected)) if actual == expected)
-                {
+                use crate::hierarchy::body_check::DependencyActivation;
+                let symbol = scope.symbol(clock);
+                let is_event =
+                    symbol.is_some_and(|value| matches!(value.kind, super::SymbolKind::Event));
+                let exact = symbol.map(|value| &value.internal_name);
+                let valid = match (&activation, exact) {
+                    (DependencyActivation::Continuous | DependencyActivation::Static, Some(_))
+                        if is_event =>
+                    {
+                        true
+                    }
+                    (DependencyActivation::Event(actual), Some(expected)) if is_event => {
+                        actual == expected
+                    }
+                    (DependencyActivation::Clock(actual), Some(expected)) if !is_event => {
+                        actual == expected
+                    }
+                    _ => false,
+                };
+                if !valid {
                     return Err(vec![crate::diagnostics::source_error(
                         eqiora_core::diagnostic::codes::LANGUAGE_TYPE_ERROR,
                         file,
                         declaration.range(),
-                        "let alias activation assertion does not match its exact occurrence dependency clock",
+                        "let alias activation assertion does not match its exact occurrence context",
                     )]);
                 }
+                if is_event {
+                    activation = DependencyActivation::Event(exact.unwrap().clone());
+                }
             }
+
             let expression = crate::hierarchy::scope::rewrite_expression_with_boundary_member(
                 file,
                 declaration.value(),

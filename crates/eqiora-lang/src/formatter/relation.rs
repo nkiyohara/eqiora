@@ -35,7 +35,7 @@ fn format_body(
     if let Some(domain) = &declaration.domain {
         write!(output, " on {domain}").expect("String write");
     }
-    if let ActivationSyntax::Periodic(clock) = &declaration.activation {
+    if let ActivationSyntax::Named(clock) = &declaration.activation {
         write!(output, " at {clock}").expect("String write");
     }
     output.push_str(" {\n");

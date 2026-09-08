@@ -15,7 +15,7 @@ from pathlib import Path
 import re
 import tempfile
 import textwrap
-from typing import Final
+from typing import Final, Literal
 from types import MappingProxyType
 
 from .._eqiora import FieldRole, ValueType, FiniteSpace, IndexSet, _nominal_type_source
@@ -453,6 +453,22 @@ class Clock:
         raise AttributeError("Clock handles are immutable")
 
 
+class Event:
+    """An immutable crossing event owned by one Component, distinct from a periodic Clock."""
+
+    __slots__ = ("_component", "_name")
+
+    def __init__(self, _token: object = _MISSING, _component: object = _MISSING,
+                 _name: str = "") -> None:
+        if _token is not _CREATE:
+            raise TypeError("events are created by Component.event()")
+        object.__setattr__(self, "_component", _component)
+        object.__setattr__(self, "_name", _name)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise AttributeError("Event handles are immutable")
+
+
 def _clock_seconds(value: Fraction | int, *, positive: bool) -> Fraction:
     if isinstance(value, bool) or not isinstance(value, (Fraction, int)):
         raise TypeError("clock seconds must be Fraction or int, not float or bool")
@@ -880,6 +896,7 @@ class Component:
         "_defaults",
         "_causal",
         "_clocks",
+        "_events",
         "_initials",
         "_index_sets",
         "_active_binders",
@@ -926,10 +943,11 @@ class Component:
         self._names: set[str] = set()
         self._supports: list[tuple[Support, str, object, tuple[str, ...]]] = []
         self._clocks: list[tuple[Clock, Fraction | None, Fraction | None, tuple[str, ...]]] = []
+        self._events: list[tuple[Event, Expression, str, tuple[str, ...]]] = []
         self._initials: list[tuple[tuple[tuple[Expression, Expression], ...], tuple[str, ...]]] = []
         self._index_sets: list[tuple[IndexSet, tuple[str, ...]]] = []
         self._parameters: list[tuple[_Parameter, str, tuple[str, ...]]] = []
-        self._aliases: list[tuple[str, Expression, str | None, Support | None, Clock | None, tuple[str, ...]]] = []
+        self._aliases: list[tuple[str, Expression, str | None, Support | None, Clock | Event | None, tuple[str, ...]]] = []
         self._properties: list[
             tuple[_PropertyRequirement, PropertyContract, tuple[str, ...]]
         ] = []
@@ -939,7 +957,7 @@ class Component:
             ]
         ] = []
         self._relations: list[
-            tuple[str, Support, Expression, Expression, Clock | None, tuple[str, ...]]
+            tuple[str, Support, Expression, Expression, Clock | Event | None, tuple[str, ...]]
         ] = []
         self._formulations: list[
             tuple[Relation, Expression, Expression, tuple[str, ...]]
@@ -1080,6 +1098,35 @@ class Component:
             raise SourceError("clock must belong to this Component and Source")
         return clock
 
+    def _activation(self, activation: Clock | Event | None) -> Clock | Event | None:
+        if isinstance(activation, Event):
+            if activation._component is not self._component_token:
+                raise SourceError("event must belong to this Component and Source")
+            return activation
+        return self._clock(activation)
+
+    def event(self, name: str, guard: Expression | int | float, *,
+              direction: Literal["any", "rising", "falling"], doc: str | None = None) -> Event:
+        """Declare a crossing event with an explicit direction and exact lexical guard.
+
+        The compiler checks guard types and activation semantics. Events may
+        activate relations and aliases; they are not periodic Clock requirements.
+        """
+        self._source._ensure_open()
+        if not isinstance(direction, str) or direction not in ("any", "rising", "falling"):
+            raise SourceError("event direction must be any, rising, or falling")
+        expression = _expression(guard)
+        self._closed_expression(expression)
+        if expression._owner is not None and expression._owner is not self._component_token:
+            raise SourceError("event guard must belong to this Component and Source")
+        if sum(value._nodes for _, value, _, _ in self._events) + expression._nodes > _MAX_EXPRESSION_NODES:
+            raise SourceError("event guards exceed the expression node limit")
+        documentation = _doc(doc)
+        admitted = self._add_name(name)
+        event = Event(_CREATE, self._component_token, admitted)
+        self._events.append((event, expression, direction, documentation))
+        return event
+
     def clock(
         self, name: str, *, period_s: Fraction | int,
         phase_s: Fraction | int = 0, doc: str | None = None,
@@ -1215,14 +1262,14 @@ class Component:
         *,
         value_type: ValueType | None = None,
         on: Support | None = None,
-        at: Clock | None = None,
+        at: Clock | Event | None = None,
         doc: str | None = None,
     ) -> Expression:
         """Name a private immutable expression in this Component's lexical scope.
 
         The compiler infers type and intrinsic support; aliases add no storage.
         ``on`` asserts the exact inferred support; it cannot move or broadcast
-        an expression. ``at`` asserts one exact clock in the inferred dependency
+        an expression. ``at`` asserts one exact activation in the inferred dependency
         profile; it grants no pre/next permissions. Context-dependent coordinate,
         trace, or normal aliases are not admitted.
         """
@@ -1234,7 +1281,7 @@ class Component:
             raise TypeError("value_type must be an eqiora.ValueType")
         if on is not None:
             self._support(on)
-        at = self._clock(at)
+        at = self._activation(at)
         syntax = None if value_type is None else self._type_syntax(value_type)
         doc_lines = _doc(doc)
         if sum(item[1]._nodes for item in self._aliases) + value._nodes > _MAX_EXPRESSION_NODES:
@@ -1315,11 +1362,11 @@ class Component:
         on: Support | None = None,
         left: Expression | int | float | complex,
         right: Expression | int | float | complex,
-        at: Clock | None = None,
+        at: Clock | Event | None = None,
         doc: str | None = None,
     ) -> Relation:
-        """Declare an equality, optionally active on one exact local clock."""
-        at = self._clock(at)
+        """Declare an equality, optionally active on one exact local clock or event."""
+        at = self._activation(at)
         on = None if on is None else self._support(on)
         def admit(value: Expression | int | float | complex) -> Expression:
             expression = _expression(value)
@@ -1501,6 +1548,9 @@ class Component:
                 f"  clock {clock._name} = periodic({period.numerator} [s] / {period.denominator}, "
                 f"phase = {phase.numerator} [s] / {phase.denominator});"
             )
+        for event, guard, direction, doc in self._events:
+            lines.extend(_comment(doc, "  "))
+            lines.append(f"  event {event._name} = crossing({guard._text}, direction = {direction});")
         for name, expression, value_type, support, clock, doc in self._aliases:
             lines.extend(_comment(doc, "  "))
             assertion = "" if value_type is None else f": {value_type}"
@@ -1919,6 +1969,7 @@ __all__ = [
     "Clock",
     "Component",
     "Expression",
+    "Event",
     "MaterialComposition",
     "Operator",
     "PropertyContract",

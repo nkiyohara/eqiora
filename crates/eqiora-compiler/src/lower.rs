@@ -307,6 +307,12 @@ pub(crate) enum LoweringItem {
         phase: eqiora_lang::Expr,
         range: TextRange,
     },
+    Event {
+        name: String,
+        guard: LoweringExpression,
+        direction: eqiora_schema::kernel::EventDirection,
+        range: TextRange,
+    },
     Relation {
         name: String,
         activation: ActivationSyntax,
@@ -345,6 +351,8 @@ pub(crate) trait LoweringIdentities {
 
     fn clock(&mut self, name: &str) -> Id<kinds::ClockDomain>;
 
+    fn activation(&mut self, name: &str) -> Id<kinds::Activation>;
+
     fn relation(&mut self, name: &str) -> (Id<kinds::Relation>, Id<kinds::Activation>);
 
     fn connection(&mut self) -> Id<kinds::Connection>;
@@ -380,6 +388,10 @@ impl LoweringIdentities for FreshLoweringIdentities {
     }
 
     fn clock(&mut self, _name: &str) -> Id<kinds::ClockDomain> {
+        Id::new()
+    }
+
+    fn activation(&mut self, _name: &str) -> Id<kinds::Activation> {
         Id::new()
     }
 
@@ -526,6 +538,14 @@ pub(crate) fn lower_typed_model(
                 ),
                 Err(error) => diagnostics.push(error),
             },
+            LoweringItem::Event { name, range, .. } => insert_binding(
+                file,
+                &mut bindings,
+                name,
+                Binding::Event(identities.activation(name)),
+                *range,
+                &mut diagnostics,
+            ),
             LoweringItem::Relation { name, range, .. } => {
                 let (relation, activation) = identities.relation(name);
                 insert_binding(
@@ -603,7 +623,7 @@ pub(crate) fn lower_typed_model(
                         }))
                     .and_then(|definition| {
                         nodes.push(definition.into());
-                        if let ActivationSyntax::Periodic(clock) = activation {
+                        if let ActivationSyntax::Named(clock) = activation {
                             let Some(Binding::Clock(clock, _)) = bindings.get(clock) else { return Err(unresolved(file, *range, clock, "Field ClockDomain")); };
                             edges.push((id.erase(), clock.erase(), EdgeKind::ClockedBy));
                         }
@@ -731,6 +751,29 @@ pub(crate) fn lower_typed_model(
                     })
                     .map(|definition| nodes.push(definition.into()))
             }
+            LoweringItem::Event {
+                name,
+                guard,
+                direction,
+                ..
+            } => {
+                let Binding::Event(id) = bindings[name] else {
+                    unreachable!("event binding")
+                };
+                expression::lower_event_guard(file, guard, &bindings).and_then(|lowered| {
+                    nodes.push(
+                        ActivationDef::new(
+                            id,
+                            eqiora_schema::kernel::ActivationKind::Event {
+                                guard: lowered.expression,
+                                direction: *direction,
+                            },
+                        )?
+                        .into(),
+                    );
+                    Ok(())
+                })
+            }
             LoweringItem::Relation {
                 name,
                 activation,
@@ -764,12 +807,16 @@ pub(crate) fn lower_typed_model(
                     .into(),
                 );
                 let activation_definition = match activation {
-                    ActivationSyntax::Continuous => ActivationDef::continuous(activation_id),
-                    ActivationSyntax::Periodic(_) => ActivationDef::periodic(activation_id),
+                    ActivationSyntax::Continuous => Some(ActivationDef::continuous(activation_id)),
+                    ActivationSyntax::Named(name) => match bindings.get(name) {
+                        Some(Binding::Event(_)) => None,
+                        Some(Binding::Clock(_, _)) => Some(ActivationDef::periodic(activation_id)),
+                        _ => unreachable!("named activation was resolved"),
+                    },
                     _ => unreachable!("unsupported Activation was diagnosed"),
                 };
-                if !initial {
-                    nodes.push(activation_definition.into());
+                if !initial && let Some(definition) = activation_definition {
+                    nodes.push(definition.into());
                 }
                 for dependency in lowered.dependencies {
                     edges.push((relation.erase(), dependency, EdgeKind::DependsOn));
@@ -786,10 +833,9 @@ pub(crate) fn lower_typed_model(
                     };
                     edges.push((relation.erase(), domain.erase(), EdgeKind::AppliesOn));
                 }
-                if let ActivationSyntax::Periodic(clock_name) = activation {
-                    let Binding::Clock(clock, _) = bindings[clock_name].clone() else {
-                        unreachable!("periodic clock was resolved while lowering");
-                    };
+                if let ActivationSyntax::Named(clock_name) = activation
+                    && let Some(Binding::Clock(clock, _)) = bindings.get(clock_name)
+                {
                     edges.push((activation_id.erase(), clock.erase(), EdgeKind::ClockedBy));
                 }
                 Ok(())
@@ -888,6 +934,7 @@ pub(crate) fn lower_typed_model(
             | LoweringItem::Parameter { name, .. }
             | LoweringItem::Port { name, .. }
             | LoweringItem::Clock { name, .. }
+            | LoweringItem::Event { name, .. }
             | LoweringItem::Relation {
                 name,
                 initial: false,

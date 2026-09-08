@@ -1,4 +1,7 @@
 mod connections;
+mod value_shape;
+use value_shape::resolve_frame;
+pub(in crate::hierarchy) use value_shape::resolve_value_shape;
 mod indexed;
 pub(super) use connections::validate_connection;
 mod ports;
@@ -220,6 +223,7 @@ pub(super) enum SymbolContract {
         parent: SpatialSupport<String>,
     },
     Clock,
+    Event,
     Relation,
 }
 
@@ -262,7 +266,7 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
         right: &eqiora_lang::ActivationSyntax,
     ) -> bool {
         left == right
-            || matches!((left, right), (eqiora_lang::ActivationSyntax::Periodic(a), eqiora_lang::ActivationSyntax::Periodic(b)) if self.borrowed_clocks.contains(a) || self.borrowed_clocks.contains(b))
+            || matches!((left, right), (eqiora_lang::ActivationSyntax::Named(a), eqiora_lang::ActivationSyntax::Named(b)) if self.borrowed_clocks.contains(a) || self.borrowed_clocks.contains(b))
     }
 
     pub(super) fn spatial_support(&self, name: &str) -> Option<SpatialSupport<String>> {
@@ -946,59 +950,4 @@ fn boundary_port_contract(
         connector,
         support,
     })
-}
-
-pub(in crate::hierarchy) fn resolve_value_shape(
-    file: &str,
-    range: TextRange,
-    syntax: &ValueShapeSyntax,
-    ambient_dimension: usize,
-) -> Result<ValueShape, Vec<Diagnostic>> {
-    let extents = match syntax {
-        ValueShapeSyntax::Scalar => return Ok(ValueShape::scalar()),
-        ValueShapeSyntax::Exact(extents) => extents.clone(),
-        ValueShapeSyntax::SpatialVector => {
-            vec![u32::try_from(ambient_dimension).map_err(|_| {
-                vec![source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    file,
-                    range,
-                    "support ambient dimension exceeds portable u32 shape range",
-                )]
-            })?]
-        }
-        _ => {
-            return Err(vec![source_error(
-                codes::LANGUAGE_LOWERING_ERROR,
-                file,
-                range,
-                "value shape is newer than this compiler",
-            )]);
-        }
-    };
-    ValueShape::new(extents).map_err(|error| {
-        vec![source_error(
-            codes::LANGUAGE_TYPE_ERROR,
-            file,
-            range,
-            error.to_string(),
-        )]
-    })
-}
-
-fn resolve_frame(
-    file: &str,
-    range: TextRange,
-    syntax: FrameSyntax,
-) -> Result<ValueFrame, Vec<Diagnostic>> {
-    match syntax {
-        FrameSyntax::Invariant => Ok(ValueFrame::Invariant),
-        FrameSyntax::Spatial => Ok(ValueFrame::SpatialCartesian),
-        _ => Err(vec![source_error(
-            codes::LANGUAGE_LOWERING_ERROR,
-            file,
-            range,
-            "frame syntax is newer than this compiler",
-        )]),
-    }
 }

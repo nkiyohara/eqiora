@@ -43,10 +43,7 @@ fn support_and_clock_are_independent_syntax() {
     };
     assert_eq!(state.role(), FieldRoleSyntax::State);
     assert_eq!(state.domain(), Some("region"));
-    assert_eq!(
-        state.activation(),
-        &ActivationSyntax::Periodic("tick".into())
-    );
+    assert_eq!(state.activation(), &ActivationSyntax::Named("tick".into()));
     assert_eq!(
         format(
             &parse("sampled.eqi", &format(&document))
@@ -143,10 +140,7 @@ fn component_signature_has_one_spelling_and_preserves_borrowed_roles() {
         panic!("borrowed state")
     };
     assert_eq!(state.role(), FieldRoleSyntax::State);
-    assert_eq!(
-        state.activation(),
-        &ActivationSyntax::Periodic("tick".into())
-    );
+    assert_eq!(state.activation(), &ActivationSyntax::Named("tick".into()));
     assert!(matches!(items[2], eqiora_lang::SignatureItem::Clock(_)));
     assert!(matches!(items[3], eqiora_lang::SignatureItem::Support(_)));
     assert!(matches!(

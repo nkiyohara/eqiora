@@ -45,6 +45,7 @@ pub(super) enum SymbolKind {
     Parameter,
     Port(ActivationSyntax),
     Clock(eqiora_schema::kernel::RationalTime),
+    Event,
     Relation,
 }
 
@@ -365,7 +366,7 @@ pub(super) fn rewrite_activation(
 ) -> Result<ActivationSyntax, Diagnostic> {
     match activation {
         ActivationSyntax::Continuous => Ok(ActivationSyntax::Continuous),
-        ActivationSyntax::Periodic(name) => resolve_local_kind(
+        ActivationSyntax::Named(name) => resolve_local_kind(
             file,
             range,
             scope,
@@ -373,7 +374,7 @@ pub(super) fn rewrite_activation(
             |kind| matches!(kind, SymbolKind::Clock(_)),
             "Field ClockDomain",
         )
-        .map(|symbol| ActivationSyntax::Periodic(symbol.internal_name.clone())),
+        .map(|symbol| ActivationSyntax::Named(symbol.internal_name.clone())),
         _ => Err(source_error(
             codes::LANGUAGE_TYPE_ERROR,
             file,
@@ -449,16 +450,16 @@ pub(super) fn rewrite_relation(
 ) -> Result<(ActivationSyntax, Option<String>, Vec<LoweringEquation>), Diagnostic> {
     let activation = match declaration.activation() {
         ActivationSyntax::Continuous => ActivationSyntax::Continuous,
-        ActivationSyntax::Periodic(clock) => {
+        ActivationSyntax::Named(clock) => {
             let clock = resolve_local_kind(
                 file,
                 declaration.range(),
                 scope,
                 clock,
-                |kind| matches!(kind, SymbolKind::Clock(_)),
-                "periodic ClockDomain",
+                |kind| matches!(kind, SymbolKind::Clock(_) | SymbolKind::Event),
+                "ClockDomain or Event",
             )?;
-            ActivationSyntax::Periodic(clock.internal_name.clone())
+            ActivationSyntax::Named(clock.internal_name.clone())
         }
         _ => {
             return Err(source_error(

@@ -86,7 +86,7 @@ fn support_and_activation_are_independent_optional_header_axes() {
         assert_eq!(
             relation.activation(),
             &clock.map_or(ActivationSyntax::Continuous, |name| {
-                ActivationSyntax::Periodic(name.to_owned())
+                ActivationSyntax::Named(name.to_owned())
             })
         );
         assert!(format(&document).contains(header));

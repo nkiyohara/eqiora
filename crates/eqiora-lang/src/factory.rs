@@ -12,6 +12,7 @@ mod expression;
 mod expression_visit;
 mod signature;
 use expression::validate_expression;
+mod event;
 mod nominal;
 mod operator;
 mod property;
@@ -256,7 +257,7 @@ impl SourceAstFactory {
         if let Some(name) = &domain {
             validate_identifier(name, "unknown support")?;
         }
-        if let ActivationSyntax::Periodic(clock) = &activation {
+        if let ActivationSyntax::Named(clock) = &activation {
             validate_identifier(clock, "unknown clock")?;
         }
         Self::value_type(value_type.kind().clone(), value_type.range)?;
@@ -618,7 +619,7 @@ fn validate_port_syntax(syntax: &PortSyntax) -> Result<(), AstConstructionError>
             if let Some(domain) = domain {
                 validate_identifier(domain, "signal support")?;
             }
-            if let ActivationSyntax::Periodic(clock) = activation {
+            if let ActivationSyntax::Named(clock) = activation {
                 validate_identifier(clock, "signal clock")?;
             }
             SourceAstFactory::value_type(value_type.kind().clone(), value_type.range).map(|_| ())

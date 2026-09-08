@@ -14,7 +14,7 @@ pub(in crate::hierarchy::body_check) fn component_port_contract(
             domain,
             activation,
         } => {
-            if let eqiora_lang::ActivationSyntax::Periodic(clock) = activation
+            if let eqiora_lang::ActivationSyntax::Named(clock) = activation
                 && crate::hierarchy::clocks::component(file, owner.declaration, clock).is_none()
             {
                 return Err(vec![unresolved(

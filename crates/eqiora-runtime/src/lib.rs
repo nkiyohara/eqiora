@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, GraphPath, RawId};
 use eqiora_ir::ScalarOperatorIr;
-use eqiora_schema::kernel::{ExprDag, KernelNode, SymbolRef};
+use eqiora_schema::kernel::{ActivationKind, ExprDag, KernelNode, SymbolRef};
 use eqiora_sem::{ExpressionBackend, Interpreter, KernelProgram, ReferenceConfig, Trajectory};
 
 mod hybrid;
@@ -30,7 +30,7 @@ pub struct CpuProgram {
 }
 
 impl CpuProgram {
-    /// Lower every Relation in a validated immutable model.
+    /// Lower every Relation and activation guard in a validated immutable model.
     ///
     /// # Errors
     /// Returns IR diagnostics if a canonical expression cannot be represented
@@ -39,24 +39,36 @@ impl CpuProgram {
         let mut operators = BTreeMap::new();
         let mut diagnostics = Vec::new();
         for node in kernel.nodes() {
-            if let KernelNode::Relation(relation) = node {
-                // Numerical roots are a derived view. Original side IDs remain valid
-                // in either view for demanded typed expression evaluation.
-                let numerical = kernel.numerical_residuals(relation.id().erase());
-                let expression = match &numerical {
-                    Ok(expression) => expression,
-                    Err(error) if error.code() == codes::NOT_IMPLEMENTED => relation.expression(),
-                    Err(error) => {
-                        diagnostics.push(error.clone());
-                        continue;
-                    }
-                };
-                match ScalarOperatorIr::lower(expression) {
-                    Ok(operator) => {
-                        operators.insert(relation.id().erase(), operator);
-                    }
-                    Err(diagnostic) => diagnostics.push(diagnostic),
+            let numerical;
+            let (owner, expression) = match node {
+                KernelNode::Relation(relation) => {
+                    // Derived numerical roots preserve original side IDs for typed demand.
+                    numerical = kernel.numerical_residuals(relation.id().erase());
+                    let expression = match &numerical {
+                        Ok(expression) => expression,
+                        Err(error) if error.code() == codes::NOT_IMPLEMENTED => {
+                            relation.expression()
+                        }
+                        Err(error) => {
+                            diagnostics.push(error.clone());
+                            continue;
+                        }
+                    };
+                    (relation.id().erase(), expression)
                 }
+                KernelNode::Activation(activation) => match activation.kind() {
+                    ActivationKind::Event { guard, .. } | ActivationKind::Guard { guard } => {
+                        (activation.id().erase(), guard)
+                    }
+                    _ => continue,
+                },
+                _ => continue,
+            };
+            match ScalarOperatorIr::lower(expression) {
+                Ok(operator) => {
+                    operators.insert(owner, operator);
+                }
+                Err(diagnostic) => diagnostics.push(diagnostic),
             }
         }
         if diagnostics.is_empty() {
@@ -132,14 +144,14 @@ impl ExpressionBackend for CpuExpressionBackend<'_> {
         let operator = self.operators.get(&owner).ok_or_else(|| {
             Diagnostic::error(
                 codes::INVALID_OPERATOR_IR,
-                format!("Relation {owner} has no lowered CPU Operator IR"),
+                format!("expression owner {owner} has no lowered CPU Operator IR"),
             )
-            .with_graph_path(relation_path(owner))
+            .with_graph_path(expression_path(owner))
         })?;
         operator.evaluate_typed(roots, resolve)
     }
 }
 
-fn relation_path(id: RawId) -> GraphPath {
-    GraphPath::new(["cpu-program", "relation", &id.to_string()])
+fn expression_path(id: RawId) -> GraphPath {
+    GraphPath::new(["cpu-program", "expression", &id.to_string()])
 }

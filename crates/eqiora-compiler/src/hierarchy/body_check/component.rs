@@ -304,6 +304,11 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                         Err(error) => self.diagnostics.push(error),
                     }
                 }
+                ComponentItem::Event(declaration) => {
+                    self.scope
+                        .symbols
+                        .insert(declaration.name().to_owned(), SymbolContract::Event);
+                }
                 ComponentItem::Clock(declaration) => {
                     self.scope
                         .symbols
@@ -410,7 +415,7 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                 | ComponentItem::Port(_)
                 | ComponentItem::PortFamily(_) => {}
                 ComponentItem::Field(declaration) => {
-                    if let eqiora_lang::ActivationSyntax::Periodic(clock) = declaration.activation()
+                    if let eqiora_lang::ActivationSyntax::Named(clock) = declaration.activation()
                         && !matches!(self.scope.symbols.get(clock), Some(SymbolContract::Clock))
                     {
                         self.diagnostics.push(self.scope.wrong_local_kind(
@@ -427,6 +432,13 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                             domain,
                             "Field support",
                         ));
+                    }
+                }
+                ComponentItem::Event(declaration) => {
+                    if let Err(error) =
+                        super::expression::validate_event_guard(&self.scope, declaration.guard())
+                    {
+                        self.diagnostics.push(error);
                     }
                 }
                 ComponentItem::Clock(declaration) => {

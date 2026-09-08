@@ -112,3 +112,39 @@ pub(super) fn encode_component(
     encoder.field(4, |encoder| encoder.records(&signature))?;
     encoder.finish()
 }
+
+pub(super) fn encode_event(
+    encoder: &mut Encoder,
+    declaration: &eqiora_lang::EventDecl,
+    budget: &mut Budget,
+) -> Result<(), Diagnostic> {
+    encoder.field(1, |encoder| {
+        encode_name(encoder, declaration.name(), budget)
+    })?;
+    encoder.field(2, |encoder| {
+        encode_expression(encoder, declaration.guard(), budget, 0)
+    })?;
+    encoder.field(3, |encoder| {
+        encoder.u16(match declaration.direction() {
+            eqiora_schema::kernel::EventDirection::Any => 0,
+            eqiora_schema::kernel::EventDirection::Rising => 1,
+            eqiora_schema::kernel::EventDirection::Falling => 2,
+        })
+    })
+}
+
+pub(super) fn encode_clock(
+    encoder: &mut Encoder,
+    declaration: &ClockDecl,
+    budget: &mut Budget,
+) -> Result<(), Diagnostic> {
+    encoder.field(1, |encoder| {
+        encode_name(encoder, declaration.name(), budget)
+    })?;
+    encoder.field(2, |encoder| {
+        encode_expression(encoder, declaration.period(), budget, 0)
+    })?;
+    encoder.field(3, |encoder| {
+        encode_expression(encoder, declaration.phase(), budget, 0)
+    })
+}

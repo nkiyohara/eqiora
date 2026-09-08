@@ -287,6 +287,7 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                         }))
                 }
                 Item::Clock(declaration) => Ok(Some((declaration.name(), SymbolContract::Clock))),
+                Item::Event(declaration) => Ok(Some((declaration.name(), SymbolContract::Event))),
                 Item::RelationFamily(family) => {
                     Ok(Some((family.relation().name(), SymbolContract::Relation)))
                 }
@@ -441,6 +442,13 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                         self.diagnostics.push(error);
                     }
                 }
+                Item::Event(declaration) => {
+                    if let Err(error) =
+                        super::expression::validate_event_guard(&self.scope, declaration.guard())
+                    {
+                        self.diagnostics.push(error);
+                    }
+                }
                 Item::Relation(declaration) => self.validate_relation(declaration),
                 Item::RelationFamily(family) => {
                     match super::indexed::extent(&self.scope, family.binder()) {
@@ -535,7 +543,7 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                 "Field Domain",
             ));
         }
-        if let eqiora_lang::ActivationSyntax::Periodic(clock) = declaration.activation()
+        if let eqiora_lang::ActivationSyntax::Named(clock) = declaration.activation()
             && !matches!(self.scope.symbols.get(clock), Some(SymbolContract::Clock))
         {
             self.diagnostics.push(unresolved(

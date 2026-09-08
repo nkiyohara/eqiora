@@ -44,6 +44,8 @@ impl Parser<'_> {
             self.parse_field(true).map(ComponentItem::Field)
         } else if self.at_keyword("initial") {
             self.parse_initial().map(ComponentItem::Initial)
+        } else if self.at_keyword("event") {
+            self.parse_event().map(ComponentItem::Event)
         } else if self.at_keyword("clock") {
             self.parse_clock().map(ComponentItem::Clock)
         } else if self.at_keyword("relation") {
