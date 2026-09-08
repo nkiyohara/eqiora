@@ -65,7 +65,7 @@ def project(root: Path) -> tuple[Path, Path]:
 def test_bundled_project_moves_with_one_offline_closure(tmp_path: Path) -> None:
     application, store = project(tmp_path)
     resolution = eqiora.add_bundled_dependency(
-        application, store, "Eqiora.Fluid.Incompressible", version="0.5.0"
+        application, store, "Eqiora.Fluid.Incompressible", version="0.6.0"
     )
     vendor = application / "vendor"
     vendor.mkdir()
@@ -85,7 +85,7 @@ def test_bundled_project_moves_with_one_offline_closure(tmp_path: Path) -> None:
 def test_fetch_and_update_are_explicit_and_failed_add_is_atomic(tmp_path: Path) -> None:
     application, store = project(tmp_path)
     resolution = eqiora.add_bundled_dependency(
-        application, store, "Eqiora.Fluid.Incompressible", version="0.5.0"
+        application, store, "Eqiora.Fluid.Incompressible", version="0.6.0"
     )
     manifest = (application / "eqiora.toml").read_bytes()
     with pytest.raises(eqiora.CompatibilityError):
