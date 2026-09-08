@@ -1,4 +1,4 @@
-# Typed polynomial operators
+# Typed scalar operators
 
 `operator` declares a bounded, side-effect-free mathematical definition. Inputs and the
 result carry their types, and calls bind arguments by formal name:
@@ -53,3 +53,13 @@ and a callback invoked once. Its returned handle accepts named arguments. Formal
 cannot escape their scope, and a foreign Source cannot acquire a call merely because every
 argument is a literal. Qualified imported operator calls remain available through source
 compilation rather than a raw qualified-name handle constructor.
+
+## Guarded scalar profile
+
+Concrete real scalar signatures also admit the [conditional scalar profile](conditionals.md):
+Boolean predicates, lazy value branches, square roots and the bounded nonsmooth math recipes.
+Typed exact constants retain their SI dimensions, including zero thresholds. Generic scalar
+and tensor polynomial definitions retain their existing contract; the guarded profile requires
+concrete dimensions and real scalar formals/results. Guarded definitions share the same retained
+calculus, composition and execution projection. Polynomial normalization rejects the guarded
+profile instead of treating a branch or domain requirement as an algebraic identity.

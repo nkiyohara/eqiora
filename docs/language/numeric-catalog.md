@@ -209,8 +209,9 @@ with a separately requested output does not exempt that output from evaluation.
 
 A Relation equality remains `left = right`; it does not become the predicate `left == right`.
 Direct Boolean initialization and sampled assignments use the existing typed state and output
-owners. This profile does not establish conditional expressions, masked batched evaluation,
-a Boolean implicit solver, predicate derivatives, or automatic crossing events.
+owners. Conditional values and bounded batches use the separate
+[scalar branch profile](conditionals.md). A Boolean implicit solver, predicate derivatives
+and automatic crossing events remain outside these profiles.
 
 ## Real elementary functions
 
