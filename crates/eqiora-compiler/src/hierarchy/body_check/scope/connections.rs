@@ -54,14 +54,19 @@ pub(in crate::hierarchy::body_check) fn validate_connection(
             .all(|contract| matches!(contract, PortContract::Physical { .. }));
     if scalar_physical {
         validate_connection_contract(declaration, &contracts, scope.file)?;
-        let endpoints = keys.iter().map(|key| match key.as_slice() {
-            [port] => ResolvedPhysicalEndpoint::Local(port.clone()),
-            [instance, port] => ResolvedPhysicalEndpoint::Child {
-                instance: instance.clone(),
-                port: port.clone(),
-            },
-            _ => unreachable!("resolved visible Port keys have one or two segments"),
-        });
+        let endpoints = keys
+            .iter()
+            .map(|key| {
+                ResolvedPhysicalEndpoint::from_key(key).ok_or_else(|| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        scope.file,
+                        declaration.range(),
+                        "physical connection requires an exact static indexed occurrence",
+                    )
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         return ConnectionFragment::try_new(endpoints, connection_limits)
             .map(Some)
             .map_err(|error| connection_fragment_error(scope.file, declaration.range(), error));
@@ -94,14 +99,19 @@ pub(in crate::hierarchy::body_check) fn validate_connection(
                 "field-physical Connection requires the exact same specialized Connector",
             ));
         }
-        let endpoints = keys.iter().map(|key| match key.as_slice() {
-            [port] => ResolvedPhysicalEndpoint::Local(port.clone()),
-            [instance, port] => ResolvedPhysicalEndpoint::Child {
-                instance: instance.clone(),
-                port: port.clone(),
-            },
-            _ => unreachable!("resolved visible Port keys have one or two segments"),
-        });
+        let endpoints = keys
+            .iter()
+            .map(|key| {
+                ResolvedPhysicalEndpoint::from_key(key).ok_or_else(|| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        scope.file,
+                        declaration.range(),
+                        "physical connection requires an exact static indexed occurrence",
+                    )
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         return ConnectionFragment::try_new(endpoints, connection_limits)
             .map(Some)
             .map_err(|error| connection_fragment_error(scope.file, declaration.range(), error));

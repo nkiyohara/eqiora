@@ -64,6 +64,21 @@ impl ResolvedPhysicalEndpoint {
         }
     }
 
+    pub(super) fn from_key(key: &[String]) -> Option<Self> {
+        match key {
+            [port] => Some(Self::Local(port.clone())),
+            [instance, port] => Some(Self::Child {
+                instance: instance.clone(),
+                port: port.clone(),
+            }),
+            [instance, ordinal, port] if ordinal.parse::<u32>().is_ok() => Some(Self::Child {
+                instance: format!("{instance}[{ordinal}]"),
+                port: port.clone(),
+            }),
+            _ => None,
+        }
+    }
+
     pub(super) fn from_expression(expression: &Expr) -> Option<Self> {
         match expression.kind() {
             ExprKind::Name(name) => Some(Self::Local(name.clone())),
