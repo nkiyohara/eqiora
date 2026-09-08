@@ -1,4 +1,5 @@
 use super::*;
+use eqiora_schema::kernel::typing::SpatialSupport;
 
 #[derive(Debug, Clone, Copy)]
 pub(super) enum ExpressionContext<'a> {
@@ -62,8 +63,17 @@ pub(super) fn evaluate_parameter_expression(
     context: ExpressionContext<'_>,
     resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
     resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
+    resolve_frame: &mut dyn FnMut(&str) -> Option<SpatialSupport<String>>,
 ) -> Result<EvaluatedParameter, Diagnostic> {
-    evaluate_with_domain(file, expression, context, resolve, resolve_clock, None)
+    evaluate_with_domain(
+        file,
+        expression,
+        context,
+        resolve,
+        resolve_clock,
+        resolve_frame,
+        None,
+    )
 }
 
 pub(super) fn evaluate_with_domain(
@@ -72,6 +82,7 @@ pub(super) fn evaluate_with_domain(
     context: ExpressionContext<'_>,
     resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
     resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
+    resolve_frame: &mut dyn FnMut(&str) -> Option<SpatialSupport<String>>,
     expected: Option<ScalarDomain>,
 ) -> Result<EvaluatedParameter, Diagnostic> {
     evaluate_mode(
@@ -80,6 +91,7 @@ pub(super) fn evaluate_with_domain(
         context,
         resolve,
         resolve_clock,
+        resolve_frame,
         expected,
         true,
     )
@@ -91,6 +103,7 @@ pub(super) fn evaluate_mode(
     context: ExpressionContext<'_>,
     resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
     resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
+    resolve_frame: &mut dyn FnMut(&str) -> Option<SpatialSupport<String>>,
     expected: Option<ScalarDomain>,
     evaluate_values: bool,
 ) -> Result<EvaluatedParameter, Diagnostic> {
@@ -110,6 +123,19 @@ pub(super) fn evaluate_mode(
             lineage: None,
             bare_literal: false,
         });
+    }
+    if matches!(expression.kind(), ExprKind::Call { callee, .. } if callee.as_str() == "tensor_value")
+    {
+        return super::tensor_values::evaluate(
+            file,
+            expression,
+            context,
+            resolve,
+            resolve_clock,
+            resolve_frame,
+            None,
+            evaluate_values,
+        );
     }
     if expression.resolved_nominal().is_some() {
         let value = crate::nominal::literal(file, expression)?;
@@ -136,6 +162,7 @@ pub(super) fn evaluate_mode(
             context,
             resolve,
             resolve_clock,
+            resolve_frame,
             None,
             evaluate_values,
         );
@@ -188,6 +215,7 @@ pub(super) fn evaluate_mode(
                 context,
                 resolve,
                 resolve_clock,
+                resolve_frame,
                 None,
                 evaluate_values,
             )?,
@@ -199,6 +227,7 @@ pub(super) fn evaluate_mode(
                 context,
                 resolve,
                 resolve_clock,
+                resolve_frame,
                 None,
                 evaluate_values,
             )?;
@@ -213,6 +242,7 @@ pub(super) fn evaluate_mode(
                 context,
                 resolve,
                 resolve_clock,
+                resolve_frame,
                 None,
                 evaluate_values && demand_right,
             )?;
@@ -288,6 +318,7 @@ pub(super) fn evaluate_mode(
                         context,
                         resolve,
                         resolve_clock,
+                        resolve_frame,
                         Some(operator.operand_domain()),
                         evaluate_values,
                     )
@@ -441,6 +472,7 @@ pub(super) fn evaluate_mode(
                 context,
                 resolve,
                 resolve_clock,
+                resolve_frame,
                 None,
                 evaluate_values,
             )?;
@@ -537,6 +569,7 @@ pub(super) fn evaluate_mode(
                 context,
                 resolve,
                 resolve_clock,
+                resolve_frame,
                 expected,
                 evaluate_values,
             )?;
@@ -574,10 +607,26 @@ pub(super) fn evaluate_mode(
         ExprKind::Binary { op, left, right }
             if crate::lower::comparison_operator(*op).is_some() =>
         {
-            let left_type =
-                evaluate_mode(file, left, context, resolve, resolve_clock, None, false)?;
-            let right_type =
-                evaluate_mode(file, right, context, resolve, resolve_clock, None, false)?;
+            let left_type = evaluate_mode(
+                file,
+                left,
+                context,
+                resolve,
+                resolve_clock,
+                resolve_frame,
+                None,
+                false,
+            )?;
+            let right_type = evaluate_mode(
+                file,
+                right,
+                context,
+                resolve,
+                resolve_clock,
+                resolve_frame,
+                None,
+                false,
+            )?;
             let operand_domain = [
                 left_type.value_type.value_type(),
                 right_type.value_type.value_type(),
@@ -591,6 +640,7 @@ pub(super) fn evaluate_mode(
                 context,
                 resolve,
                 resolve_clock,
+                resolve_frame,
                 operand_domain,
                 evaluate_values,
             )?;
@@ -600,6 +650,7 @@ pub(super) fn evaluate_mode(
                 context,
                 resolve,
                 resolve_clock,
+                resolve_frame,
                 operand_domain,
                 evaluate_values,
             )?;
@@ -618,6 +669,7 @@ pub(super) fn evaluate_mode(
                 context,
                 resolve,
                 resolve_clock,
+                resolve_frame,
                 expected,
                 evaluate_values || *op == BinaryOp::Pow,
             )?;
@@ -631,6 +683,7 @@ pub(super) fn evaluate_mode(
                 context,
                 resolve,
                 resolve_clock,
+                resolve_frame,
                 contextual,
                 evaluate_values,
             )?;
@@ -644,6 +697,7 @@ pub(super) fn evaluate_mode(
                     context,
                     resolve,
                     resolve_clock,
+                    resolve_frame,
                     Some(ScalarDomain::Integer),
                     evaluate_values,
                 )?;
@@ -701,8 +755,21 @@ pub(super) fn evaluate_initializer(
     target: ValueType,
     label: &str,
     resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
+    resolve_frame: &mut dyn FnMut(&str) -> Option<SpatialSupport<String>>,
 ) -> Result<EvaluatedParameter, Diagnostic> {
-    let evaluated = if matches!(expression.kind(), ExprKind::Array(_))
+    let evaluated = if matches!(expression.kind(), ExprKind::Call { callee, .. } if callee.as_str() == "tensor_value")
+    {
+        super::tensor_values::evaluate(
+            file,
+            expression,
+            context,
+            resolve,
+            resolve_clock,
+            resolve_frame,
+            Some(&target),
+            true,
+        )?
+    } else if matches!(expression.kind(), ExprKind::Array(_))
         || matches!(expression.kind(), ExprKind::Call { callee, .. } if callee.as_str() == "math.complex")
     {
         super::value_expressions::evaluate_with_target(
@@ -710,8 +777,9 @@ pub(super) fn evaluate_initializer(
             expression,
             context,
             resolve,
-            Some(&target),
             resolve_clock,
+            resolve_frame,
+            Some(&target),
         )?
     } else {
         evaluate_with_domain(
@@ -720,6 +788,7 @@ pub(super) fn evaluate_initializer(
             context,
             resolve,
             resolve_clock,
+            resolve_frame,
             (target.scalar_domain() == ScalarDomain::Integer).then_some(ScalarDomain::Integer),
         )?
     };
