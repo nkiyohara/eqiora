@@ -52,7 +52,6 @@ pub(crate) mod tests {
     use eqiora_schema::kernel::{ExprNode, KernelNode, SymbolRef};
 
     use eqiora_core::ValueLiteral;
-    use eqiora_core::diagnostic::codes;
     use eqiora_geometry::{CanonicalGeometryV1, NamedEntitySet};
 
     fn compile_geometry_fixture(
@@ -103,24 +102,6 @@ pub(crate) mod tests {
         supports: &[(&str, &NamedEntitySet, Option<(&str, &NamedEntitySet)>)],
         parameters: &[(&str, ValueLiteral)],
     ) -> Result<ModelDocument, Vec<Diagnostic>> {
-        let expressions = parameters
-            .iter()
-            .map(|(name, value)| {
-                eqiora_lang::SourceAstFactory::value_literal(
-                    value,
-                    None,
-                    eqiora_lang::TextRange::default(),
-                    |_| None,
-                )
-                .map(|value| (*name, value))
-                .map_err(|error| {
-                    vec![Diagnostic::error(
-                        codes::LANGUAGE_LOWERING_ERROR,
-                        error.to_string(),
-                    )]
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
         let mut bindings = supports
             .iter()
             .map(|(name, selection, parent)| {
@@ -135,9 +116,9 @@ pub(crate) mod tests {
             })
             .collect::<Vec<_>>();
         bindings.extend(
-            expressions
+            parameters
                 .iter()
-                .map(|(name, value)| (*name, StaticBindingValue::Expression(value))),
+                .map(|(name, value)| (*name, StaticBindingValue::Value(value))),
         );
         ModelDocument::compile_selected(filename, source, entry, &bindings)
     }
@@ -277,21 +258,24 @@ public component SteadyFlowPastCylinder(
                 eqiora_lang::DraftExpression::constant(
                     eqiora_lang::DecimalLiteral::from_f64(1.0).unwrap(),
                 )
-                .source_ast(),
+                .source_ast(|_| None, |_| None)
+                .expect("numeric fixture"),
             ),
             (
                 "wave_number",
                 eqiora_lang::DraftExpression::constant(
                     eqiora_lang::DecimalLiteral::from_f64(2.0).unwrap(),
                 )
-                .source_ast(),
+                .source_ast(|_| None, |_| None)
+                .expect("numeric fixture"),
             ),
             (
                 "source_scale",
                 eqiora_lang::DraftExpression::constant(
                     eqiora_lang::DecimalLiteral::from_f64(2.0).unwrap(),
                 )
-                .source_ast(),
+                .source_ast(|_| None, |_| None)
+                .expect("numeric fixture"),
             ),
         ];
         let with_form = compile_geometry_fixture(
@@ -370,21 +354,24 @@ public component SteadyFlowPastCylinder(
                     eqiora_lang::DraftExpression::constant(
                         eqiora_lang::DecimalLiteral::from_f64(1.0).unwrap(),
                     )
-                    .source_ast(),
+                    .source_ast(|_| None, |_| None)
+                    .expect("numeric fixture"),
                 ),
                 (
                     "wave_number",
                     eqiora_lang::DraftExpression::constant(
                         eqiora_lang::DecimalLiteral::from_f64(2.0).unwrap(),
                     )
-                    .source_ast(),
+                    .source_ast(|_| None, |_| None)
+                    .expect("numeric fixture"),
                 ),
                 (
                     "source_scale",
                     eqiora_lang::DraftExpression::constant(
                         eqiora_lang::DecimalLiteral::from_f64(2.0).unwrap(),
                     )
-                    .source_ast(),
+                    .source_ast(|_| None, |_| None)
+                    .expect("numeric fixture"),
                 ),
             ],
         )
@@ -405,21 +392,24 @@ public component SteadyFlowPastCylinder(
                 eqiora_lang::DraftExpression::constant(
                     eqiora_lang::DecimalLiteral::from_f64(1.0).unwrap(),
                 )
-                .source_ast(),
+                .source_ast(|_| None, |_| None)
+                .expect("numeric fixture"),
             ),
             (
                 "wave_number",
                 eqiora_lang::DraftExpression::constant(
                     eqiora_lang::DecimalLiteral::from_f64(2.0).unwrap(),
                 )
-                .source_ast(),
+                .source_ast(|_| None, |_| None)
+                .expect("numeric fixture"),
             ),
             (
                 "source_scale",
                 eqiora_lang::DraftExpression::constant(
                     eqiora_lang::DecimalLiteral::from_f64(2.0).unwrap(),
                 )
-                .source_ast(),
+                .source_ast(|_| None, |_| None)
+                .expect("numeric fixture"),
             ),
         ];
         let invalid = [
@@ -706,7 +696,8 @@ public component SteadyFlowPastCylinder(
                 eqiora_lang::DraftExpression::constant(
                     eqiora_lang::DecimalLiteral::from_f64(2.0).unwrap(),
                 )
-                .source_ast(),
+                .source_ast(|_| None, |_| None)
+                .expect("numeric fixture"),
             )],
         )
         .expect("explicit public Component closes");
@@ -720,7 +711,8 @@ public component SteadyFlowPastCylinder(
                 eqiora_lang::DraftExpression::constant(
                     eqiora_lang::DecimalLiteral::from_f64(2.0).unwrap(),
                 )
-                .source_ast(),
+                .source_ast(|_| None, |_| None)
+                .expect("numeric fixture"),
             )],
         )
         .expect("explicit public Component closes identically");
@@ -736,7 +728,8 @@ public component SteadyFlowPastCylinder(
                 eqiora_lang::DraftExpression::constant(
                     eqiora_lang::DecimalLiteral::from_f64(-2.0).unwrap(),
                 )
-                .source_ast(),
+                .source_ast(|_| None, |_| None)
+                .expect("numeric fixture"),
             )],
         )
         .expect("compiler checks type and finiteness, not application positivity");
@@ -760,14 +753,16 @@ public component SteadyFlowPastCylinder(
                     eqiora_lang::DraftExpression::constant(
                         eqiora_lang::DecimalLiteral::from_f64(2.0).unwrap(),
                     )
-                    .source_ast(),
+                    .source_ast(|_| None, |_| None)
+                    .expect("numeric fixture"),
                 ),
                 (
                     "extra",
                     eqiora_lang::DraftExpression::constant(
                         eqiora_lang::DecimalLiteral::from_f64(1.0).unwrap(),
                     )
-                    .source_ast(),
+                    .source_ast(|_| None, |_| None)
+                    .expect("numeric fixture"),
                 ),
             ],
         )
@@ -788,7 +783,8 @@ public component SteadyFlowPastCylinder(
                 eqiora_lang::DraftExpression::constant(
                     eqiora_lang::DecimalLiteral::from_f64(2.0).unwrap(),
                 )
-                .source_ast(),
+                .source_ast(|_| None, |_| None)
+                .expect("numeric fixture"),
             )],
         )
         .unwrap_err();

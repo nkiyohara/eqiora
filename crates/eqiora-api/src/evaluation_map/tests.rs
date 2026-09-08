@@ -371,28 +371,32 @@ fn document_from_source(source: &str, entry: &str) -> ModelDocument {
             eqiora_lang::DraftExpression::constant(
                 eqiora_lang::DecimalLiteral::from_f64(1.0).unwrap(),
             )
-            .source_ast(),
+            .source_ast(|_| None, |_| None)
+            .expect("numeric fixture"),
         ),
         (
             "wave_number",
             eqiora_lang::DraftExpression::constant(
                 eqiora_lang::DecimalLiteral::from_f64(std::f64::consts::PI).unwrap(),
             )
-            .source_ast(),
+            .source_ast(|_| None, |_| None)
+            .expect("numeric fixture"),
         ),
         (
             "source_scale",
             eqiora_lang::DraftExpression::constant(
                 eqiora_lang::DecimalLiteral::from_f64(2.0 * std::f64::consts::PI.powi(2)).unwrap(),
             )
-            .source_ast(),
+            .source_ast(|_| None, |_| None)
+            .expect("numeric fixture"),
         ),
         (
             "boundary_offset",
             eqiora_lang::DraftExpression::constant(
                 eqiora_lang::DecimalLiteral::from_f64(0.0).unwrap(),
             )
-            .source_ast(),
+            .source_ast(|_| None, |_| None)
+            .expect("numeric fixture"),
         ),
     ];
     let body = geometry.entity_set("square").unwrap();
