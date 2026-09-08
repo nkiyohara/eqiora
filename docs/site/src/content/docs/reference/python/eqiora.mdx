@@ -1263,12 +1263,15 @@ class PackageConformanceReport(NamedTuple):
 
 Immutable complete typed parameter declaration.
 
+Nonzero spatial values require an explicit frame Domain registered in the
+native Model. This is a uniform coefficient, not a distributed Field.
+
 Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling.rs" kind="blob">crates/eqiora-python/src/modeling.rs::PyParameter</ExactSourceLink>
 
 ```python
 @final
 class Parameter:
-    def __new__(cls, name: str, *, value: _TypedValue, value_type: ValueType | None=None) -> Self: ...
+    def __new__(cls, name: str, *, value: _TypedValue, value_type: ValueType | None=None, frame: Domain | None=None) -> Self: ...
     @property
     def name(self) -> str: ...
     @property
