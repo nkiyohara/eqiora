@@ -1,5 +1,5 @@
 use super::*;
-use crate::math::piecewise::{Primitive, emit};
+use crate::math::piecewise::{Primitive, cost, emit, result_type};
 use eqiora_schema::kernel::typing::ExpressionType;
 
 fn kind(value: &EvaluatedParameter) -> ExpressionType<()> {
@@ -55,7 +55,6 @@ pub(super) fn sugar(
     evaluate_values: bool,
     mut operand: impl FnMut(usize, bool) -> Result<EvaluatedParameter, Diagnostic>,
 ) -> Result<EvaluatedParameter, Diagnostic> {
-    let error = |message: &str| source_error(codes::LANGUAGE_TYPE_ERROR, file, range, message);
     let mut cached: Vec<[Option<EvaluatedParameter>; 2]> = vec![[None, None]; count];
     let mut operand = |index: usize, demand: bool| {
         let slot = usize::from(demand);
@@ -66,29 +65,17 @@ pub(super) fn sugar(
         cached[index][slot] = Some(value.clone());
         Ok::<_, Diagnostic>(value)
     };
-    let first = operand(0, false)?;
-    let value_type = first.value_type.value_type();
-    if value_type.scalar_domain() != ScalarDomain::Real
-        || !value_type.shape().is_scalar()
-        || value_type.array_rank() != 0
-        || value_type.frame() != eqiora_core::ValueFrame::Invariant
-    {
-        return Err(error(
-            "nonsmooth scalar mathematics requires invariant real scalar operands",
-        ));
-    }
-    for index in 1..count {
-        if operand(index, false)?.value_type != first.value_type {
-            return Err(error(
-                "nonsmooth scalar mathematics requires exactly matching operand types",
-            ));
-        }
-    }
-    let mut nodes = Vec::new();
+    let types = (0..count)
+        .map(|index| operand(index, false).map(|value| kind(&value)))
+        .collect::<Result<Vec<_>, _>>()?;
+    result_type(name, &types).map_err(|error| {
+        source_error(codes::LANGUAGE_TYPE_ERROR, file, range, error.to_string())
+    })?;
+    let mut nodes = Vec::with_capacity(cost(name).expect("checked sugar name").0);
     let root = emit(
         name,
         &(0..count).collect::<Vec<_>>(),
-        value_type.dimension(),
+        types[0].dimension(),
         |node| {
             nodes.push(node);
             Ok::<_, Diagnostic>(count + nodes.len() - 1)
