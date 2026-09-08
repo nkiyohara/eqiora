@@ -159,3 +159,56 @@ impl DraftExpression {
         self.binary(BinaryOp::Or, right)
     }
 }
+
+impl DraftExpression {
+    pub(super) fn references<'a>(&'a self, output: &mut Vec<DraftExpressionReference<'a>>) {
+        match &self.kind {
+            DraftExpressionKind::Boolean(_)
+            | DraftExpressionKind::Constant(_)
+            | DraftExpressionKind::Complex(_, _) => {}
+            DraftExpressionKind::Array(values) => {
+                for value in values {
+                    value.references(output);
+                }
+            }
+            DraftExpressionKind::Index { value, .. } => value.references(output),
+            DraftExpressionKind::Reference(reference)
+            | DraftExpressionKind::Derivative(reference) => {
+                output.push(DraftExpressionReference::Value(reference));
+            }
+            DraftExpressionKind::Across(reference) | DraftExpressionKind::Through(reference) => {
+                output.push(DraftExpressionReference::Port(reference));
+            }
+            DraftExpressionKind::Unary { value, .. }
+            | DraftExpressionKind::SpatialCall { value, .. } => {
+                value.references(output);
+            }
+            DraftExpressionKind::Binary { left, right, .. } => {
+                left.references(output);
+                right.references(output);
+            }
+        }
+    }
+
+    pub(super) fn contains_invalid_literal(&self) -> bool {
+        match &self.kind {
+            DraftExpressionKind::Boolean(_) | DraftExpressionKind::Constant(_) => false,
+            DraftExpressionKind::Complex(real, imaginary) => {
+                !real.is_finite() || !imaginary.is_finite()
+            }
+            DraftExpressionKind::Array(values) => {
+                values.is_empty() || values.iter().any(Self::contains_invalid_literal)
+            }
+            DraftExpressionKind::Index { value, .. } => value.contains_invalid_literal(),
+            DraftExpressionKind::Reference(_)
+            | DraftExpressionKind::Derivative(_)
+            | DraftExpressionKind::Across(_)
+            | DraftExpressionKind::Through(_) => false,
+            DraftExpressionKind::Unary { value, .. }
+            | DraftExpressionKind::SpatialCall { value, .. } => value.contains_invalid_literal(),
+            DraftExpressionKind::Binary { left, right, .. } => {
+                left.contains_invalid_literal() || right.contains_invalid_literal()
+            }
+        }
+    }
+}

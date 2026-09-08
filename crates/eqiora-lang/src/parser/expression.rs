@@ -41,6 +41,12 @@ impl Parser<'_> {
     }
 
     fn parse_expression_inner(&mut self, minimum_binding_power: u8) -> Option<(Expr, usize)> {
+        if minimum_binding_power > 5 && self.at_keyword("not") {
+            self.error_here(
+                "Boolean negation in an arithmetic or comparison operand requires parentheses",
+            );
+            return None;
+        }
         let (mut left, mut depth) = self.parse_primary()?;
         let mut compared = false;
         loop {

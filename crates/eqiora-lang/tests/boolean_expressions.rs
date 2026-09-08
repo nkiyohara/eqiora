@@ -79,3 +79,17 @@ fn native_boolean_is_not_a_numeric_literal() {
     .unwrap();
     assert!(matches!(source.kind(), ExprKind::Boolean(false)));
 }
+
+#[test]
+fn low_precedence_negation_requires_explicit_operand_grouping() {
+    assert!(
+        parse("bad.eqi", "model M() { let p = true == not false; }")
+            .into_document()
+            .is_err()
+    );
+    assert!(
+        parse("good.eqi", "model M() { let p = true == (not false); }")
+            .into_document()
+            .is_ok()
+    );
+}

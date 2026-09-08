@@ -51,7 +51,7 @@ fn contextual_zero_adopts_complete_type_but_explicit_zero_never_does() {
 }
 
 #[test]
-fn explicit_complex_rhs_zero_keeps_promotion_in_the_actual_residual() {
+fn explicit_complex_rhs_zero_keeps_its_type_in_the_equation_sides() {
     let range = eqiora_lang::TextRange::new(0, 1);
     let right = LoweringExpression::literal(
         ValueLiteral::from_real(
@@ -116,7 +116,7 @@ fn explicit_complex_rhs_zero_keeps_promotion_in_the_actual_residual() {
 }
 
 #[test]
-fn substituted_named_zero_is_not_a_literal_neutral_rule() {
+fn substituted_named_zero_retains_an_explicit_right_side() {
     let source = "component C(parameter zero: 1 = 0) {  variable x: 1; initial { x = 1; } relation r { x = zero; } } model M() { instance c: C(); }";
     let compiled = crate::compile("named.eqi", source).unwrap();
     let dag = compiled[0]
@@ -130,10 +130,10 @@ fn substituted_named_zero_is_not_a_literal_neutral_rule() {
             _ => None,
         })
         .unwrap();
-    assert!(matches!(
-        dag.nodes()[dag.roots()[1].index() as usize],
-        ExprNode::Symbol(eqiora_schema::kernel::SymbolRef::Parameter(_))
-    ));
+    assert_eq!(dag.roots().len(), 2);
+    assert!(
+        matches!(&dag.nodes()[dag.roots()[1].index() as usize], ExprNode::Constant(value) if value.real_scalar_value().unwrap().value() == 0.0)
+    );
 }
 
 #[test]
