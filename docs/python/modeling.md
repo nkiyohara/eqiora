@@ -342,6 +342,64 @@ isotropic lift. The package-oriented extension admits multiple scalar contracts
 and constant releases, one material composition, one consumer plus one root
 Component, and complete direct or composed bindings.
 
+### Enum declarations, values and exhaustive cases
+
+`eqiora.Enum` constructs an exact native declaration. Its `member(name)` method returns
+an immutable `EnumValue`; include the declaration in the native Model alongside its users:
+
+```python
+mode = eqiora.Enum("Mode", members=("Heating", "Cooling", "Fault"))
+heating = mode.member("Heating")
+parameter = eqiora.Parameter("mode", value_type=mode.value_type, value=heating)
+```
+
+`mode.id`, `mode.members` and `mode.value_type` expose its identity and type.
+`EnumValue.enum_id` and `EnumValue.value_type` retain that same owner. Repeated member
+selection compares equal, but a separately constructed enum with the same spelling is
+foreign. Strings, integers and Booleans are not enum values; `bool(heating)` rejects.
+Values cannot be ordered, used in arithmetic, or substituted for a numerical zero.
+
+The Source route authors symbolic members and complete cases through the same compiler:
+
+```python
+from eqiora import lang as q
+
+source = q.Source()
+mode = source.enum("Mode", members=("Heating", "Cooling", "Fault"))
+owner = source.model("Controller")
+tick = owner.clock("tick", period_s=1)
+drive = owner.input("drive", value_type=mode.value_type, at=tick)
+level = owner.output("level", value_type=eqiora.ValueType.real(), at=tick)
+owner.relation("classify", at=tick, left=level, right=q.case(drive, [
+    (mode.member("Heating"), 2),
+    (mode.member("Cooling"), -3),
+    (mode.member("Fault"), 0),
+]))
+model = eqiora.compile(source=source, entry="Controller")
+compiled_mode = model.enum("Mode")
+session = model.execution_session(
+    end_time_s=0, max_step_s=0.1,
+    inputs={"drive": ("tick", [compiled_mode.member("Cooling")])},
+)
+session.advance_ticks(1)
+# session.output("level", 0) is (Fraction(0), -3.0).
+```
+
+`q.case` takes an ordered sequence of symbolic enum-member/value pairs. Compilation
+requires every member exactly once, rejects foreign declarations, and checks all branch
+types. There is no wildcard arm. Runtime selection is lazy; Python constructs the symbolic
+arms without using Python truthiness or retaining a callback in the Model.
+
+Source enum handles are authoring identities. After compilation, obtain runtime values
+from `model.enum("Mode")`, not from a separately constructed native declaration.
+`Model.enum` also accepts an exact enum ID, which is useful after artifact replay when
+lexical names may be absent; a replayed declaration's `name` can be `None`.
+Typed Parameter edits, execution-session inputs, outputs, fields and checkpoints retain
+exact enum values and reject foreign members. Initial equations must select an explicit
+member. Enum values remain scalar and dimensionless; enum arrays, records, buses and
+enabled-mode transition semantics are outside this profile. The scalar numerical trajectory
+API is not the discrete-value transport.
+
 ## Resolve and lock a local package project
 
 An installed Eqiora distribution can add an exact standard fluid or solid

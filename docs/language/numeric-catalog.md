@@ -3,6 +3,43 @@
 This target-language catalog defines the bounded scalar operations. Each implementation slice must expose
 only the rows it actually supports. The table does not establish current execution coverage.
 
+## Closed enum values and case expressions
+
+An enum declares a nonempty, bounded set of unique members at source-file scope:
+
+```eqiora
+enum Mode { Heating, Cooling, Fault }
+model Controller(parameter mode: Mode = Mode.Heating) {
+  variable command: 1;
+  relation classify {
+    command = case mode {
+      Mode.Heating => 2,
+      Mode.Cooling => -3,
+      Mode.Fault => 0
+    };
+  }
+}
+```
+
+Enum values are dimensionless invariant scalars with exact nominal declaration identity.
+Two import aliases of the same declaration denote the same type; another declaration with
+identical names and members is a different type. Members are not integers or ordinals.
+There is no arithmetic, ordering, numeric conversion, Boolean coercion, implicit zero or
+ordinary continuous derivative. Enum arrays and spatial enum values are not admitted.
+State initialization and Parameter defaults must name a member of the exact declaration.
+
+A `case` has exactly one arm for each member of its scrutinee's enum. Missing, duplicate or
+foreign members reject; wildcard/default arms and payload patterns are unsupported.
+Every value arm must pass the common branch type, dimension, support and activation checks.
+The compiler lowers the exhaustive case to exact enum equality and lazy value selection:
+only the selected value arm executes. Arm order does not establish execution priority.
+The retained declaration and member identity survive Model replay.
+
+Enums can be Parameters, explicitly initialized State and clocked input/output values.
+Use the typed execution session for discrete values; the legacy scalar trajectory interface
+is not an enum transport. This value-and-expression profile does not introduce records,
+buses, transition priority, enabled modes or a statechart executor.
+
 ## Exact integers
 
 `integer` is a signed exact 64-bit value, ranging from -9223372036854775808 through
