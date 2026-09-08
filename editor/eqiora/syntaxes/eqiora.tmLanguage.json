@@ -34,7 +34,7 @@
           }
         },
         {
-          "match": "\\b(variable|state|parameter|support|port|relation|instance|domain|clock|let|form)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "match": "\\b(variable|state|parameter|support|port|relation|instance|domain|clock|event|let|form)\\s+([A-Za-z_][A-Za-z0-9_]*)",
           "captures": { "1": { "name": "storage.type.eqiora" }, "2": { "name": "variable.other.definition.eqiora" } }
         }
       ]
@@ -48,19 +48,19 @@
     "keywords": {
       "patterns": [{
         "name": "keyword.control.eqiora",
-        "match": "\\b(?:across|ambient_dimension|as|at|axis|boundaries|boundary|citation|clock|complete_exterior|component|components|composition|connect|connector|conserving|contract|delta|derivatives|dimension|discrete|domain|else|field|for|form|frame|if|implements|import|in|initial|input|instance|license|let|lower|material|model|on|operator|output|over|parameter|parent|period|periodic|phase|port|primal|private|property|public|pure|rational|relation|release|scalar|shape|side|signal|source_unit|spatial|state|support|then|through|unconditional|upper|validity|value|value_only|variable|volume)\\b"
+        "match": "\\b(?:across|ambient_dimension|as|at|axis|boundaries|boundary|citation|clock|complete_exterior|component|components|composition|connect|connector|conserving|contract|crossing|delta|derivatives|dimension|direction|discrete|domain|else|event|field|for|form|frame|if|implements|import|in|initial|input|instance|license|let|lower|material|model|on|operator|output|over|parameter|parent|period|periodic|phase|port|primal|private|property|public|pure|rational|relation|release|scalar|shape|side|signal|source_unit|spatial|state|support|then|through|unconditional|upper|validity|value|value_only|variable|volume)\\b"
       }]
     },
     "functions": {
       "patterns": [{
         "name": "support.function.eqiora",
-        "match": "\\b(?:boundary|boundaries|box|component|coordinate|derivative|div|dot|field_physical|flux|grad|integral|isotropic_lift|normal|orthonormal|product|range|sum|scalar_physical|symmetric_part|tensor_value|trace|volume)\\b(?=\\s*\\()"
+        "match": "\\b(?:boundary|boundaries|box|component|coordinate|crossing|derivative|div|dot|field_physical|flux|grad|integral|isotropic_lift|normal|orthonormal|product|range|sum|scalar_physical|symmetric_part|tensor_value|trace|volume)\\b(?=\\s*\\()"
       }]
     },
     "constants": {
       "patterns": [{
         "name": "constant.language.eqiora",
-        "match": "\\b(?:euclidean_boundary_duality|false|invariant|spatial_scalar|spatial_vector|true)\\b"
+        "match": "\\b(?:any|euclidean_boundary_duality|falling|false|invariant|rising|spatial_scalar|spatial_vector|true)\\b"
       }]
     },
     "units": {

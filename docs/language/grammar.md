@@ -21,6 +21,9 @@ clock-requirement = "clock" identifier [annotation] ":" "periodic"
 container = ["public"] ("component" | "model") identifier [annotation] signature body
 body = "{" {body-item} "}"
 value-declaration = value-head ["=" expression] ";"
+event-declaration = "event" identifier "=" "crossing" "(" expression ","
+                    "direction" "=" crossing-direction ")" ";"
+crossing-direction = "any" | "rising" | "falling"
 indexset-declaration = "indexset" identifier [annotation] "=" "range" "(" static-extent ")" ";"
 index-family = "[" identifier "in" qualified-name "]"
 instance = "instance" identifier [annotation] [index-family] ":" qualified-name "("
@@ -49,6 +52,10 @@ The [core family rules](core.md#boundary-relation-families) define its scope and
 An instance's index-family instead ranges over an exact finite index set. Its bound index
 cannot substitute for a boundary member. The [numeric catalog](numeric-catalog.md) defines
 its static extent, nominal identity and indexed member references.
+
+Private Model/Component events follow the [crossing-event profile](events.md). Named
+Relation activations resolve to their declared clock or event; the parser does not classify
+a name as periodic. Event declarations infer the guard type from its expression.
 
 Imports precede declarations. Library files may contain declarations without a Model; an
 execution entry selects a Model explicitly. Top-level declaration order does not control

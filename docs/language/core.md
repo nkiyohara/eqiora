@@ -182,7 +182,10 @@ value of a clocked state through an alias remains valid wherever the equivalent 
 is valid, including a continuous equation. The assertion does not execute a transition or
 restrict a retained current-value read to its update ticks. An alias containing `pre`, `next`,
 or `derivative` still checks the operator's state role and initialization or relation context
-at each use; a matching assertion cannot discharge those requirements.
+at each use; a matching assertion cannot discharge those requirements. An event-local
+alias with a real reset obligation retains its exact event context separately from the
+continuous state declaration; [crossing events](events.md) define that bounded exception.
+It does not retag a static expression or ordinary current-state read.
 
 ```eqiora
 parameter viscosity @{\mu}: Pa * s = 1.002e-3;
