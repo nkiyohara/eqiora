@@ -42,7 +42,7 @@ impl<I: Clone + Eq> ExpressionType<I> {
     }
 
     /// Type Boolean negation.
-    pub fn not(self) -> Result<Self, TypeViolation<I>> {
+    pub fn logical_not(self) -> Result<Self, TypeViolation<I>> {
         if self.value_type != ValueType::boolean() {
             return Err(TypeViolation::ScalarDomainMismatch);
         }
@@ -50,8 +50,8 @@ impl<I: Clone + Eq> ExpressionType<I> {
     }
     /// Type Boolean conjunction.
     pub fn and(self, other: Self) -> Result<Self, TypeViolation<I>> {
-        let left = self.not()?;
-        let right = other.not()?;
+        let left = self.logical_not()?;
+        let right = other.logical_not()?;
         left.equation(right)
     }
     /// Type Boolean disjunction.
@@ -67,17 +67,17 @@ pub(super) fn validate_equations<I: Clone + Eq, E>(
     root_contract: RootContract,
     errors: &mut Vec<TypedResidualError<I, E>>,
 ) {
-    if expression.roots().len() % 2 != 0 {
+    if !expression.roots().len().is_multiple_of(2) {
         errors.push(TypedResidualError::Type {
             node_index: expression.roots()[0].index(),
             error: TypeViolation::ScalarDomainMismatch,
         });
     } else {
-        for pair in expression.roots().chunks_exact(2) {
-            let Some(left) = inferred_type(&inferred, pair[0]) else {
+        for pair in expression.roots().as_chunks::<2>().0.iter() {
+            let Some(left) = inferred_type(inferred, pair[0]) else {
                 continue;
             };
-            let Some(right) = inferred_type(&inferred, pair[1]) else {
+            let Some(right) = inferred_type(inferred, pair[1]) else {
                 continue;
             };
             let result = left.equation(right).and_then(|value| {
@@ -97,6 +97,17 @@ pub(super) fn validate_equations<I: Clone + Eq, E>(
     }
 }
 
+pub(super) fn numerical_root<I>(value: &ExpressionType<I>) -> Result<(), TypeViolation<I>> {
+    if matches!(
+        value.value_type.scalar_domain(),
+        ScalarDomain::Real | ScalarDomain::Complex
+    ) {
+        Ok(())
+    } else {
+        Err(TypeViolation::ScalarDomainMismatch)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -105,6 +116,32 @@ mod tests {
 
     fn ty(value: ValueType) -> ExpressionType<u32> {
         ExpressionType::new(value, None)
+    }
+
+    #[test]
+    fn symbol_inference_rejects_malformed_boolean_and_discrete_numeric_roots() {
+        let mut builder = ExprDagBuilder::new();
+        let root = builder.symbol(SymbolRef::Field(Id::new())).unwrap();
+        let dag = builder.finish([root]).unwrap();
+        let malformed = ValueType::boolean()
+            .with_dimension(DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap());
+        for contract in [
+            RootContract::ComponentwiseResidual,
+            RootContract::InitialResiduals,
+        ] {
+            for value_type in [
+                malformed.clone(),
+                ValueType::boolean(),
+                ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+            ] {
+                assert!(
+                    TypedResidual::<u32>::infer(dag.clone(), None, contract, |_| Ok::<_, ()>(ty(
+                        value_type.clone()
+                    )))
+                    .is_err()
+                );
+            }
+        }
     }
 
     #[test]

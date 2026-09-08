@@ -403,7 +403,19 @@ impl<I: Clone + Eq> TypedResidual<I> {
                 &mut symbol_type,
             );
             let value = match result {
-                NodeInference::Typed(value) => Some(value),
+                NodeInference::Typed(value) => {
+                    if value.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean
+                        && value.value_type != eqiora_core::ValueType::boolean()
+                    {
+                        errors.push(TypedResidualError::Type {
+                            node_index,
+                            error: TypeViolation::ScalarDomainMismatch,
+                        });
+                        None
+                    } else {
+                        Some(value)
+                    }
+                }
                 NodeInference::Unavailable => None,
                 NodeInference::Symbol { symbol, error } => {
                     errors.push(TypedResidualError::Symbol {
@@ -438,10 +450,9 @@ impl<I: Clone + Eq> TypedResidual<I> {
                     continue;
                 };
                 let result = match root_contract {
-                    RootContract::InitialResiduals => Ok(()),
-                    RootContract::ComponentwiseResidual => {
-                        residual(&root_type, relation_support.as_ref())
-                    }
+                    RootContract::InitialResiduals => boolean::numerical_root(&root_type),
+                    RootContract::ComponentwiseResidual => boolean::numerical_root(&root_type)
+                        .and_then(|()| residual(&root_type, relation_support.as_ref())),
                     RootContract::InitialConditions | RootContract::EquationSides => unreachable!(),
                     RootContract::ScalarActivation => {
                         scalar_root(&root_type, relation_support.as_ref())

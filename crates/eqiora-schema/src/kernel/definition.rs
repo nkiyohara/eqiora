@@ -309,7 +309,7 @@ impl RelationDef {
     /// # Errors
     /// Rejects an odd number of output roots.
     pub fn new(id: Id<kinds::Relation>, expression: ExprDag) -> Result<Self, Diagnostic> {
-        if expression.roots().len() % 2 != 0 {
+        if !expression.roots().len().is_multiple_of(2) {
             return Err(Diagnostic::error(
                 codes::INVALID_KERNEL_DEFINITION,
                 "Relation equations require consecutive left/right root pairs",
@@ -356,7 +356,9 @@ impl RelationDef {
     ) -> impl ExactSizeIterator<Item = (super::ExprId, super::ExprId)> + '_ {
         self.expression
             .roots()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| (pair[0], pair[1]))
     }
 }

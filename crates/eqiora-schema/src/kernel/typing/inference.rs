@@ -27,7 +27,7 @@ pub(super) fn infer_node<I: Clone + Eq, E>(
             let Some(value) = inferred_type(inferred, *value) else {
                 return NodeInference::Unavailable;
             };
-            value.not()
+            value.logical_not()
         }
         ExprNode::And(left, right) | ExprNode::Or(left, right) => {
             let Some((left, right)) = inferred_binary(inferred, *left, *right) else {
