@@ -40,12 +40,15 @@ enum Meaning {
 }
 
 impl ValueType {
+    /// Shared finite enum declaration bound; executable case DAGs have separate limits.
+    pub const MAX_ENUM_MEMBERS: u32 = 65_536;
+
     /// One closed nominal enum declaration; members are not numeric ordinals.
     pub fn enumeration(
         definition: Id<kinds::Enum>,
         member_count: u32,
     ) -> Result<Self, InvalidValueType> {
-        if member_count == 0 {
+        if member_count == 0 || member_count > Self::MAX_ENUM_MEMBERS {
             return Err(InvalidValueType::EnumType);
         }
         let mut value = Self::scalar(ScalarDomain::Enum, DimExponents::DIMENSIONLESS);
@@ -443,5 +446,18 @@ mod tests {
             ),
             Err(InvalidValueType::ComponentCountOverflow)
         );
+    }
+}
+
+#[cfg(test)]
+mod enum_bound_tests {
+    use super::*;
+    #[test]
+    fn enum_cardinality_uses_the_shared_finite_declaration_bound() {
+        let id = Id::new();
+        let largest = ValueType::enumeration(id, ValueType::MAX_ENUM_MEMBERS).unwrap();
+        assert_eq!(largest.enum_member_count(), Some(65_536));
+        assert!(ValueType::enumeration(id, 65_537).is_err());
+        assert!(ValueType::enumeration(id, u32::MAX).is_err());
     }
 }

@@ -19,7 +19,7 @@ impl EnumDef {
         for member in members {
             if member.trim().is_empty()
                 || !seen.insert(member.clone())
-                || checked.len() >= u32::MAX as usize
+                || checked.len() >= ValueType::MAX_ENUM_MEMBERS as usize
             {
                 return Err(invalid(
                     "enum requires unique nonempty members within the tag bound",
