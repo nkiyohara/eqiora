@@ -74,6 +74,7 @@ fn sampled_channel_initial_values_and_outputs_survive_model_replay() {
             .unwrap();
         assert!(structurally_equivalent(&original, &replay).unwrap());
         let kind = ValueType::scalar(domain, DimExponents::DIMENSIONLESS)
+            .expect("valid fixture scalar type")
             .array(2)
             .unwrap();
         let expected = if domain == ScalarDomain::Integer {
@@ -169,8 +170,10 @@ fn typed_symbol_program(node: KernelNode, symbol: SymbolRef) -> KernelProgram {
 
 #[test]
 fn signal_types_survive_model_replay_and_real_execution_rejects_richer_types() {
-    let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
-    let complex = ValueType::scalar(ScalarDomain::Complex, real.dimension());
+    let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+        .expect("valid fixture scalar type");
+    let complex = ValueType::scalar(ScalarDomain::Complex, real.dimension())
+        .expect("valid fixture scalar type");
     let mut fingerprints = std::collections::BTreeSet::new();
     for value_type in [
         real.clone(),
@@ -215,8 +218,10 @@ fn signal_types_survive_model_replay_and_real_execution_rejects_richer_types() {
 
 #[test]
 fn constant_types_survive_model_replay_and_change_structural_identity() {
-    let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
-    let complex = ValueType::scalar(ScalarDomain::Complex, scalar.dimension());
+    let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+        .expect("valid fixture scalar type");
+    let complex = ValueType::scalar(ScalarDomain::Complex, scalar.dimension())
+        .expect("valid fixture scalar type");
     let mut fingerprints = std::collections::BTreeSet::new();
     for value_type in [scalar, complex.clone(), complex.array(3).unwrap()] {
         let relation = Id::new();
@@ -263,8 +268,10 @@ fn constant_types_survive_model_replay_and_change_structural_identity() {
 
 #[test]
 fn admitted_parameter_types_survive_replay_and_remain_distinct() {
-    let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
-    let complex = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS);
+    let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+        .expect("valid fixture scalar type");
+    let complex = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+        .expect("valid fixture scalar type");
     let mut fingerprints = std::collections::BTreeSet::new();
     for value_type in [
         real,
@@ -466,6 +473,7 @@ fn literal_projection_preserves_imaginary_channel_order_and_type() {
         encoder.finish().unwrap()
     }
     let complex = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+        .expect("valid fixture scalar type")
         .array(2)
         .unwrap();
     let baseline = project(
@@ -488,6 +496,7 @@ fn literal_projection_preserves_imaginary_channel_order_and_type() {
         );
     }
     let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+        .expect("valid fixture scalar type")
         .array(2)
         .unwrap();
     let values = [(1.0, 0.0), (3.0, 0.0)];
@@ -496,6 +505,7 @@ fn literal_projection_preserves_imaginary_channel_order_and_type() {
         project(&eqiora_core::ValueLiteral::new(complex, values).unwrap())
     );
     let huge = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+        .expect("valid fixture scalar type")
         .array(1_000_000_000)
         .unwrap();
     assert!(project(&eqiora_core::ValueLiteral::from_real(huge, 0.0).unwrap()).len() < 128);
@@ -508,6 +518,7 @@ fn model_and_transaction_limits_charge_all_typed_payload_occurrences() {
     use eqiora_graph::Precondition;
     let parameter = Id::new();
     let ty = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+        .expect("valid fixture scalar type")
         .array(2)
         .unwrap();
     let value = ValueLiteral::new(ty, [(1.0, 2.0), (3.0, 4.0)]).unwrap();
@@ -618,7 +629,8 @@ fn typed_expression_edges_and_sharing_affect_structural_identity() {
         let zero = builder
             .constant(
                 eqiora_core::ValueLiteral::from_real(
-                    ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS),
+                    ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+                        .expect("valid fixture scalar type"),
                     0.0,
                 )
                 .unwrap(),
@@ -682,7 +694,8 @@ fn integer_model_and_transaction_replay_do_not_round_adjacent_values() {
     use eqiora_core::ValueLiteral;
     use eqiora_graph::Precondition;
     let parameter = Id::new();
-    let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+    let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+        .expect("valid fixture scalar type");
     let before = ValueLiteral::from_integer(ty.clone(), 9_007_199_254_740_992).unwrap();
     let after = ValueLiteral::from_integer(ty, 9_007_199_254_740_993).unwrap();
     let program = |value: ValueLiteral| {
@@ -849,7 +862,8 @@ fn index_extent_dependencies_survive_replay_and_block_stale_structure_edits() {
     let size = Id::new();
     let set = Id::new();
     let selected = Id::new();
-    let integer = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+    let integer = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+        .expect("valid fixture scalar type");
     let original = nominal_program(
         vec![
             ParameterDef::new(
@@ -914,7 +928,8 @@ fn boolean_values_keep_exact_model_transaction_and_fingerprint_identity() {
     let true_model = build(ValueLiteral::boolean(true));
     let numeric_zero = build(
         ValueLiteral::from_integer(
-            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                .expect("valid fixture scalar type"),
             0,
         )
         .unwrap(),
@@ -977,7 +992,8 @@ fn comparison_opcode_and_authored_equation_sides_affect_fingerprint() {
     ] {
         for reversed in [false, true] {
             let mut builder = ExprDagBuilder::new();
-            let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+            let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                .expect("valid fixture scalar type");
             let left = builder
                 .constant(ValueLiteral::from_integer(ty.clone(), 9_007_199_254_740_992).unwrap())
                 .unwrap();

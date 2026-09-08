@@ -210,6 +210,7 @@ mod tests {
     #[test]
     fn field_wire_preserves_role_and_rejects_displaced_initial_payload() {
         let value_type = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+            .expect("valid fixture scalar type")
             .array(2)
             .unwrap();
         for role in [
@@ -229,11 +230,13 @@ mod tests {
     fn scalar_physical_wire_retains_domains_and_rejects_channel_substitution() {
         use crate::model::{WireNodeDefinition, node::WireDomainKind};
         use eqiora_schema::kernel::DomainDef;
-        let across = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS);
+        let across = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+            .expect("valid fixture scalar type");
         let through = ValueType::scalar(
             ScalarDomain::Real,
             DimExponents::from_integers([0, 0, 0, 1, 0, 0, 0]).unwrap(),
-        );
+        )
+        .expect("valid fixture scalar type");
         let node = KernelNode::from(
             DomainDef::scalar_physical(Id::new(), across.clone(), through.clone()).unwrap(),
         );
@@ -340,6 +343,7 @@ mod tests {
         use eqiora_core::ValueLiteral;
         use eqiora_schema::kernel::ExprDagBuilder;
         let value_type = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+            .expect("valid fixture scalar type")
             .array(3)
             .unwrap();
         let mut builder = ExprDagBuilder::new();
@@ -365,7 +369,8 @@ mod tests {
     fn relation_and_guard_constant_wire_obey_shape_limits() {
         use eqiora_core::ValueLiteral;
         use eqiora_schema::kernel::{ActivationDef, ActivationKind, ExprDagBuilder, RelationDef};
-        let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+        let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            .expect("valid fixture scalar type");
         for value_type in [
             scalar.clone().array(4097).unwrap(),
             (0..9).fold(scalar, |value, _| value.array(1).unwrap()),
@@ -400,6 +405,7 @@ mod tests {
     #[test]
     fn parameter_wire_rejects_noncanonical_or_invalid_literals() {
         let value_type = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+            .expect("valid fixture scalar type")
             .array(2)
             .unwrap();
         let node = KernelNode::from(eqiora_schema::kernel::ParameterDef::new(
@@ -422,7 +428,8 @@ mod tests {
 
     #[test]
     fn parameter_and_signal_wire_obey_the_model_shape_limits() {
-        let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+        let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            .expect("valid fixture scalar type");
         for value_type in [
             scalar.clone().array(4097).unwrap(),
             (0..9).fold(scalar, |value, _| value.array(1).unwrap()),
@@ -450,7 +457,8 @@ mod tests {
     #[test]
     fn field_wire_retains_complete_mathematical_type() {
         let id = Id::new();
-        let scalar = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS);
+        let scalar = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+            .expect("valid fixture scalar type");
         let vector = ValueType::shaped(
             ScalarDomain::Complex,
             DimExponents::DIMENSIONLESS,
@@ -467,7 +475,8 @@ mod tests {
         .unwrap();
         let mut encodings = std::collections::BTreeSet::new();
         for value in [
-            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                .expect("valid fixture scalar type"),
             scalar.clone(),
             scalar.array(2).unwrap().array(2).unwrap(),
             vector.array(2).unwrap(),
@@ -488,6 +497,7 @@ mod tests {
     #[test]
     fn decoder_rejects_inconsistent_axis_roles_and_unknown_scalar_domains() {
         let value = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            .expect("valid fixture scalar type")
             .array(2)
             .unwrap();
         let wire = WireValueType::encode(&value).unwrap();

@@ -40,7 +40,8 @@ fn program(reverse: bool, guarded: bool) -> KernelProgram {
     let nodes: Vec<KernelNode> = vec![
         FieldDef::new(
             field,
-            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                .expect("valid fixture scalar type"),
             FieldRole::Variable,
         )
         .into(),

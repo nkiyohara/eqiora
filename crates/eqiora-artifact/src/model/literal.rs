@@ -133,6 +133,7 @@ mod tests {
 
     fn complex_pair() -> ValueType {
         ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+            .expect("valid fixture scalar type")
             .array(2)
             .unwrap()
     }
@@ -152,6 +153,7 @@ mod tests {
     #[test]
     fn huge_zero_does_not_expand_and_consumes_no_component_payload() {
         let ty = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+            .expect("valid fixture scalar type")
             .array(1_000_000_000)
             .unwrap();
         let value = ValueLiteral::from_real(ty, 0.0).unwrap();
@@ -189,6 +191,7 @@ mod tests {
         }
         wire.value_type = WireValueType::encode(
             &ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                .expect("valid fixture scalar type")
                 .array(2)
                 .unwrap(),
         )
@@ -201,6 +204,7 @@ mod tests {
     #[test]
     fn integer_payload_is_exact_beyond_binary64_and_has_one_zero_spelling() {
         let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("valid fixture scalar type")
             .array(3)
             .unwrap();
         let value = ValueLiteral::integer(
@@ -234,12 +238,14 @@ mod tests {
         invalid = wire;
         invalid.value_type = WireValueType::encode(
             &ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                .expect("valid fixture scalar type")
                 .array(3)
                 .unwrap(),
         )
         .unwrap();
         assert!(invalid.decode().is_err());
         let huge = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("valid fixture scalar type")
             .array(1_000_000_000)
             .unwrap();
         let zero = ValueLiteral::from_integer(huge, 0).unwrap();
@@ -306,7 +312,8 @@ mod tests {
         }
         let mut numeric = WireValueLiteral::encode(
             &ValueLiteral::from_integer(
-                ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+                ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                    .expect("valid fixture scalar type"),
                 1,
             )
             .unwrap(),
