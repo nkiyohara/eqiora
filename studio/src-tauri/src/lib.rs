@@ -950,8 +950,8 @@ model decay(parameter rate: 1 / s = 1) {
         let domain_node = KernelNode::from(
             DomainDef::scalar_physical(
                 domain,
-                ValueType::scalar(ScalarDomain::Real, across_dimension),
-                ValueType::scalar(ScalarDomain::Real, through_dimension),
+                ValueType::scalar(ScalarDomain::Real, across_dimension).expect("real scalar type"),
+                ValueType::scalar(ScalarDomain::Real, through_dimension).expect("real scalar type"),
             )
             .unwrap(),
         );
@@ -962,9 +962,15 @@ model decay(parameter rate: 1 / s = 1) {
         ]);
 
         let domain_dto = project_node(&document, &domain_node, &names).unwrap();
-        assert!(domain_dto.summary.contains(
-            &project_type(&ValueType::scalar(ScalarDomain::Real, across_dimension)).unwrap()
-        ));
+        assert!(
+            domain_dto.summary.contains(
+                &project_type(
+                    &ValueType::scalar(ScalarDomain::Real, across_dimension)
+                        .expect("real scalar type")
+                )
+                .unwrap()
+            )
+        );
         assert!(domain_dto.summary.contains("through A"));
         let port_dto = project_node(&document, &port_node, &names).unwrap();
         assert_eq!(port_dto.name, "positive");

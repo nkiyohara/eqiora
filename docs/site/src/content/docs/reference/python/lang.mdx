@@ -15,7 +15,7 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__in
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.pyi" kind="blob">bindings/python/python/eqiora/lang/__init__.pyi</ExactSourceLink>
 
-This module publishes **43** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **45** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
 <a id="api-eqiora-lang-equal"></a>
 
@@ -202,6 +202,26 @@ class Expression:
     def __getitem__(self, index: int | Expression) -> Expression: ...
 ```
 
+<a id="api-eqiora-lang-Enum"></a>
+
+## `Enum`
+
+A closed enum declaration shared within its Source.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::Enum</ExactSourceLink>
+
+```python
+@final
+class Enum:
+    @property
+    def name(self) -> str: ...
+    @property
+    def members(self) -> tuple[str, ...]: ...
+    @property
+    def value_type(self) -> ValueType: ...
+    def member(self, name: str) -> Expression: ...
+```
+
 <a id="api-eqiora-lang-Event"></a>
 
 ## `Event`
@@ -298,6 +318,7 @@ Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py
 @final
 class Source:
     def operator(self, name: str, *, inputs: Mapping[str, ValueType], result_type: ValueType, body: Callable[..., object], doc: str | None=None) -> Operator: ...
+    def enum(self, name: str, *, members: Sequence[str], doc: str | None=None) -> Enum: ...
     def space(self, name: str, *, labels: Sequence[str], doc: str | None=None) -> FiniteSpace: ...
     def __init__(self) -> None: ...
     def component(self, name: str, *, doc: str | None=None) -> Component: ...
@@ -347,6 +368,18 @@ Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py
 
 ```python
 def array(values: Sequence[object]) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-case"></a>
+
+## `case`
+
+Author ordered closed-member cases; compiler checks exhaustiveness and types.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::case</ExactSourceLink>
+
+```python
+def case(value: object, arms: Sequence[tuple[Expression, object]]) -> Expression: ...
 ```
 
 <a id="api-eqiora-lang-coordinate"></a>
