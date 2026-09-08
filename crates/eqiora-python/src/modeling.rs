@@ -8,6 +8,7 @@ use eqiora::language::{
     DraftSpatialDomain, FieldRoleSyntax, ModelDraft,
 };
 pub(crate) mod dimension;
+mod nominal;
 pub(crate) mod value_literal;
 mod value_type;
 pub(crate) use value_type::PyValueType;
@@ -823,6 +824,9 @@ fn model_draft(
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyDimension>()?;
     module.add_class::<PyValueType>()?;
+    module.add_class::<nominal::PyFiniteSpace>()?;
+    module.add_class::<nominal::PyIndexSet>()?;
+    module.add_function(wrap_pyfunction!(nominal::_nominal_type_source, module)?)?;
     module.add_class::<PyBoundarySide>()?;
     module.add_class::<PyDomain>()?;
     module.add_class::<PyFieldRole>()?;
@@ -845,6 +849,18 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 
 fn declaration_from_python(value: &Bound<'_, PyAny>) -> PyResult<DraftDeclaration> {
+    if let Ok(space) = value.extract::<PyRef<'_, nominal::PyFiniteSpace>>() {
+        return Ok(DraftDeclaration::FiniteSpace {
+            name: space.name.clone(),
+            definition: space.value.clone(),
+        });
+    }
+    if let Ok(set) = value.extract::<PyRef<'_, nominal::PyIndexSet>>() {
+        return Ok(DraftDeclaration::IndexSet {
+            name: set.name.clone(),
+            definition: set.value.clone(),
+        });
+    }
     if let Ok(domain) = value.extract::<PyRef<'_, PyDomain>>() {
         return Ok(domain.value.clone().into());
     }

@@ -127,3 +127,36 @@ def test_integer_function_authoring_retains_lexical_ownership_and_bounds():
     for function in (q.to_integer, q.to_real):
         with pytest.raises(q.SourceError, match="owner|Component"):
             right.let_alias("foreign", function(a))
+
+
+def test_integer_sampled_state_output_and_resume_preserve_adjacent_values(tmp_path):
+    from fractions import Fraction
+
+    q = eqiora.lang
+    source = q.Source()
+    owner = source.model("ExactTicks")
+    tick = owner.clock("tick", period_s=1)
+    kind = eqiora.ValueType.integer()
+    memory = owner.field("memory", value_type=kind, role=eqiora.FieldRole.State, at=tick)
+    observed = owner.output("observed", value_type=kind, at=tick)
+    initial = 2**53 + 1
+    owner.initial(q.pre(memory) - initial)
+    owner.relation("increment", at=tick, left=q.next(memory), right=q.pre(memory) + 1)
+    owner.relation("observe", at=tick, left=observed, right=q.pre(memory))
+    model = eqiora.compile(source=source, entry="ExactTicks")
+    path = tmp_path / "exact_ticks.eqi"
+    source.write_eqi(path)
+    restored = eqiora.compile(path=path, entry="ExactTicks")
+    assert restored.to_bytes() == model.to_bytes()
+    session = model.sampled_session(end_time_s=1, max_step_s=0.1, inputs={})
+    assert session.output("observed", 0) is None
+    assert session.advance_ticks(1) == 1
+    assert type(session.field("memory")) is int
+    assert session.field("memory") == initial + 1
+    assert session.output("observed", 0) == (Fraction(0), initial)
+    resumed = restored.resume_sampled(session.checkpoint())
+    assert resumed.advance_ticks(1) == session.advance_ticks(1) == 1
+    assert resumed.field("memory") == session.field("memory") == initial + 2
+    assert resumed.output("observed", 1) == (Fraction(1), initial + 1)
+    assert type(resumed.output("observed", 1)[1]) is int
+    assert resumed.output("observed", 2) is None

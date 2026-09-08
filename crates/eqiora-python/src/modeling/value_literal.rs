@@ -50,7 +50,7 @@ pub(crate) fn from_python(
     value: &Bound<'_, PyAny>,
     value_type: ValueType,
 ) -> PyResult<ValueLiteral> {
-    eqiora::language::ValueTypeSyntax::from_checked(&value_type)
+    eqiora::language::ValueTypeSyntax::validate_checked(&value_type)
         .map_err(|error| PyValueError::new_err(error.to_string()))?;
     if value_type.scalar_domain() == ScalarDomain::Integer {
         let integer = |value: &Bound<'_, PyAny>| -> PyResult<i64> {
@@ -97,7 +97,7 @@ pub(crate) fn from_python(
 }
 
 pub(crate) fn to_python(py: Python<'_>, value: &ValueLiteral) -> PyResult<Py<PyAny>> {
-    eqiora::language::ValueTypeSyntax::from_checked(value.value_type())
+    eqiora::language::ValueTypeSyntax::validate_checked(value.value_type())
         .map_err(|error| PyValueError::new_err(error.to_string()))?;
     fn nested(
         py: Python<'_>,

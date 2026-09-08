@@ -109,6 +109,7 @@ pub(crate) mod tests {
                 eqiora_lang::SourceAstFactory::value_literal(
                     value,
                     eqiora_lang::TextRange::default(),
+                    |_| None,
                 )
                 .map(|value| (*name, value))
                 .map_err(|error| {

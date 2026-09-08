@@ -242,6 +242,34 @@ class Dimension:
     def __ne__(self, other: object, /) -> bool: ...
 
 @final
+class FiniteSpace:
+    """Exact nominal ordered basis, distinct from a numerical discretization space.
+
+    Authority: ``crates/eqiora-python/src/modeling/nominal.rs::PyFiniteSpace``.
+    """
+    def __new__(cls, name: str, *, labels: list[str] | tuple[str, ...]) -> Self: ...
+    @property
+    def name(self) -> str: ...
+    @property
+    def id(self) -> str: ...
+    @property
+    def labels(self) -> tuple[str, ...]: ...
+
+@final
+class IndexSet:
+    """An exact nominal zero-based set with a positive constant integer extent.
+
+    Authority: ``crates/eqiora-python/src/modeling/nominal.rs::PyIndexSet``.
+    """
+    def __new__(cls, name: str, *, extent: int) -> Self: ...
+    @property
+    def name(self) -> str: ...
+    @property
+    def id(self) -> str: ...
+    @property
+    def extent(self) -> int: ...
+
+@final
 class ValueType:
     """Exact scalar domain, dimension, channel axes and spatial frame.
 
@@ -256,6 +284,12 @@ class ValueType:
     def real(dimension: Dimension | None = None) -> ValueType: ...
     @staticmethod
     def complex(dimension: Dimension | None = None) -> ValueType: ...
+    @staticmethod
+    def coordinates(space: FiniteSpace) -> ValueType: ...
+    @staticmethod
+    def counts(space: FiniteSpace) -> ValueType: ...
+    @staticmethod
+    def index(set: IndexSet) -> ValueType: ...
     @staticmethod
     def vector(scalar: ValueType, extent: int) -> ValueType: ...
     @staticmethod
@@ -1776,6 +1810,8 @@ __all__ = [
     "DifferentiationMode",
     "Dimension",
     "ValueType",
+    "FiniteSpace",
+    "IndexSet",
     "DomainRef",
     "Domain",
     "EqioraError",

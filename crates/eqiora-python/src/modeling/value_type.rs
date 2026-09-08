@@ -59,7 +59,7 @@ impl PyValueType {
 impl PyValueType {
     /// Emit the bounded canonical language type using the native formatter.
     fn to_eqi(&self) -> PyResult<String> {
-        eqiora::language::ValueTypeSyntax::from_checked(&self.value)
+        eqiora::language::ValueTypeSyntax::from_checked(&self.value, |_| None)
             .map(|syntax| syntax.to_source())
             .map_err(|error| PyValueError::new_err(error.to_string()))
     }
@@ -80,6 +80,27 @@ impl PyValueType {
     #[pyo3(signature = (dimension=None))]
     fn complex(dimension: Option<&PyDimension>) -> Self {
         Self::scalar(ScalarDomain::Complex, dimension)
+    }
+
+    #[staticmethod]
+    fn coordinates(space: &super::nominal::PyFiniteSpace) -> Self {
+        Self {
+            value: space.value.coordinates(),
+        }
+    }
+
+    #[staticmethod]
+    fn counts(space: &super::nominal::PyFiniteSpace) -> Self {
+        Self {
+            value: space.value.counts(),
+        }
+    }
+
+    #[staticmethod]
+    fn index(set: &super::nominal::PyIndexSet) -> Self {
+        Self {
+            value: set.value.value_type(),
+        }
     }
 
     #[staticmethod]

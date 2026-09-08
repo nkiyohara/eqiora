@@ -11,7 +11,7 @@ from decimal import Decimal
 from ..units import Unit
 from os import PathLike
 from typing import Final, final, overload
-from .. import FieldRole, ValueType
+from .. import FieldRole, ValueType, FiniteSpace, IndexSet
 
 @final
 class SourceError(ValueError):
@@ -102,6 +102,30 @@ class Component:
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component``.
     """
 
+    def counts(self, space: FiniteSpace, components: Sequence[Expression | int]) -> Expression:
+        """Construct counts in this Source's exact registered finite basis.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.counts``.
+        """
+        ...
+    def coordinates(self, space: FiniteSpace, components: Sequence[Expression | int]) -> Expression:
+        """Construct signed coordinates in this Source's registered finite basis.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.coordinates``.
+        """
+        ...
+    def index(self, set: IndexSet, value: Expression | int) -> Expression:
+        """Construct an ordinal in this Component's exact registered index set.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.index``.
+        """
+        ...
+    def index_set(self, name: str, *, extent: int, doc: str | None = None) -> IndexSet:
+        """Declare a constant nominal index set; expression extents require authored source.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.index_set``.
+        """
+        ...
     def clock(
         self, name: str, *, period_s: Fraction | int,
         phase_s: Fraction | int = 0, doc: str | None = None,
@@ -199,6 +223,12 @@ class Source:
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Source``.
     """
 
+    def space(self, name: str, *, labels: Sequence[str], doc: str | None = None) -> FiniteSpace:
+        """Declare an exact ordered basis registered in this Source.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::Source.space``.
+        """
+        ...
     def __init__(self) -> None: ...
     def component(
         self,
@@ -304,6 +334,13 @@ def remainder(left: Expression | int, right: Expression | int) -> Expression:
     """Return the integer remainder with the dividend's sign.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::remainder``.
+    """
+    ...
+
+def ordinal(value: Expression) -> Expression:
+    """Explicitly project an index's ordinary integer ordinal.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::ordinal``.
     """
     ...
 
@@ -413,6 +450,7 @@ __all__ = [
     "isotropic_lift",
     "math",
     "normal",
+    "ordinal",
     "pre",
     "next",
     "quantity",

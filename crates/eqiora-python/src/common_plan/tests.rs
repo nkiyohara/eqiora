@@ -169,6 +169,7 @@ fn scalar_document_from_source(
                     eqiora::language::SourceAstFactory::value_literal(
                         value,
                         eqiora::language::TextRange::default(),
+                        |_| None,
                     )
                     .unwrap(),
                 )
@@ -272,6 +273,7 @@ fn stokes_document_with_speed(geometry: &CanonicalGeometryV1, inlet_speed: f64) 
                     eqiora::language::SourceAstFactory::value_literal(
                         value,
                         eqiora::language::TextRange::default(),
+                        |_| None,
                     )
                     .unwrap(),
                 )
@@ -385,6 +387,7 @@ fn transient_cylinder_document_with_speed(
                     eqiora::language::SourceAstFactory::value_literal(
                         value,
                         eqiora::language::TextRange::default(),
+                        |_| None,
                     )
                     .unwrap(),
                 )
