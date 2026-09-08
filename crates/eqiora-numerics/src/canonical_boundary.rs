@@ -488,7 +488,7 @@ fn port_flux(
 fn relation_expression(
     program: &KernelProgram,
     relation: RawId,
-) -> Result<&eqiora_schema::kernel::ExprDag, Diagnostic> {
+) -> Result<eqiora_schema::kernel::ExprDag, Diagnostic> {
     match program.node(relation) {
         Some(KernelNode::Relation(_)) => program.numerical_residuals(relation),
         _ => Err(lowering_error(

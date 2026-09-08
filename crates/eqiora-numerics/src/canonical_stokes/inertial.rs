@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use eqiora_core::{Diagnostic, RawId};
 use eqiora_ir::{OperatorApplicationProof, StandardPureOperator};
 use eqiora_schema::kernel::typing::TypedResidual;
-use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, SymbolRef};
+use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, KernelNode, SymbolRef};
 use eqiora_sem::KernelProgram;
 
 use crate::canonical_boundary::BoundaryRelationBinding;
