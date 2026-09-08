@@ -473,7 +473,7 @@ impl WireRationalTime {
     }
 }
 
-pub(crate) const PURE_COMPONENT_CALCULUS_V1: &str = "eqiora.pure-component-calculus/v1";
+pub(crate) const PURE_COMPONENT_CALCULUS_V2: &str = "eqiora.pure-component-calculus/v2";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -490,7 +490,7 @@ impl WirePureOperatorDefinition {
     pub(crate) fn encode(definition: &PureOperatorDefinition) -> Self {
         Self {
             digest: definition.digest().to_string(),
-            required_features: vec![PURE_COMPONENT_CALCULUS_V1.to_owned()],
+            required_features: vec![PURE_COMPONENT_CALCULUS_V2.to_owned()],
             formals: definition
                 .formals()
                 .iter()
@@ -516,7 +516,7 @@ impl WirePureOperatorDefinition {
         if let Some(feature) = self
             .required_features
             .iter()
-            .find(|feature| feature.as_str() != PURE_COMPONENT_CALCULUS_V1)
+            .find(|feature| feature.as_str() != PURE_COMPONENT_CALCULUS_V2)
         {
             return Err(invalid_artifact(format!(
                 "pure-operator definition requires unknown feature `{feature}`"

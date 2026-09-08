@@ -6,7 +6,7 @@ use super::ExactRational;
 use super::expansion::{ScalarCalculus, ScalarCalculusAtom, ScalarCalculusNode};
 use super::{CalculusError, calculus_index, hash, push_rational, push_u16, push_u32};
 
-const COMPONENT_DOMAIN: &[u8] = b"eqiora.scalar-calculus/v1\0";
+const COMPONENT_DOMAIN: &[u8] = b"eqiora.scalar-calculus/v2\0";
 const NORMAL_FORM_DOMAIN: &[u8] = b"eqiora.exact-polynomial-normal-form/v1\0";
 const MAX_NORMAL_TERMS: usize = 16_384;
 
