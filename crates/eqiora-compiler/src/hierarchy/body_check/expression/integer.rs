@@ -27,6 +27,14 @@ impl ExpressionChecker<'_, '_, '_> {
             return self.check(value);
         }
         match value.kind() {
+            ExprKind::Array(elements) => {
+                let elements = elements
+                    .iter()
+                    .map(|element| self.check_numeric_context(element, domain))
+                    .collect::<Result<Vec<_>, _>>()?;
+                return ExpressionType::array(&elements)
+                    .map_err(|error| type_error(self.scope.file, value, error));
+            }
             ExprKind::Number(number) => {
                 self.check_integer_number(value, number)?;
             }
@@ -51,7 +59,7 @@ impl ExpressionChecker<'_, '_, '_> {
                     })?;
                     self.check_integer_number(value, &number)?;
                 } else {
-                    self.check_numeric_context(operand, domain)?;
+                    return self.check_numeric_context(operand, domain);
                 }
             }
             ExprKind::Binary { op, left, right } => {
@@ -63,7 +71,7 @@ impl ExpressionChecker<'_, '_, '_> {
                     BinaryOp::Mul => typing::multiply(&left, &right),
                     _ => Err(TypeViolation::ScalarDomainMismatch),
                 };
-                checked.map_err(|e| type_error(self.scope.file, value, e))?;
+                return checked.map_err(|e| type_error(self.scope.file, value, e));
             }
             _ => unreachable!("numeric tree checked"),
         }
@@ -90,6 +98,7 @@ impl ExpressionChecker<'_, '_, '_> {
 fn numeric_tree(value: &Expr) -> bool {
     match value.kind() {
         ExprKind::Number(_) => true,
+        ExprKind::Array(elements) => elements.iter().all(numeric_tree),
         ExprKind::Unary {
             op: UnaryOp::Neg,
             value,
