@@ -268,7 +268,34 @@ impl Parser<'_> {
                     }
                 } else {
                     loop {
+                        if path.as_str() == "tensor_value" {
+                            let expected = match arguments.len() {
+                                0 => "frame",
+                                1 => "components",
+                                _ => {
+                                    self.error_here(
+                                        "tensor_value requires exactly frame and components",
+                                    );
+                                    return None;
+                                }
+                            };
+                            if !self.at_keyword(expected) {
+                                self.error_here(format!(
+                                    "tensor_value requires `{expected} = ...`"
+                                ));
+                                return None;
+                            }
+                            self.bump();
+                            self.expect(TokenKind::Equal, "`=` after tensor_value argument name")?;
+                        }
                         let (argument, depth) = self.parse_expression_with_depth(0)?;
+                        if path.as_str() == "tensor_value"
+                            && arguments.is_empty()
+                            && !matches!(argument.kind(), ExprKind::Name(_) | ExprKind::Path(_))
+                        {
+                            self.error_here("tensor_value frame must be a support name");
+                            return None;
+                        }
                         child_depth = child_depth.max(depth);
                         arguments.push(argument);
                         if !self.at(TokenKind::Comma) {
@@ -276,6 +303,10 @@ impl Parser<'_> {
                         }
                         self.bump();
                     }
+                }
+                if path.as_str() == "tensor_value" && arguments.len() != 2 {
+                    self.error_here("tensor_value requires frame and components");
+                    return None;
                 }
                 let depth = self.parent_depth(child_depth)?;
                 let end = self

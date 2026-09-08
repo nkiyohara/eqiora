@@ -64,6 +64,14 @@ fn validate_expression_depth(expression: &Expr, depth: usize) -> Result<(), AstC
                     "an expression operator call requires at least one argument",
                 ));
             }
+            if callee.as_str() == "tensor_value"
+                && (arguments.len() != 2
+                    || !matches!(arguments[0].kind(), ExprKind::Name(_) | ExprKind::Path(_)))
+            {
+                return Err(AstConstructionError::new(
+                    "tensor_value requires a frame name and components",
+                ));
+            }
             for argument in arguments {
                 validate_expression_depth(argument, depth + 1)?;
             }

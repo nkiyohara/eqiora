@@ -129,9 +129,12 @@ impl super::ModelDraft {
                         &mut paths,
                         &mut |id| self.nominal_name(id),
                     ),
-                    value: crate::SourceAstFactory::value_literal(parameter.value(), range, |id| {
-                        self.nominal_name(id)
-                    })
+                    value: crate::SourceAstFactory::value_literal(
+                        parameter.value(),
+                        parameter.frame_name(range),
+                        range,
+                        |id| self.nominal_name(id),
+                    )
                     .expect("validated native Parameter projection"),
                     range,
                 }),

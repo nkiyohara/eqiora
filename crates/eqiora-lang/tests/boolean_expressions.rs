@@ -73,6 +73,7 @@ fn native_boolean_is_not_a_numeric_literal() {
     let literal = eqiora_core::ValueLiteral::boolean(false);
     let source = eqiora_lang::SourceAstFactory::value_literal(
         &literal,
+        None,
         eqiora_lang::TextRange::new(0, 0),
         |_| None,
     )

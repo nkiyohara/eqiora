@@ -6,14 +6,23 @@ impl SourceAstFactory {
     /// Project one complete coherent-SI value into the canonical source vocabulary.
     ///
     /// # Errors
-    /// Rejects excessive type cardinality/nesting and nonzero spatial components,
-    /// which require an admitted explicit frame-bearing source constructor.
+    /// Rejects excessive type cardinality/nesting, a frame on an invariant value,
+    /// or nonzero spatial components without an explicit frame.
     pub fn value_literal(
         value: &ValueLiteral,
+        frame: Option<NamePath>,
         range: TextRange,
         mut resolve: impl FnMut(eqiora_core::RawId) -> Option<NamePath>,
     ) -> Result<Expr, AstConstructionError> {
         checked_range(range)?;
+        if frame.is_some() && value.value_type().frame() == ValueFrame::Invariant {
+            return Err(AstConstructionError::new(
+                "invariant values cannot supply a spatial frame",
+            ));
+        }
+        if let Some(frame) = &frame {
+            super::validate_name_path(frame)?;
+        }
         let syntax = crate::ValueTypeSyntax::from_checked(value.value_type(), &mut resolve)?;
         if let Some(value) = value.as_bool() {
             return Self::expression(ExprKind::Boolean(value), range);
@@ -24,24 +33,47 @@ impl SourceAstFactory {
             crate::ValueTypeSyntaxKind::Index(name) => Some(("index", name)),
             _ => None,
         };
-        if nominal.is_none() && value.is_zero() && !value.value_type().shape().is_scalar() {
+        if frame.is_none()
+            && nominal.is_none()
+            && value.is_zero()
+            && !value.value_type().shape().is_scalar()
+        {
             return Self::expression(
                 ExprKind::Number(crate::DecimalLiteral::parse("0.0").expect("exact literal")),
                 range,
             );
         }
-        if value.value_type().frame() != ValueFrame::Invariant {
+        if value.value_type().frame() != ValueFrame::Invariant && frame.is_none() {
             return Err(AstConstructionError::new(
                 "nonzero spatial values require an explicit frame-bearing source constructor",
             ));
         }
-        fn nested(value: &ValueLiteral, axis: usize, offset: &mut usize, range: TextRange) -> Expr {
+        fn nested(
+            value: &ValueLiteral,
+            axis: usize,
+            offset: &mut usize,
+            range: TextRange,
+            frame: Option<&NamePath>,
+        ) -> Expr {
+            if axis == value.value_type().array_rank()
+                && let Some(frame) = frame
+            {
+                let components = nested(value, axis, offset, range, None);
+                return Expr {
+                    resolved_nominal: None,
+                    kind: ExprKind::Call {
+                        callee: NamePath::single("tensor_value".to_owned(), range),
+                        arguments: vec![frame_expression(frame.clone(), range), components],
+                    },
+                    range,
+                };
+            }
             if let Some(extent) = value.value_type().shape().extents().get(axis) {
                 return Expr {
                     resolved_nominal: None,
                     kind: ExprKind::Array(
                         (0..extent.get())
-                            .map(|_| nested(value, axis + 1, offset, range))
+                            .map(|_| nested(value, axis + 1, offset, range, frame))
                             .collect(),
                     ),
                     range,
@@ -94,7 +126,7 @@ impl SourceAstFactory {
                 range,
             }
         }
-        let result = nested(value, 0, &mut 0, range);
+        let result = nested(value, 0, &mut 0, range, frame.as_ref());
         if let Some((constructor, name)) = nominal {
             let mut expression = Self::expression(
                 ExprKind::Call {
@@ -114,6 +146,40 @@ impl SourceAstFactory {
             return Ok(expression);
         }
         Self::expression(result.kind, range)
+    }
+}
+
+fn frame_expression(frame: NamePath, range: TextRange) -> Expr {
+    Expr {
+        resolved_nominal: None,
+        kind: if frame.is_qualified() {
+            ExprKind::Path(frame)
+        } else {
+            ExprKind::Name(frame.as_str().to_owned())
+        },
+        range,
+    }
+}
+
+impl SourceAstFactory {
+    /// Construct a spatial coefficient in the named support's Cartesian frame.
+    /// The frame reference does not give the coefficient spatial support.
+    ///
+    /// # Errors
+    /// Rejects invalid names, ranges, or expressions exceeding source bounds.
+    pub fn tensor_value(
+        frame: NamePath,
+        components: Expr,
+        range: TextRange,
+    ) -> Result<Expr, AstConstructionError> {
+        super::validate_name_path(&frame)?;
+        Self::expression(
+            ExprKind::Call {
+                callee: NamePath::single("tensor_value".to_owned(), range),
+                arguments: vec![frame_expression(frame, range), components],
+            },
+            range,
+        )
     }
 }
 
@@ -209,7 +275,8 @@ mod tests {
         .unwrap();
         let literal = ValueLiteral::new(kind, [(1.0, 2.0), (3.0, 0.0)]).unwrap();
         let expression =
-            SourceAstFactory::value_literal(&literal, TextRange::new(0, 1), |_| None).unwrap();
+            SourceAstFactory::value_literal(&literal, None, TextRange::new(0, 1), |_| None)
+                .unwrap();
         let ExprKind::Array(elements) = expression.kind() else {
             panic!("channel axis")
         };
@@ -239,17 +306,144 @@ mod tests {
         .unwrap();
         let zero = ValueLiteral::from_real(vector.clone(), 0.0).unwrap();
         assert!(matches!(
-            SourceAstFactory::value_literal(&zero, TextRange::new(0, 1), |_| None)
+            SourceAstFactory::value_literal(&zero, None, TextRange::new(0, 1), |_| None)
                 .unwrap()
                 .kind(),
             ExprKind::Number(number) if number.is_zero()
         ));
         let value = ValueLiteral::new(vector, [(1.0, 0.0), (2.0, 0.0)]).unwrap();
+        let range = TextRange::new(0, 1);
+        let projected = SourceAstFactory::value_literal(
+            &value,
+            Some(NamePath::single("body".to_owned(), range)),
+            range,
+            |_| None,
+        )
+        .unwrap();
+        let ExprKind::Call { arguments, .. } = projected.kind() else {
+            panic!("framed vector")
+        };
+        assert!(matches!(arguments[1].kind(), ExprKind::Array(values) if values.len() == 2));
         assert!(
-            SourceAstFactory::value_literal(&value, TextRange::new(0, 1), |_| None)
+            SourceAstFactory::value_literal(&value, None, TextRange::new(0, 1), |_| None)
                 .unwrap_err()
                 .to_string()
                 .contains("frame-bearing")
         );
+    }
+    #[test]
+    fn framed_spatial_elements_keep_outer_channels_and_component_order() {
+        let spatial = ValueType::shaped(
+            ScalarDomain::Complex,
+            DimExponents::DIMENSIONLESS,
+            ValueShape::new([2, 2]).unwrap(),
+            ValueFrame::SpatialCartesian,
+        )
+        .unwrap();
+        let literal = ValueLiteral::new(
+            spatial.array(2).unwrap(),
+            [
+                (2.0, 11.0),
+                (3.0, 13.0),
+                (5.0, 17.0),
+                (7.0, 19.0),
+                (23.0, 29.0),
+                (31.0, 37.0),
+                (41.0, 43.0),
+                (47.0, 53.0),
+            ],
+        )
+        .unwrap();
+        let range = TextRange::new(0, 1);
+        let frame = NamePath::single("body".to_owned(), range);
+        let result =
+            SourceAstFactory::value_literal(&literal, Some(frame.clone()), range, |_| None)
+                .unwrap();
+        let ExprKind::Array(channels) = result.kind() else {
+            panic!("channel array")
+        };
+        assert_eq!(channels.len(), 2);
+        let mut components = Vec::new();
+        for element in channels {
+            let ExprKind::Call { callee, arguments } = element.kind() else {
+                panic!("spatial element")
+            };
+            assert_eq!(callee.as_str(), "tensor_value");
+            let ExprKind::Array(rows) = arguments[1].kind() else {
+                panic!("matrix rows")
+            };
+            for row in rows {
+                let ExprKind::Array(entries) = row.kind() else {
+                    panic!("matrix columns")
+                };
+                for entry in entries {
+                    let ExprKind::Call { arguments, .. } = entry.kind() else {
+                        panic!("complex entry")
+                    };
+                    components.push(
+                        arguments
+                            .iter()
+                            .map(|e| match e.kind() {
+                                ExprKind::Number(value) => value.to_f64().unwrap(),
+                                _ => panic!("component"),
+                            })
+                            .collect::<Vec<_>>(),
+                    );
+                }
+            }
+        }
+        assert_eq!(
+            components,
+            vec![
+                vec![2., 11.],
+                vec![3., 13.],
+                vec![5., 17.],
+                vec![7., 19.],
+                vec![23., 29.],
+                vec![31., 37.],
+                vec![41., 43.],
+                vec![47., 53.]
+            ]
+        );
+        let invariant = ValueLiteral::from_real(
+            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+            0.0,
+        )
+        .unwrap();
+        assert!(SourceAstFactory::value_literal(&invariant, Some(frame), range, |_| None).is_err());
+    }
+    #[test]
+    fn framed_projection_reuses_type_cardinality_and_expression_depth_bounds() {
+        let range = TextRange::new(0, 1);
+        let frame = NamePath::single("body".to_owned(), range);
+        let huge = ValueType::shaped(
+            ScalarDomain::Real,
+            DimExponents::DIMENSIONLESS,
+            ValueShape::new([2]).unwrap(),
+            ValueFrame::SpatialCartesian,
+        )
+        .unwrap()
+        .array(32769)
+        .unwrap();
+        let zero = ValueLiteral::from_real(huge, 0.0).unwrap();
+        assert!(
+            SourceAstFactory::value_literal(&zero, Some(frame.clone()), range, |_| None)
+                .unwrap_err()
+                .message()
+                .contains("65536")
+        );
+        let mut components = SourceAstFactory::expression(
+            ExprKind::Number(crate::DecimalLiteral::parse("1").unwrap()),
+            range,
+        )
+        .unwrap();
+        for _ in 0..254 {
+            components =
+                SourceAstFactory::expression(ExprKind::Array(vec![components]), range).unwrap();
+        }
+        SourceAstFactory::tensor_value(frame.clone(), components.clone(), range).unwrap();
+        components =
+            SourceAstFactory::expression(ExprKind::Array(vec![components]), range).unwrap();
+        assert!(SourceAstFactory::tensor_value(frame, components, range).is_err());
     }
 }
