@@ -23,8 +23,8 @@ fn equation(symbol: SymbolRef, value: f64, dimension: DimExponents) -> ExprDag {
     let mut dag = ExprDagBuilder::new();
     let symbol = dag.symbol(symbol).unwrap();
     let value = dag.constant(DynQuantity::new(value, dimension)).unwrap();
-    let root = dag.sub(symbol, value).unwrap();
-    dag.finish([root]).unwrap()
+
+    dag.finish([symbol, value]).unwrap()
 }
 
 fn program(
@@ -34,7 +34,7 @@ fn program(
     let mut activations = Vec::new();
     for node in &nodes {
         if let KernelNode::Relation(relation) = node {
-            for expression in relation.residuals().nodes() {
+            for expression in relation.expression().nodes() {
                 let ExprNode::Symbol(symbol) = expression else {
                     continue;
                 };
@@ -89,7 +89,21 @@ fn decay(field: Id<kinds::Field>) -> KernelNode {
         .unwrap();
     let rate_value = dag.mul(rate, value).unwrap();
     let root = dag.add(derivative, rate_value).unwrap();
-    RelationDef::new(Id::new(), dag.finish([root]).unwrap()).into()
+    RelationDef::new(
+        Id::new(),
+        {
+            let equation_zero = dag
+                .constant(eqiora_core::DynQuantity::new(
+                    0.0,
+                    eqiora_core::DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).unwrap(),
+                ))
+                .unwrap();
+            dag.finish([root, equation_zero])
+        }
+        .unwrap(),
+    )
+    .unwrap()
+    .into()
 }
 
 #[test]
@@ -100,17 +114,20 @@ fn initial_algebraic_condition_and_regular_equations_jointly_determine_state() {
     let xv = dag.symbol(SymbolRef::Field(x)).unwrap();
     let yv = dag.symbol(SymbolRef::Field(y)).unwrap();
     let twice_x = dag.add(xv, xv).unwrap();
-    let root = dag.sub(yv, twice_x).unwrap();
+
     let model = program(
         vec![
             scalar(x, FieldRole::State),
             scalar(y, FieldRole::Variable),
             decay(x),
-            RelationDef::new(Id::new(), dag.finish([root]).unwrap()).into(),
+            RelationDef::new(Id::new(), dag.finish([yv, twice_x]).unwrap())
+                .unwrap()
+                .into(),
             RelationDef::initial(
                 Id::new(),
                 equation(SymbolRef::Field(y), 2.0, DimExponents::DIMENSIONLESS),
             )
+            .unwrap()
             .into(),
         ],
         vec![],
@@ -185,6 +202,7 @@ fn initial_derivative_condition_can_determine_stationary_state() {
                     DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).unwrap(),
                 ),
             )
+            .unwrap()
             .into(),
         ],
         vec![],
@@ -215,14 +233,19 @@ fn missing_contradictory_and_rank_deficient_zero_residual_initialization_fail() 
                         Id::new(),
                         equation(SymbolRef::Field(x), value, DimExponents::DIMENSIONLESS),
                     )
+                    .unwrap()
                     .into(),
                 );
             }
         } else if mode == 2 {
             let mut dag = ExprDagBuilder::new();
             let x = dag.symbol(SymbolRef::Field(x)).unwrap();
-            let zero = dag.sub(x, x).unwrap();
-            nodes.push(RelationDef::initial(Id::new(), dag.finish([zero]).unwrap()).into());
+
+            nodes.push(
+                RelationDef::initial(Id::new(), dag.finish([x, x]).unwrap())
+                    .unwrap()
+                    .into(),
+            );
         }
         let model = program(nodes, vec![]).unwrap();
         let diagnostics = Interpreter::new()
@@ -258,6 +281,7 @@ fn initial_pre_is_a_clocked_unknown_and_next_is_not_an_initial_condition() {
             Id::new(),
             equation(SymbolRef::Pre(field), 3.0, DimExponents::DIMENSIONLESS),
         )
+        .unwrap()
         .into(),
     ];
     let model = program(nodes, vec![edge]).unwrap();
@@ -278,6 +302,7 @@ fn initial_pre_is_a_clocked_unknown_and_next_is_not_an_initial_condition() {
                 Id::new(),
                 equation(SymbolRef::Next(field), 0.0, DimExponents::DIMENSIONLESS),
             )
+            .unwrap()
             .into(),
         ],
         vec![],
@@ -300,6 +325,7 @@ fn unused_fields_of_either_role_with_two_clocks_fail_admission() {
                 Id::new(),
                 equation(SymbolRef::Field(field), 0.0, DimExponents::DIMENSIONLESS),
             )
+            .unwrap()
             .into(),
         ];
         // A separate unused Field ensures validation is not triggered only by symbol use.
@@ -356,7 +382,24 @@ fn affine_rank_one_descriptor_uses_one_independent_initial_condition() {
                 .unwrap();
             let value = dag.mul(coefficient, value).unwrap();
             let root = dag.add(sum, value).unwrap();
-            nodes.push(RelationDef::new(Id::new(), dag.finish([root]).unwrap()).into());
+            nodes.push(
+                RelationDef::new(
+                    Id::new(),
+                    {
+                        let equation_zero = dag
+                            .constant(eqiora_core::DynQuantity::new(
+                                0.0,
+                                eqiora_core::DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0])
+                                    .unwrap(),
+                            ))
+                            .unwrap();
+                        dag.finish([root, equation_zero])
+                    }
+                    .unwrap(),
+                )
+                .unwrap()
+                .into(),
+            );
         }
         let missing = program(nodes.clone(), vec![]).unwrap();
         assert!(
@@ -369,6 +412,7 @@ fn affine_rank_one_descriptor_uses_one_independent_initial_condition() {
                 Id::new(),
                 equation(SymbolRef::Field(x), 1.0, DimExponents::DIMENSIONLESS),
             )
+            .unwrap()
             .into(),
         );
         let mut redundant = nodes.clone();
@@ -377,6 +421,7 @@ fn affine_rank_one_descriptor_uses_one_independent_initial_condition() {
                 Id::new(),
                 equation(SymbolRef::Field(y), 1.0, DimExponents::DIMENSIONLESS),
             )
+            .unwrap()
             .into(),
         );
         assert!(

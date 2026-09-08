@@ -649,7 +649,7 @@ fn require_closed_fsi_model_parts<const D: usize>(
         .iter()
         .copied()
         .flat_map(|relation| match program.node(relation) {
-            Some(KernelNode::Relation(definition)) => definition.residuals().nodes().iter(),
+            Some(KernelNode::Relation(definition)) => definition.expression().nodes().iter(),
             _ => unreachable!("admitted Relations were already inspected"),
         })
         .filter_map(|node| match node {

@@ -15,7 +15,115 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/__init__.pyi" kind="blob">bindings/python/python/eqiora/__init__.pyi</ExactSourceLink>
 
-This module publishes **108** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **117** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+
+<a id="api-eqiora-equal"></a>
+
+## `equal`
+
+Author a typed equal predicate.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/predicates.rs" kind="blob">crates/eqiora-python/src/modeling/predicates.rs::equal</ExactSourceLink>
+
+```python
+def equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
+```
+
+<a id="api-eqiora-not_equal"></a>
+
+## `not_equal`
+
+Author a typed not equal predicate.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/predicates.rs" kind="blob">crates/eqiora-python/src/modeling/predicates.rs::not_equal</ExactSourceLink>
+
+```python
+def not_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
+```
+
+<a id="api-eqiora-less"></a>
+
+## `less`
+
+Author a typed less predicate.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/predicates.rs" kind="blob">crates/eqiora-python/src/modeling/predicates.rs::less</ExactSourceLink>
+
+```python
+def less(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
+```
+
+<a id="api-eqiora-less_equal"></a>
+
+## `less_equal`
+
+Author a typed less equal predicate.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/predicates.rs" kind="blob">crates/eqiora-python/src/modeling/predicates.rs::less_equal</ExactSourceLink>
+
+```python
+def less_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
+```
+
+<a id="api-eqiora-greater"></a>
+
+## `greater`
+
+Author a typed greater predicate.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/predicates.rs" kind="blob">crates/eqiora-python/src/modeling/predicates.rs::greater</ExactSourceLink>
+
+```python
+def greater(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
+```
+
+<a id="api-eqiora-greater_equal"></a>
+
+## `greater_equal`
+
+Author a typed greater equal predicate.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/predicates.rs" kind="blob">crates/eqiora-python/src/modeling/predicates.rs::greater_equal</ExactSourceLink>
+
+```python
+def greater_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
+```
+
+<a id="api-eqiora-logical_not"></a>
+
+## `logical_not`
+
+Author a typed logical not predicate.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/predicates.rs" kind="blob">crates/eqiora-python/src/modeling/predicates.rs::logical_not</ExactSourceLink>
+
+```python
+def logical_not(value: _ExpressionLike) -> Expression: ...
+```
+
+<a id="api-eqiora-logical_and"></a>
+
+## `logical_and`
+
+Author a typed logical and predicate.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/predicates.rs" kind="blob">crates/eqiora-python/src/modeling/predicates.rs::logical_and</ExactSourceLink>
+
+```python
+def logical_and(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
+```
+
+<a id="api-eqiora-logical_or"></a>
+
+## `logical_or`
+
+Author a typed logical or predicate.
+
+Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/predicates.rs" kind="blob">crates/eqiora-python/src/modeling/predicates.rs::logical_or</ExactSourceLink>
+
+```python
+def logical_or(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
+```
 
 <a id="api-eqiora-__version__"></a>
 
@@ -649,6 +757,8 @@ class ValueType:
     def to_eqi(self) -> str: ...
     @staticmethod
     def integer() -> ValueType: ...
+    @staticmethod
+    def boolean() -> ValueType: ...
     @staticmethod
     def real(dimension: Dimension | None=None) -> ValueType: ...
     @staticmethod
@@ -1343,39 +1453,34 @@ class FieldRole:
 
 ## `Initial`
 
-Simultaneous fresh-initialization residuals, each equal to zero.
+Simultaneous fresh-initialization equations with explicit sides.
 
 Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling.rs" kind="blob">crates/eqiora-python/src/modeling.rs::PyInitial</ExactSourceLink>
 
 ```python
 @final
 class Initial:
-    def __new__(cls, *residuals: _ExpressionLike) -> Self: ...
+    def __new__(cls, *equations: tuple[_ExpressionLike, _ExpressionLike]) -> Self: ...
     @property
-    def residuals(self) -> list[Expression]: ...
+    def equations(self) -> list[tuple[Expression, Expression]]: ...
 ```
 
 <a id="api-eqiora-Relation"></a>
 
 ## `Relation`
 
-Immutable continuous implicit relation declaration.
+Immutable continuous equations with explicit typed sides.
 
 Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling.rs" kind="blob">crates/eqiora-python/src/modeling.rs::PyRelation</ExactSourceLink>
 
 ```python
 @final
 class Relation:
-    @overload
-    def __new__(cls, name: str, *, domain: Domain | None=None, residual: _ExpressionLike, residuals: None=None) -> Self: ...
-    @overload
-    def __new__(cls, name: str, *, domain: Domain | None=None, residual: None=None, residuals: Sequence[_ExpressionLike]) -> Self: ...
+    def __new__(cls, name: str, *, equations: Sequence[tuple[_ExpressionLike, _ExpressionLike]], domain: Domain | None=None) -> Self: ...
     @property
     def name(self) -> str: ...
     @property
-    def residual(self) -> Expression: ...
-    @property
-    def residuals(self) -> list[Expression]: ...
+    def equations(self) -> list[tuple[Expression, Expression]]: ...
     @property
     def domain(self) -> Domain | None: ...
 ```

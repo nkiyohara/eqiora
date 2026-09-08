@@ -30,7 +30,13 @@ fn native_draft_rejects_foreign_symbol_even_when_name_matches() {
         ),
         FieldRoleSyntax::Variable,
     );
-    let relation = DraftRelation::continuous("flow", [foreign.expression()]);
+    let relation = DraftRelation::continuous(
+        "flow",
+        [(
+            foreign.expression(),
+            DraftExpression::constant(crate::DecimalLiteral::parse("0").unwrap()),
+        )],
+    );
 
     let diagnostic = ModelDraft::new("decay", [included.into(), relation.into()]).unwrap_err();
     assert_eq!(diagnostic[0].code(), codes::LANGUAGE_TYPE_ERROR);
@@ -61,10 +67,10 @@ fn typed_dimensions_and_expression_references_become_source_ast() {
         )
         .unwrap(),
     );
-    let initial = DraftDeclaration::Initial(vec![
-        state.expression()
-            - DraftExpression::constant(crate::DecimalLiteral::parse("1.0").unwrap()),
-    ]);
+    let initial = DraftDeclaration::Initial(vec![(
+        state.expression(),
+        DraftExpression::constant(crate::DecimalLiteral::parse("1.0").unwrap()),
+    )]);
     let residual = DraftExpression::derivative(&state) + rate.expression() * state.expression();
     let draft = ModelDraft::new(
         "decay",
@@ -72,7 +78,14 @@ fn typed_dimensions_and_expression_references_become_source_ast() {
             state.into(),
             rate.into(),
             initial,
-            DraftRelation::continuous("flow", [residual]).into(),
+            DraftRelation::continuous(
+                "flow",
+                [(
+                    residual,
+                    DraftExpression::constant(crate::DecimalLiteral::parse("0").unwrap()),
+                )],
+            )
+            .into(),
         ],
     )
     .unwrap();
@@ -107,7 +120,10 @@ fn native_draft_rejects_names_and_numbers_source_could_not_express() {
     );
     let relation = DraftRelation::continuous(
         "flow",
-        [field.expression() + DraftExpression::complex(f64::NAN, 0.0)],
+        [(
+            field.expression() + DraftExpression::complex(f64::NAN, 0.0),
+            DraftExpression::constant(crate::DecimalLiteral::parse("0").unwrap()),
+        )],
     );
 
     let diagnostics = ModelDraft::new(
@@ -115,7 +131,10 @@ fn native_draft_rejects_names_and_numbers_source_could_not_express() {
         [
             field.into(),
             relation.into(),
-            DraftDeclaration::Initial(vec![DraftExpression::complex(f64::INFINITY, 0.0)]),
+            DraftDeclaration::Initial(vec![(
+                DraftExpression::complex(f64::INFINITY, 0.0),
+                DraftExpression::constant(crate::DecimalLiteral::parse("0").unwrap()),
+            )]),
         ],
     )
     .unwrap_err();
@@ -164,10 +183,16 @@ fn physical_vocabulary_projects_only_to_existing_source_ast_forms() {
     let relation = DraftRelation::continuous(
         "resistor",
         [
-            DraftExpression::across(&positive)
-                - DraftExpression::across(&negative)
-                - resistance.expression() * DraftExpression::through(&positive),
-            DraftExpression::through(&positive) + DraftExpression::through(&negative),
+            (
+                DraftExpression::across(&positive)
+                    - DraftExpression::across(&negative)
+                    - resistance.expression() * DraftExpression::through(&positive),
+                DraftExpression::constant(crate::DecimalLiteral::parse("0").unwrap()),
+            ),
+            (
+                DraftExpression::through(&positive) + DraftExpression::through(&negative),
+                DraftExpression::constant(crate::DecimalLiteral::parse("0").unwrap()),
+            ),
         ],
     );
     let connection = DraftConservingConnection::new([&positive, &negative]);
@@ -243,7 +268,13 @@ fn draft_closure_rejects_foreign_domain_and_port_identity_before_rebinding_names
     let declared_port = DraftConservingPort::new("terminal", &declared_domain);
     let foreign_domain_port = DraftConservingPort::new("foreign_domain", &foreign_domain);
     let foreign_port = DraftConservingPort::new("terminal", &declared_domain);
-    let relation = DraftRelation::continuous("owner", [DraftExpression::across(&foreign_port)]);
+    let relation = DraftRelation::continuous(
+        "owner",
+        [(
+            DraftExpression::across(&foreign_port),
+            DraftExpression::constant(crate::DecimalLiteral::parse("0").unwrap()),
+        )],
+    );
 
     let diagnostics = ModelDraft::new(
         "identity",
@@ -439,14 +470,18 @@ fn spatial_draft_projects_only_to_existing_source_ast_forms() {
     let balance = DraftRelation::continuous_on(
         "balance",
         &interval,
-        [-DraftExpression::divergence(DraftExpression::gradient(
-            field.expression(),
-        ))],
+        [(
+            -DraftExpression::divergence(DraftExpression::gradient(field.expression())),
+            DraftExpression::constant(crate::DecimalLiteral::parse("0").unwrap()),
+        )],
     );
     let boundary = DraftRelation::continuous_on(
         "lower_value",
         &lower,
-        [DraftExpression::trace(field.expression())],
+        [(
+            DraftExpression::trace(field.expression()),
+            DraftExpression::constant(crate::DecimalLiteral::parse("0").unwrap()),
+        )],
     );
     let draft = ModelDraft::new(
         "poisson",
@@ -514,7 +549,8 @@ fn expression_contains_call(expression: &Expr, expected: &str) -> bool {
         ExprKind::Binary { left, right, .. } => {
             expression_contains_call(left, expected) || expression_contains_call(right, expected)
         }
-        ExprKind::Number(_)
+        ExprKind::Boolean(_)
+        | ExprKind::Number(_)
         | ExprKind::Quantity { .. }
         | ExprKind::Name(_)
         | ExprKind::Path(_)
@@ -536,14 +572,28 @@ fn draft_channel_literals_cannot_hide_empty_arrays_or_foreign_symbols() {
     assert!(
         ModelDraft::new(
             "foreign",
-            [DraftRelation::continuous("law", [array]).into()]
+            [DraftRelation::continuous(
+                "law",
+                [(
+                    array,
+                    DraftExpression::constant(crate::DecimalLiteral::parse("0").unwrap())
+                )]
+            )
+            .into()]
         )
         .is_err()
     );
     assert!(
         ModelDraft::new(
             "empty",
-            [DraftRelation::continuous("law", [DraftExpression::array([])]).into()]
+            [DraftRelation::continuous(
+                "law",
+                [(
+                    DraftExpression::array([]),
+                    DraftExpression::constant(crate::DecimalLiteral::parse("0").unwrap())
+                )]
+            )
+            .into()]
         )
         .is_err()
     );

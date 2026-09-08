@@ -15,6 +15,7 @@ use super::hierarchy_error;
 
 mod dependencies;
 mod expression_eval;
+mod predicates;
 mod value_expressions;
 use dependencies::{
     ExpressionDefinition, collect_expression_dependencies, expression_cycles,
@@ -24,7 +25,6 @@ mod model_lets;
 mod model_parameters;
 use expression_eval::{
     ExpressionContext, coerce_parameter, coerce_parameter_with_label, evaluate_initializer,
-    evaluate_parameter_expression,
 };
 pub(super) use model_lets::{alias_order, resolve_component_lets, resolve_model_lets};
 pub(super) use model_parameters::{
@@ -703,11 +703,17 @@ fn combine_types(
     let dimension_known = match operator {
         BinaryOp::Add | BinaryOp::Sub => left_dimension.or(right_dimension).is_some(),
         BinaryOp::Mul | BinaryOp::Div => left_dimension.is_some() && right_dimension.is_some(),
+        _ if crate::lower::comparison_operator(operator).is_some()
+            || matches!(operator, BinaryOp::And | BinaryOp::Or) =>
+        {
+            unreachable!("predicates use checked scalar typing")
+        }
         BinaryOp::Pow => {
             exponent == Some(0)
                 || (exponent.is_some() && left_dimension.is_some())
                 || left_dimension == Some(DimExponents::DIMENSIONLESS)
         }
+        _ => unreachable!("predicate operator"),
     };
     let projected = |value: &EvaluatedType, dimension| {
         ExpressionType::<()>::new(value.value_type().clone().with_dimension(dimension), None)
@@ -752,10 +758,16 @@ fn combine_types(
                 typing::divide(&left, &right)
             }
         }
+        _ if crate::lower::comparison_operator(operator).is_some()
+            || matches!(operator, BinaryOp::And | BinaryOp::Or) =>
+        {
+            unreachable!("predicates use checked scalar typing")
+        }
         BinaryOp::Pow => typing::power(
             &projected(&left, left_dimension.unwrap_or(fallback)),
             exponent.unwrap_or(1),
         ),
+        _ => unreachable!("predicate operator"),
     };
     result
         .map(|value| {

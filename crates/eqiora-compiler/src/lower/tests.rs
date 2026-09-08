@@ -118,7 +118,6 @@ fn typed_literal_lowering_preserves_type_through_detachment_and_zero_negation() 
                     ),
                     contextual_left_zero: false,
                     contextual_right_zero: true,
-                    literal_right_zero: true,
                     range: TextRange::new(0, 1),
                 }],
             }],
@@ -133,7 +132,7 @@ fn typed_literal_lowering_preserves_type_through_detachment_and_zero_negation() 
                 Op::DefineKernelNode {
                     node: KernelNode::Relation(relation),
                 } => relation
-                    .residuals()
+                    .expression()
                     .nodes()
                     .iter()
                     .find_map(|node| match node {
@@ -179,7 +178,7 @@ fn component_parameters_preserve_complex_and_array_literals() {
         assert!(compiled[0].transaction().ops().iter().any(|op| match op {
             Op::DefineKernelNode {
                 node: KernelNode::Relation(relation),
-            } => relation.residuals().nodes().iter().any(|node| {
+            } => relation.expression().nodes().iter().any(|node| {
                 match node {
                     eqiora_schema::kernel::ExprNode::Constant(value) => {
                         eqiora_lang::ValueTypeSyntax::from_checked(value.value_type(), |_| None)
@@ -228,7 +227,7 @@ fn component_real_to_complex_binding_keeps_the_real_parameter_identity() {
     }));
     assert!(nodes.iter().any(|node| match node {
         KernelNode::Relation(relation) =>
-            relation.residuals().nodes().iter().any(|node| match node {
+            relation.expression().nodes().iter().any(|node| match node {
                 eqiora_schema::kernel::ExprNode::Constant(value) =>
                     value.value_type().scalar_domain() == eqiora_core::ScalarDomain::Complex
                         && value.value_type().dimension() == DimExponents::DIMENSIONLESS
@@ -731,11 +730,11 @@ model valid() {
             _ => None,
         })
         .expect("canonical Relation");
-    assert!(relation.residuals().nodes().iter().any(|node| matches!(
+    assert!(relation.expression().nodes().iter().any(|node| matches!(
         node,
         eqiora_schema::kernel::ExprNode::UnaryMath(UnaryMathFunction::Sin, _)
     )));
-    assert!(relation.residuals().nodes().iter().any(|node| matches!(
+    assert!(relation.expression().nodes().iter().any(|node| matches!(
         node,
         eqiora_schema::kernel::ExprNode::Constant(value)
             if value.component(0).unwrap().0.to_bits() == 0x4009_21fb_5444_2d18
@@ -807,14 +806,14 @@ model elastic_relation() {
         .expect("canonical Relation");
     assert!(
         relation
-            .residuals()
+            .expression()
             .nodes()
             .iter()
             .any(|node| matches!(node, eqiora_schema::kernel::ExprNode::SymmetricPart(_)))
     );
     assert!(
         relation
-            .residuals()
+            .expression()
             .nodes()
             .iter()
             .any(|node| matches!(node, eqiora_schema::kernel::ExprNode::IsotropicLift(_)))
@@ -884,7 +883,7 @@ model generic_operator() {
             _ => None,
         })
         .expect("canonical Relation");
-    let dag = relation.residuals();
+    let dag = relation.expression();
     let applications = dag
         .nodes()
         .iter()
@@ -981,7 +980,12 @@ fn native_lowering_replaces_synthetic_ranges_with_declaration_paths() {
     );
     let relation = eqiora_lang::DraftRelation::continuous(
         "invalid",
-        [temperature.expression() + duration.expression()],
+        [(
+            temperature.expression() + duration.expression(),
+            eqiora_lang::DraftExpression::constant(
+                eqiora_lang::DecimalLiteral::parse("0").unwrap(),
+            ),
+        )],
     );
     let draft = ModelDraft::new(
         "thermal",
@@ -1021,7 +1025,7 @@ fn native_field_types_survive_direct_lowering() {
     let relation = DraftRelation::continuous_on(
         "balance",
         &domain,
-        [field.expression() - field.expression()],
+        [(field.expression(), field.expression())],
     );
     let draft = ModelDraft::new("M", [domain.into(), field.into(), relation.into()]).unwrap();
     let compiled = lower_draft(&draft).unwrap();
@@ -1077,12 +1081,22 @@ model resistor() {
     let law = eqiora_lang::DraftRelation::continuous(
         "law",
         [
-            eqiora_lang::DraftExpression::across(&positive)
-                - eqiora_lang::DraftExpression::across(&negative)
-                - resistance.expression() * eqiora_lang::DraftExpression::through(&positive),
-            eqiora_lang::DraftExpression::through(&positive)
-                + eqiora_lang::DraftExpression::through(&negative)
-                + eqiora_lang::DraftExpression::through(&tap),
+            (
+                eqiora_lang::DraftExpression::across(&positive)
+                    - eqiora_lang::DraftExpression::across(&negative)
+                    - resistance.expression() * eqiora_lang::DraftExpression::through(&positive),
+                eqiora_lang::DraftExpression::constant(
+                    eqiora_lang::DecimalLiteral::parse("0").unwrap(),
+                ),
+            ),
+            (
+                eqiora_lang::DraftExpression::through(&positive)
+                    + eqiora_lang::DraftExpression::through(&negative)
+                    + eqiora_lang::DraftExpression::through(&tap),
+                eqiora_lang::DraftExpression::constant(
+                    eqiora_lang::DecimalLiteral::parse("0").unwrap(),
+                ),
+            ),
         ],
     );
     let draft = ModelDraft::new(
@@ -1123,10 +1137,20 @@ fn native_physical_projection_is_insensitive_to_declaration_and_net_permutation(
     let relation = eqiora_lang::DraftRelation::continuous(
         "balance",
         [
-            eqiora_lang::DraftExpression::across(&positive)
-                - eqiora_lang::DraftExpression::across(&negative),
-            eqiora_lang::DraftExpression::through(&positive)
-                + eqiora_lang::DraftExpression::through(&negative),
+            (
+                eqiora_lang::DraftExpression::across(&positive)
+                    - eqiora_lang::DraftExpression::across(&negative),
+                eqiora_lang::DraftExpression::constant(
+                    eqiora_lang::DecimalLiteral::parse("0").unwrap(),
+                ),
+            ),
+            (
+                eqiora_lang::DraftExpression::through(&positive)
+                    + eqiora_lang::DraftExpression::through(&negative),
+                eqiora_lang::DraftExpression::constant(
+                    eqiora_lang::DecimalLiteral::parse("0").unwrap(),
+                ),
+            ),
         ],
     );
     let forward = ModelDraft::new(
@@ -1412,7 +1436,7 @@ fn normalized_physical_semantics(model: &CompiledModel) -> Vec<String> {
                 signatures.push(format!(
                     "relation:{}:{}",
                     named(&names, relation.id().erase()),
-                    normalize_dag(relation.residuals(), &names)
+                    normalize_dag(relation.expression(), &names)
                 ));
             }
             Op::DefineKernelNode {
@@ -1673,10 +1697,10 @@ fn field_initial_units_normalize_and_report_the_exact_literal() {
             _ => None,
         })
         .unwrap();
-    assert!(initial.residuals().nodes().iter().any(|node| matches!(node, eqiora_schema::kernel::ExprNode::Constant(value) if value.component(0).unwrap().0 == 2.5)));
+    assert!(initial.expression().nodes().iter().any(|node| matches!(node, eqiora_schema::kernel::ExprNode::Constant(value) if value.component(0).unwrap().0 == 2.5)));
     assert!(
         initial
-            .residuals()
+            .expression()
             .nodes()
             .iter()
             .any(|node| matches!(node, eqiora_schema::kernel::ExprNode::Neg(_)))

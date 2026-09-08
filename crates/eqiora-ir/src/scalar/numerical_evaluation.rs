@@ -9,7 +9,11 @@ pub(super) fn evaluate_instructions(
     for (index, instruction) in instructions.iter().enumerate() {
         let value =
             match *instruction {
-                Instruction::TypedConstant(_)
+                Instruction::Compare(_, _, _)
+                | Instruction::Not(_)
+                | Instruction::And(_, _)
+                | Instruction::Or(_, _)
+                | Instruction::TypedConstant(_)
                 | Instruction::Quotient(_, _)
                 | Instruction::Remainder(_, _)
                 | Instruction::ToReal(_)

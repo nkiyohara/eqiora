@@ -191,7 +191,7 @@ pub(crate) fn lower_isotropic_elastodynamics_subdomain<const D: usize>(
     let mut momentum = None;
     for relation in &volume_relations {
         require_continuous_relation(program, *relation)?;
-        let expression = relation_expression(program, *relation)?;
+        let expression = &relation_expression(program, *relation)?;
         let root = unique_root(expression, *relation)?;
         if let Some(source) = load_definition_root(expression, root, load_potential) {
             require_unique(
@@ -224,10 +224,10 @@ pub(crate) fn lower_isotropic_elastodynamics_subdomain<const D: usize>(
     let (momentum_relation, momentum_parts) =
         momentum.ok_or_else(|| lowering_error(domain, "momentum Relation is missing"))?;
 
-    let load_expression = relation_expression(program, load_relation)?;
+    let load_expression = &relation_expression(program, load_relation)?;
     let load_potential_expression =
         spatial_expression::lower(program, load_expression, load_root, load_relation, D)?;
-    let momentum_expression = relation_expression(program, momentum_relation)?;
+    let momentum_expression = &relation_expression(program, momentum_relation)?;
     let mass_density = spatial_expression::lower(
         program,
         momentum_expression,

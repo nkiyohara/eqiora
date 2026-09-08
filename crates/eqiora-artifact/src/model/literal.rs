@@ -17,6 +17,7 @@ pub(crate) struct WireValueLiteral {
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub(super) enum WireComponents {
     Zero,
+    Boolean { value: bool },
     Dense { values: Vec<(f64, f64)> },
     Integer { values: Vec<i64> },
 }
@@ -25,7 +26,9 @@ impl WireValueLiteral {
     pub(crate) fn encode(value: &ValueLiteral) -> Result<Self, Diagnostic> {
         Ok(Self {
             value_type: WireValueType::encode(value.value_type())?,
-            components: if value.is_zero() {
+            components: if let Some(value) = value.as_bool() {
+                WireComponents::Boolean { value }
+            } else if value.is_zero() {
                 WireComponents::Zero
             } else if let Some(components) = value.integer_components() {
                 WireComponents::Integer {
@@ -45,7 +48,21 @@ impl WireValueLiteral {
     pub(crate) fn decode(&self) -> Result<ValueLiteral, Diagnostic> {
         let value_type = self.value_type.decode()?;
         let result = match &self.components {
+            WireComponents::Boolean { value } => {
+                let literal = ValueLiteral::boolean(*value);
+                if literal.value_type() != &value_type {
+                    return Err(invalid_artifact(
+                        "Boolean payload requires the exact Boolean scalar type",
+                    ));
+                }
+                return Ok(literal);
+            }
             WireComponents::Zero => match value_type.scalar_domain() {
+                ScalarDomain::Boolean => {
+                    return Err(invalid_artifact(
+                        "Boolean requires an explicit truth payload",
+                    ));
+                }
                 ScalarDomain::Integer => ValueLiteral::from_integer(value_type, 0),
                 _ => ValueLiteral::from_real(value_type, 0.0),
             },
@@ -86,6 +103,7 @@ impl WireValueLiteral {
     pub(crate) fn component_payload_count(&self) -> usize {
         match &self.components {
             WireComponents::Zero => 0,
+            WireComponents::Boolean { .. } => 1,
             WireComponents::Dense { values } => values.len(),
             WireComponents::Integer { values } => values.len(),
         }
@@ -244,5 +262,50 @@ mod tests {
         wire.components = WireComponents::Zero;
         assert_eq!(wire.decode().unwrap().integer_component(0), Some(0));
         assert_eq!(wire.decode().unwrap().value_type().index_set(), Some(set));
+    }
+    #[test]
+    fn boolean_truth_payload_has_no_numeric_zero_or_integer_alias() {
+        for truth in [false, true] {
+            let value = ValueLiteral::boolean(truth);
+            let wire = WireValueLiteral::encode(&value).unwrap();
+            let json = serde_json::to_value(&wire).unwrap();
+            assert_eq!(
+                json["components"],
+                serde_json::json!({"kind":"boolean","value":truth})
+            );
+            assert_eq!(wire.decode().unwrap(), value);
+            assert_eq!(wire.component_payload_count(), 1);
+            assert!(
+                wire.ensure_limits(ModelDecoderLimits {
+                    max_value_literal_components: 0,
+                    ..Default::default()
+                })
+                .is_err()
+            );
+            for payload in [
+                WireComponents::Zero,
+                WireComponents::Integer { values: vec![1] },
+                WireComponents::Dense {
+                    values: vec![(1.0, 0.0)],
+                },
+            ] {
+                let mut malformed = wire.clone();
+                malformed.components = payload;
+                assert!(malformed.decode().is_err());
+            }
+            let mut malformed = json;
+            malformed["components"]["value"] = serde_json::json!(1);
+            assert!(serde_json::from_value::<WireValueLiteral>(malformed).is_err());
+        }
+        let mut numeric = WireValueLiteral::encode(
+            &ValueLiteral::from_integer(
+                ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+                1,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        numeric.components = WireComponents::Boolean { value: true };
+        assert!(numeric.decode().is_err());
     }
 }

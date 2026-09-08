@@ -35,6 +35,12 @@ pub(super) fn check(
     nodes: &BTreeMap<RawId, KernelNode>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if value.scalar_domain() == ScalarDomain::Boolean && *value != ValueType::boolean() {
+        diagnostics.push(kernel_error(
+            owner,
+            "Boolean values require the invariant dimensionless scalar Boolean type",
+        ));
+    }
     if value.scalar_domain() == ScalarDomain::Integer
         && (value.dimension() != DimExponents::DIMENSIONLESS
             || value.frame() != ValueFrame::Invariant)
@@ -120,6 +126,7 @@ mod tests {
         let ordinary = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
         let mut cases = Vec::new();
         for value in [
+            ValueType::boolean(),
             ordinary,
             space.counts(),
             space.coordinates(),

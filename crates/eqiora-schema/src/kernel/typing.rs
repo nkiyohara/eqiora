@@ -13,6 +13,7 @@ use super::pure_operator::PureOperatorError;
 use super::{ExprDag, ExprId, ExprNode, SymbolRef, UnaryMathFunction};
 use eqiora_core::ValueFrame;
 
+mod boolean;
 mod construction;
 mod inference;
 mod integer;
@@ -310,10 +311,14 @@ impl<I: fmt::Debug> fmt::Display for TypeViolation<I> {
 /// Meaning assigned to the roots of one typed expression DAG.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RootContract {
+    /// Consecutive roots are equation sides with exact compatible types and support.
+    EquationSides,
     /// Every exact component of every root is an equation equal to zero.
     ComponentwiseResidual,
     /// Simultaneous initial equations; each root retains its independently inferred support.
     InitialConditions,
+    /// Derived numeric initial residuals with independently inferred supports.
+    InitialResiduals,
     /// Every root supplies one invariant scalar activation condition.
     ScalarActivation,
 }
@@ -398,7 +403,19 @@ impl<I: Clone + Eq> TypedResidual<I> {
                 &mut symbol_type,
             );
             let value = match result {
-                NodeInference::Typed(value) => Some(value),
+                NodeInference::Typed(value) => {
+                    if value.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean
+                        && value.value_type != eqiora_core::ValueType::boolean()
+                    {
+                        errors.push(TypedResidualError::Type {
+                            node_index,
+                            error: TypeViolation::ScalarDomainMismatch,
+                        });
+                        None
+                    } else {
+                        Some(value)
+                    }
+                }
                 NodeInference::Unavailable => None,
                 NodeInference::Symbol { symbol, error } => {
                     errors.push(TypedResidualError::Symbol {
@@ -416,24 +433,37 @@ impl<I: Clone + Eq> TypedResidual<I> {
             inferred.push(value);
         }
 
-        for root in expression.roots() {
-            let Some(root_type) = inferred_type(&inferred, *root) else {
-                continue;
-            };
-            let result = match root_contract {
-                RootContract::ComponentwiseResidual => {
-                    residual(&root_type, relation_support.as_ref())
+        if matches!(
+            root_contract,
+            RootContract::EquationSides | RootContract::InitialConditions
+        ) {
+            boolean::validate_equations(
+                &expression,
+                &inferred,
+                relation_support.as_ref(),
+                root_contract,
+                &mut errors,
+            );
+        } else {
+            for root in expression.roots() {
+                let Some(root_type) = inferred_type(&inferred, *root) else {
+                    continue;
+                };
+                let result = match root_contract {
+                    RootContract::InitialResiduals => boolean::numerical_root(&root_type),
+                    RootContract::ComponentwiseResidual => boolean::numerical_root(&root_type)
+                        .and_then(|()| residual(&root_type, relation_support.as_ref())),
+                    RootContract::InitialConditions | RootContract::EquationSides => unreachable!(),
+                    RootContract::ScalarActivation => {
+                        scalar_root(&root_type, relation_support.as_ref())
+                    }
+                };
+                if let Err(error) = result {
+                    errors.push(TypedResidualError::Type {
+                        node_index: root.index(),
+                        error,
+                    });
                 }
-                RootContract::InitialConditions => Ok(()),
-                RootContract::ScalarActivation => {
-                    scalar_root(&root_type, relation_support.as_ref())
-                }
-            };
-            if let Err(error) = result {
-                errors.push(TypedResidualError::Type {
-                    node_index: root.index(),
-                    error,
-                });
             }
         }
 
@@ -453,6 +483,18 @@ impl<I: Clone + Eq> TypedResidual<I> {
 
 /// Add or subtract two typed expressions.
 pub fn additive<I: Clone + Eq>(
+    left: &ExpressionType<I>,
+    right: &ExpressionType<I>,
+) -> Result<ExpressionType<I>, TypeViolation<I>> {
+    if left.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean
+        || right.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean
+    {
+        return Err(TypeViolation::ScalarDomainMismatch);
+    }
+    equation_compatible(left, right)
+}
+
+fn equation_compatible<I: Clone + Eq>(
     left: &ExpressionType<I>,
     right: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
@@ -480,6 +522,12 @@ pub fn multiply<I: Clone + Eq>(
     left: &ExpressionType<I>,
     right: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
+    if left.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean
+        || right.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean
+    {
+        return Err(TypeViolation::ScalarDomainMismatch);
+    }
+
     if left.value_type.index_set().is_some()
         || right.value_type.index_set().is_some()
         || left.value_type.finite_space().is_some()
@@ -520,6 +568,12 @@ pub fn divide<I: Clone + Eq>(
     numerator: &ExpressionType<I>,
     denominator: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
+    if numerator.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean
+        || denominator.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean
+    {
+        return Err(TypeViolation::ScalarDomainMismatch);
+    }
+
     if numerator.value_type.scalar_domain() == eqiora_core::ScalarDomain::Integer {
         return Err(TypeViolation::ScalarDomainMismatch);
     }
@@ -546,6 +600,10 @@ pub fn power<I: Clone>(
     base: &ExpressionType<I>,
     exponent: i32,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
+    if base.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean {
+        return Err(TypeViolation::ScalarDomainMismatch);
+    }
+
     if base.value_type.scalar_domain() == eqiora_core::ScalarDomain::Integer {
         return Err(TypeViolation::ScalarDomainMismatch);
     }
@@ -588,6 +646,10 @@ pub fn unary_math<I: Clone>(
     function: UnaryMathFunction,
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
+    if operand.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean {
+        return Err(TypeViolation::ScalarDomainMismatch);
+    }
+
     if operand.value_type.scalar_domain() == eqiora_core::ScalarDomain::Integer {
         return Err(TypeViolation::ScalarDomainMismatch);
     }
@@ -618,6 +680,10 @@ pub fn unary_math<I: Clone>(
 pub fn gradient<I: Clone>(
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
+    if operand.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean {
+        return Err(TypeViolation::ScalarDomainMismatch);
+    }
+
     if operand.value_type.scalar_domain() == eqiora_core::ScalarDomain::Integer {
         return Err(TypeViolation::ScalarDomainMismatch);
     }
@@ -655,6 +721,10 @@ pub fn gradient<I: Clone>(
 pub fn divergence<I: Clone>(
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
+    if operand.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean {
+        return Err(TypeViolation::ScalarDomainMismatch);
+    }
+
     if operand.value_type.scalar_domain() == eqiora_core::ScalarDomain::Integer {
         return Err(TypeViolation::ScalarDomainMismatch);
     }
@@ -692,6 +762,10 @@ pub fn divergence<I: Clone>(
 pub fn symmetric_part<I: Clone>(
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
+    if operand.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean {
+        return Err(TypeViolation::ScalarDomainMismatch);
+    }
+
     let Some(SpatialSupport::Volume { dimensions, .. }) = operand.support.as_ref() else {
         return Err(TypeViolation::SymmetricPartRequiresVolume);
     };
@@ -712,6 +786,10 @@ pub fn symmetric_part<I: Clone>(
 pub fn isotropic_lift<I: Clone>(
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
+    if operand.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean {
+        return Err(TypeViolation::ScalarDomainMismatch);
+    }
+
     let Some(SpatialSupport::Volume { dimensions, .. }) = operand.support.as_ref() else {
         return Err(TypeViolation::IsotropicLiftRequiresVolume);
     };
@@ -781,6 +859,10 @@ pub fn scalar_root<I: Clone + Eq>(
 pub fn time_derivative<I: Clone>(
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
+    if operand.value_type.scalar_domain() == eqiora_core::ScalarDomain::Boolean {
+        return Err(TypeViolation::ScalarDomainMismatch);
+    }
+
     if operand.value_type.scalar_domain() == eqiora_core::ScalarDomain::Integer {
         return Err(TypeViolation::ScalarDomainMismatch);
     }

@@ -38,6 +38,7 @@ class Expression:
     def __truediv__(self, other: Expression | float | int | complex, /) -> Expression: ...
     def __rtruediv__(self, other: float | int, /) -> Expression: ...
     def __pow__(self, exponent: int, /) -> Expression: ...
+    def __bool__(self) -> bool: ...
     def __neg__(self) -> Expression: ...
     def __getitem__(self, index: int) -> Expression: ...
 
@@ -130,14 +131,9 @@ class Component:
         self, name: str, *, period_s: Fraction | int,
         phase_s: Fraction | int = 0, doc: str | None = None,
     ) -> Clock: ...
-    def initial(self, *residuals: Expression | int | float | complex,
-                left: Expression | int | float | complex | None = None,
-                right: Expression | int | float | complex | None = None,
-                doc: str | None = None) -> None:
-        """Add zero residuals or an explicit left/right initial assignment.
-
-        Exact discrete State initialization requires explicit sides. The forms
-        are mutually exclusive and all expressions retain Component ownership.
+    def initial(self, *equations: tuple[object, object], left: object = None,
+                right: object = None, doc: str | None = None) -> None:
+        """Add ordered explicit equation pairs or one left/right pair.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.initial``.
         """
@@ -442,6 +438,16 @@ def quantity(value: int | float | Decimal, unit: Unit) -> Expression:
     ...
 
 __all__ = [
+    "equal",
+    "not_equal",
+    "less",
+    "less_equal",
+    "greater",
+    "greater_equal",
+    "logical_not",
+    "logical_and",
+    "logical_or",
+
     "Clock",
     "Component",
     "Expression",
@@ -473,3 +479,75 @@ __all__ = [
     "test",
     "trace",
 ]
+
+
+def equal(left: object, right: object) -> Expression:
+    """Author a typed equal predicate.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::equal``.
+    """
+    ...
+
+
+def not_equal(left: object, right: object) -> Expression:
+    """Author a typed not equal predicate.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::not_equal``.
+    """
+    ...
+
+
+def less(left: object, right: object) -> Expression:
+    """Author a typed less predicate.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::less``.
+    """
+    ...
+
+
+def less_equal(left: object, right: object) -> Expression:
+    """Author a typed less equal predicate.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::less_equal``.
+    """
+    ...
+
+
+def greater(left: object, right: object) -> Expression:
+    """Author a typed greater predicate.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::greater``.
+    """
+    ...
+
+
+def greater_equal(left: object, right: object) -> Expression:
+    """Author a typed greater equal predicate.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::greater_equal``.
+    """
+    ...
+
+
+def logical_not(value: object) -> Expression:
+    """Author a typed logical not predicate.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::logical_not``.
+    """
+    ...
+
+
+def logical_and(left: object, right: object) -> Expression:
+    """Author a typed logical and predicate.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::logical_and``.
+    """
+    ...
+
+
+def logical_or(left: object, right: object) -> Expression:
+    """Author a typed logical or predicate.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::logical_or``.
+    """
+    ...

@@ -281,6 +281,8 @@ class ValueType:
     @staticmethod
     def integer() -> ValueType: ...
     @staticmethod
+    def boolean() -> ValueType: ...
+    @staticmethod
     def real(dimension: Dimension | None = None) -> ValueType: ...
     @staticmethod
     def complex(dimension: Dimension | None = None) -> ValueType: ...
@@ -364,14 +366,13 @@ class FieldRole:
 
 @final
 class Initial:
-    """Simultaneous fresh-initialization residuals, each equal to zero.
+    """Simultaneous fresh-initialization equations with explicit sides.
 
     Authority: ``crates/eqiora-python/src/modeling.rs::PyInitial``.
     """
-
-    def __new__(cls, *residuals: _ExpressionLike) -> Self: ...
+    def __new__(cls, *equations: tuple[_ExpressionLike, _ExpressionLike]) -> Self: ...
     @property
-    def residuals(self) -> list[Expression]: ...
+    def equations(self) -> list[tuple[Expression, Expression]]: ...
 
 @final
 class Expression:
@@ -506,39 +507,20 @@ class Connection:
 
     ...
 
-_ExpressionLike = Expression | Field | Parameter | float | complex
+_ExpressionLike = Expression | Field | Parameter | bool | int | float | complex
 
 @final
 class Relation:
-    """Immutable continuous implicit relation declaration.
+    """Immutable continuous equations with explicit typed sides.
 
     Authority: ``crates/eqiora-python/src/modeling.rs::PyRelation``.
     """
-
-    @overload
-    def __new__(
-        cls,
-        name: str,
-        *,
-        domain: Domain | None = None,
-        residual: _ExpressionLike,
-        residuals: None = None,
-    ) -> Self: ...
-    @overload
-    def __new__(
-        cls,
-        name: str,
-        *,
-        domain: Domain | None = None,
-        residual: None = None,
-        residuals: Sequence[_ExpressionLike],
-    ) -> Self: ...
+    def __new__(cls, name: str, *, equations: Sequence[tuple[_ExpressionLike, _ExpressionLike]],
+                domain: Domain | None = None) -> Self: ...
     @property
     def name(self) -> str: ...
     @property
-    def residual(self) -> Expression: ...
-    @property
-    def residuals(self) -> list[Expression]: ...
+    def equations(self) -> list[tuple[Expression, Expression]]: ...
     @property
     def domain(self) -> Domain | None: ...
 
@@ -1780,6 +1762,16 @@ def trace(value: _ExpressionLike) -> Expression:
 from . import diff as diff
 
 __all__ = [
+    "equal",
+    "not_equal",
+    "less",
+    "less_equal",
+    "greater",
+    "greater_equal",
+    "logical_not",
+    "logical_and",
+    "logical_or",
+
     "__version__",
     "Array",
     "AuthoredFormulation",
@@ -1889,3 +1881,75 @@ __all__ = [
     "update_project",
     "vendor_project",
 ]
+
+
+def equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression:
+    """Author a typed equal predicate.
+
+    Authority: ``crates/eqiora-python/src/modeling/predicates.rs::equal``.
+    """
+    ...
+
+
+def not_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression:
+    """Author a typed not equal predicate.
+
+    Authority: ``crates/eqiora-python/src/modeling/predicates.rs::not_equal``.
+    """
+    ...
+
+
+def less(left: _ExpressionLike, right: _ExpressionLike) -> Expression:
+    """Author a typed less predicate.
+
+    Authority: ``crates/eqiora-python/src/modeling/predicates.rs::less``.
+    """
+    ...
+
+
+def less_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression:
+    """Author a typed less equal predicate.
+
+    Authority: ``crates/eqiora-python/src/modeling/predicates.rs::less_equal``.
+    """
+    ...
+
+
+def greater(left: _ExpressionLike, right: _ExpressionLike) -> Expression:
+    """Author a typed greater predicate.
+
+    Authority: ``crates/eqiora-python/src/modeling/predicates.rs::greater``.
+    """
+    ...
+
+
+def greater_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression:
+    """Author a typed greater equal predicate.
+
+    Authority: ``crates/eqiora-python/src/modeling/predicates.rs::greater_equal``.
+    """
+    ...
+
+
+def logical_not(value: _ExpressionLike) -> Expression:
+    """Author a typed logical not predicate.
+
+    Authority: ``crates/eqiora-python/src/modeling/predicates.rs::logical_not``.
+    """
+    ...
+
+
+def logical_and(left: _ExpressionLike, right: _ExpressionLike) -> Expression:
+    """Author a typed logical and predicate.
+
+    Authority: ``crates/eqiora-python/src/modeling/predicates.rs::logical_and``.
+    """
+    ...
+
+
+def logical_or(left: _ExpressionLike, right: _ExpressionLike) -> Expression:
+    """Author a typed logical or predicate.
+
+    Authority: ``crates/eqiora-python/src/modeling/predicates.rs::logical_or``.
+    """
+    ...

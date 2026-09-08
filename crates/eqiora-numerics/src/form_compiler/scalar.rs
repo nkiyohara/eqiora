@@ -525,7 +525,22 @@ pub(super) fn require_closed_dag(expression: &ExprDag, owner: RawId) -> Result<(
             &mut pending,
         );
     }
-    if reached.contains(&false) {
+    // The shared numerical projection preserves authored node identities. Its
+    // exact typed-zero elision can therefore leave inert RHS storage outside
+    // the residual root. This is not an omitted strong-form operation: every
+    // nonzero literal, symbol and operator must still be consumed.
+    if expression
+        .nodes()
+        .iter()
+        .zip(reached)
+        .any(|(node, reached)| {
+            !reached
+                && !matches!(node, ExprNode::Constant(value)
+                if value.is_zero()
+                    && matches!(value.value_type().scalar_domain(),
+                        eqiora_core::ScalarDomain::Real | eqiora_core::ScalarDomain::Complex))
+        })
+    {
         return Err(certificate_error(
             owner,
             "expression contains an unconsumed strong-form node",

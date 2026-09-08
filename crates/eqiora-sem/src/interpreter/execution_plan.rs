@@ -7,6 +7,8 @@ impl ExecutionPlan {
         for node in program.nodes() {
             if let KernelNode::Parameter(parameter) = node
                 && !discrete::supported_type(parameter.value_type())
+                && !(parameter.value_type().scalar_domain() == eqiora_core::ScalarDomain::Complex
+                    && parameter.value_type().shape().is_scalar())
             {
                 return Err(Diagnostic::error(
                     codes::NOT_IMPLEMENTED,
@@ -14,7 +16,7 @@ impl ExecutionPlan {
                 ));
             }
             if let KernelNode::Relation(relation) = node
-                && relation.residuals().nodes().iter().any(|node| {
+                && relation.expression().nodes().iter().any(|node| {
                     matches!(
                         node,
                         ExprNode::Array { .. } | ExprNode::Index { .. } | ExprNode::Complex { .. }
@@ -248,8 +250,8 @@ impl ExecutionPlan {
         }
         for relation in &continuous_relations {
             if let Some(KernelNode::Relation(definition)) = program.node(*relation)
-                && discrete::numerical_roots(program, definition.residuals()).len()
-                    != definition.residuals().roots().len()
+                && discrete::numerical_roots(program, definition).len()
+                    != definition.expression().roots().len()
             {
                 return Err(execution_error(
                     "exact discrete updates require an explicit periodic activation",

@@ -231,7 +231,7 @@ fn lower_isotropic_elasticity_subdomain_2d_with_boundaries(
     let (balance_relation, stress_root, balance_typed) =
         balance.ok_or_else(|| lowering_error(domain, "elastic balance is missing"))?;
 
-    let load_expression = relation_expression(program, load_relation)?;
+    let load_expression = &relation_expression(program, load_relation)?;
     let load_potential_expression =
         spatial_expression::lower(program, load_expression, load_root, load_relation, 2)?;
     let (two_mu, lambda) = lower_isotropic_stress_coefficients(

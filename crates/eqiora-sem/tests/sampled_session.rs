@@ -49,9 +49,9 @@ fn relation(
     }
     nodes.push(
         if initial {
-            RelationDef::initial(id, dag)
+            RelationDef::initial(id, dag).unwrap()
         } else {
-            RelationDef::new(id, dag)
+            RelationDef::new(id, dag).unwrap()
         }
         .into(),
     );
@@ -155,8 +155,14 @@ fn fixture(period: u64, phase: u64, reverse: bool, failure: Failure) -> Fixture 
         let v = d
             .constant(DynQuantity::new([5.0, -3.0, 1.0][i], voltage()))
             .unwrap();
-        let r = d.sub(x, v).unwrap();
-        relation(&mut t, &mut nodes, d.finish([r]).unwrap(), true, activation);
+
+        relation(
+            &mut t,
+            &mut nodes,
+            d.finish([x, v]).unwrap(),
+            true,
+            activation,
+        );
         let mut d = ExprDagBuilder::new();
         let pre = d.symbol(SymbolRef::Pre(fields[i])).unwrap();
         let next = d.symbol(SymbolRef::Next(fields[i])).unwrap();
@@ -178,11 +184,11 @@ fn fixture(period: u64, phase: u64, reverse: bool, failure: Failure) -> Fixture 
             let square = d.mul(next, next).unwrap();
             let scale = d.constant(DynQuantity::new(1.0, voltage())).unwrap();
             let target = d.mul(input, scale).unwrap();
-            d.sub(square, target).unwrap()
+            [square, target]
         } else {
-            d.sub(next, rhs).unwrap()
+            [next, rhs]
         };
-        let expose = d.sub(output, if i == 2 { next } else { pre }).unwrap();
+        let expose = [output, if i == 2 { next } else { pre }];
         let roots = if reverse {
             vec![expose, update]
         } else {
@@ -191,7 +197,7 @@ fn fixture(period: u64, phase: u64, reverse: bool, failure: Failure) -> Fixture 
         relation(
             &mut t,
             &mut nodes,
-            d.finish(roots).unwrap(),
+            d.finish(roots.into_iter().flatten()).unwrap(),
             false,
             activation,
         );
@@ -208,11 +214,11 @@ fn fixture(period: u64, phase: u64, reverse: bool, failure: Failure) -> Fixture 
         let held = dag.hold(memory).unwrap();
         let scale = dag.constant(DynQuantity::new(1., voltage())).unwrap();
         let target = dag.mul(held, scale).unwrap();
-        let residual = dag.sub(square, target).unwrap();
+
         relation(
             &mut t,
             &mut nodes,
-            dag.finish([residual]).unwrap(),
+            dag.finish([square, target]).unwrap(),
             false,
             continuous,
         );
@@ -483,7 +489,18 @@ fn forwarding_with_periods(
     members.push(relation.erase());
     edges.push((relation.erase(), fixed.erase(), EdgeKind::DependsOn));
     t.push(Op::DefineKernelNode {
-        node: RelationDef::new(relation, dag.finish([zero]).unwrap()).into(),
+        node: RelationDef::new(
+            relation,
+            {
+                let equation_zero = dag
+                    .constant(eqiora_core::DynQuantity::new(0.0, value_type().dimension()))
+                    .unwrap();
+                dag.finish([zero, equation_zero])
+            }
+            .unwrap(),
+        )
+        .unwrap()
+        .into(),
     });
     let activation = Id::<kinds::Activation>::new();
     members.push(activation.erase());

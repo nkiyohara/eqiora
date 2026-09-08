@@ -11,8 +11,10 @@ fn native_initial_equations_share_source_ast_without_field_literals() {
         ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
         FieldRoleSyntax::State,
     );
-    let condition = state.expression()
-        - DraftExpression::constant(eqiora_lang::DecimalLiteral::parse("1.0").unwrap());
+    let condition = (
+        state.expression(),
+        DraftExpression::constant(eqiora_lang::DecimalLiteral::parse("1.0").unwrap()),
+    );
     let draft = ModelDraft::new(
         "Decay",
         [state.into(), DraftDeclaration::Initial(vec![condition])],
@@ -43,20 +45,35 @@ fn native_initial_conditions_reject_empty_nonfinite_and_foreign_symbols() {
     let value_type = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
     let included = DraftField::new("x", value_type.clone(), FieldRoleSyntax::State);
     let foreign = DraftField::new("x", value_type, FieldRoleSyntax::State);
-    for (residuals, expected) in [
-        (vec![], "at least one residual"),
-        (vec![DraftExpression::complex(f64::NAN, 0.0)], "non-finite"),
+    for (equations, expected) in [
+        (vec![], "at least one equation"),
         (
-            vec![DraftExpression::complex(f64::INFINITY, 0.0)],
+            vec![(
+                DraftExpression::complex(f64::NAN, 0.0),
+                DraftExpression::constant(eqiora_lang::DecimalLiteral::parse("0").unwrap()),
+            )],
             "non-finite",
         ),
-        (vec![foreign.expression()], "foreign or omitted Field"),
+        (
+            vec![(
+                DraftExpression::complex(f64::INFINITY, 0.0),
+                DraftExpression::constant(eqiora_lang::DecimalLiteral::parse("0").unwrap()),
+            )],
+            "non-finite",
+        ),
+        (
+            vec![(
+                foreign.expression(),
+                DraftExpression::constant(eqiora_lang::DecimalLiteral::parse("0").unwrap()),
+            )],
+            "foreign or omitted Field",
+        ),
     ] {
         let diagnostics = ModelDraft::new(
             "M",
             [
                 included.clone().into(),
-                DraftDeclaration::Initial(residuals),
+                DraftDeclaration::Initial(equations),
             ],
         )
         .unwrap_err();

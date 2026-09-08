@@ -27,6 +27,7 @@ pub(super) fn encode_value_type(
                 ScalarDomain::Real => 0,
                 ScalarDomain::Complex => 1,
                 ScalarDomain::Integer => 2,
+                ScalarDomain::Boolean => 3,
             })?;
             encode_expression(encoder, dimension, budget, next_depth(depth)?)
         }

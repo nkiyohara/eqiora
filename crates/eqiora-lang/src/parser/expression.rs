@@ -41,7 +41,14 @@ impl Parser<'_> {
     }
 
     fn parse_expression_inner(&mut self, minimum_binding_power: u8) -> Option<(Expr, usize)> {
+        if minimum_binding_power > 5 && self.at_keyword("not") {
+            self.error_here(
+                "Boolean negation in an arithmetic or comparison operand requires parentheses",
+            );
+            return None;
+        }
         let (mut left, mut depth) = self.parse_primary()?;
+        let mut compared = false;
         loop {
             if self.at(TokenKind::Dot) {
                 if !matches!(
@@ -84,18 +91,55 @@ impl Parser<'_> {
                 };
                 continue;
             }
-            let (operator, left_power, right_power) = match self.current().kind() {
-                TokenKind::Plus => (BinaryOp::Add, 1, 2),
-                TokenKind::Minus => (BinaryOp::Sub, 1, 2),
-                TokenKind::Star => (BinaryOp::Mul, 3, 4),
-                TokenKind::Slash => (BinaryOp::Div, 3, 4),
-                TokenKind::Caret => (BinaryOp::Pow, 7, 6),
+            let token = self.current().clone();
+            let angle_equal = matches!(token.kind(), TokenKind::LeftAngle | TokenKind::RightAngle)
+                && self.tokens.get(self.cursor + 1).is_some_and(|next| {
+                    next.kind() == TokenKind::Equal && token.range().end() == next.range().start()
+                });
+            let (operator, left_power, right_power) = match token.kind() {
+                TokenKind::Identifier if token.text() == "or" => (BinaryOp::Or, 1, 2),
+                TokenKind::Identifier if token.text() == "and" => (BinaryOp::And, 3, 4),
+                TokenKind::EqualEqual => (BinaryOp::Equal, 7, 8),
+                TokenKind::NotEqual => (BinaryOp::NotEqual, 7, 8),
+                TokenKind::LeftAngle => (
+                    if angle_equal {
+                        BinaryOp::LessEqual
+                    } else {
+                        BinaryOp::Less
+                    },
+                    7,
+                    8,
+                ),
+                TokenKind::RightAngle => (
+                    if angle_equal {
+                        BinaryOp::GreaterEqual
+                    } else {
+                        BinaryOp::Greater
+                    },
+                    7,
+                    8,
+                ),
+                TokenKind::Plus => (BinaryOp::Add, 9, 10),
+                TokenKind::Minus => (BinaryOp::Sub, 9, 10),
+                TokenKind::Star => (BinaryOp::Mul, 11, 12),
+                TokenKind::Slash => (BinaryOp::Div, 11, 12),
+                TokenKind::Caret => (BinaryOp::Pow, 15, 14),
                 _ => break,
             };
             if left_power < minimum_binding_power {
                 break;
             }
+            if left_power == 7 {
+                if compared {
+                    self.error_here("comparison chaining requires explicit Boolean composition");
+                    return None;
+                }
+                compared = true;
+            }
             self.bump();
+            if angle_equal {
+                self.bump();
+            }
             let (right, right_depth) = self.parse_expression_with_depth(right_power)?;
             depth = self.parent_depth(depth.max(right_depth))?;
             let range = TextRange::new(left.range.start(), right.range.end());
@@ -116,7 +160,7 @@ impl Parser<'_> {
             let start = self.bump().range().start();
             // Power binds inside unary minus, including a signed right power:
             // -x^2 is -(x^2), while x^-2 is x^(-2).
-            let (value, child_depth) = self.parse_expression_with_depth(6)?;
+            let (value, child_depth) = self.parse_expression_with_depth(14)?;
             let depth = self.parent_depth(child_depth)?;
             (
                 Expr {
@@ -128,6 +172,31 @@ impl Parser<'_> {
                     },
                 },
                 depth,
+            )
+        } else if self.at_keyword("not") {
+            let start = self.bump().range().start();
+            let (value, child_depth) = self.parse_expression_with_depth(5)?;
+            let depth = self.parent_depth(child_depth)?;
+            (
+                Expr {
+                    resolved_nominal: None,
+                    range: TextRange::new(start, value.range().end()),
+                    kind: ExprKind::Unary {
+                        op: UnaryOp::Not,
+                        value: Box::new(value),
+                    },
+                },
+                depth,
+            )
+        } else if self.at_keyword("true") || self.at_keyword("false") {
+            let token = self.bump();
+            (
+                Expr {
+                    resolved_nominal: None,
+                    range: token.range(),
+                    kind: ExprKind::Boolean(token.text() == "true"),
+                },
+                1,
             )
         } else if self.at(TokenKind::LeftBracket) {
             return self.parse_array();

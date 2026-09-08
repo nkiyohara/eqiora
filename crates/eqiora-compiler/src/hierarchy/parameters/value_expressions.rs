@@ -3,16 +3,6 @@
 use super::*;
 use eqiora_schema::kernel::typing::ExpressionType;
 
-pub(super) fn evaluate(
-    file: &str,
-    expression: &Expr,
-    context: ExpressionContext<'_>,
-    resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
-    resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
-) -> Result<EvaluatedParameter, Diagnostic> {
-    evaluate_with_target(file, expression, context, resolve, None, resolve_clock)
-}
-
 pub(super) fn evaluate_with_target(
     file: &str,
     expression: &Expr,
@@ -20,6 +10,26 @@ pub(super) fn evaluate_with_target(
     resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
     target: Option<&ValueType>,
     resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
+) -> Result<EvaluatedParameter, Diagnostic> {
+    evaluate_mode(
+        file,
+        expression,
+        context,
+        resolve,
+        resolve_clock,
+        target,
+        true,
+    )
+}
+
+pub(super) fn evaluate_mode(
+    file: &str,
+    expression: &Expr,
+    context: ExpressionContext<'_>,
+    resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
+    resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
+    target: Option<&ValueType>,
+    evaluate_values: bool,
 ) -> Result<EvaluatedParameter, Diagnostic> {
     let error = |message: String| {
         source_error(
@@ -51,12 +61,14 @@ pub(super) fn evaluate_with_target(
                         "declaration initializer",
                         resolve_clock,
                     ),
-                    None => evaluate_parameter_expression(
+                    None => super::expression_eval::evaluate_mode(
                         file,
                         element,
                         context,
                         resolve,
                         resolve_clock,
+                        None,
+                        evaluate_values,
                     ),
                 })
                 .collect::<Result<Vec<_>, _>>()?;
@@ -99,8 +111,15 @@ pub(super) fn evaluate_with_target(
             (operands, value_type, lowered, value)
         }
         ExprKind::Index { value, index } => {
-            let operand =
-                evaluate_parameter_expression(file, value, context, resolve, resolve_clock)?;
+            let operand = super::expression_eval::evaluate_mode(
+                file,
+                value,
+                context,
+                resolve,
+                resolve_clock,
+                None,
+                evaluate_values,
+            )?;
             let index_value = super::expression_eval::evaluate_with_domain(
                 file,
                 index,
@@ -185,7 +204,15 @@ pub(super) fn evaluate_with_target(
                     "declaration initializer",
                     resolve_clock,
                 ),
-                None => evaluate_parameter_expression(file, value, context, resolve, resolve_clock),
+                None => super::expression_eval::evaluate_mode(
+                    file,
+                    value,
+                    context,
+                    resolve,
+                    resolve_clock,
+                    None,
+                    evaluate_values,
+                ),
             };
             let real = evaluate(real)?;
             let imag = evaluate(imag)?;
@@ -227,7 +254,7 @@ pub(super) fn evaluate_with_target(
         lineage = combine_lineages(lineage, operand.lineage.clone());
     }
     Ok(EvaluatedParameter {
-        value,
+        value: if evaluate_values { value } else { None },
         value_type: if known {
             EvaluatedType::Known(value_type)
         } else {

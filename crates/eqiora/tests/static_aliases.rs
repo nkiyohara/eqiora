@@ -103,7 +103,10 @@ fn static_aliases_preserve_occurrence_values_parameter_edits_and_the_chain_rule(
                 let Some(KernelNode::Relation(relation)) = program.node(relation) else {
                     panic!("ordinary compiled Relation");
                 };
-                let ir = ScalarOperatorIr::lower(relation.residuals()).unwrap();
+                let ir = ScalarOperatorIr::lower(
+                    &program.numerical_residuals(relation.id().erase()).unwrap(),
+                )
+                .unwrap();
                 assert_eq!(ir.residual_count(), 1);
                 let mut inputs = Vec::new();
                 let mut roles = Vec::new();

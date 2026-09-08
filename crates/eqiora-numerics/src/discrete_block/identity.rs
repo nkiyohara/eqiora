@@ -135,6 +135,7 @@ fn hash_value_type(hash: &mut Sha256, value_type: &ValueType) {
         ScalarDomain::Real => 0,
         ScalarDomain::Complex => 1,
         ScalarDomain::Integer => 2,
+        ScalarDomain::Boolean => 3,
     }]);
     hash_dimension(hash, value_type.dimension());
     hash_shape(hash, value_type.shape());

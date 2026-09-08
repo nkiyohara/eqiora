@@ -44,8 +44,24 @@ fn public_api_builds_a_clocked_relation_network() {
     let residual = expressions.sub(field_value, zero).expect("subtraction");
     let relation_definition = RelationDef::new(
         relation,
-        expressions.finish([residual]).expect("residual DAG"),
-    );
+        {
+            let equation_zero_0 = expressions
+                .constant(
+                    eqiora_core::ValueLiteral::from_real(
+                        eqiora_core::ValueType::scalar(
+                            eqiora_core::ScalarDomain::Real,
+                            DimExponents::DIMENSIONLESS,
+                        ),
+                        0.0,
+                    )
+                    .unwrap(),
+                )
+                .unwrap();
+            expressions.finish([residual, equation_zero_0])
+        }
+        .expect("residual DAG"),
+    )
+    .unwrap();
     let period = RationalTime::new(1, 100).expect("10 ms");
 
     let mut transaction = Transaction::new("define a clocked relation");

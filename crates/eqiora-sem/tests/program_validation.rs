@@ -25,7 +25,6 @@ fn valid_program_owns_one_snapshot_revision() {
     let zero = expression
         .constant(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
         .expect("zero");
-    let residual = expression.sub(value, zero).expect("residual");
 
     let mut transaction = Transaction::new("valid continuous model");
     for node in [
@@ -40,10 +39,9 @@ fn valid_program_owns_one_snapshot_revision() {
             )
             .expect("valid parameter value"),
         )),
-        KernelNode::from(RelationDef::new(
-            relation,
-            expression.finish([residual]).expect("DAG"),
-        )),
+        KernelNode::from(
+            RelationDef::new(relation, expression.finish([value, zero]).expect("DAG")).unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(activation)),
     ] {
         transaction.push(Op::DefineKernelNode { node });
@@ -127,10 +125,22 @@ fn symbol_outside_model_is_rejected() {
             ),
             eqiora_schema::kernel::FieldRole::Variable,
         )),
-        KernelNode::from(RelationDef::new(
-            relation,
-            expression.finish([residual]).expect("DAG"),
-        )),
+        KernelNode::from(
+            RelationDef::new(
+                relation,
+                {
+                    let equation_zero = expression
+                        .constant(eqiora_core::DynQuantity::new(
+                            0.0,
+                            eqiora_core::DimExponents::DIMENSIONLESS,
+                        ))
+                        .unwrap();
+                    expression.finish([residual, equation_zero])
+                }
+                .expect("DAG"),
+            )
+            .unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(activation)),
     ] {
         transaction.push(Op::DefineKernelNode { node });
@@ -178,7 +188,7 @@ fn incompatible_expression_dimensions_are_rejected() {
     let dimensionless = expression
         .constant(DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))
         .expect("constant");
-    let residual = expression.sub(time, dimensionless).expect("structural DAG");
+
     let mut transaction = Transaction::new("dimensionally invalid model");
     for node in [
         KernelNode::from(FieldDef::new(
@@ -186,10 +196,13 @@ fn incompatible_expression_dimensions_are_rejected() {
             eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, time_dimension),
             eqiora_schema::kernel::FieldRole::State,
         )),
-        KernelNode::from(RelationDef::new(
-            relation,
-            expression.finish([residual]).expect("DAG"),
-        )),
+        KernelNode::from(
+            RelationDef::new(
+                relation,
+                expression.finish([time, dimensionless]).expect("DAG"),
+            )
+            .unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(activation)),
     ] {
         transaction.push(Op::DefineKernelNode { node });
@@ -260,10 +273,30 @@ fn shaped_relation_roots_are_componentwise_but_activation_roots_remain_scalar() 
             .unwrap(),
             eqiora_schema::kernel::FieldRole::State,
         )),
-        KernelNode::from(RelationDef::new(
-            relation,
-            residual.finish([residual_root]).unwrap(),
-        )),
+        KernelNode::from(
+            RelationDef::new(
+                relation,
+                {
+                    let zero = residual
+                        .constant(
+                            eqiora_core::ValueLiteral::from_real(
+                                eqiora_core::ValueType::scalar(
+                                    eqiora_core::ScalarDomain::Real,
+                                    DimExponents::DIMENSIONLESS,
+                                )
+                                .array(2)
+                                .unwrap(),
+                                0.0,
+                            )
+                            .unwrap(),
+                        )
+                        .unwrap();
+                    residual.finish([residual_root, zero])
+                }
+                .unwrap(),
+            )
+            .unwrap(),
+        ),
         KernelNode::from(activation_definition),
     ];
     let view = ModelView::new(model, nodes.iter().map(KernelNode::id), []).unwrap();
@@ -315,10 +348,22 @@ fn boundary_operator_without_boundary_scope_is_rejected() {
             ),
             eqiora_schema::kernel::FieldRole::State,
         )),
-        KernelNode::from(RelationDef::new(
-            relation,
-            expression.finish([residual]).expect("DAG"),
-        )),
+        KernelNode::from(
+            RelationDef::new(
+                relation,
+                {
+                    let equation_zero = expression
+                        .constant(eqiora_core::DynQuantity::new(
+                            0.0,
+                            eqiora_core::DimExponents::DIMENSIONLESS,
+                        ))
+                        .unwrap();
+                    expression.finish([residual, equation_zero])
+                }
+                .expect("DAG"),
+            )
+            .unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(activation)),
     ] {
         transaction.push(Op::DefineKernelNode { node });
@@ -375,10 +420,22 @@ fn derivative_dimension_overflow_is_not_misreported_as_missing_symbol() {
             eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, extreme_dimension),
             eqiora_schema::kernel::FieldRole::State,
         )),
-        KernelNode::from(RelationDef::new(
-            relation,
-            expression.finish([residual]).expect("DAG"),
-        )),
+        KernelNode::from(
+            RelationDef::new(
+                relation,
+                {
+                    let equation_zero = expression
+                        .constant(eqiora_core::DynQuantity::new(
+                            0.0,
+                            eqiora_core::DimExponents::DIMENSIONLESS,
+                        ))
+                        .unwrap();
+                    expression.finish([residual, equation_zero])
+                }
+                .expect("DAG"),
+            )
+            .unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(activation)),
     ] {
         transaction.push(Op::DefineKernelNode { node });
@@ -434,10 +491,22 @@ fn periodic_activation_requires_one_periodic_clock() {
         .expect("constant");
     let mut transaction = Transaction::new("periodic model missing clock edge");
     for node in [
-        KernelNode::from(RelationDef::new(
-            relation,
-            expression.finish([residual]).expect("DAG"),
-        )),
+        KernelNode::from(
+            RelationDef::new(
+                relation,
+                {
+                    let equation_zero = expression
+                        .constant(eqiora_core::DynQuantity::new(
+                            0.0,
+                            eqiora_core::DimExponents::DIMENSIONLESS,
+                        ))
+                        .unwrap();
+                    expression.finish([residual, equation_zero])
+                }
+                .expect("DAG"),
+            )
+            .unwrap(),
+        ),
         KernelNode::from(ActivationDef::periodic(activation)),
         KernelNode::from(
             ClockDomainDef::periodic(
@@ -494,10 +563,22 @@ fn signal_connection_supports_one_to_many_fanout() {
         .expect("constant");
     let mut transaction = Transaction::new("signal fanout model");
     for node in [
-        KernelNode::from(RelationDef::new(
-            relation,
-            expression.finish([residual]).expect("DAG"),
-        )),
+        KernelNode::from(
+            RelationDef::new(
+                relation,
+                {
+                    let equation_zero = expression
+                        .constant(eqiora_core::DynQuantity::new(
+                            0.0,
+                            eqiora_core::DimExponents::DIMENSIONLESS,
+                        ))
+                        .unwrap();
+                    expression.finish([residual, equation_zero])
+                }
+                .expect("DAG"),
+            )
+            .unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(activation)),
         KernelNode::from(ConnectionDef::new(
             connection,
@@ -613,10 +694,22 @@ fn invalid_signal_connection(
         .expect("constant");
     let mut transaction = Transaction::new("invalid signal compatibility");
     for node in [
-        KernelNode::from(RelationDef::new(
-            relation,
-            expression.finish([residual]).expect("DAG"),
-        )),
+        KernelNode::from(
+            RelationDef::new(
+                relation,
+                {
+                    let equation_zero = expression
+                        .constant(eqiora_core::DynQuantity::new(
+                            0.0,
+                            eqiora_core::DimExponents::DIMENSIONLESS,
+                        ))
+                        .unwrap();
+                    expression.finish([residual, equation_zero])
+                }
+                .expect("DAG"),
+            )
+            .unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(activation)),
         KernelNode::from(ConnectionDef::new(
             connection,
@@ -686,10 +779,22 @@ fn one_port_cannot_belong_to_two_connection_nets() {
         .expect("constant");
     let mut transaction = Transaction::new("ambiguous signal input");
     for node in [
-        KernelNode::from(RelationDef::new(
-            relation,
-            expression.finish([residual]).expect("DAG"),
-        )),
+        KernelNode::from(
+            RelationDef::new(
+                relation,
+                {
+                    let equation_zero = expression
+                        .constant(eqiora_core::DynQuantity::new(
+                            0.0,
+                            eqiora_core::DimExponents::DIMENSIONLESS,
+                        ))
+                        .unwrap();
+                    expression.finish([residual, equation_zero])
+                }
+                .expect("DAG"),
+            )
+            .unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(activation)),
         KernelNode::from(ConnectionDef::new(
             connection_a,
@@ -841,10 +946,22 @@ fn invalid_spatial_expression(
             )
             .expect("valid parameter value"),
         )),
-        KernelNode::from(RelationDef::new(
-            relation,
-            expression.finish([residual]).expect("DAG"),
-        )),
+        KernelNode::from(
+            RelationDef::new(
+                relation,
+                {
+                    let equation_zero = expression
+                        .constant(eqiora_core::DynQuantity::new(
+                            0.0,
+                            eqiora_core::DimExponents::DIMENSIONLESS,
+                        ))
+                        .unwrap();
+                    expression.finish([residual, equation_zero])
+                }
+                .expect("DAG"),
+            )
+            .unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(activation)),
     ];
     let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();
@@ -977,9 +1094,11 @@ fn revision_values_preserve_complex_channels_without_scalar_execution_coercion()
     let relation = Id::<kinds::Relation>::new();
     let mut dag = ExprDagBuilder::new();
     let symbol = dag.symbol(SymbolRef::Parameter(id)).unwrap();
-    let residual = dag.sub(symbol, symbol).unwrap();
+
     transaction.push(Op::DefineKernelNode {
-        node: RelationDef::initial(relation, dag.finish([residual]).unwrap()).into(),
+        node: RelationDef::initial(relation, dag.finish([symbol, symbol]).unwrap())
+            .unwrap()
+            .into(),
     });
     transaction.push(Op::Connect {
         from: relation.erase(),

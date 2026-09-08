@@ -598,7 +598,7 @@ public component SteadyFlowPastCylinder(
                 KernelNode::Relation(relation) => Some(relation),
                 _ => None,
             })
-            .flat_map(|relation| relation.residuals().nodes())
+            .flat_map(|relation| relation.expression().nodes())
             .filter_map(|node| match node {
                 ExprNode::Symbol(SymbolRef::Parameter(parameter)) => Some(parameter.erase()),
                 _ => None,

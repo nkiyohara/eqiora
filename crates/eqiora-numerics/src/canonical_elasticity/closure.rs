@@ -99,11 +99,9 @@ pub(super) fn require_closed_elasticity_parts<const D: usize>(
     let expected_parameters = expected_relations
         .iter()
         .copied()
-        .flat_map(|relation| {
-            relation_expression(program, relation)
-                .expect("admitted Relations were already inspected")
-                .nodes()
-                .iter()
+        .flat_map(|relation| match program.node(relation) {
+            Some(KernelNode::Relation(definition)) => definition.expression().nodes().iter(),
+            _ => unreachable!("admitted Relations were already inspected"),
         })
         .filter_map(|node| match node {
             ExprNode::Symbol(SymbolRef::Parameter(parameter)) => Some(parameter.erase()),
@@ -169,9 +167,9 @@ pub(super) fn relations_on(program: &KernelProgram, domain: RawId) -> Vec<RawId>
 pub(super) fn relation_expression(
     program: &KernelProgram,
     relation: RawId,
-) -> Result<&ExprDag, Diagnostic> {
+) -> Result<ExprDag, Diagnostic> {
     match program.node(relation) {
-        Some(KernelNode::Relation(relation)) => Ok(relation.residuals()),
+        Some(KernelNode::Relation(_)) => program.numerical_residuals(relation),
         _ => Err(lowering_error(
             relation,
             "AppliesOn source has no Relation definition",

@@ -1014,7 +1014,7 @@ def clocked_alias_source(*, aliases=True, wrong_clock=False):
                             value_type=eqiora.ValueType.real())
     observer = component.field("observer", on=region, role=eqiora.FieldRole.Variable,
                                value_type=eqiora.ValueType.real())
-    component.initial(q.pre(state) - 1, doc="Fresh pre-tick memory.")
+    component.initial((q.pre(state) - 1, 0), doc="Fresh pre-tick memory.")
     component.relation("hold", on=region, at=tick, left=q.next(state), right=q.pre(state))
     current = component.let_alias("current", 2 * state, on=region, at=asserted,
                                   value_type=eqiora.ValueType.real()) if aliases else 2 * state
@@ -1032,7 +1032,7 @@ def test_clock_authoring_emits_exact_activation_and_simultaneous_initial():
     assert "relation observe on region {" in text
     simultaneous = q.Source()
     component = simultaneous.component("Simultaneous")
-    component.initial(1, 2)
+    component.initial((1, 0), (2, 0))
     assert "initial {\n    1 = 0;\n    2 = 0;\n  }" in simultaneous.to_eqi()
 
 
@@ -1051,7 +1051,7 @@ def test_clock_authoring_normalizes_rationals_and_preserves_nominal_immutability
     with pytest.raises(q.SourceError, match="frozen"):
         component.clock("late", period_s=1)
     with pytest.raises(q.SourceError, match="frozen"):
-        component.initial(0)
+        component.initial((0, 0))
 
 
 @pytest.mark.parametrize("keyword, value, error", [
@@ -1104,10 +1104,10 @@ def test_clock_authoring_initial_and_tick_operators_preserve_lexical_expression_
                           value_type=eqiora.ValueType.real())
     for expression in (q.pre(state), q.next(state) + 1):
         with pytest.raises(q.SourceError, match="this Component"):
-            owner.initial(expression)
+            owner.initial((expression, 0))
         with pytest.raises(q.SourceError, match="this Component"):
             owner.let_alias("foreign", expression)
-    owner.initial(0)
+    owner.initial((0, 0))
 
 
 def test_clock_authoring_initial_uses_existing_declaration_and_expression_bounds():
@@ -1115,9 +1115,9 @@ def test_clock_authoring_initial_uses_existing_declaration_and_expression_bounds
     component = source.component("Bounded")
     component.clock("tick", period_s=1)
     for _ in range(255):
-        component.initial(0)
+        component.initial((0, 0))
     with pytest.raises(q.SourceError, match="256-declaration limit"):
-        component.initial(0)
+        component.initial((0, 0))
     with pytest.raises(q.SourceError, match="256-declaration limit"):
         component.clock("excess", period_s=1)
     bounded_source = q.Source()
@@ -1132,10 +1132,10 @@ def test_clock_authoring_initial_uses_existing_declaration_and_expression_bounds
     with pytest.raises(q.SourceError, match="initial expressions exceed the 4096-node limit"):
         explicit.initial(left=0, right=0)
     assert explicit_source.to_eqi().count("initial {") == 1
-    bounded.initial(expression, 0)
+    bounded.initial((expression, 0))
     with pytest.raises(q.SourceError, match="initial expressions exceed the 4096-node limit"):
-        bounded.initial(0)
-    # A rejected residual batch cannot consume a declaration or its output.
+        bounded.initial((0, 0))
+    # A rejected equation batch cannot consume a declaration or its output.
     assert bounded_source.to_eqi().count("initial {") == 1
 
 
@@ -1165,7 +1165,7 @@ def test_clock_authoring_tick_expressions_retain_depth_bound_and_doc_validation(
         component.clock("tick", period_s=1, doc="x" * 16_385)
     component.clock("tick", period_s=1)
     with pytest.raises(q.SourceError, match="doc"):
-        component.initial(0, doc="x" * 16_385)
+        component.initial((0, 0), doc="x" * 16_385)
     expression = q.math.pi
     for _ in range(63):
         expression = q.pre(expression)
@@ -1266,7 +1266,7 @@ def sampled_source():
     drive = model.input("drive", value_type=eqiora.ValueType.real(), at=tick)
     observed = model.output("observed", value_type=eqiora.ValueType.real(), at=tick)
     memory = model.field("memory", value_type=eqiora.ValueType.real(), role=eqiora.FieldRole.State, at=tick)
-    model.initial(q.pre(memory))
+    model.initial((q.pre(memory), 0))
     model.relation("update", at=tick, left=q.next(memory), right=q.pre(memory) + drive)
     model.relation("observe", at=tick, left=observed, right=q.pre(memory))
     return source
@@ -1321,7 +1321,7 @@ def test_source_signature_borrowing_and_forward_defaults_use_exact_handles():
     root_tick = root.clock("tick", period_s=Fraction(1, 10))
     memory = root.field("memory", value_type=eqiora.ValueType.real(),
                         role=eqiora.FieldRole.State, at=root_tick)
-    root.initial(q.pre(memory))
+    root.initial((q.pre(memory), 0))
     with pytest.raises(q.SourceError, match="exact required signature"):
         root.instance("child", component=child, bindings={tick: root_tick})
     with pytest.raises(q.SourceError, match="enclosing Field"):
@@ -1397,7 +1397,7 @@ def test_external_clock_alias_assertion_compares_nominal_identity():
     second = owner.clock_requirement("second")
     memory = owner.field("memory", value_type=eqiora.ValueType.real(), role=eqiora.FieldRole.State, at=first)
     observed = owner.output("observed", value_type=eqiora.ValueType.real(), at=first)
-    owner.initial(q.pre(memory) - 1)
+    owner.initial((q.pre(memory) - 1, 0))
     owner.relation("hold", at=first, left=q.next(memory), right=q.pre(memory))
     alias = owner.let_alias("current", memory, at=second)
     owner.relation("observe", at=first, left=observed, right=alias)

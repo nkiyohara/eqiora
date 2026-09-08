@@ -32,8 +32,10 @@ impl SourceAstFactory {
                 }
                 ValueTypeSyntaxKind::Scalar { dimension, domain } => {
                     validate_expression(dimension)?;
-                    if *domain == eqiora_core::ScalarDomain::Integer
-                        && !matches!(dimension.kind(), crate::ExprKind::Number(value) if value.to_i64().ok() == Some(1))
+                    if matches!(
+                        domain,
+                        eqiora_core::ScalarDomain::Integer | eqiora_core::ScalarDomain::Boolean
+                    ) && !matches!(dimension.kind(), crate::ExprKind::Number(value) if value.to_i64().ok() == Some(1))
                     {
                         return Err(AstConstructionError::new("integer type is dimensionless"));
                     }

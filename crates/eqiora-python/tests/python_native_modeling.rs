@@ -35,7 +35,7 @@ for invalid in [0.5, 1.0, True, (1, 2), None, 2147483648, -2147483648,
         raise AssertionError(f"accepted invalid exponent: {invalid!r}")
 field = eqiora.Field("psi", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real(wave))
 assert field.dimension == wave
-balance = eqiora.Relation("balance", residual=field)
+balance = eqiora.Relation("balance", equations=[(field, 0)])
 model = eqiora.Model.define("wave", field, balance)
 "#
             ),
@@ -59,7 +59,7 @@ scalar = eqiora.ValueType.complex(eqiora.Dimension(length=1))
 for value_type, value in [(scalar, 2.0), (eqiora.ValueType.array(scalar, 3), 0.0)]:
     coefficient = eqiora.Parameter("coefficient", value_type=value_type, value=value)
     field = eqiora.Field("state", role=eqiora.FieldRole.Variable, value_type=value_type)
-    relation = eqiora.Relation("balance", residual=field - coefficient)
+    relation = eqiora.Relation("balance", equations=[(field - coefficient, 0)])
     model = eqiora.Model.define("typed_parameter", coefficient, field, relation)
     assert coefficient.value_type == value_type
     assert eqiora.Model.from_bytes(model.to_bytes()).digest == model.digest
@@ -86,7 +86,7 @@ assert domain.across_type == voltage
 assert domain.through_type == current
 left = eqiora.ConservingPort("left", domain=domain)
 right = eqiora.ConservingPort("right", domain=domain)
-relation = eqiora.Relation("balance", residuals=[eqiora.across(left) - eqiora.across(right), eqiora.through(left) + eqiora.through(right)])
+relation = eqiora.Relation("balance", equations=[(residual, 0) for residual in ([eqiora.across(left) - eqiora.across(right), eqiora.through(left) + eqiora.through(right)])])
 model = eqiora.Model.define("complex_physical", domain, left, right, relation, eqiora.connect(left, right))
 assert eqiora.Model.from_bytes(model.to_bytes()).digest == model.digest
 "#), Some(&locals), None)
@@ -113,9 +113,9 @@ rate = eqiora.Parameter(
 )
 flow = eqiora.Relation(
     "flow",
-    residual=eqiora.derivative(x) + rate * x,
+    equations=[(eqiora.derivative(x) + rate * x, 0)],
 )
-scalar_model = eqiora.Model.define("decay", x, rate, flow, eqiora.Initial(x - 1.0))
+scalar_model = eqiora.Model.define("decay", x, rate, flow, eqiora.Initial((x, 1.0)))
 
 voltage = eqiora.Dimension(mass=1, length=2, time=-3, current=-1)
 current = eqiora.Dimension(current=1)
@@ -129,10 +129,10 @@ right = eqiora.ConservingPort("right", domain=electrical)
 tap = eqiora.ConservingPort("tap", domain=electrical)
 component = eqiora.Relation(
     "component",
-    residuals=[
+    equations=[(residual, 0) for residual in ([
         eqiora.across(left) - eqiora.across(tap),
         eqiora.through(right) + eqiora.through(tap),
-    ],
+    ])],
 )
 connection = eqiora.connect(left, right, tap)
 physical_model = eqiora.Model.define(
@@ -179,17 +179,17 @@ spatial_model = eqiora.Model.define(
     eqiora.Relation(
         "upper_value",
         domain=upper_end,
-        residual=eqiora.trace(potential),
+        equations=[(eqiora.trace(potential), 0)],
     ),
     eqiora.Relation(
         "balance",
         domain=interval,
-        residual=-eqiora.div(eqiora.grad(potential)) - source_scale,
+        equations=[(-eqiora.div(eqiora.grad(potential)) - source_scale, 0)],
     ),
     eqiora.Relation(
         "lower_value",
         domain=lower_end,
-        residual=eqiora.trace(potential),
+        equations=[(eqiora.trace(potential), 0)],
     ),
 )
 "#
@@ -271,9 +271,9 @@ model source_physical() {
             })
             .expect("the replayed physical Model must retain its Relation");
         assert_eq!(
-            relation.residuals().roots().len(),
+            relation.equation_sides().len(),
             2,
-            "multi-residual meaning was lost during Python artifact replay"
+            "ordered equation meaning was lost during Python artifact replay"
         );
 
         let spatial = replay_python_model(&locals, "spatial_model");
@@ -291,7 +291,7 @@ model source_physical() {
             locals
                 .get_item("component")?
                 .unwrap()
-                .getattr("residuals")?
+                .getattr("equations")?
                 .len()?,
             2
         );
@@ -307,7 +307,7 @@ model source_physical() {
                 r#"
 included = eqiora.Field("x", role=eqiora.FieldRole.Variable)
 same_named_foreign = eqiora.Field("x", role=eqiora.FieldRole.Variable)
-relation = eqiora.Relation("flow", residual=same_named_foreign)
+relation = eqiora.Relation("flow", equations=[(same_named_foreign, 0)])
 rejected_model = eqiora.Model.define("foreign_symbol", included, relation)
 "#
             ),
@@ -332,7 +332,7 @@ duration = eqiora.Parameter(
     value_type=eqiora.ValueType.real(eqiora.Dimension(time=1)),
     value=1.0,
 )
-invalid = eqiora.Relation("invalid", residual=temperature + duration)
+invalid = eqiora.Relation("invalid", equations=[(temperature + duration, 0)])
 rejected_model = eqiora.Model.define("dimension_mismatch", temperature, duration, invalid)
 "#
             ),
@@ -367,8 +367,8 @@ rejected_model = eqiora.Model.define(
     equal_but_foreign,
     left,
     foreign,
-    eqiora.Relation("left_owner", residual=eqiora.across(left)),
-    eqiora.Relation("foreign_owner", residual=eqiora.across(foreign)),
+    eqiora.Relation("left_owner", equations=[(eqiora.across(left), 0)]),
+    eqiora.Relation("foreign_owner", equations=[(eqiora.across(foreign), 0)]),
     bad_connection,
 )
 "#
@@ -397,7 +397,7 @@ rejected_model = eqiora.Model.define(
     "omitted_connection_member",
     electrical,
     left,
-    eqiora.Relation("left_owner", residual=eqiora.across(left)),
+    eqiora.Relation("left_owner", equations=[(eqiora.across(left), 0)]),
     bad_connection,
 )
 "#
@@ -439,7 +439,7 @@ same_named_foreign = eqiora.Domain.box("interval", (0.0, 1.0))
 relation = eqiora.Relation(
     "balance",
     domain=same_named_foreign,
-    residual=1.0,
+    equations=[(1.0, 0)],
 )
 rejected_model = eqiora.Model.define("foreign_relation_domain", included, relation)
 "#
@@ -480,7 +480,7 @@ field = eqiora.Field("u", role=eqiora.FieldRole.Variable, domain=interval)
 invalid = eqiora.Relation(
     "invalid",
     domain=interval,
-    residual=eqiora.trace(field),
+    equations=[(eqiora.trace(field), 0)],
 )
 rejected_model = eqiora.Model.define(
     "support_mismatch",

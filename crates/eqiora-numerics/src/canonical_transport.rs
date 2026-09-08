@@ -338,7 +338,7 @@ pub fn lower_scalar_transport_cartesian_2d(
 }
 
 fn relation_derivative_field(program: &KernelProgram, relation: RawId) -> Option<RawId> {
-    let expression = relation_expression(program, relation).ok()?;
+    let expression = &relation_expression(program, relation).ok()?;
     let derivatives = expression
         .nodes()
         .iter()
@@ -355,7 +355,7 @@ fn lower_transport_relation(
     relation: RawId,
     state: RawId,
 ) -> Result<(RawId, ScalarSpatialExpression), Diagnostic> {
-    let expression = relation_expression(program, relation)?;
+    let expression = &relation_expression(program, relation)?;
     let root = unique_root(expression, relation)?;
     let Some(ExprNode::Sub(transient_advection, diffusion_divergence)) = expression.node(root)
     else {
@@ -452,7 +452,7 @@ fn lower_potential_definition(
     potential: RawId,
     transport_relation: RawId,
 ) -> Result<ScalarSpatialExpression, Diagnostic> {
-    let expression = relation_expression(program, relation)?;
+    let expression = &relation_expression(program, relation)?;
     if expression.nodes().iter().any(|node| {
         matches!(
             node,
@@ -494,7 +494,7 @@ fn lower_boundary_relation(
     potential: RawId,
     diffusivity: &ScalarSpatialExpression,
 ) -> Result<ScalarTransportCartesianBoundary, Diagnostic> {
-    let expression = relation_expression(program, relation)?;
+    let expression = &relation_expression(program, relation)?;
     if expression.roots().len() == 2 {
         return lower_spatial_periodic_boundary_relation(
             program,

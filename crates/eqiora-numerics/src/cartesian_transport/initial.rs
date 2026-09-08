@@ -27,7 +27,7 @@ pub(super) fn constant_initial_value(
         _ => None,
     });
     let initial = initials.next().ok_or_else(|| invalid(state))?;
-    if initials.next().is_some() || initial.residuals().roots().len() != 1 {
+    if initials.next().is_some() || initial.equation_sides().len() != 1 {
         return Err(lowering_error(
             initial.id().erase(),
             "scalar transport requires exactly one constant-on-support initial equation; additional initial equations are not admitted",
@@ -41,7 +41,8 @@ pub(super) fn constant_initial_value(
                 .next()
                 .expect("failed typing owns diagnostics")
         })?;
-    let root = initial.residuals().roots()[0];
+    let residuals = program.numerical_residuals(initial.id().erase())?;
+    let root = residuals.roots()[0];
     let root_type = typed
         .node_type(root)
         .expect("typed residual owns every root");
@@ -51,11 +52,11 @@ pub(super) fn constant_initial_value(
     {
         return Err(invalid(initial.id().erase()));
     }
-    let expression = initial.residuals();
+    let expression = &residuals;
     let node = |id: eqiora_schema::kernel::ExprId| &expression.nodes()[id.index() as usize];
     let is_state = |node: &ExprNode| matches!(node, ExprNode::Symbol(SymbolRef::Field(id)) if id.erase() == state);
     let constant = match node(root) {
-        // The common compiler removes a checked neutral right-hand zero.
+        // Numerical projection removes only a checked, matching typed zero.
         symbol if is_state(symbol) => return Ok(0.0),
         ExprNode::Sub(left, right) if is_state(node(*left)) => *right,
         ExprNode::Sub(left, right) if is_state(node(*right)) => *left,

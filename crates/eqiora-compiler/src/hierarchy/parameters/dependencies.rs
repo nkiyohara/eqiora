@@ -30,7 +30,7 @@ pub(super) fn collect_expression_dependencies(
             continue;
         }
         match expression.kind() {
-            ExprKind::Number(_) | ExprKind::Quantity { .. } => {}
+            ExprKind::Boolean(_) | ExprKind::Number(_) | ExprKind::Quantity { .. } => {}
             ExprKind::Name(name) => {
                 if contains(name) {
                     dependencies
@@ -76,7 +76,7 @@ pub(super) fn collect_expression_dependencies(
             ExprKind::Array(elements) => pending.extend(elements),
             ExprKind::Index { value, index } => pending.extend([value.as_ref(), index.as_ref()]),
             ExprKind::Unary {
-                op: UnaryOp::Neg,
+                op: UnaryOp::Neg | UnaryOp::Not,
                 value,
             } => pending.push(value),
             ExprKind::Binary { left, right, .. } => {

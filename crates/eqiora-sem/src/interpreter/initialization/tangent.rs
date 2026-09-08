@@ -32,7 +32,10 @@ pub(super) fn derive(program: &KernelProgram, plan: &ExecutionPlan) -> Vec<Tange
         let Some(KernelNode::Relation(relation)) = program.node(*relation) else {
             return Vec::new();
         };
-        let Some(affine) = affine_rows(program, relation.residuals(), &fields) else {
+        let Ok(residuals) = program.numerical_residuals(relation.id().erase()) else {
+            return Vec::new();
+        };
+        let Some(affine) = affine_rows(program, &residuals, &fields) else {
             return Vec::new();
         };
         rows.extend(affine);

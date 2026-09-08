@@ -141,12 +141,12 @@ fn geometry_identity_names_and_topology_are_fingerprint_meaning() {
         StructuralSemanticFingerprint::from_program(&baseline.program).unwrap();
     assert_eq!(
         baseline_fingerprint.generation(),
-        SemanticFingerprintGeneration::V10
+        SemanticFingerprintGeneration::V11
     );
     assert!(
         baseline_fingerprint
             .to_string()
-            .starts_with("eqiora.structural-semantic-fingerprint/v10:")
+            .starts_with("eqiora.structural-semantic-fingerprint/v11:")
     );
 
     let mut changed_digest = GeometryMeaning::default();
@@ -315,10 +315,9 @@ fn build_transaction(
             )
             .unwrap(),
         ),
-        KernelNode::from(RelationDef::new(
-            ids.relation,
-            expression.finish([root]).unwrap(),
-        )),
+        KernelNode::from(
+            RelationDef::new(ids.relation, expression.finish([root, root]).unwrap()).unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(ids.activation)),
     ];
     if let Some(entity_set) = meaning.boundary_set {
@@ -451,10 +450,9 @@ fn cartesian_boundary_with_geometry_parent() -> (Transaction, OntologyId<Model>)
             0,
             BoundarySide::Lower,
         )),
-        KernelNode::from(RelationDef::new(
-            ids.relation,
-            expression.finish([root]).unwrap(),
-        )),
+        KernelNode::from(
+            RelationDef::new(ids.relation, expression.finish([root, root]).unwrap()).unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(ids.activation)),
     ];
     let mut transaction = Transaction::new("Cartesian boundary with geometry parent");

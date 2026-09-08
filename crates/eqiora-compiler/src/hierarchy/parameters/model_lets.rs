@@ -201,7 +201,9 @@ fn is_static_expression(expression: &eqiora_lang::Expr, values: &SymbolicParamet
     let mut pending = vec![expression];
     while let Some(e) = pending.pop() {
         match e.kind() {
-            eqiora_lang::ExprKind::Number(_) | eqiora_lang::ExprKind::Quantity { .. } => {}
+            eqiora_lang::ExprKind::Boolean(_)
+            | eqiora_lang::ExprKind::Number(_)
+            | eqiora_lang::ExprKind::Quantity { .. } => {}
             eqiora_lang::ExprKind::Name(n) if values.contains_key(n) => {}
             eqiora_lang::ExprKind::Path(p)
                 if (crate::math::constant(p).is_some() || p.as_str() == "math.i") => {}

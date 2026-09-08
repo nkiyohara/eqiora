@@ -51,7 +51,7 @@ def check_native_modeling() -> None:
     balance = eqiora.Relation(
         "balance",
         domain=domain,
-        residual=eqiora.div(conductivity * eqiora.grad(temperature)),
+        equations=[(eqiora.div(conductivity * eqiora.grad(temperature)), 0)],
     )
 
     assert_type(

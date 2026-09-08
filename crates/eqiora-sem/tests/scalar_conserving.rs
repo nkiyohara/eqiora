@@ -77,13 +77,31 @@ fn physical_transaction(ids: PhysicalIds, reverse_insertion: bool) -> Transactio
             let parameter = expression
                 .symbol(SymbolRef::Parameter(ids.parameter))
                 .unwrap();
-            let constitutive = expression.sub(across, parameter).unwrap();
+
             let time = expression.symbol(SymbolRef::Time).unwrap();
-            vec![constitutive, time]
+            {
+                let zero = expression
+                    .constant(DynQuantity::new(
+                        0.0,
+                        DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap(),
+                    ))
+                    .unwrap();
+                vec![across, parameter, time, zero]
+            }
         } else {
-            vec![expression.symbol(SymbolRef::Through(port)).unwrap()]
+            {
+                let through = expression.symbol(SymbolRef::Through(port)).unwrap();
+                let zero = expression
+                    .constant(DynQuantity::new(0.0, through_dimension))
+                    .unwrap();
+                vec![through, zero]
+            }
         };
-        nodes.push(RelationDef::new(relation, expression.finish(roots).unwrap()).into());
+        nodes.push(
+            RelationDef::new(relation, expression.finish(roots).unwrap())
+                .unwrap()
+                .into(),
+        );
     }
     if reverse_insertion {
         nodes.reverse();
@@ -383,10 +401,22 @@ fn physical_symbols_reject_signal_ports() {
                 DimExponents::DIMENSIONLESS,
             ),
         )),
-        KernelNode::from(RelationDef::new(
-            relation,
-            expression.finish([across]).unwrap(),
-        )),
+        KernelNode::from(
+            RelationDef::new(
+                relation,
+                {
+                    let equation_zero = expression
+                        .constant(eqiora_core::DynQuantity::new(
+                            0.0,
+                            eqiora_core::DimExponents::DIMENSIONLESS,
+                        ))
+                        .unwrap();
+                    expression.finish([across, equation_zero])
+                }
+                .unwrap(),
+            )
+            .unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(activation)),
     ];
     let view = ModelView::new(model, nodes.iter().map(KernelNode::id), []).unwrap();
@@ -453,7 +483,17 @@ fn physical_relation_admits_state_but_still_requires_continuous_activation_and_c
     let physical = expression.symbol(SymbolRef::Across(ids.ports[0])).unwrap();
     let causal = expression.symbol(SymbolRef::Field(field)).unwrap();
     let root = expression.add(physical, causal).unwrap();
-    let relation = RelationDef::new(ids.relations[0], expression.finish([root]).unwrap());
+    let relation = RelationDef::new(
+        ids.relations[0],
+        {
+            let equation_zero = expression
+                .constant(eqiora_core::DynQuantity::new(0.0, across_dimension))
+                .unwrap();
+            expression.finish([root, equation_zero])
+        }
+        .unwrap(),
+    )
+    .unwrap();
     let periodic = ActivationDef::new(ids.activation, ActivationKind::Periodic).unwrap();
     let nodes = vec![
         DomainDef::scalar_physical(ids.domain, real(across_dimension), real(through_dimension))
@@ -465,8 +505,15 @@ fn physical_relation_admits_state_but_still_requires_continuous_activation_and_c
         RelationDef::new(ids.relations[1], {
             let mut expression = ExprDagBuilder::new();
             let through = expression.symbol(SymbolRef::Through(ids.ports[1])).unwrap();
-            expression.finish([through]).unwrap()
+            {
+                let equation_zero = expression
+                    .constant(eqiora_core::DynQuantity::new(0.0, through_dimension))
+                    .unwrap();
+                expression.finish([through, equation_zero])
+            }
+            .unwrap()
         })
+        .unwrap()
         .into(),
         FieldDef::new(
             field,
@@ -570,7 +617,20 @@ fn nominal_domain_identity_and_complete_ownership_are_required() {
     for (&port, &relation) in ids.ports[..2].iter().zip(&ids.relations[..2]) {
         let mut expression = ExprDagBuilder::new();
         let through = expression.symbol(SymbolRef::Through(port)).unwrap();
-        nodes.push(RelationDef::new(relation, expression.finish([through]).unwrap()).into());
+        nodes.push(
+            RelationDef::new(
+                relation,
+                {
+                    let equation_zero = expression
+                        .constant(eqiora_core::DynQuantity::new(0.0, through_dimension))
+                        .unwrap();
+                    expression.finish([through, equation_zero])
+                }
+                .unwrap(),
+            )
+            .unwrap()
+            .into(),
+        );
     }
     let view = ModelView::new(ids.model, nodes.iter().map(KernelNode::id), []).unwrap();
     let mut transaction = Transaction::new("nominally mismatched junction");
@@ -626,7 +686,18 @@ fn nominal_domain_identity_and_complete_ownership_are_required() {
             .unwrap()
             .into(),
         PortDef::scalar_physical(orphan, ids.domain).into(),
-        RelationDef::new(relation, expression.finish([through]).unwrap()).into(),
+        RelationDef::new(
+            relation,
+            {
+                let equation_zero = expression
+                    .constant(eqiora_core::DynQuantity::new(0.0, through_dimension))
+                    .unwrap();
+                expression.finish([through, equation_zero])
+            }
+            .unwrap(),
+        )
+        .unwrap()
+        .into(),
         ActivationDef::continuous(activation).into(),
         ConnectionDef::new(connection, ConnectionSemantics::Conserving).into(),
     ];

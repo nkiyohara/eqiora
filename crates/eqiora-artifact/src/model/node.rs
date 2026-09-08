@@ -58,7 +58,7 @@ impl WireNode {
                 _ => return Err(invalid_artifact("unsupported Port payload")),
             },
             KernelNode::Relation(value) => WireNodeDefinition::Relation {
-                residuals: WireExpression::encode(value.residuals())?,
+                expression: WireExpression::encode(value.expression())?,
                 initial: value.is_initial(),
             },
             KernelNode::Activation(value) => WireNodeDefinition::Activation {
@@ -139,14 +139,18 @@ impl WireNode {
                 boundary.typed::<kinds::Domain>()?,
             )
             .into()),
-            WireNodeDefinition::Relation { residuals, initial } => {
+            WireNodeDefinition::Relation {
+                expression,
+                initial,
+            } => {
                 let id = self.id.typed::<kinds::Relation>()?;
-                let residuals = residuals.decode()?;
+                let expression = expression.decode()?;
                 Ok(if *initial {
-                    RelationDef::initial(id, residuals)
+                    RelationDef::initial(id, expression)
                 } else {
-                    RelationDef::new(id, residuals)
+                    RelationDef::new(id, expression)
                 }
+                .map_err(|error| invalid_artifact(error.message()))?
                 .into())
             }
             WireNodeDefinition::Activation { activation } => Ok(ActivationDef::new(
@@ -168,7 +172,7 @@ impl WireNode {
 
     pub(crate) fn expression_node_count(&self) -> usize {
         match &self.definition {
-            WireNodeDefinition::Relation { residuals, .. } => residuals.nodes.len(),
+            WireNodeDefinition::Relation { expression, .. } => expression.nodes.len(),
             WireNodeDefinition::Activation { activation } => activation.expression_node_count(),
             _ => 0,
         }
@@ -176,7 +180,7 @@ impl WireNode {
 
     pub(crate) fn expression_root_count(&self) -> usize {
         match &self.definition {
-            WireNodeDefinition::Relation { residuals, .. } => residuals.roots.len(),
+            WireNodeDefinition::Relation { expression, .. } => expression.roots.len(),
             WireNodeDefinition::Activation { activation } => activation.expression_root_count(),
             _ => 0,
         }
@@ -184,7 +188,7 @@ impl WireNode {
 
     pub(crate) fn pure_operator_counts(&self) -> Result<PureOperatorWireCounts, Diagnostic> {
         match &self.definition {
-            WireNodeDefinition::Relation { residuals, .. } => residuals.pure_operator_counts(),
+            WireNodeDefinition::Relation { expression, .. } => expression.pure_operator_counts(),
             WireNodeDefinition::Activation { activation } => activation.pure_operator_counts(),
             _ => Ok(PureOperatorWireCounts::default()),
         }
@@ -192,8 +196,8 @@ impl WireNode {
 
     pub(crate) fn validate_pure_operator_features(&self) -> Result<(), Diagnostic> {
         match &self.definition {
-            WireNodeDefinition::Relation { residuals, .. } => {
-                residuals.validate_pure_operator_features()
+            WireNodeDefinition::Relation { expression, .. } => {
+                expression.validate_pure_operator_features()
             }
             WireNodeDefinition::Activation { activation } => {
                 activation.validate_pure_operator_features()
@@ -204,8 +208,8 @@ impl WireNode {
 
     pub(crate) fn canonicalize_pure_operator_definitions(&mut self) -> Result<(), Diagnostic> {
         match &mut self.definition {
-            WireNodeDefinition::Relation { residuals, .. } => {
-                residuals.canonicalize_pure_operator_definitions()
+            WireNodeDefinition::Relation { expression, .. } => {
+                expression.canonicalize_pure_operator_definitions()
             }
             WireNodeDefinition::Activation { activation } => {
                 activation.canonicalize_pure_operator_definitions()
@@ -217,7 +221,7 @@ impl WireNode {
     pub(crate) fn literal_component_count(&self) -> Result<usize, Diagnostic> {
         match &self.definition {
             WireNodeDefinition::Parameter { value } => Ok(value.component_payload_count()),
-            WireNodeDefinition::Relation { residuals, .. } => residuals.literal_component_count(),
+            WireNodeDefinition::Relation { expression, .. } => expression.literal_component_count(),
             WireNodeDefinition::Activation { activation } => activation.literal_component_count(),
             _ => Ok(0),
         }
@@ -236,8 +240,8 @@ impl WireNode {
             WireNodeDefinition::Field { value_type, .. }
             | WireNodeDefinition::SignalPort { value_type, .. } => value_type.ensure_limits(limits),
             WireNodeDefinition::Parameter { value } => value.ensure_limits(limits),
-            WireNodeDefinition::Relation { residuals, .. } => {
-                residuals.ensure_value_shape_limits(limits)
+            WireNodeDefinition::Relation { expression, .. } => {
+                expression.ensure_value_shape_limits(limits)
             }
             WireNodeDefinition::Activation { activation } => {
                 activation.ensure_value_shape_limits(limits)
@@ -304,7 +308,7 @@ impl WireNode {
                 connector,
                 boundary,
             } => vec![connector, boundary],
-            WireNodeDefinition::Relation { residuals, .. } => residuals.semantic_references(),
+            WireNodeDefinition::Relation { expression, .. } => expression.semantic_references(),
             WireNodeDefinition::Activation { activation } => activation.semantic_references(),
             WireNodeDefinition::Domain {
                 domain: WireDomainKind::CartesianBoxSources { coordinates },
@@ -352,7 +356,7 @@ pub(crate) enum WireNodeDefinition {
     },
     Relation {
         initial: bool,
-        residuals: WireExpression,
+        expression: WireExpression,
     },
     Activation {
         activation: WireActivationKind,
@@ -525,6 +529,61 @@ impl WireFieldRole {
         match self {
             Self::Variable => eqiora_schema::kernel::FieldRole::Variable,
             Self::State => eqiora_schema::kernel::FieldRole::State,
+        }
+    }
+}
+
+#[cfg(test)]
+mod equation_tests {
+    use super::*;
+    use eqiora_core::{DimExponents, DynQuantity};
+    use eqiora_schema::kernel::ExprDagBuilder;
+
+    #[test]
+    fn relation_wire_preserves_side_pairs_and_rejects_unpaired_roots() {
+        for initial in [false, true] {
+            let id = Id::new();
+            let mut builder = ExprDagBuilder::new();
+            let left = builder
+                .constant(DynQuantity::new(2.0, DimExponents::DIMENSIONLESS))
+                .unwrap();
+            let right = builder
+                .constant(DynQuantity::new(3.0, DimExponents::DIMENSIONLESS))
+                .unwrap();
+            let expression = builder.finish([left, right, right, left]).unwrap();
+            let relation = if initial {
+                RelationDef::initial(id, expression)
+            } else {
+                RelationDef::new(id, expression)
+            }
+            .unwrap();
+            let node = KernelNode::from(relation);
+            let wire = WireNode::encode(&node).unwrap();
+            assert_eq!(
+                wire.expression_root_count(),
+                4,
+                "budget counts sides, not equations"
+            );
+            assert_eq!(wire.decode().unwrap(), node);
+            let mut json = serde_json::to_value(&wire).unwrap();
+            assert_eq!(
+                json["definition"]["expression"]["roots"],
+                serde_json::json!([0, 1, 1, 0])
+            );
+            let mut displaced = json.clone();
+            let expression = displaced["definition"]
+                .as_object_mut()
+                .unwrap()
+                .remove("expression")
+                .unwrap();
+            displaced["definition"]["residuals"] = expression;
+            assert!(serde_json::from_value::<WireNode>(displaced).is_err());
+            json["definition"]["expression"]["roots"] = serde_json::json!([0, 1, 1]);
+            let malformed: WireNode = serde_json::from_value(json.clone()).unwrap();
+            assert!(malformed.decode().is_err());
+            json["definition"]["expression"]["roots"] = serde_json::json!([]);
+            let malformed: WireNode = serde_json::from_value(json).unwrap();
+            assert!(malformed.decode().is_err());
         }
     }
 }

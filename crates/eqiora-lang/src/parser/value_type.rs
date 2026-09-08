@@ -42,12 +42,16 @@ impl Parser<'_> {
                 resolved_nominal: None,
             });
         }
-        if self.at_keyword("integer") {
+        if self.at_keyword("integer") || self.at_keyword("bool") {
             let token = self.bump();
             return Some(ValueTypeSyntax {
                 resolved_nominal: None,
                 kind: Box::new(ValueTypeSyntaxKind::Scalar {
-                    domain: ScalarDomain::Integer,
+                    domain: if token.text() == "bool" {
+                        ScalarDomain::Boolean
+                    } else {
+                        ScalarDomain::Integer
+                    },
                     dimension: crate::Expr {
                         resolved_nominal: None,
                         kind: crate::ExprKind::Number(

@@ -1,7 +1,9 @@
 //! Exact integer values cross the ordinary source, native, edit, and replay paths.
 
 use eqiora::api::ModelDocument;
-use eqiora::language::{DraftField, DraftParameter, DraftRelation, FieldRoleSyntax, ModelDraft};
+use eqiora::language::{
+    DraftExpression, DraftField, DraftParameter, DraftRelation, FieldRoleSyntax, ModelDraft,
+};
 use eqiora::{DimExponents, ScalarDomain, ValueLiteral, ValueType};
 
 fn integer(value: i64) -> ValueLiteral {
@@ -44,7 +46,15 @@ fn adjacent_exact_values_survive_source_native_edit_and_artifact_replay() {
         ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
         FieldRoleSyntax::Variable,
     );
-    let law = DraftRelation::continuous("law", [witness.expression()]);
+    let law = DraftRelation::continuous(
+        "law",
+        [(
+            witness.expression(),
+            DraftExpression::constant(
+                eqiora::language::DecimalLiteral::from_f64(0.0).expect("finite zero"),
+            ),
+        )],
+    );
     let native = ModelDocument::define(
         &ModelDraft::new(
             "Exact",

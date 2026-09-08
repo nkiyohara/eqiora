@@ -58,6 +58,12 @@ impl LoweringExpression {
         }
     }
 
+    pub(crate) fn logical_not(value: Self, range: TextRange) -> Self {
+        Self {
+            node: Arc::new(LoweringExpressionNode::Not(value)),
+            range,
+        }
+    }
     pub(crate) fn neg(value: Self, range: TextRange) -> Self {
         if let LoweringExpressionNode::Literal(quantity) = value.node.as_ref()
             && quantity.is_zero()

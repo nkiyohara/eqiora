@@ -8,7 +8,7 @@ import eqiora
 def native_model(name, *declarations):
     observed = eqiora.Field("observed", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
     return eqiora.Model.define(name, *declarations, observed,
-                               eqiora.Relation("observe", residual=observed))
+                               eqiora.Relation("observe", equations=[(observed, 0)]))
 
 
 VALUES = (-(2**63), -(2**53 + 1), 0, 2**53, 2**53 + 1, 2**53 + 2, 2**63 - 1)
@@ -144,8 +144,6 @@ def test_integer_function_authoring_retains_lexical_ownership_and_bounds():
     for function in (q.quotient, q.remainder):
         with pytest.raises(q.SourceError, match="owners"):
             function(a, b)
-        with pytest.raises(TypeError):
-            function(a, True)
     for function in (q.to_integer, q.to_real):
         with pytest.raises(q.SourceError, match="owner|Component"):
             right.let_alias("foreign", function(a))
@@ -195,7 +193,7 @@ def test_explicit_initial_authoring_rejects_invalid_forms_without_mutation():
         with pytest.raises(TypeError, match="both"):
             owner.initial(**kwargs)
     with pytest.raises(TypeError, match="combined"):
-        owner.initial(memory, left=memory, right=1)
+        owner.initial((memory, 0), left=memory, right=1)
     with pytest.raises(q.SourceError, match="Component"):
         owner.initial(left=memory, right=foreign)
     owner.initial(left=q.pre(memory), right=2**53 + 1, doc="Exact initial assignment.")

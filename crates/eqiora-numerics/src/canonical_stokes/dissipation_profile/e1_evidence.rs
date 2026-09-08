@@ -528,7 +528,7 @@ fn boundary_entity_set(
             "the E1 scaffold requires exactly one Relation on every boundary",
         ));
     };
-    let expression = relation_expression(program, *relation)?;
+    let expression = &relation_expression(program, *relation)?;
     let root = unique_root(expression, *relation)?;
     if matches!(expression.node(root), Some(ExprNode::Trace(value)) if is_field(expression, *value, velocity))
     {

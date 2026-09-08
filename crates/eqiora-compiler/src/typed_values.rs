@@ -4,6 +4,17 @@ use eqiora_core::{ScalarDomain, ValueLiteral, ValueType};
 use eqiora_lang::BinaryOp;
 
 pub(crate) fn retype(value: &ValueLiteral, target: ValueType) -> Result<ValueLiteral, String> {
+    if target == *value.value_type() {
+        return Ok(value.clone());
+    }
+    if target.scalar_domain() == ScalarDomain::Boolean
+        || value.value_type().scalar_domain() == ScalarDomain::Boolean
+    {
+        return Err(
+            "Boolean values require the exact Boolean type; numeric coercion is not admitted"
+                .into(),
+        );
+    }
     if target.scalar_domain() == ScalarDomain::Integer {
         let components = value
             .integer_components()
@@ -80,6 +91,7 @@ pub(crate) fn binary(
                 a,
                 exponent.ok_or("power requires a checked static exponent")?,
             )?,
+            _ => return Err("Boolean operators require checked predicate evaluation".into()),
         };
         output.push(component);
     }

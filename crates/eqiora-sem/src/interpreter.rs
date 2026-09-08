@@ -1084,10 +1084,10 @@ fn evaluate_relations(
                 time,
             ));
         };
-        residuals.extend(evaluate::real_values(backend.evaluate(
+        residuals.extend(evaluate::numerical_differences(backend.evaluate(
             relation,
-            definition.residuals(),
-            &discrete::numerical_roots(program, definition.residuals()),
+            definition.expression(),
+            &discrete::numerical_roots(program, definition),
             &mut |symbol| evaluate::resolve_symbol(symbol, &context),
         )?)?);
     }
@@ -1115,7 +1115,7 @@ fn relation_symbols(
         ));
     };
     Ok(definition
-        .residuals()
+        .expression()
         .nodes()
         .iter()
         .filter_map(|node| match node {

@@ -236,6 +236,7 @@ fn expression(value: &AuthoredFormExpression) -> AuthoredFormExpressionV1 {
                 BinaryOp::Mul => AuthoredFormExpressionV1::Mul { left, right },
                 BinaryOp::Div => AuthoredFormExpressionV1::Div { left, right },
                 BinaryOp::Pow => unreachable!("power is represented by the typed Pow node"),
+                _ => unreachable!("form checking rejects Boolean predicates"),
             }
         }
         AuthoredFormExpressionKind::Pow(base, exponent) => AuthoredFormExpressionV1::Pow {

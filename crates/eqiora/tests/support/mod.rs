@@ -11,8 +11,12 @@ pub(crate) fn initial_value(field: Id<kinds::Field>, value: DynQuantity) -> Kern
     let mut expression = ExprDagBuilder::new();
     let field_value = expression.symbol(SymbolRef::Field(field)).unwrap();
     let prescribed = expression.constant(value).unwrap();
-    let residual = expression.sub(field_value, prescribed).unwrap();
-    RelationDef::initial(Id::new(), expression.finish([residual]).unwrap()).into()
+    RelationDef::initial(
+        Id::new(),
+        expression.finish([field_value, prescribed]).unwrap(),
+    )
+    .unwrap()
+    .into()
 }
 
 #[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
@@ -22,7 +26,7 @@ pub(crate) fn define_nodes(transaction: &mut Transaction, nodes: Vec<KernelNode>
         if let KernelNode::Relation(relation) = &node
             && relation.is_initial()
         {
-            for expression in relation.residuals().nodes() {
+            for expression in relation.expression().nodes() {
                 if let eqiora::kernel::ExprNode::Symbol(SymbolRef::Field(field)) = expression {
                     dependencies.push((relation.id().erase(), field.erase()));
                 }
@@ -115,12 +119,45 @@ pub(crate) fn canonical_state_dependent_mass_dae() -> CanonicalStateDependentMas
             )
             .unwrap(),
         )),
-        KernelNode::from(RelationDef::new(
-            relation,
-            expression
-                .finish([differential_residual, algebraic_residual])
+        KernelNode::from(
+            RelationDef::new(
+                relation,
+                {
+                    let equation_zero_0 = expression
+                        .constant(
+                            eqiora_core::ValueLiteral::from_real(
+                                eqiora_core::ValueType::scalar(
+                                    eqiora_core::ScalarDomain::Real,
+                                    inverse_time,
+                                ),
+                                0.0,
+                            )
+                            .unwrap(),
+                        )
+                        .unwrap();
+                    let equation_zero_1 = expression
+                        .constant(
+                            eqiora_core::ValueLiteral::from_real(
+                                eqiora_core::ValueType::scalar(
+                                    eqiora_core::ScalarDomain::Real,
+                                    DimExponents::DIMENSIONLESS,
+                                ),
+                                0.0,
+                            )
+                            .unwrap(),
+                        )
+                        .unwrap();
+                    expression.finish([
+                        differential_residual,
+                        equation_zero_0,
+                        algebraic_residual,
+                        equation_zero_1,
+                    ])
+                }
                 .unwrap(),
-        )),
+            )
+            .unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(continuous)),
     ];
     nodes.push(initial_value(

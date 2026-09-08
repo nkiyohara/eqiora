@@ -24,6 +24,7 @@ impl LoweringExpression {
                     pending.push(argument);
                 }
                 LoweringExpressionNode::Neg(value)
+                | LoweringExpressionNode::Not(value)
                 | LoweringExpressionNode::Index { value, .. }
                 | LoweringExpressionNode::Sample { value, .. } => pending.push(value),
                 LoweringExpressionNode::Array(elements) => pending.extend(elements),
@@ -45,7 +46,7 @@ impl LoweringExpression {
 }
 
 pub(super) struct LoweredRelation {
-    pub(super) residuals: ExprDag,
+    pub(super) expression: ExprDag,
     pub(super) dependencies: BTreeSet<RawId>,
     pub(super) ports: BTreeSet<RawId>,
 }
@@ -130,9 +131,9 @@ pub(super) fn lower_relation(
             )
         })?;
         typing::residual(
-            &checked.residual,
+            &checked.equation_type,
             if initial {
-                checked.residual.support.as_ref()
+                checked.equation_type.support.as_ref()
             } else {
                 support.as_ref()
             },
@@ -171,25 +172,14 @@ pub(super) fn lower_relation(
             equation.contextual_right_zero,
             &checked.right.value_type,
         );
-        // This neutral-element rule applies only after both operands and the
-        // resulting support/type have passed admission. In particular a real
-        // left side cannot absorb the promotion caused by a complex zero.
-        let residual = if equation.literal_right_zero
-            && checked.residual == checked.left
-            && checked.residual.value_type.scalar_domain() != eqiora_core::ScalarDomain::Integer
-        {
-            left
-        } else {
-            LoweringExpression::binary(BinaryOp::Sub, left, right, equation.range)
-        };
-        normalized.push(residual);
+        normalized.extend([left, right]);
     }
     // Keep all normalized nodes alive for the pointer-keyed lowering cache.
     let roots = normalized
         .iter()
         .map(|residual| lowerer.lower(residual).map(|value| value.id))
         .collect::<Result<Vec<_>, _>>()?;
-    let residuals = lowerer.builder.finish(roots).map_err(|diagnostic| {
+    let expression = lowerer.builder.finish(roots).map_err(|diagnostic| {
         source_error(
             codes::LANGUAGE_LOWERING_ERROR,
             file,
@@ -198,7 +188,7 @@ pub(super) fn lower_relation(
         )
     })?;
     Ok(LoweredRelation {
-        residuals,
+        expression,
         dependencies: lowerer.dependencies,
         ports: lowerer.ports,
     })
@@ -372,6 +362,16 @@ impl ExpressionLowerer<'_> {
                 })
                 .map_err(|diagnostic| self.builder_error(expression, diagnostic)),
             LoweringExpressionNode::Name(name) => self.lower_name(expression, name),
+            LoweringExpressionNode::Not(value) => {
+                let value = self.lower(value)?;
+                self.builder
+                    .not(value.id)
+                    .map(|id| TypedExpression {
+                        id,
+                        dimension: DimExponents::DIMENSIONLESS,
+                    })
+                    .map_err(|diagnostic| self.builder_error(expression, diagnostic))
+            }
             LoweringExpressionNode::Neg(value) => {
                 let value = self.lower(value)?;
                 self.builder
@@ -863,6 +863,7 @@ impl ExpressionLowerer<'_> {
                 .div(right.dimension)
                 .ok_or_else(|| dimension_overflow(self.file, expression.range()))?,
             BinaryOp::Pow => unreachable!("power handled above"),
+            _ => DimExponents::DIMENSIONLESS,
         };
         let result = match operator {
             BinaryOp::Add => self.builder.add(left.id, right.id),
@@ -870,6 +871,13 @@ impl ExpressionLowerer<'_> {
             BinaryOp::Mul => self.builder.mul(left.id, right.id),
             BinaryOp::Div => self.builder.div(left.id, right.id),
             BinaryOp::Pow => unreachable!("power handled above"),
+            BinaryOp::And => self.builder.and(left.id, right.id),
+            BinaryOp::Or => self.builder.or(left.id, right.id),
+            op => self.builder.compare(
+                super::comparison_operator(op).expect("comparison"),
+                left.id,
+                right.id,
+            ),
         };
         result
             .map(|id| TypedExpression { id, dimension })

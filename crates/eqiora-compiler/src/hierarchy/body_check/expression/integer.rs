@@ -94,7 +94,11 @@ fn numeric_tree(value: &Expr) -> bool {
             op: UnaryOp::Neg,
             value,
         } => numeric_tree(value),
-        ExprKind::Binary { left, right, .. } => numeric_tree(left) && numeric_tree(right),
+        ExprKind::Binary {
+            op: BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div | BinaryOp::Pow,
+            left,
+            right,
+        } => numeric_tree(left) && numeric_tree(right),
         _ => false,
     }
 }

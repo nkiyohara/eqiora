@@ -8,6 +8,10 @@ pub(super) fn encode_expression(
 ) -> Result<(), Diagnostic> {
     budget.account_expression(depth)?;
     match expression.kind() {
+        ExprKind::Boolean(value) => {
+            encoder.u16(13)?;
+            encoder.u8(u8::from(*value))
+        }
         ExprKind::Number(value) => {
             encoder.u16(1)?;
             encode_decimal(encoder, value, false)
@@ -65,10 +69,13 @@ pub(super) fn encode_expression(
             })
         }
         ExprKind::Unary { op, value } => {
-            if let ExprKind::Quantity {
-                value: literal,
-                unit,
-            } = value.kind()
+            if let (
+                UnaryOp::Neg,
+                ExprKind::Quantity {
+                    value: literal,
+                    unit,
+                },
+            ) = (op, value.kind())
             {
                 // Native signed decimals and parsed literal negation share one
                 // quantity record. Keep the authored node/depth budget intact.
@@ -89,6 +96,7 @@ pub(super) fn encode_expression(
             encoder.field(1, |encoder| {
                 encoder.u8(match op {
                     UnaryOp::Neg => 1,
+                    UnaryOp::Not => 2,
                 })
             })?;
             let child_depth = next_depth(depth)?;
@@ -105,6 +113,14 @@ pub(super) fn encode_expression(
                     BinaryOp::Mul => 3,
                     BinaryOp::Div => 4,
                     BinaryOp::Pow => 5,
+                    BinaryOp::Equal => 6,
+                    BinaryOp::NotEqual => 7,
+                    BinaryOp::Less => 8,
+                    BinaryOp::LessEqual => 9,
+                    BinaryOp::Greater => 10,
+                    BinaryOp::GreaterEqual => 11,
+                    BinaryOp::And => 12,
+                    BinaryOp::Or => 13,
                 })
             })?;
             let child_depth = next_depth(depth)?;

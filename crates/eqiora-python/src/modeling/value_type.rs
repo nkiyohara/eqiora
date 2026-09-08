@@ -64,6 +64,13 @@ impl PyValueType {
             .map_err(|error| PyValueError::new_err(error.to_string()))
     }
 
+    #[staticmethod]
+    fn boolean() -> Self {
+        Self {
+            value: ValueType::boolean(),
+        }
+    }
+
     /// Exact signed 64-bit, dimensionless integer type.
     #[staticmethod]
     fn integer() -> Self {
@@ -138,6 +145,7 @@ impl PyValueType {
     #[getter]
     fn scalar_domain(&self) -> &'static str {
         match self.value.scalar_domain() {
+            ScalarDomain::Boolean => "boolean",
             ScalarDomain::Integer => "integer",
             ScalarDomain::Real => "real",
             ScalarDomain::Complex => "complex",

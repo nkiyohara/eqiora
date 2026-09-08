@@ -152,22 +152,13 @@ impl super::ModelDraft {
                         .as_ref()
                         .map(|domain| domain.name().to_owned()),
                     equations: relation
-                        .residuals
+                        .equations
                         .iter()
-                        .map(|expression| {
-                            let left = expression.ast(&path, &mut ranges, &mut paths);
+                        .map(|(left, right)| {
+                            let left = left.ast(&path, &mut ranges, &mut paths);
+                            let right = right.ast(&path, &mut ranges, &mut paths);
                             let range = left.range();
-                            Equation {
-                                left,
-                                right: Expr {
-                                    resolved_nominal: None,
-                                    kind: ExprKind::Number(
-                                        crate::DecimalLiteral::parse("0.0").expect("exact literal"),
-                                    ),
-                                    range,
-                                },
-                                range,
-                            }
+                            Equation { left, right, range }
                         })
                         .collect(),
                     range,
@@ -176,20 +167,11 @@ impl super::ModelDraft {
                     comments: Default::default(),
                     equations: residuals
                         .iter()
-                        .map(|expression| {
-                            let left = expression.ast(&path, &mut ranges, &mut paths);
+                        .map(|(left, right)| {
+                            let left = left.ast(&path, &mut ranges, &mut paths);
+                            let right = right.ast(&path, &mut ranges, &mut paths);
                             let range = left.range();
-                            Equation {
-                                left,
-                                right: Expr {
-                                    resolved_nominal: None,
-                                    kind: ExprKind::Number(
-                                        crate::DecimalLiteral::parse("0.0").expect("exact literal"),
-                                    ),
-                                    range,
-                                },
-                                range,
-                            }
+                            Equation { left, right, range }
                         })
                         .collect(),
                     range,

@@ -292,11 +292,11 @@ Precision, storage layout, and backend do not enter a mathematical scalar type.
 
 Addition and equality require compatible dimensions, shapes, frames, supports, and activation.
 Real-to-complex embedding preserves dimension and value. Complex-to-real conversion requires
-an explicit mathematical projection. Ordered predicates require real scalars; complex values
-can be compared for equality but not ordered.
+an explicit mathematical projection. Ordered predicates require real scalars or exact ordinary integers of the same domain;
+complex values can be compared for equality but not ordered.
 
-A bare literal zero can take the scalar domain, dimension, and shape uniquely required by its
-context. For example, `voltage = 0;` uses a voltage zero. An unconstrained zero is dimensionless
+A bare literal zero can take the numeric scalar domain, dimension, and shape uniquely required
+by its context. It cannot stand for the Boolean value `false`. For example, `voltage = 0;` uses a voltage zero. An unconstrained zero is dimensionless
 real scalar zero. Contextual zero does not create a frame, support, clock, or basis conversion.
 A numeric initializer of an explicitly dimension-typed declaration uses that dimension's
 coherent unit: `parameter density: kg / m ^ 3 = 1;` needs no repeated unit. This also
@@ -374,7 +374,11 @@ Every Relation equality lowers from both operands; literal zero has no parser se
 The system is not evaluated as assignment statements. Retaining operand and equation order
 for exact identity does not create imperative execution order.
 
-The checked residual is ordered `lhs - rhs`. After admitting both complete operand types and
+The authored Relation retains each ordered `(lhs, rhs)` pair in its shared expression DAG.
+Boolean and exact discrete equations are checked as equations without subtraction; their
+bounded execution profile requires direct assignments and supplies no implicit solver.
+Numerical lowering derives a checked residual ordered `lhs - rhs` only after numerical
+admission. After admitting both complete operand types and
 supports, a right-hand exact literal zero (including parentheses and nested unary minus) may
 be omitted only when the residual type and support are exactly those of `lhs`. An explicitly
 typed zero retains its units, shape, frame, and scalar domain; in particular a complex zero

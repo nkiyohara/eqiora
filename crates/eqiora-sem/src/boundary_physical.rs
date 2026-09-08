@@ -405,7 +405,7 @@ pub(crate) fn validate_networks(
             continue;
         };
         let owned = edge_targets(edges, relation_id, EdgeKind::HasPort);
-        for expression_node in relation.residuals().nodes() {
+        for expression_node in relation.expression().nodes() {
             let ExprNode::Symbol(SymbolRef::PortTrace(port) | SymbolRef::PortFlux(port)) =
                 expression_node
             else {

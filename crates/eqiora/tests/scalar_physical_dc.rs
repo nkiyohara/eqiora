@@ -123,35 +123,73 @@ fn native_parallel_dc_draft() -> ModelDraft {
     let voltage_source = DraftRelation::continuous(
         "voltage_source",
         [
-            DraftExpression::across(&source_positive)
-                - DraftExpression::across(&source_negative)
-                - supply_voltage.expression(),
-            DraftExpression::through(&source_positive) + DraftExpression::through(&source_negative),
+            (
+                DraftExpression::across(&source_positive)
+                    - DraftExpression::across(&source_negative)
+                    - supply_voltage.expression(),
+                DraftExpression::constant(
+                    eqiora::language::DecimalLiteral::from_f64(0.0).expect("finite zero"),
+                ),
+            ),
+            (
+                DraftExpression::through(&source_positive)
+                    + DraftExpression::through(&source_negative),
+                DraftExpression::constant(
+                    eqiora::language::DecimalLiteral::from_f64(0.0).expect("finite zero"),
+                ),
+            ),
         ],
     );
     let two_ohm_resistor = DraftRelation::continuous(
         "two_ohm_resistor",
         [
-            DraftExpression::across(&resistor_two_positive)
-                - DraftExpression::across(&resistor_two_negative)
-                - resistance_two.expression() * DraftExpression::through(&resistor_two_positive),
-            DraftExpression::through(&resistor_two_positive)
-                + DraftExpression::through(&resistor_two_negative),
+            (
+                DraftExpression::across(&resistor_two_positive)
+                    - DraftExpression::across(&resistor_two_negative)
+                    - resistance_two.expression()
+                        * DraftExpression::through(&resistor_two_positive),
+                DraftExpression::constant(
+                    eqiora::language::DecimalLiteral::from_f64(0.0).expect("finite zero"),
+                ),
+            ),
+            (
+                DraftExpression::through(&resistor_two_positive)
+                    + DraftExpression::through(&resistor_two_negative),
+                DraftExpression::constant(
+                    eqiora::language::DecimalLiteral::from_f64(0.0).expect("finite zero"),
+                ),
+            ),
         ],
     );
     let four_ohm_resistor = DraftRelation::continuous(
         "four_ohm_resistor",
         [
-            DraftExpression::across(&resistor_four_positive)
-                - DraftExpression::across(&resistor_four_negative)
-                - resistance_four.expression() * DraftExpression::through(&resistor_four_positive),
-            DraftExpression::through(&resistor_four_positive)
-                + DraftExpression::through(&resistor_four_negative),
+            (
+                DraftExpression::across(&resistor_four_positive)
+                    - DraftExpression::across(&resistor_four_negative)
+                    - resistance_four.expression()
+                        * DraftExpression::through(&resistor_four_positive),
+                DraftExpression::constant(
+                    eqiora::language::DecimalLiteral::from_f64(0.0).expect("finite zero"),
+                ),
+            ),
+            (
+                DraftExpression::through(&resistor_four_positive)
+                    + DraftExpression::through(&resistor_four_negative),
+                DraftExpression::constant(
+                    eqiora::language::DecimalLiteral::from_f64(0.0).expect("finite zero"),
+                ),
+            ),
         ],
     );
     let explicit_ground = DraftRelation::continuous(
         "explicit_ground",
-        [DraftExpression::across(&ground_terminal)],
+        [(
+            DraftExpression::across(&ground_terminal),
+            DraftExpression::constant(
+                eqiora::language::DecimalLiteral::from_f64(0.0).expect("finite zero"),
+            ),
+        )],
     );
     let high = DraftConservingConnection::new([
         &source_positive,
@@ -241,8 +279,26 @@ fn with_unrelated_relation(source: &Transaction, model: OntologyId<Model>) -> Tr
     let root = expression
         .symbol(SymbolRef::Field(field))
         .expect("unrelated field symbol");
-    let relation_definition =
-        RelationDef::new(relation, expression.finish([root]).expect("unrelated DAG"));
+    let relation_definition = RelationDef::new(
+        relation,
+        {
+            let equation_zero_0 = expression
+                .constant(
+                    eqiora_core::ValueLiteral::from_real(
+                        eqiora_core::ValueType::scalar(
+                            eqiora_core::ScalarDomain::Real,
+                            DimExponents::DIMENSIONLESS,
+                        ),
+                        0.0,
+                    )
+                    .unwrap(),
+                )
+                .unwrap();
+            expression.finish([root, equation_zero_0])
+        }
+        .expect("unrelated DAG"),
+    )
+    .unwrap();
 
     let mut transaction = Transaction::new("parallel DC plus an unrelated relation");
     for operation in source.ops() {

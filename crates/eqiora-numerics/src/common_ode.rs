@@ -636,9 +636,39 @@ model decay() {
         } else {
             decay_residual
         };
-        let residuals = expression
-            .finish([decay_residual, integral_residual])
-            .unwrap();
+        let residuals = {
+            let equation_zero_0 = expression
+                .constant(
+                    eqiora_core::ValueLiteral::from_real(
+                        eqiora_core::ValueType::scalar(
+                            eqiora_core::ScalarDomain::Real,
+                            inverse_time,
+                        ),
+                        0.0,
+                    )
+                    .unwrap(),
+                )
+                .unwrap();
+            let equation_zero_1 = expression
+                .constant(
+                    eqiora_core::ValueLiteral::from_real(
+                        eqiora_core::ValueType::scalar(
+                            eqiora_core::ScalarDomain::Real,
+                            inverse_time,
+                        ),
+                        0.0,
+                    )
+                    .unwrap(),
+                )
+                .unwrap();
+            expression.finish([
+                decay_residual,
+                equation_zero_0,
+                integral_residual,
+                equation_zero_1,
+            ])
+        }
+        .unwrap();
 
         let initial = Id::<kinds::Relation>::new();
         let mut initial_expression = ExprDagBuilder::new();
@@ -646,21 +676,17 @@ model decay() {
         let decay_value = initial_expression
             .constant(DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))
             .unwrap();
-        let decay_condition = initial_expression.sub(decay_initial, decay_value).unwrap();
         let integral_initial = initial_expression
             .symbol(SymbolRef::Field(integral))
             .unwrap();
         let integral_value = initial_expression
             .constant(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
             .unwrap();
-        let integral_condition = initial_expression
-            .sub(integral_initial, integral_value)
-            .unwrap();
         let initial_equations = initial_expression
-            .finish([decay_condition, integral_condition])
+            .finish([decay_initial, decay_value, integral_initial, integral_value])
             .unwrap();
         let nodes = [
-            KernelNode::from(RelationDef::initial(initial, initial_equations)),
+            KernelNode::from(RelationDef::initial(initial, initial_equations).unwrap()),
             KernelNode::from(FieldDef::new(
                 decay,
                 eqiora_core::ValueType::scalar(
@@ -685,7 +711,7 @@ model decay() {
                 )
                 .unwrap(),
             )),
-            KernelNode::from(RelationDef::new(relation, residuals)),
+            KernelNode::from(RelationDef::new(relation, residuals).unwrap()),
             KernelNode::from(ActivationDef::continuous(continuous)),
         ];
         let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();

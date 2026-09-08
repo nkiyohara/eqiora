@@ -36,6 +36,12 @@ enum Meaning {
 }
 
 impl ValueType {
+    /// Dimensionless invariant logical scalar, distinct from every numeric domain.
+    #[must_use]
+    pub fn boolean() -> Self {
+        Self::scalar(ScalarDomain::Boolean, DimExponents::DIMENSIONLESS)
+    }
+
     /// Bounded ordinal tied to one exact IndexSet declaration.
     pub fn index(set: Id<kinds::IndexSet>, extent: u32) -> Result<Self, InvalidValueType> {
         if extent == 0 {
@@ -126,6 +132,9 @@ impl ValueType {
     /// # Errors
     /// Rejects a zero extent or an unrepresentable component count.
     pub fn array(self, extent: u32) -> Result<Self, InvalidValueType> {
+        if self.scalar_domain == ScalarDomain::Boolean {
+            return Err(InvalidValueType::BooleanType);
+        }
         if self.finite_space().is_some() || self.index_set().is_some() {
             return Err(InvalidValueType::FiniteSpaceShape);
         }
@@ -181,6 +190,13 @@ impl ValueType {
         shape: ValueShape,
         frame: ValueFrame,
     ) -> Result<Self, InvalidValueType> {
+        if scalar_domain == ScalarDomain::Boolean
+            && (dimension != DimExponents::DIMENSIONLESS
+                || !shape.is_scalar()
+                || frame != ValueFrame::Invariant)
+        {
+            return Err(InvalidValueType::BooleanType);
+        }
         if shape.component_count().is_none() {
             return Err(InvalidValueType::ComponentCountOverflow);
         }
@@ -229,6 +245,8 @@ impl ValueType {
 /// Invalid mathematical shape/frame combination.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InvalidValueType {
+    /// Boolean values require dimensionless invariant scalars.
+    BooleanType,
     /// Finite basis coordinates cannot acquire implicit channel axes.
     FiniteSpaceShape,
     /// An array axis must contain at least one element.
@@ -242,6 +260,7 @@ pub enum InvalidValueType {
 impl core::fmt::Display for InvalidValueType {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         formatter.write_str(match self {
+            Self::BooleanType => "Boolean values require dimensionless invariant scalar types",
             Self::FiniteSpaceShape => "finite basis coordinates are not channel arrays",
             Self::ArrayExtent => "array extent must be positive",
             Self::ComponentCountOverflow => "mathematical component count is not representable",
@@ -255,6 +274,73 @@ impl std::error::Error for InvalidValueType {}
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn boolean_type_has_no_numeric_domain_or_shaped_embedding() {
+        let boolean = ValueType::boolean();
+        assert_eq!(boolean.scalar_domain(), ScalarDomain::Boolean);
+        assert_eq!(boolean.dimension(), DimExponents::DIMENSIONLESS);
+        assert!(boolean.shape().is_scalar());
+        assert_eq!(boolean.frame(), ValueFrame::Invariant);
+        assert_eq!(boolean.array_rank(), 0);
+        assert!(boolean.finite_space().is_none());
+        assert!(boolean.index_set().is_none());
+        assert!(!boolean.is_count());
+        assert_eq!(
+            ScalarDomain::Boolean.common(ScalarDomain::Boolean),
+            Some(ScalarDomain::Boolean)
+        );
+        for domain in [
+            ScalarDomain::Integer,
+            ScalarDomain::Real,
+            ScalarDomain::Complex,
+        ] {
+            assert_eq!(ScalarDomain::Boolean.common(domain), None);
+            assert_eq!(domain.common(ScalarDomain::Boolean), None);
+            assert!(
+                boolean
+                    .clone()
+                    .with_common_scalar_domain(&ValueType::scalar(
+                        domain,
+                        DimExponents::DIMENSIONLESS
+                    ))
+                    .is_none()
+            );
+        }
+        assert_eq!(boolean.clone().array(1), Err(InvalidValueType::BooleanType));
+        for (dimension, shape, frame) in [
+            (
+                DimExponents::DIMENSIONLESS,
+                ValueShape::new([1]).unwrap(),
+                ValueFrame::Invariant,
+            ),
+            (
+                DimExponents::DIMENSIONLESS,
+                ValueShape::scalar(),
+                ValueFrame::SpatialCartesian,
+            ),
+            (
+                DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
+                ValueShape::scalar(),
+                ValueFrame::Invariant,
+            ),
+        ] {
+            assert_eq!(
+                ValueType::shaped(ScalarDomain::Boolean, dimension, shape, frame),
+                Err(InvalidValueType::BooleanType)
+            );
+        }
+        assert_eq!(
+            ValueType::shaped(
+                ScalarDomain::Boolean,
+                DimExponents::DIMENSIONLESS,
+                ValueShape::scalar(),
+                ValueFrame::Invariant
+            )
+            .unwrap(),
+            boolean
+        );
+    }
 
     #[test]
     fn scalar_domain_dimension_and_frame_are_independent_type_identity() {

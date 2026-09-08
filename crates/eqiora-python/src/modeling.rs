@@ -9,13 +9,14 @@ use eqiora::language::{
 };
 pub(crate) mod dimension;
 mod nominal;
+mod predicates;
 pub(crate) mod value_literal;
 mod value_type;
 pub(crate) use value_type::PyValueType;
 
-use pyo3::exceptions::{PyAttributeError, PyTypeError, PyValueError};
+use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyBool, PyComplex, PyInt, PyModule, PyTuple};
+use pyo3::types::{PyAny, PyBool, PyComplex, PyInt, PyList, PyModule, PyTuple};
 
 use crate::diagnostic_error;
 
@@ -169,7 +170,7 @@ impl From<PyFieldRole> for FieldRoleSyntax {
     }
 }
 
-/// Simultaneous fresh-initialization residuals, each equal to zero.
+/// Simultaneous fresh-initialization equations with explicit sides.
 #[pyclass(
     name = "Initial",
     module = "eqiora._eqiora",
@@ -178,33 +179,34 @@ impl From<PyFieldRole> for FieldRoleSyntax {
 )]
 #[derive(Debug, Clone)]
 pub(crate) struct PyInitial {
-    residuals: Vec<DraftExpression>,
+    equations: Vec<(DraftExpression, DraftExpression)>,
 }
 
 #[pymethods]
 impl PyInitial {
     #[new]
-    #[pyo3(signature = (*residuals))]
-    fn new(residuals: &Bound<'_, PyTuple>) -> PyResult<Self> {
+    #[pyo3(signature = (*equations))]
+    fn new(equations: &Bound<'_, PyTuple>) -> PyResult<Self> {
         Ok(Self {
-            residuals: residuals
-                .iter()
-                .map(|value| expression_from_python(&value))
-                .collect::<PyResult<_>>()?,
+            equations: equation_pairs(equations.as_any())?,
         })
     }
 
     #[getter]
-    fn residuals(&self) -> Vec<PyExpression> {
-        self.residuals
+    fn equations(&self) -> Vec<(PyExpression, PyExpression)> {
+        self.equations
             .iter()
-            .cloned()
-            .map(PyExpression::new)
+            .map(|(left, right)| {
+                (
+                    PyExpression::new(left.clone()),
+                    PyExpression::new(right.clone()),
+                )
+            })
             .collect()
     }
 
     fn __repr__(&self) -> String {
-        format!("Initial(residuals={})", self.residuals.len())
+        format!("Initial(equations={})", self.equations.len())
     }
 }
 
@@ -652,49 +654,23 @@ impl PyExpression {
 #[derive(Debug, Clone)]
 pub(crate) struct PyRelation {
     value: DraftRelation,
-    residuals: Vec<PyExpression>,
 }
 
 #[pymethods]
 impl PyRelation {
     #[new]
-    #[pyo3(signature = (name, *, domain=None, residual=None, residuals=None))]
+    #[pyo3(signature = (name, *, equations, domain=None))]
     fn new(
         name: String,
+        equations: &Bound<'_, PyAny>,
         domain: Option<&PyDomain>,
-        residual: Option<&Bound<'_, PyAny>>,
-        residuals: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
-        let residuals = match (residual, residuals) {
-            (Some(_), Some(_)) => {
-                return Err(PyTypeError::new_err(
-                    "Relation accepts exactly one of residual= or residuals=",
-                ));
-            }
-            (None, None) => {
-                return Err(PyTypeError::new_err(
-                    "Relation requires exactly one of residual= or residuals=",
-                ));
-            }
-            (Some(residual), None) => vec![expression_from_python(residual)?],
-            (None, Some(residuals)) => residuals
-                .try_iter()
-                .map_err(|_| {
-                    PyTypeError::new_err("Relation residuals must be an iterable of expressions")
-                })?
-                .map(|residual| expression_from_python(&residual?))
-                .collect::<PyResult<Vec<_>>>()?,
-        };
+        let equations = equation_pairs(equations)?;
         let value = match domain {
-            Some(domain) => {
-                DraftRelation::continuous_on(name, &domain.value, residuals.iter().cloned())
-            }
-            None => DraftRelation::continuous(name, residuals.iter().cloned()),
+            Some(domain) => DraftRelation::continuous_on(name, &domain.value, equations),
+            None => DraftRelation::continuous(name, equations),
         };
-        Ok(Self {
-            value,
-            residuals: residuals.into_iter().map(PyExpression::new).collect(),
-        })
+        Ok(Self { value })
     }
 
     #[getter]
@@ -703,19 +679,17 @@ impl PyRelation {
     }
 
     #[getter]
-    fn residual(&self) -> PyResult<PyExpression> {
-        if self.residuals.len() == 1 {
-            Ok(self.residuals[0].clone())
-        } else {
-            Err(PyAttributeError::new_err(
-                "multi-residual Relation has no unique residual; use residuals",
-            ))
-        }
-    }
-
-    #[getter]
-    fn residuals(&self) -> Vec<PyExpression> {
-        self.residuals.clone()
+    fn equations(&self) -> Vec<(PyExpression, PyExpression)> {
+        self.value
+            .equations()
+            .iter()
+            .map(|(left, right)| {
+                (
+                    PyExpression::new(left.clone()),
+                    PyExpression::new(right.clone()),
+                )
+            })
+            .collect()
     }
 
     #[getter]
@@ -838,6 +812,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyConnection>()?;
     module.add_class::<PyExpression>()?;
     module.add_class::<PyRelation>()?;
+    predicates::register(module)?;
     module.add_function(wrap_pyfunction!(derivative, module)?)?;
     module.add_function(wrap_pyfunction!(across, module)?)?;
     module.add_function(wrap_pyfunction!(through, module)?)?;
@@ -865,7 +840,7 @@ fn declaration_from_python(value: &Bound<'_, PyAny>) -> PyResult<DraftDeclaratio
         return Ok(domain.value.clone().into());
     }
     if let Ok(initial) = value.extract::<PyRef<'_, PyInitial>>() {
-        return Ok(DraftDeclaration::Initial(initial.residuals.clone()));
+        return Ok(DraftDeclaration::Initial(initial.equations.clone()));
     }
     if let Ok(field) = value.extract::<PyRef<'_, PyField>>() {
         return Ok(field.value.clone().into());
@@ -904,7 +879,7 @@ fn expression_from_python(value: &Bound<'_, PyAny>) -> PyResult<DraftExpression>
         return Ok(DraftExpression::complex(value.real(), value.imag()));
     }
     if value.is_instance_of::<PyBool>() {
-        return Err(expression_type_error());
+        return Ok(DraftExpression::boolean(value.extract()?));
     }
     if value.is_instance_of::<PyInt>() {
         return value_literal::expression(value);
@@ -952,4 +927,29 @@ fn symbolic_truth_error() -> PyErr {
     PyTypeError::new_err(
         "symbolic Eqiora values have no truth value; construct a Relation explicitly",
     )
+}
+
+fn equation_pairs(values: &Bound<'_, PyAny>) -> PyResult<Vec<(DraftExpression, DraftExpression)>> {
+    if !(values.is_instance_of::<PyTuple>() || values.is_instance_of::<PyList>()) {
+        return Err(PyTypeError::new_err(
+            "equations must be an ordered tuple or list of pairs",
+        ));
+    }
+    values
+        .try_iter()?
+        .map(|pair| {
+            let pair = pair?;
+            if !(pair.is_instance_of::<PyTuple>() || pair.is_instance_of::<PyList>())
+                || pair.len()? != 2
+            {
+                return Err(PyTypeError::new_err(
+                    "each equation requires exactly two explicit sides",
+                ));
+            }
+            Ok((
+                expression_from_python(&pair.get_item(0)?)?,
+                expression_from_python(&pair.get_item(1)?)?,
+            ))
+        })
+        .collect()
 }

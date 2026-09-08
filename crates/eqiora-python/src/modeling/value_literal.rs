@@ -52,6 +52,14 @@ pub(crate) fn from_python(
 ) -> PyResult<ValueLiteral> {
     eqiora::language::ValueTypeSyntax::validate_checked(&value_type)
         .map_err(|error| PyValueError::new_err(error.to_string()))?;
+    if value_type.scalar_domain() == ScalarDomain::Boolean {
+        if !value.is_instance_of::<PyBool>() {
+            return Err(PyTypeError::new_err(
+                "Boolean values require bool, not numeric values",
+            ));
+        }
+        return Ok(ValueLiteral::boolean(value.extract()?));
+    }
     if value_type.scalar_domain() == ScalarDomain::Integer {
         let integer = |value: &Bound<'_, PyAny>| -> PyResult<i64> {
             if value.is_instance_of::<PyBool>() || !value.is_instance_of::<PyInt>() {
@@ -99,6 +107,9 @@ pub(crate) fn from_python(
 pub(crate) fn to_python(py: Python<'_>, value: &ValueLiteral) -> PyResult<Py<PyAny>> {
     eqiora::language::ValueTypeSyntax::validate_checked(value.value_type())
         .map_err(|error| PyValueError::new_err(error.to_string()))?;
+    if let Some(value) = value.as_bool() {
+        return value.into_py_any(py);
+    }
     fn nested(
         py: Python<'_>,
         value: &ValueLiteral,
@@ -154,7 +165,10 @@ pub(crate) fn expression(value: &Bound<'_, PyAny>) -> PyResult<eqiora::language:
                 .collect::<PyResult<Vec<_>>>()?;
             return Ok(DraftExpression::array(items));
         }
-        if value.is_instance_of::<PyInt>() && !value.is_instance_of::<PyBool>() {
+        if value.is_instance_of::<PyBool>() {
+            return Ok(DraftExpression::boolean(value.extract()?));
+        }
+        if value.is_instance_of::<PyInt>() {
             let bits: usize = value.call_method0("bit_length")?.extract()?;
             if bits > 851 {
                 return Err(PyValueError::new_err(

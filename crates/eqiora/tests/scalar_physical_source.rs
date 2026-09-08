@@ -88,7 +88,7 @@ fn source_constructs_one_nominal_current_physical_program() {
         };
         assert!(
             definition
-                .residuals()
+                .expression()
                 .nodes()
                 .iter()
                 .any(|node| matches!(node, ExprNode::Symbol(symbol) if *symbol == expected_symbol))

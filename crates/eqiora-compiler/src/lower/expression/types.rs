@@ -153,6 +153,7 @@ fn expression_type_cached(
             )),
         },
         LoweringExpressionNode::Neg(value) => infer(value),
+        LoweringExpressionNode::Not(value) => infer(value)?.logical_not().map_err(violation),
         LoweringExpressionNode::Binary {
             operator,
             left,
@@ -161,6 +162,11 @@ fn expression_type_cached(
             let left_type = infer(left)?;
             let right_type = infer(right)?;
             match operator {
+                BinaryOp::And => left_type.and(right_type),
+                BinaryOp::Or => left_type.or(right_type),
+                op if super::super::comparison_operator(*op).is_some() => {
+                    left_type.compare(super::super::comparison_operator(*op).unwrap(), right_type)
+                }
                 BinaryOp::Add => left_type.sum(right_type),
                 BinaryOp::Sub => typing::additive(&left_type, &right_type),
                 BinaryOp::Mul => typing::multiply(&left_type, &right_type),
@@ -176,6 +182,7 @@ fn expression_type_cached(
                     })?;
                     typing::power(&left_type, exponent)
                 }
+                _ => unreachable!("comparison handled above"),
             }
             .map_err(violation)
         }

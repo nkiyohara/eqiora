@@ -263,3 +263,33 @@ fn exact_numeric_identity_retains_adjacent_large_decimals_and_literal_sign() {
         identity("model M() { let n=0; }")
     );
 }
+
+#[test]
+fn predicates_and_equation_sides_have_unambiguous_source_identity() {
+    let specimens = [
+        "true", "false", "0", "1", "a == b", "a != b", "a < b", "a <= b", "a > b", "a >= b",
+        "a and b", "a or b", "not a", "-a",
+    ];
+    let mut identities = std::collections::BTreeSet::new();
+    for expression in specimens {
+        let source = format!("model M() {{ let p = {expression}; }}");
+        assert!(identities.insert(identity(&source)), "{expression}");
+        let document = eqiora_lang::parse("predicate.eqi", &source)
+            .into_document()
+            .unwrap();
+        assert_eq!(identity(&source), identity(&eqiora_lang::format(&document)));
+    }
+    assert_ne!(
+        identity("model M() { relation r { a=b; } }"),
+        identity("model M() { relation r { a==b=true; } }")
+    );
+    assert_ne!(
+        identity("model M() { relation r { a=b; } }"),
+        identity("model M() { relation r { b=a; } }")
+    );
+    // Not is not the literal-sign canonicalization used by unary minus.
+    assert_ne!(
+        identity("model M() { let p=not 1[s]; }"),
+        identity("model M() { let p=-1[s]; }")
+    );
+}

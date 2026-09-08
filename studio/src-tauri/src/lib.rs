@@ -750,18 +750,18 @@ fn project_node(
             "relation",
             format!(
                 "{} {}{} · {} expression operations",
-                definition.residuals().roots().len(),
+                definition.equation_sides().len(),
                 if definition.is_initial() {
                     "initial equation"
                 } else {
-                    "implicit residual"
+                    "equation"
                 },
-                if definition.residuals().roots().len() == 1 {
+                if definition.equation_sides().len() == 1 {
                     ""
                 } else {
                     "s"
                 },
-                definition.residuals().nodes().len()
+                definition.expression().nodes().len()
             ),
             None,
             None,

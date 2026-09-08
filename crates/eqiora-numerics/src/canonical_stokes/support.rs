@@ -60,9 +60,9 @@ pub(super) fn relations_on(program: &KernelProgram, domain: RawId) -> Vec<RawId>
 pub(super) fn relation_expression(
     program: &KernelProgram,
     relation: RawId,
-) -> Result<&ExprDag, Diagnostic> {
+) -> Result<ExprDag, Diagnostic> {
     match program.node(relation) {
-        Some(KernelNode::Relation(relation)) => Ok(relation.residuals()),
+        Some(KernelNode::Relation(_)) => program.numerical_residuals(relation),
         _ => Err(lowering_error(
             relation,
             "AppliesOn source has no Relation definition",

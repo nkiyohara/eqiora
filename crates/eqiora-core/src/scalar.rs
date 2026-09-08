@@ -1,6 +1,8 @@
 /// Mathematical scalar domain, independent of numerical storage precision.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarDomain {
+    /// Logical truth values, with no numeric embedding.
+    Boolean,
     /// Exact signed 64-bit integers, with no implicit real embedding.
     Integer,
     /// Real-valued mathematics.
@@ -14,6 +16,8 @@ impl ScalarDomain {
     #[must_use]
     pub const fn common(self, other: Self) -> Option<Self> {
         match (self, other) {
+            (Self::Boolean, Self::Boolean) => Some(Self::Boolean),
+            (Self::Boolean, _) | (_, Self::Boolean) => None,
             (Self::Integer, Self::Integer) => Some(Self::Integer),
             (Self::Integer, _) | (_, Self::Integer) => None,
             (Self::Real, Self::Real) => Some(Self::Real),

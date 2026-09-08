@@ -55,131 +55,175 @@ fn evaluate_selected(
     roots: &[ExprId],
     resolve: &mut dyn FnMut(SymbolRef) -> Option<ValueLiteral>,
 ) -> Result<Vec<ValueLiteral>, Diagnostic> {
-    let mut required = vec![false; expression.nodes().len()];
-    let mut pending = roots.to_vec();
-    while let Some(id) = pending.pop() {
-        let index = id.index() as usize;
-        let Some(mark) = required.get_mut(index) else {
-            return Err(Diagnostic::error(
-                codes::INVALID_EXPRESSION_DAG,
-                "requested expression root is unavailable",
-            ));
-        };
-        if *mark {
-            continue;
-        }
-        *mark = true;
-        match &expression.nodes()[index] {
-            ExprNode::Constant(_) | ExprNode::Symbol(_) => {}
-            ExprNode::Sample { value, .. }
-            | ExprNode::Hold(value)
-            | ExprNode::Neg(value)
-            | ExprNode::PowI(value, _)
-            | ExprNode::ToReal(value)
-            | ExprNode::ToInteger(value)
-            | ExprNode::Ordinal(value) => pending.push(*value),
-            ExprNode::Add(a, b)
-            | ExprNode::Sub(a, b)
-            | ExprNode::Mul(a, b)
-            | ExprNode::Div(a, b)
-            | ExprNode::Quotient(a, b)
-            | ExprNode::Remainder(a, b) => pending.extend([*a, *b]),
-            _ => {
-                return Err(Diagnostic::error(
-                    codes::NOT_IMPLEMENTED,
-                    "expression node is outside the reference execution profile",
-                ));
-            }
-        }
+    enum Frame {
+        Demand(ExprId),
+        Apply(ExprId),
+        Logical(ExprId),
     }
-    let mut values = Vec::with_capacity(expression.nodes().len());
-    for (index, node) in expression.nodes().iter().enumerate() {
-        if !required[index] {
-            values.push(None);
-            continue;
-        }
-        let value = match node {
-            ExprNode::Constant(value) => value.clone(),
-            ExprNode::Symbol(symbol) => resolve(*symbol).ok_or_else(|| {
-                Diagnostic::error(
-                    codes::MISSING_EXECUTION_INPUT,
-                    format!("no reference-execution value is available for {symbol:?}"),
-                )
-                .with_graph_path(expression_path(owner, index))
-            })?,
-            ExprNode::Sample { value, .. } | ExprNode::Hold(value) => {
-                operand(&values, *value, owner)?.clone()
-            }
-            ExprNode::Neg(value) => {
-                let value = operand(&values, *value, owner)?;
-                if value.value_type().scalar_domain() == ScalarDomain::Integer {
-                    value.checked_neg().map_err(discrete_error)?
-                } else {
-                    literal(-real(value)?)?
-                }
-            }
-            ExprNode::Add(left, right) => {
-                let left = operand(&values, *left, owner)?;
-                let right = operand(&values, *right, owner)?;
-                if left.value_type().scalar_domain() == ScalarDomain::Integer {
-                    left.checked_add(right).map_err(discrete_error)?
-                } else {
-                    literal(real(left)?.try_add(real(right)?)?)?
-                }
-            }
-            ExprNode::Sub(left, right) => {
-                let left = operand(&values, *left, owner)?;
-                let right = operand(&values, *right, owner)?;
-                if left.value_type().scalar_domain() == ScalarDomain::Integer {
-                    left.checked_sub(right).map_err(discrete_error)?
-                } else {
-                    literal(real(left)?.try_sub(real(right)?)?)?
-                }
-            }
-            ExprNode::Mul(left, right) => {
-                let left = operand(&values, *left, owner)?;
-                let right = operand(&values, *right, owner)?;
-                if left.value_type().scalar_domain() == ScalarDomain::Integer {
-                    left.checked_mul(right).map_err(discrete_error)?
-                } else {
-                    literal(real(left)?.try_mul(real(right)?)?)?
-                }
-            }
-            ExprNode::Div(left, right) => literal(
-                real(operand(&values, *left, owner)?)?
-                    .try_div(real(operand(&values, *right, owner)?)?)?,
-            )?,
-            ExprNode::Quotient(a, b) => operand(&values, *a, owner)?
-                .checked_quotient(operand(&values, *b, owner)?)
-                .map_err(discrete_error)?,
-            ExprNode::Remainder(a, b) => operand(&values, *a, owner)?
-                .checked_remainder(operand(&values, *b, owner)?)
-                .map_err(discrete_error)?,
-            ExprNode::ToReal(value) => operand(&values, *value, owner)?
-                .to_real()
-                .map_err(discrete_error)?,
-            ExprNode::Ordinal(value) => operand(&values, *value, owner)?
-                .ordinal()
-                .map_err(discrete_error)?,
-            ExprNode::ToInteger(value) => operand(&values, *value, owner)?
-                .to_integer()
-                .map_err(discrete_error)?,
-            ExprNode::PowI(base, exponent) => {
-                let base = real(operand(&values, *base, owner)?)?;
-                let dimension = base.dim().pow(*exponent, 1).ok_or_else(|| {
-                    Diagnostic::error(codes::DIMENSION_MISMATCH, "power dimension exceeds bounds")
-                })?;
-                literal(DynQuantity::new(base.value().powi(*exponent), dimension))?
-            }
-            _ => {
+    let mut values = vec![None; expression.nodes().len()];
+    for &root in roots {
+        let mut pending = vec![Frame::Demand(root)];
+        while let Some(frame) = pending.pop() {
+            let id = match frame {
+                Frame::Demand(id) | Frame::Apply(id) | Frame::Logical(id) => id,
+            };
+            let index = id.index() as usize;
+            let Some(node) = expression.nodes().get(index) else {
                 return Err(Diagnostic::error(
-                    codes::NOT_IMPLEMENTED,
-                    "expression node is newer than this reference interpreter",
-                )
-                .with_graph_path(expression_path(owner, index)));
+                    codes::INVALID_EXPRESSION_DAG,
+                    "requested expression root is unavailable",
+                ));
+            };
+            if values[index].is_some() {
+                continue;
             }
-        };
-        values.push(Some(value));
+            if let ExprNode::And(left, right) | ExprNode::Or(left, right) = node {
+                if matches!(frame, Frame::Demand(_)) {
+                    pending.push(Frame::Logical(id));
+                    pending.push(Frame::Demand(*left));
+                    continue;
+                }
+                if matches!(frame, Frame::Logical(_)) {
+                    let left = boolean(operand(&values, *left, owner)?)?;
+                    if matches!(node, ExprNode::And(_, _)) && !left
+                        || matches!(node, ExprNode::Or(_, _)) && left
+                    {
+                        values[index] = Some(ValueLiteral::boolean(left));
+                    } else {
+                        pending.push(Frame::Apply(id));
+                        pending.push(Frame::Demand(*right));
+                    }
+                    continue;
+                }
+            }
+            if matches!(frame, Frame::Demand(_)) {
+                pending.push(Frame::Apply(id));
+                match node {
+                    ExprNode::Constant(_) | ExprNode::Symbol(_) => {}
+                    ExprNode::Sample { value, .. }
+                    | ExprNode::Hold(value)
+                    | ExprNode::Neg(value)
+                    | ExprNode::PowI(value, _)
+                    | ExprNode::ToReal(value)
+                    | ExprNode::ToInteger(value)
+                    | ExprNode::Ordinal(value)
+                    | ExprNode::Not(value) => pending.push(Frame::Demand(*value)),
+                    ExprNode::Compare(_, a, b)
+                    | ExprNode::Add(a, b)
+                    | ExprNode::Sub(a, b)
+                    | ExprNode::Mul(a, b)
+                    | ExprNode::Div(a, b)
+                    | ExprNode::Quotient(a, b)
+                    | ExprNode::Remainder(a, b) => {
+                        pending.push(Frame::Demand(*b));
+                        pending.push(Frame::Demand(*a));
+                    }
+                    _ => {
+                        return Err(Diagnostic::error(
+                            codes::NOT_IMPLEMENTED,
+                            "expression node is outside the reference execution profile",
+                        ));
+                    }
+                }
+                continue;
+            }
+            let value = match node {
+                ExprNode::Not(value) => {
+                    ValueLiteral::boolean(!boolean(operand(&values, *value, owner)?)?)
+                }
+                ExprNode::And(_, right) | ExprNode::Or(_, right) => {
+                    ValueLiteral::boolean(boolean(operand(&values, *right, owner)?)?)
+                }
+                ExprNode::Compare(op, left, right) => compare(
+                    *op,
+                    operand(&values, *left, owner)?,
+                    operand(&values, *right, owner)?,
+                )?,
+                ExprNode::Constant(value) => value.clone(),
+                ExprNode::Symbol(symbol) => resolve(*symbol).ok_or_else(|| {
+                    Diagnostic::error(
+                        codes::MISSING_EXECUTION_INPUT,
+                        format!("no reference-execution value is available for {symbol:?}"),
+                    )
+                    .with_graph_path(expression_path(owner, index))
+                })?,
+                ExprNode::Sample { value, .. } | ExprNode::Hold(value) => {
+                    operand(&values, *value, owner)?.clone()
+                }
+                ExprNode::Neg(value) => {
+                    let value = operand(&values, *value, owner)?;
+                    if value.value_type().scalar_domain() == ScalarDomain::Integer {
+                        value.checked_neg().map_err(discrete_error)?
+                    } else {
+                        literal(-real(value)?)?
+                    }
+                }
+                ExprNode::Add(left, right) => {
+                    let left = operand(&values, *left, owner)?;
+                    let right = operand(&values, *right, owner)?;
+                    if left.value_type().scalar_domain() == ScalarDomain::Integer {
+                        left.checked_add(right).map_err(discrete_error)?
+                    } else {
+                        literal(real(left)?.try_add(real(right)?)?)?
+                    }
+                }
+                ExprNode::Sub(left, right) => {
+                    let left = operand(&values, *left, owner)?;
+                    let right = operand(&values, *right, owner)?;
+                    if left.value_type().scalar_domain() == ScalarDomain::Integer {
+                        left.checked_sub(right).map_err(discrete_error)?
+                    } else {
+                        literal(real(left)?.try_sub(real(right)?)?)?
+                    }
+                }
+                ExprNode::Mul(left, right) => {
+                    let left = operand(&values, *left, owner)?;
+                    let right = operand(&values, *right, owner)?;
+                    if left.value_type().scalar_domain() == ScalarDomain::Integer {
+                        left.checked_mul(right).map_err(discrete_error)?
+                    } else {
+                        literal(real(left)?.try_mul(real(right)?)?)?
+                    }
+                }
+                ExprNode::Div(left, right) => literal(
+                    real(operand(&values, *left, owner)?)?
+                        .try_div(real(operand(&values, *right, owner)?)?)?,
+                )?,
+                ExprNode::Quotient(a, b) => operand(&values, *a, owner)?
+                    .checked_quotient(operand(&values, *b, owner)?)
+                    .map_err(discrete_error)?,
+                ExprNode::Remainder(a, b) => operand(&values, *a, owner)?
+                    .checked_remainder(operand(&values, *b, owner)?)
+                    .map_err(discrete_error)?,
+                ExprNode::ToReal(value) => operand(&values, *value, owner)?
+                    .to_real()
+                    .map_err(discrete_error)?,
+                ExprNode::Ordinal(value) => operand(&values, *value, owner)?
+                    .ordinal()
+                    .map_err(discrete_error)?,
+                ExprNode::ToInteger(value) => operand(&values, *value, owner)?
+                    .to_integer()
+                    .map_err(discrete_error)?,
+                ExprNode::PowI(base, exponent) => {
+                    let base = real(operand(&values, *base, owner)?)?;
+                    let dimension = base.dim().pow(*exponent, 1).ok_or_else(|| {
+                        Diagnostic::error(
+                            codes::DIMENSION_MISMATCH,
+                            "power dimension exceeds bounds",
+                        )
+                    })?;
+                    literal(DynQuantity::new(base.value().powi(*exponent), dimension))?
+                }
+                _ => {
+                    return Err(Diagnostic::error(
+                        codes::NOT_IMPLEMENTED,
+                        "expression node is newer than this reference interpreter",
+                    )
+                    .with_graph_path(expression_path(owner, index)));
+                }
+            };
+            values[index] = Some(value);
+        }
     }
 
     roots
@@ -294,6 +338,23 @@ pub(crate) fn literal(value: DynQuantity) -> Result<ValueLiteral, Diagnostic> {
     })
 }
 
+pub(crate) fn numerical_differences(values: Vec<ValueLiteral>) -> Result<Vec<f64>, Diagnostic> {
+    let (pairs, remainder) = values.as_chunks::<2>();
+    if !remainder.is_empty() {
+        return Err(Diagnostic::error(
+            codes::INVALID_EXPRESSION_DAG,
+            "numerical equation evaluation returned an incomplete side pair",
+        ));
+    }
+    pairs
+        .iter()
+        .map(|sides| {
+            literal(real(&sides[0])?.try_sub(real(&sides[1])?)?)
+                .and_then(|value| real(&value).map(|value| value.value()))
+        })
+        .collect()
+}
+
 pub(crate) fn real_values(values: Vec<ValueLiteral>) -> Result<Vec<f64>, Diagnostic> {
     values
         .iter()
@@ -311,11 +372,106 @@ fn expression_path(owner: RawId, index: usize) -> GraphPath {
     ])
 }
 
+fn boolean(value: &ValueLiteral) -> Result<bool, Diagnostic> {
+    value.as_bool().ok_or_else(|| {
+        Diagnostic::error(
+            codes::NOT_IMPLEMENTED,
+            "logical execution requires a scalar Boolean",
+        )
+    })
+}
+
+fn compare(
+    op: eqiora_schema::kernel::ComparisonOp,
+    left: &ValueLiteral,
+    right: &ValueLiteral,
+) -> Result<ValueLiteral, Diagnostic> {
+    use eqiora_schema::kernel::ComparisonOp;
+    use std::cmp::Ordering;
+    let value = match op {
+        ComparisonOp::Equal => left.checked_equal(right),
+        ComparisonOp::NotEqual => left.checked_equal(right).map(|value| !value),
+        ComparisonOp::Less => left
+            .checked_order(right)
+            .map(|value| value == Ordering::Less),
+        ComparisonOp::LessEqual => left
+            .checked_order(right)
+            .map(|value| value != Ordering::Greater),
+        ComparisonOp::Greater => left
+            .checked_order(right)
+            .map(|value| value == Ordering::Greater),
+        ComparisonOp::GreaterEqual => left
+            .checked_order(right)
+            .map(|value| value != Ordering::Less),
+    }
+    .map_err(discrete_error)?;
+    Ok(ValueLiteral::boolean(value))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use eqiora_core::{DimExponents, Id, ScalarDomain, ValueLiteral, ValueType, entity::kinds};
     use eqiora_schema::kernel::ExprDagBuilder;
+
+    #[test]
+    fn logical_demand_skips_errors_but_does_not_poison_shared_roots() {
+        use eqiora_schema::kernel::ComparisonOp;
+        let owner = Id::<kinds::Relation>::new().erase();
+        let gate = Id::<kinds::Parameter>::new();
+        let integer = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+        let mut dag = ExprDagBuilder::new();
+        let condition = dag.symbol(SymbolRef::Parameter(gate)).unwrap();
+        let one = dag
+            .constant(ValueLiteral::from_integer(integer.clone(), 1).unwrap())
+            .unwrap();
+        let zero = dag
+            .constant(ValueLiteral::from_integer(integer, 0).unwrap())
+            .unwrap();
+        let bad = dag.quotient(one, zero).unwrap();
+        let bad_predicate = dag.compare(ComparisonOp::Equal, bad, zero).unwrap();
+        let conjunction = dag.and(condition, bad_predicate).unwrap();
+        let disjunction = dag.or(condition, bad_predicate).unwrap();
+        let negated = dag.not(condition).unwrap();
+        let dag = dag.finish([conjunction, disjunction, negated]).unwrap();
+
+        for (roots, gate_value, expected) in [
+            (
+                vec![conjunction, conjunction, negated],
+                false,
+                Some(vec![false, false, true]),
+            ),
+            (vec![disjunction], true, Some(vec![true])),
+            (vec![conjunction, bad_predicate], false, None),
+            (vec![conjunction], true, None),
+            (vec![disjunction], false, None),
+        ] {
+            let mut reads = 0;
+            let mut resolve = |symbol| {
+                assert_eq!(symbol, SymbolRef::Parameter(gate));
+                reads += 1;
+                Some(ValueLiteral::boolean(gate_value))
+            };
+            let roots = roots.as_slice();
+            let result = evaluate_selected(owner, &dag, roots, &mut resolve);
+            assert_eq!(
+                reads, 1,
+                "one memoized node is read once within one demand context"
+            );
+            if let Some(expected) = expected {
+                assert_eq!(
+                    result
+                        .unwrap()
+                        .iter()
+                        .map(|value| value.as_bool().unwrap())
+                        .collect::<Vec<_>>(),
+                    expected
+                );
+            } else {
+                assert!(result.is_err());
+            }
+        }
+    }
 
     #[test]
     fn reference_evaluation_does_not_narrow_typed_constants() {

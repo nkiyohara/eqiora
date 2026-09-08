@@ -1,4 +1,6 @@
+mod instruction;
 mod lower;
+use instruction::{Instruction, ValueId};
 mod numerical_evaluation;
 mod typed;
 use numerical_evaluation::evaluate_instructions;
@@ -457,7 +459,11 @@ impl ScalarOperatorIr {
         let mut summaries: Vec<AffineSummary> = Vec::with_capacity(self.instructions.len());
         for (index, instruction) in self.instructions.iter().copied().enumerate() {
             let summary = match instruction {
-                Instruction::TypedConstant(_)
+                Instruction::Compare(_, _, _)
+                | Instruction::Not(_)
+                | Instruction::And(_, _)
+                | Instruction::Or(_, _)
+                | Instruction::TypedConstant(_)
                 | Instruction::Quotient(_, _)
                 | Instruction::Remainder(_, _)
                 | Instruction::ToReal(_)
@@ -890,7 +896,11 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
         let mut tangents = Vec::with_capacity(self.ir.instructions.len());
         for (index, instruction) in self.ir.instructions.iter().enumerate() {
             let tangent = match *instruction {
-                Instruction::TypedConstant(_)
+                Instruction::Compare(_, _, _)
+                | Instruction::Not(_)
+                | Instruction::And(_, _)
+                | Instruction::Or(_, _)
+                | Instruction::TypedConstant(_)
                 | Instruction::Quotient(_, _)
                 | Instruction::Remainder(_, _)
                 | Instruction::ToReal(_)
@@ -972,7 +982,11 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
         for (index, instruction) in self.ir.instructions.iter().enumerate().rev() {
             let cotangent = adjoints[index];
             match *instruction {
-                Instruction::TypedConstant(_)
+                Instruction::Compare(_, _, _)
+                | Instruction::Not(_)
+                | Instruction::And(_, _)
+                | Instruction::Or(_, _)
+                | Instruction::TypedConstant(_)
                 | Instruction::Quotient(_, _)
                 | Instruction::Remainder(_, _)
                 | Instruction::ToReal(_)
@@ -1062,27 +1076,6 @@ enum InputBinding {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct SymbolSlot(u32);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct ValueId(u32);
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum Instruction {
-    Constant(eqiora_core::DynQuantity),
-    TypedConstant(u32),
-    Quotient(ValueId, ValueId),
-    Remainder(ValueId, ValueId),
-    ToReal(ValueId),
-    ToInteger(ValueId),
-    Ordinal(ValueId),
-    Read(SymbolSlot),
-    Neg(ValueId),
-    Add(ValueId, ValueId),
-    Sub(ValueId, ValueId),
-    Mul(ValueId, ValueId),
-    Div(ValueId, ValueId),
-    PowI(ValueId, i32),
-}
 
 fn read(values: &[f64], id: ValueId, instruction: usize) -> Result<f64, Diagnostic> {
     usize::try_from(id.0)

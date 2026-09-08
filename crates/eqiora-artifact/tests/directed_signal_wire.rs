@@ -29,7 +29,9 @@ fn program(reverse: bool) -> KernelProgram {
                 driver: ports[usize::from(reverse)],
             },
         )),
-        RelationDef::new(relation, dag.finish([zero]).unwrap()).into(),
+        RelationDef::new(relation, dag.finish([zero, zero]).unwrap())
+            .unwrap()
+            .into(),
         ActivationDef::continuous(activation).into(),
     ];
     nodes.extend(ports.map(|port| {

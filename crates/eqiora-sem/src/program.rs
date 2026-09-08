@@ -2,6 +2,7 @@
 
 pub(crate) mod geometry_admission;
 mod nominal_values;
+mod numerical_residuals;
 mod relation_admission;
 mod signal_activation;
 pub(crate) mod signal_connections;
@@ -175,11 +176,12 @@ impl KernelProgram {
             }
         };
         self.type_derived_residual(
-            definition.residuals().clone(),
+            self.numerical_residuals(relation_id)
+                .map_err(|error| vec![error])?,
             relation_id,
             scope,
             if definition.is_initial() {
-                RootContract::InitialConditions
+                RootContract::InitialResiduals
             } else {
                 RootContract::ComponentwiseResidual
             },

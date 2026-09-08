@@ -32,8 +32,9 @@ pub struct ModelDecoderLimits {
     pub max_value_shape_rank: usize,
     /// Maximum checked scalar components in one Semantic Model value shape.
     pub max_value_shape_components: usize,
-    /// Maximum real/imaginary component pairs actually stored across all literals.
-    /// Compact zero payloads consume no component-pair budget.
+    /// Maximum scalar payload components actually stored across all literals.
+    /// A real/imaginary pair, Integer, or Boolean each consumes one component.
+    /// Compact numeric zero payloads consume no component budget.
     pub max_value_literal_components: usize,
     /// Maximum ordered operations in one Model transaction.
     pub max_transaction_ops: usize,

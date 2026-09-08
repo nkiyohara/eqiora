@@ -86,7 +86,7 @@ pub(crate) fn lower_volume_relation(
     field: RawId,
     coordinate_dimension: usize,
 ) -> Result<(ScalarSpatialExpression, ScalarSpatialExpression), Diagnostic> {
-    let expression = relation_expression(program, relation)?;
+    let expression = &relation_expression(program, relation)?;
     let root = unique_root(expression, relation)?;
     if let Some((flux, source)) = scalar_volume_top_roles(expression, root) {
         let coefficient = lower_flux_coefficient(
@@ -209,7 +209,7 @@ pub(crate) fn lower_cartesian_boundary_relation(
     volume_coefficient: &ScalarSpatialExpression,
     coordinate_dimension: usize,
 ) -> Result<ScalarEllipticCartesianBoundary, Diagnostic> {
-    let expression = relation_expression(program, relation)?;
+    let expression = &relation_expression(program, relation)?;
     let root = unique_root(expression, relation)?;
     if let Some((operator, value)) = scalar_boundary_top_roles(expression, root) {
         let value = match value {
@@ -501,9 +501,9 @@ pub(crate) fn is_field(expression: &ExprDag, value: ExprId, field: RawId) -> boo
 pub(crate) fn relation_expression(
     program: &KernelProgram,
     relation: RawId,
-) -> Result<&ExprDag, Diagnostic> {
+) -> Result<ExprDag, Diagnostic> {
     match program.node(relation) {
-        Some(KernelNode::Relation(relation)) => Ok(relation.residuals()),
+        Some(KernelNode::Relation(_)) => program.numerical_residuals(relation),
         _ => Err(lowering_error(
             relation,
             "AppliesOn source has no Relation definition",

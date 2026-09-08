@@ -7,8 +7,10 @@ pub fn initial(field: Id<kinds::Field>, value: DynQuantity) -> KernelNode {
     let mut dag = ExprDagBuilder::new();
     let field = dag.symbol(SymbolRef::Field(field)).unwrap();
     let value = dag.constant(value).unwrap();
-    let residual = dag.sub(field, value).unwrap();
-    RelationDef::initial(Id::new(), dag.finish([residual]).unwrap()).into()
+
+    RelationDef::initial(Id::new(), dag.finish([field, value]).unwrap())
+        .unwrap()
+        .into()
 }
 
 pub fn define_all(transaction: &mut Transaction, nodes: impl IntoIterator<Item = KernelNode>) {
@@ -20,7 +22,7 @@ pub fn define_all(transaction: &mut Transaction, nodes: impl IntoIterator<Item =
         if let KernelNode::Relation(relation) = node
             && relation.is_initial()
         {
-            for expression in relation.residuals().nodes() {
+            for expression in relation.expression().nodes() {
                 if let ExprNode::Symbol(SymbolRef::Field(field)) = expression {
                     transaction.push(Op::Connect {
                         from: relation.id().erase(),

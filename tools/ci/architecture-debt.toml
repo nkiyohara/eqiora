@@ -186,13 +186,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-ir/src/scalar.rs"
-ceiling = 1239
-reason = "predates the predicate; not yet triaged"
-removal = "split by responsibility in the lane that next modifies it"
-
-[[file_lines]]
-path = "crates/eqiora-lang/src/draft.rs"
-ceiling = 1075
+ceiling = 1232
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -488,8 +482,12 @@ ceiling = 8
 
 [[public_surface]]
 crate = "eqiora-schema"
-ceiling = 91
+ceiling = 92
 reason = """
+ComparisonOp gives source compilation, typed inference, DAG/SSA execution and exact
+Model replay one closed six-operation comparison vocabulary. This single current
+consumer seam replaces adapter-local opcode interpretations; it adds no numeric
+coercion, equation node or general operator registry.
 The existing GeometryDigest and closed Cartesian coordinate recipe types retain
 exact authored geometry and fixed-or-Parameter endpoints without a general
 geometry-expression language. #858 adds FieldRole as the single closed

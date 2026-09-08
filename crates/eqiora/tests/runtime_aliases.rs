@@ -183,7 +183,10 @@ model M() {
             let Some(KernelNode::Relation(relation)) = program.node(relation) else {
                 panic!("result Relation");
             };
-            let ir = ScalarOperatorIr::lower(relation.residuals()).unwrap();
+            let ir = ScalarOperatorIr::lower(
+                &program.numerical_residuals(relation.id().erase()).unwrap(),
+            )
+            .unwrap();
             let mut inputs = Vec::new();
             let mut roles = Vec::new();
             let mut derivatives = Vec::new();

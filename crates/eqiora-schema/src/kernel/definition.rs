@@ -295,36 +295,44 @@ impl PortDef {
     }
 }
 
-/// Implicit residual Relation definition.
+/// Simultaneous equations retaining both authored sides.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RelationDef {
     id: Id<kinds::Relation>,
-    residuals: ExprDag,
+    expression: ExprDag,
     initial: bool,
 }
 
 impl RelationDef {
-    /// Define one or more residual equations represented by an expression DAG.
-    #[must_use]
-    pub const fn new(id: Id<kinds::Relation>, residuals: ExprDag) -> Self {
-        Self {
+    /// Define equations from consecutive `(left, right)` output-root pairs.
+    ///
+    /// # Errors
+    /// Rejects an odd number of output roots.
+    pub fn new(id: Id<kinds::Relation>, expression: ExprDag) -> Result<Self, Diagnostic> {
+        if !expression.roots().len().is_multiple_of(2) {
+            return Err(Diagnostic::error(
+                codes::INVALID_KERNEL_DEFINITION,
+                "Relation equations require consecutive left/right root pairs",
+            ));
+        }
+        Ok(Self {
             id,
-            residuals,
+            expression,
             initial: false,
-        }
+        })
     }
 
-    /// Define simultaneous fresh-initialization equations using the same residual DAG.
-    #[must_use]
-    pub const fn initial(id: Id<kinds::Relation>, residuals: ExprDag) -> Self {
-        Self {
-            id,
-            residuals,
-            initial: true,
-        }
+    /// Define simultaneous fresh-initialization equations with paired output roots.
+    ///
+    /// # Errors
+    /// Rejects an odd number of output roots.
+    pub fn initial(id: Id<kinds::Relation>, expression: ExprDag) -> Result<Self, Diagnostic> {
+        let mut definition = Self::new(id, expression)?;
+        definition.initial = true;
+        Ok(definition)
     }
 
-    /// Whether this mathematics applies only to fresh initialization, never restart.
+    /// Whether these equations apply only to fresh initialization, never restart.
     #[must_use]
     pub const fn is_initial(&self) -> bool {
         self.initial
@@ -336,10 +344,22 @@ impl RelationDef {
         self.id
     }
 
-    /// Residual DAG; every root denotes `root = 0`.
+    /// Shared expression arena retaining the authored equation sides.
     #[must_use]
-    pub const fn residuals(&self) -> &ExprDag {
-        &self.residuals
+    pub const fn expression(&self) -> &ExprDag {
+        &self.expression
+    }
+
+    /// Left/right sides in authored equation order.
+    pub fn equation_sides(
+        &self,
+    ) -> impl ExactSizeIterator<Item = (super::ExprId, super::ExprId)> + '_ {
+        self.expression
+            .roots()
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| (pair[0], pair[1]))
     }
 }
 
@@ -754,7 +774,7 @@ mod tests {
     }
 
     #[test]
-    fn initial_equations_use_typed_residual_validation() {
+    fn initial_equations_validate_both_side_types() {
         use super::super::typing::{ExpressionType, RootContract, TypedResidual};
         use super::super::{ExprDagBuilder, SymbolRef};
         let field = Id::new();
@@ -767,16 +787,19 @@ mod tests {
         let wrong_dimension = builder
             .constant(DynQuantity::new(2.0, dim::TimeDim::EXPONENTS))
             .unwrap();
-        let root = builder.sub(value, wrong_dimension).unwrap();
-        let expression = builder.finish([root]).unwrap();
-        let initial = RelationDef::initial(Id::new(), expression.clone());
+        let expression = builder.finish([value, wrong_dimension]).unwrap();
+        let initial = RelationDef::initial(Id::new(), expression.clone()).unwrap();
         assert!(initial.is_initial());
-        assert!(!RelationDef::new(initial.id(), expression.clone()).is_initial());
+        assert!(
+            !RelationDef::new(initial.id(), expression.clone())
+                .unwrap()
+                .is_initial()
+        );
         assert!(
             TypedResidual::<()>::infer(
                 expression,
                 None,
-                RootContract::ComponentwiseResidual,
+                RootContract::InitialConditions,
                 |_| Ok::<_, ()>(ExpressionType::new(temperature.clone(), None))
             )
             .is_err()

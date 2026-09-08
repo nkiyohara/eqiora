@@ -15,7 +15,115 @@ Module authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__in
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.pyi" kind="blob">bindings/python/python/eqiora/lang/__init__.pyi</ExactSourceLink>
 
-This module publishes **30** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **39** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+
+<a id="api-eqiora-lang-equal"></a>
+
+## `equal`
+
+Author a typed equal predicate.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::equal</ExactSourceLink>
+
+```python
+def equal(left: object, right: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-not_equal"></a>
+
+## `not_equal`
+
+Author a typed not equal predicate.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::not_equal</ExactSourceLink>
+
+```python
+def not_equal(left: object, right: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-less"></a>
+
+## `less`
+
+Author a typed less predicate.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::less</ExactSourceLink>
+
+```python
+def less(left: object, right: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-less_equal"></a>
+
+## `less_equal`
+
+Author a typed less equal predicate.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::less_equal</ExactSourceLink>
+
+```python
+def less_equal(left: object, right: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-greater"></a>
+
+## `greater`
+
+Author a typed greater predicate.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::greater</ExactSourceLink>
+
+```python
+def greater(left: object, right: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-greater_equal"></a>
+
+## `greater_equal`
+
+Author a typed greater equal predicate.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::greater_equal</ExactSourceLink>
+
+```python
+def greater_equal(left: object, right: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-logical_not"></a>
+
+## `logical_not`
+
+Author a typed logical not predicate.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::logical_not</ExactSourceLink>
+
+```python
+def logical_not(value: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-logical_and"></a>
+
+## `logical_and`
+
+Author a typed logical and predicate.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::logical_and</ExactSourceLink>
+
+```python
+def logical_and(left: object, right: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-logical_or"></a>
+
+## `logical_or`
+
+Author a typed logical or predicate.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::logical_or</ExactSourceLink>
+
+```python
+def logical_or(left: object, right: object) -> Expression: ...
+```
 
 <a id="api-eqiora-lang-Clock"></a>
 
@@ -47,7 +155,7 @@ class Component:
     def index(self, set: IndexSet, value: Expression | int) -> Expression: ...
     def index_set(self, name: str, *, extent: int, doc: str | None=None) -> IndexSet: ...
     def clock(self, name: str, *, period_s: Fraction | int, phase_s: Fraction | int=0, doc: str | None=None) -> Clock: ...
-    def initial(self, *residuals: Expression | int | float | complex, left: Expression | int | float | complex | None=None, right: Expression | int | float | complex | None=None, doc: str | None=None) -> None: ...
+    def initial(self, *equations: tuple[object, object], left: object=None, right: object=None, doc: str | None=None) -> None: ...
     def volume(self, name: str, *, dimensions: int, doc: str | None=None) -> Support: ...
     def boundary(self, name: str, *, parent: Support, doc: str | None=None) -> Support: ...
     def parameter(self, name: str, *, value_type: ValueType, doc: str | None=None) -> Expression: ...
@@ -84,6 +192,7 @@ class Expression:
     def __truediv__(self, other: Expression | float | int | complex, /) -> Expression: ...
     def __rtruediv__(self, other: float | int, /) -> Expression: ...
     def __pow__(self, exponent: int, /) -> Expression: ...
+    def __bool__(self) -> bool: ...
     def __neg__(self) -> Expression: ...
     def __getitem__(self, index: int) -> Expression: ...
 ```

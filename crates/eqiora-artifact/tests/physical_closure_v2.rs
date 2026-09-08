@@ -58,7 +58,13 @@ fn relation(id: Id<kinds::Relation>, symbols: &[SymbolRef], subtract: bool) -> R
     } else {
         values.remove(0)
     };
-    RelationDef::new(id, expression.finish([root]).unwrap())
+    let zero = expression
+        .constant(eqiora_core::DynQuantity::new(
+            0.0,
+            eqiora_core::DimExponents::DIMENSIONLESS,
+        ))
+        .unwrap();
+    RelationDef::new(id, expression.finish([root, zero]).unwrap()).unwrap()
 }
 
 fn closure_transaction(ids: ClosureIds, unrelated: bool, reversed: bool) -> Transaction {

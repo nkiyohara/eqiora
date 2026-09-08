@@ -173,7 +173,7 @@ fn bouncing_fixture(direction: EventDirection, reverse_nodes: bool) -> BouncingF
     let velocity_value = flight_expression
         .symbol(SymbolRef::Field(velocity))
         .unwrap();
-    let height_residual = flight_expression.sub(height_rate, velocity_value).unwrap();
+
     let velocity_rate = flight_expression
         .symbol(SymbolRef::Derivative(velocity))
         .unwrap();
@@ -181,6 +181,9 @@ fn bouncing_fixture(direction: EventDirection, reverse_nodes: bool) -> BouncingF
         .symbol(SymbolRef::Parameter(gravity))
         .unwrap();
     let velocity_residual = flight_expression.add(velocity_rate, gravity_value).unwrap();
+    let acceleration_zero = flight_expression
+        .constant(DynQuantity::new(0.0, acceleration_dimension))
+        .unwrap();
 
     let mut height_reset_expression = ExprDagBuilder::new();
     let next_height = height_reset_expression
@@ -188,9 +191,6 @@ fn bouncing_fixture(direction: EventDirection, reverse_nodes: bool) -> BouncingF
         .unwrap();
     let zero_height = height_reset_expression
         .constant(DynQuantity::new(0.0, length))
-        .unwrap();
-    let height_reset_residual = height_reset_expression
-        .sub(next_height, zero_height)
         .unwrap();
 
     let mut velocity_reset_expression = ExprDagBuilder::new();
@@ -208,6 +208,9 @@ fn bouncing_fixture(direction: EventDirection, reverse_nodes: bool) -> BouncingF
         .unwrap();
     let velocity_reset_residual = velocity_reset_expression
         .add(next_velocity, reflected_velocity)
+        .unwrap();
+    let velocity_zero = velocity_reset_expression
+        .constant(DynQuantity::new(0.0, velocity_dimension))
         .unwrap();
 
     let event_guard = || {
@@ -251,24 +254,38 @@ fn bouncing_fixture(direction: EventDirection, reverse_nodes: bool) -> BouncingF
             )
             .expect("valid parameter value"),
         )),
-        KernelNode::from(RelationDef::new(
-            flight,
-            flight_expression
-                .finish([height_residual, velocity_residual])
-                .unwrap(),
-        )),
-        KernelNode::from(RelationDef::new(
-            reset_height,
-            height_reset_expression
-                .finish([height_reset_residual])
-                .unwrap(),
-        )),
-        KernelNode::from(RelationDef::new(
-            reset_velocity,
-            velocity_reset_expression
-                .finish([velocity_reset_residual])
-                .unwrap(),
-        )),
+        KernelNode::from(
+            RelationDef::new(
+                flight,
+                flight_expression
+                    .finish([
+                        height_rate,
+                        velocity_value,
+                        velocity_residual,
+                        acceleration_zero,
+                    ])
+                    .unwrap(),
+            )
+            .unwrap(),
+        ),
+        KernelNode::from(
+            RelationDef::new(
+                reset_height,
+                height_reset_expression
+                    .finish([next_height, zero_height])
+                    .unwrap(),
+            )
+            .unwrap(),
+        ),
+        KernelNode::from(
+            RelationDef::new(
+                reset_velocity,
+                velocity_reset_expression
+                    .finish([velocity_reset_residual, velocity_zero])
+                    .unwrap(),
+            )
+            .unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(continuous)),
         KernelNode::from(
             ActivationDef::new(
@@ -357,7 +374,6 @@ fn chattering_program() -> KernelProgram {
     let reset_parameter = reset_expression
         .symbol(SymbolRef::Parameter(reset_value))
         .unwrap();
-    let reset_residual = reset_expression.sub(next, reset_parameter).unwrap();
 
     let mut guard = ExprDagBuilder::new();
     let guard_state = guard.symbol(SymbolRef::Field(state)).unwrap();
@@ -399,14 +415,26 @@ fn chattering_program() -> KernelProgram {
             )
             .expect("valid parameter value"),
         )),
-        KernelNode::from(RelationDef::new(
-            flow,
-            flow_expression.finish([flow_residual]).unwrap(),
-        )),
-        KernelNode::from(RelationDef::new(
-            reset,
-            reset_expression.finish([reset_residual]).unwrap(),
-        )),
+        KernelNode::from(
+            RelationDef::new(
+                flow,
+                {
+                    let equation_zero = flow_expression
+                        .constant(eqiora_core::DynQuantity::new(0.0, inverse_time))
+                        .unwrap();
+                    flow_expression.finish([flow_residual, equation_zero])
+                }
+                .unwrap(),
+            )
+            .unwrap(),
+        ),
+        KernelNode::from(
+            RelationDef::new(
+                reset,
+                reset_expression.finish([next, reset_parameter]).unwrap(),
+            )
+            .unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(continuous)),
         KernelNode::from(event_definition),
     ];

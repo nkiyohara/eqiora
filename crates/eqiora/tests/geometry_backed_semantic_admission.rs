@@ -124,10 +124,13 @@ fn committed_model(
             .constant(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
             .expect("constant");
         nodes.extend([
-            KernelNode::from(RelationDef::new(
-                relation,
-                expression.finish([zero]).expect("constant residual"),
-            )),
+            KernelNode::from(
+                RelationDef::new(
+                    relation,
+                    expression.finish([zero, zero]).expect("constant residual"),
+                )
+                .unwrap(),
+            ),
             KernelNode::from(ActivationDef::continuous(activation)),
         ]);
         edges.push((activation.erase(), relation.erase(), EdgeKind::Activates));
@@ -205,12 +208,28 @@ fn positive_model(
             .expect("spatial-vector Field"),
             eqiora::kernel::FieldRole::Variable,
         )),
-        KernelNode::from(RelationDef::new(
-            ids.relation,
-            expression
-                .finish([divergence])
+        KernelNode::from(
+            RelationDef::new(
+                ids.relation,
+                {
+                    let equation_zero_0 = expression
+                        .constant(
+                            eqiora_core::ValueLiteral::from_real(
+                                eqiora_core::ValueType::scalar(
+                                    eqiora_core::ScalarDomain::Real,
+                                    DimExponents::from_integers([0, -1, 0, 0, 0, 0, 0]).unwrap(),
+                                ),
+                                0.0,
+                            )
+                            .unwrap(),
+                        )
+                        .unwrap();
+                    expression.finish([divergence, equation_zero_0])
+                }
                 .expect("closed residual DAG"),
-        )),
+            )
+            .unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(ids.activation)),
     ];
     let edges = [
@@ -284,10 +303,31 @@ fn boundary_relation_model(
             .expect("spatial Field"),
             eqiora::kernel::FieldRole::Variable,
         )),
-        KernelNode::from(RelationDef::new(
-            ids.relation,
-            expression.finish([trace]).expect("trace residual"),
-        )),
+        KernelNode::from(
+            RelationDef::new(
+                ids.relation,
+                {
+                    let equation_zero_0 = expression
+                        .constant(
+                            eqiora_core::ValueLiteral::from_real(
+                                eqiora_core::ValueType::shaped(
+                                    eqiora_core::ScalarDomain::Real,
+                                    DimExponents::DIMENSIONLESS,
+                                    ValueShape::new([2]).unwrap(),
+                                    ValueFrame::SpatialCartesian,
+                                )
+                                .unwrap(),
+                                0.0,
+                            )
+                            .unwrap(),
+                        )
+                        .unwrap();
+                    expression.finish([trace, equation_zero_0])
+                }
+                .expect("trace residual"),
+            )
+            .unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(ids.activation)),
     ];
     nodes.extend(extra_regions.into_iter().map(|(digest, set)| {
@@ -360,10 +400,13 @@ fn geometry_free_model() -> (InMemoryGraphStore, OntologyId<Model>) {
     committed_model(
         "geometry-free Model",
         vec![
-            KernelNode::from(RelationDef::new(
-                relation,
-                expression.finish([zero]).expect("constant residual"),
-            )),
+            KernelNode::from(
+                RelationDef::new(
+                    relation,
+                    expression.finish([zero, zero]).expect("constant residual"),
+                )
+                .unwrap(),
+            ),
             KernelNode::from(ActivationDef::continuous(activation)),
         ],
         [(activation.erase(), relation.erase(), EdgeKind::Activates)],
@@ -1317,10 +1360,28 @@ fn admitted_geometry_boundary_support_accepts_relation_scope_only() {
                 )
                 .expect("region"),
             ),
-            KernelNode::from(RelationDef::new(
-                relation,
-                expression.finish([x]).expect("closed residual DAG"),
-            )),
+            KernelNode::from(
+                RelationDef::new(
+                    relation,
+                    {
+                        let equation_zero_0 = expression
+                            .constant(
+                                eqiora_core::ValueLiteral::from_real(
+                                    eqiora_core::ValueType::scalar(
+                                        eqiora_core::ScalarDomain::Real,
+                                        DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
+                                    ),
+                                    0.0,
+                                )
+                                .unwrap(),
+                            )
+                            .unwrap();
+                        expression.finish([x, equation_zero_0])
+                    }
+                    .expect("closed residual DAG"),
+                )
+                .unwrap(),
+            ),
             KernelNode::from(ActivationDef::continuous(activation)),
         ],
         [
@@ -1440,10 +1501,13 @@ fn geometry_boundary_relation_falsifiers_reach_the_claimed_consumer() {
             KernelNode::from(
                 DomainDef::geometry_boundary(boundary, "cylinder").expect("geometry boundary"),
             ),
-            KernelNode::from(RelationDef::new(
-                relation,
-                expression.finish([zero]).expect("closed residual"),
-            )),
+            KernelNode::from(
+                RelationDef::new(
+                    relation,
+                    expression.finish([zero, zero]).expect("closed residual"),
+                )
+                .unwrap(),
+            ),
             KernelNode::from(ActivationDef::continuous(activation)),
         ],
         [

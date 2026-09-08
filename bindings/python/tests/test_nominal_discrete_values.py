@@ -11,7 +11,7 @@ q = eqiora.lang
 def native_model(name, *declarations):
     observed = eqiora.Field("observed", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
     return eqiora.Model.define(name, *declarations, observed,
-                               eqiora.Relation("observe", residual=observed))
+                               eqiora.Relation("observe", equations=[(observed, 0)]))
 
 
 def add_observation(owner):

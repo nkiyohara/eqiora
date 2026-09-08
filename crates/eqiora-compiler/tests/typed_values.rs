@@ -36,7 +36,7 @@ fn complete_parameter_values_keep_imaginary_parts_and_channel_order() {
         .collect::<Vec<_>>();
     assert!(values.contains(&vec![(2.0, 3.0)]));
     assert!(values.contains(&vec![(1.0, 4.0), (2.0, -3.0)]));
-    assert!(models[0].transaction().ops().iter().any(|op| matches!(op,Op::DefineKernelNode{node:KernelNode::Relation(value)} if value.residuals().nodes().iter().any(|node| matches!(node, ExprNode::Index{index:1,..})))));
+    assert!(models[0].transaction().ops().iter().any(|op| matches!(op,Op::DefineKernelNode{node:KernelNode::Relation(value)} if value.expression().nodes().iter().any(|node| matches!(node, ExprNode::Index{index:1,..})))));
 }
 
 #[test]
@@ -49,7 +49,7 @@ fn runtime_constructors_keep_original_parameter_dependencies() {
         .filter_map(|op| match op {
             Op::DefineKernelNode {
                 node: KernelNode::Relation(value),
-            } => Some(value.residuals().nodes()),
+            } => Some(value.expression().nodes()),
             _ => None,
         })
         .flatten()
