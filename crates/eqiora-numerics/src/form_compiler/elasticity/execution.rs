@@ -5,7 +5,7 @@ mod evaluate;
 use evaluate::{closed_inputs, instruction_tangent, instruction_value, reverse};
 
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, Id, RawId};
+use eqiora_core::{Diagnostic, DimExponents, Id, RawId};
 use eqiora_ir::{
     CalculusNode, ExactRational, OperatorApplicationProof, OperatorDefinitionDigest,
     PureOperatorDefinition, StandardPureOperator,
@@ -654,7 +654,26 @@ impl<'a> ProgramCompiler<'a> {
         for node in definition.nodes() {
             let provenance = self.source_provenance(source_node, Some(digest));
             let value = match node {
-                CalculusNode::Rational(value) => self.constant(value.as_f64(), provenance)?,
+                CalculusNode::Rational { value, dimension } => {
+                    if *dimension != DimExponents::DIMENSIONLESS {
+                        return Err(tape_error(
+                            "class operator requires dimensionless constants",
+                        ));
+                    }
+                    self.constant(value.as_f64(), provenance)?
+                }
+                CalculusNode::Require { .. }
+                | CalculusNode::Boolean(_)
+                | CalculusNode::Compare(..)
+                | CalculusNode::Not(_)
+                | CalculusNode::And(..)
+                | CalculusNode::Or(..)
+                | CalculusNode::Select { .. }
+                | CalculusNode::UnaryMath(..) => {
+                    return Err(tape_error(
+                        "class operator requires unguarded polynomial calculus",
+                    ));
+                }
                 CalculusNode::FormalComponent { formal: 0, axes } => {
                     let component = axes
                         .iter()
@@ -890,14 +909,36 @@ fn standard_definition(
 fn definition_source_scale(
     definition: &PureOperatorDefinition,
 ) -> Result<Option<ExactRational>, Diagnostic> {
-    let rationals = definition
-        .nodes()
-        .iter()
-        .filter_map(|node| match node {
-            CalculusNode::Rational(value) => Some(*value),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let mut rationals = Vec::new();
+    for node in definition.nodes() {
+        match node {
+            CalculusNode::Rational { value, dimension } => {
+                if *dimension != DimExponents::DIMENSIONLESS {
+                    return Err(tape_error(
+                        "class operator requires dimensionless constants",
+                    ));
+                }
+                rationals.push(*value);
+            }
+            CalculusNode::FormalComponent { .. }
+            | CalculusNode::KroneckerDelta(..)
+            | CalculusNode::Neg(_)
+            | CalculusNode::Add(..)
+            | CalculusNode::Mul(..) => {}
+            CalculusNode::Require { .. }
+            | CalculusNode::Boolean(_)
+            | CalculusNode::Compare(..)
+            | CalculusNode::Not(_)
+            | CalculusNode::And(..)
+            | CalculusNode::Or(..)
+            | CalculusNode::Select { .. }
+            | CalculusNode::UnaryMath(..) => {
+                return Err(tape_error(
+                    "class operator requires unguarded polynomial calculus",
+                ));
+            }
+        }
+    }
     let value = match rationals.as_slice() {
         [] => return Ok(None),
         [value] => value,
