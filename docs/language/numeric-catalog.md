@@ -64,12 +64,56 @@ separate exact boundary-member meaning.
 Expansion produces ordinary fixed instances in declared index order. It does not introduce
 a runtime loop or resize the Model. An edit to a static parameter that would invalidate
 elaborated structure rejects; changing the structure requires compilation with new bindings.
-The initial bounded family profile admits one binder, without nested families, runtime
+An instance family admits one binder, without nested instance families, runtime
 indexing, or Parameter-dependent child IndexSets. Child IndexSets with closed constant extents
 are supported. A binder may supply ordinary Parameter values while the child footprint remains
 independent of them. Explicit and indexed
 descriptions can be compared by their mathematical equations
 and occurrence structure; their distinct authored Source is not required to have equal bytes.
+
+### Indexed equations and connections
+
+Models and Components may expand Relations and ordinary connections over an exact IndexSet.
+The binder follows the Relation name or connection kind, before any support or clock clause:
+
+```eqiora
+relation drive[i in Stages] at tick {
+  driver[index(Stages, ordinal(i))].y = ordinal(i) + 1;
+}
+connect [i in Stages]
+  driver[index(Stages, ordinal(i))].y -> cell[index(Stages, ordinal(i))].u;
+```
+
+Each member produces ordinary equations and connections with its own exact occurrence.
+A Relation keeps its declared support and activation; sharing a period does not equate
+separately declared clocks. The binder is local to the family and cannot capture a declaration.
+Boundary families retain their distinct exact boundary-member selectors and support rules.
+
+A conserving connection family can join adjacent component instances:
+
+```eqiora
+indexset Stages = range(3);
+indexset Links = range(2);
+instance cell[i in Stages]: Resistor(resistance = 2[Ohm]);
+connect conserving [j in Links]
+  cell[index(Stages, ordinal(j))].negative,
+  cell[index(Stages, ordinal(j) + 1)].positive;
+```
+
+`j` belongs to `Links`. The explicit `index(Stages, ...)` constructor selects a member of
+`Stages`; equal extents do not make the sets interchangeable. Every neighbor must be in range.
+There is no wrapping, clipping, runtime topology change or implicit broadcast. Family extent,
+expanded work and neighbor selection are checked before materializing the family.
+
+The existing physical connection owner derives conservation constraints. Resistor laws remain
+owned by their component occurrences. With a 12 V source across these three 2 ohm resistors,
+the ordinary DC equations give 2 A through the chain and a 4 V drop across each resistor.
+Indexed and explicit forms can be compared by their equations and exact endpoint sets after
+mapping explicit instance names to ordinals; whole authored Model identities need not agree.
+
+Python consumes this source through `eqiora.compile(source=...)` or a source file. Python
+Source currently exposes exact IndexSet handles and finite reduction callbacks; it does not
+provide new indexed instance/connection handles in this profile.
 
 ### Finite sums and products
 
@@ -110,8 +154,8 @@ admitted.
 
 Reductions are admitted in Relations and runtime expression aliases. Parameter defaults and
 IndexSet extent definitions cannot contain reductions in this profile. `min` and `max`,
-runtime-sized reductions, indexed equation/connection families and tensor contractions remain
-separate capabilities.
+runtime-sized reductions and tensor contractions remain separate capabilities. Indexed
+equation and connection families follow the rules above.
 
 ### Nominal particle counts
 
