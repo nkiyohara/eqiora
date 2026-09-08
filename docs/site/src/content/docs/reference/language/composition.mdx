@@ -11,27 +11,29 @@ import source from './_examples/composition.eqi?raw';
 [Language overview](/reference/language/) · [Install this source revision](/get-started/#install-with-uv)
 
 A `component` is a reusable declaration. An `instance` creates one occurrence with
-explicit named bindings. `public` requirements live inside the component body.
+explicit named bindings. Requirements live in the component signature.
 
 <Code code={source} lang="eqiora" title="composition.eqi" />
 
 `input` is required; `offset` has a default. The two occurrences own separate
-private `output` Fields and relations. Equal input values would not merge those
+private `output` variables and relations. Equal input values would not merge those
 occurrences. Missing required parameters and unknown bindings are errors.
 
 ## Ports and physical connections
 
 [Electrical components](/reference/standard-packages/electrical/) expose named
-`positive` and `negative` conserving ports. `connect conserving` connects their
-typed connector occurrences: across values agree and outward through values sum
+`positive` and `negative` conserving ports. `connect a, b` connects their
+typed connector occurrences: across values agree and signed through values sum
 to zero. It does not paste one component's equations into another or impose an
-execution order. A signal input/output port has different semantics.
+execution order. Read each exact port's declared members as `source.positive.voltage`
+and `source.positive.current`. Member names do not make distinct nominal connectors
+compatible. `connect output -> input` instead wires causal signals.
 
 ## Binding existing spatial Fields
 
 A continuum component can require `support body: volume(ambient_dimension = 2)`
 and an occurrence-bound `variable` or `state` in its signature. In an instance, write
-`support body = body` and `field displacement = displacement` explicitly.
+`body = body` and `displacement = displacement` explicitly.
 The [elastic-body example](/reference/standard-packages/continuum/#elastic-balance-and-boundaries)
 binds the same displacement to a balance law and its boundary interface. These
 bindings refer to one existing Field, not two copied displacement states.

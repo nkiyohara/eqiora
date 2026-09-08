@@ -40,22 +40,37 @@ physically appropriate depends on the modeled boundary.
 The standard fluid package includes no-slip and traction-free components:
 
 ```eqiora
+connector VelocityTractionBoundary {
+  trace velocity: m / s;
+  flux traction: Pa;
+  shape spatial_vector;
+  frame spatial;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}
+```
+
+This connector's vector extent follows its boundary's two- or three-dimensional
+parent support. Its member names identify the trace and flux roles; `shape` and
+`frame` here describe the connector contract, not a postfix Field type.
+
+```eqiora
 public component NoSlip2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
 ) {
   public port mechanical:
-    conserving mechanics.VelocityTractionBoundary over face;
+    mechanics.VelocityTractionBoundary over face;
 
   relation prescribed_velocity on face {
-    trace(mechanical) = 0;
+    mechanical.velocity = 0;
   }
 }
 
 public component TractionFree2d() {
   // same support and port structure
   relation prescribed_traction on face {
-    flux(mechanical) = 0;
+    mechanical.traction = 0;
   }
 }
 ```
@@ -89,11 +104,11 @@ The package interface components connect the interior field to a boundary port:
 ```eqiora
 relation boundary_interface[boundary in exterior] on boundary {
   trace(velocity)
-    - trace(mechanical[boundary = boundary]) = 0;
+    - mechanical[boundary = boundary].velocity = 0;
   normal(
     2 * dynamic_viscosity * symmetric_part(grad(velocity))
     - isotropic_lift(pressure)
-  ) - flux(mechanical[boundary = boundary]) = 0;
+  ) - mechanical[boundary = boundary].traction = 0;
 }
 ```
 

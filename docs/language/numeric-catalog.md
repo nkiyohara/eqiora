@@ -136,7 +136,7 @@ A conserving connection family can join adjacent component instances:
 indexset Stages = range(3);
 indexset Links = range(2);
 instance cell[i in Stages]: Resistor(resistance = 2[Ohm]);
-connect conserving [j in Links]
+connect [j in Links]
   cell[index(Stages, ordinal(j))].negative,
   cell[index(Stages, ordinal(j) + 1)].positive;
 ```

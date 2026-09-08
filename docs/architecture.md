@@ -220,9 +220,10 @@ symbols, one closed-subsystem closure, and deterministic N-ary junction
 residuals. `KernelProgram` validates that boundary and materializes the same
 immutable `ComposedResidualSystem` for later execution. The current Model and
 Transaction wires carry those values. Source exposes the same contract
-through
-`scalar_physical(across = ..., through = ...)`, `conserving on`, and explicit
-`across(...)` / `through(...)` accessors.
+through named connector members, for example `port.voltage` and `port.current`.
+A flat domain uses `scalar_physical(across voltage: V, through current: A)`;
+`port p: electrical` selects that exact nominal domain. Member names resolve source
+lookup while the typed across/through roles own connection synthesis.
 
 Within the hierarchy compiler, scalar physical `connect` declarations are
 fragments, not additional Kernel Connections. That path first validates exact

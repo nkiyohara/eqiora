@@ -61,7 +61,7 @@ def main() -> int:
     assert grammar["scopeName"] == "source.eqiora"
     assert grammar["fileTypes"] == ["eqi"]
     assert isinstance(configuration, dict) and configuration["comments"] == {"lineComment": "//"}
-    assert isinstance(snippets, dict) and set(snippets) == {"Component", "Model", "Relation"}
+    assert isinstance(snippets, dict) and set(snippets) == {"Connector", "Component", "Model", "Relation"}
     for entry in grammar["repository"].values():
         for pattern in entry["patterns"]:
             re.compile(pattern["match"])

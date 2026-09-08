@@ -1,4 +1,4 @@
-// Append after the self-contained quasistatic declarations from the linked release source.
+// Append after the self-contained quasistatic declarations from the same checkout.
 // This example checks component composition; it does not select a mesh or solve.
 model ReferenceElasticBody(parameter mu: kg / (m * s ^ 2) = 3, parameter lambda: kg / (m * s ^ 2) = 2) {
   domain body = box(0, 1, 0, 1);
@@ -24,8 +24,8 @@ model ReferenceElasticBody(parameter mu: kg / (m * s ^ 2) = 3, parameter lambda:
   instance free_bottom: ZeroTraction2d(body = body, face = y_lower);
   instance free_top: ZeroTraction2d(body = body, face = y_upper);
 
-  connect conserving surface.mechanical[boundary = x_lower], fixed.mechanical;
-  connect conserving surface.mechanical[boundary = x_upper], free_right.mechanical;
-  connect conserving surface.mechanical[boundary = y_lower], free_bottom.mechanical;
-  connect conserving surface.mechanical[boundary = y_upper], free_top.mechanical;
+  connect surface.mechanical[boundary = x_lower], fixed.mechanical;
+  connect surface.mechanical[boundary = x_upper], free_right.mechanical;
+  connect surface.mechanical[boundary = y_lower], free_bottom.mechanical;
+  connect surface.mechanical[boundary = y_upper], free_top.mechanical;
 }

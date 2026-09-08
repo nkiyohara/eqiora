@@ -1,13 +1,11 @@
 # Specimen: a resistor divider
 
-This complete target-language specimen accompanies the [core specification](core.md).
-The existing electrical packages implement scalar conserving networks, but the signatures,
-named connector members, quantity literals, and simplified connection syntax below await
-their language slices. This page is a specification, not a runnable current example.
+This complete source specimen accompanies the [core specification](core.md).
+Named connector members expose the voltage and current of each exact port occurrence.
 
 ## Use standard parts
 
-With an exact dependency on `Eqiora.Electrical.Basic`, the intended source is:
+With an exact dependency on `Eqiora.Electrical.Basic`, the source is:
 
 ```eqiora
 import Eqiora.Electrical.Basic.basic as electrical;
@@ -88,7 +86,7 @@ occurrence. It is not a missing named argument. The parameter is an external req
 Each net equates its across values and sums its signed through values to zero. The first two
 nets each contribute one voltage equality and one current balance; the three-port ground net
 contributes two voltage equalities and one current balance. The components contribute their
-own five equations. Seven ports carry fourteen scalar values, and the complete model has
+own seven equations. Seven ports carry fourteen scalar values, and the complete model has
 fourteen scalar equations. This count is a useful closure check, not a general solvability test.
 
 Ground prescribes voltage only. Adding a zero-current equation inside Ground would duplicate
@@ -114,7 +112,7 @@ The resistors absorb 16 mW and 32 mW. The ideal source absorbs -48 mW, so total 
 is zero. These values follow from Ohm's law and the declared connection orientation, independently
 of compiler output or solver choice.
 
-The initial numerical test should check the voltage differences, signed port currents, and
+A numerical test should check the voltage differences, signed port currents, and
 power balance with dimension-appropriate tolerances. It should not infer success from equation
 count alone or bless a generated residual snapshot as the expected mathematics.
 
