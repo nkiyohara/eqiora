@@ -102,3 +102,21 @@ fn unresolved_index_extent_cannot_be_published_as_a_checked_package_definition()
         "{errors:?}"
     );
 }
+
+#[test]
+fn ordinary_integer_instance_bindings_keep_required_type_context() {
+    let source = r#"
+component Cell(parameter value:integer,output y:integer at tick,clock tick:periodic) {
+    relation emit at tick {y=value;}
+}
+model M(output observed:integer at tick) {
+    clock tick=periodic(1[s]);
+    instance cell:Cell(value=9007199254740993,tick=tick);
+    connect cell.y -> observed;
+}
+"#;
+    let model = CompiledModel::compile_selected("integer-binding.eqi", source, "M", &[]);
+    assert!(model.is_ok(), "{model:?}");
+    let fractional = source.replace("value=9007199254740993", "value=0.5");
+    assert!(CompiledModel::compile_selected("integer-binding.eqi", &fractional, "M", &[]).is_err());
+}

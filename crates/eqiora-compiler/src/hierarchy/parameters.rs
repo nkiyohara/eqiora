@@ -415,7 +415,7 @@ fn resolve_instance_overrides(
                 continue;
             }
         };
-        let value = evaluate_parameter_expression(
+        let value = expression_eval::evaluate_with_domain(
             binding_file,
             binding.value(),
             context,
@@ -431,7 +431,8 @@ fn resolve_instance_overrides(
                     )
                 })
             },
-         resolve_clock)
+         resolve_clock,
+         (target.scalar_domain() == ScalarDomain::Integer).then_some(ScalarDomain::Integer))
         .and_then(|value| coerce_parameter(binding_file, binding.range(), value, target));
         match value {
             Ok(value) => {
