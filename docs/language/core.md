@@ -173,7 +173,9 @@ exact declared clock or continuous activation; `time` contributes continuous act
 Combining dependencies on different nominal clocks, or continuous and clocked dependencies,
 does not produce a single clock. `at clock_name` asserts that all runtime dependencies have
 that exact clock. It rejects static expressions and mixed activations, even when two clocks
-have equal periods. Omitting `at` leaves the inferred dependencies unchanged.
+have equal periods. Omitting `at` leaves the inferred dependencies unchanged. A statically
+selected output of an indexed instance family contributes its resolved output clock,
+including when the enclosing component binds that clock separately at each occurrence.
 
 This dependency assertion is separate from evolution-use requirements. Reading the current
 value of a clocked state through an alias remains valid wherever the equivalent direct read
