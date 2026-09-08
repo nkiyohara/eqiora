@@ -24,7 +24,7 @@
           "captures": { "1": { "name": "keyword.declaration.eqiora" }, "2": { "name": "entity.name.namespace.eqiora" } }
         },
         {
-          "match": "\\b(?:(public|private)\\s+)?(?:(property)\\s+(contract|release)|(material)\\s+(composition)|(pure)\\s+(operator)|(component|connector|model|dimension))\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "match": "\\b(?:(public|private)\\s+)?(?:(property)\\s+(contract|release)|(material)\\s+(composition)|(pure)\\s+(operator)|(component|connector|model|dimension|indexset|space))\\s+([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
             "1": { "name": "keyword.declaration.eqiora" }, "2": { "name": "keyword.declaration.eqiora" },
             "3": { "name": "keyword.declaration.eqiora" }, "4": { "name": "keyword.declaration.eqiora" },
@@ -40,7 +40,10 @@
       ]
     },
     "types": {
-      "patterns": [{ "name": "support.type.eqiora", "match": "\\b(?:array|complex|tensor|vector)\\b(?=\\s*<)" }]
+      "patterns": [
+        { "name": "support.type.eqiora", "match": "\\b(?:array|complex|tensor|vector)\\b(?=\\s*<)" },
+        { "name": "support.type.eqiora", "match": "\\b(?:integer)\\b" }
+      ]
     },
     "keywords": {
       "patterns": [{
@@ -51,7 +54,7 @@
     "functions": {
       "patterns": [{
         "name": "support.function.eqiora",
-        "match": "\\b(?:boundary|boundaries|box|component|coordinate|derivative|div|dot|field_physical|flux|grad|integral|isotropic_lift|normal|scalar_physical|symmetric_part|trace|volume)\\b(?=\\s*\\()"
+        "match": "\\b(?:boundary|boundaries|box|component|coordinate|derivative|div|dot|field_physical|flux|grad|integral|isotropic_lift|normal|orthonormal|range|scalar_physical|symmetric_part|trace|volume)\\b(?=\\s*\\()"
       }]
     },
     "constants": {
