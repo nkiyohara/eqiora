@@ -25,9 +25,18 @@ pub(super) fn validate_domain_syntax(syntax: &DomainSyntax) -> Result<(), AstCon
         }
         DomainSyntax::Boundary { parent, .. } => validate_identifier(parent, "parent Domain"),
         DomainSyntax::ScalarPhysical {
+            across_name,
             across_type,
+            through_name,
             through_type,
         } => {
+            validate_identifier(across_name, "across quantity")?;
+            validate_identifier(through_name, "through quantity")?;
+            if across_name == through_name {
+                return Err(AstConstructionError::new(
+                    "physical quantity names must be distinct",
+                ));
+            }
             super::value_type::validate_syntax(across_type)?;
             super::value_type::validate_syntax(through_type)
         }

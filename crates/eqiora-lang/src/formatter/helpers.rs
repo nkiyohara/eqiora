@@ -10,13 +10,15 @@ pub(super) fn format_boundary_port_selector(
 }
 
 pub(super) fn format_scalar_physical(
+    across_name: &str,
     across: &crate::ValueTypeSyntax,
+    through_name: &str,
     through: &crate::ValueTypeSyntax,
     output: &mut crate::formatter::comments::Output,
 ) {
-    output.push_str("scalar_physical(across = ");
+    write!(output, "scalar_physical(across {across_name}: ").expect("String write");
     super::value_type::format_value_type(across, output);
-    output.push_str(", through = ");
+    write!(output, ", through {through_name}: ").expect("String write");
     super::value_type::format_value_type(through, output);
     output.push(')');
 }

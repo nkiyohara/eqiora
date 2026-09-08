@@ -17,6 +17,7 @@ impl super::SourceAstFactory {
             if let ConnectorSyntax::ScalarPhysical {
                 across_type,
                 through_type,
+                ..
             } = &mut connector.syntax
             {
                 visit(None, across_type);
@@ -64,6 +65,7 @@ impl super::SourceAstFactory {
                         if let crate::DomainSyntax::ScalarPhysical {
                             across_type,
                             through_type,
+                            ..
                         } = &mut value.syntax
                         {
                             visit(scope, across_type);

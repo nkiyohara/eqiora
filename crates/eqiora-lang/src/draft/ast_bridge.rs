@@ -107,6 +107,7 @@ impl super::ModelDraft {
                     comments: Default::default(),
                     name: domain.name.clone(),
                     syntax: DomainSyntax::ScalarPhysical {
+                        across_name: domain.across_name.clone(),
                         across_type: value_type::project(
                             &domain.across_type,
                             &path,
@@ -114,6 +115,7 @@ impl super::ModelDraft {
                             &mut paths,
                             &mut |id| self.nominal_name(id),
                         ),
+                        through_name: domain.through_name.clone(),
                         through_type: value_type::project(
                             &domain.through_type,
                             &path,
@@ -299,21 +301,16 @@ impl RangeAllocator {
 }
 
 pub(super) fn physical_accessor_ast(
-    callee: &str,
+    member: &str,
     reference: &DraftPortReference,
     path: &GraphPath,
     ranges: &mut RangeAllocator,
     paths: &mut HashMap<TextRange, GraphPath>,
 ) -> ExprKind {
-    ExprKind::Call {
-        callee: NamePath::single(callee.to_owned(), ranges.allocate(path, paths)),
-        arguments: crate::CallArguments::Positional(vec![Expr {
-            resolved_enum: None,
-            resolved_nominal: None,
-            kind: ExprKind::Name(reference.name.clone()),
-            range: ranges.allocate(path, paths),
-        }]),
-    }
+    ExprKind::Path(NamePath::from_parsed_segments(
+        vec![reference.name.clone(), member.to_owned()],
+        ranges.allocate(path, paths),
+    ))
 }
 
 impl NativeModelAst {

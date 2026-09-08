@@ -40,7 +40,9 @@ pub(super) fn encode_connector(
     })?;
     encoder.field(2, |encoder| match declaration.syntax() {
         ConnectorSyntax::ScalarPhysical {
+            across_name,
             across_type,
+            through_name,
             through_type,
         } => {
             encoder.u16(1)?;
@@ -49,7 +51,9 @@ pub(super) fn encode_connector(
             })?;
             encoder.field(2, |encoder| {
                 value_type::encode_value_type(encoder, through_type, budget, 1)
-            })
+            })?;
+            encoder.field(3, |encoder| encode_name(encoder, across_name, budget))?;
+            encoder.field(4, |encoder| encode_name(encoder, through_name, budget))
         }
         ConnectorSyntax::FieldPhysical {
             trace,

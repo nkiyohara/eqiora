@@ -99,6 +99,16 @@ impl ModelDraft {
                 }
                 DraftDeclaration::PhysicalDomain(value) => {
                     domain_symbols.insert(value.symbol.clone());
+                    if !is_language_identifier(&value.across_name)
+                        || !is_language_identifier(&value.through_name)
+                        || value.across_name == value.through_name
+                    {
+                        diagnostics.push(native_diagnostic(
+                            &self.name,
+                            value.name(),
+                            "physical quantities require two distinct declared member names",
+                        ));
+                    }
                     if !value.across_type.shape().is_scalar()
                         || !value.through_type.shape().is_scalar()
                     {
@@ -555,7 +565,9 @@ impl From<DraftConservingConnection> for DraftDeclaration {
 pub struct DraftPhysicalDomain {
     symbol: DraftSymbol,
     name: String,
+    across_name: String,
     across_type: eqiora_core::ValueType,
+    through_name: String,
     through_type: eqiora_core::ValueType,
 }
 
@@ -564,13 +576,17 @@ impl DraftPhysicalDomain {
     #[must_use]
     pub fn new(
         name: impl Into<String>,
+        across_name: impl Into<String>,
         across_type: eqiora_core::ValueType,
+        through_name: impl Into<String>,
         through_type: eqiora_core::ValueType,
     ) -> Self {
         Self {
             symbol: DraftSymbol::new(),
             name: name.into(),
+            across_name: across_name.into(),
             across_type,
+            through_name: through_name.into(),
             through_type,
         }
     }
@@ -579,6 +595,18 @@ impl DraftPhysicalDomain {
     #[must_use]
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// Declared member name of the across quantity.
+    #[must_use]
+    pub fn across_name(&self) -> &str {
+        &self.across_name
+    }
+
+    /// Declared member name of the through quantity.
+    #[must_use]
+    pub fn through_name(&self) -> &str {
+        &self.through_name
     }
 
     /// Complete mathematical type of the across variable.
@@ -929,6 +957,8 @@ struct DraftReference {
 struct DraftPortReference {
     symbol: DraftSymbol,
     name: String,
+    across_name: String,
+    through_name: String,
 }
 
 impl From<&DraftConservingPort> for DraftPortReference {
@@ -936,6 +966,8 @@ impl From<&DraftConservingPort> for DraftPortReference {
         Self {
             symbol: port.symbol.clone(),
             name: port.name.clone(),
+            across_name: port.domain.across_name.clone(),
+            through_name: port.domain.through_name.clone(),
         }
     }
 }

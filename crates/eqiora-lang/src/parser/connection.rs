@@ -5,14 +5,11 @@ use super::*;
 impl Parser<'_> {
     pub(super) fn parse_connection(&mut self, component: bool) -> Option<ParsedConnection> {
         let start = self.expect_keyword("connect")?.range().start();
-        let syntax = if self.at_keyword("conserving") {
-            self.bump();
-            ConnectionSyntax::Conserving
-        } else if self.at_keyword("periodic") {
+        let mut syntax = if self.at_keyword("periodic") {
             self.bump();
             ConnectionSyntax::SpatialPeriodic
         } else {
-            ConnectionSyntax::Signal
+            ConnectionSyntax::Conserving
         };
         if syntax == ConnectionSyntax::SpatialPeriodic && component {
             self.error_here("spatial-periodic Connections are allowed only in closed Models");
@@ -28,8 +25,9 @@ impl Parser<'_> {
             None
         };
         let mut ports = vec![self.parse_expression(0)?];
-        if syntax == ConnectionSyntax::Signal {
-            self.expect(TokenKind::Arrow, "`->` after signal output")?;
+        if self.at(TokenKind::Arrow) && syntax != ConnectionSyntax::SpatialPeriodic {
+            self.bump();
+            syntax = ConnectionSyntax::Signal;
             ports.push(self.parse_expression(0)?);
         }
         while self.at(TokenKind::Comma) {
