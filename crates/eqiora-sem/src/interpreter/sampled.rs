@@ -450,6 +450,9 @@ mod tests {
         let ty = ValueType::scalar(ScalarDomain::Real, eqiora_core::DimExponents::DIMENSIONLESS);
         let mut dag = eqiora_schema::kernel::ExprDagBuilder::new();
         let value = dag.symbol(SymbolRef::Field(field)).unwrap();
+        let zero = dag
+            .constant(ValueLiteral::from_real(ty.clone(), 0.0).unwrap())
+            .unwrap();
         let nodes = [
             KernelNode::from(
                 ClockDomainDef::periodic(
@@ -465,7 +468,9 @@ mod tests {
                 eqiora_schema::kernel::FieldRole::State,
             )
             .into(),
-            RelationDef::initial(relation, dag.finish([value]).unwrap()).into(),
+            RelationDef::initial(relation, dag.finish([value, zero]).unwrap())
+                .unwrap()
+                .into(),
             eqiora_schema::kernel::PortDef::signal(outputs[0], SignalDirection::Output, ty.clone())
                 .into(),
             eqiora_schema::kernel::PortDef::signal(outputs[1], SignalDirection::Output, ty).into(),

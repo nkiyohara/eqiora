@@ -40,7 +40,11 @@ impl CpuProgram {
         let mut diagnostics = Vec::new();
         for node in kernel.nodes() {
             if let KernelNode::Relation(relation) = node {
-                match ScalarOperatorIr::lower(relation.residuals()) {
+                // Numerical roots are a derived view. Original side IDs remain valid
+                // in either view for demanded typed expression evaluation.
+                let numerical = kernel.numerical_residuals(relation.id().erase());
+                let expression = numerical.as_ref().unwrap_or_else(|_| relation.expression());
+                match ScalarOperatorIr::lower(expression) {
                     Ok(operator) => {
                         operators.insert(relation.id().erase(), operator);
                     }
@@ -64,9 +68,10 @@ impl CpuProgram {
         &self.kernel
     }
 
-    /// Lowered Relation program.
+    /// Numerically projected Relation program; discrete equations return None.
     #[must_use]
     pub fn operator(&self, relation: RawId) -> Option<&ScalarOperatorIr> {
+        self.kernel.numerical_residuals(relation).ok()?;
         self.operators.get(&relation)
     }
 }

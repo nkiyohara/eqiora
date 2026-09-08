@@ -1,0 +1,27 @@
+//! Scalar SSA vocabulary shared by typed and numerical execution.
+use super::SymbolSlot;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct ValueId(pub(super) u32);
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) enum Instruction {
+    Constant(eqiora_core::DynQuantity),
+    TypedConstant(u32),
+    Quotient(ValueId, ValueId),
+    Remainder(ValueId, ValueId),
+    ToReal(ValueId),
+    ToInteger(ValueId),
+    Ordinal(ValueId),
+    Compare(eqiora_schema::kernel::ComparisonOp, ValueId, ValueId),
+    Not(ValueId),
+    And(ValueId, ValueId),
+    Or(ValueId, ValueId),
+    Read(SymbolSlot),
+    Neg(ValueId),
+    Add(ValueId, ValueId),
+    Sub(ValueId, ValueId),
+    Mul(ValueId, ValueId),
+    Div(ValueId, ValueId),
+    PowI(ValueId, i32),
+}

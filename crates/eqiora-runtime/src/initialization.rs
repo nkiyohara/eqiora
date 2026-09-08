@@ -44,7 +44,7 @@ pub(crate) fn initialize(
         // partition. Zero is the residual-adapter convention for that absent
         // coordinate, not an inferred initial condition or physical derivative.
         let has_derivative = kernel.nodes().any(|node| match node {
-            KernelNode::Relation(definition) => definition.residuals().nodes().iter().any(|node| {
+            KernelNode::Relation(definition) => definition.expression().nodes().iter().any(|node| {
                 matches!(node, ExprNode::Symbol(SymbolRef::Derivative(candidate)) if candidate == field)
             }),
             _ => false,
@@ -84,7 +84,8 @@ pub(crate) fn require_zero_parameter_tangent(
         if definition.id() != relation && !definition.is_initial() {
             continue;
         }
-        let operator = ScalarOperatorIr::lower(definition.residuals())?;
+        let operator =
+            ScalarOperatorIr::lower(&kernel.numerical_residuals(definition.id().erase())?)?;
         let mut inputs = Vec::new();
         let mut roles = Vec::new();
         let mut coordinates = Vec::new();

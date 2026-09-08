@@ -31,7 +31,7 @@ pub(super) fn validate_relations(
         }
         let scope = (scopes.len() == 1).then(|| *scopes.first().expect("one scope was checked"));
         let symbols = validate_expression(
-            relation.residuals(),
+            relation.expression(),
             id,
             TypingEnvironment {
                 nodes,
@@ -42,7 +42,7 @@ pub(super) fn validate_relations(
             if relation.is_initial() {
                 RootContract::InitialConditions
             } else {
-                RootContract::ComponentwiseResidual
+                RootContract::EquationSides
             },
             diagnostics,
         );
@@ -69,7 +69,7 @@ pub(super) fn validate_relations(
                 ));
             }
             if relation
-                .residuals()
+                .expression()
                 .nodes()
                 .iter()
                 .any(|node| matches!(node, ExprNode::Symbol(SymbolRef::Next(_))))
@@ -79,7 +79,7 @@ pub(super) fn validate_relations(
                     "initial Relation cannot read Next symbols",
                 ));
             }
-            for node in relation.residuals().nodes() {
+            for node in relation.expression().nodes() {
                 if let ExprNode::Symbol(SymbolRef::Pre(field)) = node
                     && edge_targets(edges, field.erase(), EdgeKind::ClockedBy).len() != 1
                 {
@@ -91,7 +91,7 @@ pub(super) fn validate_relations(
         if activations.len() == 1 {
             let relation_clocks = edge_targets(edges, activations[0], EdgeKind::ClockedBy);
             let event_reset = matches!(nodes.get(&activations[0]), Some(KernelNode::Activation(activation)) if matches!(activation.kind(), ActivationKind::Event { .. }));
-            for node in relation.residuals().nodes() {
+            for node in relation.expression().nodes() {
                 if let ExprNode::Symbol(SymbolRef::Pre(field) | SymbolRef::Next(field)) = node {
                     let clocks = edge_targets(edges, field.erase(), EdgeKind::ClockedBy);
                     if !(event_reset && clocks.is_empty())
@@ -117,7 +117,7 @@ pub(super) fn validate_relations(
             nodes.get(&activations[0]),
             Some(KernelNode::Activation(activation))
                 if matches!(activation.kind(), ActivationKind::Continuous)
-        ) && relation.residuals().nodes().iter().any(|node| {
+        ) && relation.expression().nodes().iter().any(|node| {
             matches!(
                 node,
                 ExprNode::Symbol(SymbolRef::Pre(_) | SymbolRef::Next(_))
@@ -129,7 +129,7 @@ pub(super) fn validate_relations(
             ));
         } else if matches!(nodes.get(&activations[0]), Some(KernelNode::Activation(activation)) if matches!(activation.kind(), ActivationKind::Periodic))
             && relation
-                .residuals()
+                .expression()
                 .nodes()
                 .iter()
                 .any(|node| matches!(node, ExprNode::Symbol(SymbolRef::Derivative(_))))

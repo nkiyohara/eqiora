@@ -577,7 +577,9 @@ mod tests {
             assert_eq!(typed.node_type(root).unwrap().value_type, value_type);
             let result = ComponentScalarization::lower(&typed);
             match domain {
-                ScalarDomain::Integer => unreachable!("test iterates real and complex domains"),
+                ScalarDomain::Integer | ScalarDomain::Boolean => {
+                    unreachable!("test iterates real and complex domains")
+                }
                 ScalarDomain::Real => assert_eq!(result.unwrap().rows().len(), 3),
                 ScalarDomain::Complex => assert!(result.unwrap_err().message().contains("complex")),
             }
@@ -606,7 +608,9 @@ mod tests {
             .unwrap();
             let result = ComponentScalarization::lower(&typed);
             match domain {
-                ScalarDomain::Integer => unreachable!("test iterates real and complex domains"),
+                ScalarDomain::Integer | ScalarDomain::Boolean => {
+                    unreachable!("test iterates real and complex domains")
+                }
                 ScalarDomain::Real => assert_eq!(result.unwrap().rows().len(), 1),
                 ScalarDomain::Complex => {
                     let error = result.unwrap_err();

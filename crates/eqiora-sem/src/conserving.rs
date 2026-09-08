@@ -407,7 +407,7 @@ impl KernelProgram {
                 let KernelNode::Relation(relation) = node else {
                     continue;
                 };
-                if expression_physical_ports(relation.residuals())
+                if expression_physical_ports(relation.expression())
                     .iter()
                     .any(|port| ports.contains(port))
                 {
@@ -429,7 +429,7 @@ impl KernelProgram {
                         "validated physical Relation definition is missing",
                     ));
                 };
-                ports.extend(expression_physical_ports(definition.residuals()));
+                ports.extend(expression_physical_ports(definition.expression()));
             }
             for edge in self.edges() {
                 if edge.kind() == EdgeKind::Connects && ports.contains(&edge.to()) {
@@ -498,7 +498,7 @@ impl KernelProgram {
                     "physical Relation definition is missing",
                 ));
             };
-            for node in definition.residuals().nodes() {
+            for node in definition.expression().nodes() {
                 if let ExprNode::Symbol(symbol) = node {
                     match symbol {
                         SymbolRef::Parameter(parameter) => {
@@ -516,7 +516,7 @@ impl KernelProgram {
                         "physical subsystem contains a non-Relation member",
                     )
                 })?,
-                dag: definition.residuals().clone(),
+                dag: self.numerical_residuals(relation)?,
             });
         }
 
@@ -665,7 +665,7 @@ pub(crate) fn validate_scalar_physical_networks(
             continue;
         };
         let owned_ports = edge_targets(edges, id, EdgeKind::HasPort);
-        let physical_symbols = expression_physical_ports(relation.residuals());
+        let physical_symbols = expression_physical_ports(relation.expression());
         let participates = !physical_symbols.is_empty()
             || owned_ports.iter().any(|port| {
                 matches!(
@@ -709,7 +709,7 @@ pub(crate) fn validate_scalar_physical_networks(
             ));
         }
 
-        for (index, node) in relation.residuals().nodes().iter().enumerate() {
+        for (index, node) in relation.expression().nodes().iter().enumerate() {
             let invalid = !matches!(
                 node,
                 ExprNode::Constant(_)

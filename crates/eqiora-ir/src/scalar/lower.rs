@@ -27,9 +27,12 @@ impl ScalarOperatorIr {
                 ExprNode::Constant(value) => {
                     if let Some(real) = value.real_scalar_value() {
                         Instruction::Constant(real)
-                    } else if value.value_type().scalar_domain()
-                        == eqiora_core::ScalarDomain::Integer
-                    {
+                    } else if matches!(
+                        value.value_type().scalar_domain(),
+                        eqiora_core::ScalarDomain::Integer
+                            | eqiora_core::ScalarDomain::Boolean
+                            | eqiora_core::ScalarDomain::Complex
+                    ) {
                         let slot =
                             u32::try_from(typed_constants.len()).map_err(|_| ir_size_error())?;
                         typed_constants.push(value.clone());
@@ -39,6 +42,16 @@ impl ScalarOperatorIr {
                             "scalar IR requires real scalar or exact discrete constants",
                         ));
                     }
+                }
+                ExprNode::Compare(op, a, b) => {
+                    Instruction::Compare(*op, value_id(*a, &values)?, value_id(*b, &values)?)
+                }
+                ExprNode::Not(a) => Instruction::Not(value_id(*a, &values)?),
+                ExprNode::And(a, b) => {
+                    Instruction::And(value_id(*a, &values)?, value_id(*b, &values)?)
+                }
+                ExprNode::Or(a, b) => {
+                    Instruction::Or(value_id(*a, &values)?, value_id(*b, &values)?)
                 }
                 ExprNode::Quotient(a, b) => {
                     Instruction::Quotient(value_id(*a, &values)?, value_id(*b, &values)?)

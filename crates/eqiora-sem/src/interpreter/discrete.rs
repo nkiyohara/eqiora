@@ -5,13 +5,17 @@ use eqiora_schema::kernel::{ExprDag, ExprId};
 
 pub(super) fn supported_type(value: &ValueType) -> bool {
     (value.scalar_domain() == ScalarDomain::Real && value.shape().is_scalar())
+        || *value == ValueType::boolean()
         || (value.scalar_domain() == ScalarDomain::Integer && value.array_rank() == 0)
 }
 
 pub(super) fn is_discrete(program: &KernelProgram, symbol: SymbolRef) -> bool {
-    program
-        .execution_symbol_type(symbol)
-        .is_some_and(|value| value.scalar_domain() == ScalarDomain::Integer)
+    program.execution_symbol_type(symbol).is_some_and(|value| {
+        matches!(
+            value.scalar_domain(),
+            ScalarDomain::Integer | ScalarDomain::Boolean
+        )
+    })
 }
 
 pub(super) fn is_discrete_id(program: &KernelProgram, id: RawId) -> bool {
@@ -22,11 +26,13 @@ pub(super) fn is_discrete_id(program: &KernelProgram, id: RawId) -> bool {
     }
 }
 
-fn assignment(program: &KernelProgram, dag: &ExprDag, root: ExprId) -> Option<(SymbolRef, ExprId)> {
-    let ExprNode::Sub(a, b) = dag.nodes().get(root.index() as usize)? else {
-        return None;
-    };
-    for (target, rhs) in [(*a, *b), (*b, *a)] {
+fn assignment(
+    program: &KernelProgram,
+    dag: &ExprDag,
+    a: ExprId,
+    b: ExprId,
+) -> Option<(SymbolRef, ExprId)> {
+    for (target, rhs) in [(a, b), (b, a)] {
         if let Some(ExprNode::Symbol(symbol)) = dag.nodes().get(target.index() as usize)
             && matches!(
                 symbol,
@@ -40,11 +46,14 @@ fn assignment(program: &KernelProgram, dag: &ExprDag, root: ExprId) -> Option<(S
     None
 }
 
-pub(super) fn numerical_roots(program: &KernelProgram, dag: &ExprDag) -> Vec<ExprId> {
-    dag.roots()
-        .iter()
-        .copied()
-        .filter(|root| assignment(program, dag, *root).is_none())
+pub(super) fn numerical_roots(
+    program: &KernelProgram,
+    relation: &eqiora_schema::kernel::RelationDef,
+) -> Vec<ExprId> {
+    relation
+        .equation_sides()
+        .filter(|(a, b)| assignment(program, relation.expression(), *a, *b).is_none())
+        .flat_map(|(a, b)| [a, b])
         .collect()
 }
 
@@ -82,8 +91,8 @@ pub(super) fn stage(
         let Some(KernelNode::Relation(relation)) = program.node(owner) else {
             continue;
         };
-        for &root in relation.residuals().roots() {
-            if let Some((target, rhs)) = assignment(program, relation.residuals(), root) {
+        for (left, right) in relation.equation_sides() {
+            if let Some((target, rhs)) = assignment(program, relation.expression(), left, right) {
                 let target = if initial {
                     match target {
                         SymbolRef::Pre(id) => SymbolRef::Field(id),
@@ -108,7 +117,7 @@ pub(super) fn stage(
                         time,
                     ));
                 }
-                pending.push((owner, relation.residuals(), target, rhs));
+                pending.push((owner, relation.expression(), target, rhs));
             }
         }
     }
@@ -151,6 +160,12 @@ pub(super) fn stage(
                 continue;
             }
             let mut result = result?;
+            if result.len() != 1 {
+                return Err(execution_error(
+                    "direct assignment requires exactly one evaluated right side",
+                    time,
+                ));
+            }
             let value = result
                 .pop()
                 .ok_or_else(|| execution_error("exact assignment has no value", time))?;

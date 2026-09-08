@@ -37,7 +37,7 @@ pub(super) fn validate(
         let clock =
             activation.and_then(|a| edge_targets(edges, a, EdgeKind::ClockedBy).first().copied());
         let mut pending = relation
-            .residuals()
+            .expression()
             .roots()
             .iter()
             .map(|root| (*root, false))
@@ -47,7 +47,7 @@ pub(super) fn validate(
             if !seen.insert((index, sampling)) {
                 continue;
             }
-            let node = &relation.residuals().nodes()[index.index() as usize];
+            let node = &relation.expression().nodes()[index.index() as usize];
             match node {
                 ExprNode::Sample {
                     value,
@@ -67,7 +67,7 @@ pub(super) fn validate(
                 }
                 ExprNode::Hold(value) => {
                     let Some(ExprNode::Symbol(SymbolRef::Field(field))) =
-                        relation.residuals().nodes().get(value.index() as usize)
+                        relation.expression().nodes().get(value.index() as usize)
                     else {
                         diagnostics
                             .push(kernel_error(id, "Hold requires one direct clocked State"));
@@ -80,7 +80,7 @@ pub(super) fn validate(
                         diagnostics
                             .push(kernel_error(id, "Hold requires one direct clocked State"));
                     }
-                    let has_update = nodes.values().any(|node| matches!(node, KernelNode::Relation(r) if !r.is_initial() && r.residuals().nodes().iter().any(|n| matches!(n, ExprNode::Symbol(SymbolRef::Next(f)) if f == field))));
+                    let has_update = nodes.values().any(|node| matches!(node, KernelNode::Relation(r) if !r.is_initial() && r.expression().nodes().iter().any(|n| matches!(n, ExprNode::Symbol(SymbolRef::Next(f)) if f == field))));
                     if !has_update {
                         diagnostics.push(kernel_error(
                             id,
@@ -132,6 +132,10 @@ fn operands(node: &ExprNode) -> Vec<ExprId> {
     match node {
         ExprNode::Array { elements } => elements.clone(),
         ExprNode::Index { value, .. }
+        | ExprNode::Not(value)
+        | ExprNode::ToReal(value)
+        | ExprNode::ToInteger(value)
+        | ExprNode::Ordinal(value)
         | ExprNode::Neg(value)
         | ExprNode::PowI(value, _)
         | ExprNode::UnaryMath(_, value)
@@ -142,6 +146,11 @@ fn operands(node: &ExprNode) -> Vec<ExprId> {
         | ExprNode::Trace(value)
         | ExprNode::NormalComponent(value) => vec![*value],
         ExprNode::Complex { real: a, imag: b }
+        | ExprNode::Compare(_, a, b)
+        | ExprNode::And(a, b)
+        | ExprNode::Or(a, b)
+        | ExprNode::Quotient(a, b)
+        | ExprNode::Remainder(a, b)
         | ExprNode::Add(a, b)
         | ExprNode::Sub(a, b)
         | ExprNode::Mul(a, b)
