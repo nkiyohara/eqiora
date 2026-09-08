@@ -61,11 +61,11 @@ fn indexed_and_explicit_cells_follow_the_same_equations_without_resizing() {
         let interpreter = Interpreter::new();
         let config = ReferenceConfig::new(2.0, 1.0).unwrap();
         let mut session = interpreter
-            .sampled_session(document.program(), config, [])
+            .execution_session(document.program(), config, [])
             .unwrap();
         assert_eq!(session.advance_ticks(1).unwrap(), 1);
         let mut resumed = interpreter
-            .resume_sampled(document.program(), &session.checkpoint())
+            .resume_execution(document.program(), &session.checkpoint())
             .unwrap();
         assert_eq!(resumed.advance_ticks(2).unwrap(), 2);
         // The two equations are m_i(k+1)=m_i(k)+1 with m_0(0)=0,

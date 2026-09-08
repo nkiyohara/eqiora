@@ -94,13 +94,13 @@ def test_boolean_sampled_inputs_state_outputs_and_checkpoint_use_bool(tmp_path):
     source.write_eqi(path)
     from_file = eqiora.compile(path=path, entry="Toggle")
     assert from_file.to_bytes() == model.to_bytes()
-    session = model.sampled_session(end_time_s=2, max_step_s=0.1,
+    session = model.execution_session(end_time_s=2, max_step_s=0.1,
                                     inputs={"drive": ("tick", [True, False, True])})
     assert session.output("observed", 0) is None
     assert session.advance_ticks(1) == 1
     assert session.field("memory") is True
     assert session.output("observed", 0) == (Fraction(0), True)
-    resumed = from_file.resume_sampled(session.checkpoint())
+    resumed = from_file.resume_execution(session.checkpoint())
     assert resumed.advance_ticks(2) == session.advance_ticks(2) == 2
     assert resumed.field("memory") is session.field("memory") is True
     for index, expected in enumerate((True, False, True)):
@@ -109,7 +109,7 @@ def test_boolean_sampled_inputs_state_outputs_and_checkpoint_use_bool(tmp_path):
         assert output[1] is expected
     assert resumed.output("observed", 3) is None
     with pytest.raises(TypeError):
-        model.sampled_session(end_time_s=2, max_step_s=0.1,
+        model.execution_session(end_time_s=2, max_step_s=0.1,
                               inputs={"drive": ("tick", [True, 0, True])})
 
 

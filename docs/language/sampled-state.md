@@ -83,6 +83,19 @@ explicit `hold(memory)` of a directly named periodic State with an explicit init
 That equation supplies the value before the first tick; after each accepted tick, the hold reads
 the committed memory. A clocked output Port by itself is not a hold operand.
 
+For example, let a continuous voltage satisfy `derivative(x) = 1[V/s]` with `x = 0[V]`
+initially. Give a clock period 1 s and phase 0.5 s, initialize its memory to -1 V, and
+author `next(memory) = sample(x, tick)`. Then `hold(memory)` is -1 V before 0.5 s,
+0.5 V from the accepted first tick until 1.5 s, and 1.5 V after the second tick.
+The State's initial equation owns the pre-first-tick value; `hold` allocates no memory.
+Missing initialization rejects before execution.
+
+At a coincident [event and tick](events.md), `sample` reads the shared left state. The
+tick and event resets solve together, and subsequent event-only microsteps do not sample
+the input again. Continuous `hold` observes the fully committed memory. Direct feedthrough
+is expressed by simultaneous equations and must satisfy the admitted solver profile;
+sampling adds no implicit delay to break an algebraic loop.
+
 ## Use packaged definitions
 
 The intended short form imports the same definitions from an exact standard control package:

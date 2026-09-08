@@ -167,7 +167,7 @@ fn clocked_variable_has_only_its_current_tick_value_and_restarts_without_initial
                 .contains_key(&f.field)
         );
         let mut session = Interpreter::default()
-            .sampled_session(&f.program, config, inputs(&f))
+            .execution_session(&f.program, config, inputs(&f))
             .unwrap();
         assert!(session.field(f.field).is_none());
         for expected in [Some(6.), None, Some(10.), None, Some(14.)] {
@@ -180,7 +180,7 @@ fn clocked_variable_has_only_its_current_tick_value_and_restarts_without_initial
             );
             let checkpoint = session.checkpoint();
             session = Interpreter::default()
-                .resume_sampled(&f.program, &checkpoint)
+                .resume_execution(&f.program, &checkpoint)
                 .unwrap();
             assert_eq!(
                 session
@@ -212,7 +212,7 @@ fn zero_residual_does_not_fabricate_a_clocked_algebraic_value() {
     let f = fixture("singular").unwrap();
     let config = ReferenceConfig::new(3., 0.25).unwrap();
     let mut session = Interpreter::default()
-        .sampled_session(&f.program, config, inputs(&f))
+        .execution_session(&f.program, config, inputs(&f))
         .unwrap();
     let before = session.next_tick();
     assert!(session.advance_ticks(1).is_err());

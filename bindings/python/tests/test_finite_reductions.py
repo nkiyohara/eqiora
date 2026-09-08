@@ -42,7 +42,7 @@ def test_finite_reduction_source_file_and_sampled_execution(operation, tmp_path)
     path = tmp_path / "reduction.eqi"
     source.write_eqi(path)
     assert eqiora.compile(path=path, entry="Reduction").to_bytes() == model.to_bytes()
-    session = model.sampled_session(end_time_s=0.1, max_step_s=0.1, inputs={})
+    session = model.execution_session(end_time_s=0.1, max_step_s=0.1, inputs={})
     assert session.advance_ticks(1) == 1
     # Three squared positive ordinals are 1,4,9: sum14 and product36.
     assert session.output("result", 0)[1] == (14 if operation == "sum" else 36)
@@ -55,7 +55,7 @@ def test_reduction_product_preserves_physical_units():
     owner.relation("volume_value", at=tick, left=observed,
                    right=owner.product(lambda i: q.quantity(2, eqiora.units.m), over=rows))
     model = eqiora.compile(source=source, entry="Reduction")
-    session = model.sampled_session(end_time_s=0.1, max_step_s=0.1, inputs={})
+    session = model.execution_session(end_time_s=0.1, max_step_s=0.1, inputs={})
     assert session.advance_ticks(1) == 1
     # (2 m)*(2 m)*(2 m) = 8 m^3; output signature checks the physical dimension.
     assert session.output("volume", 0)[1] == 8.0
@@ -140,7 +140,7 @@ def test_nested_reduction_executes_without_capturing_inner_index():
                        over=rows, name="j"), over=rows)
     owner.relation("emit", at=tick, left=out, right=nested)
     model = eqiora.compile(source=source, entry="Reduction")
-    session = model.sampled_session(end_time_s=0.1, max_step_s=0.1, inputs={})
+    session = model.execution_session(end_time_s=0.1, max_step_s=0.1, inputs={})
     assert session.advance_ticks(1) == 1
     # Each of 0,1,2 occurs three times in each of the two positions.
     assert session.output("result", 0)[1] == 18

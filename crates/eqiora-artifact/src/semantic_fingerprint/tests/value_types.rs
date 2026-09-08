@@ -97,7 +97,7 @@ fn sampled_channel_initial_values_and_outputs_survive_model_replay() {
                 })
                 .unwrap();
             let mut session = eqiora_sem::Interpreter::new()
-                .sampled_session(
+                .execution_session(
                     program,
                     eqiora_sem::ReferenceConfig::new(1.0, 0.1).unwrap(),
                     [],

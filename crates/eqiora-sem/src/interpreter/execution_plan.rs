@@ -126,6 +126,7 @@ impl ExecutionPlan {
                     };
                     periodic_clocks.insert(clock_id);
                     periodic.push(PeriodicTask {
+                        activation: Some(activation_id),
                         clock: clock_id,
                         tick_index: 0,
                         relations,

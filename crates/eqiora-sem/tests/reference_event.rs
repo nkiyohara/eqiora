@@ -479,3 +479,349 @@ fn connect_dependencies<const N: usize>(
         });
     }
 }
+
+// This affine fixture isolates calendar semantics from integration error: quarter
+// steps, slopes, roots, and reset values are exactly representable in binary.
+struct CoincidenceFixture {
+    program: KernelProgram,
+    fields: [Id<kinds::Field>; 4],
+    events: [Id<kinds::Activation>; 3],
+    tick: Id<kinds::Activation>,
+}
+
+fn coincidence_fixture(reverse: bool, conflict: bool, root_shift: f64) -> CoincidenceFixture {
+    use eqiora_core::{ScalarDomain, ValueType};
+    use eqiora_schema::kernel::{ClockDomainDef, FieldRole, RationalTime};
+    let fields = [Id::new(), Id::new(), Id::new(), Id::new()];
+    let [x, y, z, memory] = fields;
+    let events = [Id::new(), Id::new(), Id::new()];
+    let tick = Id::new();
+    let continuous = Id::new();
+    let clock = Id::new();
+    let model = OntologyId::<Model>::new();
+    let one = DimExponents::DIMENSIONLESS;
+    let rate = DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).unwrap();
+    let mut nodes = Vec::<KernelNode>::new();
+    let mut edges = Vec::new();
+    for field in fields {
+        nodes.push(
+            FieldDef::new(
+                field,
+                ValueType::scalar(ScalarDomain::Real, one),
+                FieldRole::State,
+            )
+            .into(),
+        );
+        nodes.push(initial(field, DynQuantity::new(0.0, one)));
+    }
+    nodes.push(
+        ClockDomainDef::periodic(
+            clock,
+            RationalTime::new(1, 1).unwrap(),
+            RationalTime::new(1, 1).unwrap(),
+        )
+        .unwrap()
+        .into(),
+    );
+    edges.push((memory.erase(), clock.erase(), EdgeKind::ClockedBy));
+    nodes.push(ActivationDef::continuous(continuous).into());
+    nodes.push(ActivationDef::periodic(tick).into());
+    edges.push((tick.erase(), clock.erase(), EdgeKind::ClockedBy));
+    for (field, slope) in [(x, 1.0), (y, 2.0), (z, 0.0)] {
+        let relation = Id::new();
+        let mut dag = ExprDagBuilder::new();
+        let lhs = dag.symbol(SymbolRef::Derivative(field)).unwrap();
+        let rhs = dag.constant(DynQuantity::new(slope, rate)).unwrap();
+        nodes.push(
+            RelationDef::new(relation, dag.finish([lhs, rhs]).unwrap())
+                .unwrap()
+                .into(),
+        );
+        edges.push((continuous.erase(), relation.erase(), EdgeKind::Activates));
+        edges.push((relation.erase(), field.erase(), EdgeKind::DependsOn));
+    }
+    for (activation, guard_field, threshold, target, reset) in [
+        (events[0], x, 1.0 + root_shift, x, 10.0),
+        (events[1], y, 2.0, if conflict { x } else { y }, 20.0),
+        (events[2], x, 5.0, z, 7.0),
+    ] {
+        let mut guard = ExprDagBuilder::new();
+        let value = guard.symbol(SymbolRef::Field(guard_field)).unwrap();
+        let threshold = guard.constant(DynQuantity::new(threshold, one)).unwrap();
+        let residual = guard.sub(value, threshold).unwrap();
+        nodes.push(
+            ActivationDef::new(
+                activation,
+                ActivationKind::Event {
+                    guard: guard.finish([residual]).unwrap(),
+                    direction: EventDirection::Rising,
+                },
+            )
+            .unwrap()
+            .into(),
+        );
+        let relation = Id::new();
+        let mut dag = ExprDagBuilder::new();
+        let next = dag.symbol(SymbolRef::Next(target)).unwrap();
+        let value = dag.constant(DynQuantity::new(reset, one)).unwrap();
+        nodes.push(
+            RelationDef::new(relation, dag.finish([next, value]).unwrap())
+                .unwrap()
+                .into(),
+        );
+        edges.push((activation.erase(), relation.erase(), EdgeKind::Activates));
+        edges.push((relation.erase(), target.erase(), EdgeKind::DependsOn));
+    }
+    let relation = Id::new();
+    let mut dag = ExprDagBuilder::new();
+    let next = dag.symbol(SymbolRef::Next(memory)).unwrap();
+    let x_value = dag.symbol(SymbolRef::Field(x)).unwrap();
+    let y_value = dag.symbol(SymbolRef::Field(y)).unwrap();
+    let sum = dag.add(x_value, y_value).unwrap();
+    let sample = dag.sample(sum, clock).unwrap();
+    nodes.push(
+        RelationDef::new(relation, dag.finish([next, sample]).unwrap())
+            .unwrap()
+            .into(),
+    );
+    edges.push((tick.erase(), relation.erase(), EdgeKind::Activates));
+    for dependency in [x.erase(), y.erase(), memory.erase(), clock.erase()] {
+        edges.push((relation.erase(), dependency, EdgeKind::DependsOn));
+    }
+    let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();
+    if reverse {
+        nodes.reverse();
+        edges.reverse();
+    }
+    let mut transaction = Transaction::new("affine coincidence with left-state sampling");
+    define_all(&mut transaction, nodes);
+    for (from, to, edge) in edges {
+        transaction.push(Op::Connect { from, to, edge });
+    }
+    transaction.push(Op::DefineOntologyView {
+        view: ModelView::new(model, members, []).unwrap().into(),
+    });
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    CoincidenceFixture {
+        program: KernelProgram::from_snapshot(&store.snapshot(), model).unwrap(),
+        fields,
+        events,
+        tick,
+    }
+}
+
+fn coincidence_config() -> ReferenceConfig {
+    ReferenceConfig::new(1.25, 0.25)
+        .unwrap()
+        .with_event_tolerances(2.0_f64.powi(-30), 2.0_f64.powi(-40))
+        .unwrap()
+}
+
+#[test]
+fn affine_coincidence_samples_left_state_and_restarts_only_stabilized_boundaries() {
+    for reverse in [false, true] {
+        let fixture = coincidence_fixture(reverse, false, 0.0);
+        let interpreter = Interpreter::new();
+        let mut session = interpreter
+            .execution_session(&fixture.program, coincidence_config(), [])
+            .unwrap();
+        for _ in 0..3 {
+            assert!(session.advance().unwrap());
+        }
+        assert_eq!(session.progress().model_time(), 0.75);
+        let before = session.checkpoint();
+        assert!(session.advance().unwrap());
+        assert_eq!(session.progress().model_time(), 1.0);
+        for (field, expected) in fixture.fields.into_iter().zip([10.0, 20.0, 7.0, 3.0]) {
+            assert_eq!(
+                session
+                    .field(field.erase())
+                    .unwrap()
+                    .real_scalar_value()
+                    .map(|value| value.value()),
+                Some(expected)
+            );
+        }
+        let sequence = session.activation_sequence();
+        let group = sequence
+            .iter()
+            .find(|group| group.contains(&fixture.tick.erase()))
+            .unwrap();
+        assert_eq!(group.len(), 3);
+        assert!(group.contains(&fixture.events[0].erase()));
+        assert!(group.contains(&fixture.events[1].erase()));
+        assert_eq!(sequence.last().unwrap(), &[fixture.events[2].erase()]);
+        let after = session.checkpoint();
+        assert!(session.advance().unwrap());
+        for (field, expected) in fixture.fields.into_iter().zip([10.25, 20.5, 7.0, 3.0]) {
+            assert_eq!(
+                session
+                    .field(field.erase())
+                    .unwrap()
+                    .real_scalar_value()
+                    .map(|value| value.value()),
+                Some(expected)
+            );
+        }
+        for checkpoint in [before, after] {
+            let mut resumed = interpreter
+                .resume_execution(&fixture.program, &checkpoint)
+                .unwrap();
+            while resumed.advance().unwrap() {}
+            assert_eq!(resumed.activation_sequence(), session.activation_sequence());
+            for field in fixture.fields {
+                assert_eq!(resumed.field(field.erase()), session.field(field.erase()));
+            }
+        }
+    }
+}
+
+#[test]
+fn conflicting_coincident_resets_reject_without_advancing_the_checkpoint() {
+    let fixture = coincidence_fixture(false, true, 0.0);
+    let mut session = Interpreter::new()
+        .execution_session(&fixture.program, coincidence_config(), [])
+        .unwrap();
+    for _ in 0..3 {
+        session.advance().unwrap();
+    }
+    let before = session.checkpoint();
+    assert!(session.advance().is_err());
+    assert_eq!(session.progress(), before.progress());
+    assert_eq!(session.activation_sequence(), before.activation_sequence());
+    for field in fixture.fields {
+        assert_eq!(session.field(field.erase()), before.field(field.erase()));
+    }
+}
+
+#[test]
+fn unresolved_near_tick_crossing_rejects_instead_of_tolerance_snapping() {
+    let fixture = coincidence_fixture(false, false, -2.0_f64.powi(-20));
+    let config = ReferenceConfig::new(1.25, 0.25)
+        .unwrap()
+        .with_event_tolerances(2.0_f64.powi(-10), 2.0_f64.powi(-40))
+        .unwrap();
+    let mut session = Interpreter::new()
+        .execution_session(&fixture.program, config, [])
+        .unwrap();
+    for _ in 0..3 {
+        session.advance().unwrap();
+    }
+    let before = session.checkpoint();
+    assert!(session.advance().is_err());
+    assert_eq!(session.progress(), before.progress());
+    for field in fixture.fields {
+        assert_eq!(session.field(field.erase()), before.field(field.erase()));
+    }
+}
+
+#[test]
+fn resolved_near_tick_crossing_precedes_the_tick_without_becoming_coincident() {
+    let delta = 2.0_f64.powi(-20);
+    let fixture = coincidence_fixture(false, false, -delta);
+    let mut session = Interpreter::new()
+        .execution_session(&fixture.program, coincidence_config(), [])
+        .unwrap();
+    let mut boundaries = Vec::new();
+    while session.advance().unwrap() {
+        boundaries.push((
+            session.progress().model_time(),
+            session.activation_sequence().to_vec(),
+        ));
+    }
+    // x resets at 1-delta, then advances by delta before the tick. Its
+    // left-state tick contribution is 10+delta, while y contributes 2.
+    // 2^-26 is sixteen localization tolerances and exceeds the propagated
+    // affine time uncertainty (slopes at most two) without masking delta.
+    for (field, expected) in
+        fixture
+            .fields
+            .into_iter()
+            .zip([10.25 + delta, 20.5, 7.0, 12.0 + delta])
+    {
+        let value = session
+            .field(field.erase())
+            .unwrap()
+            .real_scalar_value()
+            .unwrap()
+            .value();
+        assert!(
+            (value - expected).abs() <= 2.0_f64.powi(-26),
+            "{value} != {expected}"
+        );
+    }
+    let event = boundaries
+        .iter()
+        .find(|(_, groups)| {
+            groups
+                .iter()
+                .any(|group| group.contains(&fixture.events[0].erase()))
+        })
+        .unwrap();
+    let tick = boundaries
+        .iter()
+        .find(|(_, groups)| {
+            groups
+                .iter()
+                .any(|group| group.contains(&fixture.tick.erase()))
+        })
+        .unwrap();
+    assert!(event.0 < tick.0);
+    assert_eq!(tick.0, 1.0);
+    assert!(
+        tick.1
+            .iter()
+            .all(|group| !group.contains(&fixture.events[0].erase()))
+    );
+}
+
+#[test]
+fn armed_crossings_survive_band_entry_without_moving_the_numerical_root() {
+    let fixture = coincidence_fixture(false, false, 0.0);
+    // Before the root, x-1 enters the arming band at -1/8 and then -1/16.
+    // Neither point is a zero crossing; retained arming must reach t=1.
+    let config = ReferenceConfig::new(1.25, 1.0 / 16.0)
+        .unwrap()
+        .with_event_tolerances(2.0_f64.powi(-30), 1.0 / 8.0)
+        .unwrap();
+    let mut session = Interpreter::new()
+        .execution_session(&fixture.program, config, [])
+        .unwrap();
+    for _ in 0..15 {
+        assert!(session.advance().unwrap());
+    }
+    assert_eq!(session.progress().model_time(), 15.0 / 16.0);
+    for (field, expected) in fixture
+        .fields
+        .into_iter()
+        .zip([15.0 / 16.0, 15.0 / 8.0, 0.0, 0.0])
+    {
+        assert_eq!(
+            session
+                .field(field.erase())
+                .unwrap()
+                .real_scalar_value()
+                .unwrap()
+                .value(),
+            expected
+        );
+    }
+    let checkpoint = session.checkpoint();
+    let mut resumed = Interpreter::new()
+        .resume_execution(&fixture.program, &checkpoint)
+        .unwrap();
+    assert!(resumed.advance().unwrap());
+    assert_eq!(resumed.progress().model_time(), 1.0);
+    for (field, expected) in fixture.fields.into_iter().zip([10.0, 20.0, 7.0, 3.0]) {
+        assert_eq!(
+            resumed
+                .field(field.erase())
+                .unwrap()
+                .real_scalar_value()
+                .unwrap()
+                .value(),
+            expected
+        );
+    }
+}

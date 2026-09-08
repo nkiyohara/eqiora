@@ -280,7 +280,7 @@ fn two_delays_integrator_exact_tables_phase_and_checkpoint_restart() {
             let end = (phase + 2 * period) as f64 / 1000.;
             let config = ReferenceConfig::new(end, 0.01).unwrap();
             let mut s = Interpreter::new()
-                .sampled_session(&f.program, config, input_tables(&f))
+                .execution_session(&f.program, config, input_tables(&f))
                 .unwrap();
             assert_eq!(
                 s.field(f.fields[0])
@@ -294,7 +294,7 @@ fn two_delays_integrator_exact_tables_phase_and_checkpoint_restart() {
             assert_eq!(s.advance_ticks(2).unwrap(), 2);
             let checkpoint = s.checkpoint();
             let mut resumed = Interpreter::new()
-                .resume_sampled(&f.program, &checkpoint)
+                .resume_execution(&f.program, &checkpoint)
                 .unwrap();
             assert_eq!(
                 resumed.next_tick(),
@@ -332,7 +332,7 @@ fn two_delays_integrator_exact_tables_phase_and_checkpoint_restart() {
             let other = fixture(period, phase, false, Failure::None);
             assert!(
                 Interpreter::new()
-                    .resume_sampled(&other.program, &checkpoint)
+                    .resume_execution(&other.program, &checkpoint)
                     .is_err()
             );
         }
@@ -345,28 +345,28 @@ fn sampled_inputs_reject_missing_duplicate_foreign_clock_and_partial_coverage() 
     let tables = input_tables(&f);
     assert!(
         Interpreter::new()
-            .sampled_session(&f.program, c, tables[..1].to_vec())
+            .execution_session(&f.program, c, tables[..1].to_vec())
             .is_err()
     );
     let mut duplicate = tables.clone();
     duplicate.push(tables[0].clone());
     assert!(
         Interpreter::new()
-            .sampled_session(&f.program, c, duplicate)
+            .execution_session(&f.program, c, duplicate)
             .is_err()
     );
     let mut wrong = tables.clone();
     wrong[0].1 = Id::<kinds::ClockDomain>::new().erase();
     assert!(
         Interpreter::new()
-            .sampled_session(&f.program, c, wrong)
+            .execution_session(&f.program, c, wrong)
             .is_err()
     );
     let mut short = tables;
     short[0].2.pop();
     assert!(
         Interpreter::new()
-            .sampled_session(&f.program, c, short)
+            .execution_session(&f.program, c, short)
             .is_err()
     );
 }
@@ -375,7 +375,7 @@ fn failed_tick_retains_calendar_memories_inputs_and_output_presence() {
     for failure in [Failure::Tick, Failure::Consistency] {
         let f = fixture(10, 0, false, failure);
         let mut s = Interpreter::new()
-            .sampled_session(
+            .execution_session(
                 &f.program,
                 ReferenceConfig::new(0.02, 0.01)
                     .unwrap()
@@ -393,7 +393,7 @@ fn failed_tick_retains_calendar_memories_inputs_and_output_presence() {
         assert_eq!(f.fields.map(|id| s.field(id)), memories);
         assert!(s.output(f.outputs[0], 1).is_none());
         let mut resumed = Interpreter::new()
-            .resume_sampled(&f.program, &before)
+            .resume_execution(&f.program, &before)
             .unwrap();
         assert!(resumed.advance_ticks(1).is_err());
         assert_eq!(resumed.next_tick(), time);
@@ -552,7 +552,7 @@ fn independent_clocks_forward_only_present_samples_and_keep_nominal_identity() {
             vec![7., 9.]
         };
         let mut session = Interpreter::new()
-            .sampled_session(
+            .execution_session(
                 &program,
                 ReferenceConfig::new(0.02, 0.01).unwrap(),
                 [
@@ -613,7 +613,7 @@ fn sampled_horizon_compares_exact_ticks_to_the_exact_binary64_bound() {
         } = forwarding_with_periods([period; 2], false, false).unwrap();
         let table = vec![ValueLiteral::from_real(value_type(), 7.).unwrap(); count];
         let mut session = Interpreter::new()
-            .sampled_session(
+            .execution_session(
                 &program,
                 ReferenceConfig::new(1., 1.).unwrap(),
                 [

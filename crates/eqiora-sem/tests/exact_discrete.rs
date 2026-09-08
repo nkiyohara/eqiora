@@ -148,7 +148,7 @@ fn exact_species_transfer_is_atomic_and_resumes_after_second_tick() {
         initial
     );
     let mut session = interpreter
-        .sampled_session(
+        .execution_session(
             &program,
             ReferenceConfig::new(2., 1.).unwrap(),
             [(input, clock, vec![change; 3])],
@@ -170,7 +170,7 @@ fn exact_species_transfer_is_atomic_and_resumes_after_second_tick() {
         assert_eq!(session.output(output, tick as u64).unwrap().1, &value);
     }
     let checkpoint = session.checkpoint();
-    let mut resumed = interpreter.resume_sampled(&program, &checkpoint).unwrap();
+    let mut resumed = interpreter.resume_execution(&program, &checkpoint).unwrap();
     assert!(resumed.advance_ticks(1).is_err());
     assert_eq!(resumed.field(field), checkpoint.field(field));
     assert_eq!(resumed.next_tick(), checkpoint.next_tick());
@@ -191,7 +191,7 @@ fn integer_overflow_keeps_accepted_state_and_output_absence() {
         None,
     );
     let mut session = Interpreter::new()
-        .sampled_session(
+        .execution_session(
             &program,
             ReferenceConfig::new(1., 1.).unwrap(),
             [(
@@ -236,7 +236,7 @@ fn boolean_assignment_short_circuits_and_failed_tick_preserves_snapshot() {
             .is_err()
     );
     let mut session = interpreter
-        .sampled_session(
+        .execution_session(
             &program,
             config,
             [(input, clock, vec![value(0), value(-i64::MAX), value(1)])],
@@ -251,7 +251,7 @@ fn boolean_assignment_short_circuits_and_failed_tick_preserves_snapshot() {
         );
     }
     let checkpoint = session.checkpoint();
-    let mut resumed = interpreter.resume_sampled(&program, &checkpoint).unwrap();
+    let mut resumed = interpreter.resume_execution(&program, &checkpoint).unwrap();
     assert!(resumed.advance_ticks(1).is_err());
     assert_eq!(resumed.field(field), checkpoint.field(field));
     assert_eq!(resumed.next_tick(), checkpoint.next_tick());
@@ -337,7 +337,7 @@ fn complex_parameters_support_equality_boolean_outputs_but_not_ordering() {
     let (program, outputs) =
         complex_comparisons([ComparisonOp::Equal, ComparisonOp::NotEqual]).unwrap();
     let mut session = Interpreter::new()
-        .sampled_session(&program, ReferenceConfig::new(0., 1.).unwrap(), [])
+        .execution_session(&program, ReferenceConfig::new(0., 1.).unwrap(), [])
         .unwrap();
     session.advance_ticks(1).unwrap();
     assert_eq!(

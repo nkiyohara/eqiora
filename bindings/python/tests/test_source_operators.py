@@ -67,7 +67,7 @@ def test_typed_polynomial_operator_source_file_replay_and_execution(tmp_path):
     replayed = eqiora.Model.from_bytes(model.to_bytes())
     assert replayed.to_bytes() == model.to_bytes()
     for current in (model, from_file):
-        session = current.sampled_session(end_time_s=0.1, max_step_s=0.1, inputs={})
+        session = current.execution_session(end_time_s=0.1, max_step_s=0.1, inputs={})
         assert session.advance_ticks(1) == 1
         # 10*(1 + .01*20 + .01^2*20^2) = 10*1.24 = 12.4 W/(m K).
         time, value = session.output("result", 0)

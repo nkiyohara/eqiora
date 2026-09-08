@@ -753,31 +753,31 @@ impl PyModel {
         }
     }
 
-    /// Start reference sampled execution with complete clock-indexed input tables.
+    /// Start reference execution with complete clock-indexed input tables.
     #[pyo3(signature = (*, end_time_s, max_step_s, inputs))]
-    fn sampled_session(
+    fn execution_session(
         &self,
         py: Python<'_>,
         end_time_s: f64,
         max_step_s: f64,
         inputs: &Bound<'_, pyo3::types::PyDict>,
-    ) -> PyResult<crate::sampled_session::PySampledSession> {
+    ) -> PyResult<crate::execution_session::PyExecutionSession> {
         let document = self
             .document()
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-        crate::sampled_session::start(py, document, end_time_s, max_step_s, inputs)
+        crate::execution_session::start(py, document, end_time_s, max_step_s, inputs)
     }
 
     /// Resume one accepted in-memory checkpoint on this exact immutable Model.
-    fn resume_sampled(
+    fn resume_execution(
         &self,
         py: Python<'_>,
-        checkpoint: &crate::sampled_session::PySampledCheckpoint,
-    ) -> PyResult<crate::sampled_session::PySampledSession> {
+        checkpoint: &crate::execution_session::PyExecutionCheckpoint,
+    ) -> PyResult<crate::execution_session::PyExecutionSession> {
         let document = self
             .document()
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-        crate::sampled_session::resume(py, document, checkpoint)
+        crate::execution_session::resume(py, document, checkpoint)
     }
 
     /// Resolve a source alias or exact ULID once into an exact Parameter role.

@@ -8,18 +8,15 @@ use super::{
 pub(super) fn crossing_events(
     program: &KernelProgram,
     plan: &ExecutionPlan,
-    start_state: &RuntimeState,
+    arming: &BTreeMap<eqiora_core::RawId, i8>,
     end_state: &RuntimeState,
-    start: f64,
     end: f64,
-    config: ReferenceConfig,
     backend: &impl ExpressionBackend,
 ) -> Result<Vec<usize>, Diagnostic> {
     let mut crossings = Vec::new();
     for (index, task) in plan.events.iter().enumerate() {
-        let before = evaluate_event_guard(program, plan, task, start_state, start, backend)?;
         let after = evaluate_event_guard(program, plan, task, end_state, end, backend)?;
-        if event::crosses(task.direction, before, after, config.event_guard_tolerance) {
+        if event::crosses_armed(task.direction, arming[&task.activation], after) {
             crossings.push(index);
         }
     }
@@ -27,7 +24,7 @@ pub(super) fn crossing_events(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn locate_event_time(
+pub(super) fn locate_event_bracket(
     program: &KernelProgram,
     plan: &ExecutionPlan,
     start_state: &RuntimeState,
@@ -37,18 +34,13 @@ pub(super) fn locate_event_time(
     event_index: usize,
     config: ReferenceConfig,
     backend: &impl ExpressionBackend,
-) -> Result<f64, Diagnostic> {
+) -> Result<(f64, f64), Diagnostic> {
     let task = &plan.events[event_index];
     let mut left_time = start;
     let mut right_time = end;
     let mut left_guard = evaluate_event_guard(program, plan, task, start_state, start, backend)?;
     let right_guard = evaluate_event_guard(program, plan, task, end_state, end, backend)?;
-    if !event::crosses(
-        task.direction,
-        left_guard,
-        right_guard,
-        config.event_guard_tolerance,
-    ) {
+    if !event::crosses(task.direction, left_guard, right_guard, 0.) {
         return Err(execution_error(
             "event localization received a bracket without the requested crossing",
             start,
@@ -57,11 +49,11 @@ pub(super) fn locate_event_time(
 
     for _ in 0..config.max_event_localization_iterations {
         if right_time - left_time <= event_time_tolerance(left_time, right_time, config) {
-            return Ok(left_time + 0.5 * (right_time - left_time));
+            return Ok((left_time, right_time));
         }
         let midpoint = left_time + 0.5 * (right_time - left_time);
         if midpoint <= left_time || midpoint >= right_time {
-            return Ok(midpoint);
+            return Ok((left_time, right_time));
         }
         let mut midpoint_state = start_state.clone();
         solve_continuous_step(
@@ -75,12 +67,10 @@ pub(super) fn locate_event_time(
         )?;
         let midpoint_guard =
             evaluate_event_guard(program, plan, task, &midpoint_state, midpoint, backend)?;
-        if event::root_is_left_of(
-            task.direction,
-            left_guard,
-            midpoint_guard,
-            config.event_guard_tolerance,
-        ) {
+        if midpoint_guard == 0.0 {
+            return Ok((midpoint, midpoint));
+        }
+        if event::root_is_left_of(task.direction, left_guard, midpoint_guard) {
             right_time = midpoint;
         } else {
             left_time = midpoint;
@@ -98,7 +88,7 @@ pub(super) fn locate_event_time(
     .with_graph_path(kernel_path(task.activation)))
 }
 
-fn evaluate_event_guard(
+pub(super) fn evaluate_event_guard(
     program: &KernelProgram,
     plan: &ExecutionPlan,
     task: &EventTask,

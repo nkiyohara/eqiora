@@ -943,11 +943,14 @@ fn exact_packages_execute_and_accept_one_sampled_acausal_drive() {
             .and_then(|config| config.with_limits(MAXIMUM_NONLINEAR_ITERATIONS, 1))
             .expect("bounded failing config"),
     );
-    assert!(failed_execution.as_ref().is_err_and(|diagnostics| {
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message().contains("step safety limit"))
-    }));
+    assert!(
+        failed_execution.as_ref().is_err_and(|diagnostics| {
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message().contains("accepted-step budget"))
+        }),
+        "{failed_execution:?}"
+    );
     let failed_lineage = failed_execution.ok().and_then(|_| {
         packaged
             .bind_run_v1(&reference_run(packaged, "one-host-one-worker"))

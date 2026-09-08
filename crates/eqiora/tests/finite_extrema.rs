@@ -42,7 +42,7 @@ fn finite_real_minimum_uses_current_parameter_values_and_exact_sampled_resume() 
         let output = document.aliases()["y"];
         let interpreter = Interpreter::new();
         let mut session = interpreter
-            .sampled_session(
+            .execution_session(
                 document.program(),
                 ReferenceConfig::new(2., 1.).unwrap(),
                 [],
@@ -50,7 +50,7 @@ fn finite_real_minimum_uses_current_parameter_values_and_exact_sampled_resume() 
             .unwrap();
         session.advance_ticks(1).unwrap();
         let mut resumed = interpreter
-            .resume_sampled(document.program(), &session.checkpoint())
+            .resume_execution(document.program(), &session.checkpoint())
             .unwrap();
         resumed.advance_ticks(2).unwrap();
         for (tick, value) in expected.into_iter().enumerate() {
@@ -78,7 +78,7 @@ fn finite_integer_maximum_preserves_adjacent_values_beyond_binary64() {
     }"#;
     let document = ModelDocument::compile("exact-max.eqi", source).unwrap();
     let mut session = Interpreter::new()
-        .sampled_session(
+        .execution_session(
             document.program(),
             ReferenceConfig::new(0., 1.).unwrap(),
             [],

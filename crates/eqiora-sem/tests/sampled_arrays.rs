@@ -156,12 +156,12 @@ fn coupled_channels_use_pre_values_in_both_equation_orders_and_resume_exactly() 
             let (program, fields, outputs) = fixture(domain, reverse, false);
             let interpreter = Interpreter::new();
             let config = ReferenceConfig::new(1.0, 1.0).unwrap();
-            let mut session = interpreter.sampled_session(&program, config, []).unwrap();
+            let mut session = interpreter.execution_session(&program, config, []).unwrap();
             assert_eq!(session.field(fields[0]), Some(channels(domain, [1, 2])));
             assert!(session.output(outputs[0], 0).is_none());
             assert_eq!(session.advance_ticks(1).unwrap(), 1);
             let mut resumed = interpreter
-                .resume_sampled(&program, &session.checkpoint())
+                .resume_execution(&program, &session.checkpoint())
                 .unwrap();
             assert_eq!(resumed.advance_ticks(1).unwrap(), 1);
             // a'=[b0,a0+1], b'=[a1,b1+1], using the complete previous row.
@@ -184,7 +184,7 @@ fn late_channel_overflow_rolls_back_earlier_staging_calendar_and_outputs() {
     let (program, fields, outputs) = fixture(ScalarDomain::Integer, false, true);
     let interpreter = Interpreter::new();
     let mut session = interpreter
-        .sampled_session(&program, ReferenceConfig::new(1., 1.).unwrap(), [])
+        .execution_session(&program, ReferenceConfig::new(1., 1.).unwrap(), [])
         .unwrap();
     let checkpoint = session.checkpoint();
     assert!(session.advance_ticks(1).is_err());

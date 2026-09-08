@@ -10,13 +10,13 @@ pub use initialization::InitialState;
 use initialization::solve_initialization;
 mod residuals;
 use residuals::evaluate_relations;
-mod sampled;
 mod samples;
+mod session;
 mod state;
-pub use sampled::SampledSession;
+pub use session::ExecutionSession;
 use state::RuntimeState;
 
-use event_localization::{crossing_events, locate_event_time};
+use event_localization::{crossing_events, locate_event_bracket};
 use samples::record_samples;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -439,237 +439,45 @@ impl Interpreter {
         backend: &impl ExpressionBackend,
         observer: &mut impl ExecutionObserver,
     ) -> Result<ExecutionOutcome, Vec<Diagnostic>> {
-        if let Err(diagnostic) = config.validate() {
-            return Err(vec![diagnostic]);
-        }
         if program.nodes().any(|node| matches!(node, KernelNode::Field(field) if direct_assignments::requires_typed_assignment(program,SymbolRef::Field(field.id())))) {
-            return Err(vec![execution_error("DynQuantity trajectories cannot retain channel or exact discrete Fields; use sampled_session",0.0)]);
+            return Err(vec![execution_error("DynQuantity trajectories cannot retain channel or exact discrete Fields; use execution_session",0.0)]);
         }
-        let mut plan = ExecutionPlan::new(program).map_err(|diagnostic| vec![diagnostic])?;
-        let mut state = RuntimeState::new(program, &plan).map_err(|diagnostic| vec![diagnostic])?;
-
-        solve_initialization(program, &plan, &mut state, config, backend)
-            .map_err(|diagnostic| vec![diagnostic])?;
-
-        let mut time = 0.0;
-        let mut steps = 0_usize;
-        if plan.next_tick().is_some_and(RationalTime::is_zero) {
-            execute_due_tick(program, &mut plan, &mut state, time, config, backend)
-                .map_err(|diagnostic| vec![diagnostic])?;
-            steps += 1;
+        let mut session =
+            ExecutionSession::fresh(program, config, [], backend).map_err(|e| vec![e])?;
+        if session.next_tick().is_some_and(RationalTime::is_zero) {
+            session
+                .advance_with_backend(backend, false)
+                .map_err(|e| vec![e])?;
         }
-
         let mut samples = Vec::new();
         let mut physical_samples = Vec::new();
         record_samples(
             program,
-            &plan,
-            &state,
-            time,
+            &session.plan,
+            &session.state,
+            session.time,
             &mut samples,
             &mut physical_samples,
         );
-        let mut last_event_time = None;
-        let mut zero_time_events = 0_usize;
-
-        let progress = accepted_progress(time, steps, config);
-        if time < config.end_time && matches!(observer.observe(progress), ControlFlow::Break(())) {
+        let progress = session.progress();
+        if session.time < config.end_time
+            && matches!(observer.observe(progress), ControlFlow::Break(()))
+        {
             return Ok(ExecutionOutcome::Cancelled(progress));
         }
-
-        while time < config.end_time {
-            if steps >= config.max_steps {
-                return Err(vec![config_error(format!(
-                    "reference execution exceeded the {} step safety limit",
-                    config.max_steps
-                ))]);
-            }
-
-            let mut unconstrained_target = (time + config.max_step).min(config.end_time);
-            let time_tolerance = 64.0
-                * f64::EPSILON
-                * time
-                    .abs()
-                    .max(config.end_time.abs())
-                    .max(config.max_step)
-                    .max(1.0);
-            if (config.end_time - unconstrained_target).abs() <= time_tolerance {
-                unconstrained_target = config.end_time;
-            }
-            let next_tick = plan.next_tick().filter(|tick| {
-                sampled::within_horizon(*tick, config.end_time)
-                    && tick.as_seconds_f64() <= unconstrained_target + time_tolerance
-            });
-            let hits_tick = next_tick.is_some();
-            let target = next_tick
-                .map(RationalTime::as_seconds_f64)
-                .unwrap_or(unconstrained_target)
-                .max(time);
-
-            if target > time {
-                let start_state = state.clone();
-                let mut trial_state = start_state.clone();
-                solve_continuous_step(
-                    program,
-                    &plan,
-                    &mut trial_state,
-                    time,
-                    target,
-                    config,
-                    backend,
-                )
-                .map_err(|diagnostic| vec![diagnostic])?;
-
-                let crossings = crossing_events(
-                    program,
-                    &plan,
-                    &start_state,
-                    &trial_state,
-                    time,
-                    target,
-                    config,
-                    backend,
-                )
-                .map_err(|diagnostic| vec![diagnostic])?;
-                if !crossings.is_empty() {
-                    let mut located = Vec::with_capacity(crossings.len());
-                    for crossing in crossings {
-                        let event_time = locate_event_time(
-                            program,
-                            &plan,
-                            &start_state,
-                            &trial_state,
-                            time,
-                            target,
-                            crossing,
-                            config,
-                            backend,
-                        )
-                        .map_err(|diagnostic| vec![diagnostic])?;
-                        located.push((event_time, crossing));
-                    }
-                    located.sort_by(|left, right| {
-                        left.0
-                            .total_cmp(&right.0)
-                            .then_with(|| left.1.cmp(&right.1))
-                    });
-                    let mut event_time = located[0].0;
-                    if event::same_instant(event_time, target, config.event_time_tolerance) {
-                        event_time = target;
-                    }
-
-                    let mut event_state = start_state.clone();
-                    solve_continuous_step(
-                        program,
-                        &plan,
-                        &mut event_state,
-                        time,
-                        event_time,
-                        config,
-                        backend,
-                    )
-                    .map_err(|diagnostic| vec![diagnostic])?;
-                    time = event_time;
-                    state = event_state;
-                    record_samples(
-                        program,
-                        &plan,
-                        &state,
-                        time,
-                        &mut samples,
-                        &mut physical_samples,
-                    );
-
-                    let mut relations = BTreeSet::new();
-                    for (_, event_index) in located.iter().take_while(|(located_time, _)| {
-                        event::same_instant(*located_time, event_time, config.event_time_tolerance)
-                    }) {
-                        relations.extend(&plan.events[*event_index].relations);
-                    }
-                    if hits_tick && event::same_instant(time, target, config.event_time_tolerance) {
-                        let instant = next_tick.expect("hits_tick records an exact instant");
-                        relations.extend(
-                            plan.take_due_relations(instant)
-                                .map_err(|diagnostic| vec![diagnostic])?,
-                        );
-                    }
-                    execute_activated_relations(
-                        program,
-                        &plan,
-                        &mut state,
-                        time,
-                        &relations,
-                        "event-activation",
-                        config,
-                        backend,
-                    )
-                    .map_err(|diagnostic| vec![diagnostic])?;
-                    record_samples(
-                        program,
-                        &plan,
-                        &state,
-                        time,
-                        &mut samples,
-                        &mut physical_samples,
-                    );
-
-                    if last_event_time.is_some_and(|previous| {
-                        event::same_instant(previous, time, config.event_time_tolerance)
-                    }) {
-                        zero_time_events += 1;
-                    } else {
-                        zero_time_events = 1;
-                    }
-                    last_event_time = Some(time);
-                    if zero_time_events > config.max_zero_time_events {
-                        return Err(vec![Diagnostic::error(
-                            codes::INVALID_EXECUTION_CONFIG,
-                            format!(
-                                "event execution exceeded {} zero-time microsteps; possible Zeno behavior",
-                                config.max_zero_time_events
-                            ),
-                        )
-                        .with_graph_path(execution_path("event-activation", time))]);
-                    }
-                    steps += 1;
-                    if time < config.end_time {
-                        let progress = accepted_progress(time, steps, config);
-                        if matches!(observer.observe(progress), ControlFlow::Break(())) {
-                            return Ok(ExecutionOutcome::Cancelled(progress));
-                        }
-                    }
-                    continue;
-                }
-
-                state = trial_state;
-                time = target;
-            } else if !hits_tick {
-                return Err(vec![config_error(
-                    "floating-point model time cannot advance by max_step",
-                )]);
-            }
-
-            if hits_tick {
-                execute_due_tick(program, &mut plan, &mut state, time, config, backend)
-                    .map_err(|diagnostic| vec![diagnostic])?;
-            }
-            record_samples(
-                program,
-                &plan,
-                &state,
-                time,
-                &mut samples,
-                &mut physical_samples,
-            );
-            steps += 1;
-            if time < config.end_time {
-                let progress = accepted_progress(time, steps, config);
-                if matches!(observer.observe(progress), ControlFlow::Break(())) {
-                    return Ok(ExecutionOutcome::Cancelled(progress));
-                }
+        while session
+            .advance_with_backend(backend, true)
+            .map_err(|e| vec![e])?
+        {
+            samples.append(&mut session.boundary_samples);
+            physical_samples.append(&mut session.boundary_physical);
+            let progress = session.progress();
+            if session.time < config.end_time
+                && matches!(observer.observe(progress), ControlFlow::Break(()))
+            {
+                return Ok(ExecutionOutcome::Cancelled(progress));
             }
         }
-
         Ok(ExecutionOutcome::Completed(Trajectory::new(
             samples,
             physical_samples,
@@ -713,6 +521,7 @@ impl ExecutionPlan {
 
 #[derive(Debug, Clone)]
 struct PeriodicTask {
+    activation: Option<RawId>,
     clock: RawId,
     tick_index: u64,
     relations: BTreeSet<RawId>,
@@ -854,36 +663,6 @@ fn solve_continuous_step(
     Ok(())
 }
 
-fn execute_due_tick(
-    program: &KernelProgram,
-    plan: &mut ExecutionPlan,
-    state: &mut RuntimeState,
-    time: f64,
-    config: ReferenceConfig,
-    backend: &impl ExpressionBackend,
-) -> Result<(), Diagnostic> {
-    let Some(instant) = plan.next_tick() else {
-        return Err(execution_error(
-            "periodic execution requested with an empty calendar",
-            time,
-        ));
-    };
-    let mut candidate_plan = plan.clone();
-    let relations = candidate_plan.take_due_relations(instant)?;
-    execute_activated_relations(
-        program,
-        &candidate_plan,
-        state,
-        time,
-        &relations,
-        "periodic-activation",
-        config,
-        backend,
-    )?;
-    *plan = candidate_plan;
-    Ok(())
-}
-
 #[allow(clippy::too_many_arguments)]
 fn execute_activated_relations(
     program: &KernelProgram,
@@ -896,7 +675,6 @@ fn execute_activated_relations(
     backend: &impl ExpressionBackend,
 ) -> Result<(), Diagnostic> {
     let mut accepted_candidate = state.clone();
-    clear_clocked_variables(program, &mut accepted_candidate);
     direct_assignments::stage(
         program,
         plan,

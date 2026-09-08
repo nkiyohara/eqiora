@@ -305,7 +305,7 @@ pub mod runtime {
 /// Reference semantics: the interpreter that defines what programs mean.
 pub mod sem {
     pub use eqiora_sem::{
-        ComposedResidualSystem, Interpreter, KernelProgram, PhysicalUnknown, ReferenceConfig,
-        Sample, SampledSession, ScalarPhysicalSubsystemId, Trajectory,
+        ComposedResidualSystem, ExecutionProgress, ExecutionSession, Interpreter, KernelProgram,
+        PhysicalUnknown, ReferenceConfig, Sample, ScalarPhysicalSubsystemId, Trajectory,
     };
 }
