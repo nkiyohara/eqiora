@@ -27,13 +27,14 @@ pub(crate) struct PyValueType {
 }
 
 impl PyValueType {
-    fn scalar(domain: ScalarDomain, dimension: Option<&PyDimension>) -> Self {
-        Self {
+    fn scalar(domain: ScalarDomain, dimension: Option<&PyDimension>) -> PyResult<Self> {
+        Ok(Self {
             value: ValueType::scalar(
                 domain,
                 dimension.map_or(DimExponents::DIMENSIONLESS, |dimension| dimension.value),
-            ),
-        }
+            )
+            .map_err(|error| PyValueError::new_err(error.to_string()))?,
+        })
     }
 
     fn spatial(scalar: &Self, extents: Vec<u32>) -> PyResult<Self> {
@@ -73,19 +74,19 @@ impl PyValueType {
 
     /// Exact signed 64-bit, dimensionless integer type.
     #[staticmethod]
-    fn integer() -> Self {
+    fn integer() -> PyResult<Self> {
         Self::scalar(ScalarDomain::Integer, None)
     }
 
     #[staticmethod]
     #[pyo3(signature = (dimension=None))]
-    fn real(dimension: Option<&PyDimension>) -> Self {
+    fn real(dimension: Option<&PyDimension>) -> PyResult<Self> {
         Self::scalar(ScalarDomain::Real, dimension)
     }
 
     #[staticmethod]
     #[pyo3(signature = (dimension=None))]
-    fn complex(dimension: Option<&PyDimension>) -> Self {
+    fn complex(dimension: Option<&PyDimension>) -> PyResult<Self> {
         Self::scalar(ScalarDomain::Complex, dimension)
     }
 

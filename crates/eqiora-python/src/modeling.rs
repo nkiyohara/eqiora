@@ -229,7 +229,10 @@ impl PyField {
         value_type: Option<&PyValueType>,
     ) -> Self {
         let value_type = value_type.map_or_else(
-            || eqiora::ValueType::scalar(eqiora::ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+            || {
+                eqiora::ValueType::scalar(eqiora::ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                    .expect("dimensionless real is a valid scalar type")
+            },
             |value| value.value.clone(),
         );
         let value = match domain {
@@ -366,6 +369,7 @@ impl PyParameter {
                     },
                     DimExponents::DIMENSIONLESS,
                 )
+                .expect("dimensionless real or complex is a valid scalar type")
             },
             |value| value.value.clone(),
         );
