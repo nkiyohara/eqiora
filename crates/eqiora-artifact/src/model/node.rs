@@ -4,7 +4,8 @@ use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
 use eqiora_schema::kernel::{
     ActivationDef, BoundaryPhysicalConnector, ConnectionDef, DomainDef, DomainKind, FieldDef,
-    GeometryDigest, KernelNode, ParameterDef, PortDef, PortPayload, RelationDef, RepresentationDef,
+    FiniteSpaceDef, GeometryDigest, IndexSetDef, KernelNode, ParameterDef, PortDef, PortPayload,
+    RelationDef, RepresentationDef,
 };
 use serde::{Deserialize, Serialize};
 
@@ -17,6 +18,12 @@ use super::{expression::*, primitive::*, vocabulary::*};
 impl WireNode {
     pub(crate) fn encode(node: &KernelNode) -> Result<Self, Diagnostic> {
         let definition = match node {
+            KernelNode::FiniteSpace(value) => WireNodeDefinition::FiniteSpace {
+                labels: value.labels().to_vec(),
+            },
+            KernelNode::IndexSet(value) => WireNodeDefinition::IndexSet {
+                extent: value.extent(),
+            },
             KernelNode::Domain(value) => WireNodeDefinition::Domain {
                 domain: WireDomainKind::encode(value.kind())?,
             },
@@ -77,6 +84,17 @@ impl WireNode {
 
     pub(crate) fn decode(&self) -> Result<KernelNode, Diagnostic> {
         match &self.definition {
+            WireNodeDefinition::FiniteSpace { labels } => FiniteSpaceDef::new(
+                self.id.typed::<kinds::FiniteSpace>()?,
+                labels.iter().cloned(),
+            )
+            .map(Into::into)
+            .map_err(|error| invalid_artifact(error.to_string())),
+            WireNodeDefinition::IndexSet { extent } => {
+                IndexSetDef::new(self.id.typed::<kinds::IndexSet>()?, *extent)
+                    .map(Into::into)
+                    .map_err(|error| invalid_artifact(error.to_string()))
+            }
             WireNodeDefinition::Domain { domain } => {
                 let id = self.id.typed::<kinds::Domain>()?;
                 Ok(domain.decode(id)?.into())
@@ -210,6 +228,11 @@ impl WireNode {
         limits: ModelDecoderLimits,
     ) -> Result<(), Diagnostic> {
         match &self.definition {
+            WireNodeDefinition::FiniteSpace { labels } => require_decoder_count(
+                "finite-space labels",
+                labels.len(),
+                limits.max_value_shape_components,
+            ),
             WireNodeDefinition::Field { value_type, .. }
             | WireNodeDefinition::SignalPort { value_type, .. } => value_type.ensure_limits(limits),
             WireNodeDefinition::Parameter { value } => value.ensure_limits(limits),
@@ -246,6 +269,36 @@ impl WireNode {
 
     pub(crate) fn semantic_references(&self) -> Vec<&WireId> {
         match &self.definition {
+            WireNodeDefinition::Field { value_type, .. }
+            | WireNodeDefinition::SignalPort { value_type, .. } => {
+                value_type.nominal_reference().into_iter().collect()
+            }
+            WireNodeDefinition::Parameter { value } => {
+                value.nominal_reference().into_iter().collect()
+            }
+            WireNodeDefinition::Domain {
+                domain:
+                    WireDomainKind::ScalarPhysical {
+                        across_type,
+                        through_type,
+                    },
+            } => across_type
+                .nominal_reference()
+                .into_iter()
+                .chain(through_type.nominal_reference())
+                .collect(),
+            WireNodeDefinition::Domain {
+                domain:
+                    WireDomainKind::BoundaryPhysical {
+                        trace_type,
+                        flux_type,
+                        ..
+                    },
+            } => trace_type
+                .nominal_reference()
+                .into_iter()
+                .chain(flux_type.nominal_reference())
+                .collect(),
             WireNodeDefinition::ScalarPhysicalPort { domain } => vec![domain],
             WireNodeDefinition::BoundaryPhysicalPort {
                 connector,
@@ -267,6 +320,12 @@ impl WireNode {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub(crate) enum WireNodeDefinition {
+    FiniteSpace {
+        labels: Vec<String>,
+    },
+    IndexSet {
+        extent: u32,
+    },
     Domain {
         domain: WireDomainKind,
     },

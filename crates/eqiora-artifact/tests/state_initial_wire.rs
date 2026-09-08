@@ -20,7 +20,7 @@ fn current_wire_replays_roles_initial_relations_and_before_tick_values() {
     let envelope = ModelEnvelope::from_program(&model).unwrap();
     let bytes = envelope.canonical_json().unwrap();
     let wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(wire["schema"], "eqiora.model-envelope/v14");
+    assert_eq!(wire["schema"], "eqiora.model-envelope/v15");
     let replay = ModelEnvelope::from_json(&bytes, Default::default())
         .unwrap()
         .to_program()
@@ -40,7 +40,19 @@ fn current_wire_replays_roles_initial_relations_and_before_tick_values() {
     );
     let config = ReferenceConfig::new(0.0, 0.1).unwrap();
     let initial = Interpreter::new().initialize(&replay, config).unwrap();
-    assert!((initial.fields().values().next().unwrap() - 2.0).abs() < 1e-8);
+    assert!(
+        (initial
+            .fields()
+            .values()
+            .next()
+            .unwrap()
+            .real_scalar_value()
+            .unwrap()
+            .value()
+            - 2.0)
+            .abs()
+            < 1e-8
+    );
     assert!((initial.derivatives().values().next().unwrap() + 2.0).abs() < 1e-8);
 }
 
@@ -50,7 +62,7 @@ fn semantic_identity_binds_role_and_initial_mathematics_but_not_numerical_seed()
     let identity = StructuralSemanticFingerprint::from_program(&model).unwrap();
     assert_eq!(
         identity.generation().as_str(),
-        "eqiora.structural-semantic-fingerprint/v9"
+        "eqiora.structural-semantic-fingerprint/v10"
     );
     let before = ModelEnvelope::from_program(&model)
         .unwrap()
@@ -200,8 +212,8 @@ fn clocked_state_replay_keeps_pre_first_tick_distinct_from_first_observation() {
         .unwrap();
     let config = ReferenceConfig::new(0.0, 0.1).unwrap();
     let initial = Interpreter::new().initialize(&replay, config).unwrap();
-    let (&field, &value) = initial.fields().iter().next().unwrap();
-    assert_eq!(value, 3.0);
+    let (&field, value) = initial.fields().iter().next().unwrap();
+    assert_eq!(value.real_scalar_value().unwrap().value(), 3.0);
     let observed = Interpreter::new().run(&replay, config).unwrap();
     assert_eq!(observed.last_value(field).unwrap().value(), 4.0);
 }
