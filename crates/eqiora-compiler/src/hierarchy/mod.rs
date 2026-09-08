@@ -5,6 +5,8 @@
 //! only then invokes the ordinary flat lowerer once. No Component, Instance,
 //! or ConnectorType node enters the Semantic Kernel.
 
+mod reductions;
+
 use crate::resolved::AnalyzedResolvedHierarchy;
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;

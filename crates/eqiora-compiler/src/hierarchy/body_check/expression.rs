@@ -1,5 +1,6 @@
 mod aliases;
 mod integer;
+mod reductions;
 mod transitions;
 pub(in crate::hierarchy) use aliases::DependencyActivation;
 pub(super) use aliases::{AliasContract, validate_aliases};
@@ -216,6 +217,14 @@ impl ExpressionChecker<'_, '_, '_> {
         &mut self,
         equation: &eqiora_lang::Equation,
     ) -> Result<ExpressionType<String>, Diagnostic> {
+        for value in [equation.left(), equation.right()] {
+            crate::hierarchy::reductions::preflight(
+                self.scope.file,
+                value,
+                &mut |name| self.scope.index_sets.get(name).copied().flatten(),
+                self.scope.elaborator.limits.max_parameter_terms,
+            )?;
+        }
         let (left, right) = self.check_pair(equation.left(), equation.right())?;
         crate::lower::equality::check(
             left,
@@ -236,6 +245,7 @@ impl ExpressionChecker<'_, '_, '_> {
 
     fn check(&mut self, expression: &Expr) -> Result<ExpressionType<String>, Diagnostic> {
         match expression.kind() {
+            ExprKind::Reduction { .. } => self.reduction(expression),
             ExprKind::Array(elements) => {
                 let mut types = elements
                     .iter()

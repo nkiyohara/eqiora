@@ -14,6 +14,7 @@ impl Scope {
     pub(in crate::hierarchy) fn child(parent: &Self) -> Self {
         Self {
             detach_parameter_expressions: parent.detach_parameter_expressions,
+            reduction_terms_limit: parent.reduction_terms_limit,
             ..Self::default()
         }
     }

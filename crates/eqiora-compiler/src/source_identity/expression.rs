@@ -8,6 +8,39 @@ pub(super) fn encode_expression(
 ) -> Result<(), Diagnostic> {
     budget.account_expression(depth)?;
     match expression.kind() {
+        ExprKind::Reduction {
+            operation,
+            binder,
+            value,
+        } => {
+            encoder.u16(15)?;
+            encoder.u8(match operation {
+                eqiora_lang::ReductionOp::Sum => 1,
+                eqiora_lang::ReductionOp::Product => 2,
+            })?;
+            budget.account_name(binder.member())?;
+            encoder.field(1, |encoder| encode_path(encoder, binder.set(), budget))?;
+            budget.reduction_binders.push(binder.member().to_owned());
+            let result = encoder.field(2, |encoder| {
+                encode_expression(encoder, value, budget, next_depth(depth)?)
+            });
+            budget.reduction_binders.pop();
+            result
+        }
+        ExprKind::Name(name) if budget.reduction_binders.iter().any(|bound| bound == name) => {
+            budget.account_name(name)?;
+            let ordinal = budget
+                .reduction_binders
+                .iter()
+                .rev()
+                .position(|bound| bound == name)
+                .expect("bound name");
+            encoder.u16(14)?;
+            encoder.u32(
+                u32::try_from(ordinal)
+                    .map_err(|_| source_identity_error("binder depth overflows"))?,
+            )
+        }
         ExprKind::Boolean(value) => {
             encoder.u16(13)?;
             encoder.u8(u8::from(*value))
