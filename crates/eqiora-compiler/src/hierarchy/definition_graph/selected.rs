@@ -245,6 +245,7 @@ impl Selected<'_, '_> {
                     instance,
                     values,
                     &mut |name| clocks::component(child.file, child.declaration, name),
+                    &mut |_| None,
                 )?;
                 (1, self.component(&child, child_values, depth + 1)?)
             };

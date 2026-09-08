@@ -153,6 +153,7 @@ impl ModelDraft {
                 DraftDeclaration::Parameter(parameter) => {
                     if let Err(error) = crate::SourceAstFactory::value_literal(
                         parameter.value(),
+                        parameter.frame_name(TextRange::new(0, 1)),
                         TextRange::new(0, 1),
                         |id| self.nominal_name(id),
                     ) {
@@ -185,6 +186,44 @@ impl ModelDraft {
                         domain.name(),
                         parent.name()
                     ),
+                ));
+            }
+        }
+
+        for declaration in &self.declarations {
+            let DraftDeclaration::Parameter(parameter) = declaration else {
+                continue;
+            };
+            let Some(frame) = &parameter.frame else {
+                continue;
+            };
+            if !spatial_domain_symbols.contains(frame.symbol()) {
+                diagnostics.push(native_diagnostic(
+                    &self.name,
+                    parameter.name(),
+                    format!(
+                        "Parameter frame references foreign or omitted Domain `{}`",
+                        frame.name()
+                    ),
+                ));
+            }
+            let mut volume = frame;
+            while let Some(parent) = volume.parent() {
+                volume = parent;
+            }
+            let dimension = volume.bounds().expect("Cartesian frame provider").len();
+            if parameter
+                .value_type()
+                .shape()
+                .extents()
+                .iter()
+                .skip(parameter.value_type().array_rank())
+                .any(|extent| extent.get() as usize != dimension)
+            {
+                diagnostics.push(native_diagnostic(
+                    &self.name,
+                    parameter.name(),
+                    "Parameter spatial axes differ from the frame ambient dimension",
                 ));
             }
         }
@@ -676,52 +715,7 @@ pub struct DraftParameter {
     symbol: DraftSymbol,
     name: String,
     value: ValueLiteral,
-}
-
-impl DraftParameter {
-    /// Declare one complete Parameter value in coherent SI units.
-    #[must_use]
-    pub fn new(name: impl Into<String>, value: ValueLiteral) -> Self {
-        Self {
-            symbol: DraftSymbol::new(),
-            name: name.into(),
-            value,
-        }
-    }
-
-    /// Declaration name.
-    #[must_use]
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Static SI dimension.
-    #[must_use]
-    pub const fn dimension(&self) -> DimExponents {
-        self.value.value_type().dimension()
-    }
-
-    /// Complete declared mathematical type.
-    #[must_use]
-    pub const fn value_type(&self) -> &ValueType {
-        self.value.value_type()
-    }
-
-    /// Complete value in coherent SI units, without scalar projection.
-    #[must_use]
-    pub const fn value(&self) -> &ValueLiteral {
-        &self.value
-    }
-
-    /// Use this Parameter as a typed expression.
-    #[must_use]
-    pub fn expression(&self) -> DraftExpression {
-        DraftExpression::reference(
-            self.symbol.clone(),
-            self.name.clone(),
-            DraftSymbolKind::Parameter,
-        )
-    }
+    frame: Option<DraftSpatialDomain>,
 }
 
 /// Immutable symbolic expression used only while defining a native model.
@@ -963,6 +957,7 @@ impl DraftSymbolKind {
 mod ast_bridge;
 mod dimension;
 mod expression;
+mod parameter;
 mod relation;
 pub use relation::DraftRelation;
 mod nominal;

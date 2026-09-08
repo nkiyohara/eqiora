@@ -236,6 +236,13 @@ impl Scope {
         self.spatial_supports.get(name)
     }
 
+    pub(super) fn frame_supports(&self) -> BTreeMap<String, SpatialSupport<String>> {
+        self.spatial_supports
+            .iter()
+            .map(|(name, support)| (name.clone(), super::parameters::frames::occurrence(support)))
+            .collect()
+    }
+
     pub(super) fn spatial_support_by_identity(
         &self,
         identity: FullElaborationIdentity,
@@ -543,6 +550,21 @@ pub(super) fn rewrite_expression_with_boundary_member(
             .expect("imaginary unit"),
             expression.range(),
         ),
+        ExprKind::Call { callee, .. } if callee.as_str() == "tensor_value" => {
+            LoweringExpression::literal(
+                super::parameters::frames::literal(
+                    file,
+                    expression,
+                    &scope.symbolic_parameters(),
+                    &mut |name| {
+                        scope
+                            .spatial_support(name)
+                            .map(super::parameters::frames::occurrence)
+                    },
+                )?,
+                expression.range(),
+            )
+        }
         ExprKind::Call { callee, arguments } if callee.as_str() == "math.complex" => {
             let [real, imag] = arguments.as_slice() else {
                 return Err(source_error(

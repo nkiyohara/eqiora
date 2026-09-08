@@ -214,17 +214,31 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                         "Domain syntax is newer than definition-body validation",
                     )),
                 },
-                Item::Parameter(declaration) => crate::value_types::lower_value_type::<String>(
-                    self.scope.file,
-                    declaration.value_type(),
-                    None,
-                )
-                .map(|value_type| {
-                    Some((
-                        declaration.name(),
-                        SymbolContract::Parameter(ExpressionType::new(value_type, None)),
-                    ))
-                }),
+                Item::Parameter(declaration) => {
+                    let value_type = self
+                        .compile_time_values
+                        .get(declaration.name())
+                        .map(|value| Ok(value.value_type.clone()))
+                        .unwrap_or_else(|| {
+                            let frames = crate::hierarchy::supports::model_spatial_supports(
+                                self.scope.file,
+                                self.definition.declaration,
+                            )
+                            .map_err(|mut errors| errors.remove(0))?;
+                            crate::hierarchy::parameters::frames::parameter_type(
+                                self.scope.file,
+                                declaration.value_type(),
+                                Some(declaration.value()),
+                                &frames,
+                            )
+                        });
+                    value_type.map(|value_type| {
+                        Some((
+                            declaration.name(),
+                            SymbolContract::Parameter(ExpressionType::new(value_type, None)),
+                        ))
+                    })
+                }
                 Item::Let(declaration) => {
                     Ok(self
                         .compile_time_values

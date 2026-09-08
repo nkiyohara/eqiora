@@ -1,22 +1,23 @@
 //! Complete static values retain their authored expression dependencies.
 
 use super::*;
-use eqiora_schema::kernel::typing::ExpressionType;
+use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};
 
 pub(super) fn evaluate_with_target(
     file: &str,
     expression: &Expr,
     context: ExpressionContext<'_>,
     resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
-    target: Option<&ValueType>,
     resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
+    resolve_frame: &mut dyn FnMut(&str) -> Option<SpatialSupport<String>>,
+    target: Option<&ValueType>,
 ) -> Result<EvaluatedParameter, Diagnostic> {
     evaluate_mode(
         file,
         expression,
         context,
         resolve,
-        resolve_clock,
+        (&mut *resolve_clock, &mut *resolve_frame),
         target,
         true,
     )
@@ -27,7 +28,7 @@ pub(super) fn evaluate_mode(
     expression: &Expr,
     context: ExpressionContext<'_>,
     resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
-    resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
+    (resolve_clock, resolve_frame): StaticContexts<'_>,
     target: Option<&ValueType>,
     evaluate_values: bool,
 ) -> Result<EvaluatedParameter, Diagnostic> {
@@ -59,14 +60,14 @@ pub(super) fn evaluate_mode(
                         resolve,
                         target.clone(),
                         "declaration initializer",
-                        resolve_clock,
+                        (&mut *resolve_clock, &mut *resolve_frame),
                     ),
                     None => super::expression_eval::evaluate_mode(
                         file,
                         element,
                         context,
                         resolve,
-                        resolve_clock,
+                        (&mut *resolve_clock, &mut *resolve_frame),
                         None,
                         evaluate_values,
                     ),
@@ -116,7 +117,7 @@ pub(super) fn evaluate_mode(
                 value,
                 context,
                 resolve,
-                resolve_clock,
+                (&mut *resolve_clock, &mut *resolve_frame),
                 None,
                 evaluate_values,
             )?;
@@ -126,6 +127,7 @@ pub(super) fn evaluate_mode(
                 context,
                 resolve,
                 resolve_clock,
+                resolve_frame,
                 Some(ScalarDomain::Integer),
             )?;
             let index = checked_index(file, index.range(), &index_value)?;
@@ -202,14 +204,14 @@ pub(super) fn evaluate_mode(
                     resolve,
                     target.clone(),
                     "declaration initializer",
-                    resolve_clock,
+                    (&mut *resolve_clock, &mut *resolve_frame),
                 ),
                 None => super::expression_eval::evaluate_mode(
                     file,
                     value,
                     context,
                     resolve,
-                    resolve_clock,
+                    (&mut *resolve_clock, &mut *resolve_frame),
                     None,
                     evaluate_values,
                 ),

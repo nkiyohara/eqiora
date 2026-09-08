@@ -269,6 +269,15 @@ impl ExpressionChecker<'_, '_, '_> {
                 ),
                 None,
             )),
+            ExprKind::Call { callee, .. } if callee.as_str() == "tensor_value" => {
+                let value = crate::hierarchy::parameters::frames::literal(
+                    self.scope.file,
+                    expression,
+                    &self.scope.static_values,
+                    &mut |name| self.scope.spatial_support(name),
+                )?;
+                Ok(ExpressionType::new(value.value_type().clone(), None))
+            }
             ExprKind::Call { callee, arguments } if callee.as_str() == "math.complex" => {
                 let [real, imag] = arguments.as_slice() else {
                     return Err(source_error(

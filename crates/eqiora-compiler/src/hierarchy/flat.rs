@@ -100,7 +100,6 @@ pub(super) enum FlatItemBlueprint {
     },
     Parameter {
         name: String,
-        value_type: eqiora_lang::ValueTypeSyntax,
         value: eqiora_core::ValueLiteral,
         range: TextRange,
         identity: EntityIdentity,
@@ -396,14 +395,9 @@ impl ExpandedBlueprint {
                     range: *range,
                 },
                 FlatItemBlueprint::Parameter {
-                    name,
-                    value_type,
-                    value,
-                    range,
-                    ..
+                    name, value, range, ..
                 } => LoweringItem::Parameter {
                     name: name.clone(),
-                    value_type: value_type.clone(),
                     value: value.clone(),
                     range: *range,
                 },

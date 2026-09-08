@@ -1,0 +1,356 @@
+//! Explicit uniform spatial component construction on an existing Cartesian frame.
+use super::*;
+use eqiora_core::{ValueFrame, ValueShape};
+use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};
+
+pub(super) fn frame_name(expression: &Expr) -> Option<&str> {
+    let ExprKind::Call { callee, arguments } = expression.kind() else {
+        return None;
+    };
+    if callee.as_str() != "tensor_value" {
+        return None;
+    }
+    let [frame, _] = arguments.as_slice() else {
+        return None;
+    };
+    match frame.kind() {
+        ExprKind::Name(name) => Some(name),
+        ExprKind::Path(path) => Some(path.as_str()),
+        _ => None,
+    }
+}
+
+pub(super) fn evaluate(
+    file: &str,
+    expression: &Expr,
+    context: ExpressionContext<'_>,
+    resolve: &mut impl FnMut(&str, TextRange) -> Result<SymbolicParameterValue, Diagnostic>,
+    (resolve_clock, resolve_frame): StaticContexts<'_>,
+    target: Option<&ValueType>,
+    evaluate_values: bool,
+) -> Result<EvaluatedParameter, Diagnostic> {
+    let error = |message: &str| {
+        source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            expression.range(),
+            message,
+        )
+    };
+    let frame = frame_name(expression).ok_or_else(|| {
+        error("tensor_value requires a direct frame name and explicit component array")
+    })?;
+    let support = resolve_frame(frame).ok_or_else(|| {
+        error("tensor_value frame is not an existing Cartesian volume or boundary")
+    })?;
+    let dimensions = match support {
+        SpatialSupport::Volume { dimensions, .. } | SpatialSupport::Boundary { dimensions, .. } => {
+            dimensions
+        }
+        SpatialSupport::Interface { .. } => {
+            return Err(error(
+                "tensor_value requires a declared volume or boundary frame",
+            ));
+        }
+    };
+    let ExprKind::Call { arguments, .. } = expression.kind() else {
+        unreachable!()
+    };
+    let ExprKind::Array(elements) = arguments[1].kind() else {
+        return Err(error(
+            "tensor_value components must be an explicit rank-one or rank-two array",
+        ));
+    };
+    if elements.len() != dimensions || elements.is_empty() {
+        return Err(error(
+            "tensor_value axis extent must equal the frame ambient dimension",
+        ));
+    }
+    let matrix = matches!(elements[0].kind(), ExprKind::Array(_));
+    let mut leaves = Vec::new();
+    for element in elements {
+        match (matrix, element.kind()) {
+            (true, ExprKind::Array(row)) if row.len() == dimensions => {
+                if row
+                    .iter()
+                    .any(|value| matches!(value.kind(), ExprKind::Array(_)))
+                {
+                    return Err(error("tensor_value admits spatial rank one or two only"));
+                }
+                leaves.extend(row);
+            }
+            (false, ExprKind::Array(_)) | (true, _) => {
+                return Err(error(
+                    "tensor_value component arrays must be rectangular with matching ambient extents",
+                ));
+            }
+            (false, _) => leaves.push(element),
+        }
+    }
+    let scalar_target =
+        target.map(|value| ValueType::scalar(value.scalar_domain(), value.dimension()));
+    let mut operands = Vec::with_capacity(leaves.len());
+    for leaf in leaves {
+        if has_named_component_reference(leaf) {
+            return Err(error(
+                "tensor_value components must be closed expressions without named value references; bind an already typed tensor value for Parameter arithmetic",
+            ));
+        }
+        let operand = match &scalar_target {
+            Some(target) if evaluate_values => expression_eval::evaluate_initializer(
+                file,
+                leaf,
+                context,
+                resolve,
+                target.clone(),
+                "tensor component initializer",
+                (&mut *resolve_clock, &mut *resolve_frame),
+            )?,
+            _ => expression_eval::evaluate_mode(
+                file,
+                leaf,
+                context,
+                resolve,
+                (&mut *resolve_clock, &mut *resolve_frame),
+                None,
+                evaluate_values,
+            )?,
+        };
+        if !operand.value_type.value_type().shape().is_scalar()
+            || !matches!(
+                operand.value_type.value_type().scalar_domain(),
+                ScalarDomain::Real | ScalarDomain::Complex
+            )
+        {
+            return Err(error(
+                "tensor_value components require real or complex scalars",
+            ));
+        }
+        operands.push(operand);
+    }
+    let types = operands
+        .iter()
+        .map(|value| ExpressionType::<()>::new(value.value_type.value_type().clone(), None))
+        .collect::<Vec<_>>();
+    let mut common = types[0].clone();
+    for value in &types[1..] {
+        common = common
+            .equation(value.clone())
+            .map_err(|violation| error(&violation.to_string()))?;
+    }
+    let extent = u32::try_from(dimensions)
+        .map_err(|_| error("frame dimension is outside the portable shape range"))?;
+    let shape = ValueShape::new(if matrix {
+        vec![extent, extent]
+    } else {
+        vec![extent]
+    })
+    .map_err(|violation| error(&violation.to_string()))?;
+    let value_type = ValueType::shaped(
+        common.value_type.scalar_domain(),
+        common.dimension(),
+        shape,
+        ValueFrame::SpatialCartesian,
+    )
+    .map_err(|violation| error(&violation.to_string()))?;
+    if let Some(target) = target {
+        ExpressionType::<()>::new(value_type.clone(), None)
+            .equation(ExpressionType::new(target.clone(), None))
+            .map_err(|violation| error(&violation.to_string()))?;
+    }
+    let value = operands
+        .iter()
+        .map(|operand| operand.value.as_ref().and_then(|value| value.component(0)))
+        .collect::<Option<Vec<_>>>()
+        .map(|components| {
+            ValueLiteral::new(value_type.clone(), components)
+                .map_err(|violation| error(&violation.to_string()))
+        })
+        .transpose()?;
+    Ok(EvaluatedParameter {
+        expression: value
+            .as_ref()
+            .map(|value| LoweringExpression::literal(value.clone(), expression.range())),
+        value,
+        value_type: if operands
+            .iter()
+            .all(|value| matches!(value.value_type, EvaluatedType::Known(_)))
+        {
+            EvaluatedType::Known(value_type)
+        } else {
+            EvaluatedType::Deferred(value_type)
+        },
+        bare_literal: false,
+        lineage: Some(ParameterLineage::Constant),
+    })
+}
+
+fn has_named_component_reference(expression: &Expr) -> bool {
+    let mut pending = vec![expression];
+    while let Some(value) = pending.pop() {
+        match value.kind() {
+            ExprKind::Name(_) | ExprKind::Member { .. } => return true,
+            ExprKind::Path(path)
+                if crate::math::constant(path).is_none() && path.as_str() != "math.i" =>
+            {
+                return true;
+            }
+            ExprKind::Unary { value, .. } => pending.push(value),
+            ExprKind::Binary { left, right, .. } => pending.extend([left.as_ref(), right.as_ref()]),
+            ExprKind::Call { arguments, .. } => pending.extend(arguments),
+            ExprKind::Array(elements) => pending.extend(elements),
+            ExprKind::Index { value, index } => pending.extend([value.as_ref(), index.as_ref()]),
+            _ => {}
+        }
+    }
+    false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn expression(components: &str) -> Expr {
+        let source = format!("model M() {{ let components = {components}; }}");
+        let document = eqiora_lang::parse("tensor.eqi", &source)
+            .into_document()
+            .unwrap();
+        let eqiora_lang::Item::Let(value) = &document.models()[0].items()[0] else {
+            panic!("components");
+        };
+        let range = TextRange::new(0, 0);
+        eqiora_lang::SourceAstFactory::expression(
+            ExprKind::Call {
+                callee: eqiora_lang::NamePath::from_segments(["tensor_value"], range).unwrap(),
+                arguments: vec![
+                    eqiora_lang::SourceAstFactory::expression(ExprKind::Name("grid".into()), range)
+                        .unwrap(),
+                    value.value().clone(),
+                ],
+            },
+            TextRange::new(0, u32::try_from(source.len()).unwrap()),
+        )
+        .unwrap()
+    }
+    fn construct(
+        components: &str,
+        target: Option<&ValueType>,
+        boundary: bool,
+        evaluate_values: bool,
+    ) -> Result<EvaluatedParameter, Diagnostic> {
+        evaluate(
+            "tensor.eqi",
+            &expression(components),
+            ExpressionContext::Default,
+            &mut |_, _| {
+                Ok(SymbolicParameterValue {
+                    value: None,
+                    value_type: ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+                    expression: None,
+                    lineage: None,
+                })
+            },
+            (&mut |_| None, &mut |name| {
+                (name == "grid").then(|| {
+                    if boundary {
+                        SpatialSupport::Boundary {
+                            domain: "wall".into(),
+                            parent: "grid".into(),
+                            dimensions: 2,
+                        }
+                    } else {
+                        SpatialSupport::Volume {
+                            domain: "grid".into(),
+                            dimensions: 2,
+                        }
+                    }
+                })
+            }),
+            target,
+            evaluate_values,
+        )
+    }
+    #[test]
+    fn explicit_components_preserve_order_frame_dimension_and_complex_parts() {
+        let dim = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
+        let target = ValueType::shaped(
+            ScalarDomain::Real,
+            dim,
+            ValueShape::new([2, 2]).unwrap(),
+            ValueFrame::SpatialCartesian,
+        )
+        .unwrap();
+        let evaluated = construct("[[1,2],[3,4]]", Some(&target), true, true).unwrap();
+        let literal = evaluated.value.unwrap();
+        assert_eq!(literal.value_type(), &target);
+        assert_eq!(
+            literal.components().unwrap().collect::<Vec<_>>(),
+            vec![(1., 0.), (2., 0.), (3., 0.), (4., 0.)]
+        );
+        let complex = construct("[math.complex(1,2),3]", None, false, true)
+            .unwrap()
+            .value
+            .unwrap();
+        assert_eq!(complex.component(0), Some((1., 2.)));
+        assert_eq!(complex.component(1), Some((3., 0.)));
+        assert_eq!(complex.value_type().array_rank(), 0);
+        assert_eq!(complex.value_type().frame(), ValueFrame::SpatialCartesian);
+        assert!(construct("[[1+2,2],[3,4]]", Some(&target), false, true).is_err());
+    }
+    #[test]
+    fn constant_lineage_does_not_authorize_named_component_folding() {
+        for components in ["[p,0]", "[alias,0]", "[owner.p,0]", "[p[0],0]"] {
+            let error = evaluate(
+                "tensor.eqi",
+                &expression(components),
+                ExpressionContext::Default,
+                &mut |_, _| {
+                    let value = ValueLiteral::from_real(
+                        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+                        2.0,
+                    )
+                    .unwrap();
+                    Ok(SymbolicParameterValue {
+                        value: Some(value.clone()),
+                        value_type: value.value_type().clone(),
+                        expression: Some(LoweringExpression::literal(value, TextRange::new(0, 0))),
+                        lineage: Some(ParameterLineage::Constant),
+                    })
+                },
+                (&mut |_| None, &mut |_| {
+                    Some(SpatialSupport::Volume {
+                        domain: "grid".into(),
+                        dimensions: 2,
+                    })
+                }),
+                None,
+                true,
+            )
+            .unwrap_err();
+            assert!(
+                error.message().contains("without named value references"),
+                "{components}: {error:?}"
+            );
+        }
+        assert!(construct("[math.pi,1+2]", None, false, true).is_ok());
+    }
+
+    #[test]
+    fn rejects_wrong_rank_ragged_shape_and_live_components_without_dummy_values() {
+        for components in [
+            "[1]",
+            "[[1,2],[3]]",
+            "[[[1,2],[3,4]],[[1,2],[3,4]]]",
+            "[true,false]",
+            "[live,0]",
+        ] {
+            assert!(
+                construct(components, None, false, true).is_err(),
+                "{components}"
+            );
+        }
+        let skipped = construct("[1/0,2]", None, false, false).unwrap();
+        assert!(skipped.value.is_none());
+        assert!(skipped.expression.is_none());
+        assert!(construct("[1/0,2]", None, false, true).is_err());
+    }
+}

@@ -1,3 +1,4 @@
+mod parameters;
 use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::ValueFrame;
@@ -619,12 +620,16 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
     fn allocate_model_scope(&mut self, scope: &mut Scope) -> Result<ScopeIdentities, Diagnostic> {
         let model = self.model.clone();
         let mut identities = ScopeIdentities::default();
-        let parameters =
-            super::parameters::resolve_model_parameters(model.file, model.declaration, |name| {
+        let parameters = super::parameters::resolve_model_parameters(
+            model.file,
+            model.declaration,
+            |name| {
                 super::clocks::occurrence(scope, name)
                     .or_else(|| super::clocks::model(model.file, model.declaration, name))
-            })
-            .map_err(|mut errors| errors.remove(0))?;
+            },
+            scope.frame_supports(),
+        )
+        .map_err(|mut errors| errors.remove(0))?;
         let mut owned_items = model.owned_items().collect::<Vec<_>>();
         owned_items.sort_by_key(|item| !matches!(item, Item::Clock(_)));
         for item in owned_items {
@@ -856,26 +861,6 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         display_prefix: String,
         parent_scope: &Scope,
     ) -> Result<InstanceInterface, Vec<Diagnostic>> {
-        let parameters = ParameterResolver::new(
-            component.file,
-            instance_file,
-            &component,
-            instance,
-            |name| parent_scope.parameter(name).cloned(),
-            |name| super::clocks::occurrence(parent_scope, name),
-        )
-        .and_then(|resolver| {
-            resolver.resolve_all(|name| {
-                super::clocks::component_occurrence(
-                    component.file,
-                    component.declaration,
-                    instance,
-                    parent_scope,
-                    name,
-                )
-            })
-        })
-        .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
         let support_interface = component_support_interface(component.file, component.declaration)
             .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
         let boundary_sides = &self.boundary_sides;
@@ -918,6 +903,13 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             membership_budget,
         )
         .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
+        let parameters = parameters::resolve(
+            &component,
+            instance,
+            instance_file,
+            &instance_path,
+            parent_scope,
+        )?;
         let mut bindings = parent_scope
             .forwarded_parameter_resolution_bindings()
             .to_vec();

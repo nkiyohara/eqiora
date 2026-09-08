@@ -9,6 +9,7 @@ fn resolve(
     model: &ModelDecl,
     required_policy: RequiredParameterPolicy,
     resolve_clock: &mut dyn FnMut(&str) -> Option<Option<RationalTime>>,
+    frames: BTreeMap<String, SpatialSupport<String>>,
 ) -> Result<SymbolicParameterMap, Vec<Diagnostic>> {
     let mut declarations = model
         .signature()
@@ -41,6 +42,7 @@ fn resolve(
         overrides: BTreeMap::new(),
         resolved: BTreeMap::new(),
         required_policy,
+        frames,
     }
     .resolve_all(resolve_clock)
 }
@@ -55,6 +57,7 @@ pub(in crate::hierarchy) fn resolve_model_parameters_symbolically(
         model,
         RequiredParameterPolicy::PublicIsFree,
         &mut resolve_clock,
+        super::super::supports::model_spatial_supports(file, model)?,
     )
 }
 
@@ -62,12 +65,16 @@ pub(in crate::hierarchy) fn resolve_model_parameters(
     file: &str,
     model: &ModelDecl,
     mut resolve_clock: impl FnMut(&str) -> Option<Option<RationalTime>>,
+    bound_frames: BTreeMap<String, SpatialSupport<String>>,
 ) -> Result<BTreeMap<String, ResolvedParameter>, Vec<Diagnostic>> {
+    let mut frames = super::super::supports::model_spatial_supports(file, model)?;
+    frames.extend(bound_frames);
     resolve(
         file,
         model,
         RequiredParameterPolicy::RejectUnbound,
         &mut resolve_clock,
+        frames,
     )
     .and_then(concrete_parameters)
 }
@@ -95,9 +102,12 @@ mod tests {
             crate::dimensions::time_dimension()
         );
         assert!(symbolic["four"].value.is_none());
-        let concrete = resolve_model_parameters("period.eqi", &model, |name| {
-            (name == "tick").then_some(Some(RationalTime::new(1, 8).unwrap()))
-        })
+        let concrete = resolve_model_parameters(
+            "period.eqi",
+            &model,
+            |name| (name == "tick").then_some(Some(RationalTime::new(1, 8).unwrap())),
+            BTreeMap::new(),
+        )
         .unwrap();
         assert_eq!(
             concrete["dt"].value.real_scalar_value().unwrap().value(),
@@ -162,6 +172,9 @@ mod tests {
             );
         }
         let model = model("model M(clock tick: periodic, parameter dt: s = period(tick)) {}");
-        assert!(resolve_model_parameters("period.eqi", &model, |_| Some(None)).is_err());
+        assert!(
+            resolve_model_parameters("period.eqi", &model, |_| Some(None), BTreeMap::new())
+                .is_err()
+        );
     }
 }

@@ -287,6 +287,34 @@ arrays are rejected. Indexing preserves element type and does not choose a compo
 perform a coordinate transformation. Expansion and element-count limits are checked before
 allocation or elaboration. There is no implicit broadcasting, reshaping, or basis conversion.
 
+A uniform spatial coefficient uses an explicit constructor:
+
+```eqiora
+model Coefficients() {
+  domain body = box(0, 1, 0, 1);
+  parameter K: tensor<1, 2, 2> =
+    tensor_value(frame = body, components = [[2, 3], [5, 7]]);
+  variable response: tensor<1, 2, 2> on body;
+  relation assignment on body { response = K; }
+}
+```
+
+Here `frame = body` references the model-global Cartesian frame through an exact
+support. It supplies ambient dimension and frame context; it does not give the
+uniform Parameter spatial support or create another Field. Cartesian boundaries
+supply their ambient frame as well. Components retain their nested axis order,
+with the final axis varying fastest. Channel arrays remain outer arrays of
+explicitly constructed spatial values. Constructor components must be closed scalar
+expressions; named model values, including Parameter aliases, reject. Arithmetic using an
+already framed Parameter retains its ordinary expression graph.
+
+A spatial Parameter requirement or contextual zero may infer its frame only when
+one exact support context is available. Missing or ambiguous context requires an
+explicit frame reference; matching extents alone cannot select a support.
+Wrong ambient extents, foreign support references, implicit array-to-tensor
+conversion, and incompatible component dimensions reject. This is value authoring
+and replay, not tensor contraction, local-frame conversion, or complex execution.
+
 Dimensions use exact reduced rational exponents of the SI base dimensions. Dimension aliases
 are structural: they neither scale a value nor introduce nominal quantity identity. Rational
 normalization has a positive denominator, coprime numerator and denominator, and one zero.

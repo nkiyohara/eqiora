@@ -153,6 +153,7 @@ mod tests {
                 })
             },
             &mut |_| None,
+            &mut |_| None,
         )
     }
     #[test]

@@ -98,6 +98,13 @@ pub(super) fn format_expression(
                 if index != 0 {
                     output.push_str(", ");
                 }
+                if callee.as_str() == "tensor_value" {
+                    output.push_str(if index == 0 {
+                        "frame = "
+                    } else {
+                        "components = "
+                    });
+                }
                 format_expression(argument, 0, output);
             }
             output.push(')');

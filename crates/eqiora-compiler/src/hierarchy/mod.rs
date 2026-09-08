@@ -220,6 +220,7 @@ fn compile_external_component_from_definition<'a>(
         .iter()
         .map(|parameter| (parameter.parameter(), parameter))
         .collect::<std::collections::BTreeMap<_, _>>();
+    let frame_context = supports::component_spatial_supports(file, component.declaration)?;
     let mut root_items = Vec::new();
     for item in component.owned_items() {
         let ComponentItem::Parameter(declaration) = item else {
@@ -231,8 +232,19 @@ fn compile_external_component_from_definition<'a>(
         let declaration = SourceAstFactory::parameter(
             declaration.name(),
             declaration.value_type().clone(),
-            SourceAstFactory::value_literal(parameter.value(), range, |_| None)
-                .map_err(|error| vec![hierarchy_error(error.message())])?,
+            SourceAstFactory::value_literal(
+                parameter.value(),
+                projection_frame(
+                    file,
+                    parameter.value(),
+                    declaration.default(),
+                    &frame_context,
+                    range,
+                )?,
+                range,
+                |_| None,
+            )
+            .map_err(|error| vec![hierarchy_error(error.message())])?,
             range,
         )
         .map_err(|error| vec![hierarchy_error(error.message())])?;
@@ -331,6 +343,57 @@ fn checked_external_footprint(
         ))]);
     }
     Ok(total)
+}
+
+fn projection_frame(
+    file: &str,
+    value: &eqiora_core::ValueLiteral,
+    initializer: Option<&eqiora_lang::Expr>,
+    frames: &std::collections::BTreeMap<
+        String,
+        eqiora_schema::kernel::typing::SpatialSupport<String>,
+    >,
+    range: TextRange,
+) -> Result<Option<NamePath>, Vec<Diagnostic>> {
+    if value.value_type().frame() == eqiora_core::ValueFrame::Invariant {
+        return Ok(None);
+    }
+    let mut pending = initializer.into_iter().collect::<Vec<_>>();
+    while let Some(expression) = pending.pop() {
+        match expression.kind() {
+            ExprKind::Array(values) => pending.extend(values.iter().rev()),
+            ExprKind::Call { callee, arguments } if callee.as_str() == "tensor_value" => {
+                let name = arguments.first().and_then(|frame| match frame.kind() {
+                    ExprKind::Name(name) => Some(name.as_str()),
+                    ExprKind::Path(name) => Some(name.as_str()),
+                    _ => None,
+                });
+                if let Some(name) = name.filter(|name| frames.contains_key(*name)) {
+                    return NamePath::from_segments(name.split('.'), range)
+                        .map(Some)
+                        .map_err(|error| vec![hierarchy_error(error.message())]);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut unique = Vec::new();
+    for (name, support) in frames {
+        if !unique.iter().any(|(_, existing)| *existing == support) {
+            unique.push((name, support));
+        }
+    }
+    if let [(name, _)] = unique.as_slice() {
+        return NamePath::from_segments(name.split('.'), range)
+            .map(Some)
+            .map_err(|error| vec![hierarchy_error(error.message())]);
+    }
+    Err(vec![source_error(
+        codes::LANGUAGE_TYPE_ERROR,
+        file,
+        range,
+        "external spatial Parameter requires an explicit or unique exact frame context",
+    )])
 }
 
 fn validate_external_parameters(

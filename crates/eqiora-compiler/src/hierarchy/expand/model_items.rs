@@ -100,7 +100,6 @@ impl RootExpansion<'_, '_> {
                     let identity = identities.entities[declaration.name()].clone();
                     self.items.push(FlatItemBlueprint::Parameter {
                         name: internal_name(identity.full),
-                        value_type: declaration.value_type().clone(),
                         value: scope
                             .parameter(declaration.name())
                             .expect("allocated model parameter")

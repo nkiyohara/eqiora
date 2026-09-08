@@ -15,10 +15,10 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         root_scope.set_pure_operators(self.elaborator.visible_pure_operators(&model.namespace));
         self.allocate_external_clocks(&mut root_scope, clocks)
             .map_err(one_diagnostic)?;
+        self.allocate_external_supports(&mut root_scope, supports)
+            .map_err(one_diagnostic)?;
         let identities = self
             .allocate_model_scope(&mut root_scope)
-            .map_err(one_diagnostic)?;
-        self.allocate_external_supports(&mut root_scope, supports)
             .map_err(one_diagnostic)?;
         let instance = model
             .items()

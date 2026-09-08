@@ -477,6 +477,7 @@ __all__ = [
     "to_integer",
     "symmetric_part",
     "test",
+    "tensor_value",
     "trace",
 ]
 
@@ -549,5 +550,16 @@ def logical_or(left: object, right: object) -> Expression:
     """Author a typed logical or predicate.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::logical_or``.
+    """
+    ...
+
+
+def tensor_value(*, frame: Support, components: Sequence[object] | Expression) -> Expression:
+    """Construct a uniform spatial value using this Component's explicit frame.
+
+    The compiler checks shape, scalar domain, units, and frame eligibility.
+    Channel axes remain explicit array constructions.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::tensor_value``.
     """
     ...

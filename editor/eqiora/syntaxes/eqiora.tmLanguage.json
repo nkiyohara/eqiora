@@ -48,13 +48,13 @@
     "keywords": {
       "patterns": [{
         "name": "keyword.control.eqiora",
-        "match": "\\b(?:across|ambient_dimension|as|at|axis|boundaries|boundary|citation|clock|complete_exterior|component|composition|connect|connector|conserving|contract|delta|derivatives|dimension|discrete|domain|field|for|form|implements|import|in|initial|input|instance|license|let|lower|material|model|on|operator|output|over|parameter|parent|period|periodic|phase|port|primal|private|property|public|pure|rational|relation|release|scalar|shape|side|signal|source_unit|spatial|state|support|through|unconditional|upper|validity|value|value_only|variable|volume)\\b"
+        "match": "\\b(?:across|ambient_dimension|as|at|axis|boundaries|boundary|citation|clock|complete_exterior|component|components|composition|connect|connector|conserving|contract|delta|derivatives|dimension|discrete|domain|field|for|form|frame|implements|import|in|initial|input|instance|license|let|lower|material|model|on|operator|output|over|parameter|parent|period|periodic|phase|port|primal|private|property|public|pure|rational|relation|release|scalar|shape|side|signal|source_unit|spatial|state|support|through|unconditional|upper|validity|value|value_only|variable|volume)\\b"
       }]
     },
     "functions": {
       "patterns": [{
         "name": "support.function.eqiora",
-        "match": "\\b(?:boundary|boundaries|box|component|coordinate|derivative|div|dot|field_physical|flux|grad|integral|isotropic_lift|normal|orthonormal|range|scalar_physical|symmetric_part|trace|volume)\\b(?=\\s*\\()"
+        "match": "\\b(?:boundary|boundaries|box|component|coordinate|derivative|div|dot|field_physical|flux|grad|integral|isotropic_lift|normal|orthonormal|range|scalar_physical|symmetric_part|tensor_value|trace|volume)\\b(?=\\s*\\()"
       }]
     },
     "constants": {

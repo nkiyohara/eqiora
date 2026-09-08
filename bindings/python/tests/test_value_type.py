@@ -255,9 +255,12 @@ model typed() {
         replay.preview_value_edit("coefficient", [1 + 7j, 3 - 4j])
 
 
-def test_nonzero_spatial_parameter_projection_rejects_channel_reinterpretation():
+def test_nonzero_spatial_parameter_requires_an_explicit_registered_frame():
     vector = eqiora.ValueType.vector(eqiora.ValueType.real(), 2)
     coefficient = eqiora.Parameter("coefficient", value_type=vector, value=[1, 2])
     assert coefficient.value == (1.0, 2.0)
-    with pytest.raises(eqiora.ValidationError, match="frame-bearing"):
-        eqiora.Model.define("unsupported_spatial_literal", coefficient)
+    body = eqiora.Domain.box("body", (0.0, 1.0), (0.0, 1.0))
+    observed = eqiora.Field("observed", role=eqiora.FieldRole.Variable, domain=body)
+    law = eqiora.Relation("observe", domain=body, equations=[(observed, 0)])
+    with pytest.raises(eqiora.ValidationError, match="frame"):
+        eqiora.Model.define("missing_frame", body, coefficient, observed, law)

@@ -275,7 +275,6 @@ pub(crate) enum LoweringItem {
     },
     Parameter {
         name: String,
-        value_type: eqiora_lang::ValueTypeSyntax,
         value: eqiora_core::ValueLiteral,
         range: TextRange,
     },
@@ -457,21 +456,15 @@ pub(crate) fn lower_typed_model(
                 Err(diagnostic) => diagnostics.push(diagnostic),
             },
             LoweringItem::Parameter {
+                name, value, range, ..
+            } => insert_binding(
+                file,
+                &mut bindings,
                 name,
-                value_type,
-                range,
-                ..
-            } => match crate::value_types::lower_value_type::<RawId>(file, value_type, None) {
-                Ok(value_type) => insert_binding(
-                    file,
-                    &mut bindings,
-                    name,
-                    Binding::Parameter(identities.parameter(name), value_type),
-                    *range,
-                    &mut diagnostics,
-                ),
-                Err(diagnostic) => diagnostics.push(diagnostic),
-            },
+                Binding::Parameter(identities.parameter(name), value.value_type().clone()),
+                *range,
+                &mut diagnostics,
+            ),
             LoweringItem::Port {
                 name,
                 contract,

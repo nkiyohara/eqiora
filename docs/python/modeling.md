@@ -73,6 +73,34 @@ assert coefficients.value == (1 + 2j, 3 - 4j)
 selected = coefficients[1]
 ```
 
+Nonzero spatial coefficients carry an explicit frame context from an existing
+Domain. Their values remain uniform Parameters:
+
+```python
+body = eqiora.Domain.box("body", (0, 1), (0, 1))
+kind = eqiora.ValueType.tensor(eqiora.ValueType.real(), 2, 2)
+coefficient = eqiora.Parameter(
+    "coefficient", value_type=kind, value=((2, 3), (5, 7)), frame=body,
+)
+response = eqiora.Field(
+    "response", role=eqiora.FieldRole.Variable, domain=body, value_type=kind,
+)
+law = eqiora.Relation("law", equations=((response, coefficient),), domain=body)
+model = eqiora.Model.define("Coefficients", body, coefficient, response, law)
+assert model.parameter("coefficient").value == ((2, 3), (5, 7))
+```
+
+Include the frame Domain in `Model.define`; foreign or omitted declarations reject.
+The Domain supplies the model-global Cartesian frame and ambient dimension, not
+Parameter support. Values retain real/imaginary components and axis order through
+inspection, edits, and replay. A channel array of tensors remains distinct from one
+spatial tensor. Python Source uses the same constructor as
+`q.tensor_value(frame=body, components=((2, 3), (5, 7)))`, where `body` is an exact
+`Component.volume` or `Component.boundary` handle from that Component. The resulting
+expression can supply a Parameter default through `Component.set_default`. Constructor
+components must be closed scalar expressions; referencing a named model value, including
+a Parameter alias, inside the constructor rejects.
+
 Indices are static exact nonnegative integers; mutable Parameters cannot supply indices.
 Typed value edits preserve the complete declared type and all components through replay.
 This authoring support does not establish a complex numerical solver.

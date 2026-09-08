@@ -171,13 +171,18 @@ fn validate_definition_bodies_and_parameters(
                 continue;
             };
             if let Err(errors) = validate_instance_parameters_symbolically(
-                child.file,
-                definition.file,
+                (child.file, definition.file),
                 child.declaration,
                 instance,
                 parent,
                 child_interface,
                 |name| super::clocks::component(definition.file, definition.declaration, name),
+                |name| {
+                    support_interfaces
+                        .get(key)
+                        .and_then(|supports| supports.get(name))
+                        .map(|contract| contract.support().clone())
+                },
             ) {
                 occurrences_valid = false;
                 diagnostics.extend(errors);
@@ -311,13 +316,18 @@ fn validate_definition_bodies_and_parameters(
                 continue;
             };
             if let Err(errors) = validate_instance_parameters_symbolically(
-                child.file,
-                definition.file,
+                (child.file, definition.file),
                 child.declaration,
                 instance,
                 &parameters,
                 child_interface,
                 |name| super::clocks::model(definition.file, definition.declaration, name),
+                |name| {
+                    model_supports
+                        .as_ref()
+                        .and_then(|supports| supports.get(name))
+                        .cloned()
+                },
             ) {
                 occurrences_valid = false;
                 diagnostics.extend(errors);

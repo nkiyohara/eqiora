@@ -399,6 +399,22 @@ def _expression(value: object) -> Expression:
     return Expression(_CREATE, text, None, 1, 1, 25 if text.startswith("-") else 100)
 
 
+def tensor_value(*, frame: Support, components: Sequence[object] | Expression) -> Expression:
+    """Construct a uniform spatial value in an explicitly referenced Cartesian frame.
+
+    Component axes are explicit; outer channel axes remain array constructions.
+    The compiler checks frame eligibility, shape, units, and scalar domains.
+    """
+    if not isinstance(frame, Support):
+        raise TypeError("tensor_value frame must be an eqiora.lang.Support")
+    value = components if isinstance(components, Expression) else array(components)
+    if value._owner is not None and value._owner is not frame._component:
+        raise SourceError("tensor_value components and frame must belong to the same Component")
+    return Expression(_CREATE,
+                      f"tensor_value(frame = {frame._name}, components = {value._text})",
+                      frame._component, value._depth + 1, value._nodes + 2, 100)
+
+
 def array(values: Sequence[object]) -> Expression:
     """Construct ordered channel axes; arrays never infer spatial vector roles."""
     def build(items: Sequence[object], depth: int) -> Expression:
@@ -1671,5 +1687,6 @@ __all__ = [
     "to_integer",
     "symmetric_part",
     "test",
+    "tensor_value",
     "trace",
 ]

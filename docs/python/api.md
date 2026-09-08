@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 19 module summaries and all 233 canonical declaration summaries are source-traced; non-dunder member coverage remains **6 authoritative summaries and 703 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 19 module summaries and all 234 canonical declaration summaries are source-traced; non-dunder member coverage remains **6 authoritative summaries and 703 signature-only entries under documented owning types**.
 
-Inventory: 19 modules, 270 literal public spellings, 233 canonical grouped declarations, 927 visible method signatures (709 non-dunder and 218 dunder), and 76 visible class assignments.
+Inventory: 19 modules, 271 literal public spellings, 234 canonical grouped declarations, 927 visible method signatures (709 non-dunder and 218 dunder), and 76 visible class assignments.
 
 Regenerate with:
 
@@ -1271,12 +1271,15 @@ class PackageConformanceReport(NamedTuple):
 
 Immutable complete typed parameter declaration.
 
+Nonzero spatial values require an explicit frame Domain registered in the
+native Model. This is a uniform coefficient, not a distributed Field.
+
 Authority: [`crates/eqiora-python/src/modeling.rs::PyParameter`](../../crates/eqiora-python/src/modeling.rs)
 
 ```python
 @final
 class Parameter:
-    def __new__(cls, name: str, *, value: _TypedValue, value_type: ValueType | None=None) -> Self: ...
+    def __new__(cls, name: str, *, value: _TypedValue, value_type: ValueType | None=None, frame: Domain | None=None) -> Self: ...
     @property
     def name(self) -> str: ...
     @property
@@ -3058,6 +3061,21 @@ Authority: [`bindings/python/python/eqiora/lang/__init__.py::test`](../../bindin
 
 ```python
 def test(field: Expression) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-tensor_value"></a>
+
+### `eqiora.lang.tensor_value`
+
+Construct a uniform spatial value using this Component's explicit frame.
+
+The compiler checks shape, scalar domain, units, and frame eligibility.
+Channel axes remain explicit array constructions.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::tensor_value`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def tensor_value(*, frame: Support, components: Sequence[object] | Expression) -> Expression: ...
 ```
 
 <a id="api-eqiora-lang-trace"></a>
