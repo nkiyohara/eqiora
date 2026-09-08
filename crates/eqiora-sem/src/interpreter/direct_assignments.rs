@@ -280,7 +280,7 @@ mod tests {
                 .array(2)
                 .unwrap()
         ));
-        assert!(!supported_type(&ValueType::boolean().array(2).unwrap()));
+        assert!(ValueType::boolean().array(2).is_err());
         let vector = ValueType::shaped(
             ScalarDomain::Real,
             DimExponents::DIMENSIONLESS,

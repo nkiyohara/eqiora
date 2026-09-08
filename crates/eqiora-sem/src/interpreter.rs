@@ -441,7 +441,7 @@ impl Interpreter {
             return Err(vec![diagnostic]);
         }
         if program.nodes().any(|node| matches!(node, KernelNode::Field(field) if direct_assignments::requires_typed_assignment(program,SymbolRef::Field(field.id())))) {
-            return Err(vec![execution_error("DynQuantity trajectories cannot retain exact discrete Fields; use sampled_session",0.0)]);
+            return Err(vec![execution_error("DynQuantity trajectories cannot retain channel or exact discrete Fields; use sampled_session",0.0)]);
         }
         let mut plan = ExecutionPlan::new(program).map_err(|diagnostic| vec![diagnostic])?;
         let mut state = RuntimeState::new(program, &plan).map_err(|diagnostic| vec![diagnostic])?;

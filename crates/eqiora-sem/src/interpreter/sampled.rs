@@ -460,69 +460,82 @@ mod tests {
         use eqiora_graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
         use eqiora_schema::kernel::{ClockDomainDef, RelationDef};
         use eqiora_schema::{Model, ModelView};
-        let model = OntologyId::<Model>::new();
-        let clock = Id::<kinds::ClockDomain>::new();
-        let outputs = [Id::<kinds::Port>::new(), Id::new()];
-        let field = Id::<kinds::Field>::new();
-        let relation = Id::<kinds::Relation>::new();
-        let ty = ValueType::scalar(ScalarDomain::Real, eqiora_core::DimExponents::DIMENSIONLESS);
-        let mut dag = eqiora_schema::kernel::ExprDagBuilder::new();
-        let value = dag.symbol(SymbolRef::Field(field)).unwrap();
-        let zero = dag
-            .constant(ValueLiteral::from_real(ty.clone(), 0.0).unwrap())
-            .unwrap();
-        let nodes = [
-            KernelNode::from(
-                ClockDomainDef::periodic(
-                    clock,
-                    RationalTime::new(1, 1).unwrap(),
-                    RationalTime::ZERO,
+        for components in [1, 3] {
+            let model = OntologyId::<Model>::new();
+            let clock = Id::<kinds::ClockDomain>::new();
+            let outputs = [Id::<kinds::Port>::new(), Id::new()];
+            let field = Id::<kinds::Field>::new();
+            let relation = Id::<kinds::Relation>::new();
+            let ty =
+                ValueType::scalar(ScalarDomain::Real, eqiora_core::DimExponents::DIMENSIONLESS);
+            let ty = if components == 1 {
+                ty
+            } else {
+                ty.array(3).unwrap()
+            };
+            let mut dag = eqiora_schema::kernel::ExprDagBuilder::new();
+            let value = dag.symbol(SymbolRef::Field(field)).unwrap();
+            let zero = dag
+                .constant(ValueLiteral::from_real(ty.clone(), 0.0).unwrap())
+                .unwrap();
+            let nodes = [
+                KernelNode::from(
+                    ClockDomainDef::periodic(
+                        clock,
+                        RationalTime::new(1, 1).unwrap(),
+                        RationalTime::ZERO,
+                    )
+                    .unwrap(),
+                ),
+                eqiora_schema::kernel::FieldDef::new(
+                    field,
+                    ty.clone(),
+                    eqiora_schema::kernel::FieldRole::State,
                 )
-                .unwrap(),
-            ),
-            eqiora_schema::kernel::FieldDef::new(
-                field,
-                ty.clone(),
-                eqiora_schema::kernel::FieldRole::State,
-            )
-            .into(),
-            RelationDef::initial(relation, dag.finish([value, zero]).unwrap())
-                .unwrap()
                 .into(),
-            eqiora_schema::kernel::PortDef::signal(outputs[0], SignalDirection::Output, ty.clone())
+                RelationDef::initial(relation, dag.finish([value, zero]).unwrap())
+                    .unwrap()
+                    .into(),
+                eqiora_schema::kernel::PortDef::signal(
+                    outputs[0],
+                    SignalDirection::Output,
+                    ty.clone(),
+                )
                 .into(),
-            eqiora_schema::kernel::PortDef::signal(outputs[1], SignalDirection::Output, ty).into(),
-        ];
-        let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();
-        let mut transaction = Transaction::new("shared output retention bound");
-        for node in nodes {
-            transaction.push(Op::DefineKernelNode { node });
-        }
-        transaction.push(Op::Connect {
-            from: relation.erase(),
-            to: field.erase(),
-            edge: EdgeKind::DependsOn,
-        });
-        for output in outputs {
+                eqiora_schema::kernel::PortDef::signal(outputs[1], SignalDirection::Output, ty)
+                    .into(),
+            ];
+            let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();
+            let mut transaction = Transaction::new("shared output retention bound");
+            for node in nodes {
+                transaction.push(Op::DefineKernelNode { node });
+            }
             transaction.push(Op::Connect {
-                from: output.erase(),
-                to: clock.erase(),
-                edge: EdgeKind::ClockedBy,
+                from: relation.erase(),
+                to: field.erase(),
+                edge: EdgeKind::DependsOn,
             });
+            for output in outputs {
+                transaction.push(Op::Connect {
+                    from: output.erase(),
+                    to: clock.erase(),
+                    edge: EdgeKind::ClockedBy,
+                });
+            }
+            transaction.push(Op::DefineOntologyView {
+                view: ModelView::new(model, members, outputs.map(Id::erase))
+                    .unwrap()
+                    .into(),
+            });
+            let mut store = InMemoryGraphStore::new();
+            store.commit(transaction).unwrap();
+            let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+            let config = ReferenceConfig::new(1., 1.).unwrap();
+            // Two outputs at t=0 and t=1, each retaining one or three components.
+            assert!(validate_output_budget(&program, config, 4 * components).is_ok());
+            assert!(validate_output_budget(&program, config, 4 * components - 1).is_err());
+            assert!(add_sample_count(usize::MAX, 1, usize::MAX).is_err());
         }
-        transaction.push(Op::DefineOntologyView {
-            view: ModelView::new(model, members, outputs.map(Id::erase))
-                .unwrap()
-                .into(),
-        });
-        let mut store = InMemoryGraphStore::new();
-        store.commit(transaction).unwrap();
-        let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
-        let config = ReferenceConfig::new(1., 1.).unwrap();
-        // Two outputs, each present at t=0 and t=1: exactly four retained values.
-        assert!(validate_output_budget(&program, config, 4).is_ok());
-        assert!(validate_output_budget(&program, config, 3).is_err());
-        assert!(add_sample_count(usize::MAX, 1, usize::MAX).is_err());
     }
 
     #[test]
