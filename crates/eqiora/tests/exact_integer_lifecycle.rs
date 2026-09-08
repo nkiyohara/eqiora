@@ -1,7 +1,9 @@
 //! Exact integer values cross the ordinary source, native, edit, and replay paths.
 
 use eqiora::api::ModelDocument;
-use eqiora::language::{DraftField, DraftParameter, DraftRelation, FieldRoleSyntax, ModelDraft};
+use eqiora::language::{
+    DraftExpression, DraftField, DraftParameter, DraftRelation, FieldRoleSyntax, ModelDraft,
+};
 use eqiora::{DimExponents, ScalarDomain, ValueLiteral, ValueType};
 
 fn integer(value: i64) -> ValueLiteral {
