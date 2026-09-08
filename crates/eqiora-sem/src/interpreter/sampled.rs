@@ -123,10 +123,10 @@ impl SampledSession {
             let (_, value_type) = definition.signal_contract().expect("required signal input");
             if values
                 .iter()
-                .any(|v| v.value_type() != value_type || v.real_scalar_value().is_none())
+                .any(|v| v.value_type() != value_type || !discrete::supported_type(v.value_type()))
             {
                 return Err(config_error(
-                    "sampled input values must match the complete real scalar Port type",
+                    "sampled input values must match the complete supported Port type",
                 ));
             }
             if values.len() != required_ticks(program, clock, config)? {
@@ -202,14 +202,15 @@ impl SampledSession {
     /// Accepted memory or continuous algebraic value. A clocked Variable is present
     /// only after its own accepted tick, until execution advances to another instant.
     #[must_use]
-    pub fn field(&self, field: RawId) -> Option<DynQuantity> {
+    pub fn field(&self, field: RawId) -> Option<ValueLiteral> {
         let KernelNode::Field(definition) = self.program.node(field)? else {
             return None;
         };
-        self.state
-            .fields
-            .get(&field)
-            .map(|value| DynQuantity::new(*value, definition.dimension()))
+        self.state.discrete_fields.get(&field).cloned().or_else(|| {
+            self.state.fields.get(&field).and_then(|value| {
+                ValueLiteral::from_real(definition.value_type().clone(), *value).ok()
+            })
+        })
     }
 
     /// An exposed output's accepted sample at its own zero-based tick index.
@@ -257,6 +258,9 @@ impl SampledSession {
         candidate
             .ports
             .retain(|port, _| port_clock(&self.program, *port).ok().flatten().is_none());
+        candidate
+            .discrete_ports
+            .retain(|port, _| port_clock(&self.program, *port).ok().flatten().is_none());
         for (&port, input) in &self.inputs {
             if let Some(index) = due.get(&input.clock) {
                 if *index != input.cursor as u64 {
@@ -268,13 +272,11 @@ impl SampledSession {
                     .values
                     .get(input.cursor)
                     .ok_or_else(|| config_error("sampled input coverage exhausted"))?;
-                candidate.ports.insert(
-                    port,
-                    value
-                        .real_scalar_value()
-                        .expect("admitted real scalar")
-                        .value(),
-                );
+                if let Some(real) = value.real_scalar_value() {
+                    candidate.ports.insert(port, real.value());
+                } else {
+                    candidate.discrete_ports.insert(port, value.clone());
+                }
             }
         }
         execute_due_tick(
@@ -300,12 +302,21 @@ impl SampledSession {
                 continue;
             };
             let source = plan.signal_sources.get(&port).copied().unwrap_or(port);
-            let value = candidate
-                .ports
-                .get(&source)
-                .ok_or_else(|| config_error("requested output has no accepted tick value"))?;
-            let value = ValueLiteral::from_real(value_type.clone(), *value)
-                .map_err(|_| config_error("sampled output is not a finite real scalar"))?;
+            let value = if let Some(value) = candidate.discrete_ports.get(&source) {
+                value.clone()
+            } else {
+                let value = candidate
+                    .ports
+                    .get(&source)
+                    .ok_or_else(|| config_error("requested output has no accepted tick value"))?;
+                ValueLiteral::from_real(value_type.clone(), *value)
+                    .map_err(|_| config_error("sampled output is not a finite real scalar"))?
+            };
+            if value.value_type() != value_type {
+                return Err(config_error(
+                    "sampled output differs from its complete Port type",
+                ));
+            }
             outputs.push(((port, *index), (instant, value)));
         }
         self.plan = plan;

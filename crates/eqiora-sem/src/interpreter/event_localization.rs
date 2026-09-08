@@ -111,6 +111,9 @@ fn evaluate_event_guard(
     let context = EvalContext {
         program,
         time,
+        discrete_fields: &state.discrete_fields,
+        discrete_ports: &state.discrete_ports,
+        discrete_next: &state.discrete_next,
         fields: &state.fields,
         field_candidates: &empty,
         derivatives: &state.derivatives,
@@ -121,11 +124,14 @@ fn evaluate_event_guard(
         physical: &state.physical,
         physical_candidates: &empty_physical,
     };
-    let values = backend.evaluate(task.activation, &task.guard, &mut |symbol| {
-        evaluate::resolve_symbol(symbol, &context)
-    })?;
+    let values = backend.evaluate(
+        task.activation,
+        &task.guard,
+        task.guard.roots(),
+        &mut |symbol| evaluate::resolve_symbol(symbol, &context),
+    )?;
     match values.as_slice() {
-        [value] => Ok(*value),
+        [value] => evaluate::real(value).map(|value| value.value()),
         _ => Err(execution_error(
             "validated event guard did not produce exactly one value",
             time,

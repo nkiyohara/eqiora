@@ -114,8 +114,9 @@ impl ExpressionBackend for CpuExpressionBackend<'_> {
         &self,
         owner: RawId,
         _expression: &ExprDag,
-        resolve: &mut dyn FnMut(SymbolRef) -> Option<f64>,
-    ) -> Result<Vec<f64>, Diagnostic> {
+        roots: &[eqiora_schema::kernel::ExprId],
+        resolve: &mut dyn FnMut(SymbolRef) -> Option<eqiora_core::ValueLiteral>,
+    ) -> Result<Vec<eqiora_core::ValueLiteral>, Diagnostic> {
         let operator = self.operators.get(&owner).ok_or_else(|| {
             Diagnostic::error(
                 codes::INVALID_OPERATOR_IR,
@@ -123,20 +124,7 @@ impl ExpressionBackend for CpuExpressionBackend<'_> {
             )
             .with_graph_path(relation_path(owner))
         })?;
-        let inputs = operator
-            .symbols()
-            .iter()
-            .map(|symbol| {
-                resolve(*symbol).ok_or_else(|| {
-                    Diagnostic::error(
-                        codes::MISSING_EXECUTION_INPUT,
-                        format!("no CPU execution value is available for {symbol:?}"),
-                    )
-                    .with_graph_path(relation_path(owner))
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        operator.evaluate(&inputs)
+        operator.evaluate_typed(roots, resolve)
     }
 }
 

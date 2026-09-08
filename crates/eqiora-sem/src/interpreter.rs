@@ -1,6 +1,7 @@
 //! Deterministic reference execution for scalar continuous/periodic models.
 
 mod clocked_variables;
+mod discrete;
 use clocked_variables::{clear_clocked_variables, is_clocked_variable};
 mod event_localization;
 mod execution_plan;
@@ -9,7 +10,9 @@ pub use initialization::InitialState;
 use initialization::solve_initialization;
 mod sampled;
 mod samples;
+mod state;
 pub use sampled::SampledSession;
+use state::RuntimeState;
 
 use event_localization::{crossing_events, locate_event_time};
 use samples::record_samples;
@@ -437,6 +440,9 @@ impl Interpreter {
         if let Err(diagnostic) = config.validate() {
             return Err(vec![diagnostic]);
         }
+        if program.nodes().any(|node| matches!(node, KernelNode::Field(field) if discrete::is_discrete(program,SymbolRef::Field(field.id())))) {
+            return Err(vec![execution_error("DynQuantity trajectories cannot retain exact discrete Fields; use sampled_session",0.0)]);
+        }
         let mut plan = ExecutionPlan::new(program).map_err(|diagnostic| vec![diagnostic])?;
         let mut state = RuntimeState::new(program, &plan).map_err(|diagnostic| vec![diagnostic])?;
 
@@ -712,46 +718,6 @@ struct PeriodicTask {
     next: RationalTime,
 }
 
-#[derive(Debug, Clone)]
-struct RuntimeState {
-    fields: BTreeMap<RawId, f64>,
-    derivatives: BTreeMap<RawId, f64>,
-    ports: BTreeMap<RawId, f64>,
-    physical: BTreeMap<PhysicalUnknown, f64>,
-}
-
-impl RuntimeState {
-    fn new(program: &KernelProgram, plan: &ExecutionPlan) -> Result<Self, Diagnostic> {
-        let mut fields = BTreeMap::new();
-        let mut ports = BTreeMap::new();
-        for node in program.nodes() {
-            match node {
-                KernelNode::Field(field) if !is_clocked_variable(program, field.id().erase()) => {
-                    let id = field.id().erase();
-                    fields.insert(id, 0.0);
-                }
-                KernelNode::Port(port)
-                    if matches!(port.signal_contract(), Some((SignalDirection::Output, _))) =>
-                {
-                    ports.insert(port.id().erase(), 0.0);
-                }
-                _ => {}
-            }
-        }
-        Ok(Self {
-            fields,
-            derivatives: BTreeMap::new(),
-            ports,
-            physical: plan
-                .physical_unknowns
-                .iter()
-                .copied()
-                .map(|unknown| (unknown, 0.0))
-                .collect(),
-        })
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Variable {
     Field(RawId),
@@ -930,9 +896,21 @@ fn execute_activated_relations(
 ) -> Result<(), Diagnostic> {
     let mut accepted_candidate = state.clone();
     clear_clocked_variables(program, &mut accepted_candidate);
+    discrete::stage(
+        program,
+        plan,
+        &mut accepted_candidate,
+        relations,
+        time,
+        false,
+        backend,
+    )?;
     let mut variables = BTreeSet::new();
     for &relation in relations {
         for symbol in relation_symbols(program, relation)? {
+            if discrete::is_discrete(program, symbol) {
+                continue;
+            }
             match symbol {
                 SymbolRef::Field(field) if is_clocked_variable(program, field.erase()) => {
                     variables.insert(Variable::Field(field.erase()));
@@ -986,6 +964,9 @@ fn execute_activated_relations(
         )
     }?;
     commit_solution(&variables, &solution, &mut accepted_candidate);
+    accepted_candidate
+        .discrete_fields
+        .extend(std::mem::take(&mut accepted_candidate.discrete_next));
     solve_consistency(
         program,
         plan,
@@ -1082,6 +1063,9 @@ fn evaluate_relations(
     let context = EvalContext {
         program,
         time,
+        discrete_fields: &state.discrete_fields,
+        discrete_ports: &state.discrete_ports,
+        discrete_next: &state.discrete_next,
         fields: &state.fields,
         field_candidates,
         derivatives,
@@ -1100,19 +1084,21 @@ fn evaluate_relations(
                 time,
             ));
         };
-        residuals.extend(
-            backend.evaluate(relation, definition.residuals(), &mut |symbol| {
-                evaluate::resolve_symbol(symbol, &context)
-            })?,
-        );
+        residuals.extend(evaluate::real_values(backend.evaluate(
+            relation,
+            definition.residuals(),
+            &discrete::numerical_roots(program, definition.residuals()),
+            &mut |symbol| evaluate::resolve_symbol(symbol, &context),
+        )?)?);
     }
     for system in physical_systems {
         for junction in system.junctions() {
-            residuals.extend(backend.evaluate(
+            residuals.extend(evaluate::real_values(backend.evaluate(
                 junction.connection().erase(),
                 junction.dag(),
+                junction.dag().roots(),
                 &mut |symbol| evaluate::resolve_symbol(symbol, &context),
-            )?);
+            )?)?);
         }
     }
     Ok(residuals)

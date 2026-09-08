@@ -48,14 +48,16 @@ use eqiora_schema::kernel::{ExprDag, SymbolRef};
 /// calendar and reference numerics while proving expression conformance.
 #[doc(hidden)]
 pub trait ExpressionBackend {
-    /// Evaluate every residual root with values supplied in semantic-symbol
-    /// form.
+    /// Evaluate the requested expression roots using complete typed symbol values.
+    /// Unreachable nodes and symbols are not evaluated; a discrete assignment
+    /// requests its right-hand side without computing a numerical residual.
     fn evaluate(
         &self,
         owner: RawId,
         expression: &ExprDag,
-        resolve: &mut dyn FnMut(SymbolRef) -> Option<f64>,
-    ) -> Result<Vec<f64>, Diagnostic>;
+        roots: &[eqiora_schema::kernel::ExprId],
+        resolve: &mut dyn FnMut(SymbolRef) -> Option<eqiora_core::ValueLiteral>,
+    ) -> Result<Vec<eqiora_core::ValueLiteral>, Diagnostic>;
 }
 
 /// One sample of one field along a trajectory.

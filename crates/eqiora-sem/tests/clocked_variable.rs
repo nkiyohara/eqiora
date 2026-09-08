@@ -163,12 +163,22 @@ fn clocked_variable_has_only_its_current_tick_value_and_restarts_without_initial
         assert!(session.field(f.field).is_none());
         for expected in [Some(6.), None, Some(10.), None, Some(14.)] {
             assert_eq!(session.advance_ticks(1).unwrap(), 1);
-            assert_eq!(session.field(f.field).map(|value| value.value()), expected);
+            assert_eq!(
+                session
+                    .field(f.field)
+                    .map(|value| value.real_scalar_value().unwrap().value()),
+                expected
+            );
             let checkpoint = session.checkpoint();
             session = Interpreter::default()
                 .resume_sampled(&f.program, &checkpoint)
                 .unwrap();
-            assert_eq!(session.field(f.field).map(|value| value.value()), expected);
+            assert_eq!(
+                session
+                    .field(f.field)
+                    .map(|value| value.real_scalar_value().unwrap().value()),
+                expected
+            );
         }
     }
 }

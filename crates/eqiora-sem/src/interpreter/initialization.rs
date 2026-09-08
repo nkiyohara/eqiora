@@ -3,18 +3,18 @@
 use super::*;
 mod tangent;
 
-/// Accepted scalar fresh-initialization values before the first tick.
+/// Accepted typed fresh-initialization values before the first tick.
 /// This is a mathematical solve result, not a restart checkpoint or history.
 #[derive(Debug, Clone, PartialEq)]
 pub struct InitialState {
-    fields: BTreeMap<RawId, f64>,
+    fields: BTreeMap<RawId, eqiora_core::ValueLiteral>,
     derivatives: BTreeMap<RawId, f64>,
 }
 
 impl InitialState {
-    /// Initialized scalar Field values; clocked algebraic Variables are absent before ticks.
+    /// Initialized complete Field values; clocked algebraic Variables are absent before ticks.
     #[must_use]
-    pub const fn fields(&self) -> &BTreeMap<RawId, f64> {
+    pub const fn fields(&self) -> &BTreeMap<RawId, eqiora_core::ValueLiteral> {
         &self.fields
     }
 
@@ -26,12 +26,14 @@ impl InitialState {
 }
 
 impl Interpreter {
-    /// Solve regular and fresh initial equations jointly at time zero.
+    /// Solve real regular and fresh initial equations jointly at time zero.
+    /// Exact discrete values require acyclic direct initial assignments from
+    /// Parameters or other initialized discrete values; they never enter Newton.
     /// Periodic ticks and event resets are not executed. Restart callers must
     /// consume accepted State/history instead of invoking this operation.
     ///
     /// # Errors
-    /// Rejects unsupported non-scalar execution, non-square initialization,
+    /// Rejects unsupported value profiles or discrete assignment dependencies, non-square real initialization,
     /// singular numerical Jacobians, and inconsistent or nonconvergent systems.
     pub fn initialize(
         &self,
@@ -50,7 +52,7 @@ impl Interpreter {
         )
         .map_err(|error| vec![error])?;
         Ok(InitialState {
-            fields: state.fields,
+            fields: discrete::typed_fields(program, &state)?,
             derivatives: state.derivatives,
         })
     }
@@ -63,19 +65,18 @@ pub(super) fn solve_initialization(
     config: ReferenceConfig,
     backend: &impl ExpressionBackend,
 ) -> Result<(), Diagnostic> {
-    let relations = plan
+    let relations: BTreeSet<RawId> = plan
         .continuous_relations
         .union(&plan.initial_relations)
         .copied()
         .collect();
+    discrete::stage(program, plan, state, &relations, 0.0, true, backend)?;
     // Every continuous Field and State memory must be determined;
     // clocked algebraic Variables have no value before their own activation.
     // an unused algebraic declaration is legal mathematics, not an implicit zero.
-    let fields = plan
-        .fields
-        .iter()
-        .copied()
-        .filter(|field| !is_clocked_variable(program, *field));
+    let fields = plan.fields.iter().copied().filter(|field| {
+        !is_clocked_variable(program, *field) && !discrete::is_discrete_id(program, *field)
+    });
     let mut derivatives = plan.differential_fields.clone();
     for relation in &plan.initial_relations {
         for symbol in relation_symbols(program, *relation)? {

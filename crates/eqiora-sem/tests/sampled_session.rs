@@ -276,7 +276,14 @@ fn two_delays_integrator_exact_tables_phase_and_checkpoint_restart() {
             let mut s = Interpreter::new()
                 .sampled_session(&f.program, config, input_tables(&f))
                 .unwrap();
-            assert_eq!(s.field(f.fields[0]).unwrap().value(), 5.);
+            assert_eq!(
+                s.field(f.fields[0])
+                    .unwrap()
+                    .real_scalar_value()
+                    .unwrap()
+                    .value(),
+                5.
+            );
             assert!(s.output(f.outputs[0], 0).is_none());
             assert_eq!(s.advance_ticks(2).unwrap(), 2);
             let checkpoint = s.checkpoint();

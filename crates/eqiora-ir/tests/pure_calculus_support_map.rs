@@ -3,9 +3,8 @@ use eqiora_core::entity::kinds;
 use eqiora_core::{DimExponents, Id, ValueShape};
 use eqiora_ir::{
     CalculusBuilder, CalculusError, CalculusNode, ComponentScalarization, ExactRational,
-    FormalTypeRule, OperatorApplicationProof, OperatorExpansionExt, PureOperatorDefinition,
-    ResultAxis, ResultTypeRule, StandardPureOperator, SupportMap, SupportMapOrientation,
-    SupportMapPairing,
+    OperatorApplicationProof, OperatorExpansionExt, PureOperatorDefinition, PureValueClass,
+    ResultAxis, StandardPureOperator, SupportMap, SupportMapOrientation, SupportMapPairing,
 };
 use eqiora_schema::kernel::typing::{ExpressionType, RootContract, SpatialSupport, TypedResidual};
 use eqiora_schema::kernel::{ExprDagBuilder, SymbolRef};
@@ -41,8 +40,8 @@ fn volume_scalar(domain: &'static str) -> ExpressionType<&'static str> {
 }
 
 fn equivalent_symmetry_definition(expanded: bool) -> PureOperatorDefinition {
-    let tensor = FormalTypeRule::spatial_tensor(2).expect("tensor class");
-    let mut definition = CalculusBuilder::new([tensor], ResultTypeRule::spatial_tensor(2).unwrap())
+    let tensor = PureValueClass::spatial_tensor(2).expect("tensor class");
+    let mut definition = CalculusBuilder::new([tensor], PureValueClass::spatial_tensor(2).unwrap())
         .expect("definition");
     let direct = definition
         .push(CalculusNode::FormalComponent {

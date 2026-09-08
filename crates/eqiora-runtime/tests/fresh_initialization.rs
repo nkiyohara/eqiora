@@ -259,3 +259,15 @@ fn decay(initial_value: Option<f64>) -> (KernelProgram, Id<kinds::Relation>) {
         relation,
     )
 }
+
+#[test]
+fn typed_cpu_backend_preserves_real_reference_trajectory() {
+    let (kernel, _) = decay(Some(3.0));
+    let cpu = CpuProgram::lower(&kernel).unwrap();
+    let config = ReferenceConfig::new(0.2, 0.1).unwrap();
+    let reference = eqiora_sem::Interpreter::new().run(&kernel, config).unwrap();
+    let actual = eqiora_runtime::CpuExecutor::new()
+        .run(&cpu, config)
+        .unwrap();
+    assert_eq!(actual, reference);
+}

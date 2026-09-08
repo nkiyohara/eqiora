@@ -13,6 +13,7 @@ impl ScalarOperatorIr {
     /// Returns `EQ0701` if an operand/root index is inconsistent with the DAG
     /// contract.
     pub fn lower(expression: &ExprDag) -> Result<Self, Diagnostic> {
+        let mut typed_constants = Vec::new();
         let mut symbols = Vec::new();
         let mut symbol_slots = HashMap::new();
         let mut instructions = Vec::with_capacity(expression.nodes().len());
@@ -23,17 +24,31 @@ impl ScalarOperatorIr {
                 continue;
             }
             let instruction = match node {
-                ExprNode::Constant(value) => Instruction::Constant(
-                    value
-                        .real_scalar_value()
-                        .ok_or_else(|| {
-                            Diagnostic::error(
-                                codes::NOT_IMPLEMENTED,
-                                "scalar IR requires real scalar constants",
-                            )
-                        })?
-                        .value(),
-                ),
+                ExprNode::Constant(value) => {
+                    if let Some(real) = value.real_scalar_value() {
+                        Instruction::Constant(real)
+                    } else if value.value_type().scalar_domain()
+                        == eqiora_core::ScalarDomain::Integer
+                    {
+                        let slot =
+                            u32::try_from(typed_constants.len()).map_err(|_| ir_size_error())?;
+                        typed_constants.push(value.clone());
+                        Instruction::TypedConstant(slot)
+                    } else {
+                        return Err(ir_builder_error(
+                            "scalar IR requires real scalar or exact discrete constants",
+                        ));
+                    }
+                }
+                ExprNode::Quotient(a, b) => {
+                    Instruction::Quotient(value_id(*a, &values)?, value_id(*b, &values)?)
+                }
+                ExprNode::Remainder(a, b) => {
+                    Instruction::Remainder(value_id(*a, &values)?, value_id(*b, &values)?)
+                }
+                ExprNode::ToReal(value) => Instruction::ToReal(value_id(*value, &values)?),
+                ExprNode::Ordinal(value) => Instruction::Ordinal(value_id(*value, &values)?),
+                ExprNode::ToInteger(value) => Instruction::ToInteger(value_id(*value, &values)?),
                 ExprNode::Symbol(symbol) => {
                     let next_slot = u32::try_from(symbols.len()).map_err(|_| ir_size_error())?;
                     let slot = *symbol_slots.entry(*symbol).or_insert_with(|| {
@@ -77,6 +92,8 @@ impl ScalarOperatorIr {
             .map(|root| value_id(*root, &values))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
+            source_values: values,
+            typed_constants,
             symbols,
             instructions,
             roots,

@@ -6,12 +6,11 @@ impl ExecutionPlan {
     pub(super) fn new(program: &KernelProgram) -> Result<Self, Diagnostic> {
         for node in program.nodes() {
             if let KernelNode::Parameter(parameter) = node
-                && (parameter.value_type().scalar_domain() != eqiora_core::ScalarDomain::Real
-                    || !parameter.value_type().shape().is_scalar())
+                && !discrete::supported_type(parameter.value_type())
             {
                 return Err(Diagnostic::error(
                     codes::NOT_IMPLEMENTED,
-                    "reference execution requires real scalar Parameters",
+                    "reference execution requires real scalar or exact discrete Parameters",
                 ));
             }
             if let KernelNode::Relation(relation) = node
@@ -41,12 +40,11 @@ impl ExecutionPlan {
                 ));
             }
             if let KernelNode::Field(field) = node
-                && (field.value_type().scalar_domain() != eqiora_core::ScalarDomain::Real
-                    || !field.shape().is_scalar())
+                && !discrete::supported_type(field.value_type())
             {
                 return Err(Diagnostic::error(
                     codes::NOT_IMPLEMENTED,
-                    "reference execution requires real scalar Fields",
+                    "reference execution requires real scalar or exact discrete Fields",
                 ));
             }
             if let KernelNode::Field(field) = node
@@ -74,12 +72,11 @@ impl ExecutionPlan {
             }
             if let KernelNode::Port(port) = node
                 && let Some((_, value_type)) = port.signal_contract()
-                && (value_type.scalar_domain() != eqiora_core::ScalarDomain::Real
-                    || !value_type.shape().is_scalar())
+                && !discrete::supported_type(value_type)
             {
                 return Err(Diagnostic::error(
                     codes::NOT_IMPLEMENTED,
-                    "reference execution requires real scalar signal Ports",
+                    "reference execution requires real scalar or exact discrete signal Ports",
                 ));
             }
         }
@@ -249,10 +246,23 @@ impl ExecutionPlan {
                 }
             }
         }
+        for relation in &continuous_relations {
+            if let Some(KernelNode::Relation(definition)) = program.node(*relation)
+                && discrete::numerical_roots(program, definition.residuals()).len()
+                    != definition.residuals().roots().len()
+            {
+                return Err(execution_error(
+                    "exact discrete updates require an explicit periodic activation",
+                    0.0,
+                ));
+            }
+        }
         let algebraic_fields = continuous_field_references
             .difference(&differential_fields)
             .copied()
-            .filter(|field| !discrete_fields.contains(field))
+            .filter(|field| {
+                !discrete_fields.contains(field) && !discrete::is_discrete_id(program, *field)
+            })
             .collect();
         let fields = program
             .nodes()
