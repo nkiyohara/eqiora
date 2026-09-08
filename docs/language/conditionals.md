@@ -29,8 +29,9 @@ Source and formal ownership, so an inactive branch cannot capture a foreign decl
 
 `math.abs`, binary `math.min`/`math.max`, `math.clamp`, `math.sign` and `math.step` use the
 same conditional owner and the exact endpoints in the [numeric catalog](numeric-catalog.md).
-Binary extrema retain their first argument on a tie; the finite IndexSet reductions remain
-a separate operation. Clamp admits equal bounds but rejects an inverted interval before
+Binary extrema retain their first argument on a tie. Finite IndexSet reductions lower
+through the same comparison and selection nodes, preserving ordinal order and exact
+integer values; their source reduction syntax remains distinct. Clamp admits equal bounds but rejects an inverted interval before
 evaluating its value. This domain requirement is retained in the mathematical expression.
 
 The native `ScalarOperatorIr::linearize_typed` binds a derivative calculation to one finite

@@ -185,12 +185,6 @@ reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
-path = "crates/eqiora-ir/src/scalar.rs"
-ceiling = 796
-reason = "predates the predicate; not yet triaged"
-removal = "split by responsibility in the lane that next modifies it"
-
-[[file_lines]]
 path = "crates/eqiora-meshing/src/p1_harmonic_geometry.rs"
 ceiling = 1174
 reason = "predates the predicate; not yet triaged"

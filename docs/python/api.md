@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 19 module summaries and all 235 canonical declaration summaries are source-traced; non-dunder member coverage remains **11 authoritative summaries and 703 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 19 module summaries and all 236 canonical declaration summaries are source-traced; non-dunder member coverage remains **11 authoritative summaries and 703 signature-only entries under documented owning types**.
 
-Inventory: 19 modules, 272 literal public spellings, 235 canonical grouped declarations, 933 visible method signatures (714 non-dunder and 219 dunder), and 76 visible class assignments.
+Inventory: 19 modules, 273 literal public spellings, 236 canonical grouped declarations, 933 visible method signatures (714 non-dunder and 219 dunder), and 76 visible class assignments.
 
 Regenerate with:
 
@@ -2924,6 +2924,18 @@ Authority: [`bindings/python/python/eqiora/lang/__init__.py::integrate`](../../b
 
 ```python
 def integrate(domain: Support, integrand: Expression | float | int | complex) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-if_else"></a>
+
+### `eqiora.lang.if_else`
+
+Author a conditional with all operands checked and one branch executed.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::if_else`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def if_else(condition: object, then_value: object, else_value: object) -> Expression: ...
 ```
 
 <a id="api-eqiora-lang-isotropic_lift"></a>
