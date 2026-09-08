@@ -8,7 +8,7 @@ fn native_initial_equations_share_source_ast_without_field_literals() {
     use eqiora_lang::{DraftDeclaration, DraftExpression, DraftField, ModelDraft};
     let state = DraftField::new(
         "x",
-        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap(),
         FieldRoleSyntax::State,
     );
     let condition = (
@@ -43,7 +43,7 @@ fn native_initial_equations_share_source_ast_without_field_literals() {
 fn native_initial_conditions_reject_empty_nonfinite_and_foreign_symbols() {
     use eqiora_core::{DimExponents, ScalarDomain, ValueType};
     use eqiora_lang::{DraftDeclaration, DraftExpression, DraftField, ModelDraft};
-    let value_type = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+    let value_type = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap();
     let included = DraftField::new("x", value_type.clone(), FieldRoleSyntax::State);
     let foreign = DraftField::new("x", value_type, FieldRoleSyntax::State);
     for (equations, expected) in [

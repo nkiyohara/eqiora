@@ -116,6 +116,7 @@ mod tests {
             ScalarDomain::Complex,
             eqiora_core::DimExponents::DIMENSIONLESS,
         )
+        .unwrap()
         .array(3)
         .unwrap();
         let value_type = ValueTypeSyntax::from_checked(&checked, |_| None).unwrap();

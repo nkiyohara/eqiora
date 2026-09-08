@@ -42,6 +42,20 @@ impl SourceAstFactory {
             range: checked_range(range)?,
         })
     }
+    /// Replace a case arm value while preserving its checked pattern identity.
+    ///
+    /// # Errors
+    /// Rejects malformed replacement expressions or arm ranges.
+    pub fn case_arm_value(arm: &CaseArm, value: Expr) -> Result<CaseArm, AstConstructionError> {
+        validate_expression(&value)?;
+        checked_range(arm.range())?;
+        Ok(CaseArm {
+            resolved_pattern: arm.resolved_pattern.clone(),
+            pattern: arm.pattern.clone(),
+            value,
+            range: arm.range,
+        })
+    }
     /// Construct an explicit qualified-tag case arm without introducing a binder.
     ///
     /// # Errors

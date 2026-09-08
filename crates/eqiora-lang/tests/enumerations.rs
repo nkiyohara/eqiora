@@ -245,6 +245,16 @@ fn checked_members_and_patterns_keep_exact_declaration_through_qualified_rewrite
     let mut arm = F::case_arm(path, member.clone(), range).unwrap();
     F::bind_case_pattern(&mut arm, &declaration, &definition).unwrap();
     assert!(F::bind_case_pattern(&mut arm, &declaration, &foreign).is_err());
+    let replacement = F::expression(ExprKind::Boolean(true), range).unwrap();
+    let replaced = F::case_arm_value(&arm, replacement.clone()).unwrap();
+    assert_eq!(replaced.pattern(), arm.pattern());
+    assert_eq!(replaced.range(), arm.range());
+    assert_eq!(
+        replaced.resolved_pattern(),
+        Some(&definition.value(1).unwrap())
+    );
+    assert_eq!(replaced.value(), &replacement);
+
     let expression = F::expression(
         ExprKind::Case {
             value: Box::new(member),

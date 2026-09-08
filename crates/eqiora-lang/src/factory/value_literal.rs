@@ -342,6 +342,7 @@ mod tests {
             ScalarDomain::Complex,
             DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
         )
+        .unwrap()
         .array(2)
         .unwrap();
         let literal = ValueLiteral::new(kind, [(1.0, 2.0), (3.0, 0.0)]).unwrap();
@@ -490,7 +491,7 @@ mod tests {
             ]
         );
         let invariant = ValueLiteral::from_real(
-            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap(),
             0.0,
         )
         .unwrap();

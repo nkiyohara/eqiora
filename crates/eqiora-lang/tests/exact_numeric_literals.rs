@@ -46,7 +46,8 @@ fn integer_type_and_native_component_data_share_the_source_boundary() {
     let ty = eqiora_core::ValueType::scalar(
         eqiora_core::ScalarDomain::Integer,
         eqiora_core::DimExponents::DIMENSIONLESS,
-    );
+    )
+    .unwrap();
     let literal = eqiora_core::ValueLiteral::from_integer(ty, 9007199254740993).unwrap();
     let expression =
         SourceAstFactory::value_literal(&literal, None, TextRange::new(0, 0), |_| None, |_| None)

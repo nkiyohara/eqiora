@@ -156,7 +156,7 @@ mod tests {
 
     #[test]
     fn native_parameters_preserve_declared_types_in_source_projection() {
-        let scalar = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS);
+        let scalar = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS).unwrap();
         for (value_type, expected) in [
             (scalar.clone(), "complex<1>"),
             (scalar.array(3).unwrap(), "array<complex<1>, 3>"),
@@ -191,6 +191,7 @@ mod tests {
             assert_eq!(crate::format(&parsed), source);
         }
         let oversized = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            .unwrap()
             .array(65_537)
             .unwrap();
         let parameter = DraftParameter::new(
@@ -237,7 +238,7 @@ mod tests {
 
     #[test]
     fn native_fields_obey_source_type_limits() {
-        let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+        let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap();
         let oversized = DraftField::new(
             "large",
             scalar.array(65_537).unwrap(),
