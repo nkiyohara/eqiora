@@ -39,3 +39,44 @@ model M(output first: integer at tick) {
     let set = compiled.symbols().get("Rows").unwrap();
     assert!(compiled.transaction().ops().iter().any(|op| matches!(op,eqiora_graph::Op::Connect { from,to,edge:eqiora_graph::EdgeKind::DependsOn } if *from==set && *to==parameter)));
 }
+
+#[test]
+fn named_input_arguments_drive_each_indexed_occurrence() {
+    let source = r#"
+component Cell(input u:1,output y:1) { relation emit {y=u;} }
+model M(output first:1) {
+    port drive:signal output 1;
+    relation source {drive=7;}
+    indexset Rows=range(2);
+    instance cell[i in Rows]:Cell(u=drive);
+    connect cell[index(Rows,0)].y -> first;
+}
+"#;
+    let result = CompiledModel::compile_selected("family-input.eqi", source, "M", &[]);
+    assert!(result.is_ok(), "{result:?}");
+}
+
+#[test]
+fn family_selection_rejects_foreign_sets_bounds_and_mutable_selector_dependencies_are_retained() {
+    let source = r#"
+component Cell(output y:1) { relation emit {y=1;} }
+model M(output observed:1) {
+    parameter choice:integer=0;
+    indexset Rows=range(2);
+    indexset Other=range(2);
+    instance cell[i in Rows]:Cell();
+    connect cell[index(Rows,choice)].y -> observed;
+}
+"#;
+    let model = CompiledModel::compile_selected("selector.eqi", source, "M", &[])
+        .unwrap_or_else(|errors| panic!("{errors:?}"));
+    let set = model.symbols().get("Rows").unwrap();
+    let parameter = model.symbols().get("choice").unwrap();
+    assert!(model.transaction().ops().iter().any(|op|matches!(op,eqiora_graph::Op::Connect{from,to,edge:eqiora_graph::EdgeKind::DependsOn} if *from==set && *to==parameter)));
+    for changed in [
+        source.replace("index(Rows,choice)", "index(Other,choice)"),
+        source.replace("index(Rows,choice)", "index(Rows,2)"),
+    ] {
+        assert!(CompiledModel::compile_selected("selector.eqi", &changed, "M", &[]).is_err());
+    }
+}

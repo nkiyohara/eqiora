@@ -67,6 +67,18 @@ impl Scope {
 }
 
 impl Scope {
+    pub(in crate::hierarchy) fn indexed_input(
+        &self,
+        family: &str,
+        ordinal: u32,
+        member: &str,
+    ) -> Option<&FlatSymbol> {
+        self.children
+            .get(&format!("{family}[{ordinal}]"))?
+            .public_ports
+            .get(member)
+    }
+
     pub(in crate::hierarchy) fn indexed_port(
         &self,
         file: &str,

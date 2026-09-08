@@ -36,6 +36,16 @@ impl DefinitionScope<'_, '_> {
             &self.static_values,
         )?
         .map(|(value, _)| value);
+        if extent.is_none()
+            && !matches!(
+                self.namespace,
+                crate::hierarchy::preflight::DefinitionNamespace::Local
+            )
+        {
+            return Err(invalid(
+                "package definition with an unresolved IndexSet extent is outside the admitted indexed profile; supply a closed static extent",
+            ));
+        }
         if self
             .index_sets
             .insert(declaration.name().to_owned(), extent)
