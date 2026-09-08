@@ -9,7 +9,6 @@ pub(crate) struct LoweringEquation {
     pub(crate) right: LoweringExpression,
     pub(crate) contextual_left_zero: bool,
     pub(crate) contextual_right_zero: bool,
-    pub(crate) literal_right_zero: bool,
     pub(crate) range: TextRange,
 }
 
@@ -33,7 +32,6 @@ impl LoweringEquation {
             right,
             contextual_left_zero: equality::is_contextual_zero(equation.left()),
             contextual_right_zero: equality::is_contextual_zero(equation.right()),
-            literal_right_zero: equality::is_literal_zero(equation.right()),
             range: equation.range(),
         }
     }

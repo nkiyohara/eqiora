@@ -19,20 +19,6 @@ pub(crate) fn is_contextual_zero(mut expression: &Expr) -> bool {
     }
 }
 
-pub(crate) fn is_literal_zero(mut expression: &Expr) -> bool {
-    loop {
-        match expression.kind() {
-            ExprKind::Number(value) => return value.is_zero(),
-            ExprKind::Quantity { value, .. } => return value.is_zero(),
-            ExprKind::Unary {
-                op: UnaryOp::Neg,
-                value,
-            } => expression = value,
-            _ => return false,
-        }
-    }
-}
-
 pub(crate) struct CheckedEquality<I> {
     pub(crate) left: ExpressionType<I>,
     pub(crate) right: ExpressionType<I>,

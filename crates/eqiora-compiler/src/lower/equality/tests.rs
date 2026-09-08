@@ -4,6 +4,7 @@ use crate::lower::{
 };
 use eqiora_core::{DimExponents, ScalarDomain, ValueLiteral, ValueType};
 use eqiora_graph::Op;
+use eqiora_schema::kernel::typing;
 use eqiora_schema::kernel::{ExprNode, KernelNode};
 
 #[test]
@@ -89,7 +90,6 @@ fn explicit_complex_rhs_zero_keeps_promotion_in_the_actual_residual() {
                     right,
                     contextual_left_zero: false,
                     contextual_right_zero: false,
-                    literal_right_zero: true,
                     range,
                 }],
             },
@@ -107,11 +107,8 @@ fn explicit_complex_rhs_zero_keeps_promotion_in_the_actual_residual() {
             _ => None,
         })
         .unwrap();
-    let root = relation.residuals().roots()[0];
-    let ExprNode::Sub(_, right) = relation.residuals().nodes()[root.index() as usize] else {
-        panic!("real lhs cannot absorb a complex-zero promotion")
-    };
-    let ExprNode::Constant(value) = &relation.residuals().nodes()[right.index() as usize] else {
+    let (_, right) = relation.equation_sides().next().unwrap();
+    let ExprNode::Constant(value) = &relation.expression().nodes()[right.index() as usize] else {
         panic!("typed zero")
     };
     assert_eq!(value.value_type().scalar_domain(), ScalarDomain::Complex);
@@ -129,13 +126,13 @@ fn substituted_named_zero_is_not_a_literal_neutral_rule() {
         .find_map(|operation| match operation {
             Op::DefineKernelNode {
                 node: KernelNode::Relation(relation),
-            } if !relation.is_initial() => Some(relation.residuals()),
+            } if !relation.is_initial() => Some(relation.expression()),
             _ => None,
         })
         .unwrap();
     assert!(matches!(
-        dag.nodes()[dag.roots()[0].index() as usize],
-        ExprNode::Sub(..)
+        dag.nodes()[dag.roots()[1].index() as usize],
+        ExprNode::Symbol(eqiora_schema::kernel::SymbolRef::Parameter(_))
     ));
 }
 
@@ -230,7 +227,7 @@ fn checked_residuals_preserve_negative_base_and_signed_power_meaning() {
             .find_map(|operation| match operation {
                 Op::DefineKernelNode {
                     node: KernelNode::Relation(relation),
-                } if !relation.is_initial() => Some(relation.residuals()),
+                } if !relation.is_initial() => Some(relation.expression()),
                 _ => None,
             })
             .unwrap();
@@ -238,6 +235,7 @@ fn checked_residuals_preserve_negative_base_and_signed_power_meaning() {
         for node in dag.nodes() {
             values.push(match node {
                 ExprNode::Symbol(_) => 2.0,
+                ExprNode::Constant(value) => value.real_scalar_value().unwrap().value(),
                 ExprNode::Neg(value) => -values[value.index() as usize],
                 ExprNode::PowI(base, exponent) => values[base.index() as usize].powi(*exponent),
                 other => panic!("outside fixed power corpus: {other:?}"),

@@ -35,7 +35,15 @@ mod tests {
             ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
             FieldRoleSyntax::Variable,
         );
-        let relation = DraftRelation::continuous("observe", [observed.expression()]);
+        let relation = DraftRelation::continuous(
+            "observe",
+            [(
+                observed.expression(),
+                eqiora_lang::DraftExpression::constant(
+                    eqiora_lang::DecimalLiteral::parse("0").unwrap(),
+                ),
+            )],
+        );
         let draft = ModelDraft::new(
             "Native",
             [

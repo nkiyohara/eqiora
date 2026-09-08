@@ -445,7 +445,7 @@ model Quantities() {
                     } => Some(relation),
                     _ => None,
                 })
-                .flat_map(|relation| relation.residuals().nodes())
+                .flat_map(|relation| relation.expression().nodes())
                 .filter_map(|node| match node {
                     eqiora_schema::kernel::ExprNode::Constant(value)
                         if value.component(0).unwrap().0 != 0.0 =>
