@@ -901,7 +901,6 @@ class Component:
             raise SourceError("reduction nesting exceeds the expression depth limit")
         if name not in self._reduction_names and len(self._reduction_names) >= _MAX_EXPRESSION_NODES:
             raise SourceError("reduction names exceed the expression node limit")
-        previous_names = self._reduction_names.copy()
         token = object()
         self._active_binders[token] = name
         try:
@@ -915,9 +914,6 @@ class Component:
             result = Expression(_CREATE, f"{operation}({value._text}, over = ({name} in {over.name}))",
                                 self._component_token, value._depth + 1, value._nodes + 2, 100,
                                 _binders=value._binders - {token})
-        except BaseException:
-            self._reduction_names = previous_names
-            raise
         finally:
             del self._active_binders[token]
         self._reduction_names.add(name)

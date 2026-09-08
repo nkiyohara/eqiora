@@ -163,3 +163,19 @@ def test_reduction_expansion_rejects_out_of_bounds_index():
     with pytest.raises(eqiora.ValidationError) as error:
         eqiora.compile(source=source, entry="Reduction")
     assert any("index" in diagnostic.message.lower() for diagnostic in error.value.diagnostics)
+
+
+def test_completed_inner_reduction_keeps_its_scope_after_outer_callback_failure():
+    source, owner, rows = owner_and_rows()
+    saved = []
+    def fail(i):
+        saved.append(owner.sum(lambda j: q.ordinal(j), over=rows, name="j"))
+        raise RuntimeError("outer failed")
+    with pytest.raises(RuntimeError, match="outer failed"):
+        owner.sum(fail, over=rows, name="i")
+    with pytest.raises(q.SourceError, match="capture"):
+        owner.let_alias("j", 1)
+    # The completed inner expression remains usable, and the failed outer name is free.
+    owner.let_alias("i", 1)
+    owner.let_alias("saved", saved[0])
+    assert "sum(ordinal(j), over = (j in Rows))" in source.to_eqi()
