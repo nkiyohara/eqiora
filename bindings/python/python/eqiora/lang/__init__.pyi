@@ -14,6 +14,11 @@ from typing import Final, final
 from .. import FieldRole, ValueType, FiniteSpace, IndexSet
 
 @final
+class Operator:
+    """An immutable typed operator declared by one Source; call with named arguments."""
+    def __call__(self, /, **arguments: object) -> Expression: ...
+
+@final
 class SourceError(ValueError):
     """Reject a structurally invalid bounded Source draft.
 
@@ -244,6 +249,10 @@ class Source:
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Source``.
     """
 
+    def operator(self, name: str, *, inputs: Mapping[str, ValueType], result_type: ValueType,
+                 body: Callable[..., object], doc: str | None = None) -> Operator:
+        """Declare a closed real-scalar operator from one symbolic callback invocation."""
+        ...
     def space(self, name: str, *, labels: Sequence[str], doc: str | None = None) -> FiniteSpace:
         """Declare an exact ordered basis registered in this Source.
 
@@ -466,6 +475,7 @@ __all__ = [
     "Component",
     "Expression",
     "MaterialComposition",
+    "Operator",
     "PropertyContract",
     "PropertyRelease",
     "Relation",
