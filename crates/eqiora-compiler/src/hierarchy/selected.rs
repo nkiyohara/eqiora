@@ -383,6 +383,10 @@ fn prepare(
             "selected binding count exceeds resource limit".to_owned(),
         ));
     }
+    let frame_context = supports::signature_support_interface(file, signature)?
+        .iter()
+        .map(|(name, contract)| (name.to_owned(), contract.support().clone()))
+        .collect::<BTreeMap<_, _>>();
     let mut seen = BTreeSet::new();
     let mut prepared = ExternalComponentBinding::new(name, name, Vec::new(), Vec::new());
     let mut parameters = Vec::new();
@@ -416,12 +420,19 @@ fn prepare(
             })?;
         match (target, value) {
             (SignatureItem::Parameter(parameter), StaticBindingValue::Expression(value)) => {
-                let target =
-                    crate::value_types::lower_value_type::<()>(file, parameter.value_type(), None)
-                        .map_err(|error| vec![error])?;
+                let target = parameters::frames::parameter_type(
+                    file,
+                    parameter.value_type(),
+                    Some(value),
+                    &frame_context,
+                )
+                .map_err(|error| vec![error])?;
                 parameters.push(ExternalParameterBinding::new(
                     name,
-                    closed_value(file, value, target).map_err(|error| vec![error])?,
+                    parameters::closed_value_with_frames(file, value, target, &mut |name| {
+                        frame_context.get(name).cloned()
+                    })
+                    .map_err(|error| vec![error])?,
                 ));
             }
             (SignatureItem::Property(requirement), StaticBindingValue::Expression(value)) => {
@@ -536,6 +547,7 @@ fn bind_model(
     model: &ModelDecl,
     bindings: &ExternalComponentBinding,
 ) -> Result<ModelDecl, Vec<Diagnostic>> {
+    let frame_context = supports::model_spatial_supports("<selected-entry>", model)?;
     let signature = model
         .signature()
         .iter()
@@ -550,8 +562,19 @@ fn bind_model(
             else {
                 return Ok(item.clone());
             };
-            let value =
-                SourceAstFactory::value_literal(binding.value(), None, declaration.range(), |_| None)?;
+            let value = SourceAstFactory::value_literal(
+                binding.value(),
+                projection_frame(
+                    "<selected-entry>",
+                    binding.value(),
+                    declaration.default(),
+                    &frame_context,
+                    declaration.range(),
+                )?,
+                declaration.range(),
+                |_| None,
+            )
+            .map_err(|error| vec![hierarchy_error(error.message())])?;
             SourceAstFactory::component_parameter(
                 eqiora_lang::VisibilitySyntax::Public,
                 declaration.name(),
@@ -560,9 +583,9 @@ fn bind_model(
                 declaration.range(),
             )
             .map(SignatureItem::Parameter)
+            .map_err(|error| vec![hierarchy_error(error.message())])
         })
-        .collect::<Result<Vec<_>, eqiora_lang::AstConstructionError>>()
-        .map_err(|error| vec![hierarchy_error(error.message())])?;
+        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
     SourceAstFactory::model(
         model.visibility(),
         model.name(),
