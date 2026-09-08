@@ -33,10 +33,27 @@ fn native_kernel_admission_rejects_time_operators_outside_their_activation() {
                 ),
                 eqiora_schema::kernel::FieldRole::State,
             )),
-            KernelNode::from(RelationDef::new(
-                relation,
-                expression.finish([root]).unwrap(),
-            )),
+            KernelNode::from(
+                RelationDef::new(
+                    relation,
+                    {
+                        let equation_zero = expression
+                            .constant(eqiora_core::DynQuantity::new(
+                                0.0,
+                                if periodic {
+                                    eqiora_core::DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0])
+                                        .unwrap()
+                                } else {
+                                    eqiora_core::DimExponents::DIMENSIONLESS
+                                },
+                            ))
+                            .unwrap();
+                        expression.finish([root, equation_zero])
+                    }
+                    .unwrap(),
+                )
+                .unwrap(),
+            ),
             KernelNode::from(if periodic {
                 ActivationDef::periodic(activation)
             } else {

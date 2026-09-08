@@ -58,7 +58,7 @@ fn interface_program(
     };
     let connector_contract = BoundaryPhysicalConnector::new(
         trace_type.clone(),
-        trace_type.with_dimension(traction),
+        trace_type.clone().with_dimension(traction),
         BoundaryPairing::EuclideanBoundaryDuality,
     )
     .unwrap();
@@ -67,7 +67,22 @@ fn interface_program(
         let mut expression = ExprDagBuilder::new();
         let trace = expression.symbol(SymbolRef::PortTrace(port)).unwrap();
         let flux = expression.symbol(SymbolRef::PortFlux(port)).unwrap();
-        expression.finish([trace, flux]).unwrap()
+        {
+            let trace_zero = expression
+                .constant(eqiora_core::ValueLiteral::from_real(trace_type.clone(), 0.0).unwrap())
+                .unwrap();
+            let flux_zero = expression
+                .constant(
+                    eqiora_core::ValueLiteral::from_real(
+                        trace_type.clone().with_dimension(traction),
+                        0.0,
+                    )
+                    .unwrap(),
+                )
+                .unwrap();
+            expression.finish([trace, trace_zero, flux, flux_zero])
+        }
+        .unwrap()
     };
 
     let mut nodes = vec![
@@ -116,8 +131,8 @@ fn interface_program(
             connector,
             right_boundary,
         )),
-        KernelNode::from(RelationDef::new(left_relation, residuals(left_port))),
-        KernelNode::from(RelationDef::new(right_relation, residuals(right_port))),
+        KernelNode::from(RelationDef::new(left_relation, residuals(left_port)).unwrap()),
+        KernelNode::from(RelationDef::new(right_relation, residuals(right_port)).unwrap()),
         KernelNode::from(ActivationDef::continuous(left_activation)),
         KernelNode::from(ActivationDef::continuous(right_activation)),
         KernelNode::from(ConnectionDef::new(connection, semantics)),

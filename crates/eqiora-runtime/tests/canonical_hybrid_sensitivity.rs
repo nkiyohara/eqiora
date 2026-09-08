@@ -130,7 +130,7 @@ fn bouncing_ball(direction: EventDirection) -> BouncingBall {
         .symbol(SymbolRef::Derivative(height))
         .unwrap();
     let velocity_value = flow_expression.symbol(SymbolRef::Field(velocity)).unwrap();
-    let height_residual = flow_expression.sub(height_rate, velocity_value).unwrap();
+
     let velocity_rate = flow_expression
         .symbol(SymbolRef::Derivative(velocity))
         .unwrap();
@@ -138,13 +138,15 @@ fn bouncing_ball(direction: EventDirection) -> BouncingBall {
         .symbol(SymbolRef::Parameter(gravity))
         .unwrap();
     let velocity_residual = flow_expression.add(velocity_rate, gravity_value).unwrap();
+    let acceleration_zero = flow_expression
+        .constant(DynQuantity::new(0.0, acceleration_dimension))
+        .unwrap();
 
     let mut height_reset = ExprDagBuilder::new();
     let next_height = height_reset.symbol(SymbolRef::Next(height)).unwrap();
     let zero = height_reset
         .constant(DynQuantity::new(0.0, length))
         .unwrap();
-    let height_reset_residual = height_reset.sub(next_height, zero).unwrap();
 
     let mut velocity_reset = ExprDagBuilder::new();
     let next_velocity = velocity_reset.symbol(SymbolRef::Next(velocity)).unwrap();
@@ -166,23 +168,24 @@ fn bouncing_ball(direction: EventDirection) -> BouncingBall {
     let height_value = initial_expression
         .constant(DynQuantity::new(1.0, length))
         .unwrap();
-    let height_condition = initial_expression
-        .sub(height_initial, height_value)
-        .unwrap();
+
     let velocity_initial = initial_expression
         .symbol(SymbolRef::Field(velocity))
         .unwrap();
     let velocity_value = initial_expression
         .constant(DynQuantity::new(0.0, velocity_dimension))
         .unwrap();
-    let velocity_condition = initial_expression
-        .sub(velocity_initial, velocity_value)
-        .unwrap();
+
     let initial_equations = initial_expression
-        .finish([height_condition, velocity_condition])
+        .finish([
+            height_initial,
+            height_value,
+            velocity_initial,
+            velocity_value,
+        ])
         .unwrap();
     let nodes = vec![
-        KernelNode::from(RelationDef::initial(initial, initial_equations)),
+        KernelNode::from(RelationDef::initial(initial, initial_equations).unwrap()),
         KernelNode::from(FieldDef::new(
             height,
             eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, length),
@@ -215,20 +218,40 @@ fn bouncing_ball(direction: EventDirection) -> BouncingBall {
             )
             .unwrap(),
         )),
-        KernelNode::from(RelationDef::new(
-            flow,
-            flow_expression
-                .finish([height_residual, velocity_residual])
+        KernelNode::from(
+            RelationDef::new(
+                flow,
+                flow_expression
+                    .finish([
+                        height_rate,
+                        velocity_value,
+                        velocity_residual,
+                        acceleration_zero,
+                    ])
+                    .unwrap(),
+            )
+            .unwrap(),
+        ),
+        KernelNode::from(
+            RelationDef::new(
+                reset_height,
+                height_reset.finish([next_height, zero]).unwrap(),
+            )
+            .unwrap(),
+        ),
+        KernelNode::from(
+            RelationDef::new(
+                reset_velocity,
+                {
+                    let equation_zero = velocity_reset
+                        .constant(eqiora_core::DynQuantity::new(0.0, velocity_dimension))
+                        .unwrap();
+                    velocity_reset.finish([velocity_reset_residual, equation_zero])
+                }
                 .unwrap(),
-        )),
-        KernelNode::from(RelationDef::new(
-            reset_height,
-            height_reset.finish([height_reset_residual]).unwrap(),
-        )),
-        KernelNode::from(RelationDef::new(
-            reset_velocity,
-            velocity_reset.finish([velocity_reset_residual]).unwrap(),
-        )),
+            )
+            .unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(continuous)),
         KernelNode::from(
             ActivationDef::new(

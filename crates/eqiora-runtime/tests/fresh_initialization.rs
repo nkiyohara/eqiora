@@ -83,7 +83,7 @@ fn dense_descriptor(parameter_initial: bool) -> (KernelProgram, Id<kinds::Relati
             .constant(DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))
             .unwrap()
     };
-    let residual = condition.sub(value, prescribed).unwrap();
+
     let nodes = vec![
         KernelNode::from(FieldDef::new(x, scalar.clone(), FieldRole::State)),
         KernelNode::from(FieldDef::new(y, scalar, FieldRole::State)),
@@ -95,14 +95,22 @@ fn dense_descriptor(parameter_initial: bool) -> (KernelProgram, Id<kinds::Relati
             )
             .unwrap(),
         )),
-        KernelNode::from(RelationDef::new(
-            relation,
-            expression.finish([first, second]).unwrap(),
-        )),
-        KernelNode::from(RelationDef::initial(
-            initial,
-            condition.finish([residual]).unwrap(),
-        )),
+        KernelNode::from(
+            RelationDef::new(
+                relation,
+                {
+                    let zero = expression
+                        .constant(DynQuantity::new(0.0, inverse_time))
+                        .unwrap();
+                    expression.finish([first, zero, second, zero])
+                }
+                .unwrap(),
+            )
+            .unwrap(),
+        ),
+        KernelNode::from(
+            RelationDef::initial(initial, condition.finish([value, prescribed]).unwrap()).unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(activation)),
     ];
     let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();
@@ -207,10 +215,19 @@ fn decay(initial_value: Option<f64>) -> (KernelProgram, Id<kinds::Relation>) {
             )
             .unwrap(),
         )),
-        KernelNode::from(RelationDef::new(
-            relation,
-            expression.finish([residual]).unwrap(),
-        )),
+        KernelNode::from(
+            RelationDef::new(
+                relation,
+                {
+                    let equation_zero = expression
+                        .constant(eqiora_core::DynQuantity::new(0.0, inverse_time))
+                        .unwrap();
+                    expression.finish([residual, equation_zero])
+                }
+                .unwrap(),
+            )
+            .unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(activation)),
     ];
     let mut transaction = Transaction::new("fresh initialization and restart separation");
@@ -222,8 +239,12 @@ fn decay(initial_value: Option<f64>) -> (KernelProgram, Id<kinds::Relation>) {
         let value = expression
             .constant(DynQuantity::new(value, DimExponents::DIMENSIONLESS))
             .unwrap();
-        let residual = expression.sub(field_value, value).unwrap();
-        nodes.push(RelationDef::initial(initial, expression.finish([residual]).unwrap()).into());
+
+        nodes.push(
+            RelationDef::initial(initial, expression.finish([field_value, value]).unwrap())
+                .unwrap()
+                .into(),
+        );
         initial_relation = Some(initial);
     }
     let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();

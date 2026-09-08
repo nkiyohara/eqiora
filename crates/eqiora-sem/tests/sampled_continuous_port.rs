@@ -38,13 +38,13 @@ fn sampled_continuous_source_remains_an_initial_and_continuous_unknown() {
         .constant(DynQuantity::new(3., DimExponents::DIMENSIONLESS))
         .unwrap();
     let expected = law.add(three, elapsed).unwrap();
-    let residual = law.sub(measured, expected).unwrap();
-    let law = law.finish([residual]).unwrap();
+
+    let law = law.finish([measured, expected]).unwrap();
     let mut sampled = ExprDagBuilder::new();
     let ingress = sampled.symbol(SymbolRef::Port(input)).unwrap();
     let sampled_input = sampled.sample(ingress, clock).unwrap();
     let emitted = sampled.symbol(SymbolRef::Port(output)).unwrap();
-    let residual = sampled.sub(emitted, sampled_input).unwrap();
+
     let nodes = vec![
         KernelNode::from(PortDef::signal(
             source,
@@ -63,8 +63,10 @@ fn sampled_continuous_source_remains_an_initial_and_continuous_unknown() {
         .into(),
         ActivationDef::continuous(continuous).into(),
         ActivationDef::periodic(periodic).into(),
-        RelationDef::new(measurement, law).into(),
-        RelationDef::new(sample, sampled.finish([residual]).unwrap()).into(),
+        RelationDef::new(measurement, law).unwrap().into(),
+        RelationDef::new(sample, sampled.finish([emitted, sampled_input]).unwrap())
+            .unwrap()
+            .into(),
     ];
     let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();
     let mut transaction = Transaction::new("sample explicit continuous ingress");

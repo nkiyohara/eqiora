@@ -51,13 +51,22 @@ fn fixture(mode: &str) -> Result<Fixture, Vec<eqiora_core::Diagnostic>> {
             dag.sub(y, doubled).unwrap()
         }
     };
-    let residuals = dag.finish([residual]).unwrap();
+    let residuals = {
+        let equation_zero = dag
+            .constant(eqiora_core::DynQuantity::new(
+                0.0,
+                eqiora_core::DimExponents::DIMENSIONLESS,
+            ))
+            .unwrap();
+        dag.finish([residual, equation_zero])
+    }
+    .unwrap();
     let mut nodes = vec![
         KernelNode::from(FieldDef::new(field, value_type(), FieldRole::Variable)),
         if mode == "initial" {
-            RelationDef::initial(relation, residuals).into()
+            RelationDef::initial(relation, residuals).unwrap().into()
         } else {
-            RelationDef::new(relation, residuals).into()
+            RelationDef::new(relation, residuals).unwrap().into()
         },
     ];
     let mut edges = vec![(field.erase(), clocks[0].erase(), EdgeKind::ClockedBy)];

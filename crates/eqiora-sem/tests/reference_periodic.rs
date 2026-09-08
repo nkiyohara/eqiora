@@ -29,16 +29,12 @@ fn coincident_periodic_activations_commit_next_fields_simultaneously() {
     let pre_right = left_update
         .symbol(SymbolRef::Pre(right))
         .expect("pre right");
-    let left_residual = left_update.sub(next_left, pre_right).expect("left update");
 
     let mut right_update = ExprDagBuilder::new();
     let next_right = right_update
         .symbol(SymbolRef::Next(right))
         .expect("next right");
     let pre_left = right_update.symbol(SymbolRef::Pre(left)).expect("pre left");
-    let right_residual = right_update
-        .sub(next_right, pre_left)
-        .expect("right update");
 
     let period = RationalTime::new(1, 10).expect("100 ms");
     let nodes = [
@@ -60,14 +56,24 @@ fn coincident_periodic_activations_commit_next_fields_simultaneously() {
             eqiora_schema::kernel::FieldRole::State,
         )),
         initial(right, DynQuantity::new(2.0, DimExponents::DIMENSIONLESS)),
-        KernelNode::from(RelationDef::new(
-            left_relation,
-            left_update.finish([left_residual]).expect("left DAG"),
-        )),
-        KernelNode::from(RelationDef::new(
-            right_relation,
-            right_update.finish([right_residual]).expect("right DAG"),
-        )),
+        KernelNode::from(
+            RelationDef::new(
+                left_relation,
+                left_update
+                    .finish([next_left, pre_right])
+                    .expect("left DAG"),
+            )
+            .unwrap(),
+        ),
+        KernelNode::from(
+            RelationDef::new(
+                right_relation,
+                right_update
+                    .finish([next_right, pre_left])
+                    .expect("right DAG"),
+            )
+            .unwrap(),
+        ),
         KernelNode::from(ActivationDef::periodic(left_activation)),
         KernelNode::from(ActivationDef::periodic(right_activation)),
         KernelNode::from(
@@ -147,7 +153,7 @@ fn equal_periods_do_not_substitute_for_exact_state_clock_ownership() {
     let mut dag = ExprDagBuilder::new();
     let next = dag.symbol(SymbolRef::Next(field)).unwrap();
     let pre = dag.symbol(SymbolRef::Pre(field)).unwrap();
-    let root = dag.sub(next, pre).unwrap();
+
     let nodes = vec![
         FieldDef::new(
             field,
@@ -158,7 +164,9 @@ fn equal_periods_do_not_substitute_for_exact_state_clock_ownership() {
             eqiora_schema::kernel::FieldRole::State,
         )
         .into(),
-        RelationDef::new(relation, dag.finish([root]).unwrap()).into(),
+        RelationDef::new(relation, dag.finish([next, pre]).unwrap())
+            .unwrap()
+            .into(),
         ActivationDef::periodic(activation).into(),
         ClockDomainDef::periodic(state_clock, period, RationalTime::ZERO)
             .unwrap()
@@ -209,7 +217,7 @@ fn reference_run_excludes_an_exact_tick_that_rounds_down_to_the_horizon() {
         .constant(DynQuantity::new(1., DimExponents::DIMENSIONLESS))
         .unwrap();
     let increment = dag.add(pre, one).unwrap();
-    let residual = dag.sub(next, increment).unwrap();
+
     let nodes = [
         KernelNode::from(FieldDef::new(
             field,
@@ -220,7 +228,9 @@ fn reference_run_excludes_an_exact_tick_that_rounds_down_to_the_horizon() {
             eqiora_schema::kernel::FieldRole::State,
         )),
         initial(field, DynQuantity::new(0., DimExponents::DIMENSIONLESS)),
-        RelationDef::new(relation, dag.finish([residual]).unwrap()).into(),
+        RelationDef::new(relation, dag.finish([next, increment]).unwrap())
+            .unwrap()
+            .into(),
         ActivationDef::periodic(activation).into(),
         ClockDomainDef::periodic(
             clock,

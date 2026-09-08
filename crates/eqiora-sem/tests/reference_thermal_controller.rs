@@ -150,7 +150,6 @@ fn thermal_fixture() -> ThermalFixture {
         .expect("held control input");
     let heating = plant.mul(gain, input).expect("heating rate");
     let rate = plant.add(cooling, heating).expect("total rate");
-    let plant_residual = plant.sub(derivative, rate).expect("plant residual");
 
     let mut controller = ExprDagBuilder::new();
     let next_command = controller
@@ -174,12 +173,11 @@ fn thermal_fixture() -> ThermalFixture {
     let control = controller
         .mul(proportional_gain, error)
         .expect("control law");
-    let update = controller.sub(next_command, control).expect("state update");
+
     let mut held = ExprDagBuilder::new();
     let output = held.symbol(SymbolRef::Port(controller_output)).unwrap();
     let memory = held.symbol(SymbolRef::Field(command)).unwrap();
     let retained = held.hold(memory).unwrap();
-    let expose = held.sub(output, retained).unwrap();
 
     let nodes = [
         KernelNode::from(FieldDef::new(
@@ -265,18 +263,25 @@ fn thermal_fixture() -> ThermalFixture {
                 DimExponents::DIMENSIONLESS,
             ),
         )),
-        KernelNode::from(RelationDef::new(
-            plant_relation,
-            plant.finish([plant_residual]).expect("plant DAG"),
-        )),
-        KernelNode::from(RelationDef::new(
-            controller_relation,
-            controller.finish([update]).expect("controller DAG"),
-        )),
-        KernelNode::from(RelationDef::new(
-            held_relation,
-            held.finish([expose]).unwrap(),
-        )),
+        KernelNode::from(
+            RelationDef::new(
+                plant_relation,
+                plant.finish([derivative, rate]).expect("plant DAG"),
+            )
+            .unwrap(),
+        ),
+        KernelNode::from(
+            RelationDef::new(
+                controller_relation,
+                controller
+                    .finish([next_command, control])
+                    .expect("controller DAG"),
+            )
+            .unwrap(),
+        ),
+        KernelNode::from(
+            RelationDef::new(held_relation, held.finish([output, retained]).unwrap()).unwrap(),
+        ),
         KernelNode::from(ActivationDef::continuous(continuous)),
         KernelNode::from(ActivationDef::periodic(periodic)),
         KernelNode::from(
