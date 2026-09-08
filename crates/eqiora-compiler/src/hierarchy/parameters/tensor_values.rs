@@ -236,7 +236,7 @@ mod tests {
                     value.value().clone(),
                 ],
             },
-            TextRange::new(0, source.len()),
+            TextRange::new(0, u32::try_from(source.len()).unwrap()),
         )
         .unwrap()
     }
