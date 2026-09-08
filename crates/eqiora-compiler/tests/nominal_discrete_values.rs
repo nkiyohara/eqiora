@@ -120,3 +120,30 @@ model M(output observed:integer at tick) {
     let fractional = source.replace("value=9007199254740993", "value=0.5");
     assert!(CompiledModel::compile_selected("integer-binding.eqi", &fractional, "M", &[]).is_err());
 }
+
+#[test]
+fn selected_required_integer_extent_is_specialized_before_expansion() {
+    use eqiora_compiler::StaticBindingValue;
+    let source = r#"
+component Cell(output y:1) { relation emit {y=1;} }
+model M(parameter n:integer,output first:1) {
+    indexset Rows=range(n);
+    instance cell[i in Rows]:Cell();
+    connect cell[index(Rows,0)].y -> first;
+}
+"#;
+    let value = eqiora_lang::SourceAstFactory::expression(
+        eqiora_lang::ExprKind::Number(eqiora_lang::DecimalLiteral::parse("2").unwrap()),
+        eqiora_lang::TextRange::new(0, 0),
+    )
+    .unwrap();
+    let result = CompiledModel::compile_selected(
+        "selected-extent.eqi",
+        source,
+        "M",
+        &[("n", StaticBindingValue::Expression(&value))],
+    );
+    let model = result.unwrap_or_else(|errors| panic!("{errors:?}"));
+    assert!(model.symbols().get("cell[1].y").is_some());
+    assert!(model.symbols().get("cell[2].y").is_none());
+}

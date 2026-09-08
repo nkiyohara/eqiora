@@ -112,6 +112,16 @@ impl DefinitionScope<'_, '_> {
             &self.static_values,
         )?
         .map(|(value, _)| value);
+        if ordinal.is_none()
+            && !matches!(
+                self.namespace,
+                crate::hierarchy::preflight::DefinitionNamespace::Local
+            )
+        {
+            return Err(invalid(
+                "package definition with an unresolved structural selector is outside the admitted indexed profile",
+            ));
+        }
         if let (Some(extent), Some(ordinal)) = (extent, ordinal)
             && ordinal >= *extent
         {
@@ -124,7 +134,10 @@ impl DefinitionScope<'_, '_> {
                 .map_err(|error| invalid(error.message()))?;
         let key = vec![
             family_name.clone(),
-            ordinal.map_or_else(|| "<static-index>".to_owned(), |value| value.to_string()),
+            ordinal.map_or_else(
+                || format!("<deferred-at-{}>", expression.range().start()),
+                |value| value.to_string(),
+            ),
             member.clone(),
         ];
         Ok((path, key))
