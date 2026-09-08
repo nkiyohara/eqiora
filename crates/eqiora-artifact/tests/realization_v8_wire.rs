@@ -1,5 +1,8 @@
 use std::num::{NonZeroU16, NonZeroUsize};
 
+#[path = "realization_v8_wire/multiple.rs"]
+mod multiple;
+
 use eqiora_artifact::{
     ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelope,
     RealizationDecoderLimits, RealizationEnvelopeV8, RunManifestV2, SimplicialMeshEnvelopeV1,
@@ -49,7 +52,7 @@ fn coupled_v8_round_trips_exact_inventory_step_and_run_binding() {
 
     let text = String::from_utf8(bytes).unwrap();
     assert!(text.contains("eqiora.realization-envelope/v8"));
-    assert!(text.contains("trace_quotient"));
+    assert!(text.contains("\"trace_quotients\""));
     assert!(text.contains("time_step"));
     assert!(text.contains("eliminated_state"));
     assert!(text.contains("state_field_ulid"));
@@ -104,7 +107,7 @@ fn coupled_v8_rejects_noncanonical_and_drifted_exact_choices() {
     );
 
     let mut connection_drift: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    connection_drift["plan"]["spatial"]["trace_quotient"]["connection_ulid"] =
+    connection_drift["plan"]["spatial"]["trace_quotients"][0]["connection_ulid"] =
         serde_json::json!(Id::<kinds::Connection>::new().ulid().to_string());
     assert!(
         RealizationEnvelopeV8::from_json(
@@ -247,7 +250,7 @@ impl Fixture {
                 DomainFieldInventory::new(first_domain, [pressure, first_velocity]).unwrap(),
                 DomainFieldInventory::new(second_domain, [displacement, second_velocity]).unwrap(),
             ],
-            trace,
+            [trace],
             state_pair,
             execution,
         )
@@ -277,7 +280,7 @@ impl Fixture {
                 )
                 .unwrap(),
             ],
-            trace,
+            [trace],
             Discretization::new(
                 DiscretizationMethod::ContinuousGalerkin,
                 MeshPolicy::ImportedSimplicial {

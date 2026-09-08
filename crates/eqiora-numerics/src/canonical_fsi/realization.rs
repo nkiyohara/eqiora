@@ -264,7 +264,7 @@ pub fn fixed_reference_fsi_requirements_2d_for_layout(
             )
             .expect("lowered solid owns distinct displacement and velocity Fields"),
         ],
-        trace_quotient(model),
+        [trace_quotient(model)],
         state_pair(model),
         RealizationRequirements::new(
             NonZeroUsize::new(DIMENSION).expect("two is non-zero"),
@@ -400,7 +400,7 @@ pub(super) fn fixed_reference_fsi_plan_2d_for_profile(
             )
             .map_err(realization_error)?,
         ],
-        trace_quotient(model),
+        [trace_quotient(model)],
         Discretization::new(
             DiscretizationMethod::ContinuousGalerkin,
             MeshPolicy::ImportedSimplicial { artifact: mesh },

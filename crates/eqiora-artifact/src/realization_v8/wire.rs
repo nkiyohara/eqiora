@@ -21,7 +21,7 @@ use crate::{RealizationDecoderLimits, invalid_artifact};
 #[serde(deny_unknown_fields)]
 pub(crate) struct WireCoupledRequirements {
     domains: Vec<WireDomainFieldInventory>,
-    trace_quotient: WireTraceQuotient,
+    trace_quotients: Vec<WireTraceQuotient>,
     eliminated_state: WireStatePair,
     execution: WireExecutionRequirements,
 }
@@ -36,7 +36,12 @@ impl WireCoupledRequirements {
                 .iter()
                 .map(WireDomainFieldInventory::encode)
                 .collect(),
-            trace_quotient: WireTraceQuotient::encode(value.trace_quotient()),
+            trace_quotients: value
+                .trace_quotients()
+                .iter()
+                .copied()
+                .map(WireTraceQuotient::encode)
+                .collect(),
             eliminated_state: WireStatePair::encode(value.eliminated_state()),
             execution: WireExecutionRequirements::encode(value.execution())?,
         })
@@ -48,7 +53,10 @@ impl WireCoupledRequirements {
                 .into_iter()
                 .map(WireDomainFieldInventory::decode)
                 .collect::<Result<Vec<_>, _>>()?,
-            self.trace_quotient.decode()?,
+            self.trace_quotients
+                .into_iter()
+                .map(WireTraceQuotient::decode)
+                .collect::<Result<Vec<_>, _>>()?,
             self.eliminated_state.decode()?,
             self.execution.decode()?,
         )
@@ -68,6 +76,7 @@ impl WireCoupledRequirements {
             .ok_or_else(|| invalid_artifact("coupled requirement Field count overflows usize"))?;
         if self.domains.len() > limits.max_realization_fields
             || fields > limits.max_realization_fields
+            || self.trace_quotients.len() > limits.max_realization_constraints
         {
             return Err(invalid_artifact(
                 "coupled realization Domain or participating-Field count exceeds the decoder limit",
@@ -171,6 +180,7 @@ impl<Q: WireQuadratureCodec> WireCoupledPlanWith<Q> {
         )?;
         if self.spatial.domains.len() > limits.max_realization_fields
             || fields > limits.max_realization_fields
+            || self.spatial.trace_quotients.len() > limits.max_realization_constraints
             || constraints > limits.max_realization_constraints
             || self.scaling_block_count() > limits.max_realization_blocks
         {
@@ -194,7 +204,7 @@ impl<Q: WireQuadratureCodec> WireCoupledPlanWith<Q> {
 struct WireCoupledSpatial<Q> {
     coordinate_length_scale: WirePhysicalScale,
     domains: Vec<WireDomainFieldDiscretization>,
-    trace_quotient: WireTraceQuotient,
+    trace_quotients: Vec<WireTraceQuotient>,
     discretization: WireDiscretizationWith<Q>,
 }
 
@@ -207,7 +217,12 @@ impl<Q: WireQuadratureCodec> WireCoupledSpatial<Q> {
                 .iter()
                 .map(WireDomainFieldDiscretization::encode)
                 .collect(),
-            trace_quotient: WireTraceQuotient::encode(value.trace_quotient()),
+            trace_quotients: value
+                .trace_quotients()
+                .iter()
+                .copied()
+                .map(WireTraceQuotient::encode)
+                .collect(),
             discretization: WireDiscretizationWith::<Q>::encode(value.discretization())?,
         })
     }
@@ -219,7 +234,10 @@ impl<Q: WireQuadratureCodec> WireCoupledSpatial<Q> {
                 .into_iter()
                 .map(WireDomainFieldDiscretization::decode)
                 .collect::<Result<Vec<_>, _>>()?,
-            self.trace_quotient.decode()?,
+            self.trace_quotients
+                .into_iter()
+                .map(WireTraceQuotient::decode)
+                .collect::<Result<Vec<_>, _>>()?,
             self.discretization.decode()?,
         )
         .map_err(realization_error)

@@ -41,7 +41,7 @@ pub(crate) fn validate_requirements_plan(
     if motion.fluid_domain() != requirements.fluid_domain()
         || motion.solid_domain() != requirements.solid_domain()
         || motion.solid_displacement() != requirements.solid_displacement()
-        || motion.interface() != requirements.coupled().trace_quotient().connection()
+        || !matches!(requirements.coupled().trace_quotients(), [quotient] if quotient.connection() == motion.interface())
         || plan.fluid_time_step().relation() != requirements.fluid_relation()
         || plan.fluid_time_step().state() != requirements.fluid_velocity()
         || pullback.relation() != requirements.fluid_relation()
@@ -81,7 +81,7 @@ pub(crate) fn validate_requirements_plan(
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| invalid_artifact(error.to_string()))?;
     if requirements.coupled().domains() != selected_domains
-        || requirements.coupled().trace_quotient() != coupled.spatial().trace_quotient()
+        || requirements.coupled().trace_quotients() != coupled.spatial().trace_quotients()
         || requirements.coupled().eliminated_state() != eliminated
     {
         return Err(invalid_artifact(

@@ -91,6 +91,33 @@ fn realization_v6_rejects_displaced_schema_labels() {
 }
 
 #[test]
+fn realization_v6_requires_plural_trace_inventories_in_both_coupled_owners() {
+    let bytes = Fixture::new().envelope().canonical_json().unwrap();
+    let current: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    RealizationEnvelopeV6::from_json(&bytes, Default::default()).unwrap();
+
+    for pointer in ["/requirements/coupled", "/plan/coupled/spatial"] {
+        let mut obsolete = current.clone();
+        let owner = obsolete
+            .pointer_mut(pointer)
+            .unwrap()
+            .as_object_mut()
+            .unwrap();
+        let quotients = owner.remove("trace_quotients").unwrap();
+        let [quotient] = quotients.as_array().unwrap().as_slice() else {
+            panic!("the ordinary ALE fixture must select exactly one quotient");
+        };
+        owner.insert("trace_quotient".to_owned(), quotient.clone());
+        let error = RealizationEnvelopeV6::from_json(
+            &serde_json::to_vec(&obsolete).unwrap(),
+            Default::default(),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("unknown field `trace_quotient`"));
+    }
+}
+
+#[test]
 fn realization_v6_round_trips_dimension_explicit_tetrahedral_quadrature() {
     let fixture = Fixture::tetrahedral();
     let envelope = fixture.envelope();
@@ -425,7 +452,7 @@ impl Ids {
                 )
                 .unwrap(),
             ],
-            self.trace(),
+            [self.trace()],
             Discretization::new(
                 DiscretizationMethod::ContinuousGalerkin,
                 MeshPolicy::ImportedSimplicial {
@@ -523,7 +550,7 @@ impl Ids {
                     )
                     .unwrap(),
                 ],
-                self.trace(),
+                [self.trace()],
                 self.state_pair(),
                 RealizationRequirements::new(
                     NonZeroUsize::new(spatial_dimension).unwrap(),

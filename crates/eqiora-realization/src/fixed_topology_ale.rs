@@ -284,7 +284,12 @@ impl FixedTopologyAleCoupledRealizationPlan {
                 "fixed-topology ALE Domain roles must cover the exact coupled spatial Domains",
             ));
         }
-        if spatial.trace_quotient().connection() != motion.interface {
+        let [selected_quotient] = spatial.trace_quotients() else {
+            return Err(invalid_realization(
+                "fixed-topology ALE requires exactly one trace quotient",
+            ));
+        };
+        if selected_quotient.connection() != motion.interface {
             return Err(invalid_realization(
                 "mesh motion must use the exact conforming FSI interface Connection",
             ));
@@ -312,7 +317,7 @@ impl FixedTopologyAleCoupledRealizationPlan {
             expected_endpoints[0],
             expected_endpoints[1],
         )?;
-        if spatial.trace_quotient() != quotient {
+        if *selected_quotient != quotient {
             return Err(invalid_realization(
                 "fixed-topology ALE interface must identify the fluid velocity and solid rate traces",
             ));
@@ -364,12 +369,17 @@ impl FixedTopologyAleCoupledRealizationRequirements {
                 "fixed-topology ALE requirements do not contain the exact fluid velocity and solid state/rate roles",
             ));
         }
+        let [selected_quotient] = coupled.trace_quotients() else {
+            return Err(invalid_realization(
+                "fixed-topology ALE requirements need exactly one trace quotient",
+            ));
+        };
         let quotient = ConformingTraceQuotient::new(
-            coupled.trace_quotient().connection(),
+            selected_quotient.connection(),
             crate::TraceFieldEndpoint::new(fluid_domain, fluid_velocity),
             crate::TraceFieldEndpoint::new(solid_domain, eliminated.rate()),
         )?;
-        if quotient != coupled.trace_quotient() {
+        if quotient != *selected_quotient {
             return Err(invalid_realization(
                 "fixed-topology ALE requirements must identify exact fluid and solid velocity traces",
             ));
@@ -542,7 +552,7 @@ pub fn resolve_fixed_topology_ale_coupled(
     if motion.fluid_domain != requirements.fluid_domain
         || motion.solid_domain != requirements.solid_domain
         || motion.solid_displacement != requirements.solid_displacement
-        || motion.interface != requirements.coupled.trace_quotient().connection()
+        || !matches!(requirements.coupled.trace_quotients(), [quotient] if quotient.connection() == motion.interface)
         || plan.fluid_time_step.relation() != requirements.fluid_relation
         || plan.fluid_time_step.state() != requirements.fluid_velocity
         || plan.pullback.relation() != requirements.fluid_relation

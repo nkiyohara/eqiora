@@ -29,6 +29,13 @@ pub(super) fn require_exact_plan(
     graph: &PortableRealizationGraph,
     mesh_artifact: MeshArtifactReference,
 ) -> Result<FixedReferenceFsiScaleProfile2d, Diagnostic> {
+    if resolved.plan().spatial().trace_quotients().len() != 1
+        || resolved.requirements().trace_quotients().len() != 1
+    {
+        return Err(invalid_realization(
+            "fixed-reference FSI requires exactly one trace quotient",
+        ));
+    }
     if resolved.model() != model.model()
         || resolved.semantic_revision().get() != model.semantic_revision()
     {

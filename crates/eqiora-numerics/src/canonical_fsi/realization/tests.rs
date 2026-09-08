@@ -49,7 +49,7 @@ fn requirements_keep_semantics_while_vector_layout_is_explicit() {
         VectorLayoutKind::Distributed
     );
     assert_eq!(replicated.domains(), distributed.domains());
-    assert_eq!(replicated.trace_quotient(), distributed.trace_quotient());
+    assert_eq!(replicated.trace_quotients(), distributed.trace_quotients());
     assert_eq!(
         replicated.eliminated_state(),
         distributed.eliminated_state()
@@ -118,8 +118,8 @@ fn plan_is_the_exact_gauge_free_monolithic_selection() {
         scales().weak_functional()
     );
     assert_eq!(
-        fixed_reference_fsi_requirements_2d(&model).trace_quotient(),
-        plan.spatial().trace_quotient()
+        fixed_reference_fsi_requirements_2d(&model).trace_quotients(),
+        plan.spatial().trace_quotients()
     );
 }
 
@@ -284,7 +284,7 @@ fn finalization_replays_quadrature_and_mesh_identity_exactly() {
         CoupledFieldwiseSpatialDiscretization::new(
             plan.spatial().coordinate_length_scale(),
             plan.spatial().domains().iter().cloned(),
-            plan.spatial().trace_quotient(),
+            plan.spatial().trace_quotients(),
             Discretization::new(
                 DiscretizationMethod::ContinuousGalerkin,
                 MeshPolicy::ImportedSimplicial {

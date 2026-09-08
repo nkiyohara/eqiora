@@ -1,5 +1,8 @@
 use std::num::{NonZeroU16, NonZeroUsize};
 
+#[path = "tests/multiple.rs"]
+mod multiple;
+
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{DimExponents, DynQuantity, Id, OntologyId};
@@ -145,7 +148,7 @@ fn domain_field_connection_and_trace_drift_fail_closed() {
             )
             .unwrap(),
         ],
-        fixture.trace(fixture.connection),
+        [fixture.trace(fixture.connection)],
         fixture.state_pair(),
         execution_requirements(),
     )
@@ -166,7 +169,7 @@ fn domain_field_connection_and_trace_drift_fail_closed() {
                 )
                 .unwrap(),
             ],
-            fixture.trace(fixture.connection),
+            [fixture.trace(fixture.connection)],
             fixture.state_pair(),
             execution_requirements(),
         )
@@ -195,7 +198,7 @@ fn step_duration_and_shared_imported_mesh_are_closed_choices() {
     let generated = CoupledFieldwiseSpatialDiscretization::new(
         plan.spatial().coordinate_length_scale(),
         plan.spatial().domains().iter().cloned(),
-        plan.spatial().trace_quotient(),
+        plan.spatial().trace_quotients(),
         Discretization::new(
             DiscretizationMethod::ContinuousGalerkin,
             MeshPolicy::GeneratedUniform {
@@ -228,7 +231,7 @@ fn quotient_requires_equal_trace_signature_and_shared_dof_scale() {
         CoupledFieldwiseSpatialDiscretization::new(
             physical_scale(length_dimension()),
             fixture.domains(Space::continuous_lagrange(NonZeroU16::new(2).unwrap())),
-            fixture.trace(fixture.connection),
+            [fixture.trace(fixture.connection)],
             fixture.discretization(),
         )
         .is_err()
@@ -272,7 +275,7 @@ fn eliminated_state_is_represented_but_never_an_algebraic_block() {
     let duplicated = CoupledFieldwiseSpatialDiscretization::new(
         physical_scale(length_dimension()),
         duplicated_domains,
-        fixture.trace(fixture.connection),
+        [fixture.trace(fixture.connection)],
         fixture.discretization(),
     )
     .unwrap();
@@ -369,7 +372,7 @@ impl Fixture {
         }
         CoupledFieldwiseRealizationRequirements::new(
             domains,
-            self.trace(connection),
+            [self.trace(connection)],
             self.state_pair(),
             execution_requirements_with_dimension(spatial_dimension),
         )
@@ -403,7 +406,7 @@ impl Fixture {
         let spatial = CoupledFieldwiseSpatialDiscretization::new(
             physical_scale(length_dimension()),
             self.domains(Space::continuous_lagrange(NonZeroU16::MIN)),
-            self.trace(self.connection),
+            [self.trace(self.connection)],
             Discretization::new(
                 DiscretizationMethod::ContinuousGalerkin,
                 MeshPolicy::ImportedSimplicial {

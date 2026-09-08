@@ -240,7 +240,7 @@ impl DomainFieldDiscretization {
 pub struct CoupledFieldwiseSpatialDiscretization {
     coordinate_length_scale: PositivePhysicalScale,
     domains: Vec<DomainFieldDiscretization>,
-    trace_quotient: ConformingTraceQuotient,
+    trace_quotients: Vec<ConformingTraceQuotient>,
     discretization: Discretization,
 }
 
@@ -249,12 +249,13 @@ impl CoupledFieldwiseSpatialDiscretization {
     ///
     /// # Errors
     /// Returns `EQ0807` unless there are at least two distinct Domains, every
-    /// algebraic Field is bound exactly once globally, both trace endpoints belong to
-    /// their selected Domains, and the coordinate scale has length dimension.
+    /// algebraic Field is bound exactly once globally, every trace endpoint belongs to
+    /// its selected Domain with a matching trace-space signature, the quotient collection
+    /// is nonempty without duplicate selections, and the coordinate scale has length dimension.
     pub fn new(
         coordinate_length_scale: PositivePhysicalScale,
         domains: impl IntoIterator<Item = DomainFieldDiscretization>,
-        trace_quotient: ConformingTraceQuotient,
+        trace_quotients: impl AsRef<[ConformingTraceQuotient]>,
         discretization: Discretization,
     ) -> Result<Self, Diagnostic> {
         if coordinate_length_scale.quantity().dim() != length_dimension() {
@@ -265,11 +266,14 @@ impl CoupledFieldwiseSpatialDiscretization {
         let mut domains = domains.into_iter().collect::<Vec<_>>();
         domains.sort_by_key(|domain| domain.domain.ulid());
         validate_domain_selections(&domains)?;
-        validate_trace_selection(&domains, trace_quotient)?;
+        let trace_quotients = canonical_trace_quotients(trace_quotients.as_ref().iter().copied())?;
+        for &quotient in &trace_quotients {
+            validate_trace_selection(&domains, quotient)?;
+        }
         Ok(Self {
             coordinate_length_scale,
             domains,
-            trace_quotient,
+            trace_quotients,
             discretization,
         })
     }
@@ -286,10 +290,10 @@ impl CoupledFieldwiseSpatialDiscretization {
         &self.domains
     }
 
-    /// The sole exact conforming trace quotient.
+    /// Canonically ordered exact conforming trace quotients.
     #[must_use]
-    pub const fn trace_quotient(&self) -> ConformingTraceQuotient {
-        self.trace_quotient
+    pub fn trace_quotients(&self) -> &[ConformingTraceQuotient] {
+        &self.trace_quotients
     }
 
     /// Shared method, imported mesh, and quadrature selection.
@@ -602,17 +606,19 @@ impl CoupledFieldwiseRealizationPlan {
                 "coupled congruence scaling must cover every Field and constraint-multiplier block exactly once",
             ));
         }
-        let [first, second] = self.spatial.trace_quotient.endpoints;
-        let first_scale = field_scale(&self.scaling, first.field).ok_or_else(|| {
-            invalid_realization("first trace endpoint Field has no congruence scale")
-        })?;
-        let second_scale = field_scale(&self.scaling, second.field).ok_or_else(|| {
-            invalid_realization("second trace endpoint Field has no congruence scale")
-        })?;
-        if first_scale != second_scale {
-            return Err(invalid_realization(
-                "Fields identified as one conforming trace quotient must have exactly equal congruence scales",
-            ));
+        for quotient in &self.spatial.trace_quotients {
+            let [first, second] = quotient.endpoints;
+            let first_scale = field_scale(&self.scaling, first.field).ok_or_else(|| {
+                invalid_realization("first trace endpoint Field has no congruence scale")
+            })?;
+            let second_scale = field_scale(&self.scaling, second.field).ok_or_else(|| {
+                invalid_realization("second trace endpoint Field has no congruence scale")
+            })?;
+            if first_scale != second_scale {
+                return Err(invalid_realization(
+                    "Fields identified as one conforming trace quotient must have exactly equal congruence scales",
+                ));
+            }
         }
         let eliminated = self.time_step.eliminated_state;
         let pair = eliminated.pair;
@@ -655,6 +661,25 @@ impl CoupledFieldwiseRealizationPlan {
         }
         Ok(())
     }
+}
+
+pub(crate) fn canonical_trace_quotients(
+    quotients: impl IntoIterator<Item = ConformingTraceQuotient>,
+) -> Result<Vec<ConformingTraceQuotient>, Diagnostic> {
+    let mut quotients = quotients.into_iter().collect::<Vec<_>>();
+    quotients.sort_by(|left, right| {
+        left.connection
+            .ulid()
+            .cmp(&right.connection.ulid())
+            .then_with(|| endpoint_order(&left.endpoints[0], &right.endpoints[0]))
+            .then_with(|| endpoint_order(&left.endpoints[1], &right.endpoints[1]))
+    });
+    if quotients.is_empty() || quotients.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(invalid_realization(
+            "conforming trace quotients must be nonempty and contain no duplicate selection",
+        ));
+    }
+    Ok(quotients)
 }
 
 fn validate_domain_selections(domains: &[DomainFieldDiscretization]) -> Result<(), Diagnostic> {
