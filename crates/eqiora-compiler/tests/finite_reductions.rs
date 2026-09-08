@@ -149,3 +149,20 @@ fn indexed_reduction_members_keep_exact_set_and_alias_clock() {
         "{errors:?}"
     );
 }
+
+#[test]
+fn reductions_preserve_the_existing_integer_power_boundary() {
+    for source in [
+        "model M(){parameter n:integer=2;relation r{n^2=4;}}",
+        "model M(){indexset I=range(3);relation r{sum((ordinal(i)+1)^2,over=(i in I))=14;}}",
+        "model M(){indexset I=range(3);relation r{product((ordinal(i)+1)^2,over=(i in I))=36;}}",
+    ] {
+        let errors = compile("integer-power.eqi", source).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message().contains("scalar domains")),
+            "{errors:?}"
+        );
+    }
+}
