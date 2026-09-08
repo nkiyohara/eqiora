@@ -2,10 +2,11 @@ use super::*;
 use crate::{DimExponents, ValueFrame, ValueShape};
 
 fn real() -> ValueType {
-    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).expect("checked scalar type")
 }
 fn complex() -> ValueType {
     ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+        .expect("checked scalar type")
 }
 
 #[test]
@@ -135,7 +136,8 @@ fn invalid_components_cannot_enter_the_value() {
 fn exact_integer_boundaries_arithmetic_and_explicit_conversion() {
     let int = |n| {
         ValueLiteral::from_integer(
-            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                .expect("checked scalar type"),
             n,
         )
         .unwrap()
@@ -193,7 +195,8 @@ fn exact_integer_boundaries_arithmetic_and_explicit_conversion() {
     );
     let real = |n| {
         ValueLiteral::from_real(
-            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                .expect("checked scalar type"),
             n,
         )
         .unwrap()
@@ -219,6 +222,7 @@ fn exact_integer_boundaries_arithmetic_and_explicit_conversion() {
 #[test]
 fn integer_arrays_keep_order_cardinality_and_compact_zero() {
     let ty = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+        .expect("checked scalar type")
         .array(3)
         .unwrap();
     let value =
@@ -235,6 +239,7 @@ fn integer_arrays_keep_order_cardinality_and_compact_zero() {
     assert!(ValueLiteral::from_real(ty.clone(), 0.0).is_err());
     assert!(ValueLiteral::new(ty, [(0.0, 0.0); 3]).is_err());
     let huge = ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+        .expect("checked scalar type")
         .array(u32::MAX)
         .unwrap();
     let zero = ValueLiteral::from_integer(huge, 0).unwrap();
@@ -296,12 +301,14 @@ fn nominal_counts_and_indexes_do_not_inherit_integer_coercions() {
 #[test]
 fn booleans_never_coerce_to_numeric_values_or_zero() {
     let integer = ValueLiteral::from_integer(
-        ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+        ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+            .expect("checked scalar type"),
         1,
     )
     .unwrap();
     let real = ValueLiteral::from_real(
-        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            .expect("checked scalar type"),
         1.0,
     )
     .unwrap();
@@ -368,19 +375,10 @@ fn enum_values_preserve_nominality_without_numeric_coercion() {
     assert!(ValueLiteral::from_integer(ty.clone(), 0).is_err());
     assert!(ValueLiteral::from_real(ty.clone(), 0.).is_err());
     assert!(
-        ValueLiteral::enum_value(
-            ty.with_dimension(DimExponents::from_integers([1, 0, 0, 0, 0, 0, 0]).unwrap()),
-            0
-        )
-        .is_err()
+        ty.with_dimension(DimExponents::from_integers([1, 0, 0, 0, 0, 0, 0]).unwrap())
+            .is_err()
     );
-    assert!(
-        ValueLiteral::enum_value(
-            ValueType::scalar(ScalarDomain::Enum, DimExponents::DIMENSIONLESS),
-            0
-        )
-        .is_err()
-    );
+    assert!(ValueType::scalar(ScalarDomain::Enum, DimExponents::DIMENSIONLESS).is_err());
     assert!(first.component(0).is_none());
     assert!(first.components().is_none());
     assert!(first.integer_component(0).is_none());

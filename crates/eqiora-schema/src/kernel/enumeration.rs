@@ -17,12 +17,12 @@ impl EnumDef {
         let mut checked = Vec::new();
         let mut seen = std::collections::BTreeSet::new();
         for member in members {
-            if member.trim().is_empty()
+            if !member_name(&member)
                 || !seen.insert(member.clone())
                 || checked.len() >= ValueType::MAX_ENUM_MEMBERS as usize
             {
                 return Err(invalid(
-                    "enum requires unique nonempty members within the tag bound",
+                    "enum requires unique identifier members within the tag bound",
                 ));
             }
             checked
@@ -52,6 +52,12 @@ impl EnumDef {
             .map_err(|_| invalid("enum member tag is outside its declaration"))
     }
 }
+fn member_name(value: &str) -> bool {
+    let mut bytes = value.bytes();
+    matches!(bytes.next(), Some(first) if first.is_ascii_alphabetic() || first == b'_')
+        && bytes.all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+}
+
 fn invalid(message: &str) -> Diagnostic {
     Diagnostic::error(codes::INVALID_KERNEL_DEFINITION, message)
 }
@@ -73,6 +79,11 @@ mod tests {
         assert!(EnumDef::new(id, []).is_err());
         assert!(EnumDef::new(id, ["Off".into(), "Off".into()]).is_err());
         assert!(definition.value(2).is_err());
+        for invalid in ["", " ", "bad name", "A.B", "1st", "温度"] {
+            assert!(EnumDef::new(id, [invalid.into()]).is_err(), "{invalid}");
+        }
+        assert!(EnumDef::new(id, ["_Off".into(), "On2".into()]).is_ok());
+
         let ty = ExpressionType::<()>::new(definition.value_type(), None);
         assert!(ty.clone().compare(ComparisonOp::Equal, ty.clone()).is_ok());
         assert!(ty.clone().compare(ComparisonOp::Less, ty.clone()).is_err());

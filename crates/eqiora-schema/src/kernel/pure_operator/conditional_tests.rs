@@ -27,7 +27,10 @@ fn literal(builder: &mut CalculusBuilder, value: i64, dimension: DimExponents) -
         .unwrap()
 }
 fn ty(dimension: DimExponents) -> ExpressionType<u32> {
-    ExpressionType::new(ValueType::scalar(ScalarDomain::Real, dimension), None)
+    ExpressionType::new(
+        ValueType::scalar(ScalarDomain::Real, dimension).expect("checked scalar type"),
+        None,
+    )
 }
 
 #[test]
@@ -114,7 +117,8 @@ fn square_root_uses_rational_formal_exponents_and_typed_literal_factors() {
     let unused = dag
         .constant(
             ValueLiteral::from_real(
-                ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+                ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                    .expect("checked scalar type"),
                 1.0,
             )
             .unwrap(),
@@ -140,7 +144,8 @@ fn require_and_select_validate_all_static_operands_without_numeric_conditions() 
         let value = builder
             .constant(
                 ValueLiteral::from_real(
-                    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+                    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                        .expect("checked scalar type"),
                     2.0,
                 )
                 .unwrap(),
@@ -204,7 +209,8 @@ fn require_and_select_validate_all_static_operands_without_numeric_conditions() 
     let argument = dag
         .constant(
             ValueLiteral::from_real(
-                ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+                ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                    .expect("checked scalar type"),
                 2.0,
             )
             .unwrap(),
@@ -261,7 +267,7 @@ fn builder_component_type_uses_the_same_concrete_dimension_proof() {
     let value = formal(&mut builder, 0);
     assert_eq!(
         builder.value_type(value).unwrap(),
-        ValueType::scalar(ScalarDomain::Real, length)
+        ValueType::scalar(ScalarDomain::Real, length).expect("checked scalar type")
     );
     let predicate = builder
         .push(CalculusNode::Compare(ComparisonOp::Equal, value, value))

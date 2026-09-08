@@ -60,7 +60,8 @@ fn arrays_of_vectors_are_not_spatial_tensors_with_the_same_extents() {
 
 #[test]
 fn nested_channel_arrays_preserve_axis_order_and_reject_zero_extents() {
-    let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
+    let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+        .expect("checked scalar type");
     assert!(scalar.clone().array(0).is_err());
     let nested = scalar.array(2).unwrap().array(3).unwrap();
     assert_eq!(nested.array_rank(), 2);

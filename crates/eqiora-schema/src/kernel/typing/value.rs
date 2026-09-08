@@ -46,7 +46,10 @@ impl<I> ExpressionType<I> {
     /// An invariant real scalar with the supplied dimension and support.
     #[must_use]
     pub fn scalar(dimension: DimExponents, support: Option<SpatialSupport<I>>) -> Self {
-        Self::new(ValueType::scalar(ScalarDomain::Real, dimension), support)
+        Self::new(
+            ValueType::scalar(ScalarDomain::Real, dimension).expect("checked scalar type"),
+            support,
+        )
     }
 
     /// A real value with an exact mathematical shape, frame and support.

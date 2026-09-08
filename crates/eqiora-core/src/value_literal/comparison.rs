@@ -78,14 +78,19 @@ mod tests {
 
     fn integer(n: i64) -> ValueLiteral {
         ValueLiteral::from_integer(
-            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                .expect("checked scalar type"),
             n,
         )
         .unwrap()
     }
 
     fn real(n: f64, dimension: DimExponents) -> ValueLiteral {
-        ValueLiteral::from_real(ValueType::scalar(ScalarDomain::Real, dimension), n).unwrap()
+        ValueLiteral::from_real(
+            ValueType::scalar(ScalarDomain::Real, dimension).expect("checked scalar type"),
+            n,
+        )
+        .unwrap()
     }
 
     #[test]
@@ -106,12 +111,12 @@ mod tests {
         assert!(!one.checked_equal(&adjacent).unwrap());
         assert_eq!(one.checked_order(&adjacent).unwrap(), Ordering::Less);
         let complex = ValueLiteral::new(
-            ValueType::scalar(ScalarDomain::Complex, dimension),
+            ValueType::scalar(ScalarDomain::Complex, dimension).expect("checked scalar type"),
             [(1.0, 0.0)],
         )
         .unwrap();
         let imaginary = ValueLiteral::new(
-            ValueType::scalar(ScalarDomain::Complex, dimension),
+            ValueType::scalar(ScalarDomain::Complex, dimension).expect("checked scalar type"),
             [(1.0, 1.0)],
         )
         .unwrap();
@@ -167,6 +172,7 @@ mod tests {
             ValueType::counts(space, 1).unwrap(),
             ValueType::coordinates(space, 1).unwrap(),
             ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                .expect("checked scalar type")
                 .array(1)
                 .unwrap(),
         ] {

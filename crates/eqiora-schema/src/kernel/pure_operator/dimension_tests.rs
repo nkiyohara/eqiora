@@ -53,7 +53,12 @@ fn arguments() -> Vec<ExpressionType<u32>> {
         conductivity_dimension(),
         temperature().pow(-1, 1).unwrap(),
     ]
-    .map(|dimension| ExpressionType::new(ValueType::scalar(ScalarDomain::Real, dimension), None))
+    .map(|dimension| {
+        ExpressionType::new(
+            ValueType::scalar(ScalarDomain::Real, dimension).expect("checked scalar type"),
+            None,
+        )
+    })
     .to_vec()
 }
 
@@ -69,7 +74,8 @@ fn concrete_conductivity_dimensions_admit_scalar_calls_without_a_volume() {
     assert_eq!(application.result_type().support, None);
     let mut wrong = args.clone();
     wrong[2] = ExpressionType::new(
-        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS),
+        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            .expect("checked scalar type"),
         None,
     );
     assert_eq!(

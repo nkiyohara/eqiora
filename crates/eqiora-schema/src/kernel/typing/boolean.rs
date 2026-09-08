@@ -161,14 +161,15 @@ mod tests {
         let dag = builder.finish([root]).unwrap();
         let malformed = ValueType::boolean()
             .with_dimension(DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap());
+        assert!(malformed.is_err());
         for contract in [
             RootContract::ComponentwiseResidual,
             RootContract::InitialResiduals,
         ] {
             for value_type in [
-                malformed.clone(),
                 ValueType::boolean(),
-                ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS),
+                ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                    .expect("checked scalar type"),
             ] {
                 assert!(
                     TypedResidual::<u32>::infer(dag.clone(), None, contract, |_| Ok::<_, ()>(ty(
@@ -182,18 +183,18 @@ mod tests {
 
     #[test]
     fn comparison_domains_do_not_coerce_discrete_values() {
-        let integer = ty(ValueType::scalar(
-            ScalarDomain::Integer,
-            DimExponents::DIMENSIONLESS,
-        ));
-        let real = ty(ValueType::scalar(
-            ScalarDomain::Real,
-            DimExponents::DIMENSIONLESS,
-        ));
-        let complex = ty(ValueType::scalar(
-            ScalarDomain::Complex,
-            DimExponents::DIMENSIONLESS,
-        ));
+        let integer = ty(
+            ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                .expect("checked scalar type"),
+        );
+        let real = ty(
+            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                .expect("checked scalar type"),
+        );
+        let complex = ty(
+            ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+                .expect("checked scalar type"),
+        );
         let boolean = ty(ValueType::boolean());
         assert_eq!(
             integer

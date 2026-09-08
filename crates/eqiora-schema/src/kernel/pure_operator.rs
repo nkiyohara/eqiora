@@ -883,7 +883,8 @@ fn expression_type_for_class<I>(
 ) -> Result<ExpressionType<I>, PureOperatorError> {
     match class.spatial_rank() {
         None => Ok(ExpressionType::new(
-            eqiora_core::ValueType::scalar(scalar_domain, dimension),
+            eqiora_core::ValueType::scalar(scalar_domain, dimension)
+                .map_err(|_| PureOperatorError::FormalTypeMismatch)?,
             support,
         )),
         Some(rank) => {

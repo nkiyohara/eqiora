@@ -224,7 +224,7 @@ impl TryFrom<DynQuantity> for ValueLiteral {
     type Error = InvalidValueLiteral;
     fn try_from(value: DynQuantity) -> Result<Self, Self::Error> {
         Self::from_real(
-            ValueType::scalar(ScalarDomain::Real, value.dim()),
+            ValueType::scalar(ScalarDomain::Real, value.dim()).expect("checked scalar type"),
             value.value(),
         )
     }

@@ -50,7 +50,12 @@ impl BoundaryPhysicalConnector {
         {
             return Err(BoundaryPhysicalViolation::EuclideanRequiresReal);
         }
-        if trace_type.clone().with_dimension(flux_type.dimension()) != flux_type {
+        if trace_type
+            .clone()
+            .with_dimension(flux_type.dimension())
+            .as_ref()
+            != Ok(&flux_type)
+        {
             return Err(BoundaryPhysicalViolation::ComponentTypeMismatch);
         }
         Ok(Self {
@@ -404,7 +409,9 @@ mod tests {
         .unwrap();
         let connector = BoundaryPhysicalConnector::new(
             trace_type.clone(),
-            trace_type.with_dimension(traction),
+            trace_type
+                .with_dimension(traction)
+                .expect("checked numeric dimension"),
             BoundaryPairing::EuclideanBoundaryDuality,
         )
         .unwrap();
@@ -417,8 +424,10 @@ mod tests {
 
     #[test]
     fn euclidean_pairing_requires_real_equal_component_types() {
-        let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
-        let complex = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS);
+        let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            .expect("checked scalar type");
+        let complex = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+            .expect("checked scalar type");
         for (trace, flux) in [
             (scalar.clone(), complex.clone()),
             (complex.clone(), scalar.clone()),
@@ -458,7 +467,8 @@ mod tests {
         let nested = vector.array(3).unwrap();
         let flux = nested
             .clone()
-            .with_dimension(DimExponents::from_integers([1, 0, 0, 0, 0, 0, 0]).unwrap());
+            .with_dimension(DimExponents::from_integers([1, 0, 0, 0, 0, 0, 0]).unwrap())
+            .expect("checked numeric dimension");
         let connector = BoundaryPhysicalConnector::new(
             nested.clone(),
             flux.clone(),

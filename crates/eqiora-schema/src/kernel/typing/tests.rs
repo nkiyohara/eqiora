@@ -15,7 +15,8 @@ fn complex_domain_survives_arithmetic_and_spatial_type_inference() {
     use eqiora_core::ValueType;
     let real = ExpressionType::scalar(DimExponents::DIMENSIONLESS, Some(volume("body")));
     let complex = ExpressionType::new(
-        ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS),
+        ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+            .expect("checked scalar type"),
         real.support.clone(),
     );
     for result in [

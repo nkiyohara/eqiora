@@ -570,7 +570,8 @@ pub fn multiply<I: Clone + Eq>(
                 TypeViolation::DimensionOverflow {
                     operation: "multiplication",
                 },
-            )?),
+            )?)
+            .map_err(|_| TypeViolation::ScalarDomainMismatch)?,
         combine_support(&left.support, &right.support)?,
     ))
 }
@@ -606,7 +607,8 @@ pub fn divide<I: Clone + Eq>(
                 TypeViolation::DimensionOverflow {
                     operation: "division",
                 },
-            )?),
+            )?)
+            .map_err(|_| TypeViolation::ScalarDomainMismatch)?,
         combine_support(&numerator.support, &denominator.support)?,
     ))
 }
@@ -686,7 +688,10 @@ pub fn unary_math<I: Clone>(
             .ok_or(TypeViolation::DimensionOverflow {
                 operation: "square root",
             })?;
-        result.value_type = result.value_type.with_dimension(dimension);
+        result.value_type = result
+            .value_type
+            .with_dimension(dimension)
+            .map_err(|_| TypeViolation::ScalarDomainMismatch)?;
         return Ok(result);
     }
     if !operand.shape().is_scalar()
@@ -904,14 +909,21 @@ pub fn time_derivative<I: Clone>(
         return Err(TypeViolation::ScalarDomainMismatch);
     }
     Ok(ExpressionType::new(
-        operand.value_type.clone().with_dimension(
-            operand
-                .dimension()
-                .div(DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension"))
-                .ok_or(TypeViolation::DimensionOverflow {
-                    operation: "Field derivative",
-                })?,
-        ),
+        operand
+            .value_type
+            .clone()
+            .with_dimension(
+                operand
+                    .dimension()
+                    .div(
+                        DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0])
+                            .expect("bounded dimension"),
+                    )
+                    .ok_or(TypeViolation::DimensionOverflow {
+                        operation: "Field derivative",
+                    })?,
+            )
+            .map_err(|_| TypeViolation::ScalarDomainMismatch)?,
         operand.support.clone(),
     ))
 }

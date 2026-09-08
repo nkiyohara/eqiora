@@ -51,13 +51,19 @@ impl ValueType {
         if member_count == 0 || member_count > Self::MAX_ENUM_MEMBERS {
             return Err(InvalidValueType::EnumType);
         }
-        let mut value = Self::scalar(ScalarDomain::Enum, DimExponents::DIMENSIONLESS);
-        value.meaning = Meaning::Enum {
-            definition,
-            members: member_count,
-        };
-        Ok(value)
+        Ok(Self {
+            scalar_domain: ScalarDomain::Enum,
+            dimension: DimExponents::DIMENSIONLESS,
+            shape: ValueShape::scalar(),
+            frame: ValueFrame::Invariant,
+            array_rank: 0,
+            meaning: Meaning::Enum {
+                definition,
+                members: member_count,
+            },
+        })
     }
+
     /// Exact enum declaration identity.
     pub const fn enum_definition(&self) -> Option<Id<kinds::Enum>> {
         match self.meaning {
@@ -76,7 +82,7 @@ impl ValueType {
     /// Dimensionless invariant logical scalar, distinct from every numeric domain.
     #[must_use]
     pub fn boolean() -> Self {
-        Self::scalar(ScalarDomain::Boolean, DimExponents::DIMENSIONLESS)
+        Self::scalar(ScalarDomain::Boolean, DimExponents::DIMENSIONLESS).expect("canonical Boolean")
     }
 
     /// Bounded ordinal tied to one exact IndexSet declaration.
@@ -84,7 +90,7 @@ impl ValueType {
         if extent == 0 {
             return Err(InvalidValueType::ArrayExtent);
         }
-        let mut value = Self::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS);
+        let mut value = Self::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)?;
         value.meaning = Meaning::Index { set, extent };
         Ok(value)
     }
@@ -200,23 +206,28 @@ impl ValueType {
         self.array_rank
     }
 
-    /// Preserve the scalar domain and component meaning with a derived dimension.
-    #[must_use]
-    pub fn with_dimension(mut self, dimension: DimExponents) -> Self {
+    /// Preserve the scalar domain and component meaning with a checked derived dimension.
+    pub fn with_dimension(mut self, dimension: DimExponents) -> Result<Self, InvalidValueType> {
+        if self.scalar_domain == ScalarDomain::Enum && dimension != DimExponents::DIMENSIONLESS {
+            return Err(InvalidValueType::EnumType);
+        }
+        if self.scalar_domain == ScalarDomain::Boolean && dimension != DimExponents::DIMENSIONLESS {
+            return Err(InvalidValueType::BooleanType);
+        }
         self.dimension = dimension;
-        self
+        Ok(self)
     }
-    /// Construct an invariant scalar type.
-    #[must_use]
-    pub fn scalar(scalar_domain: ScalarDomain, dimension: DimExponents) -> Self {
-        Self {
+    /// Construct a checked invariant scalar type. Nominal enums require `enumeration`.
+    pub fn scalar(
+        scalar_domain: ScalarDomain,
+        dimension: DimExponents,
+    ) -> Result<Self, InvalidValueType> {
+        Self::shaped(
             scalar_domain,
             dimension,
-            shape: ValueShape::scalar(),
-            frame: ValueFrame::Invariant,
-            array_rank: 0,
-            meaning: Meaning::Ordinary,
-        }
+            ValueShape::scalar(),
+            ValueFrame::Invariant,
+        )
     }
 
     /// Construct exact channel axes (invariant) or spatial axes (Cartesian).
@@ -348,10 +359,10 @@ mod tests {
             assert!(
                 boolean
                     .clone()
-                    .with_common_scalar_domain(&ValueType::scalar(
-                        domain,
-                        DimExponents::DIMENSIONLESS
-                    ))
+                    .with_common_scalar_domain(
+                        &ValueType::scalar(domain, DimExponents::DIMENSIONLESS)
+                            .expect("checked scalar type")
+                    )
                     .is_none()
             );
         }
@@ -392,8 +403,10 @@ mod tests {
 
     #[test]
     fn scalar_domain_dimension_and_frame_are_independent_type_identity() {
-        let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS);
-        let complex = ValueType::scalar(ScalarDomain::Complex, real.dimension());
+        let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            .expect("checked scalar type");
+        let complex = ValueType::scalar(ScalarDomain::Complex, real.dimension())
+            .expect("checked scalar type");
         assert_ne!(real, complex);
         assert_eq!(
             real.clone().with_common_scalar_domain(&complex),
@@ -422,7 +435,8 @@ mod tests {
         let dimensioned = ValueType::scalar(
             ScalarDomain::Real,
             DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
-        );
+        )
+        .expect("checked scalar type");
         assert_ne!(real, dimensioned);
     }
 
