@@ -79,7 +79,7 @@ def test_source_nominal_constructors_share_scope_and_file_meaning(tmp_path):
     ordinal = owner.parameter("ordinal", value_type=eqiora.ValueType.integer())
     owner.set_default(populations, owner.counts(species, (2**53 + 1, 2)))
     owner.set_default(other, owner.counts(alternate, (2**53 + 1, 2)))
-    owner.set_default(added, populations + owner.counts(species, (1, 0)))
+    owner.set_default(added, populations + owner.coordinates(species, (1, 0)))
     owner.set_default(selected, owner.index(rows, 2))
     owner.set_default(change, owner.coordinates(species, (-1, 1)))
     owner.set_default(ordinal, q.ordinal(selected))
@@ -140,6 +140,6 @@ def test_source_counts_reject_equal_shaped_foreign_basis_arithmetic():
     second = source.space("Second", labels=("A", "B"))
     owner = source.model("WrongBasis")
     value = owner.parameter("value", value_type=eqiora.ValueType.counts(first))
-    owner.set_default(value, owner.counts(first, (1, 2)) + owner.counts(second, (3, 4)))
+    owner.set_default(value, owner.counts(first, (1, 2)) + owner.coordinates(second, (3, 4)))
     with pytest.raises(eqiora.ValidationError):
         eqiora.compile(source=source, entry="WrongBasis")
