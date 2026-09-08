@@ -30,7 +30,8 @@ impl LoweringExpression {
                 LoweringExpressionNode::Array(elements) => pending.extend(elements),
                 LoweringExpressionNode::IntegerCall { arguments, .. } => pending.extend(arguments),
                 LoweringExpressionNode::Complex { real, imag } => pending.extend([real, imag]),
-                LoweringExpressionNode::Binary { left, right, .. } => {
+                LoweringExpressionNode::Binary { left, right, .. }
+                | LoweringExpressionNode::Extremum { left, right, .. } => {
                     pending.push(left);
                     pending.push(right);
                 }
@@ -379,6 +380,25 @@ impl ExpressionLowerer<'_> {
                     .map(|id| TypedExpression {
                         id,
                         dimension: value.dimension,
+                    })
+                    .map_err(|diagnostic| self.builder_error(expression, diagnostic))
+            }
+            LoweringExpressionNode::Extremum {
+                minimum,
+                left,
+                right,
+            } => {
+                let left = self.lower(left)?;
+                let right = self.lower(right)?;
+                let result = if *minimum {
+                    self.builder.min(left.id, right.id)
+                } else {
+                    self.builder.max(left.id, right.id)
+                };
+                result
+                    .map(|id| TypedExpression {
+                        id,
+                        dimension: left.dimension,
                     })
                     .map_err(|diagnostic| self.builder_error(expression, diagnostic))
             }

@@ -226,6 +226,11 @@ enum LoweringExpressionNode {
         real: LoweringExpression,
         imag: LoweringExpression,
     },
+    Extremum {
+        minimum: bool,
+        left: LoweringExpression,
+        right: LoweringExpression,
+    },
     Binary {
         operator: BinaryOp,
         left: LoweringExpression,

@@ -62,11 +62,22 @@ impl ExpressionChecker<'_, '_, '_> {
                     "finite reductions require ordinary real, complex, or integer scalar operands",
                 ));
             }
+            if matches!(
+                operation,
+                eqiora_lang::ReductionOp::Min | eqiora_lang::ReductionOp::Max
+            ) {
+                term.clone()
+                    .ordered_selection(term.clone())
+                    .map_err(|error| type_error(self.scope.file, expression, error))?;
+            }
             result = Some(match result {
                 None => term,
                 Some(previous) => match operation {
                     eqiora_lang::ReductionOp::Sum => ExpressionType::sum(previous, term),
                     eqiora_lang::ReductionOp::Product => typing::multiply(&previous, &term),
+                    eqiora_lang::ReductionOp::Min | eqiora_lang::ReductionOp::Max => {
+                        previous.ordered_selection(term)
+                    }
                 }
                 .map_err(|error| type_error(self.scope.file, expression, error))?,
             });

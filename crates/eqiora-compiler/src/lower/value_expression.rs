@@ -76,6 +76,17 @@ impl LoweringExpression {
         }
     }
 
+    pub(crate) fn extremum(minimum: bool, left: Self, right: Self, range: TextRange) -> Self {
+        Self {
+            node: Arc::new(LoweringExpressionNode::Extremum {
+                minimum,
+                left,
+                right,
+            }),
+            range,
+        }
+    }
+
     pub(crate) fn binary(operator: BinaryOp, left: Self, right: Self, range: TextRange) -> Self {
         Self {
             node: Arc::new(LoweringExpressionNode::Binary {

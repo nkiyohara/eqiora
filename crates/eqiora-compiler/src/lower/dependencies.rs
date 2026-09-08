@@ -29,7 +29,8 @@ impl LoweringExpression {
                 | LoweringExpressionNode::PureOperator {
                     arguments: values, ..
                 } => pending.extend(values),
-                LoweringExpressionNode::Binary { left, right, .. } => {
+                LoweringExpressionNode::Binary { left, right, .. }
+                | LoweringExpressionNode::Extremum { left, right, .. } => {
                     pending.push(left);
                     pending.push(right);
                 }

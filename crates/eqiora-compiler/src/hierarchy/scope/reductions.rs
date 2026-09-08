@@ -41,19 +41,34 @@ pub(super) fn rewrite(
     let set = scope
         .index_set(binder.set().as_str())
         .ok_or_else(|| invalid("reduction requires an exact resolved IndexSet"))?;
-    let operator = match operation {
-        eqiora_lang::ReductionOp::Sum => eqiora_lang::BinaryOp::Add,
-        eqiora_lang::ReductionOp::Product => eqiora_lang::BinaryOp::Mul,
-    };
     let mut result = None;
     for ordinal in 0..set.extent() {
         let member = scope.with_index_member(binder.member(), set, ordinal)?;
         let term = rewrite_expression_with_boundary_member(file, value, &member, active)?;
         result = Some(match result {
             None => term,
-            Some(previous) => {
-                LoweringExpression::binary(operator, previous, term, expression.range())
-            }
+            Some(previous) => match operation {
+                eqiora_lang::ReductionOp::Sum => LoweringExpression::binary(
+                    eqiora_lang::BinaryOp::Add,
+                    previous,
+                    term,
+                    expression.range(),
+                ),
+                eqiora_lang::ReductionOp::Product => LoweringExpression::binary(
+                    eqiora_lang::BinaryOp::Mul,
+                    previous,
+                    term,
+                    expression.range(),
+                ),
+                eqiora_lang::ReductionOp::Min | eqiora_lang::ReductionOp::Max => {
+                    LoweringExpression::extremum(
+                        matches!(operation, eqiora_lang::ReductionOp::Min),
+                        previous,
+                        term,
+                        expression.range(),
+                    )
+                }
+            },
         });
     }
     result.ok_or_else(|| invalid("finite reduction requires a nonempty IndexSet"))
