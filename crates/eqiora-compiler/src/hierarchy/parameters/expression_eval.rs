@@ -69,6 +69,19 @@ pub(super) fn evaluate_with_domain(
     resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
     expected: Option<ScalarDomain>,
 ) -> Result<EvaluatedParameter, Diagnostic> {
+    if expression.resolved_nominal().is_some() {
+        let value = crate::nominal::literal(file, expression)?;
+        return Ok(EvaluatedParameter {
+            expression: Some(LoweringExpression::literal(
+                value.clone(),
+                expression.range(),
+            )),
+            value_type: EvaluatedType::Known(value.value_type().clone()),
+            value: Some(value),
+            bare_literal: false,
+            lineage: Some(ParameterLineage::Constant),
+        });
+    }
     if matches!(
         expression.kind(),
         ExprKind::Array(_) | ExprKind::Index { .. }
@@ -476,7 +489,7 @@ pub(super) fn evaluate_with_domain(
     Ok(evaluated)
 }
 
-fn exact_signed_literal(
+pub(crate) fn exact_signed_literal(
     expression: &Expr,
 ) -> Option<Result<i64, eqiora_lang::AstConstructionError>> {
     match expression.kind() {

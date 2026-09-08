@@ -885,3 +885,5 @@ pub(in crate::hierarchy) fn static_index(
     )?;
     value_expressions::checked_index(file, expression.range(), &evaluated)
 }
+
+pub(crate) use expression_eval::exact_signed_literal;

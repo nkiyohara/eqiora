@@ -34,6 +34,7 @@ mod flat;
 mod named_bindings;
 mod occurrence_connections;
 mod parameters;
+pub(crate) use parameters::exact_signed_literal;
 mod physical_closure;
 mod preflight;
 pub(crate) use preflight::owned_model_items;

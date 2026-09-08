@@ -18,6 +18,7 @@ mod hierarchy;
 pub mod identity;
 mod lower;
 mod math;
+mod nominal;
 pub mod projection;
 mod property;
 #[doc(hidden)]

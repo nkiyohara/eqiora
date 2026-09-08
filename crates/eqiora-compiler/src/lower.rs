@@ -268,6 +268,12 @@ enum LoweringExpressionNode {
 
 #[derive(Debug, Clone)]
 pub(crate) enum LoweringItem {
+    Nominal {
+        name: String,
+        definition: eqiora_schema::kernel::KernelNode,
+        dependencies: Vec<String>,
+        range: TextRange,
+    },
     Domain {
         name: String,
         contract: LoweringDomainContract,
@@ -556,7 +562,9 @@ pub(crate) fn lower_typed_model(
                     &mut diagnostics,
                 );
             }
-            LoweringItem::Connection { .. } | LoweringItem::Boundary { .. } => {}
+            LoweringItem::Nominal { .. }
+            | LoweringItem::Connection { .. }
+            | LoweringItem::Boundary { .. } => {}
             LoweringItem::Unsupported { range } => diagnostics.push(source_error(
                 codes::LANGUAGE_LOWERING_ERROR,
                 file,
@@ -681,6 +689,25 @@ pub(crate) fn lower_typed_model(
                             )),
                         }
                     })
+            }
+            LoweringItem::Nominal {
+                definition,
+                dependencies,
+                range,
+                ..
+            } => {
+                let id = definition.id();
+                let result = dependencies.iter().try_for_each(|name| {
+                    let Some(Binding::Parameter(parameter, _)) = bindings.get(name) else {
+                        return Err(unresolved(file, *range, name, "structural Parameter"));
+                    };
+                    edges.push((id, parameter.erase(), EdgeKind::DependsOn));
+                    Ok(())
+                });
+                if result.is_ok() {
+                    nodes.push(definition.clone());
+                }
+                result
             }
             LoweringItem::Parameter { name, value, .. } => {
                 let Binding::Parameter(id, _) = bindings[name].clone() else {
@@ -899,7 +926,8 @@ pub(crate) fn lower_typed_model(
                 initial: false,
                 ..
             } => Some(name),
-            LoweringItem::Representation { .. }
+            LoweringItem::Nominal { .. }
+            | LoweringItem::Representation { .. }
             | LoweringItem::Relation { initial: true, .. }
             | LoweringItem::Connection { .. }
             | LoweringItem::Boundary { .. }

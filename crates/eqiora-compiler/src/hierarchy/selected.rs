@@ -71,7 +71,16 @@ pub(super) fn local_document(
 ) -> Result<Vec<CompiledModel>, Vec<Diagnostic>> {
     source_budget(file, source_bytes, limits)?;
     let identity = LocalSourceIdentity::from_document(&document).map_err(|error| vec![error])?;
-    let document = crate::dimensions::elaborate_dimension_aliases(file, &document)?.into_owned();
+    let mut document =
+        crate::dimensions::elaborate_dimension_aliases(file, &document)?.into_owned();
+    let spaces = crate::nominal::finite_spaces(
+        file,
+        &document,
+        &identity.namespace().map_err(|error| vec![error])?,
+        |_| None,
+    )?;
+    crate::nominal::bind_finite_types(file, &mut document, &spaces)?;
+    crate::nominal::bind_finite_expressions(file, &mut document, &spaces)?;
     // This private lookup namespace never enters local source/occurrence identity.
     let module = CompilationModuleId::new(
         CompilationNamespaceId::new(["eqiora.local"]).map_err(|error| vec![error])?,

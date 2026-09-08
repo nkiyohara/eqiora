@@ -23,6 +23,7 @@ use super::supports::ResolvedBoundarySet;
 mod activation;
 pub(super) use activation::port_activation;
 mod external;
+mod indexed;
 mod lets;
 
 #[derive(Debug, Clone)]
@@ -91,8 +92,9 @@ impl<'a> ActiveBoundaryMember<'a> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub(super) struct Scope {
+    index_sets: BTreeMap<String, eqiora_schema::kernel::IndexSetDef>,
     symbols: BTreeMap<String, FlatSymbol>,
     port_families: BTreeMap<String, BoundaryPortFamilyIndex>,
     boundary_sets: BTreeMap<String, ResolvedBoundarySet<FullElaborationIdentity>>,
@@ -505,6 +507,12 @@ pub(super) fn rewrite_expression_with_boundary_member(
     scope: &Scope,
     active: Option<ActiveBoundaryMember<'_>>,
 ) -> Result<LoweringExpression, Diagnostic> {
+    if expression.resolved_nominal().is_some() {
+        return Ok(LoweringExpression::literal(
+            crate::nominal::literal(file, expression)?,
+            expression.range(),
+        ));
+    }
     let lowered = match expression.kind() {
         ExprKind::Array(elements) => LoweringExpression::array(
             elements
@@ -545,9 +553,7 @@ pub(super) fn rewrite_expression_with_boundary_member(
             )
         }
         ExprKind::Number(value) => LoweringExpression::number(value.clone(), expression.range()),
-        ExprKind::Quantity { .. } => {
-            LoweringExpression::from_source(expression)
-        }
+        ExprKind::Quantity { .. } => LoweringExpression::from_source(expression),
         ExprKind::Name(name) if name == "time" => {
             LoweringExpression::name(name.clone(), expression.range())
         }
@@ -667,12 +673,29 @@ pub(super) fn rewrite_expression_with_boundary_member(
                 expression.range(),
             )
         }
-        ExprKind::Call { callee, arguments } if crate::lower::IntegerBuiltin::named(callee.as_str()).is_some() => {
-            let operator = crate::lower::IntegerBuiltin::named(callee.as_str()).expect("named builtin guard");
+        ExprKind::Call { callee, arguments }
+            if crate::lower::IntegerBuiltin::named(callee.as_str()).is_some() =>
+        {
+            let operator =
+                crate::lower::IntegerBuiltin::named(callee.as_str()).expect("named builtin guard");
             if arguments.len() != operator.arity() {
-                return Err(source_error(codes::LANGUAGE_TYPE_ERROR, file, expression.range(), format!("{callee} requires exactly {} arguments", operator.arity())));
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    expression.range(),
+                    format!("{callee} requires exactly {} arguments", operator.arity()),
+                ));
             }
-            LoweringExpression::integer_call(operator, arguments.iter().map(|argument| rewrite_expression_with_boundary_member(file, argument, scope, active)).collect::<Result<Vec<_>, _>>()?, expression.range())
+            LoweringExpression::integer_call(
+                operator,
+                arguments
+                    .iter()
+                    .map(|argument| {
+                        rewrite_expression_with_boundary_member(file, argument, scope, active)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+                expression.range(),
+            )
         }
         ExprKind::Call { callee, arguments } if is_builtin_operator(callee) => {
             let [argument] = arguments.as_slice() else {

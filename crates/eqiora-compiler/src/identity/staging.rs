@@ -35,6 +35,19 @@ impl<P: ShortIdProjector> StagingIdAllocator<P> {
         self.stage_projection(key, Some(id.ulid().to_bytes()))
     }
 
+    pub(crate) fn stage_bound_entity(
+        &mut self,
+        key: &ElaborationKey,
+        id: eqiora_core::RawId,
+    ) -> Result<FullElaborationIdentity, Diagnostic> {
+        if key.entity_kind() != id.kind() {
+            return Err(identity_error(
+                "supplied nominal identity has a different entity kind",
+            ));
+        }
+        self.stage_projection(key, Some(id.ulid().to_bytes()))
+    }
+
     fn stage_projection(
         &mut self,
         key: &ElaborationKey,
