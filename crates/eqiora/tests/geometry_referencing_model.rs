@@ -141,7 +141,7 @@ fn geometry_identity_names_and_topology_are_fingerprint_meaning() {
         StructuralSemanticFingerprint::from_program(&baseline.program).unwrap();
     assert_eq!(
         baseline_fingerprint.generation(),
-        SemanticFingerprintGeneration::V10
+        SemanticFingerprintGeneration::V11
     );
     assert!(
         baseline_fingerprint

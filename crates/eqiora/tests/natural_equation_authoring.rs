@@ -71,6 +71,7 @@ fn source_tree(expression: &Expr) -> Tree {
                 BinaryOp::Mul => mul(left, right),
                 BinaryOp::Div => Tree::Div(Box::new(left), Box::new(right)),
                 BinaryOp::Pow => Tree::Pow(Box::new(left), Box::new(right)),
+                other => panic!("outside this fixed arithmetic source-tree corpus: {other:?}"),
             }
         }
         other => panic!("outside this fixed source-tree corpus: {other:?}"),
