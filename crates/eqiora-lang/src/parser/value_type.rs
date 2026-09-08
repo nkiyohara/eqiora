@@ -49,6 +49,7 @@ impl Parser<'_> {
                 kind: ValueTypeSyntaxKind::Scalar {
                     domain: ScalarDomain::Integer,
                     dimension: crate::Expr {
+                        resolved_nominal: None,
                         kind: crate::ExprKind::Number(
                             crate::DecimalLiteral::parse("1").expect("one"),
                         ),

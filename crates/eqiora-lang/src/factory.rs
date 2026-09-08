@@ -9,6 +9,7 @@ mod dimension_rewrite;
 mod document;
 mod domain_validation;
 mod expression;
+mod expression_visit;
 mod signature;
 use expression::validate_expression;
 mod nominal;
@@ -478,6 +479,7 @@ impl SourceAstFactory {
     /// expressions, or byte ranges.
     pub fn expression(kind: ExprKind, range: TextRange) -> Result<Expr, AstConstructionError> {
         let expression = Expr {
+            resolved_nominal: None,
             kind,
             range: checked_range(range)?,
         };

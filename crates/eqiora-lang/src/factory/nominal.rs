@@ -42,6 +42,7 @@ impl SourceAstFactory {
                 labels
                     .into_iter()
                     .map(|name| Expr {
+                        resolved_nominal: None,
                         kind: crate::ExprKind::Name(name),
                         range,
                     })
@@ -183,4 +184,55 @@ pub(super) fn validate_definition(
         ));
     }
     Ok(())
+}
+
+impl SourceAstFactory {
+    /// Bind a closed nominal constructor to its exact lexical declaration type.
+    /// The compiler revalidates the declaration identity in its source scope.
+    ///
+    /// # Errors
+    /// Rejects mismatched constructor names, declaration paths, arity, or rebinding.
+    #[doc(hidden)]
+    pub fn bind_nominal_expression(
+        expression: &mut Expr,
+        declaration: &NamePath,
+        value: eqiora_core::ValueType,
+    ) -> Result<(), AstConstructionError> {
+        validate_expression(expression)?;
+        crate::ValueTypeSyntax::validate_checked(&value)?;
+        let crate::ExprKind::Call { callee, arguments } = expression.kind() else {
+            return Err(AstConstructionError::new(
+                "nominal binding requires a constructor call",
+            ));
+        };
+        let role = match callee.as_str() {
+            "counts" => value.is_count(),
+            "coordinates" => value.finite_space().is_some() && !value.is_count(),
+            "index" => value.index_set().is_some(),
+            _ => false,
+        };
+        let name = arguments
+            .first()
+            .and_then(|argument| match argument.kind() {
+                crate::ExprKind::Name(name) => Some(name.as_str()),
+                crate::ExprKind::Path(name) => Some(name.as_str()),
+                _ => None,
+            });
+        if !role || arguments.len() != 2 || name != Some(declaration.as_str()) {
+            return Err(AstConstructionError::new(
+                "nominal constructor binding requires its exact declaration name and role",
+            ));
+        }
+        if expression
+            .resolved_nominal
+            .as_ref()
+            .is_some_and(|previous| previous != &value)
+        {
+            return Err(AstConstructionError::new(
+                "nominal expression cannot be rebound to a foreign declaration",
+            ));
+        }
+        expression.resolved_nominal = Some(value);
+        Ok(())
+    }
 }

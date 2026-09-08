@@ -15,9 +15,11 @@ impl Parser<'_> {
                     }
                 };
                 return Some(Expr {
+                    resolved_nominal: None,
                     kind: ExprKind::Quantity {
                         value,
                         unit: Box::new(Expr {
+                            resolved_nominal: None,
                             kind: ExprKind::Number(
                                 crate::DecimalLiteral::parse("1.0").expect("exact literal"),
                             ),
@@ -35,6 +37,7 @@ impl Parser<'_> {
                 }
             };
             return Some(Expr {
+                resolved_nominal: None,
                 kind: ExprKind::Number(value),
                 range: token.range(),
             });
@@ -53,6 +56,7 @@ impl Parser<'_> {
             .range()
             .end();
         Some(Expr {
+            resolved_nominal: None,
             kind: ExprKind::Quantity {
                 value,
                 unit: Box::new(unit),
@@ -106,11 +110,16 @@ impl Parser<'_> {
                 } else {
                     ExprKind::Name(path.as_str().to_owned())
                 };
-                Expr { kind, range }
+                Expr {
+                    resolved_nominal: None,
+                    kind,
+                    range,
+                }
             }
             TokenKind::Number if self.current().text() == "1" => {
                 let token = self.bump();
                 Expr {
+                    resolved_nominal: None,
                     kind: ExprKind::Number(
                         crate::DecimalLiteral::parse("1.0").expect("exact literal"),
                     ),
@@ -175,6 +184,7 @@ impl Parser<'_> {
             return None;
         };
         let number = Expr {
+            resolved_nominal: None,
             kind: ExprKind::Number(
                 crate::DecimalLiteral::parse(&value.to_string())
                     .expect("bounded dimension integer"),
@@ -183,6 +193,7 @@ impl Parser<'_> {
         };
         Some(if negative {
             Expr {
+                resolved_nominal: None,
                 kind: ExprKind::Unary {
                     op: UnaryOp::Neg,
                     value: Box::new(number),
@@ -191,6 +202,7 @@ impl Parser<'_> {
             }
         } else {
             Expr {
+                resolved_nominal: None,
                 range: TextRange::new(start, token.range().end()),
                 ..number
             }
@@ -200,6 +212,7 @@ impl Parser<'_> {
 
 fn dimension_binary(op: BinaryOp, left: Expr, right: Expr) -> Expr {
     Expr {
+        resolved_nominal: None,
         range: TextRange::new(left.range.start(), right.range.end()),
         kind: ExprKind::Binary {
             op,

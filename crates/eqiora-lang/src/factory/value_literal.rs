@@ -35,6 +35,7 @@ impl SourceAstFactory {
         fn nested(value: &ValueLiteral, axis: usize, offset: &mut usize, range: TextRange) -> Expr {
             if let Some(extent) = value.value_type().shape().extents().get(axis) {
                 return Expr {
+                    resolved_nominal: None,
                     kind: ExprKind::Array(
                         (0..extent.get())
                             .map(|_| nested(value, axis + 1, offset, range))
@@ -46,6 +47,7 @@ impl SourceAstFactory {
             if let Some(integer) = value.integer_component(*offset) {
                 *offset += 1;
                 return Expr {
+                    resolved_nominal: None,
                     kind: ExprKind::Number(
                         crate::DecimalLiteral::parse(&integer.to_string()).expect("bounded i64"),
                     ),
@@ -55,6 +57,7 @@ impl SourceAstFactory {
             let (real, imaginary) = value.component(*offset).expect("bounded value component");
             *offset += 1;
             let scalar = |number| Expr {
+                resolved_nominal: None,
                 kind: if value.value_type().dimension() == DimExponents::DIMENSIONLESS {
                     ExprKind::Number(
                         crate::DecimalLiteral::from_f64(number)
@@ -73,6 +76,7 @@ impl SourceAstFactory {
                 range,
             };
             Expr {
+                resolved_nominal: None,
                 kind: if value.value_type().scalar_domain() == ScalarDomain::Complex {
                     ExprKind::Call {
                         callee: NamePath::from_parsed_segments(
@@ -94,6 +98,7 @@ impl SourceAstFactory {
                     callee: NamePath::single(constructor.to_owned(), range),
                     arguments: vec![
                         Expr {
+                            resolved_nominal: None,
                             kind: ExprKind::Path(name.clone()),
                             range,
                         },
@@ -117,6 +122,7 @@ pub(crate) fn dimension_expression(
         .filter(|(_, (numerator, _))| *numerator != 0)
         .map(|(name, (numerator, denominator))| {
             let base = Expr {
+                resolved_nominal: None,
                 kind: ExprKind::Name(name.to_owned()),
                 range: range(),
             };
@@ -124,6 +130,7 @@ pub(crate) fn dimension_expression(
                 base
             } else {
                 let numerator = Expr {
+                    resolved_nominal: None,
                     kind: ExprKind::Number(
                         crate::DecimalLiteral::parse(&numerator.to_string())
                             .expect("bounded dimension numerator"),
@@ -134,10 +141,12 @@ pub(crate) fn dimension_expression(
                     numerator
                 } else {
                     Expr {
+                        resolved_nominal: None,
                         kind: ExprKind::Binary {
                             op: BinaryOp::Div,
                             left: Box::new(numerator),
                             right: Box::new(Expr {
+                                resolved_nominal: None,
                                 kind: ExprKind::Number(
                                     crate::DecimalLiteral::parse(&denominator.to_string())
                                         .expect("bounded dimension denominator"),
@@ -149,6 +158,7 @@ pub(crate) fn dimension_expression(
                     }
                 };
                 Expr {
+                    resolved_nominal: None,
                     kind: ExprKind::Binary {
                         op: BinaryOp::Pow,
                         left: Box::new(base),
@@ -163,11 +173,13 @@ pub(crate) fn dimension_expression(
 
     let Some(first) = factors.next() else {
         return Expr {
+            resolved_nominal: None,
             kind: ExprKind::Number(crate::DecimalLiteral::parse("1.0").expect("exact literal")),
             range: range(),
         };
     };
     factors.fold(first, |left, right| Expr {
+        resolved_nominal: None,
         kind: ExprKind::Binary {
             op: BinaryOp::Mul,
             left: Box::new(left),

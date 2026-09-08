@@ -62,6 +62,7 @@ impl super::ModelDraft {
                 DraftDeclaration::IndexSet { name, definition } => {
                     nominal_ids.insert(name.clone(), definition.id().erase());
                     let extent = Expr {
+                        resolved_nominal: None,
                         kind: ExprKind::Number(
                             crate::DecimalLiteral::parse(&definition.extent().to_string())
                                 .expect("bounded extent"),
@@ -159,6 +160,7 @@ impl super::ModelDraft {
                             Equation {
                                 left,
                                 right: Expr {
+                                    resolved_nominal: None,
                                     kind: ExprKind::Number(
                                         crate::DecimalLiteral::parse("0.0").expect("exact literal"),
                                     ),
@@ -180,6 +182,7 @@ impl super::ModelDraft {
                             Equation {
                                 left,
                                 right: Expr {
+                                    resolved_nominal: None,
                                     kind: ExprKind::Number(
                                         crate::DecimalLiteral::parse("0.0").expect("exact literal"),
                                     ),
@@ -199,6 +202,7 @@ impl super::ModelDraft {
                             .ports
                             .iter()
                             .map(|port| Expr {
+                                resolved_nominal: None,
                                 kind: ExprKind::Name(port.name.clone()),
                                 range,
                             })
@@ -260,6 +264,7 @@ pub(super) fn physical_accessor_ast(
     ExprKind::Call {
         callee: NamePath::single(callee.to_owned(), ranges.allocate(path, paths)),
         arguments: vec![Expr {
+            resolved_nominal: None,
             kind: ExprKind::Name(reference.name.clone()),
             range: ranges.allocate(path, paths),
         }],

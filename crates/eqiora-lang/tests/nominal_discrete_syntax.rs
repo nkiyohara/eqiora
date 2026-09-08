@@ -105,3 +105,36 @@ fn shared_named_definitions_keep_nominal_constructor_and_assertion_boundaries() 
     let document = parse("empty.eqi", "model M() {}").into_document().unwrap();
     assert!(SourceAstFactory::with_finite_space(document, alias).is_err());
 }
+
+#[test]
+fn nominal_resolution_metadata_preserves_authored_expression_and_rejects_foreign_rebinding() {
+    let mut document = parse("binding.eqi", "space Species = orthonormal(A,B); model M() { parameter population: counts<Species> = counts(Species,[2,3]); }")
+        .into_document().unwrap();
+    let before = format(&document);
+    let first = FiniteSpaceDef::new(
+        Id::<kinds::FiniteSpace>::new(),
+        ["A".to_owned(), "B".to_owned()],
+    )
+    .unwrap();
+    let foreign = FiniteSpaceDef::new(
+        Id::<kinds::FiniteSpace>::new(),
+        ["A".to_owned(), "B".to_owned()],
+    )
+    .unwrap();
+    let name = eqiora_lang::NamePath::from_segments(["Species"], eqiora_lang::TextRange::new(0, 0)).unwrap();
+    let mut bound = 0;
+    SourceAstFactory::visit_expressions(&mut document, |_, expression| {
+        if matches!(expression.kind(), eqiora_lang::ExprKind::Call { callee, .. } if callee.as_str() == "counts")
+        {
+            SourceAstFactory::bind_nominal_expression(expression, &name, first.counts()).unwrap();
+            assert_eq!(expression.resolved_nominal(), Some(&first.counts()));
+            assert!(
+                SourceAstFactory::bind_nominal_expression(expression, &name, foreign.counts())
+                    .is_err()
+            );
+            bound += 1;
+        }
+    });
+    assert_eq!(bound, 1);
+    assert_eq!(format(&document), before);
+}

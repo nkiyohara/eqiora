@@ -30,6 +30,7 @@ impl DraftExpression {
                 arguments: [*real, *imaginary]
                     .into_iter()
                     .map(|number| Expr {
+                        resolved_nominal: None,
                         kind: ExprKind::Number(
                             crate::DecimalLiteral::from_f64(number)
                                 .expect("validated native literal"),
@@ -47,6 +48,7 @@ impl DraftExpression {
             DraftExpressionKind::Index { value, index } => ExprKind::Index {
                 value: Box::new(value.ast(path, ranges, paths)),
                 index: Box::new(Expr {
+                    resolved_nominal: None,
                     kind: ExprKind::Number(
                         crate::DecimalLiteral::parse(&index.to_string()).expect("u32 index"),
                     ),
@@ -57,6 +59,7 @@ impl DraftExpression {
             DraftExpressionKind::Derivative(reference) => ExprKind::Call {
                 callee: NamePath::single("derivative".to_owned(), ranges.allocate(path, paths)),
                 arguments: vec![Expr {
+                    resolved_nominal: None,
                     kind: ExprKind::Name(reference.name.clone()),
                     range: ranges.allocate(path, paths),
                 }],
@@ -89,6 +92,7 @@ impl DraftExpression {
             },
         };
         Expr {
+            resolved_nominal: None,
             kind,
             range: ranges.allocate(path, paths),
         }

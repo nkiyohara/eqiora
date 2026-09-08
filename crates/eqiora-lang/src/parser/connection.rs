@@ -86,6 +86,7 @@ impl Parser<'_> {
                 ports: ports
                     .into_iter()
                     .map(|port| Expr {
+                        resolved_nominal: None,
                         range: port.port.range(),
                         kind: ExprKind::Path(port.port),
                     })
