@@ -142,7 +142,7 @@ class ReleaseIdentity:
 
 
 DIRECT_PINS = {
-    "astro": "7.2.3",
+    "astro": "7.2.8",
     "@astrojs/starlight": "0.41.7",
     "@astrojs/mdx": "7.0.6",
     "@astrojs/markdown-satteri": "0.3.6",
