@@ -267,6 +267,13 @@ impl ExecutionSession {
         })
     }
 
+    /// Accepted coherent-SI scalar value for one exact physical Port slot.
+    /// A foreign or unexecuted slot has no value; observation adds no equation.
+    #[must_use]
+    pub fn physical(&self, unknown: PhysicalUnknown) -> Option<f64> {
+        self.state.physical.get(&unknown).copied()
+    }
+
     /// An exposed output's accepted sample at its own zero-based tick index.
     /// Absent before that tick; this never manufactures a held signal value.
     #[must_use]
