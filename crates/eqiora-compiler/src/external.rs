@@ -7,7 +7,7 @@ use eqiora_schema::kernel::GeometryDigest;
 ///
 /// The L4 composition owner constructs these only after the common Geometry
 /// owner proves revision membership and parent topology.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum ExternalGeometrySupportBinding {
     /// A full-dimensional named region.
     Region {
@@ -30,6 +30,8 @@ pub(crate) enum ExternalGeometrySupportBinding {
         entity_set: String,
         /// Public Component slot naming the exact parent region.
         parent_slot: String,
+        /// Derived only from exact primitive Geometry topology.
+        embedding: Option<eqiora_schema::kernel::CartesianBoundaryEmbedding>,
     },
 }
 
@@ -57,12 +59,14 @@ impl ExternalGeometrySupportBinding {
         geometry: GeometryDigest,
         entity_set: impl Into<String>,
         parent_slot: impl Into<String>,
+        embedding: Option<eqiora_schema::kernel::CartesianBoundaryEmbedding>,
     ) -> Self {
         Self::Boundary {
             slot: slot.into(),
             geometry,
             entity_set: entity_set.into(),
             parent_slot: parent_slot.into(),
+            embedding,
         }
     }
 
