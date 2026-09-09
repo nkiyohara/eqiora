@@ -52,6 +52,19 @@ fn range(ordinal: u32) -> TextRange {
 #[pymethods]
 impl PyAstDeclaration {
     #[staticmethod]
+    fn scalar_port(name: String, connector: &str, ordinal: u32) -> PyResult<Self> {
+        super::connections::port(name, connector, ordinal)
+    }
+
+    #[staticmethod]
+    fn conserving_connection(
+        ports: Vec<PyRef<'_, PyAstExpression>>,
+        ordinal: u32,
+    ) -> PyResult<Self> {
+        super::connections::connection(ports, ordinal)
+    }
+
+    #[staticmethod]
     fn parameter(
         name: String,
         kind: &PyAstType,
@@ -196,16 +209,22 @@ impl PyAstDeclaration {
         name: String,
         support: Option<String>,
         clock: Option<String>,
-        left: &PyAstExpression,
-        right: &PyAstExpression,
+        equations: Vec<(PyRef<'_, PyAstExpression>, PyRef<'_, PyAstExpression>)>,
         ordinal: u32,
     ) -> PyResult<Self> {
+        if equations.len() > 256 {
+            return Err(syntax_error("relation exceeds the 256-equation limit"));
+        }
         let range = range(ordinal);
-        let equation =
-            Ast::equation(left.value.clone(), right.value.clone(), range).map_err(syntax_error)?;
+        let equations = equations
+            .into_iter()
+            .map(|(left, right)| {
+                Ast::equation(left.value.clone(), right.value.clone(), range).map_err(syntax_error)
+            })
+            .collect::<PyResult<_>>()?;
         Ok(Self {
             value: Declaration::Item(ComponentItem::Relation(
-                Ast::relation(name, activation(clock), support, vec![equation], range)
+                Ast::relation(name, activation(clock), support, equations, range)
                     .map_err(syntax_error)?,
             )),
         })

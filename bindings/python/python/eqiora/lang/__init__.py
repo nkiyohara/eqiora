@@ -973,6 +973,8 @@ class Component:
         "_declaration_count",
         "_doc",
         "_fields",
+        "_ports",
+        "_connections",
         "_formulations",
         "_instances",
         "_name",
@@ -1027,12 +1029,14 @@ class Component:
             ]
         ] = []
         self._relations: list[
-            tuple[str, Support, Expression, Expression, Clock | Event | None, tuple[str, ...]]
+            tuple[str, Support | None, tuple[tuple[Expression, Expression], ...], Clock | Event | None, tuple[str, ...]]
         ] = []
         self._formulations: list[
             tuple[Relation, Expression, Expression, tuple[str, ...]]
         ] = []
         self._instances: list[tuple[str, Component, tuple[tuple[str, str], ...], tuple[str, ...]]] = []
+        self._ports = []
+        self._connections = []
         self._declaration_count = 0
 
     def _type_syntax(self, value_type: ValueType) -> str:
@@ -1430,13 +1434,16 @@ class Component:
         self,
         name: str,
         equality: Equation,
-        *,
+        *additional_equalities: Equation,
         on: Support | None = None,
         at: Clock | Event | None = None,
         doc: str | None = None,
     ) -> Relation:
-        """Declare an equality, optionally active on one exact local clock or event."""
-        if not isinstance(equality, Equation):
+        """Declare simultaneous equalities owned by one Relation and activation."""
+        equalities = (equality, *additional_equalities)
+        if len(equalities) > _MAX_DECLARATIONS:
+            raise ModuleError("relation exceeds the 256-equation limit")
+        if any(not isinstance(item, Equation) for item in equalities):
             raise TypeError("relation requires equation(lhs, rhs)")
         at = self._activation(at)
         on = None if on is None else self._support(on)
@@ -1453,16 +1460,14 @@ class Component:
                 raise ModuleError("relation expressions must belong to this Component")
             return expression
 
-        left_expression = admit(equality.lhs)
-        right_expression = admit(equality.rhs)
+        pairs = tuple((admit(item.lhs), admit(item.rhs)) for item in equalities)
         doc_lines = _doc(doc)
         total_nodes = (
             sum(
-                item[2]._nodes + item[3]._nodes
-                for item in self._relations
+                left._nodes + right._nodes
+                for item in self._relations for left, right in item[2]
             )
-            + left_expression._nodes
-            + right_expression._nodes
+            + sum(left._nodes + right._nodes for left, right in pairs)
         )
         if total_nodes > _MAX_EXPRESSION_NODES:
             raise ModuleError(
@@ -1470,7 +1475,7 @@ class Component:
             )
         admitted = self._add_name(name)
         self._relations.append(
-            (admitted, on, left_expression, right_expression, at, doc_lines)
+            (admitted, on, pairs, at, doc_lines)
         )
         return Relation(_CREATE, self._owner, self._component_token, admitted)
 
@@ -1500,8 +1505,8 @@ class Component:
             raise ModuleError("the scalar-primal Module vocabulary admits one form")
         total_nodes = (
             sum(
-                item[2]._nodes + item[3]._nodes
-                for item in self._relations
+                left._nodes + right._nodes
+                for item in self._relations for left, right in item[2]
             )
             + left_expression._nodes
             + right_expression._nodes
@@ -1523,10 +1528,18 @@ class Component:
     def _qualified_name(self) -> str:
         return self._name
 
+    def port(self, name: str, *, connector: Connector, doc: str | None = None) -> Port:
+        """Declare a named physical endpoint using this Module's nominal Connector."""
+        return _connections.port(self, name, connector=connector, doc=doc)
+
+    def connect(self, *ports: Port, doc: str | None = None) -> None:
+        """Declare one conserving physical net; the compiler owns compatibility and signs."""
+        _connections.connect(self, *ports, doc=doc)
+
     def instance(
         self, name: str, *, component: Component | ComponentRef,
         bindings: Mapping[str, object], doc: str | None = None,
-    ) -> Mapping[str, Expression]:
+    ) -> Mapping[str, Expression | Port]:
         """Bind explicit signature names to typed enclosing values."""
         if not isinstance(component, (Component, ComponentRef)) or component._owner is not self._owner:
             raise ModuleError("instance component must belong to this Module's explicit imports")
@@ -1589,11 +1602,14 @@ class Component:
         documentation = _doc(doc)
         admitted = self._add_name(name)
         self._instances.append((admitted, component, tuple(admitted_bindings), documentation))
-        return MappingProxyType({
+        exposed = {
             field: Expression(_CREATE, _Ast.name(f"{admitted}.{field}"),
                               self._component_token)
             for field in outputs
-        })
+        }
+        if isinstance(component, Component):
+            exposed.update(_connections.instance_ports(self, component, admitted))
+        return MappingProxyType(exposed)
 
     def set_notation(self, name: str, notation: Notation) -> None:
         """Attach validated notation to an existing declaration in this lexical scope."""
@@ -1613,6 +1629,12 @@ class Component:
             add(support._name, doc, lambda n: _AstDeclaration.support(
                 support._name, detail if kind == "volume" else None,
                 detail._name if kind == "boundary" else None, n))
+        for port, doc in self._ports:
+            add(port._name, doc, lambda n: _AstDeclaration.scalar_port(
+                port._name, port._connector._name, n))
+        for ports, doc in self._connections:
+            add("", doc, lambda n: _AstDeclaration.conserving_connection(
+                [_Ast.name(port._name) for port in ports], n))
         for parameter, kind, doc in self._parameters:
             default = self._defaults.get(parameter)
             add(parameter._name, doc, lambda n: _AstDeclaration.parameter(
@@ -1649,10 +1671,11 @@ class Component:
         for equations, doc in self._initials:
             add("", doc, lambda n: _AstDeclaration.initial(
                 [(left._ast, right._ast) for left, right in equations], n))
-        for name, support, left, right, clock, doc in self._relations:
+        for name, support, pairs, clock, doc in self._relations:
             add(name, doc, lambda n: _AstDeclaration.relation(
                 name, None if support is None else support._name,
-                None if clock is None else clock._name, left._ast, right._ast, n))
+                None if clock is None else clock._name,
+                [(left._ast, right._ast) for left, right in pairs], n))
         for name, component, bindings, doc in self._instances:
             add(name, doc, lambda n: _AstDeclaration.instance(
                 name, component._qualified_name, bindings, n))
@@ -1712,6 +1735,7 @@ class Module:
     __slots__ = (
         "_components",
         "_operators",
+        "_connectors",
         "_operator_building",
         "_contracts",
         "_frozen_text",
@@ -1734,6 +1758,7 @@ class Module:
         self._owner = object()
         self._components: list[Component] = []
         self._operators: list[Operator] = []
+        self._connectors: list[Connector] = []
         self._operator_building = False
         self._contracts: list[PropertyContract] = []
         self._releases: list[PropertyRelease] = []
@@ -1753,6 +1778,11 @@ class Module:
             return _nominal_type(value_type, [space for space, _ in self._spaces], [], [item._definition for item, _ in self._enums])
         except ValueError as error:
             raise ModuleError(str(error)) from error
+
+    def connector(self, name: str, *, across: tuple[str, ValueType],
+                  through: tuple[str, ValueType], doc: str | None = None) -> Connector:
+        """Declare a nominal scalar physical connector with named across/through quantities."""
+        return _connections.connector(self, name, across=across, through=through, doc=doc)
 
     def operator(self, name: str, *, inputs: Mapping[str, ValueType], result_type: ValueType,
                  body: Callable[..., object], doc: str | None = None) -> Operator:
@@ -2057,7 +2087,12 @@ class Module:
              allocate(operator._doc, self._notations.get(operator._name)))
             for operator in self._operators
         ]
-        graph = _AstModule(definitions, operators)
+        connectors = [
+            (connector._name, *connector._across, *connector._through,
+             allocate(connector._doc, self._notations.get(connector._name)))
+            for connector in self._connectors
+        ]
+        graph = _AstModule(definitions, operators, connectors)
         for enumeration, doc in self._enums:
             graph = graph.with_enum(enumeration.name, enumeration.members,
                                     allocate(doc, self._notations.get(enumeration.name)))
@@ -2132,7 +2167,13 @@ class Module:
                     pass
 
 
+from . import _connections
+from ._connections import Connector, Port
+
+
 __all__ = [
+    "Connector",
+    "Port",
     "Equation",
     "equation",
     "ComponentRef",
