@@ -334,7 +334,13 @@ assert result.model_digest == model.digest
 assert model.property_bindings[0].citation == "org.example.measurement"
 
 replayed = package.Model.from_bytes(model.to_bytes())
-assert replayed.property_bindings == ()
+assert len(replayed.property_bindings) == 1
+retained = replayed.property_bindings[0]
+for attribute in (
+    "composition", "contract", "release", "component", "requirement",
+    "normalized_value", "validity", "citation", "license",
+):
+    assert getattr(retained, attribute) == getattr(binding, attribute), attribute
 replayed_plan = package._resolve_plan(replayed, mesh=mesh, spatial=package.Q1(), solve=linear)
 assert replayed_plan.identity == plan.identity
 assert replayed_plan.package_compilation_digest is None
