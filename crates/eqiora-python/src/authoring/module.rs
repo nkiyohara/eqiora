@@ -139,17 +139,7 @@ impl PyAstModule {
         let dimensions = dimension_inputs
             .into_iter()
             .map(|(name, kind, ordinal)| {
-                let dimension = kind
-                    .value
-                    .dimension()
-                    .ok_or_else(|| syntax_error("dimension alias requires a scalar dimension"))?;
-                Ast::dimension_alias(
-                    VisibilitySyntax::Public,
-                    name,
-                    dimension.clone(),
-                    range(ordinal),
-                )
-                .map_err(syntax_error)
+                super::dimensions::declaration(name, &kind.value, range(ordinal))
             })
             .collect::<PyResult<Vec<_>>>()?;
         let document = Ast::document_with_dimensions(

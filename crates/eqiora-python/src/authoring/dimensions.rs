@@ -5,8 +5,40 @@ use eqiora::compiler::{
     CompilationNamespaceId, ResolvedDependency, ResolvedHierarchyInput, ResolvedSourceUnit,
     analyze_resolved_hierarchy,
 };
-use eqiora::language::VisibilitySyntax;
+use eqiora::language::{
+    ExprKind, NamedDefinitionDecl, SourceAstFactory as Ast, TextRange, ValueTypeSyntax,
+    ValueTypeSyntaxKind, VisibilitySyntax,
+};
 use pyo3::prelude::*;
+
+pub(super) fn declaration(
+    name: String,
+    value: &ValueTypeSyntax,
+    range: TextRange,
+) -> PyResult<NamedDefinitionDecl> {
+    // A single SI symbol retains unresolved Named syntax until lexical binding;
+    // compound dimensions already carry an explicit scalar expression.
+    let expression = match value.kind() {
+        ValueTypeSyntaxKind::Named(path) => {
+            let kind = if path.segments().len() == 1 {
+                ExprKind::Name(path.as_str().to_owned())
+            } else {
+                ExprKind::Path(path.clone())
+            };
+            Ast::expression(kind, value.range()).map_err(syntax_error)?
+        }
+        ValueTypeSyntaxKind::Scalar {
+            domain: eqiora::ScalarDomain::Real,
+            dimension,
+        } => dimension.clone(),
+        _ => {
+            return Err(syntax_error(
+                "dimension alias requires a real scalar dimension",
+            ));
+        }
+    };
+    Ast::dimension_alias(VisibilitySyntax::Public, name, expression, range).map_err(syntax_error)
+}
 
 pub(super) fn resolve(
     module: &PyAstModule,
