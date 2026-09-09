@@ -53,7 +53,7 @@ impl Parser<'_> {
     ) -> Option<PropertyContractDecl> {
         self.expect_keyword("contract")?;
         let name = self
-            .expect_identifier("property contract name")?
+            .declaration_name("property contract name")?
             .text()
             .to_owned();
         self.expect(TokenKind::LeftParen, "`(` before property inputs")?;
@@ -90,7 +90,7 @@ impl Parser<'_> {
     ) -> Option<PropertyReleaseDecl> {
         self.expect_keyword("release")?;
         let name = self
-            .expect_identifier("property release name")?
+            .declaration_name("property release name")?
             .text()
             .to_owned();
         self.expect_keyword("implements")?;
@@ -168,7 +168,7 @@ impl Parser<'_> {
         self.expect_keyword("material")?;
         self.expect_keyword("composition")?;
         let name = self
-            .expect_identifier("material composition name")?
+            .declaration_name("material composition name")?
             .text()
             .to_owned();
         self.expect(TokenKind::LeftBrace, "`{` after material composition name")?;

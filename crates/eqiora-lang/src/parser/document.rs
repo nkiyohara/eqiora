@@ -196,7 +196,7 @@ impl Parser<'_> {
         visibility: VisibilitySyntax,
     ) -> Option<ModelDecl> {
         self.expect_keyword("model")?;
-        let name = self.expect_identifier("model name")?.text().to_owned();
+        let name = self.declaration_name("model name")?.text().to_owned();
         let signature = self.parse_signature()?;
         self.expect(TokenKind::LeftBrace, "`{` after model name")?;
         let mut items = Vec::new();
@@ -250,7 +250,7 @@ impl Parser<'_> {
     fn parse_dimension(&mut self, start: u32) -> Option<NamedDefinitionDecl> {
         self.expect_keyword("dimension")?;
         let name = self
-            .expect_identifier("dimension alias name")?
+            .declaration_name("dimension alias name")?
             .text()
             .to_owned();
         self.expect(TokenKind::Equal, "`=` before dimension expression")?;

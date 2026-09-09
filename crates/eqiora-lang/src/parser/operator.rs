@@ -10,7 +10,7 @@ impl Parser<'_> {
     ) -> Option<PureOperatorDecl> {
         self.expect_keyword("operator")?;
         let name = self
-            .expect_identifier("pure operator name")?
+            .declaration_name("pure operator name")?
             .text()
             .to_owned();
         self.expect(TokenKind::LeftParen, "`(` after pure operator name")?;
@@ -45,7 +45,7 @@ impl Parser<'_> {
 
     fn parse_pure_operator_formal(&mut self) -> Option<PureOperatorFormal> {
         let start = self.expect_keyword("input")?.range().start();
-        let name = self.expect_identifier("operator formal")?;
+        let name = self.declaration_name("operator formal")?;
         self.expect(TokenKind::Colon, "`:` after pure operator formal")?;
         let value_class = self.parse_pure_value_class()?;
         let end = self.previous_significant_range().end();

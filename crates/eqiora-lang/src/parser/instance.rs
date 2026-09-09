@@ -3,7 +3,7 @@ use super::*;
 impl Parser<'_> {
     pub(super) fn parse_instance(&mut self) -> Option<InstanceDecl> {
         let start = self.expect_keyword("instance")?.range().start();
-        let name = self.expect_identifier("instance name")?.text().to_owned();
+        let name = self.declaration_name("instance name")?.text().to_owned();
         let family = if self.at(TokenKind::LeftBracket) {
             Some(self.parse_index_family_binder()?)
         } else {

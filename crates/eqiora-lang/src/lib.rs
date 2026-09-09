@@ -15,6 +15,7 @@ mod draft_spatial;
 mod factory;
 mod formatter;
 mod lexer;
+mod notation;
 mod parser;
 
 pub use ast::{
@@ -40,6 +41,10 @@ pub use draft_spatial::DraftSpatialDomain;
 pub use factory::{AstConstructionError, SourceAstFactory};
 pub use formatter::format;
 pub use lexer::{LexResult, Token, TokenKind, lex};
+pub use notation::{
+    Notation, NotationAccent, NotationAtom, NotationError, NotationMark, NotationNode,
+    NotationStyle,
+};
 pub use parser::{ParseResult, parse};
 
 pub use ast_property::ComponentPropertyDecl;

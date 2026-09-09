@@ -19,6 +19,8 @@ pub enum TokenKind {
     LineComment,
     /// Declaration documentation beginning with exactly three slashes.
     DocComment,
+    /// A bounded `@{...}` declaration-notation island; its algebra is parsed immediately.
+    Notation,
     /// `{`.
     LeftBrace,
     /// `}`.
@@ -145,6 +147,36 @@ pub fn lex(file: impl Into<String>, source: &str) -> LexResult {
         let bytes = source.as_bytes();
         let start = offset;
         let kind = match bytes[offset] {
+            b'@' if bytes.get(offset + 1) == Some(&b'{') => {
+                // Never recursively lex TeX or allocate an unbounded island token.
+                // Invalid overlong islands stop at the byte bound and carry a
+                // lexical diagnostic; ordinary recovery handles the remainder.
+                let limit = start
+                    .saturating_add(crate::Notation::MAX_BYTES)
+                    .min(source.len());
+                let mut depth = 1_usize;
+                offset += 2;
+                while offset < limit && depth != 0 {
+                    match bytes[offset] {
+                        b'{' => depth += 1,
+                        b'}' => depth -= 1,
+                        _ => {}
+                    }
+                    offset += 1;
+                }
+                while !source.is_char_boundary(offset) {
+                    offset -= 1;
+                }
+                if depth != 0 {
+                    diagnostics.push(source_error(
+                        &file,
+                        start,
+                        offset,
+                        "notation is unterminated or exceeds the 1024-byte limit".into(),
+                    ));
+                }
+                TokenKind::Notation
+            }
             byte if byte.is_ascii_whitespace() => {
                 offset += 1;
                 while offset < bytes.len() && bytes[offset].is_ascii_whitespace() {

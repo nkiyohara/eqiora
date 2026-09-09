@@ -12,7 +12,8 @@ pub(super) fn format_signature(items: &[SignatureItem], output: &mut comments::O
         write_indent(output, 2);
         match item {
             SignatureItem::Parameter(value) => {
-                write!(output, "parameter {}: ", value.name).expect("String write");
+                write!(output, "parameter {}: ", value.comments.named(&value.name))
+                    .expect("String write");
                 value_type::format_value_type(&value.value_type, output);
                 if let Some(default) = &value.default {
                     output.push_str(" = ");
@@ -20,7 +21,8 @@ pub(super) fn format_signature(items: &[SignatureItem], output: &mut comments::O
                 }
             }
             SignatureItem::Support(value) => {
-                write!(output, "support {}: ", value.name).expect("String write");
+                write!(output, "support {}: ", value.comments.named(&value.name))
+                    .expect("String write");
                 match &value.syntax {
                     SupportSlotSyntax::Volume { ambient_dimension } => {
                         write!(output, "volume(ambient_dimension = {ambient_dimension})")
@@ -36,11 +38,21 @@ pub(super) fn format_signature(items: &[SignatureItem], output: &mut comments::O
             }
             SignatureItem::Field(value) => format_unknown_head(value, output),
             SignatureItem::Clock(value) => {
-                write!(output, "clock {}: periodic", value.name).expect("String write");
+                write!(
+                    output,
+                    "clock {}: periodic",
+                    value.comments.named(&value.name)
+                )
+                .expect("String write");
             }
             SignatureItem::Property(value) => {
-                write!(output, "property {}: {}", value.name, value.contract)
-                    .expect("String write");
+                write!(
+                    output,
+                    "property {}: {}",
+                    value.comments.named(&value.name),
+                    value.contract
+                )
+                .expect("String write");
             }
             SignatureItem::Input(value) | SignatureItem::Output(value) => {
                 let direction = if matches!(item, SignatureItem::Input(_)) {
@@ -48,7 +60,12 @@ pub(super) fn format_signature(items: &[SignatureItem], output: &mut comments::O
                 } else {
                     "output"
                 };
-                write!(output, "{direction} {}: ", value.name).expect("String write");
+                write!(
+                    output,
+                    "{direction} {}: ",
+                    value.comments.named(&value.name)
+                )
+                .expect("String write");
                 value_type::format_value_type(&value.value_type, output);
                 if let Some(domain) = &value.domain {
                     write!(output, " on {domain}").expect("String write");
@@ -58,14 +75,17 @@ pub(super) fn format_signature(items: &[SignatureItem], output: &mut comments::O
                 }
             }
             SignatureItem::Port(value) => {
-                write!(output, "port {}: ", value.name).expect("String write");
+                write!(output, "port {}: ", value.comments.named(&value.name))
+                    .expect("String write");
                 format_port_syntax(&value.syntax, output);
             }
             SignatureItem::PortFamily(value) => {
                 write!(
                     output,
                     "port {}[{} in {}]: ",
-                    value.port.name, value.binder.member, value.binder.set
+                    value.port.comments.named(&value.port.name),
+                    value.binder.member,
+                    value.binder.set
                 )
                 .expect("String write");
                 format_port_syntax(&value.port.syntax, output);

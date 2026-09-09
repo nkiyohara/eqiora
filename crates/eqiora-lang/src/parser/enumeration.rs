@@ -10,7 +10,7 @@ impl Parser<'_> {
         visibility: VisibilitySyntax,
     ) -> Option<EnumDecl> {
         self.expect_keyword("enum")?;
-        let name = self.expect_identifier("enum name")?.text().to_owned();
+        let name = self.declaration_name("enum name")?.text().to_owned();
         self.expect(TokenKind::LeftBrace, "`{` before enum tags")?;
         let mut tags = Vec::new();
         let mut seen = HashSet::new();

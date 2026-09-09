@@ -119,6 +119,30 @@ macro_rules! owners {
 }
 
 impl Document {
+    /// Typed declaration notations paired with their original declaration ranges.
+    #[must_use]
+    pub fn notations(&self) -> impl ExactSizeIterator<Item = (TextRange, &crate::Notation)> {
+        let mut result = Vec::new();
+        self.visit_comments(|range, metadata| {
+            if let Some(notation) = &metadata.notation {
+                result.push((range, notation));
+            }
+        });
+        result.into_iter()
+    }
+
+    /// Notation belonging to this exact declaration in this source file.
+    #[must_use]
+    pub fn notation(&self, declaration: TextRange) -> Option<&crate::Notation> {
+        let mut result = None;
+        self.visit_comments(|range, metadata| {
+            if range == declaration {
+                result = metadata.notation.as_ref();
+            }
+        });
+        result
+    }
+
     /// Attached documentation paired with each declaration's original source range.
     ///
     /// One traversal lets editor and documentation clients index a complete source
@@ -163,6 +187,47 @@ impl Document {
         result
     }
 }
+
+macro_rules! notation_owner {
+    ($($owner:ty),+ $(,)?) => { $(
+        impl $owner {
+            /// Attach validated presentation notation without changing the declaration name or type.
+            #[must_use]
+            pub fn with_notation(mut self, notation: crate::Notation) -> Self {
+                self.comments.notation = Some(notation);
+                self
+            }
+            /// Explicit declaration notation, independent of physical meaning.
+            #[must_use]
+            pub const fn notation(&self) -> Option<&crate::Notation> {
+                self.comments.notation.as_ref()
+            }
+        }
+    )+ };
+}
+
+notation_owner!(
+    crate::ModelDecl,
+    crate::ComponentDecl,
+    crate::ConnectorDecl,
+    crate::EnumDecl,
+    crate::NamedDefinitionDecl,
+    crate::ParameterDecl,
+    crate::FieldDecl,
+    crate::DomainDecl,
+    crate::PortDecl,
+    crate::ComponentParameterDecl,
+    crate::ComponentPortDecl,
+    crate::SupportSlotDecl,
+    crate::ast::ClockRequirementDecl,
+    crate::ClockDecl,
+    crate::PureOperatorDecl,
+    crate::PureOperatorFormal,
+    crate::RelationDecl,
+    crate::EventDecl,
+    crate::InstanceDecl,
+    crate::ComponentPropertyDecl,
+);
 
 impl Item {
     pub(crate) fn source_comments(&self) -> &SourceComments {

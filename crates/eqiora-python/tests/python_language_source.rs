@@ -5,6 +5,61 @@ use pyo3::types::{PyDict, PyDictMethods, PyModule};
 const SHIPPED_SOURCE: &str = include_str!("../../../examples/steady-flow-past-cylinder.eqi");
 
 #[test]
+fn python_notation_uses_the_typed_native_parser_and_preserves_compiled_identity() -> PyResult<()> {
+    Python::initialize();
+    Python::attach(|py| {
+        let module = public_module(py)?;
+        let locals = PyDict::new(py);
+        locals.set_item("eqiora", module)?;
+        py.run(
+            c_str!(
+                r"
+q = eqiora.lang
+def make(decorated):
+    source = q.Source()
+    model = source.model('Main', doc='Physical model.')
+    value = model.field('value', role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
+    model.relation('law', left=value, right=0)
+    if decorated:
+        source.set_notation('Main', q.Notation(r'@{\mathcal{M}}'))
+        model.set_notation('value', q.Notation(r'@{\hat{x}_{ij}}'))
+    return source
+plain, annotated = make(False), make(True)
+assert r'value @{\hat{x}_{i j}}: 1' in annotated.to_eqi()
+assert 'value = 0;' in annotated.to_eqi()
+assert eqiora.compile(source=plain).digest == eqiora.compile(source=annotated).digest
+for island in [r'@{\input{x}}', r'@{\text{words}}', '@{$x$}', '@{x_i_i}']:
+    try:
+        q.Notation(island)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError(island)
+"
+            ),
+            Some(&locals),
+            Some(&locals),
+        )?;
+        let text: String = py
+            .eval(c_str!("annotated.to_eqi()"), None, Some(&locals))?
+            .extract()?;
+        let parsed = eqiora::language::parse("python-notation.eqi", &text)
+            .into_document()
+            .unwrap();
+        assert_eq!(parsed.notations().len(), 2);
+        assert_eq!(
+            eqiora::language::format(
+                &eqiora::language::parse("formatted.eqi", &eqiora::language::format(&parsed))
+                    .into_document()
+                    .unwrap()
+            ),
+            eqiora::language::format(&parsed)
+        );
+        Ok(())
+    })
+}
+
+#[test]
 fn python_language_source_round_trips_through_the_existing_compiler() -> PyResult<()> {
     Python::initialize();
     Python::attach(|py| {

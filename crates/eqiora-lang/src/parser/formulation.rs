@@ -13,7 +13,7 @@ impl Parser<'_> {
         visibility: VisibilitySyntax,
     ) -> Option<ComponentDecl> {
         self.expect_keyword("component")?;
-        let name = self.expect_identifier("component name")?.text().to_owned();
+        let name = self.declaration_name("component name")?.text().to_owned();
         let signature = self.parse_signature()?;
         let mut items = Vec::new();
         self.expect(TokenKind::LeftBrace, "`{` after component name")?;

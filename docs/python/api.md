@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 19 module summaries and all 241 canonical declaration summaries are source-traced; non-dunder member coverage remains **17 authoritative summaries and 716 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 19 module summaries and all 242 canonical declaration summaries are source-traced; non-dunder member coverage remains **19 authoritative summaries and 717 signature-only entries under documented owning types**.
 
-Inventory: 19 modules, 278 literal public spellings, 241 canonical grouped declarations, 954 visible method signatures (733 non-dunder and 221 dunder), and 76 visible class assignments.
+Inventory: 19 modules, 279 literal public spellings, 242 canonical grouped declarations, 959 visible method signatures (736 non-dunder and 223 dunder), and 76 visible class assignments.
 
 Regenerate with:
 
@@ -2733,6 +2733,7 @@ Authority: [`bindings/python/python/eqiora/lang/__init__.py::Component`](../../b
 ```python
 @final
 class Component:
+    def set_notation(self, name: str, notation: Notation) -> None: ...
     def counts(self, space: FiniteSpace, components: Sequence[Expression | int]) -> Expression: ...
     def coordinates(self, space: FiniteSpace, components: Sequence[Expression | int]) -> Expression: ...
     def index(self, set: IndexSet, value: Expression | int) -> Expression: ...
@@ -2833,6 +2834,23 @@ class MaterialComposition:
     def __getitem__(self, name: str) -> PropertyRelease: ...
 ```
 
+<a id="api-eqiora-lang-Notation"></a>
+
+### `eqiora.lang.Notation`
+
+Native-validated, immutable declaration notation; accepts one complete `@{...}` island.
+
+Authority: [`crates/eqiora-python/src/notation.rs::PyNotation`](../../crates/eqiora-python/src/notation.rs)
+
+```python
+@final
+class Notation:
+    def __init__(self, island: str) -> None: ...
+    @property
+    def canonical(self) -> str: ...
+    def __str__(self) -> str: ...
+```
+
 <a id="api-eqiora-lang-Operator"></a>
 
 ### `eqiora.lang.Operator`
@@ -2900,6 +2918,7 @@ Authority: [`bindings/python/python/eqiora/lang/__init__.py::Source`](../../bind
 ```python
 @final
 class Source:
+    def set_notation(self, name: str, notation: Notation) -> None: ...
     def operator(self, name: str, *, inputs: Mapping[str, ValueType], result_type: ValueType, body: Callable[..., object], doc: str | None=None) -> Operator: ...
     def enum(self, name: str, *, members: Sequence[str], doc: str | None=None) -> Enum: ...
     def space(self, name: str, *, labels: Sequence[str], doc: str | None=None) -> FiniteSpace: ...

@@ -15,7 +15,12 @@ pub(super) fn format_component(
     if component.visibility == VisibilitySyntax::Public {
         output.push_str("public ");
     }
-    write!(output, "component {}", component.name).expect("String write");
+    write!(
+        output,
+        "component {}",
+        component.comments.named(&component.name)
+    )
+    .expect("String write");
     super::signature::format_signature(&component.signature, output);
     output.push_str(" {\n");
     for item in &component.items {

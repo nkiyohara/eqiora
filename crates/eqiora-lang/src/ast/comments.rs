@@ -7,8 +7,25 @@ use super::TextRange;
 pub(crate) struct SourceComments {
     pub(crate) range: TextRange,
     pub(crate) doc: Option<DocComment>,
+    pub(crate) notation: Option<crate::Notation>,
     pub(crate) comments: Vec<CommentTrivia>,
     pub(crate) tokens: Vec<(SyntaxAnchor, TextRange)>,
+}
+
+impl SourceComments {
+    pub(crate) fn named<'a>(&'a self, name: &'a str) -> impl std::fmt::Display + 'a {
+        struct Named<'a>(&'a str, Option<&'a crate::Notation>);
+        impl std::fmt::Display for Named<'_> {
+            fn fmt(&self, output: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                output.write_str(self.0)?;
+                if let Some(notation) = self.1 {
+                    write!(output, " {}", notation.canonical())?;
+                }
+                Ok(())
+            }
+        }
+        Named(name, self.notation.as_ref())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -12,7 +12,7 @@ impl Parser<'_> {
     ) -> Option<NamedDefinitionDecl> {
         self.expect_keyword("space")?;
         let name = self
-            .expect_identifier("finite space name")?
+            .declaration_name("finite space name")?
             .text()
             .to_owned();
         self.expect(TokenKind::Equal, "`=` before finite space definition")?;
@@ -59,7 +59,7 @@ impl Parser<'_> {
 
     pub(super) fn parse_index_set(&mut self) -> Option<NamedDefinitionDecl> {
         let start = self.expect_keyword("indexset")?.range().start();
-        let name = self.expect_identifier("index set name")?.text().to_owned();
+        let name = self.declaration_name("index set name")?.text().to_owned();
         self.expect(TokenKind::Equal, "`=` before index set definition")?;
         self.expect_keyword("range")?;
         self.expect(TokenKind::LeftParen, "`(` before index set extent")?;

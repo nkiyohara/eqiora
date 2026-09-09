@@ -9,7 +9,12 @@ pub(super) fn format_dimension(
     output: &mut crate::formatter::comments::Output,
 ) {
     output.begin(&declaration.comments);
-    write!(output, "dimension {} = ", declaration.name).expect("String write");
+    write!(
+        output,
+        "dimension {} = ",
+        declaration.comments.named(&declaration.name)
+    )
+    .expect("String write");
     format_expression(&declaration.value, 0, output);
     output.push_str(";\n");
     output.end();
@@ -21,7 +26,12 @@ pub(super) fn format_parameter(
     output: &mut crate::formatter::comments::Output,
 ) {
     write_indent(output, indent);
-    write!(output, "parameter {}: ", declaration.name).expect("String write");
+    write!(
+        output,
+        "parameter {}: ",
+        declaration.comments.named(&declaration.name)
+    )
+    .expect("String write");
     super::value_type::format_value_type(&declaration.value_type, output);
     output.push_str(" = ");
     format_expression(&declaration.value, 0, output);
@@ -34,7 +44,12 @@ pub(super) fn format_let(
     output: &mut crate::formatter::comments::Output,
 ) {
     write_indent(output, indent);
-    write!(output, "let {}", declaration.name).expect("String write");
+    write!(
+        output,
+        "let {}",
+        declaration.comments.named(&declaration.name)
+    )
+    .expect("String write");
     if let Some(value_type) = &declaration.value_type {
         output.push_str(": ");
         super::value_type::format_value_type(value_type, output);
