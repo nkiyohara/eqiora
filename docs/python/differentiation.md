@@ -1,9 +1,8 @@
 # Differentiation and framework adapters
 
-## Framework-neutral accepted points
+## Evaluate a point and its derivatives
 
-`eqiora.diff` binds one exact common Plan, ordered Parameter coordinate set,
-and complete output Field:
+Use `eqiora.diff` to select the parameters and output field to differentiate:
 
 ```python
 import numpy as np
@@ -22,23 +21,18 @@ vjp = evaluation.vjp(
 )
 ```
 
-The program's Model and Plan identity is static. Each evaluation
-owns an explicit complete numerical point and its paired accepted
-linearization without mutating the Model or replacing the Plan.
-Unselected Parameters remain frozen at their canonical Model values.
+Each evaluation stores its input point and linearization. Evaluating a new
+point leaves the Model and Plan unchanged. Parameters that you did not select
+keep their model values.
 Retaining one evaluation while evaluating another point cannot retarget its
 primal, JVP, or VJP.
 
-The bounded Python path accepts the exact supplied rectangular 2D Cartesian
-Mesh already owned by a common scalar Plan, with Q1 FEM or TPFA FVM and a
-linear host-serial native `float64` solve. Native scalar realization remains
-separately 1D--3D. Point values,
-tangents, and cotangents accept exact rank-one CPU arrays through the ownership
-contract described in
+Python differentiation supports rectangular 2D Cartesian meshes, Q1 FEM or
+TPFA FVM, and a serial CPU `float64` solve. Point values, tangents, and
+cotangents must be rank-one CPU arrays with the layout described in
 [Execution, diagnostics, and arrays](execution-and-arrays.md).
 
-Multiple outputs, objective languages, persisted programs, GPU
-adjoints, and higher-order differentiation remain separate capabilities.
+Each program selects one output field and computes first derivatives.
 
 ## Native ordered batches
 
@@ -94,14 +88,14 @@ if isinstance(result, eqiora.CompleteEvaluationMap):
 Mapped coordinates are the remaining inputs in Program order, not the order
 of a Python dictionary. Shared values follow `shared_inputs`, which must be
 distinct references from the exact Program's Model. Sharing along only some
-point axes is not admitted; no broadcasting or identity conversion is applied.
+point axes is unsupported; supply the exact shape without broadcasting.
 
 JVP and VJP reuse accepted native linearizations. Optional `seed_shape` and
 `point_axes` place point axes inside a nested product grid. For point shape
 `(2, 4)`, `seed_shape=(3,)` and `point_axes=(0, 2)` mean `(2, 3, 4)`;
 mapped tangent and output-cotangent arrays append their coordinate extent.
 Shared tangents use `seed_shape + (shared_count,)`. Products retain the Plan,
-axis metadata and per-member evidence. Rank is bounded to 32 point/seed axes;
+axis metadata and per-member results. Rank is bounded to 32 point/seed axes;
 `retained_bytes_limit` and `numerical_bytes_limit` bound native retained
 numerical storage, not process peak memory.
 
@@ -205,7 +199,7 @@ iterations.
 Each call takes one rank-one host-CPU `float64` point. Use `vmap` to compose
 mapped and shared arguments, non-leading `in_axes`, `out_axes`, and nested
 batches. `jit`, first-order JVP/VJP, `vmap(grad(...))`, gradients of summed or
-averaged mapped losses, and bounded `jacfwd`/`jacrev` use the native accepted
+averaged mapped losses, and `jacfwd`/`jacrev` use the native accepted
 map and products. Broadcasting a shared input sums its reverse contributions;
 only an explicit mean divides by the collection size. Any failed member rejects
 the dense operation with an occurrence diagnostic.

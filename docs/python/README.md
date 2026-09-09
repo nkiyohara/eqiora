@@ -1,25 +1,22 @@
 # Python SDK guide
 
-Eqiora's Python package is a typed client of the canonical Rust
-implementation. Python supplies ergonomic declarations and array/framework
-adapters; model meaning, validation, execution, differentiation, and evidence
-remain in the shared native implementation.
+Use Eqiora from Python to define equations, run models, inspect arrays, and
+calculate derivatives with NumPy, PyTorch, or JAX.
 
 Start with the
 [package README](https://github.com/nkiyohara/eqiora/blob/main/bindings/python/README.md),
 then use the focused guides:
 
 - [Modeling and realization](modeling.md) covers native declarations,
-  spatial support, immutable revisions, and the bounded scalar-elliptic path.
+  spatial support, immutable revisions, and scalar elliptic models.
 - [Execution, diagnostics, and arrays](execution-and-arrays.md) covers
   synchronous and awaitable runs, cancellation, errors, NumPy, and DLPack.
 - [Differentiation and framework adapters](differentiation.md) covers the
-  framework-neutral program and the bounded PyTorch and JAX projections.
+  framework-neutral program and PyTorch and JAX adapters.
 - [Modeling and realization](modeling.md#exact-cylinder-pressure-rendering) also
-  shows the accepted exact-cylinder, mixed-boundary structural, and
-  fixed-mesh monolithic FSI common-Result/Matplotlib workflows.
-- [Generated API reference](api.md) is derived only from the public type
-  stubs shipped in the distribution.
+  shows cylinder flow, mixed-boundary elasticity, and fixed-mesh fluid–structure
+  interaction, including plotting results with Matplotlib.
+- [Generated API reference](api.md) lists the available modules, classes, and functions.
 
 See the
 [capability matrix](https://github.com/nkiyohara/eqiora/blob/main/docs/capability-matrix.md)

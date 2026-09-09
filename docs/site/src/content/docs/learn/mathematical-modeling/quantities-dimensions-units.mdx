@@ -5,15 +5,6 @@ sidebar:
 description: Use dimensions to reject relations that cannot be physically meaningful before choosing a numerical method.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
-import ReleaseIdentity from '@components/site/ReleaseIdentity.astro';
-
-<Aside type="note" title="Chapter status">
-  **Illustrative · source compiles · deliberate dimensional failure included.**
-  The examples target the current <ReleaseIdentity /> surface. Dimensional
-  consistency is necessary for physical meaning, but it is not sufficient for
-  correctness or validation.
-</Aside>
 
 ## Three ideas that are easy to conflate
 
@@ -88,7 +79,7 @@ A zero exit status means the current compiler accepted the source. The command
 does not resolve a numerical method, execute a trajectory, or validate a
 physical interpretation.
 
-## Observation boundary
+## Read the result
 
 This chapter observes compiler acceptance and rejection only. It produces no
 time series or physical measurement. A later numerical observation would still

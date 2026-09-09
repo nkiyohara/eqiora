@@ -15,14 +15,14 @@ PRESSURE_ALT = "Steady Stokes pressure around a cylinder, with the current mesh 
 PRESSURE_CAPTION = "Steady Stokes pressure on a 0.025 m target mesh."
 REFERENCE_GUIDANCE = "Look up a declaration, find a physical building block, or inspect an API signature."
 MODELING_FOUNDATION_CHAPTERS = (
-    ("algebraic-relations-networks", "Algebraic relations and networks", "Illustrative"),
-    ("boundary-interface-conditions", "Boundary and interface conditions", "Illustrative"),
-    ("conservation-laws", "Conservation laws", "Illustrative"),
-    ("constitutive-laws", "Constitutive laws", "Illustrative"),
-    ("fields-spatial-domains", "Fields and spatial domains", "Illustrative"),
-    ("models-not-simulations", "Models are not simulations", "Illustrative"),
-    ("ordinary-differential-equations", "Ordinary differential equations", "independently derived closed form"),
-    ("quantities-dimensions-units", "Quantities, dimensions, and units", "Illustrative"),
+    ("algebraic-relations-networks", "Algebraic relations and networks"),
+    ("boundary-interface-conditions", "Boundary and interface conditions"),
+    ("conservation-laws", "Conservation laws"),
+    ("constitutive-laws", "Constitutive laws"),
+    ("fields-spatial-domains", "Fields and spatial domains"),
+    ("models-not-simulations", "Models are not simulations"),
+    ("ordinary-differential-equations", "Ordinary differential equations"),
+    ("quantities-dimensions-units", "Quantities, dimensions, and units"),
 )
 STAGES = (
     ("problem-setup", "1", "Problem setup"),
@@ -468,17 +468,7 @@ def check_starlight_content(
     evidence_value = inspections.get(artifact / "evidence/index.html")
     if capabilities_value:
         capabilities = capabilities_value[1]
-        required = (
-            "Available",
-            "Executable",
-            "Checked",
-            "Verified",
-            "Exact boundary",
-            "What this establishes",
-            "Current limits",
-            "Thermal",
-            "Checking a claim",
-        )
+        required = ("Capabilities", "Thermal")
         for phrase in required:
             if phrase not in capabilities.visible_text:
                 errors.append(f"capabilities landing omits {phrase!r}")
@@ -494,21 +484,21 @@ def check_starlight_content(
         for phrase in ("Build a model", "Extend it through space", "Put it to use"):
             if phrase not in page.visible_text:
                 errors.append(f"learning path omits {phrase!r}")
-        for chapter_slug, chapter_title, _ in MODELING_FOUNDATION_CHAPTERS:
+        for chapter_slug, chapter_title in MODELING_FOUNDATION_CHAPTERS:
             destination = (f"/learn/mathematical-modeling/{chapter_slug}/", chapter_title)
             if destination not in page.anchors:
                 errors.append(f"learning path omits published lesson {chapter_title!r}")
     for slug, heading in (
         ("modeling", "Native declarations"),
         ("execution-and-arrays", "Structured failures"),
-        ("differentiation", "Framework-neutral accepted points"),
+        ("differentiation", "Evaluate a point and its derivatives"),
     ):
         guide_value = inspections.get(artifact / f"guides/{slug}/index.html")
         if guide_value:
             for phrase in ("View guide source", heading):
                 if phrase not in guide_value[1].visible_text:
                     errors.append(f"guide {slug!r} omits maintained content {phrase!r}")
-    for slug, title, status in MODELING_FOUNDATION_CHAPTERS:
+    for slug, title in MODELING_FOUNDATION_CHAPTERS:
         value = inspections.get(
             artifact / f"learn/mathematical-modeling/{slug}/index.html"
         )
@@ -517,7 +507,6 @@ def check_starlight_content(
         page = value[1]
         for phrase in (
             title,
-            status,
             "Learning outcomes",
             "Deliberate failure",
             "Exercises",

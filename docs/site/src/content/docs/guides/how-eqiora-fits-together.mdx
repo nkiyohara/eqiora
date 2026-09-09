@@ -15,7 +15,7 @@ for the distinction, or [author a model in Python](/guides/modeling/).
 
 ## Realization — how will it be solved?
 
-Choose the numerical policies admitted for that Model. In the decay example,
+Choose numerical methods that support your model. In the decay example,
 `eqiora.resolve` selects a time method and returns a Plan. Spatial problems also
 need the appropriate geometry, mesh and discretization; the
 [steady-flow investigation](/gallery/exact-cylinder-steady-stokes/) shows those
@@ -25,8 +25,7 @@ choices on one concrete problem.
 
 Supply the initial state, observation times and other execution inputs required
 by the Plan, then call `eqiora.run`. The
-[execution guide](/guides/execution-and-arrays/) explains the current source
-API's submitted-run lifecycle and structured diagnostics.
+[execution guide](/guides/execution-and-arrays/) explains submitted runs and structured diagnostics.
 
 ## Result — what happened?
 
@@ -37,7 +36,7 @@ walks through that released path.
 
 A successful run is not proof that the physical assumptions are right.
 [Capabilities](/capabilities/) and the [verification guide](/evidence/) explain
-the supported boundaries and how to find the relevant checks.
+available models and their numerical checks.
 
 ## Looking inside the implementation?
 

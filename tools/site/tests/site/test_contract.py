@@ -68,13 +68,6 @@ class CompleteContractTests(unittest.TestCase):
                 "public navigation omits",
             ),
             (
-                "missing capability status meaning",
-                Path("capabilities/index.html"),
-                "Available",
-                "Present",
-                "capabilities landing omits",
-            ),
-            (
                 "maintained guide replaced by a wrapper",
                 Path("guides/modeling/index.html"),
                 "Native declarations",

@@ -5,15 +5,7 @@ sidebar:
 description: Count unknowns and independent relations, then use conservation and closure to diagnose algebraic models before solving.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
-import ReleaseIdentity from '@components/site/ReleaseIdentity.astro';
-
-<Aside type="note" title="Chapter status">
-  **Illustrative · compile-only.** The examples target the current
-  <ReleaseIdentity /> surface and check relation structure by hand and with the
-  compiler. This chapter does not invoke an algebraic solver.
-</Aside>
 
 ## Why relations come before algorithms
 
@@ -33,7 +25,7 @@ After this chapter, you should be able to:
 - distinguish unknown quantities, prescribed parameters, and relations;
 - count unknowns and independent scalar relations in a small model;
 - separate conservation from the law that closes a network;
-- compile a bounded algebraic `.eqi` model without selecting a solver; and
+- compile an algebraic `.eqi` model without selecting a solver; and
 - identify underdetermined, overconstrained, and inconsistent structures.
 
 ## A two-branch split
@@ -103,7 +95,7 @@ the model acausal: the assembled relations determine which quantities must be
 solved together. It does not mean every possible network is currently
 executable, and it does not turn connection order into execution order.
 
-## Observation boundary
+## Read the result
 
 This chapter observes compiler acceptance and performs a hand derivation. It
 does not produce a `Result`. The values $a=b=s/2$ follow from the two written
