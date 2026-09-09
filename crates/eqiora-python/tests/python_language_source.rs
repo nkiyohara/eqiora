@@ -364,3 +364,28 @@ spec.loader.exec_module(package)
         .expect("public package must load")
         .cast_into::<PyModule>()?)
 }
+
+#[test]
+fn python_sine_operator_emission_and_artifact_keep_shared_identity() -> PyResult<()> {
+    Python::initialize();
+    Python::attach(|py| {
+        let locals = PyDict::new(py);
+        locals.set_item("eqiora", public_module(py)?)?;
+        py.run(c_str!(r"
+q = eqiora.lang
+module = eqiora.Module('main')
+wave = module.operator('wave', inputs={'x': eqiora.ValueType.real()}, result_type=eqiora.ValueType.real(), body=lambda x: q.math.sin(x))
+model = module.model('Wave')
+x = model.parameter('x', value_type=eqiora.ValueType.real())
+model.set_default(x, 0)
+y = model.field('y', role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
+model.relation('value', q.equation(y, wave(x=x)))
+native = eqiora.compile(source=module)
+parsed = eqiora.compile(source=module.to_eqi())
+assert native.digest == parsed.digest
+reopened = eqiora.Model.from_bytes(native.to_bytes())
+assert reopened.digest == native.digest
+"), Some(&locals), Some(&locals))?;
+        Ok(())
+    })
+}

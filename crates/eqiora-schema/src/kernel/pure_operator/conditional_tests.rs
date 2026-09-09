@@ -244,11 +244,14 @@ fn nonlinear_profile_and_fraction_bounds_reject_before_projection() {
     let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
     let mut builder = CalculusBuilder::new([class(length)], class(length)).unwrap();
     let mut root = formal(&mut builder, 0);
-    assert!(
-        builder
+    assert!({
+        let mut invalid = CalculusBuilder::new([class(length)], class(length)).unwrap();
+        let root = formal(&mut invalid, 0);
+        let root = invalid
             .push(CalculusNode::UnaryMath(UnaryMathFunction::Sin, root))
-            .is_err()
-    );
+            .unwrap();
+        invalid.finish(root).is_err()
+    });
     for _ in 0..31 {
         root = builder
             .push(CalculusNode::UnaryMath(UnaryMathFunction::Sqrt, root))

@@ -33,6 +33,7 @@ pub(super) enum Instruction {
         condition: ValueId,
         value: ValueId,
     },
+    Sin(ValueId),
     Sqrt(ValueId),
     Not(ValueId),
     And(ValueId, ValueId),

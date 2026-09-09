@@ -11,7 +11,8 @@ impl ScalarOperatorIr {
         let mut summaries: Vec<AffineSummary> = Vec::with_capacity(self.instructions.len());
         for (index, instruction) in self.instructions.iter().copied().enumerate() {
             let summary = match instruction {
-                Instruction::Sqrt(_)
+                Instruction::Sin(_)
+                | Instruction::Sqrt(_)
                 | Instruction::Select { .. }
                 | Instruction::Require { .. }
                 | Instruction::PureOperator { .. }

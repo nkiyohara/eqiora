@@ -136,7 +136,8 @@ impl ScalarOperatorIr {
                                 })?;
                             pending.extend(operands.iter().rev().copied().map(Frame::Demand));
                         }
-                        Instruction::Sqrt(a)
+                        Instruction::Sin(a)
+                        | Instruction::Sqrt(a)
                         | Instruction::Index(a, _)
                         | Instruction::Neg(a)
                         | Instruction::PowI(a, _)
@@ -175,6 +176,18 @@ impl ScalarOperatorIr {
                     })?
                     .clone(),
                     Instruction::Require { value, .. } => read(value)?.clone(),
+                    Instruction::Sin(value) => {
+                        let value = real(read(value)?)?;
+                        if value.dim() != eqiora_core::DimExponents::DIMENSIONLESS {
+                            return Err(ir_builder_error(
+                                "sine requires a dimensionless real scalar",
+                            ));
+                        }
+                        literal(DynQuantity::new(
+                            value.value().sin(),
+                            eqiora_core::DimExponents::DIMENSIONLESS,
+                        ))?
+                    }
                     Instruction::Sqrt(value) => {
                         let value = real(read(value)?)?;
                         if value.value() < 0. {
