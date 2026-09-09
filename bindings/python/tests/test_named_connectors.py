@@ -177,3 +177,20 @@ def test_splitting_one_constitutive_owner_is_rejected_instead_of_duplicating_por
         eqiora.compile(source=source, entry="Divider")
     assert any(item.code == "EQ0603" and "more than one owning Relation" in item.message
                for item in error.value.diagnostics)
+
+
+@pytest.mark.parametrize("names", (("voltage", "current"), ("potential", "flow")))
+def test_authored_and_emitted_divider_execute_the_independent_circuit(names, tmp_path):
+    source = divider(across=names[0], through=names[1])
+    direct = eqiora.compile(source=source, entry="Divider")
+    path = tmp_path / "divider.eqi"
+    source.write_eqi(path)
+    emitted = eqiora.compile(path=path, entry="Divider")
+    # Kirchhoff's laws: I=12/(1000+2000)=0.004 A; midpoint=I*2000=8 V.
+    # Positive port current enters each component, so the source supplies -I.
+    for model in (direct, emitted):
+        session = model.execution_session(end_time_s=1, max_step_s=1, inputs={})
+        assert session.through("upper.positive") == pytest.approx(0.004, abs=1e-12, rel=0)
+        assert session.through("source.positive") == pytest.approx(-0.004, abs=1e-12, rel=0)
+        assert session.across("lower.positive") == pytest.approx(8.0, abs=1e-10, rel=0)
+        assert session.across("ground.terminal") == 0.0
