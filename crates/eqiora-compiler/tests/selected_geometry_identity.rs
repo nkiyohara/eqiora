@@ -399,3 +399,104 @@ fn direct_selected_exterior_rejects_incomplete_duplicate_and_foreign_members() {
         );
     }
 }
+
+fn resolved_exterior(
+    root_source: &str,
+    dependency: bool,
+    native: bool,
+) -> Result<eqiora_compiler::ValidatedResolvedHierarchy, Vec<eqiora_core::Diagnostic>> {
+    use eqiora_compiler::{
+        CompilationNamespaceId, ResolvedDependency, ResolvedHierarchyInput, ResolvedSourceUnit,
+        analyze_resolved_hierarchy,
+    };
+    let root = CompilationNamespaceId::new(["exterior_root", "1", "root-digest"]).unwrap();
+    let parts = if dependency {
+        CompilationNamespaceId::new(["exterior_parts", "2", "locked-digest"]).unwrap()
+    } else {
+        root.clone()
+    };
+    let prefix = if dependency {
+        "exterior_parts"
+    } else {
+        "exterior_root"
+    };
+    let library = EXTERIOR
+        .split("model M(")
+        .next()
+        .unwrap()
+        .replace("component ", "public component ")
+        .replace("connector ", "public connector ");
+    let root_source = format!("import {prefix}.parts as lib; {root_source}")
+        .replace(": Wrapper(", ": lib.Wrapper(")
+        .replace(": Terminal(", ": lib.Terminal(");
+    let unit = |owner, file: &str, source: &str| {
+        if native {
+            ResolvedSourceUnit::from_module(
+                owner,
+                file,
+                eqiora_lang::Module::from_document(
+                    eqiora_lang::parse(file, source).into_document().unwrap(),
+                ),
+            )
+        } else {
+            ResolvedSourceUnit::new(owner, file, source)
+        }
+        .unwrap()
+    };
+    let units = vec![
+        unit(root.clone(), "src/main.eqi", &root_source),
+        unit(parts.clone(), "src/parts.eqi", &library),
+    ];
+    let dependencies = if dependency {
+        vec![ResolvedDependency::new(root.clone(), parts)]
+    } else {
+        vec![]
+    };
+    analyze_resolved_hierarchy(ResolvedHierarchyInput::new(root, units, dependencies))?
+        .validate_definitions()
+}
+
+#[test]
+fn resolved_abstract_exteriors_prove_supplied_geometry_in_local_and_locked_modules() {
+    let source = &EXTERIOR[EXTERIOR.find("model M(").unwrap()..];
+    let geometry = rectangle(false);
+    for dependency in [false, true] {
+        let checked = resolved_exterior(source, dependency, false)
+            .unwrap_or_else(|errors| panic!("{errors:?}"));
+        let compiled = checked
+            .compile_selected("M", &exterior_bindings(&geometry))
+            .unwrap_or_else(|errors| panic!("{errors:?}"));
+        let native = resolved_exterior(source, dependency, true)
+            .unwrap_or_else(|errors| panic!("{errors:?}"));
+        let replay = native
+            .compile_selected("M", &exterior_bindings(&geometry))
+            .unwrap_or_else(|errors| panic!("{errors:?}"));
+        assert_eq!(compiled.transaction().ops(), replay.transaction().ops());
+        assert_eq!(compiled.symbols(), replay.symbols());
+        let mut wrong_side = exterior_bindings(&geometry);
+        wrong_side[2].1 = selection(&geometry, "left", Some("body"));
+        let errors = checked.compile_selected("M", &wrong_side).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message().contains("more than once")),
+            "{errors:?}"
+        );
+        assert!(checked.compile_selected("M", &[]).is_err());
+        assert!(checked.compile_root("M").is_err());
+    }
+}
+
+#[test]
+fn abstract_exterior_analysis_keeps_static_cardinality_parent_and_duplicate_checks() {
+    let source = &EXTERIOR[EXTERIOR.find("model M(").unwrap()..];
+    for (mutant, expected) in [
+        (source.replace("boundaries(left, right, bottom, top)", "boundaries(left, right, bottom)"), "member count"),
+        (source.replace("boundaries(left, right, bottom, top)", "boundaries(left, right, bottom, bottom)"), "more than once"),
+        (source.replace("support body: volume(ambient_dimension = 2),", "support other: volume(ambient_dimension = 2), support body: volume(ambient_dimension = 2),")
+            .replace("support left: boundary(parent = body)", "support left: boundary(parent = other)"), "parent"),
+    ] {
+        let errors = resolved_exterior(&mutant, true, false).unwrap_err();
+        assert!(errors.iter().any(|error| error.message().contains(expected)), "{expected}: {errors:?}");
+    }
+}

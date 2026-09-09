@@ -273,18 +273,53 @@ pub(crate) fn resolved(
     entry: &str,
     bindings: &[(&str, StaticBindingValue<'_>)],
 ) -> Result<CompiledModel, Vec<Diagnostic>> {
-    let elaborator = Elaborator::new_resolved(&hierarchy.analysis, HierarchyLimits::default())?;
+    let mut elaborator = Elaborator::new_resolved(&hierarchy.analysis, HierarchyLimits::default())?;
+    let context = PropertyScope {
+        units: &hierarchy.analysis.units,
+        aliases: &hierarchy.analysis.aliases,
+        local_namespace: None,
+    };
+    let selected_bound;
+    let selected_checked;
+    let checked = if let Some(model) = elaborator
+        .find_entry_model(entry)
+        .map_err(|message| vec![hierarchy_error(message)])?
+    {
+        let signature = authored_signature(&context, &model.namespace, model.name(), true)
+            .unwrap_or_else(|| model.signature());
+        let prepared = prepare(
+            model.file,
+            model.name(),
+            signature,
+            bindings,
+            |requirement, value| {
+                property(&context, &model.namespace, model.file, requirement, value)
+            },
+        )?;
+        selected_bound = bind_model(&elaborator, model.declaration, &prepared)?;
+        elaborator.bind_selected_model(
+            preflight::ModelDefinition {
+                namespace: model.namespace,
+                file: model.file,
+                owned_interfaces: preflight::owned_model_items(&selected_bound),
+                declaration: &selected_bound,
+            },
+            prepared.supports(),
+        );
+        // Resolve every deferred topology obligation of the selected definition
+        // against the same validated support context used by occurrence allocation.
+        selected_checked = check::validate(&elaborator)?;
+        &selected_checked
+    } else {
+        &hierarchy.checked
+    };
     compile(
         &elaborator,
-        &hierarchy.checked,
+        checked,
         entry,
         bindings,
         &preflight::DefinitionNamespace::Resolved(hierarchy.analysis.root.clone()),
-        &PropertyScope {
-            units: &hierarchy.analysis.units,
-            aliases: &hierarchy.analysis.aliases,
-            local_namespace: None,
-        },
+        &context,
     )
 }
 

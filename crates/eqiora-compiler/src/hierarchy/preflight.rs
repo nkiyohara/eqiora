@@ -134,6 +134,7 @@ impl DefinitionKey {
 }
 
 pub(super) struct Elaborator<'a> {
+    pub(super) selected_models: BTreeSet<DefinitionKey>,
     pub(super) selected_boundary_sides:
         BTreeMap<(DefinitionKey, String), (usize, eqiora_schema::kernel::BoundarySide)>,
     pub(super) selected_component: Option<(DefinitionKey, super::parameters::SymbolicParameterMap)>,
@@ -227,6 +228,7 @@ impl<'a> Elaborator<'a> {
             })?;
         let elaborator = Self {
             selected_boundary_sides: BTreeMap::new(),
+            selected_models: BTreeSet::new(),
             selected_component: None,
             notations: notation::index(file, document),
             native: native
@@ -313,6 +315,7 @@ impl<'a> Elaborator<'a> {
             .collect();
         let elaborator = Self {
             selected_boundary_sides: BTreeMap::new(),
+            selected_models: BTreeSet::new(),
             selected_component: None,
             notations: analysis
                 .units
@@ -389,6 +392,7 @@ impl<'a> Elaborator<'a> {
             namespace: model.namespace.clone(),
             name: model.name().to_owned(),
         };
+        self.selected_models.insert(key.clone());
         for support in supports {
             if let crate::external::ExternalGeometrySupportBinding::Boundary {
                 slot,
