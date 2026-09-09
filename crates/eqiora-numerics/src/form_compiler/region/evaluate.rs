@@ -111,8 +111,12 @@ impl BoundRegionForm {
             geometry,
             quadrature,
             |point, coefficients, forcing| {
+                let mut components = forcing.iter_mut();
                 for (index, row) in self.form.rows.iter().enumerate() {
-                    forcing[index] = self.row_multipliers[index] * row.forcing.evaluate(point)?;
+                    for component in &row.forcing {
+                        *components.next().expect("exact row component inventory") =
+                            self.row_multipliers[index] * component.evaluate(point)?;
+                    }
                 }
                 for (coefficient, (row, term)) in coefficients.iter_mut().zip(&data) {
                     let value = term.coefficient.evaluate(point)?;

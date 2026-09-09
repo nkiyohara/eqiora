@@ -94,6 +94,26 @@ fn expression(
             }
         }
         ExprNode::Gradient(value) if matches!(position, Position::Strong) => {
+            if let Ok(potential) = context.data(*value, depth + 1) {
+                if !potential.spatial() {
+                    potential.evaluate(&vec![0.0; context.dimension])?;
+                }
+                if row.forcing.len() != context.dimension {
+                    return Err(invalid("gradient forcing requires a spatial vector row"));
+                }
+                for (axis, forcing) in row.forcing.iter_mut().enumerate() {
+                    // The tape owner demands every primal intermediate. A finite
+                    // derivative must not hide an overflowing or undefined potential.
+                    let derivative = potential
+                        .clone()
+                        .multiply(Data::constant(context.dimension, 0.0))
+                        .add(potential.coordinate_derivative(axis, context.dimension)?);
+                    *forcing = forcing
+                        .clone()
+                        .add(negative(coefficient.clone().multiply(derivative)));
+                }
+                return Ok(());
+            }
             if coefficient.spatial() {
                 return Err(invalid(
                     "spatial multiplier outside gradient requires product-rule lowering",
@@ -151,8 +171,7 @@ fn expression(
             let data = context.data(id, depth + 1)?;
             match position {
                 Position::Strong if row.value_type.shape().is_scalar() => {
-                    row.forcing = row
-                        .forcing
+                    row.forcing[0] = row.forcing[0]
                         .clone()
                         .add(negative(coefficient.multiply(data)));
                     Ok(())

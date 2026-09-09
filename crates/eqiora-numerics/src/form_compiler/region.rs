@@ -36,7 +36,7 @@ struct Row {
     tested: RawId,
     value_type: ValueType,
     terms: Vec<Term>,
-    forcing: Data,
+    forcing: Vec<Data>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -99,9 +99,9 @@ impl CompiledRegionForm {
             let mut row = Row {
                 relation: *relation,
                 tested,
-                value_type,
+                value_type: value_type.clone(),
                 terms: Vec::new(),
-                forcing: Data::constant(dimension, 0.0),
+                forcing: vec![Data::constant(dimension, 0.0); components(&value_type, dimension)?],
             };
             lowering::lower(&context, root, Data::constant(dimension, 1.0), &mut row, 0)?;
             for term in &row.terms {

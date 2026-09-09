@@ -63,7 +63,11 @@ pub(super) fn integrate(
     let mut matrix = vec![0.0; entries];
     let mut rhs = vec![0.0; count];
     let mut coefficients = vec![0.0; terms.len()];
-    let mut forcing = vec![0.0; fields.len()];
+    let mut forcing_offsets = vec![0usize];
+    for (_, components) in fields {
+        forcing_offsets.push(forcing_offsets.last().unwrap() + components);
+    }
+    let mut forcing = vec![0.0; *forcing_offsets.last().unwrap()];
     let inverse = geometry.inverse_jacobian()?;
     let mut physical = vec![0.0; dimension];
     for point in quadrature.points() {
@@ -101,7 +105,7 @@ pub(super) fn integrate(
             for (test, value) in tabulations[row].values().iter().enumerate() {
                 for component in 0..*components {
                     rhs[offsets[row] + test * components + component] +=
-                        weight * forcing[row] * value;
+                        weight * forcing[forcing_offsets[row] + component] * value;
                 }
             }
         }

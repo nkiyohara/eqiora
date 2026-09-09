@@ -13,11 +13,13 @@ pub(in crate::form_compiler) struct Data(Arc<Node>);
 #[derive(Debug, PartialEq)]
 enum Node {
     Tape(ScalarSpatialExpression),
+    CoordinateDerivative(ScalarSpatialExpression, usize),
     Add(Data, Data),
     Mul(Data, Data),
     Div(Data, Data),
     Pow(Data, i32),
     Math(UnaryMathFunction, Data),
+    Cos(Data),
 }
 
 impl Data {
@@ -29,11 +31,15 @@ impl Data {
         let bind = |data: &Self| data.bind_parameter_point(fields, values);
         Ok(Self(Arc::new(match self.0.as_ref() {
             Node::Tape(tape) => Node::Tape(tape.bind_parameter_point(fields, values)?),
+            Node::CoordinateDerivative(tape, axis) => {
+                Node::CoordinateDerivative(tape.bind_parameter_point(fields, values)?, *axis)
+            }
             Node::Add(a, b) => Node::Add(bind(a)?, bind(b)?),
             Node::Mul(a, b) => Node::Mul(bind(a)?, bind(b)?),
             Node::Div(a, b) => Node::Div(bind(a)?, bind(b)?),
             Node::Pow(a, power) => Node::Pow(bind(a)?, *power),
             Node::Math(function, a) => Node::Math(*function, bind(a)?),
+            Node::Cos(a) => Node::Cos(bind(a)?),
         })))
     }
 
@@ -58,6 +64,9 @@ impl Data {
         fn factor(a: &Data, b: &Data) -> bool {
             match (a.0.as_ref(), b.0.as_ref()) {
                 (Node::Tape(a), Node::Tape(b)) => a.is_same_coefficient_as(b),
+                (Node::CoordinateDerivative(a, i), Node::CoordinateDerivative(b, j)) => {
+                    i == j && a.is_same_coefficient_as(b)
+                }
                 (Node::Add(a, b), Node::Add(c, d)) => {
                     (a.same_coefficient(c) && b.same_coefficient(d))
                         || (a.same_coefficient(d) && b.same_coefficient(c))
@@ -67,6 +76,7 @@ impl Data {
                 }
                 (Node::Pow(a, n), Node::Pow(b, m)) => n == m && a.same_coefficient(b),
                 (Node::Math(f, a), Node::Math(g, b)) => f == g && a.same_coefficient(b),
+                (Node::Cos(a), Node::Cos(b)) => a.same_coefficient(b),
                 _ => false,
             }
         }
@@ -107,21 +117,83 @@ impl Data {
     pub(in crate::form_compiler) fn divide(self, right: Self) -> Self {
         Self(Arc::new(Node::Div(self, right)))
     }
+    /// Differentiate coefficient data through its existing scalar tape and exact rules.
+    pub(in crate::form_compiler) fn coordinate_derivative(
+        &self,
+        axis: usize,
+        dimension: usize,
+    ) -> Result<Self, Diagnostic> {
+        if axis >= dimension {
+            return Err(super::invalid("gradient axis exceeds physical dimension"));
+        }
+        let derivative = |value: &Self| value.coordinate_derivative(axis, dimension);
+        Ok(match self.0.as_ref() {
+            Node::Tape(tape) => Self(Arc::new(Node::CoordinateDerivative(tape.clone(), axis))),
+            Node::Add(a, b) => derivative(a)?.add(derivative(b)?),
+            Node::Mul(a, b) => derivative(a)?
+                .multiply(b.clone())
+                .add(a.clone().multiply(derivative(b)?)),
+            Node::Div(a, b) => derivative(a)?
+                .multiply(b.clone())
+                .add(
+                    a.clone()
+                        .multiply(derivative(b)?)
+                        .multiply(Self::constant(dimension, -1.0)),
+                )
+                .divide(b.clone().multiply(b.clone())),
+            Node::Pow(a, exponent) => {
+                if *exponent == 0 {
+                    // Demand the primal too: differentiation must not erase an undefined base.
+                    self.clone().multiply(Self::constant(dimension, 0.0))
+                } else {
+                    let power = exponent.checked_sub(1).ok_or_else(|| {
+                        super::invalid("gradient power exceeds exact integer bound")
+                    })?;
+                    Self::constant(dimension, f64::from(*exponent))
+                        .multiply(Self(Arc::new(Node::Pow(a.clone(), power))))
+                        .multiply(derivative(a)?)
+                }
+            }
+            Node::Math(UnaryMathFunction::Sqrt, a) => {
+                derivative(a)?.divide(Self::constant(dimension, 2.0).multiply(self.clone()))
+            }
+            Node::Math(UnaryMathFunction::Sin, a) => {
+                Self(Arc::new(Node::Cos(a.clone()))).multiply(derivative(a)?)
+            }
+            Node::Math(_, _) | Node::CoordinateDerivative(_, _) | Node::Cos(_) => {
+                return Err(super::invalid(
+                    "coefficient gradient requires an admitted first-derivative rule",
+                ));
+            }
+        })
+    }
     pub(in crate::form_compiler) fn spatial(&self) -> bool {
         match self.0.as_ref() {
-            Node::Tape(tape) => tape.is_coordinate_dependent(),
+            Node::Tape(tape) | Node::CoordinateDerivative(tape, _) => {
+                tape.is_coordinate_dependent()
+            }
             Node::Add(a, b) | Node::Mul(a, b) | Node::Div(a, b) => a.spatial() || b.spatial(),
-            Node::Pow(a, _) | Node::Math(_, a) => a.spatial(),
+            Node::Pow(a, _) | Node::Math(_, a) | Node::Cos(a) => a.spatial(),
         }
     }
     pub(in crate::form_compiler) fn evaluate(&self, point: &[f64]) -> Result<f64, Diagnostic> {
         let value = match self.0.as_ref() {
             Node::Tape(tape) => tape.evaluate(point)?,
+            Node::CoordinateDerivative(tape, axis) => {
+                let mut direction = vec![0.0; point.len()];
+                *direction
+                    .get_mut(*axis)
+                    .ok_or_else(|| super::invalid("gradient axis exceeds physical dimension"))? =
+                    1.0;
+                tape.evaluate_jvp(point, &direction, &vec![0.0; tape.parameter_fields().len()])?
+                    .1
+            }
             Node::Add(a, b) => a.evaluate(point)? + b.evaluate(point)?,
             Node::Mul(a, b) => a.evaluate(point)? * b.evaluate(point)?,
             Node::Div(a, b) => a.evaluate(point)? / b.evaluate(point)?,
             Node::Pow(a, n) => a.evaluate(point)?.powi(*n),
             Node::Math(UnaryMathFunction::Sin, a) => a.evaluate(point)?.sin(),
+            Node::Cos(a) => a.evaluate(point)?.cos(),
             Node::Math(UnaryMathFunction::Sqrt, a) => a.evaluate(point)?.sqrt(),
             _ => return Err(super::invalid("unsupported coefficient mathematics")),
         };
