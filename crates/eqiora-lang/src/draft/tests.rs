@@ -601,6 +601,13 @@ fn expression_contains_call(expression: &Expr, expected: &str) -> bool {
         ExprKind::Index { value, index } => {
             expression_contains_call(value, expected) || expression_contains_call(index, expected)
         }
+        ExprKind::Slice {
+            value,
+            lower,
+            upper,
+        } => [value.as_ref(), lower.as_ref(), upper.as_ref()]
+            .into_iter()
+            .any(|value| expression_contains_call(value, expected)),
         ExprKind::Unary { value, .. }
         | ExprKind::Member { value, .. }
         | ExprKind::Reduction { value, .. } => expression_contains_call(value, expected),

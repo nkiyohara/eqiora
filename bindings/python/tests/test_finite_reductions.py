@@ -147,11 +147,21 @@ def test_nested_reduction_executes_without_capturing_inner_index():
 
 
 def test_reduction_allows_local_parameter_capture_and_rejects_runtime_index():
-    _, owner, rows = owner_and_rows()
+    source, owner, rows = owner_and_rows()
     p = owner.parameter("p", value_type=eqiora.ValueType.integer())
+    owner.set_default(p, 1)
     owner.let_alias("total", owner.sum(lambda i: p * (q.ordinal(i) + 1), over=rows))
-    with pytest.raises(q.SourceError, match="binder"):
-        q.array((1, 2, 3))[p]
+    out = owner.field("result", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
+    owner.relation("emit", left=out, right=q.array((1, 2, 3))[p])
+    eqiora.compile(source=source, entry="Reduction")
+    runtime_source = q.Source()
+    runtime = runtime_source.model("RuntimeIndex")
+    index = runtime.field("index", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.integer())
+    result = runtime.field("result", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
+    runtime.relation("emit", left=result, right=q.array((1, 2, 3))[index])
+    with pytest.raises(eqiora.ValidationError) as error:
+        eqiora.compile(source=runtime_source, entry="RuntimeIndex")
+    assert any("depends on an unknown or runtime value" in diagnostic.message for diagnostic in error.value.diagnostics)
 
 
 def test_reduction_expansion_rejects_out_of_bounds_index():

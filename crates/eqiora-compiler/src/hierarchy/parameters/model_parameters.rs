@@ -39,7 +39,8 @@ fn resolve(
             .iter()
             .map(|value| (value.name().to_owned(), value))
             .collect(),
-        overrides: BTreeMap::new(),
+        bindings: None,
+        bound_values: BTreeMap::new(),
         resolved: BTreeMap::new(),
         required_policy,
         frames,

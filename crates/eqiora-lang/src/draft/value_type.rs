@@ -140,7 +140,15 @@ pub(super) fn project(
             resolved_nominal: None,
             kind: Box::new(ValueTypeSyntaxKind::Array {
                 element: Box::new(syntax),
-                extent: extent.get(),
+                extent: crate::Expr {
+                    resolved_enum: None,
+                    resolved_nominal: None,
+                    kind: crate::ExprKind::Number(
+                        crate::DecimalLiteral::parse(&extent.get().to_string())
+                            .expect("positive extent"),
+                    ),
+                    range: crate::TextRange::default(),
+                },
             }),
             range: ranges.allocate(path, paths),
         };

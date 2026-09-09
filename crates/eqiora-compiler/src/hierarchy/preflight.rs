@@ -134,6 +134,7 @@ impl DefinitionKey {
 }
 
 pub(super) struct Elaborator<'a> {
+    pub(super) selected_component: Option<(DefinitionKey, super::parameters::SymbolicParameterMap)>,
     pub(super) notations: BTreeMap<(String, u32, u32), eqiora_lang::Notation>,
     pub(super) native: Option<&'a eqiora_lang::NativeModelAst>,
     pub(super) enumerations:
@@ -223,6 +224,7 @@ impl<'a> Elaborator<'a> {
                 native.and_then(|native| native.nominal_identity(name))
             })?;
         let elaborator = Self {
+            selected_component: None,
             notations: notation::index(file, document),
             native,
             enumerations: BTreeMap::from([(
@@ -304,6 +306,7 @@ impl<'a> Elaborator<'a> {
             })
             .collect();
         let elaborator = Self {
+            selected_component: None,
             notations: analysis
                 .units
                 .iter()

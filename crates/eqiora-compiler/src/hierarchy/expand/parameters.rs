@@ -52,6 +52,13 @@ impl RootExpansion<'_, '_> {
             display_prefix,
         } = occurrence;
         let resolved = parameters[declaration.name()].clone();
+        if let ParameterLineage::Parameter(full) = resolved.lineage {
+            self.record_structural(
+                &internal_name(full),
+                resolved.expression.structural_parameters(),
+            )
+            .map_err(one_diagnostic)?;
+        }
         let occurrence_identity = self
             .entity_identity(
                 instance_path,

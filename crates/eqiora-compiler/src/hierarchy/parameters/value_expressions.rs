@@ -91,7 +91,12 @@ pub(super) fn evaluate_mode(
                 .transpose()?;
             (operands, value_type, lowered, value)
         }
-        ExprKind::Index { value, index } => {
+        ExprKind::Index { value, index }
+        | ExprKind::Slice {
+            value,
+            lower: index,
+            ..
+        } => {
             let operand = super::expression_eval::evaluate_mode(
                 file,
                 value,
@@ -106,21 +111,70 @@ pub(super) fn evaluate_mode(
                 index,
                 context,
                 resolve,
-                resolve_clock,
-                resolve_frame,
+                &mut *resolve_clock,
+                &mut *resolve_frame,
                 Some(ScalarDomain::Integer),
             )?;
             let index = checked_index(file, index.range(), &index_value)?;
-            let value_type = ExpressionType::index(
+            let mut dependencies = index_value
+                .expression
+                .as_ref()
+                .map(LoweringExpression::referenced_names)
+                .unwrap_or_default();
+            let end = if let ExprKind::Slice { upper, .. } = expression.kind() {
+                let upper_value = super::expression_eval::evaluate_with_domain(
+                    file,
+                    upper,
+                    context,
+                    resolve,
+                    &mut *resolve_clock,
+                    &mut *resolve_frame,
+                    Some(ScalarDomain::Integer),
+                )?;
+                let end = checked_index(file, upper.range(), &upper_value)?;
+                if let Some(expression) = upper_value.expression {
+                    dependencies.extend(expression.referenced_names());
+                }
+                if end
+                    .checked_sub(index)
+                    .is_none_or(|width| width == 0 || width > 65_536)
+                {
+                    return Err(error(
+                        "slice requires increasing exact bounds and at most 65536 channels".into(),
+                    ));
+                }
+                Some(end)
+            } else {
+                None
+            };
+            let element_type = ExpressionType::index(
                 ExpressionType::<()>::new(operand.value_type.value_type().clone(), None),
-                index,
+                end.map_or(index, |end| end - 1),
             )
             .map_err(|violation| error(violation.to_string()))?
             .value_type;
+            let value_type = match end {
+                Some(end) => element_type
+                    .clone()
+                    .array(end - index)
+                    .map_err(|violation| error(violation.to_string()))?,
+                None => element_type.clone(),
+            };
             let lowered = operand
                 .expression
                 .clone()
-                .map(|value| LoweringExpression::index(value, index, expression.range()));
+                .map(|value| match end {
+                    Some(end) => LoweringExpression::array(
+                        (index..end)
+                            .map(|index| {
+                                LoweringExpression::index(value.clone(), index, expression.range())
+                            })
+                            .collect(),
+                        expression.range(),
+                    ),
+                    None => LoweringExpression::index(value, index, expression.range()),
+                })
+                .map(|value| value.with_structural_parameters(dependencies));
             let value = operand
                 .value
                 .as_ref()
@@ -129,13 +183,18 @@ pub(super) fn evaluate_mode(
                         .shape()
                         .component_count()
                         .expect("checked element type");
+                    let offset = index as usize
+                        * element_type
+                            .shape()
+                            .component_count()
+                            .expect("checked element type");
                     if value_type.scalar_domain() == ScalarDomain::Integer {
                         ValueLiteral::integer(
                             value_type.clone(),
                             value
                                 .integer_components()
                                 .expect("checked integer array")
-                                .skip(index as usize * count)
+                                .skip(offset)
                                 .take(count),
                         )
                     } else {
@@ -144,7 +203,7 @@ pub(super) fn evaluate_mode(
                             value
                                 .components()
                                 .expect("checked real/complex array")
-                                .skip(index as usize * count)
+                                .skip(offset)
                                 .take(count),
                         )
                     }
@@ -262,12 +321,9 @@ pub(super) fn checked_index(
             codes::LANGUAGE_TYPE_ERROR,
             file,
             range,
-            "channel index requires a constant dimensionless nonnegative integer; live Parameters cannot select an index",
+            "channel index requires an exact static dimensionless nonnegative integer",
         )
     };
-    if !matches!(value.lineage, Some(ParameterLineage::Constant)) {
-        return Err(invalid());
-    }
     let index = value
         .value
         .as_ref()

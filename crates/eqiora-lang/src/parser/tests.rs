@@ -608,7 +608,7 @@ model coupled() {
     };
     assert!(matches!(
         field.value_type().kind(),
-        crate::ValueTypeSyntaxKind::Array { extent: 2, .. }
+        crate::ValueTypeSyntaxKind::Array { extent, .. } if matches!(extent.kind(), ExprKind::Number(n) if n.to_i64().ok() == Some(2))
     ));
     let Item::Port(port) = &document.models()[0].items()[3] else {
         panic!("fourth item is the boundary Port");

@@ -568,7 +568,7 @@ model Main() {
     let PackagePreparationError::Diagnostics(diagnostics) = dimension_error else {
         panic!("expected typed diagnostics, got {dimension_error}");
     };
-    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(
         diagnostics[0].code(),
         eqiora::diagnostic::codes::LANGUAGE_TYPE_ERROR

@@ -174,6 +174,53 @@ fn local_document_in(
             declaration: &selected_bound,
         });
     }
+    if let Some(entry) = entry
+        && !bindings.is_empty()
+        && elaborator
+            .find_entry_model(entry)
+            .map_err(|message| vec![hierarchy_error(message)])?
+            .is_none()
+    {
+        let path = NamePath::from_segments(entry.split('.'), TextRange::default())
+            .map_err(|error| vec![hierarchy_error(error.message())])?;
+        let component = elaborator
+            .resolve_component(
+                &preflight::DefinitionNamespace::Local,
+                &path,
+                file,
+                path.range(),
+            )
+            .map_err(|error| vec![error])?;
+        let signature = authored_signature(&context, &component.namespace, component.name(), false)
+            .unwrap_or_else(|| component.signature());
+        let prepared = prepare(
+            component.file,
+            component.name(),
+            signature,
+            bindings,
+            |requirement, value| {
+                property(
+                    &context,
+                    &component.namespace,
+                    component.file,
+                    requirement,
+                    value,
+                )
+            },
+        )?;
+        let values = parameters::resolve_external_parameters(
+            component.file,
+            component.declaration,
+            prepared.parameters(),
+        )?;
+        elaborator.selected_component = Some((
+            preflight::DefinitionKey {
+                namespace: component.namespace.clone(),
+                name: component.name().to_owned(),
+            },
+            values,
+        ));
+    }
     let checked = check::validate(&elaborator)?;
     let entries = entry.map_or_else(
         || {
@@ -450,40 +497,10 @@ fn prepare(
                 )
             })?;
         match (target, value) {
-            (SignatureItem::Parameter(parameter), StaticBindingValue::Value(value)) => {
-                let target = parameters::frames::parameter_type(
-                    file,
-                    parameter.value_type(),
-                    None,
-                    &frame_context,
-                )
-                .map_err(|error| vec![error])?;
-                if value.value_type() != &target {
-                    return Err(vec![source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        file,
-                        parameter.range(),
-                        "external checked value requires the exact declared type",
-                    )]);
-                }
-                parameters.push(ExternalParameterBinding::new(name, (*value).clone()));
-            }
-            (SignatureItem::Parameter(parameter), StaticBindingValue::Expression(value)) => {
-                let target = parameters::frames::parameter_type(
-                    file,
-                    parameter.value_type(),
-                    Some(value),
-                    &frame_context,
-                )
-                .map_err(|error| vec![error])?;
-                parameters.push(ExternalParameterBinding::new(
-                    name,
-                    parameters::closed_value_with_frames(file, value, target, &mut |name| {
-                        frame_context.get(name).cloned()
-                    })
-                    .map_err(|error| vec![error])?,
-                ));
-            }
+            (
+                SignatureItem::Parameter(_),
+                StaticBindingValue::Value(_) | StaticBindingValue::Expression(_),
+            ) => {}
             (SignatureItem::Property(requirement), StaticBindingValue::Expression(value)) => {
                 parameters.push(ExternalParameterBinding::new(
                     name,
@@ -583,6 +600,12 @@ fn prepare(
     for (_, (geometry, bindings)) in geometry_groups {
         crate::external_compile::validate_geometry_bindings(file, geometry, &bindings)?;
     }
+    parameters.extend(parameters::resolve_selected_parameters(
+        file,
+        signature,
+        bindings,
+        frame_context,
+    )?);
     parameters.sort_by(|a, b| a.parameter().cmp(b.parameter()));
     supports.sort_by(|a, b| a.slot().cmp(b.slot()));
     let clocks = prepared.clocks;

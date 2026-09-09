@@ -115,6 +115,19 @@ pub(super) fn encode_expression(
                 encode_expression(encoder, index, budget, child_depth)
             })
         }
+        ExprKind::Slice {
+            value,
+            lower,
+            upper,
+        } => {
+            encoder.u16(19)?;
+            for (tag, expression) in [(1, value), (2, lower), (3, upper)] {
+                encoder.field(tag, |encoder| {
+                    encode_expression(encoder, expression, budget, next_depth(depth)?)
+                })?;
+            }
+            Ok(())
+        }
         ExprKind::Name(name) => {
             encoder.u16(2)?;
             encoder.field(1, |encoder| encode_name(encoder, name, budget))

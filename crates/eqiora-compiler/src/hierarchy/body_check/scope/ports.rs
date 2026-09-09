@@ -1,10 +1,34 @@
 //! Resolve owned scalar and causal Port declarations into checked contracts.
 use super::*;
 
+pub(in crate::hierarchy) fn field_expression_type<I>(
+    file: &str,
+    declaration: &FieldDecl,
+    support: Option<SpatialSupport<I>>,
+    values: &crate::hierarchy::parameters::SymbolicParameterMap,
+) -> Result<ExpressionType<I>, Diagnostic> {
+    if support
+        .as_ref()
+        .is_some_and(|support| !matches!(support, SpatialSupport::Volume { .. }))
+    {
+        return Err(source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            declaration.range(),
+            "source Field requires a volume support",
+        ));
+    }
+    let syntax =
+        crate::hierarchy::parameters::specialize_type(file, declaration.value_type(), values)?;
+    let value_type = crate::value_types::lower_value_type(file, &syntax, support.as_ref())?;
+    Ok(ExpressionType::new(value_type, support))
+}
+
 pub(in crate::hierarchy::body_check) fn component_port_contract(
     elaborator: &Elaborator<'_>,
     owner: &ComponentDefinition<'_>,
     declaration: &ComponentPortDecl,
+    values: &crate::hierarchy::parameters::SymbolicParameterMap,
 ) -> Result<PortContract, Vec<Diagnostic>> {
     let file = owner.file;
     match declaration.syntax() {
@@ -42,9 +66,10 @@ pub(in crate::hierarchy::body_check) fn component_port_contract(
                         })
                 })
                 .transpose()?;
-            let value_type =
-                crate::value_types::lower_value_type(file, value_type, support.as_ref())
-                    .map_err(|error| vec![error])?;
+            let syntax = crate::hierarchy::parameters::specialize_type(file, value_type, values)
+                .map_err(|error| vec![error])?;
+            let value_type = crate::value_types::lower_value_type(file, &syntax, support.as_ref())
+                .map_err(|error| vec![error])?;
             Ok(PortContract::Signal {
                 direction: *direction,
                 value_type,
@@ -165,8 +190,13 @@ pub(in crate::hierarchy::body_check) fn model_port_contract(
                     })
                 })
                 .transpose()?;
+            let syntax = crate::hierarchy::parameters::specialize_type(
+                scope.file,
+                value_type,
+                &scope.static_values,
+            )?;
             let value_type =
-                crate::value_types::lower_value_type(scope.file, value_type, support.as_ref())?;
+                crate::value_types::lower_value_type(scope.file, &syntax, support.as_ref())?;
             Ok(PortContract::Signal {
                 direction: *direction,
                 value_type,

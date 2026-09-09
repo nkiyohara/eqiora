@@ -28,7 +28,15 @@ pub(in crate::hierarchy::body_check) fn validate_connection(
                 path.segments().map(str::to_owned).collect::<Vec<_>>()
             },
         );
-        let mut contract = scope.resolve_port(path)?;
+        let mut contract = if matches!(expression.kind(), eqiora_lang::ExprKind::Member { .. }) {
+            let key = &keys[keys.len() - 1];
+            match scope.resolve_symbol_at(path, key[1].parse().ok())? {
+                SymbolContract::Port(contract) => contract,
+                _ => return Err(scope.wrong_local_kind(expression.range(), path.as_str(), "Port")),
+            }
+        } else {
+            scope.resolve_port(path)?
+        };
         if declaration.syntax() == ConnectionSyntax::Signal
             && scope.exposed_signals.contains(path.as_str())
             && let PortContract::Signal { direction, .. } = &mut contract

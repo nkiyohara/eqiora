@@ -251,7 +251,7 @@ pub(super) fn evaluate_mode(
     }
     if matches!(
         expression.kind(),
-        ExprKind::Array(_) | ExprKind::Index { .. }
+        ExprKind::Array(_) | ExprKind::Index { .. } | ExprKind::Slice { .. }
     ) || matches!(expression.kind(), ExprKind::Path(path) if path.as_str() == "math.i")
         || matches!(expression.kind(), ExprKind::Call { callee, .. } if callee.as_str() == "math.complex")
     {

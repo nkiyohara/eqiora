@@ -107,6 +107,28 @@ impl Parser<'_> {
         self.expect(TokenKind::LeftAngle, "`<` after type constructor")?;
         let element = self.parse_value_type_at_depth(depth + 1)?;
         self.expect(TokenKind::Comma, "`,` before type extent")?;
+        if constructor == "array" {
+            // Comparisons have lower precedence than static arithmetic; the
+            // enclosing `>` terminates this expression rather than comparing it.
+            let extent = self.parse_expression(9)?;
+            let end = self
+                .expect(TokenKind::RightAngle, "`>` after array extent")?
+                .range()
+                .end();
+            return match crate::SourceAstFactory::value_type(
+                ValueTypeSyntaxKind::Array {
+                    element: Box::new(element),
+                    extent,
+                },
+                TextRange::new(start, end),
+            ) {
+                Ok(value) => Some(value),
+                Err(error) => {
+                    self.error_previous(error.message());
+                    None
+                }
+            };
+        }
         let mut extents = vec![self.parse_type_extent()?];
         while self.at(TokenKind::Comma) {
             if constructor != "tensor" {
@@ -132,10 +154,6 @@ impl Parser<'_> {
             "tensor" => ValueTypeSyntaxKind::Tensor {
                 scalar: Box::new(element),
                 extents,
-            },
-            "array" => ValueTypeSyntaxKind::Array {
-                element: Box::new(element),
-                extent: extents[0],
             },
             _ => unreachable!("closed type constructors"),
         };
@@ -197,7 +215,7 @@ mod tests {
         let ValueTypeSyntaxKind::Array { element, extent } = parameter.value_type().kind() else {
             panic!("array");
         };
-        assert_eq!(*extent, 3);
+        assert!(matches!(extent.kind(), crate::ExprKind::Number(n) if n.to_i64().ok() == Some(3)));
         let ValueTypeSyntaxKind::Vector { scalar, extent } = element.kind() else {
             panic!("vector");
         };
@@ -216,7 +234,6 @@ mod tests {
             "vector<array<V, 2>, 3>",
             "tensor<vector<V, 2>, 2, 2>",
             "vector<V, 0>",
-            "array<V, -1>",
             "array<V, 1.5>",
             "vector<V, 2, 2>",
             "tensor<V, 2>",
@@ -232,6 +249,13 @@ mod tests {
         }
         let limit = "model M() { parameter values: array<V, 65536> = 0; }";
         assert!(parse("limit.eqi", limit).into_document().is_ok());
+        // Unary expressions are syntactically valid; exact static admission in
+        // the compiler rejects negative extents after expression evaluation.
+        assert!(
+            parse("negative.eqi", "model M(){variable x:array<V,-1>;}")
+                .into_document()
+                .is_ok()
+        );
         let nested = format!(
             "model M() {{ parameter values: {}V{} = 0; }}",
             "array<".repeat(256),

@@ -138,7 +138,10 @@ mod tests {
         assert!(model.symbols().get("cell.value").is_none());
     }
     #[test]
-    fn nested_families_are_explicitly_outside_the_bounded_profile() {
-        assert!(crate::compile("nested-indexed.eqi", "component Cell(parameter value:integer) {} component Row(parameter n:integer) { indexset Columns=range(n); instance cell[j in Columns]:Cell(value=ordinal(j)); } model M() { indexset Rows=range(2); instance row[i in Rows]:Row(n=ordinal(i)+1); }").is_err());
+    fn nested_families_use_concrete_ordinal_parameter_contexts() {
+        let compiled = crate::compile("nested-indexed.eqi", "component Cell(parameter value:integer, output y:integer) { relation emit { y=value; } } component Row(parameter n:integer) { indexset Columns=range(n); instance cell[j in Columns]:Cell(value=ordinal(j)); } model M() { indexset Rows=range(2); instance row[i in Rows]:Row(n=ordinal(i)+1); }").unwrap();
+        for name in ["row[0].Columns", "row[1].Columns"] {
+            assert!(compiled[0].symbols().get(name).is_some());
+        }
     }
 }

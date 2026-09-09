@@ -104,6 +104,7 @@ fn typed_literal_lowering_preserves_type_through_detachment_and_zero_negation() 
         let literal = LoweringExpression::neg(literal.detached_clone(), TextRange::new(0, 1));
         assert_eq!(expression::lowering_integer_literal(&literal), None);
         let model = LoweringModel {
+            structural_dependencies: Default::default(),
             name: "M".into(),
             range: TextRange::new(0, 1),
             items: vec![LoweringItem::Relation {
@@ -605,6 +606,7 @@ model assigned() {
         range: declaration.range(),
     });
     let model = LoweringModel {
+        structural_dependencies: Default::default(),
         name: "assigned".into(),
         range: declaration.range(),
         items,

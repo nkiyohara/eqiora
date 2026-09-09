@@ -83,14 +83,16 @@ pub(super) fn component_field_interface(
     file: &str,
     component: &ComponentDecl,
     supports: &SupportInterface,
+    values: &super::parameters::SymbolicParameterMap,
 ) -> Result<FieldInterface, Vec<Diagnostic>> {
-    signature_field_interface(file, component.signature(), supports)
+    signature_field_interface(file, component.signature(), supports, values)
 }
 
 pub(super) fn signature_field_interface(
     file: &str,
     signature: &[SignatureItem],
     supports: &SupportInterface,
+    values: &super::parameters::SymbolicParameterMap,
 ) -> Result<FieldInterface, Vec<Diagnostic>> {
     let mut slots = BTreeMap::new();
     let mut diagnostics = Vec::new();
@@ -103,7 +105,7 @@ pub(super) fn signature_field_interface(
                 diagnostics.push(source_error(codes::LANGUAGE_TYPE_ERROR, file, declaration.range(), "required field clock must name a clock requirement in the signature"));
                 continue;
             }
-        match field_slot_contract(file, declaration, supports) {
+        match field_slot_contract(file, declaration, supports, values) {
             Ok(contract) => {
                 if slots
                     .insert(declaration.name().to_owned(), contract)
@@ -131,6 +133,7 @@ fn field_slot_contract(
     file: &str,
     declaration: &FieldDecl,
     supports: &SupportInterface,
+    values: &super::parameters::SymbolicParameterMap,
 ) -> Result<FieldSlotContract, Diagnostic> {
     let support = declaration
         .domain()
@@ -159,8 +162,9 @@ fn field_slot_contract(
             "source Field requirement requires a volume support",
         ));
     }
+    let syntax = super::parameters::specialize_type(file, declaration.value_type(), values)?;
     let value = ExpressionType::new(
-        crate::value_types::lower_value_type(file, declaration.value_type(), support.as_ref())?,
+        crate::value_types::lower_value_type(file, &syntax, support.as_ref())?,
         support,
     );
     Ok(FieldSlotContract {
@@ -179,6 +183,7 @@ pub(super) fn component_field_contracts(
     component: &ComponentDecl,
     supports: &SupportInterface,
     slots: &FieldInterface,
+    values: &super::parameters::SymbolicParameterMap,
 ) -> BTreeMap<String, FieldContract<String>> {
     let mut fields = slots
         .iter()
@@ -191,7 +196,7 @@ pub(super) fn component_field_contracts(
         let support = declaration
             .domain()
             .and_then(|name| supports.visible_support(name).cloned());
-        if let Ok(value) = field_expression_type(file, declaration, support) {
+        if let Ok(value) = field_expression_type(file, declaration, support, values) {
             fields.insert(
                 declaration.name().to_owned(),
                 FieldContract::continuum(
@@ -210,6 +215,7 @@ pub(super) fn model_field_contracts(
     file: &str,
     model: &ModelDecl,
     supports: &BTreeMap<String, SpatialSupport<String>>,
+    values: &super::parameters::SymbolicParameterMap,
 ) -> BTreeMap<String, FieldContract<String>> {
     model
         .items()
@@ -221,7 +227,7 @@ pub(super) fn model_field_contracts(
             let support = declaration
                 .domain()
                 .and_then(|name| supports.get(name).cloned());
-            field_expression_type(file, declaration, support)
+            field_expression_type(file, declaration, support, values)
                 .ok()
                 .map(|value| {
                     (
@@ -584,8 +590,9 @@ model Use() {
         let supports =
             super::super::supports::component_support_interface("field_slots.eqi", component)
                 .expect("support interface");
-        let interface = component_field_interface("field_slots.eqi", component, &supports)
-            .expect("Field interface");
+        let interface =
+            component_field_interface("field_slots.eqi", component, &supports, &BTreeMap::new())
+                .expect("Field interface");
         let exact_support = SpatialSupport::Volume {
             domain: "body-id",
             dimensions: 2,

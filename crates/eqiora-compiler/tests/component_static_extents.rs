@@ -1,6 +1,58 @@
 use eqiora_compiler::compile;
 
 #[test]
+fn selected_closed_values_keep_target_units_without_relaxing_source_call_sites() {
+    let source = "public component Length(parameter value:m){relation r{value-value=0;}}";
+    let expressions = eqiora_lang::parse(
+        "inputs.eqi",
+        "model Inputs(){parameter literal:1=-2;parameter wrong:s=2[s];parameter general:1=1+1;}",
+    )
+    .into_document()
+    .unwrap();
+    let values = expressions.models()[0]
+        .items()
+        .iter()
+        .filter_map(|item| match item {
+            eqiora_lang::Item::Parameter(value) => Some(value.value()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    for (position, expression) in values.iter().enumerate() {
+        let compiled = eqiora_compiler::CompiledModel::compile_selected(
+            "closed.eqi",
+            source,
+            "Length",
+            &[(
+                "value",
+                eqiora_compiler::StaticBindingValue::Expression(expression),
+            )],
+        );
+        if position == 0 {
+            compiled.unwrap();
+        } else {
+            let errors = compiled.unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.message().contains("dimension")),
+                "{errors:?}"
+            );
+        }
+    }
+    let errors = compile(
+        "call.eqi",
+        &format!("{source} model M(){{instance length:Length(value=-2);}}"),
+    )
+    .unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message().contains("dimension")),
+        "{errors:?}"
+    );
+}
+
+#[test]
 fn concrete_instances_bind_independent_static_reduction_extents() {
     let source = "component Total(parameter n:integer,output y:1){indexset I=range(n);relation r{y=sum(to_real(ordinal(i)),over=(i in I));}} model M(){instance a:Total(n=2);instance b:Total(n=3);}";
     let models =
@@ -92,7 +144,7 @@ fn context_dependent_physical_proofs_are_not_reused() {
     assert!(
         errors.iter().any(|error| error
             .message()
-            .contains("changes the physical definition contract")),
+            .contains("cannot have more than one owning Relation")),
         "{errors:?}"
     );
 }
@@ -129,4 +181,37 @@ fn unrelated_symbolic_models_keep_their_existing_admission() {
             .any(|error| error.message().contains("missing")),
         "{errors:?}"
     );
+}
+
+#[test]
+fn selecting_a_generic_model_requires_its_actual_nonempty_bounded_extent() {
+    let source = "component Cell(output y:1){relation r{y=0;}} public model Generic(parameter n:integer){indexset I=range(n);instance cell[i in I]:Cell();}";
+    for n in [0, 2, 1_000_000_000] {
+        let value = eqiora_lang::SourceAstFactory::expression(
+            eqiora_lang::ExprKind::Number(
+                eqiora_lang::DecimalLiteral::parse(&n.to_string()).unwrap(),
+            ),
+            Default::default(),
+        )
+        .unwrap();
+        let compiled = eqiora_compiler::CompiledModel::compile_selected(
+            "selected-generic.eqi",
+            source,
+            "Generic",
+            &[("n", eqiora_compiler::StaticBindingValue::Expression(&value))],
+        );
+        if n == 2 {
+            let model = compiled.unwrap();
+            assert!(model.symbols().get("cell[0].y").is_some());
+            assert!(model.symbols().get("cell[1].y").is_some());
+            assert!(model.symbols().get("cell[2].y").is_none());
+        } else {
+            assert!(
+                compiled
+                    .unwrap_err()
+                    .iter()
+                    .any(|error| error.source_span().is_some())
+            );
+        }
+    }
 }

@@ -72,7 +72,11 @@ fn resolve_lets<'a>(
         }
         let target = match declaration
             .value_type()
-            .map(|ty| super::frames::parameter_type(file, ty, Some(declaration.value()), frames))
+            .map(|ty| {
+                specialize_type(file, ty, values).and_then(|ty| {
+                    super::frames::parameter_type(file, &ty, Some(declaration.value()), frames)
+                })
+            })
             .transpose()
         {
             Ok(target) => target,
@@ -118,6 +122,19 @@ fn resolve_lets<'a>(
             None => infer_parameter_with_label(file, range, value, "let alias"),
         }) {
             Ok(mut value) => {
+                if let Some(syntax) = declaration.value_type() {
+                    let mut dependencies = BTreeSet::new();
+                    for extent in extent_expressions(syntax) {
+                        if let Some((_, names)) =
+                            structural_extent(file, extent, values).map_err(|error| vec![error])?
+                        {
+                            dependencies.extend(names);
+                        }
+                    }
+                    value.expression = value
+                        .expression
+                        .map(|expression| expression.with_structural_parameters(dependencies));
+                }
                 if !matches!(value.lineage, Some(ParameterLineage::Constant)) {
                     value.lineage = Some(ParameterLineage::Derived);
                 }
@@ -147,6 +164,9 @@ pub(in crate::hierarchy) fn alias_order<'a>(
         .map(|(name, d)| {
             let mut dependencies = BTreeMap::new();
             let mut pending = vec![d.value()];
+            if let Some(syntax) = d.value_type() {
+                pending.extend(extent_expressions(syntax));
+            }
             while let Some(e) = pending.pop() {
                 if e.resolved_enum().is_some() {
                     continue;
@@ -175,6 +195,11 @@ pub(in crate::hierarchy) fn alias_order<'a>(
                         ]);
                     }
                     eqiora_lang::ExprKind::Array(elements) => pending.extend(elements),
+                    eqiora_lang::ExprKind::Slice {
+                        value,
+                        lower,
+                        upper,
+                    } => pending.extend([value.as_ref(), lower.as_ref(), upper.as_ref()]),
                     eqiora_lang::ExprKind::Index { value, index } => {
                         pending.extend([value.as_ref(), index.as_ref()])
                     }
@@ -205,8 +230,7 @@ pub(in crate::hierarchy) fn alias_order<'a>(
             (
                 name.clone(),
                 ExpressionDefinition {
-                    expression: d.value(),
-                    target: None,
+                    expression: Some(d.value()),
                     dependencies,
                     valid: true,
                 },
@@ -258,6 +282,11 @@ fn is_static_expression(expression: &eqiora_lang::Expr, values: &SymbolicParamet
                 pending.extend([condition.as_ref(), then_value.as_ref(), else_value.as_ref()]);
             }
             eqiora_lang::ExprKind::Array(elements) => pending.extend(elements),
+            eqiora_lang::ExprKind::Slice {
+                value,
+                lower,
+                upper,
+            } => pending.extend([value.as_ref(), lower.as_ref(), upper.as_ref()]),
             eqiora_lang::ExprKind::Index { value, index } => {
                 pending.extend([value.as_ref(), index.as_ref()])
             }
@@ -291,3 +320,4 @@ fn is_static_expression(expression: &eqiora_lang::Expr, values: &SymbolicParamet
 
 #[cfg(test)]
 mod tests;
+use super::{extent_expressions, specialize_type, structural_extent};

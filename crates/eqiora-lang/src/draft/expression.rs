@@ -2,6 +2,40 @@
 
 use super::*;
 
+impl DraftExpression {
+    /// Construct an ordered channel-array expression.
+    #[must_use]
+    pub fn array(values: impl IntoIterator<Item = Self>) -> Self {
+        Self {
+            kind: DraftExpressionKind::Array(values.into_iter().collect()),
+        }
+    }
+
+    /// Select a static channel index. The compiler checks type and bounds.
+    #[must_use]
+    pub fn index(self, index: u32) -> Self {
+        Self {
+            kind: DraftExpressionKind::Index {
+                value: Box::new(self),
+                index,
+            },
+        }
+    }
+
+    /// Select an immutable half-open channel slice with explicit static bounds.
+    /// The compiler requires a nonempty interval within the array extent.
+    #[must_use]
+    pub fn slice(self, lower: u32, upper: u32) -> Self {
+        Self {
+            kind: DraftExpressionKind::Slice {
+                value: Box::new(self),
+                lower,
+                upper,
+            },
+        }
+    }
+}
+
 impl From<&DraftConservingPort> for DraftPortReference {
     fn from(port: &DraftConservingPort) -> Self {
         Self {
@@ -101,6 +135,29 @@ impl DraftExpression {
                     resolved_nominal: None,
                     kind: ExprKind::Number(
                         crate::DecimalLiteral::parse(&index.to_string()).expect("u32 index"),
+                    ),
+                    range: ranges.allocate(path, paths),
+                }),
+            },
+            DraftExpressionKind::Slice {
+                value,
+                lower,
+                upper,
+            } => ExprKind::Slice {
+                value: Box::new(value.ast(path, ranges, paths, resolve, resolve_enum)?),
+                lower: Box::new(Expr {
+                    resolved_enum: None,
+                    resolved_nominal: None,
+                    kind: ExprKind::Number(
+                        crate::DecimalLiteral::parse(&lower.to_string()).expect("u32 bound"),
+                    ),
+                    range: ranges.allocate(path, paths),
+                }),
+                upper: Box::new(Expr {
+                    resolved_enum: None,
+                    resolved_nominal: None,
+                    kind: ExprKind::Number(
+                        crate::DecimalLiteral::parse(&upper.to_string()).expect("u32 bound"),
                     ),
                     range: ranges.allocate(path, paths),
                 }),
@@ -262,7 +319,9 @@ impl DraftExpression {
                     value.references(output);
                 }
             }
-            DraftExpressionKind::Index { value, .. } => value.references(output),
+            DraftExpressionKind::Index { value, .. } | DraftExpressionKind::Slice { value, .. } => {
+                value.references(output)
+            }
             DraftExpressionKind::Reference(reference)
             | DraftExpressionKind::Derivative(reference) => {
                 output.push(DraftExpressionReference::Value(reference));
@@ -301,7 +360,9 @@ impl DraftExpression {
             DraftExpressionKind::Array(values) => {
                 values.is_empty() || values.iter().any(Self::contains_invalid_literal)
             }
-            DraftExpressionKind::Index { value, .. } => value.contains_invalid_literal(),
+            DraftExpressionKind::Index { value, .. } | DraftExpressionKind::Slice { value, .. } => {
+                value.contains_invalid_literal()
+            }
             DraftExpressionKind::Reference(_)
             | DraftExpressionKind::Derivative(_)
             | DraftExpressionKind::Across(_)
@@ -330,6 +391,11 @@ pub(super) enum DraftExpressionKind {
     Index {
         value: Box<DraftExpression>,
         index: u32,
+    },
+    Slice {
+        value: Box<DraftExpression>,
+        lower: u32,
+        upper: u32,
     },
     Reference(DraftReference),
     Derivative(DraftReference),

@@ -115,13 +115,25 @@ impl RootExpansion<'_, '_> {
                 }
             }
 
-            let expression = crate::hierarchy::scope::rewrite_expression_with_boundary_member(
+            let mut expression = crate::hierarchy::scope::rewrite_expression_with_boundary_member(
                 file,
                 declaration.value(),
                 scope,
                 None,
             )
             .map_err(|error| vec![error])?;
+            if let Some(syntax) = declaration.value_type() {
+                let values = scope.symbolic_parameters();
+                for extent in crate::hierarchy::parameters::extent_expressions(syntax) {
+                    let (_, dependencies) =
+                        crate::hierarchy::parameters::structural_extent(file, extent, &values)
+                            .map_err(|error| vec![error])?
+                            .ok_or_else(|| {
+                                vec![hierarchy_error("let array extent remained unresolved")]
+                            })?;
+                    expression = expression.with_structural_parameters(dependencies);
+                }
+            }
             scope
                 .insert_runtime_let(declaration.name().to_owned(), expression, activation)
                 .map_err(|message| vec![hierarchy_error(message)])?;

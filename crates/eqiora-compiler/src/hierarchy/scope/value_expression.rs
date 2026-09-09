@@ -105,11 +105,57 @@ pub(in crate::hierarchy) fn rewrite_expression_with_boundary_member(
                 .collect::<Result<Vec<_>, _>>()?,
             expression.range(),
         ),
-        ExprKind::Index { value, index } => LoweringExpression::index(
-            rewrite_expression_with_boundary_member(file, value, scope, active)?,
-            crate::hierarchy::parameters::static_index(file, index, &scope.symbolic_parameters())?,
-            expression.range(),
-        ),
+        ExprKind::Index { value, index } => {
+            let (index, dependencies) = super::super::parameters::structural_index(
+                file,
+                index,
+                &scope.symbolic_parameters(),
+            )?
+            .ok_or_else(|| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    index.range(),
+                    "channel index requires an exact static integer value",
+                )
+            })?;
+            LoweringExpression::index(
+                rewrite_expression_with_boundary_member(file, value, scope, active)?,
+                index,
+                expression.range(),
+            )
+            .with_structural_parameters(dependencies)
+        }
+        ExprKind::Slice {
+            value,
+            lower,
+            upper,
+        } => {
+            let (start, end) = super::super::parameters::static_slice(
+                file,
+                lower,
+                upper,
+                &scope.symbolic_parameters(),
+            )?;
+            let value = rewrite_expression_with_boundary_member(file, value, scope, active)?;
+            let values = scope.symbolic_parameters();
+            let dependencies = [lower.as_ref(), upper.as_ref()]
+                .into_iter()
+                .map(|bound| {
+                    super::super::parameters::structural_index(file, bound, &values)
+                        .map(|resolved| resolved.expect("checked slice bound").1)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            LoweringExpression::array(
+                (start..end)
+                    .map(|index| {
+                        LoweringExpression::index(value.clone(), index, expression.range())
+                    })
+                    .collect(),
+                expression.range(),
+            )
+            .with_structural_parameters(dependencies.into_iter().flatten())
+        }
         ExprKind::Member { .. } => LoweringExpression::name(
             scope.indexed_port(file, expression)?.internal_name.clone(),
             expression.range(),

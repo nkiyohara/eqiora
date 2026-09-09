@@ -105,6 +105,15 @@ impl Expr {
                 value: Box::new(value.rewrite_name_paths_with(rewrite)),
                 index: Box::new(index.rewrite_name_paths_with(rewrite)),
             },
+            ExprKind::Slice {
+                value,
+                lower,
+                upper,
+            } => ExprKind::Slice {
+                value: Box::new(value.rewrite_name_paths_with(rewrite)),
+                lower: Box::new(lower.rewrite_name_paths_with(rewrite)),
+                upper: Box::new(upper.rewrite_name_paths_with(rewrite)),
+            },
             ExprKind::Case { value, arms } => ExprKind::Case {
                 value: Box::new(value.rewrite_name_paths_with(rewrite)),
                 arms: arms
@@ -218,6 +227,15 @@ pub enum ExprKind {
         value: Box<Expr>,
         /// Authored index expression.
         index: Box<Expr>,
+    },
+    /// Nonempty immutable half-open channel slice with explicit static bounds.
+    Slice {
+        /// Complete array value, never a spatial-axis slice.
+        value: Box<Expr>,
+        /// Inclusive nonnegative lower bound.
+        lower: Box<Expr>,
+        /// Exclusive upper bound, no larger than the channel extent.
+        upper: Box<Expr>,
     },
     /// Member of a statically selected indexed component occurrence.
     Member { value: Box<Expr>, member: String },

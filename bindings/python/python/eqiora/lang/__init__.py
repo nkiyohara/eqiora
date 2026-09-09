@@ -220,10 +220,31 @@ class Expression:
             _binders=self._binders,
          _sources=self._sources)
 
-    def __getitem__(self, index: int | Expression) -> Expression:
+    def __getitem__(self, index: int | Expression | slice) -> Expression:
+        if isinstance(index, slice):
+            if index.step is not None:
+                raise SourceError("expression slices do not accept a step")
+            bounds = []
+            for bound in (index.start, index.stop):
+                if isinstance(bound, bool) or not isinstance(bound, (int, Expression)):
+                    raise TypeError("expression slices require explicit exact integer bounds")
+                if isinstance(bound, int) and bound < 0:
+                    raise SourceError("expression slice bounds must be nonnegative")
+                bounds.append(_expression(bound))
+            lower, upper = bounds
+            # The shared compiler checks exact static values and array bounds;
+            # no Python clipping, negative normalization, or runtime indexing.
+            owner = _owner(self, lower)
+            upper_owner = _owner(self, upper)
+            if owner is not None and upper_owner is not None and owner is not upper_owner:
+                raise SourceError("cannot combine expressions from different Source or Component owners")
+            value = f"({self._text})" if self._precedence < 100 else self._text
+            return Expression(_CREATE, f"{value}[{lower._text}:{upper._text}]", owner or upper_owner,
+                              max(self._depth, lower._depth, upper._depth) + 1,
+                              self._nodes + lower._nodes + upper._nodes + 1, 100,
+                              _binders=self._binders | lower._binders | upper._binders,
+                              _sources=self._sources | lower._sources | upper._sources)
         if isinstance(index, Expression):
-            if not index._binders:
-                raise SourceError("symbolic indices require a finite reduction binder")
             value = f"({self._text})" if self._precedence < 100 else self._text
             return Expression(_CREATE, f"{value}[{index._text}]", _owner(self, index),
                               max(self._depth, index._depth) + 1,

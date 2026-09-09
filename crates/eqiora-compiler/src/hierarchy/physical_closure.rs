@@ -25,7 +25,7 @@ use super::body_check::{
 use super::definition_graph::CheckedDefinitionGraph;
 use super::preflight::DefinitionKey;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct ComponentInterface {
     public_endpoints: BTreeMap<String, PhysicalEndpointSlots>,
     /// Exact equivalence classes induced on this Component's public boundary.
@@ -66,20 +66,42 @@ pub(super) fn validate(
 ) {
     let mut interfaces = BTreeMap::<DefinitionKey, Option<ComponentInterface>>::new();
     for key in checked_graph.component_order() {
-        let Some(proof) = body_proofs.components.get(key) else {
+        let Some(proofs) = body_proofs.components.get(key) else {
             interfaces.insert(key.clone(), None);
             continue;
         };
-        if proof
-            .children
-            .values()
-            .any(|child| !matches!(interfaces.get(&child.definition), Some(Some(_))))
-        {
+        if proofs.iter().any(|proof| {
+            proof
+                .children
+                .values()
+                .any(|child| !matches!(interfaces.get(&child.definition), Some(Some(_))))
+        }) {
             interfaces.insert(key.clone(), None);
             continue;
         }
-        let interface = validate_component(proof, &interfaces, diagnostics);
-        interfaces.insert(key.clone(), interface);
+        let mut retained = None;
+        let mut valid = true;
+        for proof in proofs {
+            let Some(interface) = validate_component(proof, &interfaces, diagnostics) else {
+                valid = false;
+                continue;
+            };
+            if retained
+                .as_ref()
+                .is_some_and(|previous| previous != &interface)
+            {
+                diagnostics.push(source_error(
+                    eqiora_core::diagnostic::codes::LANGUAGE_TYPE_ERROR,
+                    &proof.file,
+                    proof.range,
+                    "static specialization changes the exported physical boundary partition",
+                ));
+                valid = false;
+            } else {
+                retained = Some(interface);
+            }
+        }
+        interfaces.insert(key.clone(), valid.then_some(retained).flatten());
     }
 
     for proof in body_proofs.models.values() {

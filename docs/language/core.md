@@ -413,6 +413,27 @@ arrays are rejected. Indexing preserves element type and does not choose a compo
 perform a coordinate transformation. Expansion and element-count limits are checked before
 allocation or elaboration. There is no implicit broadcasting, reshaping, or basis conversion.
 
+An exact dimensionless integer Parameter may determine a channel extent:
+
+```eqiora
+public component Channels(parameter n: integer = 3, parameter data: array<integer, n>) {
+  variable values: array<integer, n>;
+  relation copy { values = data; }
+}
+```
+
+Each occurrence specializes its signature and body from its own static bindings, including
+nested declaration families and a Component selected directly for compilation. Argument
+expressions resolve in the caller; defaults and type extents resolve in the child declaration.
+Unbound sizes, cycles, nonintegral sizes and excessive expansion reject before elaboration.
+
+`values[lower:upper]` selects an immutable half-open channel slice. Both bounds are explicit
+exact static integers, with `0 <= lower < upper <= extent`; steps and empty slices are rejected.
+The result retains the element type, dimension, support and ordinal order. A Parameter used
+for a compiled shape, family, index or slice is a structural dependency: changing it requires
+recompilation. Ordinary numerical Parameters remain editable. These dependencies survive
+Model and Transaction replay.
+
 A uniform spatial coefficient uses an explicit constructor:
 
 ```eqiora

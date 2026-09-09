@@ -104,6 +104,7 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                     self.scope.file,
                     signature,
                     &supports,
+                    &self.scope.static_values,
                 ) {
                     Ok(fields) => {
                         for item in signature {
@@ -378,7 +379,12 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                     let support = declaration
                         .domain()
                         .and_then(|domain| self.scope.spatial_support(domain));
-                    match field_expression_type(self.scope.file, declaration, support) {
+                    match field_expression_type(
+                        self.scope.file,
+                        declaration,
+                        support,
+                        &self.scope.static_values,
+                    ) {
                         Ok(inferred) => {
                             self.scope.symbols.insert(
                                 declaration.name().to_owned(),

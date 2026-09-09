@@ -11,6 +11,7 @@ impl LoweringExpression {
         Self {
             node: Arc::new(LoweringExpressionNode::Number(value)),
             range,
+            structural_parameters: None,
         }
     }
 
@@ -22,6 +23,7 @@ impl LoweringExpression {
                     "mathematical literal must be finite",
                 )),
                 range,
+                structural_parameters: None,
             },
         }
     }
@@ -30,6 +32,7 @@ impl LoweringExpression {
         Self {
             node: Arc::new(LoweringExpressionNode::Literal(value)),
             range,
+            structural_parameters: None,
         }
     }
 
@@ -37,24 +40,28 @@ impl LoweringExpression {
         Self {
             node: Arc::new(LoweringExpressionNode::Array(elements)),
             range,
+            structural_parameters: None,
         }
     }
     pub(crate) fn index(value: Self, index: u32, range: TextRange) -> Self {
         Self {
             node: Arc::new(LoweringExpressionNode::Index { value, index }),
             range,
+            structural_parameters: None,
         }
     }
     pub(crate) fn complex(real: Self, imag: Self, range: TextRange) -> Self {
         Self {
             node: Arc::new(LoweringExpressionNode::Complex { real, imag }),
             range,
+            structural_parameters: None,
         }
     }
     pub(crate) fn name(name: String, range: TextRange) -> Self {
         Self {
             node: Arc::new(LoweringExpressionNode::Name(name)),
             range,
+            structural_parameters: None,
         }
     }
 
@@ -62,17 +69,20 @@ impl LoweringExpression {
         Self {
             node: Arc::new(LoweringExpressionNode::Not(value)),
             range,
+            structural_parameters: None,
         }
     }
     pub(crate) fn neg(value: Self, range: TextRange) -> Self {
         if let LoweringExpressionNode::Literal(quantity) = value.node.as_ref()
             && quantity.is_zero()
         {
-            return Self::literal(quantity.clone(), range);
+            return Self::literal(quantity.clone(), range)
+                .with_structural_parameters(value.structural_parameters());
         }
         Self {
             node: Arc::new(LoweringExpressionNode::Neg(value)),
             range,
+            structural_parameters: None,
         }
     }
 
@@ -80,6 +90,7 @@ impl LoweringExpression {
         Self {
             node: Arc::new(LoweringExpressionNode::Piecewise { name, arguments }),
             range,
+            structural_parameters: None,
         }
     }
     pub(crate) fn select(
@@ -95,6 +106,7 @@ impl LoweringExpression {
                 else_value,
             }),
             range,
+            structural_parameters: None,
         }
     }
     pub(crate) fn case(
@@ -105,6 +117,7 @@ impl LoweringExpression {
         Self {
             node: Arc::new(LoweringExpressionNode::Case { value, arms }),
             range,
+            structural_parameters: None,
         }
     }
 
@@ -112,6 +125,7 @@ impl LoweringExpression {
         Self {
             node: Arc::new(LoweringExpressionNode::Require { condition, value }),
             range,
+            structural_parameters: None,
         }
     }
 
@@ -123,6 +137,7 @@ impl LoweringExpression {
                 right,
             }),
             range,
+            structural_parameters: None,
         }
     }
 
@@ -134,6 +149,7 @@ impl LoweringExpression {
                 right,
             }),
             range,
+            structural_parameters: None,
         }
     }
 
@@ -148,6 +164,7 @@ impl LoweringExpression {
                 arguments,
             }),
             range,
+            structural_parameters: None,
         }
     }
 
@@ -155,6 +172,7 @@ impl LoweringExpression {
         Self {
             node: Arc::new(LoweringExpressionNode::Call { callee, argument }),
             range,
+            structural_parameters: None,
         }
     }
 
@@ -162,6 +180,7 @@ impl LoweringExpression {
         Self {
             node: Arc::new(LoweringExpressionNode::Sample { value, clock }),
             range,
+            structural_parameters: None,
         }
     }
 
@@ -176,6 +195,7 @@ impl LoweringExpression {
                 arguments,
             }),
             range,
+            structural_parameters: None,
         }
     }
 

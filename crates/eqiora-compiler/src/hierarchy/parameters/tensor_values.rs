@@ -240,6 +240,11 @@ fn has_named_component_reference(expression: &Expr) -> bool {
             }
             ExprKind::Array(elements) => pending.extend(elements),
             ExprKind::Index { value, index } => pending.extend([value.as_ref(), index.as_ref()]),
+            ExprKind::Slice {
+                value,
+                lower,
+                upper,
+            } => pending.extend([value.as_ref(), lower.as_ref(), upper.as_ref()]),
             _ => {}
         }
     }

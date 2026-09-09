@@ -250,3 +250,64 @@ fn indexed_connections_reject_foreign_sets_bad_neighbors_and_missing_members_loc
         );
     }
 }
+
+#[test]
+fn distinct_static_chain_sizes_share_the_same_two_terminal_contract() {
+    let source = format!(
+        r#"{DEFINITIONS}
+component Chain(parameter n:integer,port positive:Pin,port negative:Pin) {{
+    indexset Stages=range(n);
+    indexset Links=range(n-1);
+    instance cell[i in Stages]:Resistor(resistance=2[Ohm]);
+    connect positive,cell[index(Stages,0)].positive;
+    connect negative,cell[index(Stages,n-1)].negative;
+    connect [i in Links] cell[index(Stages,ordinal(i))].negative,cell[index(Stages,ordinal(i)+1)].positive;
+}}
+model Pair() {{
+    instance short:Chain(n=2);
+    instance long:Chain(n=3);
+    instance a:VoltageSource(voltage=12[V]);
+    instance b:VoltageSource(voltage=12[V]);
+    instance ga:Ground();
+    instance gb:Ground();
+    connect short.positive,a.positive;
+    connect short.negative,a.negative,ga.terminal;
+    connect long.positive,b.positive;
+    connect long.negative,b.negative,gb.terminal;
+}}"#
+    );
+    let document = ModelDocument::compile("two-sizes.eqi", &source).unwrap();
+    let trajectory = Interpreter::new()
+        .run(document.program(), ReferenceConfig::new(0.0, 1.0).unwrap())
+        .unwrap();
+    let mut owners = BTreeSet::new();
+    let mut endpoints = BTreeSet::new();
+    for (name, count, current, voltage) in [("short", 2, 3.0, 6.0), ("long", 3, 2.0, 4.0)] {
+        for index in 0..count {
+            let positive = document.aliases()[&format!("{name}.cell[{index}].positive")];
+            let negative = document.aliases()[&format!("{name}.cell[{index}].negative")];
+            assert!(owners.insert(document.aliases()[&format!("{name}.cell[{index}].law")]));
+            assert!(endpoints.insert(positive));
+            assert!(endpoints.insert(negative));
+            let across = |id: RawId| {
+                trajectory
+                    .last_physical_value(PhysicalUnknown::Across(id.downcast().unwrap()))
+                    .unwrap()
+                    .value()
+            };
+            let through = |id: RawId| {
+                trajectory
+                    .last_physical_value(PhysicalUnknown::Through(id.downcast().unwrap()))
+                    .unwrap()
+                    .value()
+            };
+            // Series law: I=12/(2*n); each 2-ohm resistor drops 12/n volts.
+            // The small linear solve uses the same absolute 1e-10 oracle as above.
+            assert!((through(positive) - current).abs() < 1e-10);
+            assert!((through(negative) + current).abs() < 1e-10);
+            assert!((across(positive) - across(negative) - voltage).abs() < 1e-10);
+        }
+    }
+    assert_eq!(owners.len(), 5);
+    assert_eq!(endpoints.len(), 10);
+}

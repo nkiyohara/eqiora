@@ -518,7 +518,11 @@ fn factory_constructs_closed_field_physical_source_shapes() {
         SourceAstFactory::value_type(
             crate::ValueTypeSyntaxKind::Array {
                 element: Box::new(crate::ValueTypeSyntax::real(dimension())),
-                extent: 2,
+                extent: SourceAstFactory::expression(
+                    ExprKind::Number(crate::DecimalLiteral::parse("2").unwrap()),
+                    range(0, 0),
+                )
+                .unwrap(),
             },
             range(0, 0),
         )
@@ -560,7 +564,11 @@ fn factory_constructs_closed_field_physical_source_shapes() {
         SourceAstFactory::value_type(
             crate::ValueTypeSyntaxKind::Array {
                 element: Box::new(crate::ValueTypeSyntax::real(dimension())),
-                extent: 0,
+                extent: SourceAstFactory::expression(
+                    ExprKind::Number(crate::DecimalLiteral::parse("0").unwrap()),
+                    range(0, 0)
+                )
+                .unwrap(),
             },
             range(0, 0)
         )

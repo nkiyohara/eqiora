@@ -77,7 +77,7 @@ fn required_private_parameter_has_no_symbolic_witness() {
 }
 
 #[test]
-fn nested_instance_validates_symbolic_parent_bindings_with_cached_child() {
+fn nested_instance_specializes_symbolic_parent_bindings() {
     let document = document(
         r#"
 component Child(parameter base: m, parameter exponent: 1, parameter area: m ^ 2 = base ^ exponent) {
@@ -100,19 +100,16 @@ instance child: Child(base = length, exponent = 2);
     let parent_parameters =
         resolve_component_parameters_symbolically("parameters.eqi", parent, |_| None)
             .expect("parent interface resolves");
-    let child_interface =
-        resolve_component_parameters_symbolically("parameters.eqi", child, |_| None)
-            .expect("child interface resolves once");
-    validate_instance_parameters_symbolically(
-        ("parameters.eqi", "parameters.eqi"),
+    resolve_instance_parameters_symbolically(
+        "parameters.eqi",
+        "parameters.eqi",
         child,
         instance,
         &parent_parameters,
-        &child_interface,
-        |_| None,
-        |_| None,
+        &mut |_| None,
+        &mut |_| None,
     )
-    .expect("cached interface validates the definition edge");
+    .expect("actual binding context validates the definition edge");
 }
 
 #[test]
@@ -135,9 +132,6 @@ instance missing: Child();
     let parent_parameters =
         resolve_component_parameters_symbolically("parameters.eqi", parent, |_| None)
             .expect("parent interface resolves");
-    let child_interface =
-        resolve_component_parameters_symbolically("parameters.eqi", child, |_| None)
-            .expect("child interface resolves once");
     let instances = parent
         .items()
         .iter()
@@ -163,14 +157,14 @@ instance missing: Child();
         ),
     ];
     for (instance, message) in expected {
-        let diagnostics = validate_instance_parameters_symbolically(
-            ("parameters.eqi", "parameters.eqi"),
+        let diagnostics = resolve_instance_parameters_symbolically(
+            "parameters.eqi",
+            "parameters.eqi",
             child,
             instances[instance],
             &parent_parameters,
-            &child_interface,
-            |_| None,
-            |_| None,
+            &mut |_| None,
+            &mut |_| None,
         )
         .expect_err("invalid binding fails closed");
         assert!(

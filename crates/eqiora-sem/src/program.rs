@@ -261,6 +261,7 @@ fn validate_closed_topology(
                     | EdgeKind::AppliesOn
                     | EdgeKind::BoundaryOf
                     | EdgeKind::DependsOn
+                    | EdgeKind::StructurallyDependsOn
                     | EdgeKind::HasPort
                     | EdgeKind::Activates
                     | EdgeKind::Connects

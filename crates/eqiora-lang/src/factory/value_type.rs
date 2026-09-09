@@ -68,7 +68,23 @@ impl SourceAstFactory {
                     (scalar.as_ref(), extents.as_slice())
                 }
                 ValueTypeSyntaxKind::Array { element, extent } => {
-                    (element.as_ref(), std::slice::from_ref(extent))
+                    validate_expression(extent)?;
+                    if let crate::ExprKind::Number(literal) = extent.kind() {
+                        let extent = literal
+                            .to_i64()
+                            .ok()
+                            .and_then(|n| u32::try_from(n).ok())
+                            .filter(|n| *n > 0)
+                            .ok_or_else(|| {
+                                AstConstructionError::new(
+                                    "type extent must be a positive u32 integer",
+                                )
+                            })?;
+                        count = count.checked_mul(u64::from(extent)).filter(|n| *n <= 65_536)
+                            .ok_or_else(|| AstConstructionError::new("source resource limit exceeded: mathematical type has more than 65536 elements"))?;
+                    }
+                    current = element;
+                    continue;
                 }
             };
             for extent in extents {
@@ -109,6 +125,14 @@ mod tests {
     use super::*;
     use crate::{ExprKind, Item, format, parse};
     use eqiora_core::ScalarDomain;
+
+    fn extent(n: u32) -> crate::Expr {
+        SourceAstFactory::expression(
+            ExprKind::Number(crate::DecimalLiteral::parse(&n.to_string()).unwrap()),
+            TextRange::default(),
+        )
+        .unwrap()
+    }
 
     #[test]
     fn component_parameters_share_checked_type_constructors() {
@@ -156,7 +180,7 @@ mod tests {
             value = SourceAstFactory::value_type(
                 ValueTypeSyntaxKind::Array {
                     element: Box::new(value),
-                    extent: 1,
+                    extent: extent(1),
                 },
                 range,
             )
@@ -166,7 +190,7 @@ mod tests {
             SourceAstFactory::value_type(
                 ValueTypeSyntaxKind::Array {
                     element: Box::new(value),
-                    extent: 1
+                    extent: extent(1)
                 },
                 range,
             )
@@ -196,7 +220,7 @@ mod tests {
         let array = SourceAstFactory::value_type(
             ValueTypeSyntaxKind::Array {
                 element: Box::new(vector.clone()),
-                extent: 3,
+                extent: extent(3),
             },
             range,
         )
@@ -244,11 +268,11 @@ mod tests {
             },
             ValueTypeSyntaxKind::Array {
                 element: Box::new(scalar.clone()),
-                extent: 0,
+                extent: extent(0),
             },
             ValueTypeSyntaxKind::Array {
                 element: Box::new(vector),
-                extent: 32_769,
+                extent: extent(32_769),
             },
             ValueTypeSyntaxKind::Tensor {
                 scalar: Box::new(scalar.clone()),

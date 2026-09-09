@@ -19,12 +19,12 @@ use crate::dimensions::lower_dimension;
 use super::complete_exterior::CartesianDomain;
 use super::definition_graph::CheckedDefinitionGraph;
 use super::field_slots::{
-    FieldInterface, component_field_contracts, component_field_interface, model_field_contracts,
+    component_field_contracts, component_field_interface, model_field_contracts,
     resolve_instance_fields,
 };
 use super::parameters::{
     SymbolicParameterMap, resolve_component_lets, resolve_component_parameters_symbolically,
-    resolve_model_lets, validate_instance_parameters_symbolically,
+    resolve_model_lets,
 };
 use super::preflight::{DefinitionKey, Elaborator};
 use super::supports::{
@@ -72,20 +72,11 @@ fn validate_definition_bodies_and_parameters(
         return body_proofs;
     }
 
-    let mut interfaces = BTreeMap::<DefinitionKey, SymbolicParameterMap>::new();
     let mut body_values = BTreeMap::<DefinitionKey, SymbolicParameterMap>::new();
     let mut support_interfaces = BTreeMap::<DefinitionKey, SupportInterface>::new();
-    let mut field_interfaces = BTreeMap::<DefinitionKey, FieldInterface>::new();
     for (key, definition) in elaborator.components() {
         match component_support_interface(definition.file, definition.declaration) {
             Ok(interface) => {
-                match component_field_interface(definition.file, definition.declaration, &interface)
-                {
-                    Ok(fields) => {
-                        field_interfaces.insert(key.clone(), fields);
-                    }
-                    Err(errors) => diagnostics.extend(errors),
-                }
                 support_interfaces.insert(key.clone(), interface);
             }
             Err(errors) => diagnostics.extend(errors),
@@ -97,7 +88,6 @@ fn validate_definition_bodies_and_parameters(
         ) {
             Ok(parameters) => {
                 let mut values = parameters.clone();
-                interfaces.insert(key.clone(), parameters);
                 if let Err(errors) = resolve_component_lets(
                     definition.file,
                     definition.declaration,
@@ -123,25 +113,21 @@ fn validate_definition_bodies_and_parameters(
             Ok(contexts) => contexts,
             Err(errors) => {
                 diagnostics.extend(errors);
-                BTreeMap::new()
+                return body_proofs;
             }
         }
     } else {
         BTreeMap::new()
     };
     for (key, definition) in elaborator.components() {
-        if let (Some(values), Some(supports), Some(fields)) = (
-            body_values.get(key),
-            support_interfaces.get(key),
-            field_interfaces.get(key),
-        ) {
+        if let (Some(values), Some(supports)) = (body_values.get(key), support_interfaces.get(key))
+        {
             match specialization::validate(
                 elaborator,
                 definition,
                 values,
                 contexts.get(key).map(Vec::as_slice),
                 supports,
-                fields,
             ) {
                 Ok(proof) => {
                     body_proofs.components.insert(key.clone(), proof);
@@ -152,108 +138,188 @@ fn validate_definition_bodies_and_parameters(
     }
 
     for (key, definition) in elaborator.components() {
-        let Some(parent) = body_values.get(key) else {
+        let Some(base_values) = body_values.get(key) else {
             continue;
         };
-        let parent_fields = match (support_interfaces.get(key), field_interfaces.get(key)) {
-            (Some(supports), Some(fields)) => {
-                component_field_contracts(definition.file, definition.declaration, supports, fields)
-            }
-            _ => BTreeMap::new(),
-        };
-        let mut occurrences_valid = true;
-        let mut parent_boundary_sets = BTreeMap::new();
-        if let Some(parent_supports) = support_interfaces.get(key) {
-            for (name, contract) in parent_supports.complete_exteriors() {
-                match symbolic_complete_exterior_set(
-                    definition.file,
-                    name,
-                    contract,
-                    definition.declaration.range(),
-                ) {
-                    Ok(set) => {
-                        parent_boundary_sets.insert(name.to_owned(), set);
+        let parents = contexts
+            .get(key)
+            .filter(|values| !values.is_empty())
+            .map_or_else(|| std::slice::from_ref(base_values), Vec::as_slice);
+        for parent in parents {
+            let Some(parent_supports) = support_interfaces.get(key) else {
+                continue;
+            };
+            let fields = match component_field_interface(
+                definition.file,
+                definition.declaration,
+                parent_supports,
+                parent,
+            ) {
+                Ok(fields) => fields,
+                Err(errors) => {
+                    diagnostics.extend(errors);
+                    continue;
+                }
+            };
+            let parent_fields = component_field_contracts(
+                definition.file,
+                definition.declaration,
+                parent_supports,
+                &fields,
+                parent,
+            );
+            let mut occurrences_valid = true;
+            let mut parent_boundary_sets = BTreeMap::new();
+            if let Some(parent_supports) = support_interfaces.get(key) {
+                for (name, contract) in parent_supports.complete_exteriors() {
+                    match symbolic_complete_exterior_set(
+                        definition.file,
+                        name,
+                        contract,
+                        definition.declaration.range(),
+                    ) {
+                        Ok(set) => {
+                            parent_boundary_sets.insert(name.to_owned(), set);
+                        }
+                        Err(error) => {
+                            occurrences_valid = false;
+                            diagnostics.push(error);
+                        }
                     }
+                }
+            }
+            for item in definition.declaration.items() {
+                let ComponentItem::Instance(instance) = item else {
+                    continue;
+                };
+                let extent = match specialization::instance_extent(
+                    definition.file,
+                    instance,
+                    definition
+                        .declaration
+                        .items()
+                        .iter()
+                        .filter_map(|item| match item {
+                            ComponentItem::IndexSet(set) => Some(set),
+                            _ => None,
+                        }),
+                    parent,
+                    elaborator.limits.max_instances,
+                ) {
+                    Ok(extent) => extent,
                     Err(error) => {
                         occurrences_valid = false;
                         diagnostics.push(error);
+                        continue;
                     }
-                }
-            }
-        }
-        for item in definition.declaration.items() {
-            let ComponentItem::Instance(instance) = item else {
-                continue;
-            };
-            let Ok(child) = elaborator.resolve_component(
-                &definition.namespace,
-                instance.definition(),
-                definition.file,
-                instance.range(),
-            ) else {
-                continue;
-            };
-            let child_key = DefinitionKey {
-                namespace: child.namespace.clone(),
-                name: child.declaration.name().to_owned(),
-            };
-            let Some(child_interface) = interfaces.get(&child_key) else {
-                continue;
-            };
-            if let Err(errors) = validate_instance_parameters_symbolically(
-                (child.file, definition.file),
-                child.declaration,
-                instance,
-                parent,
-                child_interface,
-                |name| super::clocks::component(definition.file, definition.declaration, name),
-                |name| {
-                    support_interfaces
-                        .get(key)
-                        .and_then(|supports| supports.get(name))
-                        .map(|contract| contract.support().clone())
-                },
-            ) {
-                occurrences_valid = false;
-                diagnostics.extend(errors);
-            }
-            let (Some(parent_supports), Some(child_supports)) = (
-                support_interfaces.get(key),
-                support_interfaces.get(&child_key),
-            ) else {
-                occurrences_valid = false;
-                continue;
-            };
-            let support_bindings = match resolve_instance_support_bindings(
-                definition.file,
-                child.declaration,
-                child_supports,
-                instance,
-                |name| parent_supports.visible_support(name).cloned(),
-                |_| None,
-                |_| None,
-                |name| parent_boundary_sets.get(name).cloned(),
-                &mut complete_exterior_budget,
-            ) {
-                Ok(bindings) => Some(bindings),
-                Err(errors) => {
-                    occurrences_valid = false;
-                    diagnostics.extend(errors);
-                    None
-                }
-            };
-            let Some(child_fields) = field_interfaces.get(&child_key) else {
-                occurrences_valid = false;
-                continue;
-            };
-            if let Some(support_bindings) = support_bindings
-                && let Err(errors) = resolve_instance_fields(
-                    definition.file,
-                    child.declaration,
-                    child_fields,
-                    instance,
-                    |name| {
-                        definition
+                };
+                let ordinals = (0..extent.unwrap_or(0))
+                    .map(Some)
+                    .chain(extent.is_none().then_some(None));
+                for ordinal in ordinals {
+                    let member = match ordinal.map_or_else(
+                        || Ok(instance.clone()),
+                        |ordinal| {
+                            super::reductions::instantiate_instance(
+                                definition.file,
+                                instance,
+                                ordinal,
+                            )
+                        },
+                    ) {
+                        Ok(member) => member,
+                        Err(error) => {
+                            occurrences_valid = false;
+                            diagnostics.push(error);
+                            continue;
+                        }
+                    };
+                    let instance = &member;
+                    let Ok(child) = elaborator.resolve_component(
+                        &definition.namespace,
+                        instance.definition(),
+                        definition.file,
+                        instance.range(),
+                    ) else {
+                        continue;
+                    };
+                    let child_key = DefinitionKey {
+                        namespace: child.namespace.clone(),
+                        name: child.declaration.name().to_owned(),
+                    };
+                    let child_values =
+                        match super::parameters::resolve_instance_parameters_symbolically(
+                            child.file,
+                            definition.file,
+                            child.declaration,
+                            instance,
+                            parent,
+                            &mut |name| {
+                                super::clocks::component(
+                                    definition.file,
+                                    definition.declaration,
+                                    name,
+                                )
+                            },
+                            &mut |name| {
+                                parent_supports
+                                    .get(name)
+                                    .map(|contract| contract.support().clone())
+                            },
+                        ) {
+                            Ok(values) => values,
+                            Err(errors) => {
+                                occurrences_valid = false;
+                                diagnostics.extend(errors);
+                                continue;
+                            }
+                        };
+                    let (Some(parent_supports), Some(child_supports)) = (
+                        support_interfaces.get(key),
+                        support_interfaces.get(&child_key),
+                    ) else {
+                        occurrences_valid = false;
+                        continue;
+                    };
+                    let support_bindings = match resolve_instance_support_bindings(
+                        definition.file,
+                        child.declaration,
+                        child_supports,
+                        instance,
+                        |name| parent_supports.visible_support(name).cloned(),
+                        |_| None,
+                        |_| None,
+                        |name| parent_boundary_sets.get(name).cloned(),
+                        &mut complete_exterior_budget,
+                    ) {
+                        Ok(bindings) => Some(bindings),
+                        Err(errors) => {
+                            occurrences_valid = false;
+                            diagnostics.extend(errors);
+                            None
+                        }
+                    };
+                    let child_fields = match component_field_interface(
+                        child.file,
+                        child.declaration,
+                        child_supports,
+                        &child_values,
+                    ) {
+                        Ok(fields) => fields,
+                        Err(errors) => {
+                            occurrences_valid = false;
+                            diagnostics.extend(errors);
+                            continue;
+                        }
+                    };
+                    if let Some(support_bindings) = support_bindings
+                        && let Err(errors) = resolve_instance_fields(
+                            definition.file,
+                            child.declaration,
+                            &child_fields,
+                            instance,
+                            |name| {
+                                definition
                             .declaration
                             .items()
                             .iter()
@@ -263,23 +329,25 @@ fn validate_definition_bodies_and_parameters(
                             })
                             .then(|| name.to_owned())
                             .or_else(|| definition.declaration.signature().iter().any(|item|matches!(item,eqiora_lang::SignatureItem::Clock(c) if c.name()==name)).then(||name.to_owned()))
-                    },
-                    |slot| {
-                        support_bindings
-                            .singular_targets()
-                            .get(slot)
-                            .and_then(|target| parent_supports.visible_support(target))
-                            .cloned()
-                    },
-                    |name| parent_fields.get(name).cloned(),
-                )
-            {
-                occurrences_valid = false;
-                diagnostics.extend(errors);
+                            },
+                            |slot| {
+                                support_bindings
+                                    .singular_targets()
+                                    .get(slot)
+                                    .and_then(|target| parent_supports.visible_support(target))
+                                    .cloned()
+                            },
+                            |name| parent_fields.get(name).cloned(),
+                        )
+                    {
+                        occurrences_valid = false;
+                        diagnostics.extend(errors);
+                    }
+                }
+                if !occurrences_valid {
+                    body_proofs.components.remove(key);
+                }
             }
-        }
-        if !occurrences_valid {
-            body_proofs.components.remove(key);
         }
     }
 
@@ -294,12 +362,6 @@ fn validate_definition_bodies_and_parameters(
                 None
             }
         };
-        let model_fields = model_supports
-            .as_ref()
-            .map(|supports| {
-                model_field_contracts(definition.file, definition.declaration, supports)
-            })
-            .unwrap_or_default();
         match super::parameters::resolve_model_parameters_symbolically(
             definition.file,
             definition.declaration,
@@ -320,6 +382,17 @@ fn validate_definition_bodies_and_parameters(
             occurrences_valid = false;
             diagnostics.extend(errors);
         }
+        let model_fields = model_supports
+            .as_ref()
+            .map(|supports| {
+                model_field_contracts(
+                    definition.file,
+                    definition.declaration,
+                    supports,
+                    &parameters,
+                )
+            })
+            .unwrap_or_default();
         match super::body_check::validate_model_body(elaborator, definition, &parameters) {
             Ok(proof) => {
                 body_proofs.models.insert(key.clone(), proof);
@@ -330,140 +403,189 @@ fn validate_definition_bodies_and_parameters(
             let Item::Instance(instance) = item else {
                 continue;
             };
-            let Ok(child) = elaborator.resolve_component(
-                &definition.namespace,
-                instance.definition(),
+            let extent = match specialization::instance_extent(
                 definition.file,
-                instance.range(),
-            ) else {
-                continue;
-            };
-            let child_key = DefinitionKey {
-                namespace: child.namespace.clone(),
-                name: child.declaration.name().to_owned(),
-            };
-            let Some(child_interface) = interfaces.get(&child_key) else {
-                continue;
-            };
-            if let Err(errors) = validate_instance_parameters_symbolically(
-                (child.file, definition.file),
-                child.declaration,
                 instance,
-                &parameters,
-                child_interface,
-                |name| super::clocks::model(definition.file, definition.declaration, name),
-                |name| {
-                    model_supports
-                        .as_ref()
-                        .and_then(|supports| supports.get(name))
-                        .cloned()
-                },
-            ) {
-                occurrences_valid = false;
-                diagnostics.extend(errors);
-            }
-            let Some(child_supports) = support_interfaces.get(&child_key) else {
-                occurrences_valid = false;
-                continue;
-            };
-            let Some(model_supports) = model_supports.as_ref() else {
-                occurrences_valid = false;
-                continue;
-            };
-            let support_bindings = match resolve_instance_support_bindings(
-                definition.file,
-                child.declaration,
-                child_supports,
-                instance,
-                |name| model_supports.get(name).cloned(),
-                |name| match model_supports.get(name) {
-                    Some(eqiora_schema::kernel::typing::SpatialSupport::Boundary {
-                        domain,
-                        ..
-                    }) => Some(ResolvedBoundaryTarget::new(name.to_owned(), domain.clone())),
-                    _ => None,
-                },
-                |identity| match model_supports.get(identity)? {
-                    eqiora_schema::kernel::typing::SpatialSupport::Volume {
-                        dimensions, ..
-                    } => Some(CartesianDomain::Volume {
-                        ambient_dimension: *dimensions,
+                definition
+                    .declaration
+                    .items()
+                    .iter()
+                    .filter_map(|item| match item {
+                        Item::IndexSet(set) => Some(set),
+                        _ => None,
                     }),
-                    eqiora_schema::kernel::typing::SpatialSupport::Boundary {
-                        parent,
-                        dimensions,
-                        ..
-                    } => {
-                        let declaration =
-                            definition
-                                .declaration
-                                .items()
-                                .iter()
-                                .find_map(|item| match item {
+                &parameters,
+                elaborator.limits.max_instances,
+            ) {
+                Ok(extent) => extent,
+                Err(error) => {
+                    occurrences_valid = false;
+                    diagnostics.push(error);
+                    continue;
+                }
+            };
+            let ordinals = (0..extent.unwrap_or(0))
+                .map(Some)
+                .chain(extent.is_none().then_some(None));
+            for ordinal in ordinals {
+                let member = match ordinal.map_or_else(
+                    || Ok(instance.clone()),
+                    |ordinal| {
+                        super::reductions::instantiate_instance(definition.file, instance, ordinal)
+                    },
+                ) {
+                    Ok(member) => member,
+                    Err(error) => {
+                        occurrences_valid = false;
+                        diagnostics.push(error);
+                        continue;
+                    }
+                };
+                let instance = &member;
+                let Ok(child) = elaborator.resolve_component(
+                    &definition.namespace,
+                    instance.definition(),
+                    definition.file,
+                    instance.range(),
+                ) else {
+                    continue;
+                };
+                let child_key = DefinitionKey {
+                    namespace: child.namespace.clone(),
+                    name: child.declaration.name().to_owned(),
+                };
+                let child_values = match super::parameters::resolve_instance_parameters_symbolically(
+                    child.file,
+                    definition.file,
+                    child.declaration,
+                    instance,
+                    &parameters,
+                    &mut |name| super::clocks::model(definition.file, definition.declaration, name),
+                    &mut |name| {
+                        model_supports
+                            .as_ref()
+                            .and_then(|supports| supports.get(name))
+                            .cloned()
+                    },
+                ) {
+                    Ok(values) => values,
+                    Err(errors) => {
+                        occurrences_valid = false;
+                        diagnostics.extend(errors);
+                        continue;
+                    }
+                };
+                let Some(child_supports) = support_interfaces.get(&child_key) else {
+                    occurrences_valid = false;
+                    continue;
+                };
+                let Some(model_supports) = model_supports.as_ref() else {
+                    occurrences_valid = false;
+                    continue;
+                };
+                let support_bindings = match resolve_instance_support_bindings(
+                    definition.file,
+                    child.declaration,
+                    child_supports,
+                    instance,
+                    |name| model_supports.get(name).cloned(),
+                    |name| match model_supports.get(name) {
+                        Some(eqiora_schema::kernel::typing::SpatialSupport::Boundary {
+                            domain,
+                            ..
+                        }) => Some(ResolvedBoundaryTarget::new(name.to_owned(), domain.clone())),
+                        _ => None,
+                    },
+                    |identity| match model_supports.get(identity)? {
+                        eqiora_schema::kernel::typing::SpatialSupport::Volume {
+                            dimensions,
+                            ..
+                        } => Some(CartesianDomain::Volume {
+                            ambient_dimension: *dimensions,
+                        }),
+                        eqiora_schema::kernel::typing::SpatialSupport::Boundary {
+                            parent,
+                            dimensions,
+                            ..
+                        } => {
+                            let declaration = definition.declaration.items().iter().find_map(
+                                |item| match item {
                                     Item::Domain(domain) if domain.name() == identity => {
                                         Some(domain)
                                     }
                                     _ => None,
-                                })?;
-                        let DomainSyntax::Boundary { axis, side, .. } = declaration.syntax() else {
-                            return None;
-                        };
-                        Some(CartesianDomain::Boundary {
-                            exact_parent: parent.clone(),
-                            ambient_dimension: *dimensions,
-                            axis: *axis,
-                            side: match side {
-                                eqiora_lang::BoundarySideSyntax::Lower => BoundarySide::Lower,
-                                eqiora_lang::BoundarySideSyntax::Upper => BoundarySide::Upper,
-                            },
-                        })
+                                },
+                            )?;
+                            let DomainSyntax::Boundary { axis, side, .. } = declaration.syntax()
+                            else {
+                                return None;
+                            };
+                            Some(CartesianDomain::Boundary {
+                                exact_parent: parent.clone(),
+                                ambient_dimension: *dimensions,
+                                axis: *axis,
+                                side: match side {
+                                    eqiora_lang::BoundarySideSyntax::Lower => BoundarySide::Lower,
+                                    eqiora_lang::BoundarySideSyntax::Upper => BoundarySide::Upper,
+                                },
+                            })
+                        }
+                        eqiora_schema::kernel::typing::SpatialSupport::Interface { .. } => None,
+                    },
+                    |_| None,
+                    &mut complete_exterior_budget,
+                ) {
+                    Ok(bindings) => Some(bindings),
+                    Err(errors) => {
+                        occurrences_valid = false;
+                        diagnostics.extend(errors);
+                        None
                     }
-                    eqiora_schema::kernel::typing::SpatialSupport::Interface { .. } => None,
-                },
-                |_| None,
-                &mut complete_exterior_budget,
-            ) {
-                Ok(bindings) => Some(bindings),
-                Err(errors) => {
+                };
+                let child_fields = match component_field_interface(
+                    child.file,
+                    child.declaration,
+                    child_supports,
+                    &child_values,
+                ) {
+                    Ok(fields) => fields,
+                    Err(errors) => {
+                        occurrences_valid = false;
+                        diagnostics.extend(errors);
+                        continue;
+                    }
+                };
+                if let Some(support_bindings) = support_bindings
+                    && let Err(errors) = resolve_instance_fields(
+                        definition.file,
+                        child.declaration,
+                        &child_fields,
+                        instance,
+                        |name| {
+                            definition
+                                .declaration
+                                .items()
+                                .iter()
+                                .any(|item| matches!(item, Item::Clock(c) if c.name() == name))
+                                .then(|| name.to_owned())
+                        },
+                        |slot| {
+                            support_bindings
+                                .singular_targets()
+                                .get(slot)
+                                .and_then(|target| model_supports.get(target))
+                                .cloned()
+                        },
+                        |name| model_fields.get(name).cloned(),
+                    )
+                {
                     occurrences_valid = false;
                     diagnostics.extend(errors);
-                    None
                 }
-            };
-            let Some(child_fields) = field_interfaces.get(&child_key) else {
-                occurrences_valid = false;
-                continue;
-            };
-            if let Some(support_bindings) = support_bindings
-                && let Err(errors) = resolve_instance_fields(
-                    definition.file,
-                    child.declaration,
-                    child_fields,
-                    instance,
-                    |name| {
-                        definition
-                            .declaration
-                            .items()
-                            .iter()
-                            .any(|item| matches!(item, Item::Clock(c) if c.name() == name))
-                            .then(|| name.to_owned())
-                    },
-                    |slot| {
-                        support_bindings
-                            .singular_targets()
-                            .get(slot)
-                            .and_then(|target| model_supports.get(target))
-                            .cloned()
-                    },
-                    |name| model_fields.get(name).cloned(),
-                )
-            {
-                occurrences_valid = false;
-                diagnostics.extend(errors);
             }
-        }
-        if !occurrences_valid {
-            body_proofs.models.remove(key);
+            if !occurrences_valid {
+                body_proofs.models.remove(key);
+            }
         }
     }
     body_proofs
@@ -538,6 +660,11 @@ fn count_expression_terms(
             ExprKind::Reduction { value, .. } => pending.push(value),
             ExprKind::Array(elements) => pending.extend(elements),
             ExprKind::Index { value, index } => pending.extend([value.as_ref(), index.as_ref()]),
+            ExprKind::Slice {
+                value,
+                lower,
+                upper,
+            } => pending.extend([value.as_ref(), lower.as_ref(), upper.as_ref()]),
             ExprKind::Unary { value, .. } => pending.push(value),
             ExprKind::Call { arguments, .. } => pending.extend(arguments.expressions()),
             ExprKind::Binary { left, right, .. } => {

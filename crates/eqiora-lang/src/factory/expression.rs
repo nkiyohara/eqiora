@@ -46,6 +46,15 @@ fn validate_expression_depth(expression: &Expr, depth: usize) -> Result<(), AstC
             validate_expression_depth(value, depth + 1)?;
             validate_expression_depth(index, depth + 1)
         }
+        ExprKind::Slice {
+            value,
+            lower,
+            upper,
+        } => {
+            validate_expression_depth(value, depth + 1)?;
+            validate_expression_depth(lower, depth + 1)?;
+            validate_expression_depth(upper, depth + 1)
+        }
         ExprKind::Array(elements) => {
             if elements.is_empty() {
                 return Err(AstConstructionError::new(

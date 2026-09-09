@@ -13,7 +13,12 @@ use crate::lower::LoweringExpression;
 
 use super::hierarchy_error;
 
+mod array_types;
+mod bindings;
 mod dependencies;
+mod selected;
+pub(in crate::hierarchy) use array_types::{extent_expressions, specialize_type};
+pub(in crate::hierarchy) use selected::resolve_selected_parameters;
 mod expression_eval;
 pub(in crate::hierarchy) mod frames;
 mod predicates;
@@ -60,13 +65,10 @@ fn component_parameter_type(
     file: &str,
     declaration: &ComponentParameterDecl,
     frames: &BTreeMap<String, SpatialSupport<String>>,
+    values: &SymbolicParameterMap,
 ) -> Result<ValueType, Diagnostic> {
-    frames::parameter_type(
-        file,
-        declaration.value_type(),
-        declaration.default(),
-        frames,
-    )
+    let syntax = specialize_type(file, declaration.value_type(), values)?;
+    frames::parameter_type(file, &syntax, declaration.default(), frames)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -160,7 +162,8 @@ type StaticContexts<'a> = (
 struct SymbolicParameterResolver<'a> {
     declaration_file: &'a str,
     declarations: BTreeMap<String, &'a ComponentParameterDecl>,
-    overrides: BTreeMap<String, SymbolicParameterValue>,
+    bindings: Option<bindings::Bindings>,
+    bound_values: SymbolicParameterMap,
     resolved: SymbolicParameterMap,
     required_policy: RequiredParameterPolicy,
     frames: BTreeMap<String, SpatialSupport<String>>,
@@ -174,7 +177,8 @@ impl<'a> SymbolicParameterResolver<'a> {
         Ok(Self {
             declaration_file,
             declarations: parameter_declarations(component),
-            overrides: BTreeMap::new(),
+            bindings: None,
+            bound_values: BTreeMap::new(),
             resolved: BTreeMap::new(),
             required_policy: RequiredParameterPolicy::PublicIsFree,
             frames: super::supports::component_spatial_supports(declaration_file, component)?,
@@ -192,19 +196,18 @@ impl<'a> SymbolicParameterResolver<'a> {
     ) -> Result<Self, Vec<Diagnostic>> {
         let declarations = parameter_declarations(component);
         let frames = frames::instance_frames(declaration_file, component, instance, resolve_frame)?;
-        let overrides = resolve_instance_overrides(
-            (declaration_file, binding_file),
+        let bindings = bindings::Bindings::freeze(
+            binding_file,
             component,
             instance,
-            (&declarations, &frames),
             resolve_parent,
             (&mut *resolve_clock, &mut *resolve_frame),
-            ExpressionContext::Binding,
         )?;
         Ok(Self {
             declaration_file,
             declarations,
-            overrides,
+            bindings: Some(bindings),
+            bound_values: BTreeMap::new(),
             resolved: BTreeMap::new(),
             required_policy: RequiredParameterPolicy::RejectUnbound,
             frames,
@@ -216,81 +219,44 @@ impl<'a> SymbolicParameterResolver<'a> {
         resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
     ) -> Result<SymbolicParameterMap, Vec<Diagnostic>> {
         let mut diagnostics = Vec::new();
-        let mut defaults = BTreeMap::new();
-
-        for (name, &declaration) in &self.declarations {
-            if let Some(value) = self.overrides.get(name).cloned() {
-                self.resolved.insert(name.to_owned(), value);
-                continue;
+        let mut definitions = BTreeMap::new();
+        for (name, declaration) in &self.declarations {
+            let binding = self
+                .bindings
+                .as_ref()
+                .and_then(|bindings| bindings.expression(name));
+            let mut dependencies = BTreeMap::new();
+            let mut errors = Vec::new();
+            // Call-site values belong to the parent. Only an unbound default and
+            // the authored declaration type have dependencies in this child scope.
+            let expressions = declaration
+                .default()
+                .filter(|_| binding.is_none() && !self.bound_values.contains_key(name))
+                .into_iter()
+                .chain(extent_expressions(declaration.value_type()));
+            for expression in expressions {
+                let (found, more) = collect_expression_dependencies(
+                    self.declaration_file,
+                    expression,
+                    |name| self.declarations.contains_key(name),
+                    ExpressionContext::Default,
+                );
+                dependencies.extend(found);
+                errors.extend(more);
             }
-
-            let target =
-                match component_parameter_type(self.declaration_file, declaration, &self.frames) {
-                    Ok(target) => Some(target),
-                    Err(error) => {
-                        diagnostics.push(error);
-                        None
-                    }
-                };
-            let Some(default) = declaration.default() else {
-                let Some(target) = target else {
-                    continue;
-                };
-                match (self.required_policy, declaration.visibility()) {
-                    (RequiredParameterPolicy::PublicIsFree, VisibilitySyntax::Public) => {
-                        self.resolved.insert(
-                            name.to_owned(),
-                            SymbolicParameterValue {
-                                value: None,
-                                value_type: target,
-                                expression: None,
-                                lineage: None,
-                            },
-                        );
-                    }
-                    (RequiredParameterPolicy::PublicIsFree, VisibilitySyntax::Private) => {
-                        diagnostics.push(source_error(
-                            codes::LANGUAGE_TYPE_ERROR,
-                            self.declaration_file,
-                            declaration.range(),
-                            format!("required private Parameter `{name}` has no default"),
-                        ));
-                    }
-                    (RequiredParameterPolicy::RejectUnbound, _) => {
-                        diagnostics.push(source_error(
-                            codes::LANGUAGE_TYPE_ERROR,
-                            self.declaration_file,
-                            declaration.range(),
-                            format!("required Parameter `{name}` has no instance binding"),
-                        ));
-                    }
-                }
-                continue;
-            };
-
-            let (dependencies, mut errors) = collect_expression_dependencies(
-                self.declaration_file,
-                default,
-                |name| self.declarations.contains_key(name),
-                ExpressionContext::Default,
-            );
-            let valid = target.is_some() && errors.is_empty();
-            diagnostics.append(&mut errors);
-            defaults.insert(
-                name.to_owned(),
+            definitions.insert(
+                name.clone(),
                 ExpressionDefinition {
-                    expression: default,
-                    target,
+                    expression: binding.or(declaration.default()),
                     dependencies,
-                    valid,
+                    valid: errors.is_empty(),
                 },
             );
+            diagnostics.extend(errors);
         }
-
-        let cycles = expression_cycles(&defaults);
         let mut cyclic = BTreeSet::new();
-        for cycle in cycles {
-            cyclic.extend(cycle.members.iter().cloned());
+        for cycle in expression_cycles(&definitions) {
+            cyclic.extend(cycle.members);
             diagnostics.push(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 self.declaration_file,
@@ -301,58 +267,184 @@ impl<'a> SymbolicParameterResolver<'a> {
                 ),
             ));
         }
-
-        for name in expression_evaluation_order(&defaults, &cyclic) {
-            let parameter = &defaults[&name];
-            if !parameter.valid
-                || parameter
+        let mut expression_work = 0usize;
+        let expression_limit =
+            crate::source_identity::LocalSourceIdentityLimits::default().max_expression_nodes;
+        for name in expression_evaluation_order(&definitions, &cyclic) {
+            let definition = &definitions[&name];
+            if !definition.valid
+                || definition
                     .dependencies
                     .keys()
-                    .any(|dependency| !self.resolved.contains_key(dependency))
+                    .any(|name| !self.resolved.contains_key(name))
             {
                 continue;
             }
-            let evaluated = evaluate_initializer(
-                self.declaration_file,
-                parameter.expression,
-                ExpressionContext::Default,
-                &mut |dependency, range| {
-                    self.resolved.get(dependency).cloned().ok_or_else(|| {
-                        source_error(
+            let declaration = self.declarations[&name];
+            for expression in definition
+                .expression
+                .into_iter()
+                .chain(extent_expressions(declaration.value_type()))
+            {
+                let values = if self
+                    .bindings
+                    .as_ref()
+                    .is_some_and(|bindings| bindings.expression(&name) == Some(expression))
+                {
+                    self.bindings.as_ref().unwrap().values()
+                } else {
+                    &self.resolved
+                };
+                let work = super::reductions::expanded_nodes(
+                    self.declaration_file,
+                    expression,
+                    &mut |_| None,
+                    values,
+                    expression_limit.saturating_sub(expression_work),
+                )
+                .map_err(|error| vec![error])?;
+                expression_work = expression_work
+                    .checked_add(work)
+                    .filter(|work| *work <= expression_limit)
+                    .ok_or_else(|| {
+                        vec![source_error(
                             codes::LANGUAGE_TYPE_ERROR,
                             self.declaration_file,
-                            range,
-                            format!("unknown component Parameter `{dependency}`"),
-                        )
-                    })
-                },
-                parameter.target.clone().expect("valid default target"),
-                "Parameter initializer",
-                (&mut *resolve_clock, &mut |name| {
-                    self.frames.get(name).cloned()
-                }),
-            )
-            .and_then(|evaluated| {
-                coerce_parameter_with_label(
+                            expression.range(),
+                            "Parameter specialization exceeds the aggregate expression work limit",
+                        )]
+                    })?;
+            }
+            if self.required_policy == RequiredParameterPolicy::PublicIsFree {
+                let mut deferred = false;
+                for extent in extent_expressions(declaration.value_type()) {
+                    match structural_extent(self.declaration_file, extent, &self.resolved) {
+                        Ok(None) => deferred = true,
+                        Ok(Some(_)) => {}
+                        Err(error) => {
+                            diagnostics.push(error);
+                            deferred = true;
+                        }
+                    }
+                }
+                // No invented array shape enters the typed value map. The source
+                // declaration remains pending until an actual occurrence supplies
+                // every structural Parameter; an uninstantiated body fails closed.
+                if deferred {
+                    continue;
+                }
+            }
+            let target = match component_parameter_type(
+                self.declaration_file,
+                declaration,
+                &self.frames,
+                &self.resolved,
+            ) {
+                Ok(target) => target,
+                Err(error) => {
+                    diagnostics.push(error);
+                    continue;
+                }
+            };
+            let mut structural = BTreeSet::new();
+            for extent in extent_expressions(declaration.value_type()) {
+                if let Some((_, dependencies)) =
+                    structural_extent(self.declaration_file, extent, &self.resolved)
+                        .map_err(|error| vec![error])?
+                {
+                    structural.extend(dependencies);
+                }
+            }
+            if let Some(value) = self.bound_values.get(&name) {
+                if value.value_type != target {
+                    diagnostics.push(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.declaration_file,
+                        declaration.range(),
+                        "external checked value requires the exact specialized declared type",
+                    ));
+                } else {
+                    let mut value = value.clone();
+                    value.expression = value
+                        .expression
+                        .map(|expression| expression.with_structural_parameters(structural));
+                    self.resolved.insert(name, value);
+                }
+                continue;
+            }
+            let Some(expression) = definition.expression else {
+                if self.required_policy == RequiredParameterPolicy::PublicIsFree
+                    && declaration.visibility() == VisibilitySyntax::Public
+                {
+                    self.resolved.insert(
+                        name,
+                        SymbolicParameterValue {
+                            value: None,
+                            value_type: target,
+                            expression: None,
+                            lineage: None,
+                        },
+                    );
+                } else {
+                    diagnostics.push(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.declaration_file,
+                        declaration.range(),
+                        if declaration.visibility() == VisibilitySyntax::Private {
+                            format!("required private Parameter `{name}` has no default")
+                        } else {
+                            format!("required Parameter `{name}` has no instance binding")
+                        },
+                    ));
+                }
+                continue;
+            };
+            let evaluated = if let Some(bindings) = &self.bindings
+                && bindings.expression(&name).is_some()
+            {
+                bindings.evaluate(expression, target)
+            } else {
+                evaluate_initializer(
                     self.declaration_file,
-                    parameter.expression.range(),
-                    evaluated,
-                    parameter
-                        .target
-                        .clone()
-                        .expect("valid default has a target dimension"),
+                    expression,
+                    ExpressionContext::Default,
+                    &mut |dependency, range| {
+                        self.resolved.get(dependency).cloned().ok_or_else(|| {
+                            source_error(
+                                codes::LANGUAGE_TYPE_ERROR,
+                                self.declaration_file,
+                                range,
+                                format!("unknown component Parameter `{dependency}`"),
+                            )
+                        })
+                    },
+                    target.clone(),
                     "Parameter initializer",
-                    true,
+                    (&mut *resolve_clock, &mut |name| {
+                        self.frames.get(name).cloned()
+                    }),
                 )
-            });
+                .and_then(|value| {
+                    coerce_parameter_with_label(
+                        self.declaration_file,
+                        expression.range(),
+                        value,
+                        target,
+                        "Parameter initializer",
+                        true,
+                    )
+                })
+            };
             match evaluated {
-                Ok(value) => {
+                Ok(mut value) => {
+                    value.expression = value
+                        .expression
+                        .map(|expression| expression.with_structural_parameters(structural));
                     self.resolved.insert(name, value);
                 }
                 Err(error) => diagnostics.push(error),
             }
         }
-
         stable_sort(&mut diagnostics);
         if diagnostics.is_empty() {
             Ok(self.resolved)
@@ -377,106 +469,6 @@ fn parameter_declarations(component: &ComponentDecl) -> BTreeMap<String, &Compon
         .collect()
 }
 
-fn resolve_instance_overrides(
-    (declaration_file, binding_file): (&str, &str),
-    component: &ComponentDecl,
-    instance: &InstanceDecl,
-    (declarations, frames): (
-        &BTreeMap<String, &ComponentParameterDecl>,
-        &BTreeMap<String, SpatialSupport<String>>,
-    ),
-    mut resolve_parent: impl FnMut(&str) -> Option<SymbolicParameterValue>,
-    (resolve_clock, resolve_frame): StaticContexts<'_>,
-    context: ExpressionContext<'_>,
-) -> Result<BTreeMap<String, SymbolicParameterValue>, Vec<Diagnostic>> {
-    let mut overrides = BTreeMap::new();
-    let mut bound = BTreeSet::new();
-    let mut diagnostics = super::named_bindings::validate_names(binding_file, component, instance);
-    for binding in instance
-        .bindings()
-        .iter()
-        .filter(|binding| declarations.contains_key(binding.name()))
-    {
-        if !bound.insert(binding.name()) {
-            diagnostics.push(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                binding_file,
-                binding.range(),
-                format!(
-                    "duplicate binding for Parameter `{}` in instance `{}`",
-                    binding.name(),
-                    instance.name()
-                ),
-            ));
-            continue;
-        }
-        let Some(declaration) = declarations.get(binding.name()) else {
-            diagnostics.push(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                binding_file,
-                binding.range(),
-                format!(
-                    "unknown public Parameter `{}` on component `{}`",
-                    binding.name(),
-                    component.name()
-                ),
-            ));
-            continue;
-        };
-        if declaration.visibility() != VisibilitySyntax::Public {
-            diagnostics.push(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                binding_file,
-                binding.range(),
-                format!(
-                    "private Parameter `{}` cannot be bound on instance `{}`",
-                    binding.name(),
-                    instance.name()
-                ),
-            ));
-            continue;
-        }
-        let target = match component_parameter_type(declaration_file, declaration, frames) {
-            Ok(value) => value,
-            Err(error) => {
-                diagnostics.push(error);
-                continue;
-            }
-        };
-        let value = expression_eval::evaluate_with_domain(
-            binding_file,
-            binding.value(),
-            context,
-            &mut |name, range| {
-                resolve_parent(name).ok_or_else(|| {
-                    source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        binding_file,
-                        range,
-                        format!(
-                            "compile-time binding name `{name}` is not an enclosing scalar Parameter"
-                        ),
-                    )
-                })
-            },
-         resolve_clock,
-         resolve_frame,
-         (target.scalar_domain() == ScalarDomain::Integer).then_some(ScalarDomain::Integer))
-        .and_then(|value| coerce_parameter(binding_file, binding.range(), value, target));
-        match value {
-            Ok(value) => {
-                overrides.insert(binding.name().to_owned(), value);
-            }
-            Err(error) => diagnostics.push(error),
-        }
-    }
-    if diagnostics.is_empty() {
-        Ok(overrides)
-    } else {
-        Err(diagnostics)
-    }
-}
-
 /// Resolve a reusable Component's Parameter interface without inventing an
 /// occurrence value for any required public Parameter.
 pub(super) fn resolve_component_parameters_symbolically(
@@ -488,68 +480,31 @@ pub(super) fn resolve_component_parameters_symbolically(
         .resolve_all(&mut resolve_clock)
 }
 
-/// Validate a nested instance against an already-resolved child interface.
-///
-/// Definition checking should prefer this operation to full instance
-/// resolution. The child default graph has already been checked exactly once
-/// when `child_interface` was constructed, so one definition edge visits only
-/// its binding expressions and the child's required public declarations.
-pub(super) fn validate_instance_parameters_symbolically(
-    (declaration_file, binding_file): (&str, &str),
+pub(in crate::hierarchy) fn resolve_external_parameters(
+    file: &str,
     component: &ComponentDecl,
-    instance: &InstanceDecl,
-    parent_parameters: &SymbolicParameterMap,
-    child_interface: &SymbolicParameterMap,
-    mut resolve_clock: impl FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
-    mut resolve_frame: impl FnMut(&str) -> Option<SpatialSupport<String>>,
-) -> Result<(), Vec<Diagnostic>> {
-    let frames =
-        frames::instance_frames(declaration_file, component, instance, &mut resolve_frame)?;
-    let declarations = parameter_declarations(component);
-    if declarations.len() != child_interface.len()
-        || declarations
-            .keys()
-            .any(|name| !child_interface.contains_key(name))
-    {
-        return Err(vec![hierarchy_error(format!(
-            "cached symbolic Parameter interface for component `{}` does not match its declarations",
-            component.name()
-        ))]);
-    }
-    let overrides = resolve_instance_overrides(
-        (declaration_file, binding_file),
-        component,
-        instance,
-        (&declarations, &frames),
-        |name| parent_parameters.get(name).cloned(),
-        (&mut resolve_clock, &mut resolve_frame),
-        instance
-            .family()
-            .map_or(ExpressionContext::Binding, |family| {
-                ExpressionContext::IndexedBinding(family.member())
-            }),
-    )?;
-    let diagnostics = declarations
-        .into_iter()
-        .filter_map(|(name, declaration)| {
-            (declaration.visibility() == VisibilitySyntax::Public
-                && declaration.default().is_none()
-                && !overrides.contains_key(&name))
-            .then(|| {
-                source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    declaration_file,
-                    declaration.range(),
-                    format!("required Parameter `{name}` has no instance binding"),
-                )
-            })
+    bindings: &[super::ExternalParameterBinding],
+) -> Result<SymbolicParameterMap, Vec<Diagnostic>> {
+    let mut resolver = SymbolicParameterResolver::component_interface(file, component)?;
+    resolver.required_policy = RequiredParameterPolicy::RejectUnbound;
+    resolver.bound_values = bindings
+        .iter()
+        .map(|binding| {
+            (
+                binding.parameter().to_owned(),
+                SymbolicParameterValue {
+                    value: Some(binding.value().clone()),
+                    value_type: binding.value().value_type().clone(),
+                    expression: Some(LoweringExpression::literal(
+                        binding.value().clone(),
+                        component.range(),
+                    )),
+                    lineage: Some(ParameterLineage::Constant),
+                },
+            )
         })
-        .collect::<Vec<_>>();
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+        .collect();
+    resolver.resolve_all(&mut |name| super::clocks::component(file, component, name))
 }
 
 pub(super) struct ParameterResolver<'a> {
@@ -891,8 +846,10 @@ mod tests;
 mod static_values;
 pub(crate) use expression_eval::exact_signed_literal;
 pub(crate) use static_values::closed_value;
-pub(in crate::hierarchy) use static_values::closed_value_with_frames;
-pub(in crate::hierarchy) use static_values::{static_index, structural_extent, structural_index};
+pub(in crate::hierarchy) use static_values::index_set_extent;
+pub(in crate::hierarchy) use static_values::{
+    static_index, static_slice, structural_extent, structural_index,
+};
 
 pub(in crate::hierarchy) fn resolve_instance_parameters_symbolically(
     declaration_file: &str,

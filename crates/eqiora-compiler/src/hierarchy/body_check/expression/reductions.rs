@@ -35,6 +35,7 @@ impl ExpressionChecker<'_, '_, '_> {
             self.scope.file,
             expression,
             &mut |name| self.scope.index_sets.get(name).copied().flatten(),
+            &self.scope.static_values,
             self.scope.elaborator.limits.max_parameter_terms,
         )?;
         let extent = self

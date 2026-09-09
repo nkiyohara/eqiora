@@ -64,7 +64,9 @@ pub(super) fn format_value_type(
         ValueTypeSyntaxKind::Array { element, extent } => {
             output.push_str("array<");
             format_value_type(element, output);
-            write!(output, ", {extent}>").expect("String write");
+            output.push_str(", ");
+            super::expression::format_expression(extent, 9, output);
+            output.push('>');
         }
     }
 }

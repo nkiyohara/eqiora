@@ -29,9 +29,9 @@ use values::{
     encode_literal, encode_optional_literal, encode_quantity, encode_value_type, type_reference,
 };
 
-const FINGERPRINT_DOMAIN_V15: &[u8] = b"eqiora.structural-semantic-fingerprint/v15\0";
+const FINGERPRINT_DOMAIN_V16: &[u8] = b"eqiora.structural-semantic-fingerprint/v16\0";
 const PROJECTION_MAGIC: &[u8; 8] = b"EQIORASF";
-const GENERATION_V15: u16 = 15;
+const GENERATION_V16: u16 = 16;
 
 /// Current generation of the structural semantic projection.
 ///
@@ -43,7 +43,7 @@ pub enum SemanticFingerprintGeneration {
     /// Closed projection retaining Boolean and exact integer payloads, nominal references,
     /// ordered equation sides, comparisons and finite extrema, initialization,
     /// sample/hold transitions, typed operators, and conditional value guards.
-    V15,
+    V16,
 }
 
 impl SemanticFingerprintGeneration {
@@ -51,19 +51,19 @@ impl SemanticFingerprintGeneration {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::V15 => "eqiora.structural-semantic-fingerprint/v15",
+            Self::V16 => "eqiora.structural-semantic-fingerprint/v16",
         }
     }
 
     const fn code(self) -> u16 {
         match self {
-            Self::V15 => GENERATION_V15,
+            Self::V16 => GENERATION_V16,
         }
     }
 
     const fn hash_domain(self) -> &'static [u8] {
         match self {
-            Self::V15 => FINGERPRINT_DOMAIN_V15,
+            Self::V16 => FINGERPRINT_DOMAIN_V16,
         }
     }
 }
@@ -206,7 +206,7 @@ impl ProjectionIdentity {
         limits: SemanticFingerprintLimits,
     ) -> Result<Self, Diagnostic> {
         validate_limits(limits)?;
-        let generation = SemanticFingerprintGeneration::V15;
+        let generation = SemanticFingerprintGeneration::V16;
         let graph = ProjectionGraph::from_program(program, limits)?;
         let canonical = Canonicalizer::new(&graph, limits).canonicalize()?;
         let mut hasher = Sha256::new();
@@ -841,6 +841,7 @@ fn edge_label(kind: EdgeKind) -> Result<Vec<u8>, Diagnostic> {
         EdgeKind::Activates => 6,
         EdgeKind::Connects => 7,
         EdgeKind::ClockedBy => 8,
+        EdgeKind::StructurallyDependsOn => 9,
         _ => return Err(newer_vocabulary("Semantic Model edge")),
     };
     Ok(vec![1, tag])
@@ -901,7 +902,7 @@ fn validate_limits(limits: SemanticFingerprintLimits) -> Result<(), Diagnostic> 
 
 fn newer_vocabulary(subject: &str) -> Diagnostic {
     fingerprint_error(format!(
-        "{subject} is newer than structural semantic fingerprint generation v15"
+        "{subject} is newer than structural semantic fingerprint generation v16"
     ))
 }
 
