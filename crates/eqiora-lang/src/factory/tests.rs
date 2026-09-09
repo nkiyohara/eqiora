@@ -621,9 +621,9 @@ fn factory_constructs_complete_exterior_families_and_roundtrips() {
     )
     .expect("selected Port expression");
     let residual = SourceAstFactory::expression(
-        ExprKind::Call {
-            callee: path(&["flux"]),
-            arguments: crate::CallArguments::Positional(vec![selected_port]),
+        ExprKind::Member {
+            value: Box::new(selected_port),
+            member: "traction".to_owned(),
         },
         range(0, 0),
     )
@@ -708,6 +708,7 @@ fn factory_constructs_complete_exterior_families_and_roundtrips() {
         .expect("document");
 
     let source = format(&document);
+    assert!(source.contains("mechanical[boundary = boundary].traction"));
     let reparsed = parse("complete-exterior-factory.eqi", &source)
         .into_document()
         .expect("factory boundary-family source parses");

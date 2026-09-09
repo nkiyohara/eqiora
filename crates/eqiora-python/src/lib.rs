@@ -115,7 +115,8 @@ fn compile(
         let authority = geometry
             .as_ref()
             .map(|geometry| geometry.borrow(py).geometry().clone());
-        let values = static_bindings::extract(bindings, authority.as_ref())?;
+        let binding_geometry = authority.as_ref();
+        let values = static_bindings::extract(bindings, binding_geometry)?;
         if entry.is_none() && (geometry.is_some() || bindings.is_some()) {
             return Err(python_compile_admission_error(
                 py,
@@ -129,7 +130,7 @@ fn compile(
                 Some(entry) => {
                     let bindings = values
                         .iter()
-                        .map(|(name, value)| (name.as_str(), value.borrowed(authority.as_ref())))
+                        .map(|(name, value)| (name.as_str(), value.borrowed(binding_geometry)))
                         .collect::<Vec<_>>();
                     ModelDocument::compile_selected(&filename, &source, &entry, &bindings)
                 }

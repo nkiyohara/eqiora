@@ -317,13 +317,14 @@ fn compile_package(
         let authority = geometry
             .as_ref()
             .map(|geometry| geometry.borrow(py).geometry().clone());
-        let values = crate::static_bindings::extract(bindings, authority.as_ref())?;
+        let binding_geometry = authority.as_ref();
+        let values = crate::static_bindings::extract(bindings, binding_geometry)?;
         let entry = entry.to_owned();
         let compiled = py.detach(move || {
             let (store, resolution) = open_locked_package(store_root, resolution)?;
             let bindings = values
                 .iter()
-                .map(|(name, value)| (name.as_str(), value.borrowed(authority.as_ref())))
+                .map(|(name, value)| (name.as_str(), value.borrowed(binding_geometry)))
                 .collect::<Vec<_>>();
             PackagedModelDocument::compile_selected(&store, &resolution, &entry, &bindings)
                 .map_err(map_package_compilation_error)
