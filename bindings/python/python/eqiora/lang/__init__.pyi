@@ -580,6 +580,14 @@ def div(value: Expression) -> Expression:
 
     ...
 
+def derivative(value: Expression) -> Expression:
+    """Author a continuous State derivative; the compiler checks role and activation.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::derivative``.
+    """
+    ...
+
+
 def pre(value: Expression) -> Expression:
     """Read a State's pre-tick value; compiler checks clock and context.
 
@@ -674,6 +682,7 @@ __all__ = [
     "math",
     "normal",
     "ordinal",
+    "derivative",
     "pre",
     "next",
     "quantity",
