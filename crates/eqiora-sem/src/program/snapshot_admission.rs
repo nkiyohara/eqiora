@@ -118,6 +118,7 @@ impl KernelProgram {
 
         validate_closed_topology(snapshot, view.members(), &mut diagnostics);
         super::nominal_values::validate(&nodes, &mut diagnostics);
+        super::record_admission::validate(&nodes, &edges, &mut diagnostics);
         let cartesian_bounds = resolve_cartesian_bounds(&nodes, &values, &edges, &mut diagnostics);
         let invalid_domains = validate_domains(&nodes, &edges, &cartesian_bounds, &mut diagnostics);
         let mut spatial_supports = cartesian_spatial_supports(&nodes, &edges, &cartesian_bounds);

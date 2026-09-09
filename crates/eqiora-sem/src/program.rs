@@ -3,6 +3,7 @@
 pub(crate) mod geometry_admission;
 mod nominal_values;
 mod numerical_residuals;
+mod record_admission;
 mod relation_admission;
 pub(crate) mod signal_activation;
 pub(crate) mod signal_connections;
