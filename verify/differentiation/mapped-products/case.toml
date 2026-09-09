@@ -34,7 +34,8 @@ finite_difference_oracle = false
 every_declared_occurrence_and_seed_retained = true
 shared_values_and_parameter_identity_admitted = true
 partial_primal_does_not_publish_gradient = true
-no_primal_resolve_for_derivatives = true
+no_primal_resolve_under_retain = true
+recompute_requires_exact_original_acceptance = true
 foreign_or_stale_linearization_rejected = true
 shared_sum_uses_request_order = true
 byte_products_and_nonfinite_values_fail_closed = true
@@ -44,6 +45,7 @@ mean = "dividing the shared cotangent by the number of points changes the frozen
 deduplication = "a repeated point loses its distinct nonzero mapped cotangent"
 axis_transpose = "independent point-major, seed-major and interleaved offsets disagree"
 stale_product = "an action from another accepted point or Program enters the product"
+recomputed_product = "explicit recomputation changes the frozen point/receipt or shared request-order sum"
 partial_primal = "a missing planned member is accepted for product construction"
 overflow = "a nonfinite sum or unrepresentable numerical buffer is admitted"
 

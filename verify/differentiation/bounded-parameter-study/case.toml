@@ -1,17 +1,19 @@
 id = "differentiation.bounded-parameter-study"
 status = "implemented"
-scope = "ordered-host-serial-q1-and-tpfa-maps-of-complete-parameter-points"
+scope = "bounded-ordered-host-q1-and-tpfa-maps-with-explicit-retention"
 reference_kind = "separately-executed-accepted-evaluations"
 
 capabilities = [
   "exact-program-bound-ordered-evaluation-map",
   "complete-multiple-parameter-points",
   "positional-duplicates-and-permutations",
-  "explicit-retained-numerical-storage-admission",
+  "explicit-defined-storage-estimate-admission",
   "empty-and-singleton-collections",
   "point-local-primal-and-linearization-retention",
   "complete-versus-indexed-terminal-publication",
-  "independently-inspectable-accepted-prefix",
+  "independently-inspectable-indexed-accepted-members",
+  "bounded-host-chunks-and-workers",
+  "explicit-retain-or-exact-recompute",
   "between-occurrence-cooperative-cancellation",
 ]
 
@@ -20,7 +22,9 @@ source_case = "differentiation.spatial-poisson-fem-fvm"
 methods = ["continuous-q1-galerkin", "cell-centered-tpfa"]
 spatial_dimension = 2
 scalar = "native-f64"
-execution = "host-serial"
+execution = "bounded-host-workers-with-single-thread-reference-members"
+chunk_worker_profiles = [[1, 1], [2, 1], [2, 2], [3, 2]]
+retention = ["retain", "recompute"]
 program_inputs = ["source_scale", "diffusion", "boundary_offset"]
 p0 = [1.0, 1.0, 0.0]
 p1 = [2.0, 0.75, 0.5]
@@ -33,7 +37,7 @@ pointwise_owner = "differentiation.spatial-poisson-fem-fvm"
 member_reference = "ordinary DifferentiableProgram::evaluate calls outside the map, at each complete requested point, separately for Q1 and TPFA"
 member_observation = "exact program identity, ordered Parameter IDs, point and Field coefficient bits, state/accepted-output fingerprints, solver report, and full exposed primal evidence"
 aggregate_observation = "one accepted member at every requested position, with duplicates and caller order preserved"
-terminal_observation = "accepted prefix remains inspectable; exact failed/cancelled position and later not-started positions cannot be a complete collection"
+terminal_observation = "every accepted position remains inspectable; failed/cancelled/not-started positions cannot be a complete collection; private companion exercises in-flight accepted holes"
 derivative_observation = "JVP and VJP computed before other evaluations equal actions from the retained original and mapped repeated members afterwards"
 fixed_scientific_values = false
 new_field_digest = false
@@ -58,13 +62,14 @@ deduplication = "two declared equal points lose one requested occurrence"
 partial_publication = "a failed/cancelled collection is exposed as complete"
 retargeting = "another evaluation changes an earlier point's primal/JVP/VJP"
 failure_identity = "the failed index or original diagnostic is replaced"
-structural_admission = "wrong arity, nonfinite input, or insufficient retained numerical budget is admitted"
+structural_admission = "wrong arity, nonfinite input, or insufficient defined storage budget is admitted"
+recomputation = "released state changes its frozen point or original complete acceptance receipt"
 
 [claim_boundary]
 registered_execution_methods = ["continuous-q1-galerkin", "cell-centered-tpfa"]
 partial_accepted_members = true
 python_map_api = false
-parallel_or_threaded = false
+parallel_or_threaded = true
 cuda = false
 mpi = false
 cache = false

@@ -21,7 +21,7 @@ fn public_q1_and_tpfa_map_products_use_retained_evaluations() {
         let map = EvaluationMapPlan::new(
             program.clone(),
             &[&[2.0, 1.0, 0.0], &[2.0, 2.0, 0.5], &[2.0, 1.0, 0.0]],
-            1 << 30,
+            eqiora::api::EvaluationMapExecutionPolicy::retained(1 << 30),
         )
         .unwrap()
         .execute()
@@ -38,7 +38,7 @@ fn public_q1_and_tpfa_map_products_use_retained_evaluations() {
         assert_eq!(vjp.mapped_shape(), [2, 3, 2]);
         for seed in 0..2 {
             let mut expected_shared = 0.0;
-            for (point, evaluation) in map.members().iter().enumerate() {
+            for (point, evaluation) in map.members().unwrap().iter().enumerate() {
                 assert_eq!(
                     jvp.products()[seed * 3 + point],
                     evaluation.jvp(&[(seed + 1) as f64, 0.0, 0.0]).unwrap()

@@ -158,7 +158,7 @@ def test_metadata_only_physical_failure_and_native_cancellation():
     # Negative diffusion is finite and has a valid input schema: only execute solves/admit physics.
     plan = program.map(np.array([[1.0, 2.0, 0.0], [1.0, -1.0, 0.0], [3.0, 2.0, 0.0]]))
     assert plan.output_shape == (3, *program.output_shape)
-    assert plan.estimated_retained_bytes > 0
+    assert plan.estimated_storage_bytes > 0
     report = plan.execute()
     assert isinstance(report, eqiora.EvaluationMapTerminalReport)
     assert report.stopped_index == 1

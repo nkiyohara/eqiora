@@ -17,8 +17,11 @@ Pointwise numerical truth remains with
 [`differentiation.spatial-poisson-fem-fvm`](../spatial-poisson-fem-fvm/README.md).
 
 Success requires one complete collection. Numerical failure and boundary cancellation preserve
-the individually accepted prefix, identify the terminal occurrence, and leave later positions
-not started. Empty maps finish without evaluation or cancellation polling. Singleton maps,
+individually accepted indexed members and identify failed/cancelled/not-started occurrences.
+The public path compares chunk/worker profiles `(1,1)`, `(2,1)`, `(2,2)`, `(3,2)` under both
+`Retain` and `Recompute`. Ordered delivery matches independent pointwise acceptance; released
+members retain the original full receipt and explicitly recompute the same frozen point.
+Empty maps finish without evaluation or cancellation polling. Singleton maps,
 structural rejection, exact byte-limit admission and cancellation precedence are exercised.
 
 The required [private companion](../bounded-parameter-study-private/README.md) tests constructor
@@ -36,7 +39,8 @@ mise run affected -- \
   --case differentiation.bounded-parameter-study-private
 ```
 
-This does not verify Python/JAX adapters, derivatives across the map axis, threading, caching,
-stochastic paths, persistence, or peak process memory. The byte estimate bounds additional
-retained numerical storage; deployment metadata, allocator overhead and solver scratch are
-outside that estimate.
+This does not verify Python/JAX adapters, derivatives across the map axis, caching, new
+stochastic laws, persistence or peak process memory. The defined storage estimate charges
+numerical retention, every indexed point/outcome/receipt and bounded scheduling buffers.
+Temporary deployment metadata uses encoded size, not a heap upper bound. Allocator overhead,
+solver scratch, thread stacks, diagnostics and caller-owned callback copies are excluded.

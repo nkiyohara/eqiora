@@ -5,30 +5,33 @@ reference_kind = "injected-composition-mutants"
 
 capabilities = [
   "exact-ordered-membership-construction",
-  "one-serial-call-per-reached-occurrence",
+  "one-call-per-dispatched-occurrence-without-retry",
   "foreign-program-plan-point-rejection",
   "indexed-accepted-failed-cancelled-not-started-states",
-  "explicit-checked-retained-storage-admission",
+  "explicit-checked-storage-estimate-admission",
+  "bounded-host-worker-and-chunk-payload-lifetime",
+  "full-frozen-sample-and-acceptance-preservation",
 ]
 
 [authority]
 required_primary_case = "differentiation.bounded-parameter-study"
 verification_requires_both_cases = true
 public_observation_owner = "crates/eqiora/tests/bounded_parameter_study.rs"
-private_falsifier_owner = "crates/eqiora-api/src/evaluation_map/tests.rs"
+private_falsifier_owner = "crates/eqiora-api/src/evaluation_map/tests.rs and its bounded_tests/outcomes companions"
 
 [oracle]
 pointwise_owner = "differentiation.spatial-poisson-fem-fvm"
-member_reference = "ordinary accepted evaluations injected through the private serial-evaluation and complete-membership seams"
+member_reference = "ordinary accepted evaluations injected through the single production map scheduler and complete-membership seams"
 aggregate_observation = "exact program and complete point at every requested position; missing, excess, wrongly substituted and reordered members reject"
-execution_observation = "one nonoverlapping evaluator call per reached occurrence, including duplicates; stop at first failure or boundary cancellation"
-resource_observation = "explicit numerical-storage bound covers more than output buffers, accepts its exact limit, rejects below it and checked product overflow"
+execution_observation = "serial and bounded-worker schedules preserve every requested position; forced out-of-order completion and in-flight success cannot turn failure into complete membership"
+resource_observation = "active evaluator peak respects the worker cap; finished numerical payloads reach at most the chunk extent then zero under Recompute; O(n) point/outcome/receipt metadata remains charged; exact budget, one byte below and product overflow are checked"
 fixed_scientific_values = false
 new_field_digest = false
 new_tolerance = false
 
 [acceptance]
-evaluation_calls_are_sequential = true
+serial_profile_calls_are_sequential = true
+parallel_calls_are_bounded = true
 one_call_per_reached_occurrence = true
 complete_members_are_ordered_and_exact = true
 accepted_partial_members_remain_inspectable = true
@@ -42,17 +45,20 @@ foreign_member = "a foreign Model, Plan, method, input order, or point enters a 
 missing_member = "a missing requested position still permits complete construction"
 inserted_member = "an additional unrequested occurrence permits complete construction"
 reordered_member = "swapping members at unequal requested points permits complete construction"
-substituted_evaluation = "an evaluator's foreign output is accepted or later points still run"
-failure_continuation = "a point after the failure is evaluated"
+substituted_evaluation = "an evaluator's foreign output is accepted or new tasks are dispatched after that rejection"
+failure_continuation = "a new task is dispatched after the coordinator observes failure; in-flight tasks still receive ordinary acceptance"
 partial_complete = "accepted members of a terminal report construct a complete map"
-cancellation_boundary = "cancellation is polled inside evaluation or after completion"
-resource_overflow = "overflow or an insufficient retained numerical budget permits admission"
+cancellation_boundary = "cancellation is polled within a numerical action rather than before dispatch, or after complete membership"
+resource_overflow = "overflow or an insufficient defined storage budget permits admission"
+aliasing = "mutated caller input or delivered output, or a previous evaluation buffer, changes another exact accepted occurrence"
+receipt_substitution = "recomputation accepts an original receipt from another point"
+sample_association = "chunking or recomputation drops generator/master/coupling/lineage or confuses equal points with sample IDs"
 
 [claim_boundary]
 adds_executor_abstraction = false
 adds_pointwise_scientific_claim = false
 partial_accepted_members = true
-parallel_or_threaded = false
+parallel_or_threaded = true
 cache = false
 persistence_or_wire = false
 scheduler_or_workflow_dag = false

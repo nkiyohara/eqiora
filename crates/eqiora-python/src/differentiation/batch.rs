@@ -3,10 +3,11 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use eqiora::api::{
-    CompleteEvaluationMap, EvaluationMapPlan, EvaluationMapProducts, EvaluationMapTerminalReport,
+    CompleteEvaluationMap, EvaluationMapExecutionPolicy, EvaluationMapPlan, EvaluationMapProducts,
+    EvaluationMapTerminalReport,
 };
 use eqiora::{Id, entity::kinds};
-use pyo3::exceptions::{PyBufferError, PyIndexError};
+use pyo3::exceptions::{PyBufferError, PyIndexError, PyRuntimeError};
 use pyo3::types::PyTuple;
 
 use super::*;
@@ -147,8 +148,8 @@ impl PyEvaluationMapPlan {
         ids(&self.mapped())
     }
     #[getter]
-    fn estimated_retained_bytes(&self) -> usize {
-        self.native.estimated_retained_bytes()
+    fn estimated_storage_bytes(&self) -> usize {
+        self.native.estimated_storage_bytes()
     }
     /// Exact frozen complete points in Program coordinate order.
     #[getter]
@@ -265,7 +266,7 @@ pub(super) fn plan(
         &shared_values,
         &mapped_values,
         point_shape,
-        limit,
+        EvaluationMapExecutionPolicy::retained(limit),
     )
     .map_err(|error| diagnostic_error(py, &[error]))?;
     Ok(PyEvaluationMapPlan {

@@ -1,13 +1,11 @@
 # Expected observations
 
-There is no stored numerical table, Field digest, coefficient, or tolerance.
-The expected member for each canonical key is the immutable
-`DifferentiableEvaluation` produced by a separate call to the already accepted
-program at the same complete point. The test compares exact value bits and all
-exposed accepted primal evidence directly.
+No numerical coefficient table, digest or tolerance is added. Each requested occurrence
+is compared with an independently accepted evaluation at that same complete point and
+Program. Ordered duplicates and permutations remain separate positions.
 
-The public fixed observations are canonical keys `0.75, 1.0, 1.25`, exact
-member equality with separately accepted evaluations, canonical failure
-prefixes, and cancellation polling before or between point evaluations. The
-required private companion owns exact call count and depth plus construction
-mutants for the complete membership bijection.
+Serial, chunked and bounded host-worker policies preserve exact primal evidence. Retain
+keeps original numerical state; Recompute keeps full original receipts and reaccepts the
+same frozen points. Only complete membership can be a CompleteEvaluationMap. The private
+companion owns forced completion order, failure holes, concurrency/lifetime instrumentation,
+foreign-member/receipt substitution, sample association and buffer-alias falsifiers.

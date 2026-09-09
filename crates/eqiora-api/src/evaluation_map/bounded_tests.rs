@@ -1,0 +1,615 @@
+use std::num::NonZeroUsize;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Condvar, Mutex};
+
+use eqiora_core::{Diagnostic, diagnostic::codes};
+use eqiora_numerics::CommonSpatialPolicy;
+use eqiora_realization::{RealizationRevision, Target};
+
+use super::*;
+use crate::{ParameterSampler, SamplingCoupling, SamplingGenerator, SamplingIdentity};
+
+const LIMIT: usize = 1 << 30;
+const POINTS: [[f64; 3]; 5] = [
+    [3.0, 1.25, -0.25],
+    [2.0, 0.75, 0.5],
+    [3.0, 1.25, -0.25],
+    [1.0, 2.0, 0.0],
+    [2.0, 0.75, 0.5],
+];
+
+pub(super) fn registered_bounded_falsifiers() {
+    staged_input_and_delivered_output_alias_mutations_cannot_retarget_accepted_members();
+    real_numerical_failure_at_a_chunk_edge_does_not_contaminate_inflight_members();
+    resident_payload_instrumentation_is_chunk_bounded_and_metadata_scales_with_inventory();
+    partitions_parallel_and_recompute_match_independently_accepted_q1_and_tpfa();
+    forced_out_of_order_completion_preserves_duplicate_occurrences_and_worker_bound();
+    failed_and_cancelled_chunks_keep_indexed_inflight_success_without_retry();
+    storage_admission_bounds_chunks_metadata_and_overflow_before_execution();
+    frozen_sampling_identity_is_retained_across_chunks_and_recompute();
+    outcomes::verify_recompute_receipt_falsifier();
+}
+
+#[test]
+fn staged_input_and_delivered_output_alias_mutations_cannot_retarget_accepted_members() {
+    let (_, program) = tests::fixture();
+    let program = Arc::new(program);
+    let mut caller = POINTS[0].to_vec();
+    let plan = EvaluationMapPlan::new(
+        program.clone(),
+        &[&caller, &caller],
+        policy(2, 2, EvaluationMapRetention::Retain),
+    )
+    .unwrap();
+    caller.fill(9.0);
+    let expected = program.evaluate(&POINTS[0]).unwrap();
+    let mut outputs = Vec::new();
+    let complete = plan
+        .execute_with_delivery(
+            || false,
+            |_, member| outputs.push(member.primal().into_parts().0),
+        )
+        .unwrap();
+    outputs[0].fill(99.0);
+    assert_eq!(outputs[1], expected.primal().into_parts().0);
+    assert_member(complete.evaluation(0).unwrap(), &expected);
+    assert_member(complete.evaluation(1).unwrap(), &expected);
+    // Simulate an unsafe adapter accidentally reusing the previous accepted
+    // buffer/linearization. Equal length and provider do not authorize reuse.
+    let plan = EvaluationMapPlan::new(
+        program.clone(),
+        &[&POINTS[0], &POINTS[1]],
+        policy(2, 1, EvaluationMapRetention::Retain),
+    )
+    .unwrap();
+    let previous = Mutex::new(None);
+    let report = plan
+        .execute_with_evaluator(
+            &|program, point| {
+                let mut previous = previous.lock().unwrap();
+                if previous.is_none() {
+                    *previous = Some(program.evaluate(point).unwrap());
+                }
+                Ok(previous.as_ref().unwrap().clone())
+            },
+            &mut || false,
+        )
+        .unwrap_err();
+    assert_eq!(report.stopped_index(), 1);
+    assert!(
+        report.diagnostics()[0]
+            .message()
+            .contains("exact requested point")
+    );
+    assert_member(report.accepted_members().next().unwrap().1, &expected);
+}
+
+#[test]
+fn real_numerical_failure_at_a_chunk_edge_does_not_contaminate_inflight_members() {
+    let (_, program) = tests::fixture();
+    let program = Arc::new(program);
+    let invalid = [1.0, -1.0, 0.0];
+    let original = program.evaluate(&invalid).unwrap_err();
+    let plan = EvaluationMapPlan::new(
+        program.clone(),
+        &[&POINTS[0], &POINTS[1], &invalid, &POINTS[3], &POINTS[4]],
+        policy(2, 2, EvaluationMapRetention::Recompute),
+    )
+    .unwrap();
+    let report = plan.execute().unwrap_err();
+    assert_eq!(report.stopped_index(), 2);
+    assert_eq!(report.diagnostics(), original);
+    for index in [0, 1, 3] {
+        assert_member(
+            &report.recompute(index).unwrap(),
+            &program.evaluate(&POINTS[index]).unwrap(),
+        );
+    }
+    assert!(matches!(
+        report.occurrence(4),
+        Some(EvaluationMapOccurrence::NotStarted)
+    ));
+}
+
+#[test]
+fn resident_payload_instrumentation_is_chunk_bounded_and_metadata_scales_with_inventory() {
+    let (_, program) = tests::fixture();
+    let program = Arc::new(program);
+    let points = vec![POINTS[0].as_slice(); 17];
+    for chunk in [1, 2, 5] {
+        let plan = EvaluationMapPlan::new(
+            program.clone(),
+            &points,
+            policy(chunk, chunk.min(2), EvaluationMapRetention::Recompute),
+        )
+        .unwrap();
+        let mut observed = Vec::new();
+        let complete = schedule::execute(
+            &plan,
+            &|program, point| program.evaluate(point),
+            &mut || false,
+            &mut |_, _| {},
+            &mut |count| observed.push(count),
+        )
+        .unwrap();
+        let expected = points
+            .chunks(chunk)
+            .flat_map(|chunk| [chunk.len(), 0])
+            .collect::<Vec<_>>();
+        assert_eq!(
+            observed, expected,
+            "finished numerical buffers are released at every delivery boundary"
+        );
+        assert!(complete.members().is_none());
+    }
+    let first = EvaluationMapPlan::new(
+        program.clone(),
+        &points,
+        policy(2, 2, EvaluationMapRetention::Recompute),
+    )
+    .unwrap();
+    let second = EvaluationMapPlan::new(
+        program,
+        &vec![POINTS[0].as_slice(); 34],
+        policy(2, 2, EvaluationMapRetention::Recompute),
+    )
+    .unwrap();
+    // Doubling the inventory must charge exactly the extra fixed membership and
+    // frozen point records, not double the bounded numerical chunk payload.
+    let one_record = size_of::<DifferentiableParameterPoint>()
+        + 3 * (size_of::<f64>()
+            + size_of::<eqiora_core::Id<eqiora_core::entity::kinds::Parameter>>())
+        + size_of::<outcomes::Outcome>()
+        + size_of::<eqiora_execution::ExecutionReceipt>()
+        + size_of::<DifferentiableEvaluation>();
+    assert_eq!(
+        second.estimated_storage_bytes() - first.estimated_storage_bytes(),
+        17 * one_record
+    );
+}
+
+fn policy(
+    chunk: usize,
+    workers: usize,
+    retention: EvaluationMapRetention,
+) -> EvaluationMapExecutionPolicy {
+    EvaluationMapExecutionPolicy::new(
+        chunk,
+        Target::HostCpu {
+            threads: NonZeroUsize::new(workers).unwrap(),
+        },
+        retention,
+        LIMIT,
+    )
+    .unwrap()
+}
+
+#[test]
+fn partitions_parallel_and_recompute_match_independently_accepted_q1_and_tpfa() {
+    let (document, _) = tests::fixture();
+    for spatial in [
+        CommonSpatialPolicy::Q1,
+        CommonSpatialPolicy::CellCenteredTpfa,
+    ] {
+        let program = Arc::new(tests::program_for(
+            &document,
+            spatial,
+            RealizationRevision::new(21),
+            &["source_scale", "diffusion", "boundary_offset"],
+        ));
+        let expected = POINTS
+            .iter()
+            .map(|point| program.evaluate(point).unwrap())
+            .collect::<Vec<_>>();
+        let points = POINTS
+            .iter()
+            .map(|point| point.as_slice())
+            .collect::<Vec<_>>();
+        for (chunk, workers) in [(1, 1), (2, 1), (3, 1), (2, 2), (5, 3)] {
+            for retention in [
+                EvaluationMapRetention::Retain,
+                EvaluationMapRetention::Recompute,
+            ] {
+                let plan = EvaluationMapPlan::new(
+                    program.clone(),
+                    &points,
+                    policy(chunk, workers, retention),
+                )
+                .unwrap();
+                let mut delivered = Vec::new();
+                let complete = plan
+                    .execute_with_delivery(
+                        || false,
+                        |index, evaluation| {
+                            delivered.push(index);
+                            assert_member(evaluation, &expected[index]);
+                        },
+                    )
+                    .unwrap();
+                assert_eq!(delivered, [0, 1, 2, 3, 4]);
+                assert_eq!(complete.len(), 5);
+                for (index, expected) in expected.iter().enumerate() {
+                    assert_eq!(complete.receipt(index).unwrap(), expected.map_receipt());
+                    match retention {
+                        EvaluationMapRetention::Retain => {
+                            assert_member(complete.evaluation(index).unwrap(), expected);
+                            assert!(complete.recompute(index).is_err());
+                        }
+                        EvaluationMapRetention::Recompute => {
+                            assert!(complete.members().is_none());
+                            assert_member(&complete.recompute(index).unwrap(), expected);
+                        }
+                    }
+                }
+                let products =
+                    EvaluationMapProducts::new(&complete, &[], &[5], &[2], &[1], LIMIT).unwrap();
+                let tangents = vec![0.25; 5 * 2 * 3];
+                let jvp = products.jvp(&[], &tangents).unwrap();
+                for (point, expected) in expected.iter().enumerate() {
+                    for seed in 0..2 {
+                        assert_eq!(
+                            jvp.products()[seed * 5 + point],
+                            expected.jvp(&[0.25; 3]).unwrap()
+                        );
+                    }
+                }
+                let cotangents = vec![0.5; 5 * 2 * program.identity().output_dimension()];
+                let vjp = products.vjp(&cotangents).unwrap();
+                for (point, expected) in expected.iter().enumerate() {
+                    for seed in 0..2 {
+                        assert_eq!(
+                            vjp.products()[seed * 5 + point],
+                            expected
+                                .vjp(&vec![0.5; program.identity().output_dimension()])
+                                .unwrap()
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn assert_member(actual: &DifferentiableEvaluation, expected: &DifferentiableEvaluation) {
+    assert_eq!(actual.identity(), expected.identity());
+    assert_eq!(actual.point().inputs(), expected.point().inputs());
+    assert!(exact_values(
+        actual.point().values(),
+        expected.point().values()
+    ));
+    assert_eq!(actual.primal(), expected.primal());
+    assert_eq!(
+        actual.jvp(&[0.25, -0.5, 0.125]).unwrap(),
+        expected.jvp(&[0.25, -0.5, 0.125]).unwrap()
+    );
+    assert_eq!(
+        actual
+            .vjp(&vec![1.0; actual.identity().output_dimension()])
+            .unwrap(),
+        expected
+            .vjp(&vec![1.0; expected.identity().output_dimension()])
+            .unwrap()
+    );
+}
+
+#[test]
+fn forced_out_of_order_completion_preserves_duplicate_occurrences_and_worker_bound() {
+    let (_, program) = tests::fixture();
+    let plan = EvaluationMapPlan::new(
+        Arc::new(program),
+        &[&POINTS[0], &POINTS[1], &POINTS[0]],
+        policy(2, 2, EvaluationMapRetention::Retain),
+    )
+    .unwrap();
+    let completed = Mutex::new(Vec::new());
+    let condition = Condvar::new();
+    let active = AtomicUsize::new(0);
+    let peak = AtomicUsize::new(0);
+    let complete = plan
+        .execute_with_evaluator(
+            &|program, point| {
+                let count = active.fetch_add(1, Ordering::SeqCst) + 1;
+                peak.fetch_max(count, Ordering::SeqCst);
+                if point == POINTS[0] {
+                    let mut done = completed.lock().unwrap();
+                    while done.is_empty() {
+                        done = condition.wait(done).unwrap();
+                    }
+                }
+                let value = program.evaluate(point);
+                completed.lock().unwrap().push(point[0]);
+                active.fetch_sub(1, Ordering::SeqCst);
+                condition.notify_all();
+                value
+            },
+            &mut || false,
+        )
+        .unwrap();
+    assert_eq!(*completed.lock().unwrap(), [2.0, 3.0, 3.0]);
+    assert_eq!(peak.load(Ordering::SeqCst), 2);
+    assert_eq!(active.load(Ordering::SeqCst), 0);
+    for (index, point) in [POINTS[0], POINTS[1], POINTS[0]].iter().enumerate() {
+        assert_eq!(complete.evaluation(index).unwrap().point().values(), point);
+    }
+}
+
+#[test]
+fn failed_and_cancelled_chunks_keep_indexed_inflight_success_without_retry() {
+    let (_, program) = tests::fixture();
+    let program = Arc::new(program);
+    for retention in [
+        EvaluationMapRetention::Retain,
+        EvaluationMapRetention::Recompute,
+    ] {
+        let plan = EvaluationMapPlan::new(
+            program.clone(),
+            &[&POINTS[0], &POINTS[1], &POINTS[2], &POINTS[3]],
+            policy(2, 2, retention),
+        )
+        .unwrap();
+        let calls = AtomicUsize::new(0);
+        let barrier = std::sync::Barrier::new(2);
+        let original = Diagnostic::error(
+            codes::INVALID_LINEARIZATION,
+            "independent failed occurrence",
+        );
+        let report = plan
+            .execute_with_evaluator(
+                &|program, point| {
+                    calls.fetch_add(1, Ordering::SeqCst);
+                    barrier.wait();
+                    if point == POINTS[0] {
+                        Err(vec![original.clone()])
+                    } else {
+                        program.evaluate(point)
+                    }
+                },
+                &mut || false,
+            )
+            .unwrap_err();
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        assert_eq!(report.stopped_index(), 0);
+        assert_eq!(report.diagnostics(), [original]);
+        assert!(matches!(
+            report.occurrence(1),
+            Some(EvaluationMapOccurrence::Accepted(_) | EvaluationMapOccurrence::Released(_))
+        ));
+        assert!(matches!(
+            report.occurrence(2),
+            Some(EvaluationMapOccurrence::NotStarted)
+        ));
+        assert!(report.recompute(0).is_err());
+        if retention == EvaluationMapRetention::Recompute {
+            assert_member(
+                &report.recompute(1).unwrap(),
+                &program.evaluate(&POINTS[1]).unwrap(),
+            );
+        }
+        for after in [0, 1, 2, 3, 4] {
+            let mut polls = 0;
+            let result = plan.execute_with_cancellation(|| {
+                let cancel = polls == after;
+                polls += 1;
+                cancel
+            });
+            if after == 4 {
+                assert_eq!(result.unwrap().len(), 4);
+                assert_eq!(polls, 4);
+            } else {
+                let report = result.unwrap_err();
+                assert_eq!(report.stopped_index(), after);
+                assert!(report.is_cancelled());
+                assert!(matches!(
+                    report.occurrence(after),
+                    Some(EvaluationMapOccurrence::Cancelled)
+                ));
+                for index in 0..after {
+                    assert!(matches!(
+                        report.occurrence(index),
+                        Some(
+                            EvaluationMapOccurrence::Accepted(_)
+                                | EvaluationMapOccurrence::Released(_)
+                        )
+                    ));
+                }
+                for index in after + 1..4 {
+                    assert!(matches!(
+                        report.occurrence(index),
+                        Some(EvaluationMapOccurrence::NotStarted)
+                    ));
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn storage_admission_bounds_chunks_metadata_and_overflow_before_execution() {
+    let (_, program) = tests::fixture();
+    let program = Arc::new(program);
+    assert!(
+        EvaluationMapExecutionPolicy::new(
+            0,
+            Target::HostCpu {
+                threads: NonZeroUsize::MIN
+            },
+            EvaluationMapRetention::Recompute,
+            LIMIT
+        )
+        .is_err()
+    );
+    assert!(
+        EvaluationMapExecutionPolicy::new(
+            1,
+            Target::HostCpu {
+                threads: NonZeroUsize::new(2).unwrap()
+            },
+            EvaluationMapRetention::Recompute,
+            LIMIT
+        )
+        .is_err()
+    );
+    assert!(
+        EvaluationMapExecutionPolicy::new(
+            usize::MAX,
+            Target::HostCpu {
+                threads: NonZeroUsize::MIN
+            },
+            EvaluationMapRetention::Recompute,
+            LIMIT
+        )
+        .is_err()
+    );
+    assert!(
+        resources::estimate(
+            &program,
+            usize::MAX,
+            policy(2, 2, EvaluationMapRetention::Recompute),
+            0
+        )
+        .is_err()
+    );
+    let points = vec![POINTS[0].as_slice(); 16];
+    let retained = EvaluationMapPlan::new(
+        program.clone(),
+        &points,
+        policy(2, 2, EvaluationMapRetention::Retain),
+    )
+    .unwrap();
+    let released = EvaluationMapPlan::new(
+        program.clone(),
+        &points,
+        policy(2, 2, EvaluationMapRetention::Recompute),
+    )
+    .unwrap();
+    assert!(retained.estimated_storage_bytes() > released.estimated_storage_bytes());
+    let limit = released.estimated_storage_bytes();
+    let admitted = EvaluationMapExecutionPolicy::new(
+        2,
+        Target::HostCpu {
+            threads: NonZeroUsize::new(2).unwrap(),
+        },
+        EvaluationMapRetention::Recompute,
+        limit,
+    )
+    .unwrap();
+    assert!(EvaluationMapPlan::new(program.clone(), &points, admitted).is_ok());
+    let denied = EvaluationMapExecutionPolicy::new(
+        2,
+        Target::HostCpu {
+            threads: NonZeroUsize::new(2).unwrap(),
+        },
+        EvaluationMapRetention::Recompute,
+        limit - 1,
+    )
+    .unwrap();
+    assert!(EvaluationMapPlan::new(program.clone(), &points, denied).is_err());
+    for retention in [
+        EvaluationMapRetention::Retain,
+        EvaluationMapRetention::Recompute,
+    ] {
+        let empty = EvaluationMapPlan::new(
+            program.clone(),
+            &[],
+            EvaluationMapExecutionPolicy::new(
+                2,
+                Target::HostCpu {
+                    threads: NonZeroUsize::new(2).unwrap(),
+                },
+                retention,
+                0,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(
+            empty
+                .execute_with_cancellation(|| panic!("already complete"))
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            EvaluationMapPlan::new(program.clone(), &[&POINTS[0]], policy(2, 2, retention))
+                .unwrap()
+                .execute()
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+}
+
+#[test]
+fn frozen_sampling_identity_is_retained_across_chunks_and_recompute() {
+    let (document, program) = tests::fixture();
+    let program = Arc::new(program);
+    let sampler = ParameterSampler::new(
+        program.clone(),
+        SamplingGenerator::Sha256UniformV1,
+        [3; 32],
+        &[[1.0, 3.0], [0.75, 1.25], [-0.25, 0.5]],
+    )
+    .unwrap();
+    let id = |label: &[u8], lineage: &[u64]| {
+        SamplingIdentity::new(
+            label,
+            b"forcing",
+            lineage,
+            SamplingCoupling::CommonRandomNumbers(b"same-noise".to_vec()),
+        )
+        .unwrap()
+    };
+    let samples = [
+        sampler.sample(&id(b"second", &[8, 2])).unwrap(),
+        sampler.sample(&id(b"first", &[8, 1])).unwrap(),
+        sampler.sample(&id(b"second", &[8, 2])).unwrap(),
+    ];
+    assert_eq!(samples[0].point(), samples[1].point());
+    assert_ne!(samples[0].identity(), samples[1].identity());
+    let plan = EvaluationMapPlan::from_samples(
+        program.clone(),
+        &samples,
+        policy(2, 2, EvaluationMapRetention::Recompute),
+    )
+    .unwrap();
+    assert_eq!(plan.samples().unwrap(), samples);
+    let complete = plan.execute().unwrap();
+    for (index, sample) in samples.iter().enumerate() {
+        assert_member(
+            &complete.recompute(index).unwrap(),
+            &program.evaluate(sample.point().values()).unwrap(),
+        );
+        assert_eq!(&complete.plan().samples().unwrap()[index], sample);
+    }
+    for inputs in [
+        ["source_scale", "diffusion", "boundary_offset"],
+        ["diffusion", "source_scale", "boundary_offset"],
+    ] {
+        let foreign = Arc::new(tests::program_for(
+            &document,
+            CommonSpatialPolicy::Q1,
+            RealizationRevision::new(22),
+            &inputs,
+        ));
+        assert!(
+            EvaluationMapPlan::from_samples(
+                foreign,
+                &samples,
+                policy(2, 2, EvaluationMapRetention::Recompute)
+            )
+            .is_err()
+        );
+    }
+    let values = samples
+        .iter()
+        .map(|sample| sample.point().values())
+        .collect::<Vec<_>>();
+    let raw = EvaluationMapPlan::new(
+        program,
+        &values,
+        policy(2, 2, EvaluationMapRetention::Recompute),
+    )
+    .unwrap();
+    assert!(plan.estimated_storage_bytes() > raw.estimated_storage_bytes());
+    assert_ne!(plan, raw);
+}

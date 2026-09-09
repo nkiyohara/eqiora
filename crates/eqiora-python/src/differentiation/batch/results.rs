@@ -1,4 +1,4 @@
-//! Complete results and terminal prefixes remain different Python types.
+//! Complete results and indexed partial membership remain different Python types.
 
 use super::products::{PyEvaluationMapJvp, PyEvaluationMapVjp};
 use super::*;
@@ -24,7 +24,7 @@ impl PyCompleteEvaluationMap {
         )
     }
     fn __len__(&self) -> usize {
-        self.native.members().len()
+        self.native.len()
     }
     #[getter]
     fn plan(&self) -> PyEvaluationMapPlan {
@@ -47,6 +47,9 @@ impl PyCompleteEvaluationMap {
         let values = self
             .native
             .members()
+            .ok_or_else(|| {
+                PyRuntimeError::new_err("dense Python batch requires retained native members")
+            })?
             .iter()
             .flat_map(|member| member.primal().into_parts().0)
             .collect();
@@ -146,7 +149,7 @@ impl PyCompleteEvaluationMap {
     }
 }
 
-/// Failed or cancelled batch with an inspectable accepted prefix, never a dense result.
+/// Failed or cancelled batch with inspectable indexed members, never a dense result.
 #[pyclass(
     name = "EvaluationMapTerminalReport",
     module = "eqiora._eqiora",
@@ -200,7 +203,9 @@ impl PyEvaluationMapTerminalReport {
     fn statuses(&self) -> Vec<&'static str> {
         (0..self.plan.count())
             .map(|index| match self.native.occurrence(index) {
-                Some(EvaluationMapOccurrence::Accepted(_)) => "accepted",
+                Some(
+                    EvaluationMapOccurrence::Accepted(_) | EvaluationMapOccurrence::Released(_),
+                ) => "accepted",
                 Some(EvaluationMapOccurrence::Failed(_)) => "failed",
                 Some(EvaluationMapOccurrence::Cancelled) => "cancelled",
                 _ => "not_started",

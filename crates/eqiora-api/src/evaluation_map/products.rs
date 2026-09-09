@@ -2,7 +2,7 @@
 
 use eqiora_core::{Diagnostic, DimExponents, Id, ScalarDomain, ValueType, entity::kinds};
 
-use super::{CompleteEvaluationMap, axes, invalid, validate_member};
+use super::{CompleteEvaluationMap, axes, invalid};
 use crate::{
     DerivativeContract, DifferentiableJvp, DifferentiableScalarType, DifferentiableVjp,
     DifferentiationEvidence, DifferentiationMode, LinearizationState,
@@ -12,8 +12,10 @@ type Parameter = Id<kinds::Parameter>;
 
 /// Admitted point/seed axes and explicit shared coordinates of a complete map.
 ///
-/// This borrows immutable accepted evaluations. It never establishes another
-/// primal or differentiates solver iterations. Only real first-order implicit
+/// This uses immutable accepted evaluations. A Recompute map explicitly releases
+/// numerical state: each action then reaccepts one frozen point and checks its
+/// original receipt before using it for all seeds. It never differentiates solver
+/// iterations. Only real first-order implicit
 /// JVP/VJP products are exposed; product results have no higher-derivative API.
 #[derive(Debug)]
 pub struct EvaluationMapProducts<'a> {
@@ -64,6 +66,7 @@ impl<'a> EvaluationMapProducts<'a> {
         point_axes: &[usize],
         numerical_bytes_limit: usize,
     ) -> Result<Self, Diagnostic> {
+        map.validate()?;
         let identity = map.plan().program_identity();
         if identity.scalar_type() != DifferentiableScalarType::F64
             || identity.derivative() != DerivativeContract::ImplicitFirstOrder
@@ -81,15 +84,13 @@ impl<'a> EvaluationMapProducts<'a> {
                 "mapped product axis rank or point-axis inventory is invalid",
             ));
         }
-        if map.plan().points().len() != map.members().len()
-            || axes::product(point_shape).map_err(axis_error)? != map.members().len()
-        {
+        if axes::product(point_shape).map_err(axis_error)? != map.len() {
             return Err(invalid(
                 "point axes must contain every accepted map occurrence",
             ));
         }
         let seeds = axes::product(seed_shape).map_err(axis_error)?;
-        let cells = multiply(map.members().len(), seeds)?;
+        let cells = multiply(map.len(), seeds)?;
         addressable::<Option<DifferentiableJvp>>(cells)?;
         addressable::<Option<DifferentiableVjp>>(cells)?;
         let mut shared = Vec::with_capacity(shared_inputs.len().min(identity.input_dimension()));
@@ -108,11 +109,10 @@ impl<'a> EvaluationMapProducts<'a> {
         let mapped = (0..identity.input_dimension())
             .filter(|index| !shared.contains(index))
             .collect::<Vec<_>>();
-        for (point, member) in map.plan().points().iter().zip(map.members()) {
-            validate_member(map.plan(), point, member)?;
-            if let Some(first) = map.members().first()
+        for point in map.plan().points() {
+            if let Some(first) = map.plan().points().first()
                 && shared.iter().any(|&input| {
-                    point.values()[input].to_bits() != first.point().values()[input].to_bits()
+                    point.values()[input].to_bits() != first.values()[input].to_bits()
                 })
             {
                 return Err(invalid(
@@ -228,7 +228,11 @@ impl<'a> EvaluationMapProducts<'a> {
         admit(shared, multiply(self.seeds, self.shared.len())?)?;
         admit(mapped, multiply(self.cells, self.mapped.len())?)?;
         let mut products = vec![None; self.cells];
-        for (point, evaluation) in self.map.members().iter().enumerate() {
+        for point in 0..self.map.len() {
+            if self.seeds == 0 {
+                break;
+            }
+            let evaluation = self.map.product_member(point)?;
             for seed in 0..self.seeds {
                 let position = self.position(point, seed)?;
                 let tangent = assemble_tangent(
@@ -240,7 +244,7 @@ impl<'a> EvaluationMapProducts<'a> {
                 );
                 let product = (|| {
                     let product = evaluation.jvp(&tangent)?;
-                    validate_evidence(evaluation, product.evidence(), DifferentiationMode::Jvp)?;
+                    validate_evidence(&evaluation, product.evidence(), DifferentiationMode::Jvp)?;
                     finite(product.output())?;
                     finite(product.tangent())?;
                     Ok(product)
@@ -276,12 +280,16 @@ impl<'a> EvaluationMapProducts<'a> {
         let mut shared = vec![0.0; multiply(self.seeds, self.shared.len())?];
         let mut mapped = vec![0.0; multiply(self.cells, self.mapped.len())?];
         let mut products = vec![None; self.cells];
-        for (point, evaluation) in self.map.members().iter().enumerate() {
+        for point in 0..self.map.len() {
+            if self.seeds == 0 {
+                break;
+            }
+            let evaluation = self.map.product_member(point)?;
             for seed in 0..self.seeds {
                 let position = self.position(point, seed)?;
                 let product = (|| {
                     let product = evaluation.vjp(row(cotangents, position, width))?;
-                    validate_evidence(evaluation, product.evidence(), DifferentiationMode::Vjp)?;
+                    validate_evidence(&evaluation, product.evidence(), DifferentiationMode::Vjp)?;
                     finite(product.output())?;
                     finite(product.input_cotangent())?;
                     accumulate(

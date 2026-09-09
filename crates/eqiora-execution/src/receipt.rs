@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use eqiora_core::Diagnostic;
 use eqiora_distributed::{DistributedAdmissionFingerprintV1, DistributedLinearSystem};
 use eqiora_realization::PortableRealizationGraph;
@@ -751,7 +753,7 @@ impl<'system> AdmittedExecution<'system> {
             output,
             dimension: self.system.columns(),
             plan: self.binding.solver_plan(),
-            binding: self.binding,
+            binding: Arc::new(self.binding),
             report,
             acceptance_verification: ExecutionReport::host_serial(),
             evidence,
@@ -790,7 +792,7 @@ impl AcceptedLinearExecution {
 /// Immutable accepted linear-execution evidence with a complete host output.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExecutionReceipt {
-    binding: DeploymentBinding,
+    binding: Arc<DeploymentBinding>,
     operator: CanonicalCsrAgreementFingerprintV1,
     output: AcceptedOutputFingerprintV1,
     dimension: usize,
@@ -815,20 +817,36 @@ enum AcceptedExecutionEvidence {
 impl ExecutionReceipt {
     /// Exact deployment and portable Realization binding.
     #[must_use]
-    pub const fn binding(&self) -> &DeploymentBinding {
+    pub fn binding(&self) -> &DeploymentBinding {
         &self.binding
+    }
+
+    /// Share an exactly equal immutable deployment authority without changing
+    /// this receipt's operator, output, report or acceptance evidence.
+    ///
+    /// # Errors
+    /// Rejects a foreign deployment, including any changed portable graph,
+    /// provider, execution placement or verification authority.
+    pub fn with_shared_binding(mut self, authority: &Self) -> Result<Self, Diagnostic> {
+        if self.binding != authority.binding {
+            return Err(invalid(
+                "cannot share a foreign execution receipt deployment binding",
+            ));
+        }
+        self.binding = Arc::clone(&authority.binding);
+        Ok(self)
     }
 
     /// Exact solver implementation and libraries matched at acceptance.
     #[must_use]
-    pub const fn solver_provider(&self) -> SolverProvider {
+    pub fn solver_provider(&self) -> SolverProvider {
         self.binding.solver_provider()
     }
 
     /// Exact primary execution implementation and libraries matched at
     /// acceptance.
     #[must_use]
-    pub const fn execution_provider(&self) -> ExecutionProvider {
+    pub fn execution_provider(&self) -> ExecutionProvider {
         self.binding.execution_provider()
     }
 

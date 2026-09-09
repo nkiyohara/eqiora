@@ -69,11 +69,15 @@ fn client_sampling_replays_through_typed_scalar_and_mapped_evaluation() {
                     .iter()
                     .map(|sample| sample.point().values())
                     .collect::<Vec<_>>();
-                let mapped = EvaluationMapPlan::new(program.clone(), &points, 1 << 30)
-                    .unwrap()
-                    .execute()
-                    .unwrap();
-                for (&id, member) in chunk.iter().zip(mapped.members()) {
+                let mapped = EvaluationMapPlan::new(
+                    program.clone(),
+                    &points,
+                    eqiora::api::EvaluationMapExecutionPolicy::retained(1 << 30),
+                )
+                .unwrap()
+                .execute()
+                .unwrap();
+                for (&id, member) in chunk.iter().zip(mapped.members().unwrap()) {
                     assert_eq!(member.point(), scalar[id].point());
                     assert_eq!(member.primal().output(), scalar[id].primal().output());
                 }
