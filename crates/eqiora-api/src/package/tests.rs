@@ -11,6 +11,63 @@ use eqiora_package::{
 const VERSION: &str = "1.0.0";
 const SOURCE_PATH: &str = "src/main.eqi";
 
+#[test]
+fn notation_survives_package_reopening_but_does_not_change_physical_identity() {
+    let source = r"model Main() { variable x: 1; relation balance { x=0; } }";
+    let decorated = source.replace("x:", r"x @{\hat{x}}:");
+    let plain = release("org.example.Notation", source, &[]);
+    let annotated = release("org.example.Notation", &decorated, &[]);
+    assert_ne!(
+        plain.source_digest().unwrap(),
+        annotated.source_digest().unwrap()
+    );
+    let compile = |release: &PackageReleaseV1| {
+        let mut store = InMemoryPackageStore::default();
+        store.insert(release).unwrap();
+        let resolution = ResolutionRecordV1::from_exact_releases(release, &[]).unwrap();
+        PackagedModelDocument::compile_locked(&store, &resolution, "Main").unwrap()
+    };
+    let first = compile(&plain);
+    let second = compile(&annotated);
+    assert_eq!(
+        first.model().structural_fingerprint().unwrap(),
+        second.model().structural_fingerprint().unwrap()
+    );
+    assert_eq!(
+        first.model().digest().unwrap(),
+        second.model().digest().unwrap()
+    );
+    // The package owns exact source bytes, not an alternative notation serializer.
+    let reopened = PackageReleaseV1::from_json(&annotated.canonical_json().unwrap()).unwrap();
+    assert_eq!(
+        reopened.source_digest().unwrap(),
+        annotated.source_digest().unwrap()
+    );
+    let reopened_source = std::str::from_utf8(reopened.source().files()[0].bytes()).unwrap();
+    assert_eq!(reopened_source, decorated);
+    let syntax = eqiora_lang::parse(SOURCE_PATH, reopened_source)
+        .into_document()
+        .unwrap();
+    let formatted = eqiora_lang::format(&syntax);
+    assert!(formatted.contains(r"x @{\hat{x}}: 1"));
+    assert_eq!(
+        eqiora_lang::parse(SOURCE_PATH, &formatted)
+            .into_document()
+            .unwrap()
+            .notations()
+            .len(),
+        1
+    );
+    // Annotation cannot resolve an undeclared name or make mismatched units legal.
+    for rejected in [
+        decorated.replace("x=0", "missing=0"),
+        decorated.replace("x=0", "x=1 [m]"),
+    ] {
+        let sources = author_sources("org.example.RejectedNotation", &rejected, &[]);
+        assert!(prepare_package_release_v1(sources, &[]).is_err());
+    }
+}
+
 fn author_sources(
     name: &str,
     source: &str,

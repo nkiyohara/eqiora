@@ -42,7 +42,12 @@ pub fn format(document: &Document) -> String {
         if declaration.visibility() == VisibilitySyntax::Public {
             output.push_str("public ");
         }
-        write!(output, "enum {} {{ ", declaration.name()).expect("String write");
+        write!(
+            output,
+            "enum {} {{ ",
+            declaration.comments.named(&declaration.name)
+        )
+        .expect("String write");
         for (index, tag) in declaration.tags().iter().enumerate() {
             if index != 0 {
                 output.push_str(", ");
@@ -58,7 +63,7 @@ pub fn format(document: &Document) -> String {
         if space.visibility == VisibilitySyntax::Public {
             output.push_str("public ");
         }
-        write!(output, "space {} = ", space.name()).expect("String write");
+        write!(output, "space {} = ", space.comments.named(&space.name)).expect("String write");
         format_expression(space.value(), 0, &mut output);
         output.push_str(";\n");
         output.end();
@@ -69,7 +74,12 @@ pub fn format(document: &Document) -> String {
         if connector.visibility == VisibilitySyntax::Public {
             output.push_str("public ");
         }
-        writeln!(output, "connector {} {{", connector.name).expect("String write");
+        writeln!(
+            output,
+            "connector {} {{",
+            connector.comments.named(&connector.name)
+        )
+        .expect("String write");
         match &connector.syntax {
             ConnectorSyntax::ScalarPhysical {
                 across_name,
@@ -127,7 +137,8 @@ pub fn format(document: &Document) -> String {
         if model.visibility == VisibilitySyntax::Public {
             output.push_str("public ");
         }
-        write!(output, "model {}", model.name).expect("String writes cannot fail");
+        write!(output, "model {}", model.comments.named(&model.name))
+            .expect("String writes cannot fail");
         signature::format_signature(&model.signature, &mut output);
         output.push_str(" {\n");
         for item in &model.items {
@@ -147,13 +158,18 @@ fn format_pure_operator(
     if declaration.visibility == VisibilitySyntax::Public {
         output.push_str("public ");
     }
-    write!(output, "operator {}(", declaration.name).expect("String write");
+    write!(
+        output,
+        "operator {}(",
+        declaration.comments.named(&declaration.name)
+    )
+    .expect("String write");
     for (index, formal) in declaration.formals.iter().enumerate() {
         if index != 0 {
             output.push_str(", ");
         }
         output.begin(&formal.comments);
-        write!(output, "input {}: ", formal.name).expect("String write");
+        write!(output, "input {}: ", formal.comments.named(&formal.name)).expect("String write");
         format_pure_value_class(&formal.value_class, output);
         output.end();
     }
@@ -198,7 +214,12 @@ fn format_component_item(
             if declaration.visibility == VisibilitySyntax::Public {
                 output.push_str("public ");
             }
-            write!(output, "parameter {}: ", declaration.name).expect("String write");
+            write!(
+                output,
+                "parameter {}: ",
+                declaration.comments.named(&declaration.name)
+            )
+            .expect("String write");
             value_type::format_value_type(&declaration.value_type, output);
             if let Some(default) = &declaration.default {
                 output.push_str(" = ");
@@ -211,7 +232,12 @@ fn format_component_item(
             if declaration.visibility == VisibilitySyntax::Public {
                 output.push_str("public ");
             }
-            write!(output, "port {}: ", declaration.name).expect("String write");
+            write!(
+                output,
+                "port {}: ",
+                declaration.comments.named(&declaration.name)
+            )
+            .expect("String write");
             format_port_syntax(&declaration.syntax, output);
             output.push_str(";\n");
         }
@@ -241,7 +267,12 @@ fn format_item(item: &Item, indent: usize, output: &mut crate::formatter::commen
     match item {
         Item::Domain(declaration) => {
             write_indent(output, indent);
-            write!(output, "domain {} = ", declaration.name).expect("String write");
+            write!(
+                output,
+                "domain {} = ",
+                declaration.comments.named(&declaration.name)
+            )
+            .expect("String write");
             match &declaration.syntax {
                 DomainSyntax::CartesianBox(bounds) => {
                     output.push_str("box(");
@@ -285,7 +316,12 @@ fn format_item(item: &Item, indent: usize, output: &mut crate::formatter::commen
         Item::Let(declaration) => format_let(declaration, indent, output),
         Item::Port(declaration) => {
             write_indent(output, indent);
-            write!(output, "port {}: ", declaration.name).expect("String write");
+            write!(
+                output,
+                "port {}: ",
+                declaration.comments.named(&declaration.name)
+            )
+            .expect("String write");
             format_port_syntax(&declaration.syntax, output);
             output.push_str(";\n");
         }
@@ -318,7 +354,12 @@ fn format_unknown_head(declaration: &FieldDecl, output: &mut crate::formatter::c
         crate::ast::FieldRoleSyntax::Variable => "variable",
         crate::ast::FieldRoleSyntax::State => "state",
     };
-    write!(output, "{role} {}: ", declaration.name).expect("String write");
+    write!(
+        output,
+        "{role} {}: ",
+        declaration.comments.named(&declaration.name)
+    )
+    .expect("String write");
     value_type::format_value_type(&declaration.value_type, output);
     if let Some(domain) = &declaration.domain {
         write!(output, " on {domain}").expect("String write");
@@ -405,7 +446,7 @@ fn format_component_port_family(
     if port.visibility == VisibilitySyntax::Public {
         output.push_str("public ");
     }
-    write!(output, "port {}", port.name).expect("String write");
+    write!(output, "port {}", port.comments.named(&port.name)).expect("String write");
     format_boundary_family_binder(&declaration.binder, output);
     output.push_str(": ");
     format_port_syntax(&port.syntax, output);
@@ -425,7 +466,12 @@ fn format_event(
     output: &mut crate::formatter::comments::Output,
 ) {
     write_indent(output, indent);
-    write!(output, "event {} = crossing(", declaration.name()).expect("String write");
+    write!(
+        output,
+        "event {} = crossing(",
+        declaration.comments.named(&declaration.name)
+    )
+    .expect("String write");
     format_expression(declaration.guard(), 0, output);
     let direction = match declaration.direction() {
         eqiora_schema::kernel::EventDirection::Any => "any",
@@ -441,7 +487,12 @@ fn format_clock(
     output: &mut crate::formatter::comments::Output,
 ) {
     write_indent(output, indent);
-    write!(output, "clock {} = periodic(", declaration.name).expect("String write");
+    write!(
+        output,
+        "clock {} = periodic(",
+        declaration.comments.named(&declaration.name)
+    )
+    .expect("String write");
     format_expression(&declaration.period, 0, output);
     output.push_str(", phase = ");
     format_expression(&declaration.phase, 0, output);
@@ -524,7 +575,12 @@ fn format_instance(
     output: &mut crate::formatter::comments::Output,
 ) {
     write_indent(output, indent);
-    write!(output, "instance {}", declaration.name).expect("String write");
+    write!(
+        output,
+        "instance {}",
+        declaration.comments.named(&declaration.name)
+    )
+    .expect("String write");
     if let Some(family) = &declaration.family {
         write!(output, "[{} in {}]", family.member(), family.set()).expect("String write");
     }
@@ -560,7 +616,12 @@ fn format_index_set(
     output: &mut comments::Output,
 ) {
     write_indent(output, indent);
-    write!(output, "indexset {} = ", declaration.name()).expect("String write");
+    write!(
+        output,
+        "indexset {} = ",
+        declaration.comments.named(&declaration.name)
+    )
+    .expect("String write");
     format_expression(declaration.value(), 0, output);
     output.push_str(";\n");
 }

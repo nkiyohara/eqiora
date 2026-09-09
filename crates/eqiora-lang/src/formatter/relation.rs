@@ -12,7 +12,12 @@ pub(super) fn format_relation(
     output: &mut crate::formatter::comments::Output,
 ) {
     write_indent(output, indent);
-    write!(output, "relation {}", declaration.name).expect("String write");
+    write!(
+        output,
+        "relation {}",
+        declaration.comments.named(&declaration.name)
+    )
+    .expect("String write");
     format_body(declaration, indent, output);
 }
 
@@ -22,7 +27,15 @@ pub(super) fn format_relation_family(
     output: &mut crate::formatter::comments::Output,
 ) {
     write_indent(output, indent);
-    write!(output, "relation {}", declaration.relation.name).expect("String write");
+    write!(
+        output,
+        "relation {}",
+        declaration
+            .relation
+            .comments
+            .named(&declaration.relation.name)
+    )
+    .expect("String write");
     format_boundary_family_binder(&declaration.binder, output);
     format_body(&declaration.relation, indent, output);
 }

@@ -5,7 +5,7 @@ use super::*;
 impl Parser<'_> {
     pub(super) fn parse_domain(&mut self) -> Option<DomainDecl> {
         let start = self.expect_keyword("domain")?.range().start();
-        let name = self.expect_identifier("Domain name")?.text().to_owned();
+        let name = self.declaration_name("Domain name")?.text().to_owned();
         self.expect(TokenKind::Equal, "`=` before Domain geometry")?;
         let syntax = if self.at_keyword("box") {
             self.bump();

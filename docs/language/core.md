@@ -28,8 +28,8 @@ A source file is UTF-8. Identifiers are case-sensitive. Whitespace separates tok
 not terminate a statement. Braces delimit bodies, semicolons terminate statements, and commas
 separate signature entries and arguments. There is no implicit multiplication.
 
-Identifiers match `[A-Za-z_][A-Za-z0-9_]*`; Unicode remains available in documentation and
-notation. Decimal tokens require a digit before any fractional point and digits after it,
+Identifiers match `[A-Za-z_][A-Za-z0-9_]*`; documentation may contain Unicode, while notation
+uses the explicit symbol commands below. Decimal tokens require a digit before any fractional point and digits after it,
 with an optional `e`/`E` exponent and signed integer exponent value. Signs remain operators.
 The [grammar productions](grammar.md) collect the shared syntax; specialized child rules
 are defined on their linked owner pages.
@@ -38,6 +38,65 @@ are defined on their linked owner pages.
 notation uses `@{...}` immediately after the declaration name. Its contents are a bounded
 notation AST, not executable source or arbitrary TeX. Neither documentation nor notation
 introduces a mathematical value or changes name resolution.
+
+### Declaration notation
+
+```eqi
+component Material(parameter viscosity @{\mu}: Pa * s) {
+  state estimate @{\hat{x}}: 1;
+  variable stress @{\sigma_{ij}}: Pa;
+}
+```
+
+An island describes one symbol, optionally styled, accented, and intrinsically scripted.
+The initial vocabulary is closed:
+
+| Kind | Admitted spelling |
+| --- | --- |
+| Latin | `a`–`z`, `A`–`Z` |
+| Greek | `\alpha`, `\beta`, `\gamma`, `\delta`, `\epsilon`, `\zeta`, `\eta`, `\theta`, `\iota`, `\kappa`, `\lambda`, `\mu`, `\nu`, `\xi`, `\omicron`, `\pi`, `\rho`, `\sigma`, `\tau`, `\upsilon`, `\phi`, `\chi`, `\psi`, `\omega`; uppercase uses the same names with an initial capital, such as `\Alpha` and `\Omega` |
+| Greek variants | `\varepsilon`, `\vartheta`, `\varkappa`, `\varpi`, `\varrho`, `\varsigma`, `\varphi` |
+| Distinguished symbols | `\hbar`, `\ell`, `\aleph` |
+| Styles | `\mathrm{x}`, `\mathit{x}`, `\mathbf{x}`, `\mathsf{x}`, `\mathtt{x}`, `\mathcal{X}`, `\mathbb{R}` |
+| Accents | `\hat{x}`, `\tilde{x}`, `\bar{x}`, `\vec{x}`, `\dot{x}`, `\ddot{x}` |
+| Intrinsic scripts | At most one `_` and one `^` per symbol, in either input order; script contents admit symbols, digits `0`–`9`, and the marks below |
+| Script marks | `\prime`, `\star`, `\top` (transpose), `\dagger`, `\plus`, `\minus`, `\pm`, `\mp` |
+
+Canonical formatting emits the lower script before the upper script and braces every script.
+Atoms in a script are separated by spaces: `\sigma_{ij}` becomes `\sigma_{i j}`.
+This also keeps `\alpha i` distinct from an unknown command `\alphai`.
+The shorthand `x''` becomes `x^{\prime \prime}`; script `*`, `+`, and `-` become their named
+marks. Redundant grouping is removed. Other aliases, including `\bf`, `\boldsymbol`, and
+`\overline`, are rejected rather than interpreted by a TeX engine.
+
+Each complete island is limited to 1,024 UTF-8 bytes, 256 significant notation tokens,
+eight recursive symbol/group levels, 32 script entries (including nested decorations/groups),
+and 4,096 emitted bytes. Admission checks precede the corresponding allocation or recursive
+descent. Errors retain the original island or offending command's exact byte range.
+Text commands, macros, file operations, environments, layout commands, math delimiters, and
+formula operators are not part of this algebra. Greek letters use the command table rather
+than Unicode aliases.
+
+These scripts are part of a declaration's chosen symbol: `x^{2}` does not square its value,
+and `\sigma_{ij}` does not index a tensor. The mathematical type and expressions still own
+those operations. Rendering from mathematical types, including default vector bold/arrow
+styles, is separate; an explicit style records the author's override without invoking a renderer.
+
+Rust authoring uses `Notation::parse("@{...}")` and a declaration's `with_notation` method.
+Python uses the same native admission owner:
+
+```python
+source = eqiora.lang.Source()
+material = source.component("Material")
+material.parameter("viscosity", value_type=eqiora.ValueType.real())
+material.set_notation("viscosity", eqiora.lang.Notation(r"@{\mu}"))
+```
+
+`Source.set_notation` targets an existing top-level declaration; `Component.set_notation`
+targets an existing declaration in that component or model. Emission freezes these metadata
+with the source. Notation survives source formatting, declaration cloning and source-package
+reopening. Editing it changes exact source bytes and source-bundle identity, but not the
+compiler's semantic local-source identity, physical type checking, or structural model comparison.
 
 Module identity is the exact package identity plus portable relative source path. Source
 does not declare or rename its own module. Imports name the full target and require an

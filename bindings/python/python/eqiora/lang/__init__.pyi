@@ -14,6 +14,17 @@ from typing import Final, Literal, final
 from .. import FieldRole, ValueType, FiniteSpace, IndexSet
 
 @final
+class Notation:
+    """Native-validated, immutable declaration notation; accepts one complete `@{...}` island.
+
+    Authority: ``crates/eqiora-python/src/notation.rs::PyNotation``.
+    """
+    def __init__(self, island: str) -> None: ...
+    @property
+    def canonical(self) -> str: ...
+    def __str__(self) -> str: ...
+
+@final
 class Enum:
     """A closed enum declaration shared within its Source.
 
@@ -132,6 +143,10 @@ class Component:
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component``.
     """
+
+    def set_notation(self, name: str, notation: Notation) -> None:
+        """Attach notation to an existing named declaration in this Component."""
+        ...
 
     def counts(self, space: FiniteSpace, components: Sequence[Expression | int]) -> Expression:
         """Construct counts in this Source's exact registered finite basis.
@@ -280,6 +295,10 @@ class Source:
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Source``.
     """
+
+    def set_notation(self, name: str, notation: Notation) -> None:
+        """Attach notation to an existing top-level declaration."""
+        ...
 
     def operator(self, name: str, *, inputs: Mapping[str, ValueType], result_type: ValueType,
                  body: Callable[..., object], doc: str | None = None) -> Operator:
@@ -577,6 +596,7 @@ __all__ = [
     "Enum",
     "Event",
     "MaterialComposition",
+    "Notation",
     "Operator",
     "PropertyContract",
     "PropertyRelease",

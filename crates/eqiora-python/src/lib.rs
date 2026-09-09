@@ -20,6 +20,7 @@ mod meshing;
 mod model;
 mod model_io;
 mod modeling;
+mod notation;
 mod package;
 mod planar_operation;
 mod realization;
@@ -228,6 +229,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<execution_session::PyExecutionSession>()?;
     module.add_class::<execution_session::PyExecutionCheckpoint>()?;
     module.add_class::<clock::PyClockDomain>()?;
+    module.add_class::<notation::PyNotation>()?;
     package::register(module)?;
     array::register(module)?;
     cad_authored::register(module)?;

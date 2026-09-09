@@ -7,10 +7,7 @@ use crate::lexer::TokenKind;
 impl Parser<'_> {
     pub(super) fn parse_clock(&mut self) -> Option<ClockDecl> {
         let start = self.expect_keyword("clock")?.range().start();
-        let name = self
-            .expect_identifier("ClockDomain name")?
-            .text()
-            .to_owned();
+        let name = self.declaration_name("ClockDomain name")?.text().to_owned();
         self.expect(TokenKind::Equal, "`=` before ClockDomain definition")?;
         self.expect_keyword("periodic")?;
         self.expect(TokenKind::LeftParen, "`(` after `periodic`")?;

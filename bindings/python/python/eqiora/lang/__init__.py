@@ -18,7 +18,7 @@ import textwrap
 from typing import Final, Literal
 from types import MappingProxyType
 
-from .._eqiora import FieldRole, ValueType, FiniteSpace, IndexSet, Enum as _NativeEnum, _nominal_type_source
+from .._eqiora import FieldRole, ValueType, FiniteSpace, IndexSet, Enum as _NativeEnum, _nominal_type_source, Notation
 
 from ..units import Unit
 from .._source_bounds import _MAX_EXPRESSION_DEPTH, _MAX_EXPRESSION_NODES, _MAX_OUTPUT_BYTES
@@ -985,6 +985,7 @@ class Component:
         "_instances",
         "_name",
         "_names",
+        "_notations",
         "_owner",
         "_parameters",
         "_properties",
@@ -1017,6 +1018,7 @@ class Component:
         self._active_binders: dict[object, str] = {}
         self._reduction_names: set[str] = set()
         self._names: set[str] = set()
+        self._notations: dict[str, Notation] = {}
         self._supports: list[tuple[Support, str, object, tuple[str, ...]]] = []
         self._clocks: list[tuple[Clock, Fraction | None, Fraction | None, tuple[str, ...]]] = []
         self._events: list[tuple[Event, Expression, str, tuple[str, ...]]] = []
@@ -1258,11 +1260,12 @@ class Component:
             raise TypeError("volume dimensions must be an integer")
         if not 1 <= dimensions <= 15:
             raise SourceError("volume dimensions must be between 1 and 15")
+        doc_lines = _doc(doc)
         admitted = self._add_name(name)
         support = Support(
             _CREATE, self._owner, self._component_token, admitted, "volume"
         )
-        self._supports.append((support, "volume", dimensions, _doc(doc)))
+        self._supports.append((support, "volume", dimensions, doc_lines))
         return support
 
     def boundary(
@@ -1275,11 +1278,12 @@ class Component:
         parent = self._support(parent)
         if parent._kind != "volume":
             raise SourceError("a boundary parent must be a volume from this Component")
+        doc_lines = _doc(doc)
         admitted = self._add_name(name)
         support = Support(
             _CREATE, self._owner, self._component_token, admitted, "boundary"
         )
-        self._supports.append((support, "boundary", parent, _doc(doc)))
+        self._supports.append((support, "boundary", parent, doc_lines))
         return support
 
     def parameter(
@@ -1583,6 +1587,19 @@ class Component:
             for field, kind in component._causal.items() if kind == "output"
         })
 
+    def set_notation(self, name: str, notation: Notation) -> None:
+        """Attach validated notation to an existing declaration in this lexical scope."""
+        self._source._ensure_open()
+        if name not in self._names:
+            raise SourceError("notation target must be an existing declaration in this Component")
+        if not isinstance(notation, Notation):
+            raise TypeError("notation must be an eqiora.lang.Notation")
+        self._notations[name] = notation
+
+    def _header_name(self, name: str) -> str:
+        notation = self._notations.get(name)
+        return name if notation is None else f"{name} {notation.canonical}"
+
     def _render(self) -> str:
         lines = _comment(self._doc, "")
         signature = []
@@ -1590,49 +1607,49 @@ class Component:
             syntax = (f"volume(ambient_dimension = {detail})" if kind == "volume"
                       else f"boundary(parent = {detail._name})")
             signature.extend(_comment(doc, "  "))
-            signature.append(f"  support {support._name}: {syntax},")
+            signature.append(f"  support {self._header_name(support._name)}: {syntax},")
         for parameter, value_type, doc in self._parameters:
             signature.extend(_comment(doc, "  "))
             default = self._defaults.get(parameter)
             suffix = "" if default is None else f" = {default._text}"
-            signature.append(f"  parameter {parameter._name}: {value_type}{suffix},")
+            signature.append(f"  parameter {self._header_name(parameter._name)}: {value_type}{suffix},")
         for requirement, contract, doc in self._properties:
             signature.extend(_comment(doc, "  "))
-            signature.append(f"  property {requirement._name}: {contract._name},")
+            signature.append(f"  property {self._header_name(requirement._name)}: {contract._name},")
         for clock, period, phase, doc in self._clocks:
             if clock in self._requirements:
                 signature.extend(_comment(doc, "  "))
-                signature.append(f"  clock {clock._name}: periodic,")
+                signature.append(f"  clock {self._header_name(clock._name)}: periodic,")
         for field, support, value_type, role, clock, doc in self._fields:
             if field in self._requirements or field in self._causal:
                 signature.extend(_comment(doc, "  "))
                 keyword = self._causal.get(field, "state" if role == FieldRole.State else "variable")
                 activation = "" if clock is None else f" at {clock._name}"
                 spatial = "" if support is None else f" on {support._name}"
-                signature.append(f"  {keyword} {field._name}: {value_type}{spatial}{activation},")
-        lines.append(f"public {self._kind} {self._name}(")
+                signature.append(f"  {keyword} {self._header_name(field._name)}: {value_type}{spatial}{activation},")
+        lines.append(f"public {self._kind} {self._source._header_name(self._name)}(")
         lines.extend(signature)
         lines.append(") {")
         for index_set, doc in self._index_sets:
             lines.extend(_comment(doc, "  "))
-            lines.append(f"  indexset {index_set.name} = range({index_set.extent});")
+            lines.append(f"  indexset {self._header_name(index_set.name)} = range({index_set.extent});")
         for clock, period, phase, doc in self._clocks:
             if clock in self._requirements:
                 continue
             lines.extend(_comment(doc, "  "))
             lines.append(
-                f"  clock {clock._name} = periodic({period.numerator} [s] / {period.denominator}, "
+                f"  clock {self._header_name(clock._name)} = periodic({period.numerator} [s] / {period.denominator}, "
                 f"phase = {phase.numerator} [s] / {phase.denominator});"
             )
         for event, guard, direction, doc in self._events:
             lines.extend(_comment(doc, "  "))
-            lines.append(f"  event {event._name} = crossing({guard._text}, direction = {direction});")
+            lines.append(f"  event {self._header_name(event._name)} = crossing({guard._text}, direction = {direction});")
         for name, expression, value_type, support, clock, doc in self._aliases:
             lines.extend(_comment(doc, "  "))
             assertion = "" if value_type is None else f": {value_type}"
             support_assertion = "" if support is None else f" on {support._name}"
             activation = "" if clock is None else f" at {clock._name}"
-            lines.append(f"  let {name}{assertion}{support_assertion}{activation} = {expression._text};")
+            lines.append(f"  let {self._header_name(name)}{assertion}{support_assertion}{activation} = {expression._text};")
         if self._aliases and (self._fields or self._relations or self._instances):
             lines.append("")
         if self._fields:
@@ -1643,7 +1660,7 @@ class Component:
                 keyword = "state" if role == FieldRole.State else "variable"
                 activation = "" if clock is None else f" at {clock._name}"
                 spatial = "" if support is None else f" on {support._name}"
-                lines.append(f"  {keyword} {field._text}: {value_type}{spatial}{activation};")
+                lines.append(f"  {keyword} {self._header_name(field._name)}: {value_type}{spatial}{activation};")
         if self._fields and (self._relations or self._instances):
             lines.append("")
         for equations, doc in self._initials:
@@ -1656,7 +1673,7 @@ class Component:
             lines.extend(_comment(doc, "  "))
             activation = "" if clock is None else f" at {clock._name}"
             spatial = "" if support is None else f" on {support._name}"
-            lines.append(f"  relation {name}{spatial}{activation} {{")
+            lines.append(f"  relation {self._header_name(name)}{spatial}{activation} {{")
             lines.extend(_relation_lines(left, right))
             lines.append("  }")
             if index + 1 != len(self._relations):
@@ -1667,13 +1684,13 @@ class Component:
             lines.extend(_comment(doc, "  "))
             bindings = [f"{target} = {value}" for target, value in named_bindings]
             if bindings:
-                lines.append(f"  instance {name}: {component._name}(")
+                lines.append(f"  instance {self._header_name(name)}: {component._name}(")
                 for binding_index, binding in enumerate(bindings):
                     comma = "," if binding_index + 1 != len(bindings) else ""
                     lines.append(f"    {binding}{comma}")
                 lines.append("  );")
             else:
-                lines.append(f"  instance {name}: {component._name}();")
+                lines.append(f"  instance {self._header_name(name)}: {component._name}();")
             if index + 1 != len(self._instances):
                 lines.append("")
         if self._formulations:
@@ -1701,6 +1718,7 @@ class Source:
         "_releases",
         "_materials",
         "_top_names",
+        "_notations",
         "_spaces",
         "_enums",
     )
@@ -1714,6 +1732,7 @@ class Source:
         self._releases: list[PropertyRelease] = []
         self._materials: list[MaterialComposition] = []
         self._top_names: set[str] = set()
+        self._notations: dict[str, Notation] = {}
         self._spaces: list[tuple[FiniteSpace, tuple[str, ...]]] = []
         self._enums: list[tuple[Enum, tuple[str, ...]]] = []
         self._frozen_text: str | None = None
@@ -1936,6 +1955,19 @@ class Source:
         self._materials.append(material)
         return material
 
+    def set_notation(self, name: str, notation: Notation) -> None:
+        """Attach validated notation to an existing top-level declaration."""
+        self._ensure_open()
+        if name not in self._top_names:
+            raise SourceError("notation target must be an existing top-level declaration")
+        if not isinstance(notation, Notation):
+            raise TypeError("notation must be an eqiora.lang.Notation")
+        self._notations[name] = notation
+
+    def _header_name(self, name: str) -> str:
+        notation = self._notations.get(name)
+        return name if notation is None else f"{name} {notation.canonical}"
+
     def to_eqi(self) -> str:
         """Return deterministic UTF-8 Eqiora Language text and freeze this Source."""
 
@@ -1948,16 +1980,16 @@ class Source:
             declarations: list[str] = []
             for enumeration, doc in self._enums:
                 declarations.extend(_comment(doc, ""))
-                declarations.append(f"public enum {enumeration.name} {{ {', '.join(enumeration.members)} }}")
+                declarations.append(f"public enum {self._header_name(enumeration.name)} {{ {', '.join(enumeration.members)} }}")
                 declarations.append("")
             for operator in self._operators:
                 declarations.extend(_comment(operator._doc, ""))
                 inputs = ", ".join(f"input {name}: {kind}" for name, kind in operator._inputs)
-                declarations.append(f"operator {operator._name}({inputs}): {operator._result} = {operator._body._text};")
+                declarations.append(f"operator {self._header_name(operator._name)}({inputs}): {operator._result} = {operator._body._text};")
                 declarations.append("")
             for space, doc in self._spaces:
                 declarations.extend(_comment(doc, ""))
-                declarations.append(f"space {space.name} = orthonormal({', '.join(space.labels)});")
+                declarations.append(f"space {self._header_name(space.name)} = orthonormal({', '.join(space.labels)});")
                 declarations.append("")
             if self._contracts:
                 if not self._releases:
@@ -1967,7 +1999,7 @@ class Source:
                 for contract in self._contracts:
                     declarations.extend(_comment(contract._doc, ""))
                     declarations.append(
-                        f"public property contract {contract._name}(): {self._type_syntax(contract._value_type)} {{"
+                        f"public property contract {self._header_name(contract._name)}(): {self._type_syntax(contract._value_type)} {{"
                     )
                     declarations.append("  derivatives value_only;")
                     declarations.append("}")
@@ -1976,7 +2008,7 @@ class Source:
                     declarations.extend(_comment(release._doc, ""))
                     declarations.append(
                         "public property release "
-                        f"{release._name} implements {release._contract._name} {{"
+                        f"{self._header_name(release._name)} implements {release._contract._name} {{"
                     )
                     declarations.append(f"  value = {release._value._text};")
                     declarations.append(
@@ -1991,7 +2023,7 @@ class Source:
                     declarations.append("")
                 for material in self._materials:
                     declarations.extend(_comment(material._doc, ""))
-                    declarations.append(f"public material composition {material._name} {{")
+                    declarations.append(f"public material composition {self._header_name(material._name)} {{")
                     for requirement, release in material._bindings:
                         declarations.append(
                             f"  property {requirement} = {release._name};"
@@ -2066,6 +2098,7 @@ __all__ = [
     "Enum",
     "Event",
     "MaterialComposition",
+    "Notation",
     "Operator",
     "PropertyContract",
     "PropertyRelease",

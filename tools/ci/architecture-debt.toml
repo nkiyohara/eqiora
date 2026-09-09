@@ -433,7 +433,11 @@ ceiling = 45
 
 [[public_surface]]
 crate = "eqiora-lang"
-ceiling = 84
+ceiling = 91
+# #878 adds Notation/NotationError for bounded source and native admission, and
+# NotationNode/Atom/Style/Accent/Mark for typed, read-only declaration inspection.
+# No existing presentation AST owns this algebra. Lower this allowance if a shared
+# typed owner subsumes it; do not replace validation with opaque notation text.
 # #857 adds ValueTypeSyntax and its closed syntax kind. Parsed and native ASTs
 # need one range-bearing recursive constructor tree; ValueShapeSyntax still
 # serves pure-operator shape patterns and is not a substitute for that tree.

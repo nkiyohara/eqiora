@@ -6,10 +6,7 @@ use super::Parser;
 impl Parser<'_> {
     pub(super) fn parse_parameter(&mut self) -> Option<ParameterDecl> {
         let start = self.expect_keyword("parameter")?.range().start();
-        let name = self
-            .expect_identifier("declaration name")?
-            .text()
-            .to_owned();
+        let name = self.declaration_name("declaration name")?.text().to_owned();
         self.expect(TokenKind::Colon, "`:` before dimension")?;
         let value_type = self.parse_value_type()?;
         self.expect(TokenKind::Equal, "`=` before value")?;
@@ -29,7 +26,7 @@ impl Parser<'_> {
 
     pub(super) fn parse_let(&mut self) -> Option<NamedDefinitionDecl> {
         let start = self.expect_keyword("let")?.range().start();
-        let name = self.expect_identifier("alias name")?.text().to_owned();
+        let name = self.declaration_name("alias name")?.text().to_owned();
         let value_type = if self.at(TokenKind::Colon) {
             self.bump();
             Some(self.parse_value_type()?)

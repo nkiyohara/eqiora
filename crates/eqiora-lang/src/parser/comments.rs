@@ -5,7 +5,7 @@ use crate::ast::{DocComment, Document, TextRange};
 use crate::lexer::{Token, TokenKind};
 use eqiora_core::{Diagnostic, Span, diagnostic::codes};
 
-mod owners;
+pub(super) mod owners;
 use owners::OwnerIndex;
 
 pub(super) fn attach(

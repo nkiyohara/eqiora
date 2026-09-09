@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use crate::ast::TextRange;
 
-pub(super) struct OwnerIndex<'a> {
+pub(in crate::parser) struct OwnerIndex<'a> {
     ranges: &'a [TextRange],
     ordered: Vec<usize>,
     pub(super) parents: Vec<usize>,
@@ -14,7 +14,7 @@ pub(super) struct OwnerIndex<'a> {
 }
 
 impl<'a> OwnerIndex<'a> {
-    pub(super) fn new(ranges: &'a [TextRange]) -> Self {
+    pub(in crate::parser) fn new(ranges: &'a [TextRange]) -> Self {
         let root = ranges.len() - 1;
         let mut ordered: Vec<_> = (0..root).collect();
         ordered.sort_by_key(|index| {
@@ -48,7 +48,7 @@ impl<'a> OwnerIndex<'a> {
         }
     }
 
-    pub(super) fn containing(&self, range: TextRange) -> usize {
+    pub(in crate::parser) fn containing(&self, range: TextRange) -> usize {
         let root = self.ranges.len() - 1;
         let before = self
             .ordered

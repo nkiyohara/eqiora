@@ -6,7 +6,7 @@ use eqiora_schema::kernel::EventDirection;
 impl Parser<'_> {
     pub(super) fn parse_event(&mut self) -> Option<EventDecl> {
         let start = self.expect_keyword("event")?.range().start();
-        let name = self.expect_identifier("event name")?.text().to_owned();
+        let name = self.declaration_name("event name")?.text().to_owned();
         self.expect(TokenKind::Equal, "`=` before event definition")?;
         self.expect_keyword("crossing")?;
         self.expect(TokenKind::LeftParen, "`(` after crossing")?;

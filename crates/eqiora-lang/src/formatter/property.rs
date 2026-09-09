@@ -22,7 +22,12 @@ pub(super) fn format_properties(
         if visibility == VisibilitySyntax::Public {
             output.push_str("public ");
         }
-        write!(output, "property contract {name}(): ").expect("String write");
+        write!(
+            output,
+            "property contract {}(): ",
+            declaration.comments.named(name)
+        )
+        .expect("String write");
         super::value_type::format_value_type(value_type, output);
         output.push_str(" {\n  derivatives value_only;\n}\n");
         output.end();
@@ -40,7 +45,12 @@ pub(super) fn format_properties(
         if visibility == VisibilitySyntax::Public {
             output.push_str("public ");
         }
-        writeln!(output, "property release {name} implements {contract} {{").expect("String write");
+        writeln!(
+            output,
+            "property release {} implements {contract} {{",
+            declaration.comments.named(name)
+        )
+        .expect("String write");
         output.push_str("  value = ");
         format_expression(value, 0, output);
         output.push_str(";\n  source_unit: ");
@@ -64,7 +74,12 @@ pub(super) fn format_properties(
         if visibility == VisibilitySyntax::Public {
             output.push_str("public ");
         }
-        writeln!(output, "material composition {name} {{").expect("String write");
+        writeln!(
+            output,
+            "material composition {} {{",
+            declaration.comments.named(name)
+        )
+        .expect("String write");
         for (binding, (property, release, _)) in declaration.properties.iter().zip(properties) {
             output.begin(&binding.comments);
             writeln!(output, "  property {property} = {release};").expect("String write");

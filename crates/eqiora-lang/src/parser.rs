@@ -17,6 +17,7 @@ mod expression;
 mod formulation;
 mod instance;
 mod nominal;
+mod notation;
 mod operator;
 mod property;
 mod recovery;
@@ -137,12 +138,14 @@ pub fn parse(file: impl Into<String>, source: &str) -> ParseResult {
         cursor: 0,
         expression_recursion: 0,
         exact_numeric: false,
+        notations: Vec::new(),
         diagnostics: Vec::new(),
     };
     let mut document = parser.parse_document();
     diagnostics.extend(parser.diagnostics);
     if let Some(document) = &mut document {
         comments::attach(document, &tokens, source, &file, &mut diagnostics);
+        notation::attach(document, &tokens, parser.notations);
     }
     ParseResult {
         file,
@@ -158,6 +161,7 @@ struct Parser<'a> {
     cursor: usize,
     expression_recursion: usize,
     exact_numeric: bool,
+    notations: Vec<(TextRange, crate::Notation)>,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -183,7 +187,7 @@ impl Parser<'_> {
         visibility: VisibilitySyntax,
     ) -> Option<ConnectorDecl> {
         self.expect_keyword("connector")?;
-        let name = self.expect_identifier("Connector name")?.text().to_owned();
+        let name = self.declaration_name("Connector name")?.text().to_owned();
         self.expect(TokenKind::LeftBrace, "`{` before Connector quantities")?;
         let syntax = if self.at_keyword("across") {
             self.bump();
@@ -467,10 +471,7 @@ impl Parser<'_> {
             return None;
         };
         let start = self.bump().range().start();
-        let name = self
-            .expect_identifier("declaration name")?
-            .text()
-            .to_owned();
+        let name = self.declaration_name("declaration name")?.text().to_owned();
         self.expect(TokenKind::Colon, "`:` before mathematical type")?;
         let value_type = self.parse_value_type()?;
         let domain = if self.at_keyword("on") {
@@ -513,7 +514,7 @@ impl Parser<'_> {
     ) -> Option<ComponentParameterDecl> {
         self.expect_keyword("parameter")?;
         let name = self
-            .expect_identifier("component Parameter name")?
+            .declaration_name("component Parameter name")?
             .text()
             .to_owned();
         self.expect(TokenKind::Colon, "`:` before component Parameter type")?;
@@ -548,7 +549,7 @@ impl Parser<'_> {
     ) -> Option<SupportSlotDecl> {
         self.expect_keyword("support")?;
         let name = self
-            .expect_identifier("component support-slot name")?
+            .declaration_name("component support-slot name")?
             .text()
             .to_owned();
         self.expect(TokenKind::Colon, "`:` before support-slot contract")?;
@@ -607,7 +608,7 @@ impl Parser<'_> {
 
     fn parse_port(&mut self) -> Option<PortDecl> {
         let start = self.expect_keyword("port")?.range().start();
-        let name = self.expect_identifier("Port name")?.text().to_owned();
+        let name = self.declaration_name("Port name")?.text().to_owned();
         self.expect(TokenKind::Colon, "`:` before Port contract")?;
         let syntax = if self.at_keyword("signal") {
             self.parse_signal_port_syntax()?
@@ -651,7 +652,7 @@ impl Parser<'_> {
     ) -> Option<ParsedComponentPort> {
         self.expect_keyword("port")?;
         let name = self
-            .expect_identifier("component Port name")?
+            .declaration_name("component Port name")?
             .text()
             .to_owned();
         let binder = self

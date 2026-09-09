@@ -39,7 +39,7 @@ impl Parser<'_> {
             } else if self.at_keyword("property") {
                 self.bump();
                 let name = self
-                    .expect_identifier("property requirement name")?
+                    .declaration_name("property requirement name")?
                     .text()
                     .to_owned();
                 self.expect(TokenKind::Colon, "`:` before property contract")?;
@@ -54,7 +54,7 @@ impl Parser<'_> {
             } else if self.at_keyword("clock") {
                 self.bump();
                 let name = self
-                    .expect_identifier("required clock name")?
+                    .declaration_name("required clock name")?
                     .text()
                     .to_owned();
                 self.expect(TokenKind::Colon, "`:` before periodic clock contract")?;

@@ -36,7 +36,7 @@ impl Parser<'_> {
 
     pub(super) fn parse_component_relation(&mut self) -> Option<ParsedRelation> {
         let start = self.expect_keyword("relation")?.range().start();
-        let name = self.expect_identifier("Relation name")?.text().to_owned();
+        let name = self.declaration_name("Relation name")?.text().to_owned();
         let binder = if self.at(TokenKind::LeftBracket) {
             Some(self.parse_index_family_binder()?)
         } else {
