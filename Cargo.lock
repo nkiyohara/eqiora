@@ -735,6 +735,7 @@ dependencies = [
  "eqiora-sem",
  "eqiora-solver",
  "eqiora-time",
+ "num-rational",
  "serde",
  "serde_json",
  "sha2",
