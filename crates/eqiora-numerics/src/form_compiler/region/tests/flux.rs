@@ -127,15 +127,29 @@ fn uniform_stress_weak_volume_and_oriented_facet_loads_cancel_exactly() {
         let [incidence] = incident.as_slice() else {
             panic!("one parent cell")
         };
+        let parent_vertices = mesh
+            .entity_vertices(entity)
+            .unwrap()
+            .iter()
+            .map(|vertex| vertex.index())
+            .collect::<Vec<_>>();
         let local = bound
-            .evaluate_natural_facet(ids["u"], &cell, (&facet, *incidence), &rule, |_, normal| {
-                Ok(normal.iter().map(|normal| 3.0 * normal).collect())
-            })
+            .evaluate_natural_facet(
+                ids["u"],
+                &cell,
+                (&facet, *incidence, &parent_vertices),
+                &rule,
+                |_, normal| Ok(normal.iter().map(|normal| 3.0 * normal).collect()),
+            )
             .unwrap();
         let reversed = bound
-            .evaluate_natural_facet(ids["u"], &cell, (&facet, *incidence), &rule, |_, normal| {
-                Ok(normal.iter().map(|normal| -3.0 * normal).collect())
-            })
+            .evaluate_natural_facet(
+                ids["u"],
+                &cell,
+                (&facet, *incidence, &parent_vertices),
+                &rule,
+                |_, normal| Ok(normal.iter().map(|normal| -3.0 * normal).collect()),
+            )
             .unwrap();
         for i in 0..6 {
             traction[i] += local.rhs()[i];
@@ -185,5 +199,156 @@ fn uniform_stress_weak_volume_and_oriented_facet_loads_cancel_exactly() {
     let reactions = prepare_reaction_rows(&work, target, 6, &[vec![0]], &(0..6).collect()).unwrap();
     for (actual, expected) in reactions[0].residual(&[0.0; 6]).unwrap().iter().zip(stress) {
         close(*actual, expected);
+    }
+}
+
+#[test]
+fn intrinsic_facet_trace_preserves_parent_permutation_and_zero_bubble() {
+    use eqiora_meshing::{EntityIncidence, MeshEntity, OrientationCode, ReferenceTopology};
+    let (_, form, ids) =
+        fixture("2*mu*symmetric_part(grad(u)) + lambda*isotropic_lift(div(u)) + isotropic_lift(p)");
+    for (reference, bubble) in [
+        (ReferenceCell::simplex(2).unwrap(), false),
+        (ReferenceCell::simplex(2).unwrap(), true),
+        (ReferenceCell::hypercube(2).unwrap(), false),
+    ] {
+        let (mut fields, mut rows, _) = inputs(&form, bubble);
+        fields
+            .iter_mut()
+            .for_each(|field| field.scale = DynQuantity::new(1.0, field.scale.dim()));
+        rows.values_mut()
+            .for_each(|row| *row = DynQuantity::new(1.0, row.dim()));
+        let bound = form.bind(reference, &fields, &rows, None).unwrap();
+        let (origin, jacobian) =
+            if reference.family() == eqiora_meshing::ReferenceCellFamily::Hypercube {
+                (vec![11.5, 21.0], vec![1.5, 0.0, 0.0, 1.0])
+            } else {
+                (vec![10.0, 20.0], vec![3.0, 0.0, 0.0, 2.0])
+            };
+        let cell = AffineGeometryMap::new(reference, 2, origin, jacobian).unwrap();
+        // Canonical facet vertex order is reversed relative to the parent.
+        let facet =
+            AffineGeometryMap::from_simplex_vertices(vec![vec![13.0, 20.0], vec![10.0, 20.0]])
+                .unwrap();
+        let topology = ReferenceTopology::new(reference).unwrap();
+        let ordinal = (0..topology.entity_count(1).unwrap())
+            .find(|ordinal| topology.entity(1, *ordinal).unwrap().vertex_ordinals() == [0, 1])
+            .unwrap();
+        let incidence = EntityIncidence {
+            entity: MeshEntity::new(2, 0),
+            local_ordinal: ordinal,
+            orientation: OrientationCode::new(1),
+        };
+        let rule = simplex_duffy_gauss_legendre(1, 2).unwrap();
+        let local = bound
+            .evaluate_natural_facet(
+                ids["u"],
+                &cell,
+                (&facet, incidence, &[1, 0]),
+                &rule,
+                |point, normal| {
+                    assert_eq!(normal, [0.0, -1.0]);
+                    Ok(vec![point[0] - 10.0, 0.0])
+                },
+            )
+            .unwrap();
+        // x=13-3t, ds=3dt: N0=t and N1=1-t. Their integrals
+        // against x-10 are 9*integral(t(1-t))=3/2 and 9/3=3.
+        for (index, value) in local.rhs().iter().enumerate() {
+            close(
+                *value,
+                match index {
+                    0 => 1.5,
+                    2 => 3.0,
+                    _ => 0.0,
+                },
+            );
+        }
+        assert!(
+            bound
+                .evaluate_natural_facet(
+                    ids["u"],
+                    &cell,
+                    (&facet, incidence, &[0, 2]),
+                    &rule,
+                    |_, _| Ok(vec![0.0, 0.0])
+                )
+                .is_err()
+        );
+        let wrong = EntityIncidence {
+            local_ordinal: (ordinal + 1) % topology.entity_count(1).unwrap(),
+            ..incidence
+        };
+        assert!(
+            bound
+                .evaluate_natural_facet(
+                    ids["u"],
+                    &cell,
+                    (&facet, wrong, &[1, 0]),
+                    &rule,
+                    |_, _| Ok(vec![0.0, 0.0])
+                )
+                .is_err()
+        );
+    }
+}
+
+#[test]
+fn rounded_cartesian_midpoint_does_not_move_a_topological_facet_outside() {
+    use eqiora_meshing::{CartesianMesh, MeshEntity, MeshGeometry, MeshTopology};
+    let (_, form, ids) =
+        fixture("2*mu*symmetric_part(grad(u)) + lambda*isotropic_lift(div(u)) + isotropic_lift(p)");
+    let (mut fields, mut rows, _) = inputs(&form, false);
+    fields
+        .iter_mut()
+        .for_each(|field| field.scale = DynQuantity::new(1.0, field.scale.dim()));
+    rows.values_mut()
+        .for_each(|row| *row = DynQuantity::new(1.0, row.dim()));
+    let bound = form
+        .bind(ReferenceCell::hypercube(2).unwrap(), &fields, &rows, None)
+        .unwrap();
+    let mesh = CartesianMesh::from_axes(vec![
+        vec![0.0, 0.5, 1.0],
+        vec![0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0],
+    ])
+    .unwrap();
+    let entity = (0..mesh.entity_count(1).unwrap())
+        .map(|index| MeshEntity::new(1, index))
+        .find(|entity| mesh.geometry_map(*entity).unwrap().origin() == [0.25, 1.0])
+        .unwrap();
+    let facet = mesh.geometry_map(entity).unwrap();
+    let incidence = mesh.incidence(entity, 2).unwrap()[0];
+    let cell = mesh.geometry_map(incidence.entity).unwrap();
+    // Binary64 midpoint rounding made the removed physical inverse exceed 1.
+    let reconstructed =
+        cell.inverse_jacobian().unwrap()[3] * (facet.origin()[1] - cell.origin()[1]);
+    assert!(reconstructed > 1.0);
+    let cell_vertices = mesh.entity_vertices(incidence.entity).unwrap();
+    let parent_vertices = mesh
+        .entity_vertices(entity)
+        .unwrap()
+        .iter()
+        .map(|vertex| {
+            cell_vertices
+                .iter()
+                .position(|parent| parent == vertex)
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    let packet = bound
+        .evaluate_natural_facet(
+            ids["u"],
+            &cell,
+            (&facet, incidence, &parent_vertices),
+            &eqiora_meshing::QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap(),
+            |_, normal| {
+                assert_eq!(normal, [0.0, 1.0]);
+                Ok(vec![1.0, 0.0])
+            },
+        )
+        .unwrap();
+    // Constant unit datum on a half-unit edge: each endpoint receives length/2.
+    for (index, value) in packet.rhs().iter().enumerate() {
+        close(*value, if index == 4 || index == 6 { 0.25 } else { 0.0 });
     }
 }

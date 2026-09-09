@@ -197,10 +197,27 @@ impl CartesianLinearAssembly {
                 let cell_geometry = mesh
                     .geometry_map(cell.entity)
                     .expect("Cartesian cell geometry");
+                let cell_vertices = mesh
+                    .entity_vertices(cell.entity)
+                    .expect("Cartesian cell vertices");
+                let facet_vertices = mesh
+                    .entity_vertices(facet)
+                    .expect("Cartesian facet vertices");
+                let parent_vertices = facet_vertices
+                    .iter()
+                    .map(|vertex| {
+                        cell_vertices
+                            .iter()
+                            .position(|parent| parent == vertex)
+                            .ok_or_else(|| {
+                                super::invalid("natural facet vertex is absent from its parent")
+                            })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
                 let local = form.volume().evaluate_natural_facet(
                     *field,
                     &cell_geometry,
-                    (&facet_geometry, *cell),
+                    (&facet_geometry, *cell, &parent_vertices),
                     &facet_rule,
                     |point, _normal| match boundary(axis, side, point) {
                         CartesianBoundaryValue::Natural(value) => Ok(vec![value]),
@@ -210,9 +227,6 @@ impl CartesianLinearAssembly {
                     },
                 )?;
                 natural_integrals[index] += local.rhs().iter().sum::<f64>();
-                let cell_vertices = mesh
-                    .entity_vertices(cell.entity)
-                    .expect("Cartesian cell vertices");
                 let globals = (0..form.fields().len())
                     .flat_map(|field| {
                         cell_vertices
