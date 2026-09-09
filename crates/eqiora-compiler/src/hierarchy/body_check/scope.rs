@@ -200,8 +200,8 @@ pub(super) enum DomainContract {
     Spatial(SpatialSupport<String>),
     Physical {
         quantities: PhysicalMemberNames,
-        across_type: eqiora_core::ValueType,
-        through_type: eqiora_core::ValueType,
+        /// Complete across/through types; indirection keeps spatial entries small.
+        types: Box<(eqiora_core::ValueType, eqiora_core::ValueType)>,
     },
 }
 

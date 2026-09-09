@@ -50,7 +50,7 @@ fn indexed_signal_connections_keep_exact_members() {
 
 #[test]
 fn indexed_relations_resolve_physical_accessors_without_abstract_member_aliasing() {
-    let source = "connector Pin=scalar_physical(across=V,through=A); component C(port p:conserving on Pin){} model M(){indexset I=range(2);instance c[i in I]:C();connect conserving c[index(I,0)].p,c[index(I,1)].p;relation r[j in I]{across(c[index(I,ordinal(j))].p)=0;}}";
+    let source = "connector Pin {\n  across voltage: V;\n  through current: A;\n} component C(port p:Pin){} model M(){indexset I=range(2);instance c[i in I]:C();connect c[index(I,0)].p,c[index(I,1)].p;relation r[j in I]{c[index(I,ordinal(j))].p.voltage=0;}}";
     let models =
         compile("indexed-physical.eqi", source).unwrap_or_else(|errors| panic!("{errors:?}"));
     assert_eq!(

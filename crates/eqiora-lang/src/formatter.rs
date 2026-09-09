@@ -69,7 +69,7 @@ pub fn format(document: &Document) -> String {
         if connector.visibility == VisibilitySyntax::Public {
             output.push_str("public ");
         }
-        write!(output, "connector {} {{\n", connector.name).expect("String write");
+        writeln!(output, "connector {} {{", connector.name).expect("String write");
         match &connector.syntax {
             ConnectorSyntax::ScalarPhysical {
                 across_name,

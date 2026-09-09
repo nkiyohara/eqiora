@@ -179,7 +179,9 @@ fn owned_declaration_only_document_preserves_package_visibility() {
         VisibilitySyntax::Public,
         "Pin",
         ConnectorSyntax::ScalarPhysical {
+            across_name: "potential".to_owned(),
             across_type: crate::ValueTypeSyntax::real(dimension()),
+            through_name: "flow".to_owned(),
             through_type: crate::ValueTypeSyntax::real(dimension()),
         },
         range(0, 0),

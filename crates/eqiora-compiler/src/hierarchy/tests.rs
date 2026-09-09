@@ -450,27 +450,27 @@ fn external_occurrence_rejects_closed_binding_and_source_failures() {
 }
 
 const RESISTOR_SOURCE: &str = r#"
-connector Pin = scalar_physical(
-  across = kg * m ^ 2 / (s ^ 3 * A),
-  through = A
-);
+connector Pin {
+  across voltage: kg * m ^ 2 / (s ^ 3 * A);
+  through current: A;
+}
 
-component Resistor(parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2), port positive: conserving on Pin, port negative: conserving on Pin) {
+component Resistor(parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2), port positive: Pin, port negative: Pin) {
 
 
 
 
   relation voltage {
-    across(positive) - across(negative) - resistance * through(positive) = 0;
-    through(positive) + through(negative) = 0;
+    positive.voltage - negative.voltage - resistance * positive.current = 0;
+    positive.current + negative.current = 0;
   }
 }
 
 model parallel() {
   instance r2: Resistor(resistance = 2[Ohm]);
   instance r4: Resistor(resistance = 4[Ohm]);
-  connect conserving r2.positive, r4.positive;
-  connect conserving r2.negative, r4.negative;
+  connect r2.positive, r4.positive;
+  connect r2.negative, r4.negative;
 }
 "#;
 
@@ -525,20 +525,23 @@ fn elaborates_repeated_component_instances_to_distinct_flat_entities() {
 #[test]
 fn semantic_declaration_order_and_source_location_do_not_change_ids() {
     let reordered = r#"
-connector Pin = scalar_physical(across = kg * m ^ 2 / (s ^ 3 * A), through = A);
-component Resistor(port negative: conserving on Pin, port positive: conserving on Pin, parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2)) {
+connector Pin {
+  across voltage: kg * m ^ 2 / (s ^ 3 * A);
+  through current: A;
+}
+component Resistor(port negative: Pin, port positive: Pin, parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2)) {
 
   relation voltage {
-    across(positive) - across(negative) - resistance * through(positive) = 0;
-    through(positive) + through(negative) = 0;
+    positive.voltage - negative.voltage - resistance * positive.current = 0;
+    positive.current + negative.current = 0;
   }
 
 
 }
 model parallel() {
-  connect conserving r2.negative, r4.negative;
+  connect r2.negative, r4.negative;
   instance r4: Resistor(resistance = 4[Ohm]);
-  connect conserving r4.positive, r2.positive;
+  connect r4.positive, r2.positive;
   instance r2: Resistor(resistance = 2[Ohm]);
 }
 "#;
@@ -559,21 +562,24 @@ model parallel() {
 #[test]
 fn nested_instances_are_elaborated_recursively() {
     let source = r#"
-connector Pin = scalar_physical(across = 1, through = 1);
-component Leaf(port left: conserving on Pin, port right: conserving on Pin) {
+connector Pin {
+  across potential: 1;
+  through flow: 1;
+}
+component Leaf(port left: Pin, port right: Pin) {
 
 
   relation law {
-    across(left) - across(right) = 0;
-    through(left) + through(right) = 0;
+    left.potential - right.potential = 0;
+    left.flow + right.flow = 0;
   }
 }
 
 component Pair() {
   instance first: Leaf();
   instance second: Leaf();
-  connect conserving first.left, second.left;
-  connect conserving first.right, second.right;
+  connect first.left, second.left;
+  connect first.right, second.right;
 }
 model nested() { instance pair: Pair(); }
 "#;
@@ -891,21 +897,24 @@ model Coupled() {
 #[test]
 fn transitive_physical_fragments_emit_one_canonical_connection() {
     let nary = r#"
-connector Pin = scalar_physical(across = 1, through = 1);
-component Terminal(port p: conserving on Pin) {
+connector Pin {
+  across potential: 1;
+  through flow: 1;
+}
+component Terminal(port p: Pin) {
 
-  relation owner { across(p) = 0; }
+  relation owner { p.potential = 0; }
 }
 model Network() {
   instance a: Terminal();
   instance b: Terminal();
   instance c: Terminal();
-  connect conserving a.p, b.p, c.p;
+  connect a.p, b.p, c.p;
 }
 "#;
     let chain = nary.replace(
-        "connect conserving a.p, b.p, c.p;",
-        "connect conserving a.p, b.p; connect conserving b.p, c.p;",
+        "connect a.p, b.p, c.p;",
+        "connect a.p, b.p; connect b.p, c.p;",
     );
     let mut nary = crate::compile("nary.eqi", nary).unwrap();
     let mut chain = crate::compile("chain.eqi", &chain).unwrap();
@@ -933,18 +942,21 @@ model Network() {
 #[test]
 fn redundant_ancestor_fragment_owns_one_connection_and_preserves_both_origins() {
     let source = r#"
-connector Pin = scalar_physical(across = 1, through = 1);
-component ClosedLeaf(port a: conserving on Pin, port b: conserving on Pin) {
+connector Pin {
+  across potential: 1;
+  through flow: 1;
+}
+component ClosedLeaf(port a: Pin, port b: Pin) {
 
 
   relation law {
-    across(a) + across(b) = 0;
+    a.potential + b.potential = 0;
   }
-  connect conserving a, b;
+  connect a, b;
 }
 component Parent() {
   instance leaf: ClosedLeaf();
-  connect conserving leaf.a, leaf.b;
+  connect leaf.a, leaf.b;
 }
 model Network() { instance parent: Parent(); }
 "#;
@@ -998,20 +1010,23 @@ model Network() { instance parent: Parent(); }
 #[test]
 fn ownerless_public_port_is_eliminated_without_fabricating_an_entity_alias() {
     let source = r#"
-connector Pin = scalar_physical(across = 1, through = 1);
-component Leaf(port p: conserving on Pin) {
-
-  relation owner { across(p) = 0; }
+connector Pin {
+  across potential: 1;
+  through flow: 1;
 }
-component Wrapper(port p: conserving on Pin) {
+component Leaf(port p: Pin) {
+
+  relation owner { p.potential = 0; }
+}
+component Wrapper(port p: Pin) {
 
   instance leaf: Leaf();
-  connect conserving p, leaf.p;
+  connect p, leaf.p;
 }
 model Network() {
   instance left: Wrapper();
   instance right: Leaf();
-  connect conserving left.p, right.p;
+  connect left.p, right.p;
 }
 "#;
     let document = eqiora_lang::parse("exposure.eqi", source)
@@ -1087,26 +1102,29 @@ model Network() {
 #[test]
 fn nested_physical_exposures_retain_distinct_occurrence_cuts() {
     let source = r#"
-connector Pin = scalar_physical(across = 1, through = 1);
-component Leaf(port p: conserving on Pin) {
-
-  relation owner { across(p) = 0; }
+connector Pin {
+  across potential: 1;
+  through flow: 1;
 }
-component Inner(port p: conserving on Pin) {
+component Leaf(port p: Pin) {
+
+  relation owner { p.potential = 0; }
+}
+component Inner(port p: Pin) {
 
   instance leaf: Leaf();
-  connect conserving p, leaf.p;
+  connect p, leaf.p;
 }
-component Outer(port p: conserving on Pin) {
+component Outer(port p: Pin) {
 
   instance inner: Inner();
   instance sibling: Leaf();
-  connect conserving p, inner.p, sibling.p;
+  connect p, inner.p, sibling.p;
 }
 model Network() {
   instance outer: Outer();
   instance right: Leaf();
-  connect conserving outer.p, right.p;
+  connect outer.p, right.p;
 }
 "#;
     let mut compiled = crate::compile("nested-exposures.eqi", source).unwrap();
@@ -1153,12 +1171,12 @@ model Network() {
 
     let reordered = source
         .replace(
-            "  instance inner: Inner();\n  instance sibling: Leaf();\n  connect conserving p, inner.p, sibling.p;",
-            "  instance sibling: Leaf();\n  connect conserving sibling.p, inner.p, p;\n  instance inner: Inner();",
+            "  instance inner: Inner();\n  instance sibling: Leaf();\n  connect p, inner.p, sibling.p;",
+            "  instance sibling: Leaf();\n  connect sibling.p, inner.p, p;\n  instance inner: Inner();",
         )
         .replace(
-            "  instance outer: Outer();\n  instance right: Leaf();\n  connect conserving outer.p, right.p;",
-            "  connect conserving right.p, outer.p;\n  instance right: Leaf();\n  instance outer: Outer();",
+            "  instance outer: Outer();\n  instance right: Leaf();\n  connect outer.p, right.p;",
+            "  connect right.p, outer.p;\n  instance right: Leaf();\n  instance outer: Outer();",
         );
     let mut reordered = crate::compile("nested-reordered.eqi", &reordered).unwrap();
     let reordered = reordered.pop().unwrap();
@@ -1171,23 +1189,26 @@ model Network() {
 }
 
 const DISTINCT_EXPOSURE_CUTS: &str = r#"
-connector Pin = scalar_physical(across = 1, through = 1);
-component Leaf(port p: conserving on Pin) {
-
-  relation owner { across(p) = 0; }
+connector Pin {
+  across potential: 1;
+  through flow: 1;
 }
-component Pair(port p: conserving on Pin, port q: conserving on Pin) {
+component Leaf(port p: Pin) {
+
+  relation owner { p.potential = 0; }
+}
+component Pair(port p: Pin, port q: Pin) {
 
 
   instance left: Leaf();
   instance right: Leaf();
-  connect conserving p, left.p;
-  connect conserving q, right.p;
+  connect p, left.p;
+  connect q, right.p;
 }
 model Network() {
   instance pair: Pair();
   instance outside: Leaf();
-  connect conserving pair.p, pair.q, outside.p;
+  connect pair.p, pair.q, outside.p;
 }
 "#;
 
@@ -1441,18 +1462,19 @@ fn field_physical_ports_specialize_on_exact_occurrence_supports() {
     use eqiora_schema::kernel::{DomainKind, ExprNode, KernelNode, PortPayload, SymbolRef};
 
     let source = r#"
-public connector MechanicalBoundary = field_physical(
-  trace = velocity: m / s,
-  flux = traction: kg / (m * s ^ 2),
-  shape = spatial_vector,
-  frame = spatial,
-  pairing = euclidean_boundary_duality
-);
-public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body), port interface: conserving MechanicalBoundary over wall) {
+public connector MechanicalBoundary {
+  trace velocity: m / s;
+  flux traction: kg / (m * s ^ 2);
+  shape spatial_vector;
+  frame spatial;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}
+public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body), port interface: MechanicalBoundary over wall) {
 
 
 
-  relation load on wall { flux(interface) = 0; }
+  relation load on wall { interface.traction = 0; }
 }
 
 model Coupled() {
@@ -1462,7 +1484,7 @@ model Coupled() {
   domain right_wall = boundary(right_body, axis = 0, side = lower);
   instance left: Side(body = left_body, wall = left_wall);
   instance right: Side(body = right_body, wall = right_wall);
-  connect conserving left.interface, right.interface;
+  connect left.interface, right.interface;
 }
 "#;
     let compiled = crate::compile("field-interface.eqi", source).unwrap();
@@ -1513,18 +1535,19 @@ fn spatial_periodic_model_pair_lowers_without_connection_set_union() {
     use eqiora_schema::kernel::ConnectionSemantics;
 
     let source = r#"
-public connector TransportBoundary = field_physical(
-  trace = concentration: K,
-  flux = transport_flux: K * m / s,
-  shape = [],
-  frame = invariant,
-  pairing = euclidean_boundary_duality
-);
-public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body), port interface: conserving TransportBoundary over wall) {
+public connector TransportBoundary {
+  trace concentration: K;
+  flux transport_flux: K * m / s;
+  shape [];
+  frame invariant;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}
+public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body), port interface: TransportBoundary over wall) {
 
 
 
-  relation owner on wall { flux(interface) = 0; }
+  relation owner on wall { interface.transport_flux = 0; }
 }
 
 model Periodic() {
@@ -1567,25 +1590,26 @@ fn field_physical_exposure_retains_exact_boundary_cut_and_contract() {
     use eqiora_schema::kernel::DomainKind;
 
     let source = r#"
-public connector MechanicalBoundary = field_physical(
-  trace = velocity: m / s,
-  flux = traction: kg / (m * s ^ 2),
-  shape = spatial_vector,
-  frame = spatial,
-  pairing = euclidean_boundary_duality
-);
-public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body), port interface: conserving MechanicalBoundary over wall) {
-
-
-
-  relation load on wall { flux(interface) = 0; }
+public connector MechanicalBoundary {
+  trace velocity: m / s;
+  flux traction: kg / (m * s ^ 2);
+  shape spatial_vector;
+  frame spatial;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
 }
-public component Wrapper(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body), port interface: conserving MechanicalBoundary over wall) {
+public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body), port interface: MechanicalBoundary over wall) {
+
+
+
+  relation load on wall { interface.traction = 0; }
+}
+public component Wrapper(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body), port interface: MechanicalBoundary over wall) {
 
 
 
   instance side: Side(body = body, wall = wall);
-  connect conserving interface, side.interface;
+  connect interface, side.interface;
 }
 model Coupled() {
   domain left_body = box(0, 1, 0, 1);
@@ -1594,7 +1618,7 @@ model Coupled() {
   domain right_wall = boundary(right_body, axis = 0, side = lower);
   instance left: Wrapper(body = left_body, wall = left_wall);
   instance right: Side(body = right_body, wall = right_wall);
-  connect conserving left.interface, right.interface;
+  connect left.interface, right.interface;
 }
 "#;
     let mut compiled = crate::compile("field-exposure.eqi", source).unwrap();
@@ -1643,15 +1667,19 @@ model Coupled() {
 #[test]
 fn noncoincident_field_boundaries_fail_before_connection_set_union() {
     let source = r#"
-public connector B = field_physical(
-  trace = u: 1, flux = f: 1, shape = spatial_vector,
-  frame = spatial, pairing = euclidean_boundary_duality
-);
-public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body), port p: conserving B over wall) {
+public connector B {
+  trace u: 1;
+  flux f: 1;
+  shape spatial_vector;
+  frame spatial;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}
+public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body), port p: B over wall) {
 
 
 
-  relation owner on wall { flux(p) = 0; }
+  relation owner on wall { p.f = 0; }
 }
 
 model M() {
@@ -1661,7 +1689,7 @@ model M() {
   domain bw = boundary(b, axis = 0, side = lower);
   instance left: Side(body = a, wall = aw);
   instance right: Side(body = b, wall = bw);
-  connect conserving left.p, right.p;
+  connect left.p, right.p;
 }
 "#;
     let diagnostics = crate::compile("noncoincident.eqi", source).unwrap_err();
@@ -1675,11 +1703,15 @@ model M() {
 #[test]
 fn spatial_connector_checks_every_extent_against_ambient_dimension() {
     let source = r#"
-public connector Bad = field_physical(
-  trace = u: 1, flux = f: 1, shape = [2, 3],
-  frame = spatial, pairing = euclidean_boundary_duality
-);
-public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body), port p: conserving Bad over wall) {
+public connector Bad {
+  trace u: 1;
+  flux f: 1;
+  shape [2, 3];
+  frame spatial;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}
+public component Side(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body), port p: Bad over wall) {
 
 
 

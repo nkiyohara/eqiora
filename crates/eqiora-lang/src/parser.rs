@@ -212,11 +212,8 @@ impl Parser<'_> {
                 through_name,
                 through_type,
             }
-        } else if self.at_keyword("trace") {
-            self.parse_field_physical_connector()?
         } else {
-            self.error_here("expected named `across`/`through` or `trace`/`flux` quantities");
-            return None;
+            self.parse_field_physical_connector()?
         };
         let end = self
             .expect(TokenKind::RightBrace, "`}` after Connector quantities")?

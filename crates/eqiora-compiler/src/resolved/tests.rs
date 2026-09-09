@@ -924,7 +924,7 @@ fn unused_connector_contract_fails_definition_validation() {
         vec![unit(
             &root,
             "root.eqi",
-            "public connector Broken = scalar_physical(across = mystery, through = A); model Main() {}",
+            "public connector Broken {\n  across voltage: mystery;\n  through current: A;\n} model Main() {}",
         )],
         vec![],
     );

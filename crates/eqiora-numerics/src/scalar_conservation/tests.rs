@@ -33,25 +33,26 @@ model ScalarBalance() {
 "#;
 
 const COMPOSITE: &str = r#"
-public connector ScalarBoundary = field_physical(
-  trace = value: 1,
-  flux = outward_flux: 1 / m,
-  shape = [],
-  frame = invariant,
-  pairing = euclidean_boundary_duality
-);
+public connector ScalarBoundary {
+  trace value: 1;
+  flux outward_flux: 1 / m;
+  shape [];
+  frame invariant;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}
 
 public component ScalarInterface1d(
   support body: volume(ambient_dimension = 1),
   support face: boundary(parent = body),
   variable state: 1 on body,
   parameter coefficient: 1,
-  port interface: conserving ScalarBoundary over face
+  port interface: ScalarBoundary over face
 ) {
 
   relation carrier on face {
-    trace(state) - trace(interface) = 0;
-    normal(coefficient * grad(state)) - flux(interface) = 0;
+    trace(state) - interface.value = 0;
+    normal(coefficient * grad(state)) - interface.outward_flux = 0;
   }
 }
 
@@ -93,7 +94,7 @@ model CompositeBalance() {
     coefficient = right_coefficient
   );
 
-  connect conserving left_carrier.interface, right_carrier.interface;
+  connect left_carrier.interface, right_carrier.interface;
 }
 "#;
 
@@ -368,14 +369,14 @@ fn interface_rejects_wrong_constitutive_lineage_and_incomplete_carrier() {
     assert!(recognize_scalar_conservation(&program(&wrong_coefficient)).is_err());
 
     let missing_flux = COMPOSITE.replace(
-        "    normal(coefficient * grad(state)) - flux(interface) = 0;\n",
+        "    normal(coefficient * grad(state)) - interface.outward_flux = 0;\n",
         "",
     );
     assert!(recognize_scalar_conservation(&program(&missing_flux)).is_err());
 
     let wrong_carrier_sign = COMPOSITE.replace(
-        "normal(coefficient * grad(state)) - flux(interface)",
-        "normal(coefficient * grad(state)) + flux(interface)",
+        "normal(coefficient * grad(state)) - interface.outward_flux",
+        "normal(coefficient * grad(state)) + interface.outward_flux",
     );
     assert!(recognize_scalar_conservation(&program(&wrong_carrier_sign)).is_err());
 }

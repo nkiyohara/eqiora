@@ -2,6 +2,17 @@
 
 use super::*;
 
+impl From<&DraftConservingPort> for DraftPortReference {
+    fn from(port: &DraftConservingPort) -> Self {
+        Self {
+            symbol: port.symbol.clone(),
+            name: port.name.clone(),
+            across_name: port.domain.across_name.clone(),
+            through_name: port.domain.through_name.clone(),
+        }
+    }
+}
+
 impl DraftExpression {
     /// Project an authored expression into the shared AST with synthetic ranges.
     #[doc(hidden)]

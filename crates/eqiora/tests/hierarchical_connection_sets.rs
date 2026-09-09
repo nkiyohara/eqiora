@@ -109,16 +109,12 @@ fn terminal_network(instances: [&str; 3], fragments: &[Vec<&str>]) -> String {
                 .map(|member| format!("{member}.p"))
                 .collect::<Vec<_>>()
                 .join(", ");
-            format!("  connect conserving {ports};")
+            format!("  connect {ports};")
         })
         .collect::<Vec<_>>()
         .join("\n");
     format!(
-        "connector Pin = scalar_physical(across = 1, through = 1);\n\
-         component Terminal(port p: conserving on Pin) {{\n\
-           relation owner {{ across(p) = 0; }}\n\
-         }}\n\
-         model Network() {{\n{instances}\n{fragments}\n}}\n"
+        "connector Pin {{\n  across potential: 1;\n  through flow: 1;\n}}\ncomponent Terminal(port p: Pin) {{\nrelation owner {{ p.potential = 0; }}\n}}\nmodel Network() {{\n{instances}\n{fragments}\n}}\n"
     )
 }
 
@@ -343,8 +339,8 @@ fn sibling_exposures_retain_distinct_internal_cuts_after_external_union() {
 #[test]
 fn duplicate_fragments_are_idempotent_but_duplicate_members_are_rejected() {
     let duplicate_source = DISJOINT.replace(
-        "  connect conserving a.p, b.p;",
-        "  connect conserving a.p, b.p;\n  connect conserving b.p, a.p;",
+        "  connect a.p, b.p;",
+        "  connect a.p, b.p;\n  connect b.p, a.p;",
     );
     let single = compile_one("single.eqi", DISJOINT);
     let duplicate = compile_one("duplicate.eqi", &duplicate_source);
@@ -370,10 +366,7 @@ fn duplicate_fragments_are_idempotent_but_duplicate_members_are_rejected() {
     let duplicate = compile_one("duplicate.eqi", &duplicate_source);
     assert_eq!(canonical_program(single), canonical_program(duplicate));
 
-    let duplicate_member = DISJOINT.replace(
-        "  connect conserving a.p, b.p;",
-        "  connect conserving a.p, a.p;",
-    );
+    let duplicate_member = DISJOINT.replace("  connect a.p, b.p;", "  connect a.p, a.p;");
     let diagnostics =
         compile("duplicate-member.eqi", &duplicate_member).expect_err("member repeats");
     require_diagnostic(
@@ -499,22 +492,28 @@ fn invalid_physical_owner_and_membership_claims_fail_before_transaction_exposure
 #[test]
 fn nominal_physical_types_and_signal_connections_never_enter_the_union() {
     let nominal_mismatch = r#"
-connector LeftPin = scalar_physical(across = 1, through = 1);
-connector RightPin = scalar_physical(across = 1, through = 1);
+connector LeftPin {
+  across potential: 1;
+  through flow: 1;
+}
+connector RightPin {
+  across potential: 1;
+  through flow: 1;
+}
 component Left(
-  port p: conserving on LeftPin
+  port p: LeftPin
 ) {
-  relation owner { across(p) = 0; }
+  relation owner { p.potential = 0; }
 }
 component Right(
-  port p: conserving on RightPin
+  port p: RightPin
 ) {
-  relation owner { across(p) = 0; }
+  relation owner { p.potential = 0; }
 }
 model Network() {
   instance left: Left();
   instance right: Right();
-  connect conserving left.p, right.p;
+  connect left.p, right.p;
 }
 "#;
     let diagnostics = compile("nominal-mismatch.eqi", nominal_mismatch)

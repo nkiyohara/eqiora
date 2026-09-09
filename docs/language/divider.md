@@ -27,6 +27,14 @@ version. `kOhm` is a scaled input unit, while `Ohm` is the structural resistance
 The divider is a continuous, lumped algebraic model. It has no spatial support, stored state,
 initialization equation, clock, or hidden reference potential.
 
+The repository [divider example](../../examples/voltage_divider.eqi) uses the maintained
+Basic definitions. Its [executable test](../../crates/eqiora/tests/named_connector_divider.rs)
+checks equation ownership, the predictions below, and missing-reference rejection:
+
+```bash
+cargo test -p eqiora --test named_connector_divider
+```
+
 ## Inspect the mathematics
 
 Here is the complete same-file version, exposing the component definitions used above.

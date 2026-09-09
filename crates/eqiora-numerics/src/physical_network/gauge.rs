@@ -205,4 +205,40 @@ mod tests {
         assert!(add_word(&mut words, 0, 1).is_err());
         assert!(2097 + (u64::BITS as usize) < 34 * 64);
     }
+
+    #[test]
+    fn one_grounded_island_does_not_hide_a_floating_island_of_the_same_domain() {
+        use eqiora_core::{Id, entity::kinds};
+        let domain = Id::<kinds::Domain>::new().erase();
+        let domains = [Some(domain), Some(domain), Some(domain), Some(domain), None];
+        let mut storage = super::super::AffineCsrStorage {
+            rows: 4,
+            columns: 5,
+            row_offsets: vec![0, 2, 4, 5, 6],
+            column_indices: vec![0, 1, 2, 3, 0, 4],
+            values: vec![1.0, -1.0, 1.0, -1.0, 1.0, 1.0],
+            right_hand_side: vec![0.0; 4],
+        };
+        assert!(reject_shift_groups(&domains, &storage).is_err());
+        // A nonzero anchor on the second island is never rounded away,
+        // even at the smallest representable binary64 coefficient.
+        storage.column_indices[5] = 3;
+        storage.values[5] = f64::from_bits(1);
+        assert!(reject_shift_groups(&domains, &storage).is_ok());
+    }
+
+    #[test]
+    fn exact_zero_is_not_limited_to_pairwise_opposite_coefficients() {
+        use eqiora_core::{Id, entity::kinds};
+        let domain = Id::<kinds::Domain>::new().erase();
+        let storage = super::super::AffineCsrStorage {
+            rows: 1,
+            columns: 3,
+            row_offsets: vec![0, 3],
+            column_indices: vec![0, 1, 2],
+            values: vec![2.0, -1.0, -1.0],
+            right_hand_side: vec![0.0],
+        };
+        assert!(reject_shift_groups(&[Some(domain); 3], &storage).is_err());
+    }
 }

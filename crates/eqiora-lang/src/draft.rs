@@ -106,7 +106,7 @@ impl ModelDraft {
                         diagnostics.push(native_diagnostic(
                             &self.name,
                             value.name(),
-                            "physical quantities require two distinct declared member names",
+                            "physical quantity names must be distinct valid Eqiora Language identifiers",
                         ));
                     }
                     if !value.across_type.shape().is_scalar()
@@ -558,9 +558,7 @@ impl From<DraftConservingConnection> for DraftDeclaration {
 ///
 /// Domain compatibility follows this handle's identity. Equal names and
 /// equal dimensions never make separately constructed Domains compatible.
-/// Closing a draft containing this declaration requires an explicitly
-/// selected v2 model wire at the application boundary; legacy convenience
-/// entry points intentionally remain exact v1 defaults.
+/// Named quantities project through the shared current compiler and Model wire.
 #[derive(Debug, Clone)]
 pub struct DraftPhysicalDomain {
     symbol: DraftSymbol,
@@ -959,17 +957,6 @@ struct DraftPortReference {
     name: String,
     across_name: String,
     through_name: String,
-}
-
-impl From<&DraftConservingPort> for DraftPortReference {
-    fn from(port: &DraftConservingPort) -> Self {
-        Self {
-            symbol: port.symbol.clone(),
-            name: port.name.clone(),
-            across_name: port.domain.across_name.clone(),
-            through_name: port.domain.through_name.clone(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

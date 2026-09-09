@@ -560,7 +560,7 @@ impl ExpressionLowerer<'_> {
                         self.file,
                         expression.range(),
                         format!(
-                            "scalar physical Port `{name}` must be read as `across({name})` or `through({name})`"
+                            "scalar physical Port `{name}` requires a declared quantity member (`port.member`)"
                         ),
                     ));
                 }
@@ -570,7 +570,7 @@ impl ExpressionLowerer<'_> {
                         self.file,
                         expression.range(),
                         format!(
-                            "field-physical Port `{name}` must be read as `trace({name})` or `flux({name})`"
+                            "field-physical Port `{name}` requires a declared quantity member (`port.member`)"
                         ),
                     ));
                 }

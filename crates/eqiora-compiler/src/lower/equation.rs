@@ -13,15 +13,6 @@ pub(crate) struct LoweringEquation {
 }
 
 impl LoweringEquation {
-    #[cfg(test)]
-    pub(crate) fn from_source(equation: &eqiora_lang::Equation) -> Self {
-        Self::rewritten(
-            equation,
-            LoweringExpression::from_source(equation.left()),
-            LoweringExpression::from_source(equation.right()),
-        )
-    }
-
     pub(crate) fn rewritten(
         equation: &eqiora_lang::Equation,
         left: LoweringExpression,

@@ -87,7 +87,7 @@ fn every_context_and_unused_definition_retains_body_validation() {
 
 #[test]
 fn context_dependent_physical_proofs_are_not_reused() {
-    let source = "connector Pin=scalar_physical(across=V,through=A);component C(parameter n:integer,port p:conserving on Pin){indexset I=range(n);relation r[j in I]{across(p)=sum(1[V],over=(i in I));}} model M(){instance a:C(n=1);instance b:C(n=2);connect conserving a.p,b.p;}";
+    let source = "connector Pin {\n  across voltage: V;\n  through current: A;\n}component C(parameter n:integer,port p:Pin){indexset I=range(n);relation r[j in I]{p.voltage=sum(1[V],over=(i in I));}} model M(){instance a:C(n=1);instance b:C(n=2);connect a.p,b.p;}";
     let errors = compile("physical-contexts.eqi", source).unwrap_err();
     assert!(
         errors.iter().any(|error| error

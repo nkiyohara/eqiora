@@ -6,24 +6,25 @@ use eqiora::compiler::{
 };
 
 const DEPENDENCY: &str = r#"
-public connector MechanicalBoundary = field_physical(
-  trace = displacement: m,
-  flux = traction: kg / (m * s ^ 2),
-  shape = spatial_vector,
-  frame = spatial,
-  pairing = euclidean_boundary_duality
-);
+public connector MechanicalBoundary {
+  trace displacement: m;
+  flux traction: kg / (m * s ^ 2);
+  shape spatial_vector;
+  frame spatial;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}
 
 public component ExteriorLaw(
   support body: volume(ambient_dimension = 2),
   support exterior: complete_exterior(parent = body),
-  port mechanical[boundary in exterior]: conserving MechanicalBoundary over boundary
+  port mechanical[boundary in exterior]: MechanicalBoundary over boundary
 ) {
   relation boundary_law[boundary in exterior] on boundary {
-    trace(mechanical[boundary = boundary])
-      - trace(mechanical[boundary = boundary]) = 0;
-    flux(mechanical[boundary = boundary])
-      - flux(mechanical[boundary = boundary]) = 0;
+    mechanical[boundary = boundary].displacement
+      - mechanical[boundary = boundary].displacement = 0;
+    mechanical[boundary = boundary].traction
+      - mechanical[boundary = boundary].traction = 0;
   }
 }
 "#;
@@ -40,11 +41,11 @@ import mechanics_package.main as {alias};
 public component BoundaryTerminal(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
-  port mechanical: conserving {alias}.MechanicalBoundary over face
+  port mechanical: {alias}.MechanicalBoundary over face
 ) {{
   relation terminal_law on face {{
-    trace(mechanical) - trace(mechanical) = 0;
-    flux(mechanical) - flux(mechanical) = 0;
+    mechanical.displacement - mechanical.displacement = 0;
+    mechanical.traction - mechanical.traction = 0;
   }}
 }}
 
@@ -76,13 +77,13 @@ model Main() {{
     face = y_upper
   );
 
-  connect conserving solid.mechanical[boundary = x_lower],
+  connect solid.mechanical[boundary = x_lower],
     x_lower_terminal.mechanical;
-  connect conserving solid.mechanical[boundary = x_upper],
+  connect solid.mechanical[boundary = x_upper],
     x_upper_terminal.mechanical;
-  connect conserving solid.mechanical[boundary = y_lower],
+  connect solid.mechanical[boundary = y_lower],
     y_lower_terminal.mechanical;
-  connect conserving solid.mechanical[boundary = y_upper],
+  connect solid.mechanical[boundary = y_upper],
     y_upper_terminal.mechanical;
 }}
 "#

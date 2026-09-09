@@ -283,7 +283,8 @@ impl ExpressionChecker<'_, '_, '_> {
             return Ok(ExpressionType::new(value.value_type().clone(), None));
         }
         if let Some((port, member)) = super::super::quantity_member::split(expression)
-            && self.physical_port_contract(&port).is_some()
+            && (matches!(port.kind(), ExprKind::BoundaryPortSelection { .. })
+                || self.physical_port_contract(&port).is_some())
         {
             return self.check_physical_member(member, &port);
         }
@@ -530,7 +531,7 @@ impl ExpressionChecker<'_, '_, '_> {
                     self.scope.file,
                     expression.range(),
                     format!(
-                        "scalar physical Port `{display}` must be read as `across({display})` or `through({display})`"
+                        "physical Port `{display}` requires a declared quantity member (`port.member`)"
                     ),
                 )
             })

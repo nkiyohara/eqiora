@@ -454,13 +454,13 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
     body = body, face = y_upper
   );
 
-  connect conserving {interface}.mechanical[boundary = x_lower],
+  connect {interface}.mechanical[boundary = x_lower],
     x_lower_condition.mechanical;
-  connect conserving {interface}.mechanical[boundary = x_upper],
+  connect {interface}.mechanical[boundary = x_upper],
     x_upper_condition.mechanical;
-  connect conserving {interface}.mechanical[boundary = y_lower],
+  connect {interface}.mechanical[boundary = y_lower],
     y_lower_condition.mechanical;
-  connect conserving {interface}.mechanical[boundary = y_upper],
+  connect {interface}.mechanical[boundary = y_upper],
     y_upper_condition.mechanical;
 }}
 "#

@@ -309,7 +309,7 @@ mod tests {
 
     #[test]
     fn lexer_distinguishes_qualified_names_from_decimal_points() {
-        let source = "connect conserving drive.motor.positive, 1.25;";
+        let source = "connect drive.motor.positive, 1.25;";
         let result = lex("qualified.eqi", source);
         let dots = result
             .tokens()

@@ -175,16 +175,14 @@ pub(in crate::hierarchy::body_check) fn model_port_contract(
             })
         }
         PortSyntax::ScalarPhysical { domain } => match scope.symbols.get(domain) {
-            Some(SymbolContract::Domain(DomainContract::Physical {
-                quantities,
-                across_type,
-                through_type,
-            })) => Ok(PortContract::Physical {
-                nominal: PhysicalNominal::ModelDomain(domain.clone()),
-                quantities: quantities.clone(),
-                across_type: across_type.clone(),
-                through_type: through_type.clone(),
-            }),
+            Some(SymbolContract::Domain(DomainContract::Physical { quantities, types })) => {
+                Ok(PortContract::Physical {
+                    nominal: PhysicalNominal::ModelDomain(domain.clone()),
+                    quantities: quantities.clone(),
+                    across_type: types.0.clone(),
+                    through_type: types.1.clone(),
+                })
+            }
             Some(_) => Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 scope.file,

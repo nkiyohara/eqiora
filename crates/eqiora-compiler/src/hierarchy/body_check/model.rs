@@ -241,8 +241,7 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                                                     across: across_name.clone(),
                                                     through: through_name.clone(),
                                                 },
-                                            across_type: across,
-                                            through_type: through,
+                                            types: Box::new((across, through)),
                                         }),
                                     ))
                                 })

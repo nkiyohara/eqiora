@@ -6,21 +6,18 @@ use eqiora::sem::KernelProgram;
 
 const SOURCE: &str = r#"
 model physical_pair() {
-  domain electrical = scalar_physical(
-    across = kg * m ^ 2 / (s ^ 3 * A),
-    through = A
-  );
-  port left: conserving on electrical;
-  port right: conserving on electrical;
+  domain electrical = scalar_physical(across voltage: kg * m ^ 2 / (s ^ 3 * A), through current: A);
+  port left: electrical;
+  port right: electrical;
 
   relation left_component {
-    across(left) = 0;
+    left.voltage = 0;
   }
   relation right_component {
-    through(right) = 0;
+    right.current = 0;
   }
 
-  connect conserving left, right;
+  connect left, right;
 }
 "#;
 

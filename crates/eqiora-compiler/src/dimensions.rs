@@ -409,7 +409,10 @@ model Catalog() {
 dimension Speed = m / s;
 dimension Momentum = N * s;
 
-connector Motion = scalar_physical(across = Speed, through = Momentum);
+connector Motion {
+  across potential: Speed;
+  through flow: Momentum;
+}
 component Law(parameter target: Speed, input input: Speed) {
   
   

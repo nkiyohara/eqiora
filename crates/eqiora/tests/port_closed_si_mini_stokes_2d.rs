@@ -227,13 +227,14 @@ fn wrong_newtonian_stress_and_nominal_connector_near_misses_fail_closed() {
 
     let distinct_connector = r#"
 
-public connector OtherVelocityTractionBoundary = field_physical(
-  trace = velocity: m / s,
-  flux = traction: kg / (m * s ^ 2),
-  shape = spatial_vector,
-  frame = spatial,
-  pairing = euclidean_boundary_duality
-);
+public connector OtherVelocityTractionBoundary {
+  trace velocity: m / s;
+  flux traction: kg / (m * s ^ 2);
+  shape spatial_vector;
+  frame spatial;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}
 "#;
     let other_mechanics =
         inline_mechanics_release(&format!("{MECHANICS_SOURCE}{distinct_connector}"));
@@ -598,12 +599,12 @@ fn transparent_open_terminal_source(source: &str) -> String {
 public component CompatibleOpenVelocityTerminal2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
-  port mechanical: conserving mechanics.VelocityTractionBoundary over face
+  port mechanical: mechanics.VelocityTractionBoundary over face
 ) {
 
   relation transparent_carrier on face {
-    trace(mechanical) - trace(mechanical) = 0;
-    flux(mechanical) - flux(mechanical) = 0;
+    mechanical.velocity - mechanical.velocity = 0;
+    mechanical.traction - mechanical.traction = 0;
   }
 }
 

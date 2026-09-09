@@ -524,8 +524,8 @@ fn live_multiport_binding_is_retained_then_rejected_by_the_q1_realization() {
             "  instance x_upper_free_peer: solid.ZeroTraction2d(\n    body = body,\n    face = x_upper\n  );\n  instance y_lower_free: solid.ZeroTraction2d(",
         )
         .replace(
-            "connect conserving boundary_law.mechanical[boundary = x_upper], x_upper_free.mechanical;",
-            "connect conserving boundary_law.mechanical[boundary = x_upper], x_upper_free.mechanical, x_upper_free_peer.mechanical;",
+            "connect boundary_law.mechanical[boundary = x_upper], x_upper_free.mechanical;",
+            "connect boundary_law.mechanical[boundary = x_upper], x_upper_free.mechanical, x_upper_free_peer.mechanical;",
         );
     let packaged = compile_packaged(&dependency, &source);
     let lowered = lower_isotropic_elasticity_cartesian_2d(packaged.model().program())
@@ -608,8 +608,8 @@ fn boundary_normalization_rejects_near_miss_semantics() {
     assert!(diagnostic.message().contains("boundary side is duplicated"));
 
     let simultaneous_terminal = LIVE_PACKAGE_SOURCE.replace(
-        "  relation prescribed_traction on face {\n    flux(mechanical) = 0;\n  }",
-        "  relation prescribed_traction on face {\n    trace(mechanical) = 0;\n    flux(mechanical) = 0;\n  }",
+        "  relation prescribed_traction on face {\n    mechanical.traction = 0;\n  }",
+        "  relation prescribed_traction on face {\n    mechanical.displacement = 0;\n    mechanical.traction = 0;\n  }",
     );
     assert_ne!(simultaneous_terminal, LIVE_PACKAGE_SOURCE);
     let dependency = elasticity_package_with_source(&simultaneous_terminal);

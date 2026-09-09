@@ -619,28 +619,29 @@ mod tests {
     }
 
     const SCALAR_CONNECTOR: &str = r#"
-public connector BoundaryScalar = field_physical(
-  trace = value: 1,
-  flux = flux: 1,
-  shape = [],
-  frame = invariant,
-  pairing = euclidean_boundary_duality
-);
+public connector BoundaryScalar {
+  trace value: 1;
+  flux flux: 1;
+  shape [];
+  frame invariant;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}
 "#;
 
     #[test]
     fn complete_exterior_family_is_checked_once_with_a_synthetic_member_identity() {
         let source = format!(
             r#"{SCALAR_CONNECTOR}
-component BoundaryLaw(support exterior: complete_exterior(parent = body), support body: volume(ambient_dimension = 2), port natural[boundary in exterior]: conserving BoundaryScalar over boundary, port coupled[boundary in exterior]: conserving BoundaryScalar over boundary) {{
+component BoundaryLaw(support exterior: complete_exterior(parent = body), support body: volume(ambient_dimension = 2), port natural[boundary in exterior]: BoundaryScalar over boundary, port coupled[boundary in exterior]: BoundaryScalar over boundary) {{
   
   
 
 
   relation natural_law[boundary in exterior] on boundary {{
-    flux(natural[boundary = boundary]) = 0;
+    natural[boundary = boundary].flux = 0;
   }}
-  connect conserving [boundary in exterior]
+  connect [boundary in exterior]
     natural[boundary = boundary], coupled[boundary = boundary];
 }}
 "#
@@ -657,16 +658,16 @@ component BoundaryLaw(support exterior: complete_exterior(parent = body), suppor
     fn binderless_exact_boundary_connection_retains_its_component_class() {
         let source = format!(
             r#"{SCALAR_CONNECTOR}
-component Coupler(support left_body: volume(ambient_dimension = 2), support left_face: boundary(parent = left_body), support right_body: volume(ambient_dimension = 2), support right_face: boundary(parent = right_body), port left: conserving BoundaryScalar over left_face, port right: conserving BoundaryScalar over right_face) {{
+component Coupler(support left_body: volume(ambient_dimension = 2), support left_face: boundary(parent = left_body), support right_body: volume(ambient_dimension = 2), support right_face: boundary(parent = right_body), port left: BoundaryScalar over left_face, port right: BoundaryScalar over right_face) {{
 
 
 
 
   
   
-  relation left_law on left_face {{ trace(left) = 0; flux(left) = 0; }}
-  relation right_law on right_face {{ trace(right) = 0; flux(right) = 0; }}
-  connect conserving left, right;
+  relation left_law on left_face {{ left.value = 0; left.flux = 0; }}
+  relation right_law on right_face {{ right.value = 0; right.flux = 0; }}
+  connect left, right;
 }}
 "#
         );
@@ -700,12 +701,12 @@ component Coupler(support left_body: volume(ambient_dimension = 2), support left
             };
             let source = format!(
                 r#"{SCALAR_CONNECTOR}
-component BoundaryLaw(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body), port natural[boundary in exterior]: conserving BoundaryScalar over boundary) {{
+component BoundaryLaw(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body), port natural[boundary in exterior]: BoundaryScalar over boundary) {{
 
 
   
   relation law[boundary in {relation_set}] on boundary {{
-    flux(natural[boundary = {target}]) = 0;
+    natural[boundary = {target}].flux = 0;
   }}
 }}
 "#
@@ -723,26 +724,28 @@ component BoundaryLaw(support body: volume(ambient_dimension = 2), support exter
     #[test]
     fn boundary_connection_requires_exactly_selected_matching_port_families() {
         let source = r#"
-public connector A = field_physical(
-  trace = value: 1,
-  flux = flux: 1,
-  shape = [],
-  frame = invariant,
-  pairing = euclidean_boundary_duality
-);
-public connector B = field_physical(
-  trace = value: 1,
-  flux = flux: 1,
-  shape = [],
-  frame = invariant,
-  pairing = euclidean_boundary_duality
-);
-component InvalidConnection(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body), port left[boundary in exterior]: conserving A over boundary, port right[boundary in exterior]: conserving B over boundary) {
+public connector A {
+  trace value: 1;
+  flux flux: 1;
+  shape [];
+  frame invariant;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}
+public connector B {
+  trace value: 1;
+  flux flux: 1;
+  shape [];
+  frame invariant;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}
+component InvalidConnection(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body), port left[boundary in exterior]: A over boundary, port right[boundary in exterior]: B over boundary) {
 
 
   
   
-  connect conserving [boundary in exterior]
+  connect [boundary in exterior]
     left[boundary = boundary], right[boundary = boundary];
 }
 "#;
@@ -759,7 +762,7 @@ component InvalidConnection(support body: volume(ambient_dimension = 2), support
     fn child_port_family_requires_explicit_complete_exterior_forwarding() {
         let prefix = format!(
             r#"{SCALAR_CONNECTOR}
-component Leaf(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body), port mechanical[side in exterior]: conserving BoundaryScalar over side) {{
+component Leaf(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body), port mechanical[side in exterior]: BoundaryScalar over side) {{
 
 
   
@@ -769,12 +772,12 @@ component Leaf(support body: volume(ambient_dimension = 2), support exterior: co
         let parent = |forwarding: &str| {
             format!(
                 r#"{prefix}
-component Parent(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body), port mechanical[boundary in exterior]: conserving BoundaryScalar over boundary) {{
+component Parent(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body), port mechanical[boundary in exterior]: BoundaryScalar over boundary) {{
 
 
   
   instance child: Leaf(body = body{forwarding});
-  connect conserving [boundary in exterior]
+  connect [boundary in exterior]
     child.mechanical[side = boundary], mechanical[boundary = boundary];
 }}
 "#

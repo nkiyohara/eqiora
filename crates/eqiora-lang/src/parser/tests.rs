@@ -168,9 +168,9 @@ fn parser_recovers_after_an_invalid_item() {
 #[test]
 fn parser_retains_scalar_physical_contracts_and_source_ranges() {
     let source = r#"model circuit() {
-  domain electrical = scalar_physical(across = kg * m ^ 2 / (s ^ 3 * A), through = A);
-  port terminal: conserving on electrical;
-  relation component { across(terminal) = 0; }
+  domain electrical = scalar_physical(across voltage: kg * m ^ 2 / (s ^ 3 * A), through current: A);
+  port terminal: electrical;
+  relation component { terminal.voltage = 0; }
 }"#;
     let document = parse("circuit.eqi", source)
         .into_document()
@@ -183,13 +183,14 @@ fn parser_retains_scalar_physical_contracts_and_source_ranges() {
     let DomainSyntax::ScalarPhysical {
         across_type,
         through_type,
+        ..
     } = domain.syntax()
     else {
         panic!("Domain retains the scalar physical contract");
     };
     assert_eq!(
         &source[domain.range().start() as usize..domain.range().end() as usize],
-        "domain electrical = scalar_physical(across = kg * m ^ 2 / (s ^ 3 * A), through = A);"
+        "domain electrical = scalar_physical(across voltage: kg * m ^ 2 / (s ^ 3 * A), through current: A);"
     );
     assert_eq!(
         &source[across_type.range().start() as usize..across_type.range().end() as usize],
@@ -209,29 +210,32 @@ fn parser_retains_scalar_physical_contracts_and_source_ranges() {
     ));
     assert_eq!(
         &source[port.range().start() as usize..port.range().end() as usize],
-        "port terminal: conserving on electrical;"
+        "port terminal: electrical;"
     );
 }
 
 #[test]
 fn parser_builds_typed_component_interfaces_instances_and_paths() {
     let source = r#"
-connector Pin = scalar_physical(across = kg * m ^ 2 / (s ^ 3 * A), through = A);
+connector Pin {
+  across voltage: kg * m ^ 2 / (s ^ 3 * A);
+  through current: A;
+}
 
-component Pair(parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2), port positive: conserving on Pin) {
+component Pair(parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2), port positive: Pin) {
 
   parameter scale: 1 = 2;
 
   port command: signal input 1;
   instance inner: Catalog.Resistor(resistance = resistance * scale);
-  relation law { across(inner.positive) - resistance = 0; }
-  connect conserving inner.positive, positive;
+  relation law { inner.positive.voltage - resistance = 0; }
+  connect inner.positive, positive;
 }
 
-model parallel(port positive: conserving on Pin) {
+model parallel(port positive: Pin) {
   instance r2: Pair(resistance = 2);
   instance r4: Pair(resistance = 4);
-  connect conserving r2.positive, r4.positive, positive;
+  connect r2.positive, r4.positive, positive;
 }
 "#;
     let document = parse("components.eqi", source)
@@ -281,16 +285,16 @@ model parallel(port positive: conserving on Pin) {
     let ExprKind::Binary { left, .. } = relation.equations()[0].left().kind() else {
         panic!("Relation retains its subtraction");
     };
-    let ExprKind::Call { arguments, .. } = left.kind() else {
-        panic!("left side is across(...)");
+    let ExprKind::Path(path) = left.kind() else {
+        panic!("quantity selection is a structured path");
     };
-    let ExprKind::Path(path) = arguments.positional().unwrap()[0].kind() else {
-        panic!("instance Port selection is a structured path");
-    };
-    assert_eq!(path.segments().collect::<Vec<_>>(), ["inner", "positive"]);
+    assert_eq!(
+        path.segments().collect::<Vec<_>>(),
+        ["inner", "positive", "voltage"]
+    );
     assert_eq!(
         &source[path.range().start() as usize..path.range().end() as usize],
-        "inner.positive"
+        "inner.positive.voltage"
     );
 
     let Item::Connection(connection) = &document.models()[0].items()[2] else {
@@ -469,7 +473,10 @@ fn support_discriminator_does_not_reserve_the_parameter_name_support() {
 
 #[test]
 fn parser_accepts_visibility_typed_declaration_only_documents() {
-    let source = r#"public connector Pin = scalar_physical(across = 1, through = A);
+    let source = r#"public connector Pin {
+  across voltage: 1;
+  through current: A;
+}
 private component Internal() {}
 public component Resistor() {}"#;
     let document = parse("library.eqi", source)
@@ -492,7 +499,7 @@ public component Resistor() {}"#;
     assert_eq!(
         &source[document.connectors()[0].range().start() as usize
             ..document.connectors()[0].range().end() as usize],
-        "public connector Pin = scalar_physical(across = 1, through = A);"
+        "public connector Pin {\n  across voltage: 1;\n  through current: A;\n}"
     );
     assert_eq!(
         &source[document.components()[0].range().start() as usize
@@ -559,20 +566,21 @@ fn parser_requires_compilation_unit_definitions_before_models() {
 #[test]
 fn parser_retains_field_physical_connector_shapes_ports_and_flux_access() {
     let source = r#"
-public connector MechanicalBoundary = field_physical(
-  pairing = euclidean_boundary_duality,
-  flux = traction: kg / (m * s ^ 2),
-  frame = spatial,
-  trace = velocity: m / s,
-  shape = spatial_vector
-);
+public connector MechanicalBoundary {
+  pairing euclidean_boundary_duality;
+  flux traction: kg / (m * s ^ 2);
+  frame spatial;
+  trace velocity: m / s;
+  shape spatial_vector;
+  orientation parent_outward;
+}
 
 model coupled() {
   domain fluid = box(0, 1, 0, 1);
   domain wall = boundary(fluid, axis = 0, side = upper);
   variable velocity: array<m / s, 2> on fluid;
-  port interface: conserving MechanicalBoundary over wall;
-  relation balance on wall { flux(interface) = 0; }
+  port interface: MechanicalBoundary over wall;
+  relation balance on wall { interface.traction = 0; }
 }
 "#;
     let document = parse("field-physical.eqi", source)
@@ -615,7 +623,7 @@ model coupled() {
     };
     assert!(matches!(
         relation.equations()[0].left().kind(),
-        ExprKind::Call { callee, .. } if callee.as_str() == "flux"
+        ExprKind::Path(path) if path.as_str() == "interface.traction"
     ));
 }
 
@@ -643,15 +651,15 @@ fn field_physical_connector_fields_are_closed_and_exactly_once() {
     let invalid_sources = [
         (
             "duplicate",
-            "connector C = field_physical(trace = u: 1, flux = f: 1, shape = [], frame = invariant, trace = v: 1, pairing = euclidean_boundary_duality);",
+            "connector C {\n  trace u: 1;\n  flux f: 1;\n  shape [];\n  frame invariant;\n  trace v: 1;\n  pairing euclidean_boundary_duality;\n  orientation parent_outward;\n}",
         ),
         (
             "missing",
-            "connector C = field_physical(trace = u: 1, flux = f: 1, shape = [], frame = invariant);",
+            "connector C {\n  trace u: 1;\n  flux f: 1;\n  shape [];\n  frame invariant;\n  orientation parent_outward;\n}",
         ),
         (
             "unknown",
-            "connector C = field_physical(trace = u: 1, flux = f: 1, shape = [], frame = invariant, pairing = euclidean_boundary_duality, channels = 2);",
+            "connector C { trace u: 1; flux f: 1; shape []; frame invariant; pairing euclidean_boundary_duality; orientation parent_outward; channels 2; }",
         ),
     ];
 
@@ -667,12 +675,12 @@ fn parser_retains_closed_complete_exterior_family_syntax() {
     let source = r#"
 component BoundaryLaw(
   support body: volume(ambient_dimension = 2),
-  support exterior: complete_exterior(parent = body), port mechanical[boundary in exterior]: conserving MechanicalBoundary over boundary) {
+  support exterior: complete_exterior(parent = body), port mechanical[boundary in exterior]: MechanicalBoundary over boundary) {
 
   relation natural[boundary in exterior] on boundary {
-flux(mechanical[boundary = boundary]) = 0;
+mechanical[boundary = boundary].traction = 0;
   }
-  connect conserving [boundary in exterior] child.mechanical[boundary = boundary], mechanical[boundary = boundary];
+  connect [boundary in exterior] child.mechanical[boundary = boundary], mechanical[boundary = boundary];
 }
 
 model coupled() {
@@ -680,7 +688,7 @@ model coupled() {
 body = fluid,
 exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
   );
-  connect conserving law.mechanical[boundary = x_lower], environment;
+  connect law.mechanical[boundary = x_lower], environment;
 }
 "#;
     let document = parse("complete-exterior.eqi", source)
@@ -785,7 +793,7 @@ fn parser_leaves_relation_and_connection_family_set_kinds_to_the_compiler() {
     for source in [
         "component C() { clock c = periodic(1[s]); relation r[b in exterior] on b at c { 1 = 0; } }",
         "model M() { relation r[b in exterior] on b { 1 = 0; } }",
-        "model M() { connect conserving [b in exterior] left, right; }",
+        "model M() { connect [b in exterior] left, right; }",
     ] {
         // An identifier alone cannot distinguish an IndexSet from a boundary
         // set. The compiler owns the distinct activation and selector rules.

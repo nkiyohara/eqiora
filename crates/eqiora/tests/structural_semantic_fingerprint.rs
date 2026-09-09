@@ -177,14 +177,15 @@ fn nominal_identity_graph_wiring_values_and_operators_remain_meaning() {
         "the value probe must change its input"
     );
     let changed_value = ModelDocument::compile("value.eqi", &changed_source).unwrap();
-    let changed_operator = ModelDocument::compile(
-        "operator.eqi",
-        &PHYSICAL.replace(
-            "across(positive) - across(negative)",
-            "across(positive) + across(negative)",
-        ),
-    )
-    .unwrap();
+    let operator_source = PHYSICAL.replace(
+        "positive.voltage - negative.voltage",
+        "positive.voltage + negative.voltage",
+    );
+    assert_ne!(
+        operator_source, PHYSICAL,
+        "the operator probe must change its input"
+    );
+    let changed_operator = ModelDocument::compile("operator.eqi", &operator_source).unwrap();
     assert!(!source.structurally_equivalent(&changed_value).unwrap());
     assert!(!source.structurally_equivalent(&changed_operator).unwrap());
 
@@ -353,11 +354,13 @@ fn native_decay(reversed: bool) -> ModelDraft {
 fn native_resistor(reversed: bool) -> ModelDraft {
     let electrical = DraftPhysicalDomain::new(
         "pin",
+        "voltage",
         eqiora_core::ValueType::scalar(
             eqiora_core::ScalarDomain::Real,
             DimExponents::from_integers([1, 2, -3, -1, 0, 0, 0]).expect("bounded dimension"),
         )
         .expect("valid scalar type"),
+        "current",
         eqiora_core::ValueType::scalar(
             eqiora_core::ScalarDomain::Real,
             DimExponents::from_integers([0, 0, 0, 1, 0, 0, 0]).expect("bounded dimension"),
@@ -430,16 +433,16 @@ fn physical_domain_aliasing(shared: bool) -> ModelDocument {
     let source = format!(
         r#"
 model network() {{
-  domain first = scalar_physical(across = 1, through = 1);
-  domain second = scalar_physical(across = 1, through = 1);
-  port a1: conserving on first;
-  port a2: conserving on first;
-  port b1: conserving on {second_support};
-  port b2: conserving on {second_support};
-  relation a {{ across(a1)-across(a2)=0; through(a1)+through(a2)=0; }}
-  relation b {{ across(b1)-across(b2)=0; through(b1)+through(b2)=0; }}
-  connect conserving a1, a2;
-  connect conserving b1, b2;
+  domain first = scalar_physical(across potential: 1, through flow: 1);
+  domain second = scalar_physical(across potential: 1, through flow: 1);
+  port a1: first;
+  port a2: first;
+  port b1: {second_support};
+  port b2: {second_support};
+  relation a {{ a1.potential-a2.potential=0; a1.flow+a2.flow=0; }}
+  relation b {{ b1.potential-b2.potential=0; b1.flow+b2.flow=0; }}
+  connect a1, a2;
+  connect b1, b2;
 }}
 "#
     );
