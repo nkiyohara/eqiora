@@ -22,7 +22,15 @@ pub(in crate::lower) fn lower_record(
         .iter()
         .map(|member| {
             expression_type(file, member, bindings, None)?;
-            lowerer.lower(member).map(|value| value.id)
+            // A bus root retains Field ownership; it does not execute a read at
+            // a synthesized activation. Whole-Model admission checks its clock.
+            if let LoweringExpressionNode::Name(name) = member.node.as_ref()
+                && let Some(Binding::Field(id, _)) = bindings.get(name)
+            {
+                lowerer.builder.symbol(SymbolRef::Field(*id))
+            } else {
+                lowerer.lower(member).map(|value| value.id)
+            }
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
     lowerer.builder.finish(roots)

@@ -61,6 +61,22 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
 
     fn validate(&mut self) {
         self.scope.static_values = self.compile_time_values.clone();
+        self.scope.record_context =
+            super::super::parameters::RecordContext::model(self.scope.elaborator, self.definition);
+        for (root, record) in self.scope.record_context.records() {
+            for (member, _) in record.definition.members() {
+                let name = format!("{root}.{member}");
+                if let Some(value) = self.compile_time_values.get(&name) {
+                    self.scope.symbols.insert(
+                        name,
+                        SymbolContract::Parameter(ExpressionType::new(
+                            value.value_type.clone(),
+                            None,
+                        )),
+                    );
+                }
+            }
+        }
         for item in self.definition.declaration.items() {
             if let Item::IndexSet(declaration) = item
                 && let Err(error) = self.scope.bind_index_set(declaration)
@@ -255,6 +271,14 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                     )),
                 },
                 Item::Parameter(declaration) => {
+                    if self
+                        .scope
+                        .record_context
+                        .record_for_type(declaration.value_type())
+                        .is_some()
+                    {
+                        continue;
+                    }
                     let value_type = self
                         .compile_time_values
                         .get(declaration.name())

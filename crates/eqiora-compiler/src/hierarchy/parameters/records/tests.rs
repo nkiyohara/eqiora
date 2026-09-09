@@ -132,8 +132,7 @@ fn forwarded_and_derived_instance_members_preserve_parent_parameter_lineage() {
         .collect::<Vec<_>>();
     let resolve = |instance: &InstanceDecl| {
         resolve_instance_parameters_symbolically(
-            "records.eqi",
-            "records.eqi",
+            ("records.eqi", "records.eqi"),
             &document.components()[0],
             instance,
             &parent,

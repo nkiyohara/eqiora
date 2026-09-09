@@ -125,6 +125,13 @@ impl RootExpansion<'_, '_> {
                     });
                 }
                 Item::Parameter(declaration) => {
+                    if scope
+                        .record_context
+                        .record_for_type(declaration.value_type())
+                        .is_some()
+                    {
+                        continue;
+                    }
                     let identity = identities.entities[declaration.name()].clone();
                     self.record_type_structure(
                         &internal_name(identity.full),

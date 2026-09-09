@@ -193,8 +193,7 @@ impl<'a> SymbolicParameterResolver<'a> {
     }
 
     fn instance(
-        declaration_file: &'a str,
-        binding_file: &str,
+        (declaration_file, binding_file): (&'a str, &str),
         component: &'a ComponentDecl,
         instance: &InstanceDecl,
         resolve_parent: impl FnMut(&str) -> Option<SymbolicParameterValue>,
@@ -535,8 +534,7 @@ pub(super) struct ParameterResolver<'a> {
 
 impl<'a> ParameterResolver<'a> {
     pub(super) fn new(
-        declaration_file: &'a str,
-        binding_file: &str,
+        (declaration_file, binding_file): (&'a str, &str),
         component: &'a ComponentDecl,
         instance: &InstanceDecl,
         mut resolve_parent: impl FnMut(&str) -> Option<ResolvedParameter>,
@@ -545,8 +543,7 @@ impl<'a> ParameterResolver<'a> {
         record_contexts: (&RecordContext, &RecordContext),
     ) -> Result<Self, Vec<Diagnostic>> {
         SymbolicParameterResolver::instance(
-            declaration_file,
-            binding_file,
+            (declaration_file, binding_file),
             component,
             instance,
             |name| resolve_parent(name).map(SymbolicParameterValue::from),
@@ -876,8 +873,7 @@ pub(in crate::hierarchy) use static_values::{
 };
 
 pub(in crate::hierarchy) fn resolve_instance_parameters_symbolically(
-    declaration_file: &str,
-    binding_file: &str,
+    (declaration_file, binding_file): (&str, &str),
     component: &ComponentDecl,
     instance: &InstanceDecl,
     parent: &SymbolicParameterMap,
@@ -886,8 +882,7 @@ pub(in crate::hierarchy) fn resolve_instance_parameters_symbolically(
     record_contexts: (&RecordContext, &RecordContext),
 ) -> Result<SymbolicParameterMap, Vec<Diagnostic>> {
     SymbolicParameterResolver::instance(
-        declaration_file,
-        binding_file,
+        (declaration_file, binding_file),
         component,
         instance,
         |name| parent.get(name).cloned(),

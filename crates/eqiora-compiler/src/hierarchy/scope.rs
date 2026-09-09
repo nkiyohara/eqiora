@@ -144,6 +144,7 @@ impl<'a> ActiveBoundaryMember<'a> {
 
 #[derive(Debug, Default, Clone)]
 pub(super) struct Scope {
+    pub(super) record_context: super::parameters::RecordContext,
     pub(super) reduction_terms_limit: usize,
     index_sets: BTreeMap<String, indexed::ScopedIndexSet>,
     symbols: BTreeMap<String, FlatSymbol>,

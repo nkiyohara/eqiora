@@ -107,8 +107,7 @@ instance child: Child(base = length, exponent = 2);
     )
     .expect("parent interface resolves");
     resolve_instance_parameters_symbolically(
-        "parameters.eqi",
-        "parameters.eqi",
+        ("parameters.eqi", "parameters.eqi"),
         child,
         instance,
         &parent_parameters,
@@ -169,8 +168,7 @@ instance missing: Child();
     ];
     for (instance, message) in expected {
         let diagnostics = resolve_instance_parameters_symbolically(
-            "parameters.eqi",
-            "parameters.eqi",
+            ("parameters.eqi", "parameters.eqi"),
             child,
             instances[instance],
             &parent_parameters,

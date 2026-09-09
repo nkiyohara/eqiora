@@ -3,6 +3,7 @@ mod connections;
 mod identities;
 mod indexed_relations;
 mod parameters;
+mod record_parameters;
 use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::ValueFrame;
@@ -202,8 +203,21 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             elaborator.limits.identity,
         )?;
         let model_full = model_key.full_identity()?;
-        let item_capacity = size
-            .declarations
+        let declarations =
+            elaborator
+                .records
+                .values()
+                .try_fold(size.declarations, |count, records| {
+                    count
+                        .checked_add(records.len())
+                        .filter(|count| *count <= elaborator.limits.max_declarations)
+                        .ok_or_else(|| {
+                            hierarchy_error(
+                                "record definitions exceed the declaration expansion limit",
+                            )
+                        })
+                })?;
+        let item_capacity = declarations
             .checked_add(size.connections)
             .and_then(|value| value.checked_add(1))
             .ok_or_else(|| hierarchy_error("flat item capacity overflows usize"))?;
@@ -319,6 +333,8 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
     ) -> Result<ExpandedBlueprint, Vec<Diagnostic>> {
         let model = self.model.clone();
         let mut root_scope = Scope::default();
+        root_scope.record_context =
+            super::parameters::RecordContext::model(self.elaborator, &model);
         root_scope.reduction_terms_limit = self.elaborator.limits.max_parameter_terms;
         root_scope.set_pure_operators(self.elaborator.visible_pure_operators(&model.namespace));
         self.allocate_external_clocks(&mut root_scope, clocks)
@@ -373,11 +389,17 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     .or_else(|| super::clocks::model(model.file, model.declaration, name))
             },
             scope.frame_supports(),
+            &scope.record_context,
         )
         .map_err(|mut errors| errors.remove(0))?;
         let mut owned_items = model.owned_items().collect::<Vec<_>>();
         owned_items.sort_by_key(|item| !matches!(item, Item::Clock(_)));
         for item in owned_items {
+            if let Item::Parameter(parameter) = item
+                && self.allocate_model_record_parameter(scope, parameter, &parameters)?
+            {
+                continue;
+            }
             if let Item::Field(field) = item
                 && self.allocate_record_field(
                     scope,
@@ -717,6 +739,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         )
         .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
         let parameters = parameters::resolve(
+            self.elaborator,
             &component,
             instance,
             instance_file,
@@ -757,6 +780,8 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         ));
         normalize_binding_locations(&mut forwarded_boundary_set_resolution_bindings);
         let mut scope = Scope::child(parent_scope);
+        scope.record_context =
+            super::parameters::RecordContext::component(self.elaborator, &component);
         scope.set_pure_operators(self.elaborator.visible_pure_operators(&component.namespace));
         scope.set_occurrence_bindings(bindings.clone());
         scope.set_forwarded_parameter_resolution_bindings(forwarded_parameter_resolution_bindings);
@@ -943,6 +968,21 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         {
             match item {
                 ComponentItem::Parameter(declaration) => {
+                    if self.allocate_component_record_parameter(
+                        ComponentOccurrence {
+                            definition: &component,
+                            instance,
+                            instance_file,
+                            instance_path: &instance_path,
+                            display_prefix: &display_prefix,
+                        },
+                        declaration,
+                        &parameters,
+                        &bindings,
+                        &mut scope,
+                    )? {
+                        continue;
+                    }
                     self.allocate_parameter(
                         ComponentOccurrence {
                             definition: &component,

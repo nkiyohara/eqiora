@@ -69,3 +69,55 @@ fn record_member_temporal_contracts_cannot_be_laundered_by_selection() {
         assert!(compile("invalid-bus.eqi", &invalid).is_err(), "{invalid}");
     }
 }
+
+#[test]
+fn derived_numeric_member_retains_parameter_derivative_after_replay() {
+    use eqiora_ir::{DifferentiationRole, LinearizedRelation, RelationTangent, ScalarOperatorIr};
+    use eqiora_schema::kernel::{KernelNode, SymbolRef};
+    let source = "record Config {gain:1,ready:bool} component C(parameter config:Config){variable y:1;relation law{y=config.gain;}} model M(){parameter p:1=3;instance c:C(config=Config(gain=2*p,ready=true));}";
+    let compiled = compile("record-ad.eqi", source).unwrap().pop().unwrap();
+    let (transaction, model, symbols) = compiled.into_parts();
+    let parameter = symbols.get("p").unwrap();
+    let relation = symbols.get("c.law").unwrap();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    let bytes = ModelEnvelope::from_program(&program)
+        .unwrap()
+        .canonical_json()
+        .unwrap();
+    let program = ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default())
+        .unwrap()
+        .to_program()
+        .unwrap();
+    let Some(KernelNode::Relation(relation)) = program.node(relation) else {
+        panic!("retained law");
+    };
+    let ir = ScalarOperatorIr::lower(relation.expression()).unwrap();
+    let (point, roles): (Vec<_>, Vec<_>) = ir
+        .symbols()
+        .iter()
+        .map(|symbol| match symbol {
+            SymbolRef::Parameter(id) if id.erase() == parameter => {
+                (3.0, DifferentiationRole::Parameter)
+            }
+            SymbolRef::Field(_) => (6.0, DifferentiationRole::Unknown),
+            other => panic!("unexpected frozen or foreign input: {other:?}"),
+        })
+        .unzip();
+    assert_eq!(
+        roles
+            .iter()
+            .filter(|role| **role == DifferentiationRole::Parameter)
+            .count(),
+        1
+    );
+    let linearized = ir.linearize(&point, &roles).unwrap();
+    let mut tangent = [f64::NAN; 2];
+    linearized
+        .jvp(RelationTangent::Parameter(&[1.0]), &mut tangent)
+        .unwrap();
+    // The retained ordered equation sides are y and 2*p. Their exact
+    // derivatives at fixed y are 0 and 2; Boolean ready has no real channel.
+    assert_eq!(tangent, [0.0, 2.0]);
+}

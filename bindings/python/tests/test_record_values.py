@@ -14,10 +14,11 @@ def record_source():
         "mode": mode.value_type,
     }, doc="A closed heterogeneous packet.")
     owner = source.model("Controller")
-    bus = owner.field("bus", value_type=packet, role=eqiora.FieldRole.Variable)
-    owner.relation("signal", q.equation(bus.member("signal"), 3))
-    owner.relation("valid", q.equation(bus.member("valid"), True))
-    owner.relation("mode", q.equation(bus.member("mode"), mode.member("On")))
+    tick = owner.clock("tick", period_s=1)
+    bus = owner.field("bus", value_type=packet, role=eqiora.FieldRole.Variable, at=tick)
+    owner.relation("signal", q.equation(bus.member("signal"), 3), at=tick)
+    owner.relation("valid", q.equation(bus.member("valid"), True), at=tick)
+    owner.relation("mode", q.equation(bus.member("mode"), mode.member("On")), at=tick)
     return source, packet, owner, bus
 
 

@@ -10,7 +10,7 @@ from fractions import Fraction
 from decimal import Decimal
 from ..units import Unit
 from os import PathLike
-from typing import Final, Literal, final
+from typing import Final, Literal, final, overload
 from .. import FieldRole, ValueType, FiniteSpace, IndexSet, _ModelDeclaration
 
 @final
@@ -55,7 +55,6 @@ class ModuleError(ValueError):
 
     ...
 
-@final
 class Expression:
     """Compose a closed expression without overloading equality as an equation.
 
@@ -80,6 +79,34 @@ class Expression:
     def __ge__(self, other: object) -> bool: ...
     def __neg__(self) -> Expression: ...
     def __getitem__(self, index: int | Expression | slice) -> Expression: ...
+
+@final
+class Record:
+    """An exact ordered heterogeneous declaration owned by one Module.
+
+    Authority: ``bindings/python/python/eqiora/lang/_records.py::Record``.
+    """
+    @property
+    def name(self) -> str: ...
+    @property
+    def members(self) -> Mapping[str, ValueType]: ...
+    def __call__(self, /, **members: object) -> Expression: ...
+
+@final
+class RecordField(Expression):
+    """A record Field handle; members retain the common role and clock.
+
+    Authority: ``bindings/python/python/eqiora/lang/_records.py::RecordField``.
+    """
+    def member(self, name: str) -> Expression: ...
+
+@final
+class RecordParameter(Expression):
+    """A record Parameter handle with ordinary typed member expressions.
+
+    Authority: ``bindings/python/python/eqiora/lang/_records.py::RecordParameter``.
+    """
+    def member(self, name: str) -> Expression: ...
 
 @final
 class Equation:
@@ -244,6 +271,9 @@ class Component:
         parent: Support,
         doc: str | None = None,
     ) -> Support: ...
+    @overload
+    def parameter(self, name: str, *, value_type: Record, doc: str | None = None) -> RecordParameter: ...
+    @overload
     def parameter(
         self,
         name: str,
@@ -268,6 +298,10 @@ class Component:
         contract: PropertyContract,
         doc: str | None = None,
     ) -> Expression: ...
+    @overload
+    def field(self, name: str, *, on: Support | None = None, value_type: Record,
+              role: FieldRole, at: Clock | None = None, doc: str | None = None) -> RecordField: ...
+    @overload
     def field(
         self,
         name: str,
@@ -347,6 +381,12 @@ class Module:
     def operator(self, name: str, *, inputs: Mapping[str, ValueType], result_type: ValueType,
                  body: Callable[..., object], doc: str | None = None) -> Operator:
         """Declare a closed real-scalar operator from one symbolic callback invocation."""
+        ...
+    def record(self, name: str, *, members: Mapping[str, ValueType], doc: str | None = None) -> Record:
+        """Declare an exact closed record in this Module.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::Module.record``.
+        """
         ...
     def enum(self, name: str, *, members: Sequence[str], doc: str | None = None) -> Enum:
         """Declare a closed enum shared by occurrences in this Module.
@@ -659,6 +699,9 @@ __all__ = [
     "equation",
     "Expression",
     "Enum",
+    "Record",
+    "RecordField",
+    "RecordParameter",
     "Event",
     "MaterialComposition",
     "Notation",

@@ -381,8 +381,7 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
                 };
                 let values =
                     crate::hierarchy::parameters::resolve_instance_parameters_symbolically(
-                        child.file,
-                        self.file,
+                        (child.file, self.file),
                         child.declaration,
                         occurrence,
                         &self.static_values,

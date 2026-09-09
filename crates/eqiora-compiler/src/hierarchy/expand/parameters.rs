@@ -2,6 +2,7 @@
 use super::*;
 
 pub(super) fn resolve(
+    elaborator: &super::super::preflight::Elaborator<'_>,
     component: &ComponentDefinition<'_>,
     instance: &InstanceDecl,
     instance_file: &str,
@@ -9,8 +10,7 @@ pub(super) fn resolve(
     parent_scope: &Scope,
 ) -> Result<BTreeMap<String, super::super::parameters::ResolvedParameter>, Vec<Diagnostic>> {
     ParameterResolver::new(
-        component.file,
-        instance_file,
+        (component.file, instance_file),
         component,
         instance,
         |name| parent_scope.parameter(name).cloned(),
@@ -20,6 +20,10 @@ pub(super) fn resolve(
                 .spatial_support(name)
                 .map(super::super::parameters::frames::occurrence)
         },
+        (
+            &super::super::parameters::RecordContext::component(elaborator, component),
+            &parent_scope.record_context,
+        ),
     )
     .and_then(|resolver| {
         resolver.resolve_all(|name| {

@@ -325,7 +325,7 @@ fn compile(
         let signature = authored_signature(hierarchy, &model.namespace, model.name(), true)
             .unwrap_or_else(|| model.signature());
         let prepared = prepare(
-            &parameters::RecordContext::model(&elaborator, &model),
+            &parameters::RecordContext::model(elaborator, &model),
             model.file,
             model.name(),
             signature,
@@ -367,7 +367,7 @@ fn compile(
     let signature = authored_signature(hierarchy, &component.namespace, component.name(), false)
         .unwrap_or_else(|| component.signature());
     let prepared = prepare(
-        &parameters::RecordContext::component(&elaborator, &component),
+        &parameters::RecordContext::component(elaborator, &component),
         component.file,
         component.name(),
         signature,

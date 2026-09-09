@@ -161,9 +161,11 @@ fn selected_expansion_size_with_contexts(
         model.file,
         instances,
         &sets,
-        &values,
+        (
+            &values,
+            &parameters::RecordContext::model(elaborator, model),
+        ),
         0,
-        &parameters::RecordContext::model(elaborator, model),
     )?;
     local.connections = local
         .connections
@@ -301,9 +303,8 @@ impl Selected<'_, '_, '_> {
         file: &'i str,
         instances: impl IntoIterator<Item = &'i InstanceDecl>,
         sets: &[&NamedDefinitionDecl],
-        values: &SymbolicParameterMap,
+        (values, records): (&SymbolicParameterMap, &parameters::RecordContext),
         depth: usize,
-        records: &parameters::RecordContext,
     ) -> Result<ChildFootprint<'i>, Vec<Diagnostic>> {
         let mut edges = Vec::new();
         let mut summaries = Vec::new();
@@ -424,8 +425,7 @@ impl Selected<'_, '_, '_> {
                     )
                     .map_err(|error| vec![error])?;
                     let child_values = parameters::resolve_instance_parameters_symbolically(
-                        child.file,
-                        file,
+                        (child.file, file),
                         child.declaration,
                         &member,
                         values,
@@ -545,9 +545,11 @@ impl Selected<'_, '_, '_> {
             component.file,
             instances,
             &sets,
-            &values,
+            (
+                &values,
+                &parameters::RecordContext::component(self.elaborator, component),
+            ),
             depth,
-            &parameters::RecordContext::component(self.elaborator, component),
         )?;
         local.connections = local
             .connections

@@ -49,6 +49,8 @@ connector-frame = "invariant" | "spatial"
 connection = "connect" [index-family] expression "->" expression {"," expression} ";"
            | "connect" [index-family] expression "," expression {"," expression} ";"
            | "connect" "periodic" qualified-name "," qualified-name ";"
+record = ["public"] "record" identifier [annotation] "{" record-member {"," record-member} [","] "}"
+record-member = identifier [annotation] ":" type
 operator = ["public"] "operator" identifier [annotation] signature ":" type "=" expression ";"
 ```
 

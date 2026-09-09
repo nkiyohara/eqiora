@@ -250,8 +250,7 @@ fn validate_definition_bodies_and_parameters(
                     };
                     let child_values =
                         match super::parameters::resolve_instance_parameters_symbolically(
-                            child.file,
-                            definition.file,
+                            (child.file, definition.file),
                             child.declaration,
                             instance,
                             parent,
@@ -463,8 +462,7 @@ fn validate_definition_bodies_and_parameters(
                     name: child.declaration.name().to_owned(),
                 };
                 let child_values = match super::parameters::resolve_instance_parameters_symbolically(
-                    child.file,
-                    definition.file,
+                    (child.file, definition.file),
                     child.declaration,
                     instance,
                     &parameters,

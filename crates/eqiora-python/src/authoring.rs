@@ -5,6 +5,7 @@ mod declaration;
 mod definition;
 mod expression;
 mod module;
+mod records;
 pub(crate) use declaration::PyAstType;
 pub(crate) use expression::PyAstExpression;
 pub(crate) use module::PyAstModule;

@@ -153,6 +153,11 @@ pub(in crate::hierarchy::body_check) fn validate_aliases<'a>(
             activation = DependencyActivation::Event(event.clone());
         }
         let field_target = match declaration.value().kind() {
+            ExprKind::Path(path) => match scope.symbols.get(path.as_str()) {
+                Some(SymbolContract::Field(..)) => Some(path.as_str().to_owned()),
+                Some(SymbolContract::Alias(alias)) => alias.field_target.clone(),
+                _ => None,
+            },
             ExprKind::Name(name) => match scope.symbols.get(name) {
                 Some(SymbolContract::Field(..)) => Some(name.clone()),
                 Some(SymbolContract::Alias(alias)) => alias.field_target.clone(),
@@ -215,7 +220,17 @@ impl ExpressionChecker<'_, '_, '_> {
                 .extend(alias.endpoints.iter().cloned());
             for requirement in &alias.evolution {
                 let argument = eqiora_lang::SourceAstFactory::expression(
-                    ExprKind::Name(requirement.target.clone()),
+                    if requirement.target.contains('.') {
+                        ExprKind::Path(
+                            eqiora_lang::NamePath::from_segments(
+                                requirement.target.split('.'),
+                                requirement.range,
+                            )
+                            .expect("retained source path"),
+                        )
+                    } else {
+                        ExprKind::Name(requirement.target.clone())
+                    },
                     requirement.range,
                 )
                 .expect("retained source name and range");
