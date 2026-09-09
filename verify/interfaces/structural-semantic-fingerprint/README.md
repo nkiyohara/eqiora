@@ -2,7 +2,7 @@
 
 This case verifies one versioned, non-authoritative identity for comparing
 accepted Semantic Models built through independent authoring routes. The
-generation-v8 projection removes occurrence ULIDs and source presentation but
+current projection removes occurrence ULIDs and source presentation but
 retains the complete admitted kernel graph, nominal identity relationships,
 Parameter values, field roles and activation, initial equations, expression
 structure, physical connections, and Model boundary membership. Geometry-region digests, entity-set names, geometry-boundary names,

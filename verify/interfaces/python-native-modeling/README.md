@@ -2,7 +2,7 @@
 
 This case verifies the bounded Python 0.1 model-construction surface without
 creating Python-owned model semantics. Frozen Python handles wrap the
-client-neutral Rust `ModelDraft`; `Model.define(...)` then uses the shared
+client-neutral Rust declarations; `compile(source=Module(...))` then uses the shared
 compiler lowerer, selected transaction codec, atomic graph commit, and exact
 Model artifact reconstruction.
 
@@ -24,7 +24,7 @@ Falsifiers reject a same-named foreign Field, a dimensional mismatch, an
 equal-looking but nominally foreign physical Domain, an omitted Connection
 member, same-named foreign spatial Domain and Representation handles, a
 Relation on a same-named foreign Domain, a boundary whose exact parent is
-omitted, and a volume `trace` support mismatch. Draft
+omitted, and a volume `trace` support mismatch. Module
 closure failures retain declaration paths; the support error comes from the
 shared Semantic Kernel typing path. No failure exposes a partial Model.
 
