@@ -1,6 +1,7 @@
 //! Thin Python construction over the compiler's owned module AST.
 
 mod compile;
+mod connections;
 mod declaration;
 mod definition;
 mod expression;

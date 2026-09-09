@@ -6,6 +6,7 @@ use eqiora::language::{
 };
 use pyo3::prelude::*;
 
+use super::connections::{ConnectorInput, connectors};
 use super::declaration::PyAstType;
 use super::definition::{Definition, PyAstDefinition};
 use super::expression::{PyAstExpression, path, syntax_error};
@@ -67,8 +68,9 @@ impl PyAstModule {
     fn new(
         definitions: Vec<PyRef<'_, PyAstDefinition>>,
         operators: Vec<OperatorInput<'_>>,
+        connector_inputs: Vec<ConnectorInput<'_>>,
     ) -> PyResult<Self> {
-        if definitions.len() + operators.len() > 256 {
+        if definitions.len() + operators.len() + connector_inputs.len() > 256 {
             return Err(syntax_error("module exceeds 256 definitions"));
         }
         let mut components = Vec::new();
@@ -109,7 +111,7 @@ impl PyAstModule {
             .collect::<PyResult<_>>()?;
         let document = Ast::document_with_pure_operators(
             Vec::new(),
-            Vec::new(),
+            connectors(connector_inputs)?,
             components,
             operators,
             models,

@@ -14,6 +14,29 @@ from typing import Final, Literal, final
 from .. import FieldRole, ValueType, FiniteSpace, IndexSet, _ModelDeclaration
 
 @final
+class Connector:
+    """Immutable nominal scalar across/through declaration owned by one Module.
+
+    Authority: ``bindings/python/python/eqiora/lang/_connections.py::Connector``.
+    """
+
+@final
+class Port:
+    """Immutable physical endpoint exposing its declared named quantities.
+
+    Use member(name) when a declared name overlaps a Python attribute.
+
+    Authority: ``bindings/python/python/eqiora/lang/_connections.py::Port``.
+    """
+    def __getattr__(self, name: str) -> Expression: ...
+    def member(self, name: str) -> Expression:
+        """Select an exact declared quantity, including Python attribute names.
+
+        Authority: ``bindings/python/python/eqiora/lang/_connections.py::Port.member``.
+        """
+        ...
+
+@final
 class Notation:
     """Validated, immutable declaration notation; accepts one complete `@{...}` island.
 
@@ -282,7 +305,7 @@ class Component:
         self,
         name: str,
         equality: Equation,
-        *,
+        *additional_equalities: Equation,
         on: Support | None = None,
         at: Clock | Event | None = None,
         doc: str | None = None,
@@ -295,10 +318,22 @@ class Component:
         right: Expression,
         doc: str | None = None,
     ) -> None: ...
+    def port(self, name: str, *, connector: Connector, doc: str | None = None) -> Port:
+        """Declare a named physical endpoint using this Module's nominal Connector.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.port``.
+        """
+        ...
+    def connect(self, *ports: Port, doc: str | None = None) -> None:
+        """Declare one conserving physical net; the compiler owns compatibility and signs.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.connect``.
+        """
+        ...
     def instance(
         self, name: str, *, component: Component | ComponentRef,
         bindings: Mapping[str, object], doc: str | None = None,
-    ) -> Mapping[str, Expression]: ...
+    ) -> Mapping[str, Expression | Port]: ...
     def clock_requirement(self, name: str, *, doc: str | None = None) -> Clock: ...
     def field_requirement(
         self, name: str, *, value_type: ValueType, role: FieldRole,
@@ -344,6 +379,13 @@ class Module:
         """Attach notation to an existing top-level declaration."""
         ...
 
+    def connector(self, name: str, *, across: tuple[str, ValueType],
+                  through: tuple[str, ValueType], doc: str | None = None) -> Connector:
+        """Declare a nominal scalar physical connector with named across/through quantities.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::Module.connector``.
+        """
+        ...
     def operator(self, name: str, *, inputs: Mapping[str, ValueType], result_type: ValueType,
                  body: Callable[..., object], doc: str | None = None) -> Operator:
         """Declare a closed real-scalar operator from one symbolic callback invocation."""
@@ -654,6 +696,8 @@ __all__ = [
 
     "Clock",
     "Component",
+    "Connector",
+    "Port",
     "ComponentRef",
     "Equation",
     "equation",
