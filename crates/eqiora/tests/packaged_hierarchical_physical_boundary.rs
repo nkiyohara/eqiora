@@ -25,7 +25,7 @@ use eqiora::solver::{
 use eqiora_backend_faer::FaerLinearSolver;
 use eqiora_numerics::{
     scalar::ScalarPhysicalAffineProblem, scalar::ScalarPhysicalAffineSolution,
-    scalar::lower_scalar_physical_affine, scalar::solve_scalar_physical_affine_with_initial_guess,
+    scalar::lower_scalar_physical_affine, scalar::solve_scalar_physical_affine,
 };
 
 mod support;
@@ -166,7 +166,7 @@ fn lower_and_solve(
     .expect("solver plan")
     .with_preconditioner(PreconditionerPolicy::Identity)
     .with_reduction(ReductionPolicy::Fast);
-    let solution = solve_scalar_physical_affine_with_initial_guess(
+    let solution = solve_scalar_physical_affine(
         &problem,
         &vec![1.0; problem.canonical_system().columns()],
         LinearSolveRequest::new(&FaerLinearSolver, plan),

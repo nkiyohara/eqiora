@@ -20,9 +20,7 @@ use eqiora::solver::{
     LinearSolveRequest, LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverPlan,
 };
 use eqiora_backend_faer::FaerLinearSolver;
-use eqiora_numerics::{
-    scalar::lower_scalar_physical_affine, scalar::solve_scalar_physical_affine_with_initial_guess,
-};
+use eqiora_numerics::{scalar::lower_scalar_physical_affine, scalar::solve_scalar_physical_affine};
 
 const VALUE_TOLERANCE: f64 = 2.0e-11;
 const RESIDUAL_TOLERANCE: f64 = 1.2e-11;
@@ -362,7 +360,7 @@ fn transitive_composed_component_installs_flattens_and_solves() {
     .expect("solver plan")
     .with_preconditioner(PreconditionerPolicy::Identity)
     .with_reduction(ReductionPolicy::Fast);
-    let solution = solve_scalar_physical_affine_with_initial_guess(
+    let solution = solve_scalar_physical_affine(
         &problem,
         &vec![1.0; problem.canonical_system().columns()],
         LinearSolveRequest::new(&FaerLinearSolver, plan),

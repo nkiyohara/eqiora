@@ -2,8 +2,7 @@
 
 use super::*;
 use crate::physical_network::{
-    ScalarPhysicalAffineProblem, lower_scalar_physical_affine,
-    solve_scalar_physical_affine_with_initial_guess,
+    ScalarPhysicalAffineProblem, lower_scalar_physical_affine, solve_scalar_physical_affine,
 };
 use eqiora_schema::kernel::{KernelNode, SymbolRef};
 use eqiora_sem::PhysicalUnknown;
@@ -226,7 +225,7 @@ impl CommonAlgebraicPlan {
             ));
         }
         let checked_backend = self.linear.checked_backend(backend)?;
-        let solution = solve_scalar_physical_affine_with_initial_guess(
+        let solution = solve_scalar_physical_affine(
             &self.problem,
             &state.values,
             LinearSolveRequest::new(&checked_backend, self.linear.solver),

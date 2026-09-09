@@ -99,9 +99,12 @@ fn standard_named_divider_has_independent_current_voltage_power_and_equation_own
     )
     .unwrap()
     .with_reduction(ReductionPolicy::Fast);
-    let solution =
-        solve_scalar_physical_affine(&problem, LinearSolveRequest::new(&FaerLinearSolver, plan))
-            .unwrap();
+    let solution = solve_scalar_physical_affine(
+        &problem,
+        &vec![0.0; problem.canonical_system().rows()],
+        LinearSolveRequest::new(&FaerLinearSolver, plan),
+    )
+    .unwrap();
     // Ohm and Kirchhoff independently: I=12/(1000+2000)=.004 A;
     // lower-node voltage=.004*2000=8 V. Positive current enters each component.
     for (name, voltage, current) in [

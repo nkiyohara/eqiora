@@ -21,7 +21,7 @@ use eqiora::{DimExponents, Id, RawId};
 use eqiora_backend_faer::FaerLinearSolver;
 use eqiora_numerics::{
     scalar::ScalarPhysicalAffineProblem, scalar::lower_scalar_physical_affine,
-    scalar::solve_scalar_physical_affine, scalar::solve_scalar_physical_affine_with_initial_guess,
+    scalar::solve_scalar_physical_affine,
 };
 
 const SOURCE: &str =
@@ -486,7 +486,7 @@ fn accept_analytic_document(
             .downcast::<kinds::Port>()
             .expect("analytic physical alias is a Port")
     });
-    solve_scalar_physical_affine_with_initial_guess(
+    solve_scalar_physical_affine(
         problem,
         &initial_guess,
         LinearSolveRequest::new(
@@ -561,9 +561,8 @@ fn source_parallel_dc_roundtrips_and_reaccepts_analytic_solution() {
         ),
     );
     let initial_guess = analytic_initial_guess(&problem, |name| port(&fixture.symbols, name));
-    let solution =
-        solve_scalar_physical_affine_with_initial_guess(&problem, &initial_guess, request)
-            .expect("faer physical solve");
+    let solution = solve_scalar_physical_affine(&problem, &initial_guess, request)
+        .expect("faer physical solve");
     assert_eq!(solution.report().backend(), FaerLinearSolver.id());
     assert_eq!(
         solution.report().execution(),
@@ -640,7 +639,9 @@ fn source_parallel_dc_roundtrips_and_reaccepts_analytic_solution() {
         &FaerLinearSolver,
         solver_plan(LinearSolver::ConjugateGradient, ReductionPolicy::Fast),
     );
-    let error = solve_scalar_physical_affine(&problem, cg).unwrap_err();
+    let error =
+        solve_scalar_physical_affine(&problem, &vec![0.0; problem.canonical_system().rows()], cg)
+            .unwrap_err();
     assert_eq!(error.code(), codes::INVALID_REALIZATION);
 }
 

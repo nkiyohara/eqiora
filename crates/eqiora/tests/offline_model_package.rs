@@ -22,9 +22,7 @@ use eqiora::solver::{
     LinearSolveRequest, LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverPlan,
 };
 use eqiora_backend_faer::FaerLinearSolver;
-use eqiora_numerics::{
-    scalar::lower_scalar_physical_affine, scalar::solve_scalar_physical_affine_with_initial_guess,
-};
+use eqiora_numerics::{scalar::lower_scalar_physical_affine, scalar::solve_scalar_physical_affine};
 
 const LIBRARY_SOURCE: &str =
     include_str!("../../../packages/Eqiora.Electrical.Basic/src/basic.eqi");
@@ -391,7 +389,7 @@ fn assert_package_semantics(store: &impl PackageStore, resolution: &ResolutionRe
     .expect("solver plan")
     .with_preconditioner(PreconditionerPolicy::Identity)
     .with_reduction(ReductionPolicy::Fast);
-    let solution = solve_scalar_physical_affine_with_initial_guess(
+    let solution = solve_scalar_physical_affine(
         &problem,
         &vec![1.0; problem.canonical_system().columns()],
         LinearSolveRequest::new(&FaerLinearSolver, plan),
@@ -470,7 +468,7 @@ fn assert_package_semantics(store: &impl PackageStore, resolution: &ResolutionRe
     // The registered emission path is gated by a successful solve. A
     // dimensionally invalid initial state must fail before the binding
     // constructor becomes reachable.
-    let failed_lineage = solve_scalar_physical_affine_with_initial_guess(
+    let failed_lineage = solve_scalar_physical_affine(
         &problem,
         &[],
         LinearSolveRequest::new(&FaerLinearSolver, plan),
