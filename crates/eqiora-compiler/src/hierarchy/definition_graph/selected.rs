@@ -17,7 +17,7 @@ pub(in crate::hierarchy) fn selected_expansion_size(
     checked: &CheckedDefinitionGraph,
     model: &ModelDefinition<'_>,
 ) -> Result<super::super::preflight::ExpansionSize, Vec<Diagnostic>> {
-    let values = model_values(model)?;
+    let values = model_values(elaborator, model)?;
     selected_expansion_size_with_contexts(elaborator, checked, model, values, None)
 }
 
@@ -30,7 +30,7 @@ pub(in crate::hierarchy) fn component_contexts(
 ) -> Result<ComponentContexts, Vec<Diagnostic>> {
     let mut contexts = ComponentContexts::new();
     for (_, model) in elaborator.models() {
-        let values = model_values(model)?;
+        let values = model_values(elaborator, model)?;
         selected_expansion_size_with_contexts(
             elaborator,
             checked,
@@ -77,11 +77,16 @@ pub(in crate::hierarchy) fn selected_component_summary(
     .component(component, values, 0)
 }
 
-fn model_values(model: &ModelDefinition<'_>) -> Result<SymbolicParameterMap, Vec<Diagnostic>> {
-    let mut values =
-        parameters::resolve_model_parameters_symbolically(model.file, model.declaration, |name| {
-            clocks::model(model.file, model.declaration, name)
-        })?;
+fn model_values(
+    elaborator: &Elaborator<'_>,
+    model: &ModelDefinition<'_>,
+) -> Result<SymbolicParameterMap, Vec<Diagnostic>> {
+    let mut values = parameters::resolve_model_parameters_symbolically(
+        model.file,
+        model.declaration,
+        |name| clocks::model(model.file, model.declaration, name),
+        &parameters::RecordContext::model(elaborator, model),
+    )?;
     parameters::resolve_model_lets(model.file, model.declaration, &mut values, |name| {
         clocks::model(model.file, model.declaration, name)
     })?;
@@ -151,7 +156,17 @@ fn selected_expansion_size_with_contexts(
         edges,
         summaries,
         extra_connections,
-    } = preflight.children(&model.namespace, model.file, instances, &sets, &values, 0)?;
+    } = preflight.children(
+        &model.namespace,
+        model.file,
+        instances,
+        &sets,
+        (
+            &values,
+            &parameters::RecordContext::model(elaborator, model),
+        ),
+        0,
+    )?;
     local.connections = local
         .connections
         .checked_add(extra_connections)
@@ -288,7 +303,7 @@ impl Selected<'_, '_, '_> {
         file: &'i str,
         instances: impl IntoIterator<Item = &'i InstanceDecl>,
         sets: &[&NamedDefinitionDecl],
-        values: &SymbolicParameterMap,
+        (values, records): (&SymbolicParameterMap, &parameters::RecordContext),
         depth: usize,
     ) -> Result<ChildFootprint<'i>, Vec<Diagnostic>> {
         let mut edges = Vec::new();
@@ -410,13 +425,16 @@ impl Selected<'_, '_, '_> {
                     )
                     .map_err(|error| vec![error])?;
                     let child_values = parameters::resolve_instance_parameters_symbolically(
-                        child.file,
-                        file,
+                        (child.file, file),
                         child.declaration,
                         &member,
                         values,
                         &mut |name| clocks::component(child.file, child.declaration, name),
                         &mut |_| None,
+                        (
+                            &parameters::RecordContext::component(self.elaborator, &child),
+                            records,
+                        ),
                     )?;
                     self.component(&child, child_values, depth + 1)?
                 };
@@ -527,7 +545,10 @@ impl Selected<'_, '_, '_> {
             component.file,
             instances,
             &sets,
-            &values,
+            (
+                &values,
+                &parameters::RecordContext::component(self.elaborator, component),
+            ),
             depth,
         )?;
         local.connections = local

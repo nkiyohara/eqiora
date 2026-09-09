@@ -29,6 +29,12 @@ macro_rules! signature {
 
 macro_rules! owners {
     ($document:expr, $visit:ident $(, $mutable:tt)?) => {{
+        for node in &$($mutable)? $document.records {
+            $visit(node.range, &$($mutable)? node.comments);
+            for member in &$($mutable)? node.members {
+                $visit(member.range, &$($mutable)? member.comments);
+            }
+        }
         for node in &$($mutable)? $document.enumerations {
             $visit(node.range, &$($mutable)? node.comments);
         }
@@ -249,6 +255,8 @@ notation_owner!(
     crate::ComponentDecl,
     crate::ConnectorDecl,
     crate::EnumDecl,
+    crate::RecordDecl,
+    crate::RecordMemberDecl,
     crate::NamedDefinitionDecl,
     crate::ParameterDecl,
     crate::FieldDecl,

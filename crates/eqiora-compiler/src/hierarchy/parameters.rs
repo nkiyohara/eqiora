@@ -14,6 +14,8 @@ use crate::lower::LoweringExpression;
 use super::hierarchy_error;
 
 mod array_types;
+mod records;
+pub(in crate::hierarchy) use records::RecordContext;
 mod bindings;
 mod dependencies;
 mod selected;
@@ -161,7 +163,7 @@ type StaticContexts<'a> = (
 
 struct SymbolicParameterResolver<'a> {
     declaration_file: &'a str,
-    declarations: BTreeMap<String, &'a ComponentParameterDecl>,
+    declarations: BTreeMap<String, ComponentParameterDecl>,
     bindings: Option<bindings::Bindings>,
     bound_values: SymbolicParameterMap,
     resolved: SymbolicParameterMap,
@@ -173,10 +175,15 @@ impl<'a> SymbolicParameterResolver<'a> {
     fn component_interface(
         declaration_file: &'a str,
         component: &'a ComponentDecl,
+        records: &RecordContext,
     ) -> Result<Self, Vec<Diagnostic>> {
         Ok(Self {
             declaration_file,
-            declarations: parameter_declarations(component),
+            declarations: records::expand(
+                declaration_file,
+                parameter_declarations(component),
+                records,
+            )?,
             bindings: None,
             bound_values: BTreeMap::new(),
             resolved: BTreeMap::new(),
@@ -186,15 +193,16 @@ impl<'a> SymbolicParameterResolver<'a> {
     }
 
     fn instance(
-        declaration_file: &'a str,
-        binding_file: &str,
+        (declaration_file, binding_file): (&'a str, &str),
         component: &'a ComponentDecl,
         instance: &InstanceDecl,
         resolve_parent: impl FnMut(&str) -> Option<SymbolicParameterValue>,
         resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
         resolve_frame: &mut dyn FnMut(&str) -> Option<SpatialSupport<String>>,
+        record_contexts: (&RecordContext, &RecordContext),
     ) -> Result<Self, Vec<Diagnostic>> {
-        let declarations = parameter_declarations(component);
+        let declarations =
+            parameter_declaration_leaves(declaration_file, component, record_contexts.0)?;
         let frames = frames::instance_frames(declaration_file, component, instance, resolve_frame)?;
         let bindings = bindings::Bindings::freeze(
             binding_file,
@@ -202,6 +210,7 @@ impl<'a> SymbolicParameterResolver<'a> {
             instance,
             resolve_parent,
             (&mut *resolve_clock, &mut *resolve_frame),
+            record_contexts,
         )?;
         Ok(Self {
             declaration_file,
@@ -280,7 +289,7 @@ impl<'a> SymbolicParameterResolver<'a> {
             {
                 continue;
             }
-            let declaration = self.declarations[&name];
+            let declaration = &self.declarations[&name];
             for expression in definition
                 .expression
                 .into_iter()
@@ -454,19 +463,29 @@ impl<'a> SymbolicParameterResolver<'a> {
     }
 }
 
-fn parameter_declarations(component: &ComponentDecl) -> BTreeMap<String, &ComponentParameterDecl> {
+fn parameter_declarations(component: &ComponentDecl) -> BTreeMap<String, ComponentParameterDecl> {
     component
         .signature()
         .iter()
         .filter_map(|item| match item {
-            eqiora_lang::SignatureItem::Parameter(value) => Some((value.name().to_owned(), value)),
+            eqiora_lang::SignatureItem::Parameter(value) => {
+                Some((value.name().to_owned(), value.clone()))
+            }
             _ => None,
         })
         .chain(component.items().iter().filter_map(|item| match item {
-            ComponentItem::Parameter(value) => Some((value.name().to_owned(), value)),
+            ComponentItem::Parameter(value) => Some((value.name().to_owned(), value.clone())),
             _ => None,
         }))
         .collect()
+}
+
+pub(in crate::hierarchy) fn parameter_declaration_leaves(
+    file: &str,
+    component: &ComponentDecl,
+    records: &RecordContext,
+) -> Result<BTreeMap<String, ComponentParameterDecl>, Vec<Diagnostic>> {
+    records::expand(file, parameter_declarations(component), records)
 }
 
 /// Resolve a reusable Component's Parameter interface without inventing an
@@ -475,8 +494,9 @@ pub(super) fn resolve_component_parameters_symbolically(
     declaration_file: &str,
     component: &ComponentDecl,
     mut resolve_clock: impl FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
+    records: &RecordContext,
 ) -> Result<SymbolicParameterMap, Vec<Diagnostic>> {
-    SymbolicParameterResolver::component_interface(declaration_file, component)?
+    SymbolicParameterResolver::component_interface(declaration_file, component, records)?
         .resolve_all(&mut resolve_clock)
 }
 
@@ -484,8 +504,9 @@ pub(in crate::hierarchy) fn resolve_external_parameters(
     file: &str,
     component: &ComponentDecl,
     bindings: &[super::ExternalParameterBinding],
+    records: &RecordContext,
 ) -> Result<SymbolicParameterMap, Vec<Diagnostic>> {
-    let mut resolver = SymbolicParameterResolver::component_interface(file, component)?;
+    let mut resolver = SymbolicParameterResolver::component_interface(file, component, records)?;
     resolver.required_policy = RequiredParameterPolicy::RejectUnbound;
     resolver.bound_values = bindings
         .iter()
@@ -513,22 +534,22 @@ pub(super) struct ParameterResolver<'a> {
 
 impl<'a> ParameterResolver<'a> {
     pub(super) fn new(
-        declaration_file: &'a str,
-        binding_file: &str,
+        (declaration_file, binding_file): (&'a str, &str),
         component: &'a ComponentDecl,
         instance: &InstanceDecl,
         mut resolve_parent: impl FnMut(&str) -> Option<ResolvedParameter>,
         mut resolve_clock: impl FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
         mut resolve_frame: impl FnMut(&str) -> Option<SpatialSupport<String>>,
+        record_contexts: (&RecordContext, &RecordContext),
     ) -> Result<Self, Vec<Diagnostic>> {
         SymbolicParameterResolver::instance(
-            declaration_file,
-            binding_file,
+            (declaration_file, binding_file),
             component,
             instance,
             |name| resolve_parent(name).map(SymbolicParameterValue::from),
             &mut resolve_clock,
             &mut resolve_frame,
+            record_contexts,
         )
         .map(|inner| Self { inner })
     }
@@ -852,22 +873,22 @@ pub(in crate::hierarchy) use static_values::{
 };
 
 pub(in crate::hierarchy) fn resolve_instance_parameters_symbolically(
-    declaration_file: &str,
-    binding_file: &str,
+    (declaration_file, binding_file): (&str, &str),
     component: &ComponentDecl,
     instance: &InstanceDecl,
     parent: &SymbolicParameterMap,
     resolve_clock: &mut dyn FnMut(&str) -> Option<Option<eqiora_schema::kernel::RationalTime>>,
     resolve_frame: &mut dyn FnMut(&str) -> Option<SpatialSupport<String>>,
+    record_contexts: (&RecordContext, &RecordContext),
 ) -> Result<SymbolicParameterMap, Vec<Diagnostic>> {
     SymbolicParameterResolver::instance(
-        declaration_file,
-        binding_file,
+        (declaration_file, binding_file),
         component,
         instance,
         |name| parent.get(name).cloned(),
         resolve_clock,
         resolve_frame,
+        record_contexts,
     )?
     .resolve_all(resolve_clock)
 }

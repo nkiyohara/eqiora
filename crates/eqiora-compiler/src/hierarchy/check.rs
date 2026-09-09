@@ -85,6 +85,7 @@ fn validate_definition_bodies_and_parameters(
             definition.file,
             definition.declaration,
             |name| super::clocks::component(definition.file, definition.declaration, name),
+            &super::parameters::RecordContext::component(elaborator, definition),
         ) {
             Ok(parameters) => {
                 let mut values = parameters.clone();
@@ -167,6 +168,7 @@ fn validate_definition_bodies_and_parameters(
                 parent_supports,
                 &fields,
                 parent,
+                &super::parameters::RecordContext::component(elaborator, definition),
             );
             let mut occurrences_valid = true;
             let mut parent_boundary_sets = BTreeMap::new();
@@ -249,8 +251,7 @@ fn validate_definition_bodies_and_parameters(
                     };
                     let child_values =
                         match super::parameters::resolve_instance_parameters_symbolically(
-                            child.file,
-                            definition.file,
+                            (child.file, definition.file),
                             child.declaration,
                             instance,
                             parent,
@@ -266,6 +267,12 @@ fn validate_definition_bodies_and_parameters(
                                     .get(name)
                                     .map(|contract| contract.support().clone())
                             },
+                            (
+                                &super::parameters::RecordContext::component(elaborator, &child),
+                                &super::parameters::RecordContext::component(
+                                    elaborator, definition,
+                                ),
+                            ),
                         ) {
                             Ok(values) => values,
                             Err(errors) => {
@@ -366,6 +373,7 @@ fn validate_definition_bodies_and_parameters(
             definition.file,
             definition.declaration,
             |name| super::clocks::model(definition.file, definition.declaration, name),
+            &super::parameters::RecordContext::model(elaborator, definition),
         ) {
             Ok(values) => parameters = values,
             Err(errors) => {
@@ -416,6 +424,7 @@ fn validate_definition_bodies_and_parameters(
                     definition.declaration,
                     supports,
                     &parameters,
+                    &super::parameters::RecordContext::model(elaborator, definition),
                 )
             })
             .unwrap_or_default();
@@ -481,8 +490,7 @@ fn validate_definition_bodies_and_parameters(
                     name: child.declaration.name().to_owned(),
                 };
                 let child_values = match super::parameters::resolve_instance_parameters_symbolically(
-                    child.file,
-                    definition.file,
+                    (child.file, definition.file),
                     child.declaration,
                     instance,
                     &parameters,
@@ -493,6 +501,10 @@ fn validate_definition_bodies_and_parameters(
                             .and_then(|supports| supports.get(name))
                             .cloned()
                     },
+                    (
+                        &super::parameters::RecordContext::component(elaborator, &child),
+                        &super::parameters::RecordContext::model(elaborator, definition),
+                    ),
                 ) {
                     Ok(values) => values,
                     Err(errors) => {

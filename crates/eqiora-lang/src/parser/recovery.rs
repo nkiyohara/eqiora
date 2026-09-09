@@ -19,6 +19,7 @@ impl Parser<'_> {
             && !self.at_keyword("connector")
             && !self.at_keyword("component")
             && !self.at_keyword("enum")
+            && !self.at_keyword("record")
             && !self.at_keyword("operator")
             && !self.at_keyword("model")
         {

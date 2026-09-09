@@ -251,6 +251,27 @@ impl PyAstModule {
         })
     }
 
+    #[staticmethod]
+    fn record_type(name: &str) -> PyResult<PyAstType> {
+        super::records::record_type(name)
+    }
+
+    fn with_record(
+        &self,
+        name: String,
+        members: Vec<(String, PyRef<'_, PyAstType>, u32)>,
+        ordinal: u32,
+    ) -> PyResult<Self> {
+        Ok(Self {
+            value: Module::from_document(super::records::with_record(
+                self.document_for_edit()?,
+                name,
+                members,
+                ordinal,
+            )?),
+        })
+    }
+
     fn with_enum(&self, name: String, members: Vec<String>, ordinal: u32) -> PyResult<Self> {
         let tags = members
             .iter()

@@ -144,6 +144,7 @@ impl<'a> ActiveBoundaryMember<'a> {
 
 #[derive(Debug, Default, Clone)]
 pub(super) struct Scope {
+    pub(super) record_context: super::parameters::RecordContext,
     pub(super) reduction_terms_limit: usize,
     index_sets: BTreeMap<String, indexed::ScopedIndexSet>,
     symbols: BTreeMap<String, FlatSymbol>,
@@ -365,6 +366,9 @@ impl Scope {
     }
 
     pub(super) fn resolve_symbol(&self, path: &NamePath) -> Option<&FlatSymbol> {
+        if let Some(symbol) = self.symbols.get(path.as_str()) {
+            return Some(symbol);
+        }
         let segments = path.segments().collect::<Vec<_>>();
         match segments.as_slice() {
             [name] => self.symbols.get(*name),

@@ -27,12 +27,36 @@ pub(super) fn references<'a>(
     accepts: impl Fn(&NamedBindingDecl) -> bool,
     errors: &mut Vec<Diagnostic>,
 ) -> Vec<ReferenceBinding<'a>> {
+    exact_references(file, instance, accepts, errors, false)
+}
+
+pub(super) fn field_references<'a>(
+    file: &str,
+    instance: &'a InstanceDecl,
+    accepts: impl Fn(&NamedBindingDecl) -> bool,
+    errors: &mut Vec<Diagnostic>,
+) -> Vec<ReferenceBinding<'a>> {
+    exact_references(file, instance, accepts, errors, true)
+}
+
+fn exact_references<'a>(
+    file: &str,
+    instance: &'a InstanceDecl,
+    accepts: impl Fn(&NamedBindingDecl) -> bool,
+    errors: &mut Vec<Diagnostic>,
+    allow_member: bool,
+) -> Vec<ReferenceBinding<'a>> {
     instance
         .bindings()
         .iter()
         .filter(|binding| accepts(binding))
         .filter_map(|binding| {
-            if let ExprKind::Name(target) = binding.value().kind() {
+            let target = match binding.value().kind() {
+                ExprKind::Name(target) => Some(target.as_str()),
+                ExprKind::Path(target) if allow_member => Some(target.as_str()),
+                _ => None,
+            };
+            if let Some(target) = target {
                 Some(ReferenceBinding { binding, target })
             } else {
                 errors.push(source_error(

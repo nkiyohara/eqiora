@@ -168,6 +168,7 @@ fn local_document_in(
         let signature = authored_signature(&context, &model.namespace, model.name(), true)
             .unwrap_or_else(|| model.signature());
         let prepared = prepare(
+            &parameters::RecordContext::model(&elaborator, &model),
             model.file,
             model.name(),
             signature,
@@ -176,7 +177,12 @@ fn local_document_in(
                 property(&context, &model.namespace, model.file, requirement, value)
             },
         )?;
-        selected_bound = bind_model(&elaborator, model.declaration, &prepared)?;
+        selected_bound = bind_model(
+            &elaborator,
+            model.declaration,
+            &prepared,
+            &parameters::RecordContext::model(&elaborator, &model),
+        )?;
         elaborator.bind_selected_model(
             preflight::ModelDefinition {
                 namespace: model.namespace,
@@ -207,6 +213,7 @@ fn local_document_in(
         let signature = authored_signature(&context, &component.namespace, component.name(), false)
             .unwrap_or_else(|| component.signature());
         let prepared = prepare(
+            &parameters::RecordContext::component(&elaborator, &component),
             component.file,
             component.name(),
             signature,
@@ -225,6 +232,7 @@ fn local_document_in(
             component.file,
             component.declaration,
             prepared.parameters(),
+            &parameters::RecordContext::component(&elaborator, &component),
         )?;
         elaborator.selected_component = Some((
             preflight::DefinitionKey {
@@ -288,6 +296,7 @@ pub(crate) fn resolved(
         let signature = authored_signature(&context, &model.namespace, model.name(), true)
             .unwrap_or_else(|| model.signature());
         let prepared = prepare(
+            &parameters::RecordContext::model(&elaborator, &model),
             model.file,
             model.name(),
             signature,
@@ -296,7 +305,12 @@ pub(crate) fn resolved(
                 property(&context, &model.namespace, model.file, requirement, value)
             },
         )?;
-        selected_bound = bind_model(&elaborator, model.declaration, &prepared)?;
+        selected_bound = bind_model(
+            &elaborator,
+            model.declaration,
+            &prepared,
+            &parameters::RecordContext::model(&elaborator, &model),
+        )?;
         elaborator.bind_selected_model(
             preflight::ModelDefinition {
                 namespace: model.namespace,
@@ -355,6 +369,7 @@ fn compile(
         let signature = authored_signature(hierarchy, &model.namespace, model.name(), true)
             .unwrap_or_else(|| model.signature());
         let prepared = prepare(
+            &parameters::RecordContext::model(elaborator, &model),
             model.file,
             model.name(),
             signature,
@@ -363,7 +378,12 @@ fn compile(
                 property(hierarchy, &model.namespace, model.file, requirement, value)
             },
         )?;
-        let bound = bind_model(elaborator, model.declaration, &prepared)?;
+        let bound = bind_model(
+            elaborator,
+            model.declaration,
+            &prepared,
+            &parameters::RecordContext::model(elaborator, &model),
+        )?;
         let definition = preflight::ModelDefinition {
             namespace: model.namespace.clone(),
             file: model.file,
@@ -397,6 +417,7 @@ fn compile(
     let signature = authored_signature(hierarchy, &component.namespace, component.name(), false)
         .unwrap_or_else(|| component.signature());
     let prepared = prepare(
+        &parameters::RecordContext::component(elaborator, &component),
         component.file,
         component.name(),
         signature,
@@ -489,6 +510,7 @@ fn property(
 }
 
 fn prepare(
+    records: &parameters::RecordContext,
     file: &str,
     name: &str,
     signature: &[SignatureItem],
@@ -709,6 +731,7 @@ fn prepare(
         signature,
         bindings,
         frame_context,
+        records,
     )?);
     parameters.sort_by(|a, b| a.parameter().cmp(b.parameter()));
     supports.sort_by(|a, b| a.slot().cmp(b.slot()));
@@ -723,6 +746,7 @@ fn bind_model(
     elaborator: &Elaborator<'_>,
     model: &ModelDecl,
     bindings: &ExternalComponentBinding,
+    records: &parameters::RecordContext,
 ) -> Result<ModelDecl, Vec<Diagnostic>> {
     let frame_context = supports::model_spatial_supports("<selected-entry>", model)?;
     let signature = model
@@ -732,6 +756,71 @@ fn bind_model(
             let SignatureItem::Parameter(declaration) = item else {
                 return Ok(item.clone());
             };
+            if let Some(record) = records.record_for_type(declaration.value_type()) {
+                let values = record
+                    .definition
+                    .members()
+                    .iter()
+                    .map(|(member, _)| {
+                        let name = format!("{}.{member}", declaration.name());
+                        bindings
+                            .parameters()
+                            .iter()
+                            .find(|binding| binding.parameter() == name)
+                    })
+                    .collect::<Vec<_>>();
+                if values.iter().all(Option::is_none) {
+                    return Ok(item.clone());
+                }
+                let mut arguments = Vec::with_capacity(values.len());
+                for (((member, _), syntax), binding) in record
+                    .definition
+                    .members()
+                    .iter()
+                    .zip(&record.member_syntax)
+                    .zip(values)
+                {
+                    let binding = binding.ok_or_else(|| {
+                        vec![hierarchy_error(
+                            "selected record Parameter has incomplete leaf bindings",
+                        )]
+                    })?;
+                    let value = SourceAstFactory::value_literal(
+                        binding.value(),
+                        None,
+                        declaration.range(),
+                        |id| record_nominal_path(syntax, id),
+                        |id| elaborator.enum_definition(id),
+                    )
+                    .map_err(|error| vec![hierarchy_error(error.message())])?;
+                    arguments.push(
+                        SourceAstFactory::named_binding(member, value, declaration.range())
+                            .map_err(|error| vec![hierarchy_error(error.message())])?,
+                    );
+                }
+                let eqiora_lang::ValueTypeSyntaxKind::Named(callee) =
+                    declaration.value_type().kind()
+                else {
+                    unreachable!("selected record type")
+                };
+                let value = SourceAstFactory::expression(
+                    eqiora_lang::ExprKind::Call {
+                        callee: callee.clone(),
+                        arguments: eqiora_lang::CallArguments::Named(arguments),
+                    },
+                    declaration.range(),
+                )
+                .map_err(|error| vec![hierarchy_error(error.message())])?;
+                return SourceAstFactory::component_parameter(
+                    eqiora_lang::VisibilitySyntax::Public,
+                    declaration.name(),
+                    declaration.value_type().clone(),
+                    Some(value),
+                    declaration.range(),
+                )
+                .map(SignatureItem::Parameter)
+                .map_err(|error| vec![hierarchy_error(error.message())]);
+            }
             let Some(binding) = bindings
                 .parameters()
                 .iter()
@@ -784,6 +873,37 @@ fn bind_model(
         model.range(),
     )
     .map_err(|error| vec![hierarchy_error(error.message())])
+}
+
+fn record_nominal_path(
+    syntax: &eqiora_lang::ValueTypeSyntax,
+    id: eqiora_core::RawId,
+) -> Option<NamePath> {
+    use eqiora_lang::ValueTypeSyntaxKind;
+    if let ValueTypeSyntaxKind::Array { element, .. } = syntax.kind() {
+        return record_nominal_path(element, id);
+    }
+    let value = syntax.resolved_nominal()?;
+    if value
+        .enum_definition()
+        .is_some_and(|definition| definition.erase() == id)
+        || value
+            .finite_space()
+            .is_some_and(|definition| definition.erase() == id)
+        || value
+            .index_set()
+            .is_some_and(|definition| definition.erase() == id)
+    {
+        match syntax.kind() {
+            ValueTypeSyntaxKind::Named(name)
+            | ValueTypeSyntaxKind::Coordinates(name)
+            | ValueTypeSyntaxKind::Counts(name)
+            | ValueTypeSyntaxKind::Index(name) => Some(name.clone()),
+            _ => None,
+        }
+    } else {
+        None
+    }
 }
 
 fn source_budget(

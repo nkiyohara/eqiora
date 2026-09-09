@@ -450,6 +450,9 @@ class _Field(Expression):
         object.__setattr__(self, "_name", name)
 
 
+from ._records import Record, RecordField, RecordParameter, declare_record as _declare_record
+
+
 class Relation:
     """An opaque Module-owned relation declaration handle."""
 
@@ -1293,15 +1296,15 @@ class Component:
         self,
         name: str,
         *,
-        value_type: ValueType,
+        value_type: ValueType | Record,
         doc: str | None = None,
     ) -> Expression:
-        if not isinstance(value_type, ValueType):
-            raise TypeError("value_type must be an eqiora.ValueType")
-        syntax = self._type_syntax(value_type)
+        if not isinstance(value_type, (ValueType, Record)):
+            raise TypeError("value_type must be an eqiora.ValueType or Module Record")
+        syntax = value_type._type_syntax(self._source) if isinstance(value_type, Record) else self._type_syntax(value_type)
         doc_lines = _doc(doc)
         admitted = self._add_name(name)
-        parameter = _Parameter(self._component_token, admitted)
+        parameter = RecordParameter(self._component_token, admitted, value_type) if isinstance(value_type, Record) else _Parameter(self._component_token, admitted)
         self._parameters.append((parameter, syntax, doc_lines))
         self._requirements.add(parameter)
         return parameter
@@ -1396,7 +1399,7 @@ class Component:
         name: str,
         *,
         on: Support | None = None,
-        value_type: ValueType,
+        value_type: ValueType | Record,
         role: FieldRole,
         at: Clock | None = None,
         doc: str | None = None,
@@ -1408,14 +1411,14 @@ class Component:
             raise ModuleError(
                 "the initial Module vocabulary admits fields on volumes only"
             )
-        if not isinstance(value_type, ValueType):
-            raise TypeError("value_type must be an eqiora.ValueType")
-        syntax = self._type_syntax(value_type)
+        if not isinstance(value_type, (ValueType, Record)):
+            raise TypeError("value_type must be an eqiora.ValueType or Module Record")
+        syntax = value_type._type_syntax(self._source) if isinstance(value_type, Record) else self._type_syntax(value_type)
         if not isinstance(role, FieldRole):
             raise TypeError("role must be an eqiora.FieldRole")
         doc_lines = _doc(doc)
         admitted = self._add_name(name)
-        expression = _Field(self._component_token, admitted)
+        expression = RecordField(self._component_token, admitted, value_type) if isinstance(value_type, Record) else _Field(self._component_token, admitted)
         self._fields.append((expression, on, syntax, role, at, doc_lines))
         return expression
 
@@ -1778,6 +1781,7 @@ class Module:
         "_notations",
         "_spaces",
         "_enums",
+        "_records",
         "_name",
         "_package",
         "_imports",
@@ -1801,6 +1805,7 @@ class Module:
         self._notations: dict[str, Notation] = {}
         self._spaces: list[tuple[FiniteSpace, tuple[str, ...]]] = []
         self._enums: list[tuple[Enum, tuple[str, ...]]] = []
+        self._records: list[Record] = []
         self._frozen_text: str | None = None
 
     def __repr__(self) -> str:
@@ -1869,6 +1874,10 @@ class Module:
                             _result=result, _body=expression, _doc=documentation)
         self._operators.append(operator)
         return operator
+
+    def record(self, name: str, *, members: Mapping[str, ValueType], doc: str | None = None) -> Record:
+        """Declare one exact closed heterogeneous record in this Module."""
+        return _declare_record(self, name, members=members, doc=doc)
 
     def enum(self, name: str, *, members: Sequence[str], doc: str | None = None) -> Enum:
         """Declare a closed enum shared by all occurrences in this Module."""
@@ -2154,6 +2163,9 @@ class Module:
             for connector in self._connectors if isinstance(connector, FieldConnector)
         ]
         graph = _AstModule(definitions, operators, connectors, field_connectors)
+        for record in self._records:
+            graph = graph.with_record(record.name, [(name, kind, allocate()) for name, kind in record._syntax],
+                                      allocate(record._doc, self._notations.get(record.name)))
         for enumeration, doc in self._enums:
             graph = graph.with_enum(enumeration.name, enumeration.members,
                                     allocate(doc, self._notations.get(enumeration.name)))
@@ -2261,6 +2273,9 @@ __all__ = [
     "Component",
     "Expression",
     "Enum",
+    "Record",
+    "RecordField",
+    "RecordParameter",
     "Event",
     "MaterialComposition",
     "Notation",

@@ -119,6 +119,20 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     }
                 }
                 ComponentItem::Field(declaration) => {
+                    if let Some(record) = self
+                        .elaborator
+                        .record_for_type(&component.namespace, declaration.value_type())
+                        .cloned()
+                    {
+                        self.emit_record_field(
+                            scope,
+                            declaration,
+                            &record,
+                            identities,
+                            component.file,
+                        )?;
+                        continue;
+                    }
                     let identity = identities.entities[declaration.name()].clone();
                     self.record_type_structure(
                         &internal_name(identity.full),

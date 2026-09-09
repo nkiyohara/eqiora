@@ -38,6 +38,7 @@ impl Bindings {
         instance: &InstanceDecl,
         mut parent: impl FnMut(&str) -> Option<SymbolicParameterValue>,
         (clock, frame): StaticContexts<'_>,
+        record_contexts: (&RecordContext, &RecordContext),
     ) -> Result<Self, Vec<Diagnostic>> {
         let declarations = parameter_declarations(component);
         let mut diagnostics =
@@ -68,33 +69,63 @@ impl Bindings {
                 ));
                 continue;
             }
-            let expression = binding.value().rewrite_name_paths(|name| {
-                if let Some(value) = parent(name.as_str()) {
-                    result.parent.insert(name.as_str().to_owned(), value);
+            let inputs =
+                if let Some(record) = record_contexts.0.record_for_type(declaration.value_type()) {
+                    match crate::record::parameters::member_initializers(
+                        file,
+                        record,
+                        binding.value(),
+                        |path| {
+                            record_contexts
+                                .1
+                                .visible
+                                .get(path.as_str())
+                                .map(|value| value.definition.id())
+                        },
+                        |path| record_contexts.1.parameters.get(path.as_str()).copied(),
+                    ) {
+                        Ok(values) => record
+                            .definition
+                            .members()
+                            .iter()
+                            .zip(values)
+                            .map(|((member, _), value)| {
+                                (format!("{}.{}", binding.name(), member), value)
+                            })
+                            .collect(),
+                        Err(error) => {
+                            diagnostics.push(error);
+                            continue;
+                        }
+                    }
+                } else {
+                    vec![(binding.name().to_owned(), binding.value().clone())]
+                };
+            for (name, input) in inputs {
+                let expression = input.rewrite_name_paths(|name| {
+                    if let Some(value) = parent(name.as_str()) {
+                        result.parent.insert(name.as_str().to_owned(), value);
+                    }
+                    if let Some(value) = clock(name.as_str()) {
+                        result.clocks.insert(name.as_str().to_owned(), value);
+                    }
+                    if let Some(value) = frame(name.as_str()) {
+                        result.frames.insert(name.as_str().to_owned(), value);
+                    }
+                    None
+                });
+                if result.expressions.insert(name, expression).is_some() {
+                    diagnostics.push(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        binding.range(),
+                        format!(
+                            "duplicate binding for Parameter `{}` in instance `{}`",
+                            binding.name(),
+                            instance.name()
+                        ),
+                    ));
                 }
-                if let Some(value) = clock(name.as_str()) {
-                    result.clocks.insert(name.as_str().to_owned(), value);
-                }
-                if let Some(value) = frame(name.as_str()) {
-                    result.frames.insert(name.as_str().to_owned(), value);
-                }
-                None
-            });
-            if result
-                .expressions
-                .insert(binding.name().to_owned(), expression)
-                .is_some()
-            {
-                diagnostics.push(source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    file,
-                    binding.range(),
-                    format!(
-                        "duplicate binding for Parameter `{}` in instance `{}`",
-                        binding.name(),
-                        instance.name()
-                    ),
-                ));
             }
         }
         if result

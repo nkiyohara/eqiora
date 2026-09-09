@@ -18,6 +18,8 @@ mod construction;
 mod inference;
 mod integer;
 mod ordered_selection;
+mod roots;
+pub use roots::{residual, scalar_root};
 mod support;
 use inference::{NodeInference, infer_node, inferred_type};
 use support::{combine_additive_support, combine_support};
@@ -314,6 +316,8 @@ impl<I: fmt::Debug> fmt::Display for TypeViolation<I> {
 /// Meaning assigned to the roots of one typed expression DAG.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RootContract {
+    /// Independent typed value roots, retaining heterogeneous type and support.
+    ValueRoots,
     /// Consecutive roots are equation sides with exact compatible types and support.
     EquationSides,
     /// Every exact component of every root is an equation equal to zero.
@@ -454,6 +458,7 @@ impl<I: Clone + Eq> TypedResidual<I> {
                     continue;
                 };
                 let result = match root_contract {
+                    RootContract::ValueRoots => Ok(()),
                     RootContract::InitialResiduals => boolean::numerical_root(&root_type),
                     RootContract::ComponentwiseResidual => boolean::numerical_root(&root_type)
                         .and_then(|()| residual(&root_type, relation_support.as_ref())),
@@ -864,34 +869,6 @@ pub fn normal<I: Clone + Eq>(
     relation: Option<&SpatialSupport<I>>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
     boundary_operator(operand, relation, true)
-}
-
-/// Check one residual root against its Relation scope.
-pub fn residual<I: Clone + Eq>(
-    root: &ExpressionType<I>,
-    relation: Option<&SpatialSupport<I>>,
-) -> Result<(), TypeViolation<I>> {
-    if root.support.as_ref().map(SpatialSupport::domain) != relation.map(SpatialSupport::domain) {
-        return Err(TypeViolation::ResidualSupportMismatch {
-            residual: Box::new(root.support.clone()),
-            relation: Box::new(relation.cloned()),
-        });
-    }
-    Ok(())
-}
-
-/// Check one activation root, which must remain a real invariant scalar.
-pub fn scalar_root<I: Clone + Eq>(
-    root: &ExpressionType<I>,
-    relation: Option<&SpatialSupport<I>>,
-) -> Result<(), TypeViolation<I>> {
-    if !root.shape().is_scalar()
-        || root.frame() != ValueFrame::Invariant
-        || root.value_type.scalar_domain() != eqiora_core::ScalarDomain::Real
-    {
-        return Err(TypeViolation::RootRequiresRealScalar);
-    }
-    residual(root, relation)
 }
 
 /// Divide a dimension by time for a Field derivative.

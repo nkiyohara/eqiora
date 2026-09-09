@@ -37,8 +37,69 @@ The retained declaration and member identity survive Model replay.
 
 Enums can be Parameters, explicitly initialized State and clocked input/output values.
 Use the typed execution session for discrete values; the legacy scalar trajectory interface
-is not an enum transport. This value-and-expression profile does not introduce records,
-buses, transition priority, enabled modes or a statechart executor.
+is not an enum transport. Transition priority, enabled modes and a statechart executor
+remain separate capabilities.
+
+## Closed records and typed buses
+
+A record declares ordered, uniquely named mathematical members. Each member keeps its
+own dimension, shape and scalar domain. Record declarations have exact nominal identity;
+matching member names and types do not make two declarations interchangeable.
+
+```eqi
+enum Mode { Off, On }
+record Config { gain: 1, mode: Mode }
+record Bus { voltage: V, valid: bool, mode: Mode }
+
+component Controller(parameter config: Config) {
+  clock tick = periodic(1[s]);
+  state bus: Bus at tick;
+  initial {
+    bus.voltage = 0[V];
+    bus.valid = false;
+    bus.mode = Mode.Off;
+  }
+  relation update at tick {
+    next(bus.voltage) = pre(bus.voltage) + config.gain * 1[V];
+    next(bus.valid) = true;
+    next(bus.mode) = config.mode;
+  }
+}
+model Example() {
+  instance controller: Controller(config = Config(mode = Mode.On, gain = 2));
+}
+```
+
+A constructor supplies every member exactly once by name. Declaration order determines
+canonical member order, independently of argument order. Static record Parameters may
+forward another Parameter of the exact record type. Derived numeric members retain their
+original Parameter expressions and differentiation dependence. Model-owned record defaults
+create ordinary independently editable Parameter members, like scalar model defaults.
+
+A Field bus shares one role and temporal owner. A sampled bus names one explicit clock
+for all members. Member selection preserves that ownership: `pre`, `next` and initial equations follow the ordinary Field rules. Members
+cannot carry individual clock clauses, and wrong-clock updates reject before execution.
+Boolean, enum and integer members remain discrete. Selecting a real or complex member uses
+its ordinary mathematical type; the heterogeneous record itself is not a numeric vector.
+
+Components can exchange bus members through ordinary borrowed Field slots. For example,
+`instance control: BusController(tick = tick, voltage = sensor.voltage, valid = sensor.valid,
+drive = command.drive)` binds a controller directly to existing sensor and command bus
+members. Its signature declares those scalar Fields at its borrowed `tick`. Both producers
+and consumers retain the same exact member identities; no copy or clock conversion occurs.
+The controller can read the previous sensor sample with `pre(voltage)` and write its command
+with `next(drive)`. Binding an expression, a missing member, a different mathematical type,
+or a member owned by a different clock is rejected. This explicit member route does not
+introduce a record-valued signal Port.
+
+Closed records are available through source and `Module.record(name, members=...)` in Python.
+Python Field and Parameter handles expose `.member(name)`, and a record descriptor constructs
+values with named arguments. Current Model artifacts retain the record declaration and its
+ordered typed member expressions across replay and execution-session restart. The current
+surface covers flat records with support-independent mathematical member types and owned
+Field buses. Invariant arrays retain their declared shape. Support-dependent spatial vector
+or tensor declarations, nested records, record arrays, record-valued signal Ports and payload
+variants are not admitted.
 
 ## Exact integers
 

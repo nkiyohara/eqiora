@@ -184,6 +184,7 @@ pub(super) fn component_field_contracts(
     supports: &SupportInterface,
     slots: &FieldInterface,
     values: &super::parameters::SymbolicParameterMap,
+    records: &super::parameters::RecordContext,
 ) -> BTreeMap<String, FieldContract<String>> {
     let mut fields = slots
         .iter()
@@ -196,6 +197,10 @@ pub(super) fn component_field_contracts(
         let support = declaration
             .domain()
             .and_then(|name| supports.visible_support(name).cloned());
+        if let Some(record) = records.record_for_type(declaration.value_type()) {
+            fields.extend(record_field_contracts(declaration, record, support));
+            continue;
+        }
         if let Ok(value) = field_expression_type(file, declaration, support, values) {
             fields.insert(
                 declaration.name().to_owned(),
@@ -210,37 +215,59 @@ pub(super) fn component_field_contracts(
     fields
 }
 
-/// Collect Fields visible as bare binding targets in one root Model.
+/// Collect exact Fields and record members visible as binding targets in one root Model.
 pub(super) fn model_field_contracts(
     file: &str,
     model: &ModelDecl,
     supports: &BTreeMap<String, SpatialSupport<String>>,
     values: &super::parameters::SymbolicParameterMap,
+    records: &super::parameters::RecordContext,
 ) -> BTreeMap<String, FieldContract<String>> {
-    model
-        .items()
+    let mut fields = BTreeMap::new();
+    for item in model.items() {
+        let Item::Field(declaration) = item else {
+            continue;
+        };
+        let support = declaration
+            .domain()
+            .and_then(|name| supports.get(name).cloned());
+        if let Some(record) = records.record_for_type(declaration.value_type()) {
+            fields.extend(record_field_contracts(declaration, record, support));
+            continue;
+        }
+        if let Ok(value) = field_expression_type(file, declaration, support, values) {
+            fields.insert(
+                declaration.name().to_owned(),
+                FieldContract::continuum(
+                    value,
+                    declaration.role(),
+                    declaration.activation().clone(),
+                ),
+            );
+        }
+    }
+    fields
+}
+
+fn record_field_contracts(
+    declaration: &eqiora_lang::FieldDecl,
+    record: &crate::record::BoundRecord,
+    support: Option<SpatialSupport<String>>,
+) -> impl Iterator<Item = (String, FieldContract<String>)> {
+    record
+        .definition
+        .members()
         .iter()
-        .filter_map(|item| {
-            let Item::Field(declaration) = item else {
-                return None;
-            };
-            let support = declaration
-                .domain()
-                .and_then(|name| supports.get(name).cloned());
-            field_expression_type(file, declaration, support, values)
-                .ok()
-                .map(|value| {
-                    (
-                        declaration.name().to_owned(),
-                        FieldContract::continuum(
-                            value,
-                            declaration.role(),
-                            declaration.activation().clone(),
-                        ),
-                    )
-                })
+        .map(move |(name, value)| {
+            (
+                format!("{}.{name}", declaration.name()),
+                FieldContract::continuum(
+                    ExpressionType::new(value.clone(), support.clone()),
+                    declaration.role(),
+                    declaration.activation().clone(),
+                ),
+            )
         })
-        .collect()
 }
 
 pub(super) fn resolve_instance_clocks(
@@ -313,7 +340,7 @@ pub(super) fn resolve_instance_fields<I: Clone + Eq>(
     let mut actual = BTreeMap::new();
     let mut seen = BTreeSet::new();
 
-    for binding in super::named_bindings::references(
+    for binding in super::named_bindings::field_references(
         binding_file,
         instance,
         |binding| interface.get(binding.name()).is_some(),

@@ -71,3 +71,56 @@ impl ExpressionLowerer<'_> {
             .map_err(|diagnostic| self.builder_error(expression, diagnostic))
     }
 }
+
+impl LoweringExpression {
+    pub(crate) fn collect_physical_port_names(&self, names: &mut BTreeSet<String>) -> bool {
+        let mut pending = vec![self];
+        let mut seen = BTreeSet::new();
+        while let Some(expression) = pending.pop() {
+            if !seen.insert(Arc::as_ptr(&expression.node) as usize) {
+                continue;
+            }
+            match expression.node.as_ref() {
+                LoweringExpressionNode::Call { callee, argument } => {
+                    if matches!(callee.as_str(), "across" | "through" | "trace" | "flux")
+                        && let LoweringExpressionNode::Name(name) = argument.node.as_ref()
+                    {
+                        names.insert(name.clone());
+                    }
+                    pending.push(argument);
+                }
+                LoweringExpressionNode::Neg(value)
+                | LoweringExpressionNode::Not(value)
+                | LoweringExpressionNode::Index { value, .. }
+                | LoweringExpressionNode::Sample { value, .. } => pending.push(value),
+                LoweringExpressionNode::Array(elements) => pending.extend(elements),
+                LoweringExpressionNode::IntegerCall { arguments, .. } => pending.extend(arguments),
+                LoweringExpressionNode::Complex { real, imag } => pending.extend([real, imag]),
+                LoweringExpressionNode::Case { value, arms } => {
+                    pending.push(value);
+                    pending.extend(arms.iter().map(|(_, value)| value));
+                }
+                LoweringExpressionNode::Select {
+                    condition,
+                    then_value,
+                    else_value,
+                } => pending.extend([condition, then_value, else_value]),
+                LoweringExpressionNode::Require { condition, value } => {
+                    pending.extend([condition, value])
+                }
+                LoweringExpressionNode::Binary { left, right, .. }
+                | LoweringExpressionNode::Extremum { left, right, .. } => {
+                    pending.push(left);
+                    pending.push(right);
+                }
+                LoweringExpressionNode::PureOperator { arguments, .. }
+                | LoweringExpressionNode::Piecewise { arguments, .. } => pending.extend(arguments),
+                LoweringExpressionNode::Number(_)
+                | LoweringExpressionNode::Literal(_)
+                | LoweringExpressionNode::Name(_) => {}
+                _ => return false,
+            }
+        }
+        true
+    }
+}

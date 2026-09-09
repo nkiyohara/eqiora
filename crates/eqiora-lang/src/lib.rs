@@ -28,9 +28,10 @@ pub use ast::{
     EnumDecl, Equation, EventDecl, ExactIntegerSyntax, Expr, ExprKind, FamilyBinderSyntax,
     FieldDecl, FieldRoleSyntax, FrameSyntax, InitialDecl, InstanceDecl, Item, ModelDecl, NamePath,
     NamedBindingDecl, NamedDefinitionDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl,
-    PureOperatorFormal, PureValueClassSyntax, ReductionOp, RelationDecl, RelationFamilyDecl,
-    SignalDirectionSyntax, SignatureItem, SupportSlotDecl, SupportSlotSyntax, TextRange, UnaryOp,
-    ValueShapeSyntax, ValueTypeSyntax, ValueTypeSyntaxKind, VisibilitySyntax,
+    PureOperatorFormal, PureValueClassSyntax, RecordDecl, RecordMemberDecl, ReductionOp,
+    RelationDecl, RelationFamilyDecl, SignalDirectionSyntax, SignatureItem, SupportSlotDecl,
+    SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, ValueTypeSyntax, ValueTypeSyntaxKind,
+    VisibilitySyntax,
 };
 pub use cartesian::CartesianCoordinateSyntax;
 pub use decimal::DecimalLiteral;

@@ -13,7 +13,7 @@ pub(super) fn component_local_footprint(
     let values = match values {
         Some(values) => values,
         None => {
-            generic_values = family_component_values(definition, diagnostics);
+            generic_values = family_component_values(elaborator, definition, diagnostics);
             &generic_values
         }
     };
@@ -34,7 +34,6 @@ pub(super) fn component_local_footprint(
     for item in definition.owned_items() {
         match item {
             ComponentItem::IndexSet(_)
-            | ComponentItem::Parameter(_)
             | ComponentItem::Port(_)
             | ComponentItem::Initial(_)
             | ComponentItem::Clock(_)
@@ -46,9 +45,27 @@ pub(super) fn component_local_footprint(
                 "declaration",
                 diagnostics,
             ),
+            ComponentItem::Parameter(parameter) => checked_local_add(
+                &mut declarations,
+                elaborator
+                    .record_for_type(&definition.namespace, parameter.value_type())
+                    .map_or(1, |record| 1 + record.definition.members().len()),
+                definition.file,
+                parameter.range(),
+                "Parameter record and members",
+                diagnostics,
+            ),
             ComponentItem::Field(field) => checked_local_add(
                 &mut declarations,
-                if field.domain().is_some() { 2 } else { 1 },
+                elaborator
+                    .record_for_type(&definition.namespace, field.value_type())
+                    .map_or_else(
+                        || if field.domain().is_some() { 2 } else { 1 },
+                        |record| {
+                            1 + record.definition.members().len()
+                                * if field.domain().is_some() { 2 } else { 1 }
+                        },
+                    ),
                 definition.file,
                 field.range(),
                 "Field and continuum representation",
@@ -335,7 +352,7 @@ pub(super) fn model_local_footprint(
     let values = match values {
         Some(values) => values,
         None => {
-            generic_values = family_model_values(definition, diagnostics);
+            generic_values = family_model_values(elaborator, definition, diagnostics);
             &generic_values
         }
     };
@@ -352,9 +369,27 @@ pub(super) fn model_local_footprint(
     let mut footprint = LocalFootprint::default();
     for item in definition.owned_items() {
         match item {
+            Item::Parameter(parameter) => checked_local_add(
+                &mut footprint.declarations,
+                elaborator
+                    .record_for_type(&definition.namespace, parameter.value_type())
+                    .map_or(1, |record| 1 + record.definition.members().len()),
+                definition.file,
+                parameter.range(),
+                "Parameter record and members",
+                diagnostics,
+            ),
             Item::Field(field) => checked_local_add(
                 &mut footprint.declarations,
-                if field.domain().is_some() { 2 } else { 1 },
+                elaborator
+                    .record_for_type(&definition.namespace, field.value_type())
+                    .map_or_else(
+                        || if field.domain().is_some() { 2 } else { 1 },
+                        |record| {
+                            1 + record.definition.members().len()
+                                * if field.domain().is_some() { 2 } else { 1 }
+                        },
+                    ),
                 definition.file,
                 field.range(),
                 "Field and continuum representation",
@@ -527,6 +562,7 @@ pub(super) fn input_binding_count(
 }
 
 fn family_component_values(
+    elaborator: &Elaborator<'_>,
     definition: &ComponentDefinition<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> super::super::parameters::SymbolicParameterMap {
@@ -536,6 +572,7 @@ fn family_component_values(
             definition.file,
             definition.declaration,
             |name| clocks::component(definition.file, definition.declaration, name),
+            &parameters::RecordContext::component(elaborator, definition),
         )?;
         parameters::resolve_component_lets(
             definition.file,
@@ -554,6 +591,7 @@ fn family_component_values(
     }
 }
 fn family_model_values(
+    elaborator: &Elaborator<'_>,
     definition: &ModelDefinition<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> super::super::parameters::SymbolicParameterMap {
@@ -563,6 +601,7 @@ fn family_model_values(
             definition.file,
             definition.declaration,
             |name| clocks::model(definition.file, definition.declaration, name),
+            &parameters::RecordContext::model(elaborator, definition),
         )?;
         parameters::resolve_model_lets(
             definition.file,

@@ -184,8 +184,12 @@ fn compile_external_component_from_definition<'a>(
             ),
         )]);
     }
-    let values =
-        parameters::resolve_external_parameters(file, component.declaration, binding.parameters())?;
+    let values = parameters::resolve_external_parameters(
+        file,
+        component.declaration,
+        binding.parameters(),
+        &parameters::RecordContext::component(elaborator, &component),
+    )?;
     let summary = definition_graph::selected_component_summary(
         elaborator,
         checked,

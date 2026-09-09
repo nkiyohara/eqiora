@@ -79,6 +79,24 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
 
     fn validate(&mut self) {
         self.scope.static_values = self.compile_time_values.clone();
+        self.scope.record_context = super::super::parameters::RecordContext::component(
+            self.scope.elaborator,
+            self.definition,
+        );
+        for (root, record) in self.scope.record_context.records() {
+            for (member, _) in record.definition.members() {
+                let name = format!("{root}.{member}");
+                if let Some(value) = self.compile_time_values.get(&name) {
+                    self.scope.symbols.insert(
+                        name,
+                        SymbolContract::Parameter(ExpressionType::new(
+                            value.value_type.clone(),
+                            None,
+                        )),
+                    );
+                }
+            }
+        }
         for item in self.definition.declaration.items() {
             if let ComponentItem::IndexSet(declaration) = item
                 && let Err(error) = self.scope.bind_index_set(declaration)
@@ -220,6 +238,14 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                     }
                 }
                 ComponentItem::Parameter(declaration) => {
+                    if self
+                        .scope
+                        .record_context
+                        .record_for_type(declaration.value_type())
+                        .is_some()
+                    {
+                        continue;
+                    }
                     let Some(parameter) = self.compile_time_values.get(declaration.name()) else {
                         self.diagnostics.push(source_error(
                             codes::LANGUAGE_LOWERING_ERROR,
@@ -291,6 +317,26 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                     let support = declaration
                         .domain()
                         .and_then(|domain| self.scope.spatial_support(domain));
+                    if let Some(record) = self
+                        .scope
+                        .elaborator
+                        .record_for_type(&self.scope.namespace, declaration.value_type())
+                    {
+                        for (name, value_type) in record.definition.members() {
+                            self.scope.symbols.insert(
+                                format!("{}.{name}", declaration.name()),
+                                SymbolContract::Field(
+                                    eqiora_schema::kernel::typing::ExpressionType::new(
+                                        value_type.clone(),
+                                        support.clone(),
+                                    ),
+                                    declaration.role(),
+                                    declaration.activation().clone(),
+                                ),
+                            );
+                        }
+                        continue;
+                    }
                     match field_expression_type(
                         self.definition.file,
                         declaration,
@@ -612,6 +658,7 @@ mod tests {
             |name| {
                 crate::hierarchy::clocks::component(definition.file, definition.declaration, name)
             },
+            &crate::hierarchy::parameters::RecordContext::component(&elaborator, &definition),
         )?;
         let supports = component_support_interface(definition.file, definition.declaration)?;
         let fields = component_field_interface(

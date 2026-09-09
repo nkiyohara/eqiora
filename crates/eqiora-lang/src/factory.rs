@@ -18,6 +18,7 @@ mod nominal;
 mod operator;
 mod property;
 mod property_declaration;
+mod record;
 mod relation;
 mod type_visit;
 pub(crate) mod value_literal;

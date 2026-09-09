@@ -153,6 +153,11 @@ pub(in crate::hierarchy::body_check) fn validate_aliases<'a>(
             activation = DependencyActivation::Event(event.clone());
         }
         let field_target = match declaration.value().kind() {
+            ExprKind::Path(path) => match scope.symbols.get(path.as_str()) {
+                Some(SymbolContract::Field(..)) => Some(path.as_str().to_owned()),
+                Some(SymbolContract::Alias(alias)) => alias.field_target.clone(),
+                _ => None,
+            },
             ExprKind::Name(name) => match scope.symbols.get(name) {
                 Some(SymbolContract::Field(..)) => Some(name.clone()),
                 Some(SymbolContract::Alias(alias)) => alias.field_target.clone(),
@@ -215,7 +220,17 @@ impl ExpressionChecker<'_, '_, '_> {
                 .extend(alias.endpoints.iter().cloned());
             for requirement in &alias.evolution {
                 let argument = eqiora_lang::SourceAstFactory::expression(
-                    ExprKind::Name(requirement.target.clone()),
+                    if requirement.target.contains('.') {
+                        ExprKind::Path(
+                            eqiora_lang::NamePath::from_segments(
+                                requirement.target.split('.'),
+                                requirement.range,
+                            )
+                            .expect("retained source path"),
+                        )
+                    } else {
+                        ExprKind::Name(requirement.target.clone())
+                    },
                     requirement.range,
                 )
                 .expect("retained source name and range");
@@ -243,13 +258,17 @@ impl ExpressionChecker<'_, '_, '_> {
                 "sample operand cannot contain an evolution operator",
             ));
         }
-        let ExprKind::Name(name) = argument.kind() else {
-            return Err(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                self.scope.file,
-                argument.range(),
-                format!("{callee_name}(...) requires one Field name"),
-            ));
+        let name = match argument.kind() {
+            ExprKind::Name(name) => name.as_str(),
+            ExprKind::Path(path) => path.as_str(),
+            _ => {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.scope.file,
+                    argument.range(),
+                    format!("{callee_name}(...) requires one exact Field or record member"),
+                ));
+            }
         };
         if let Some(SymbolContract::Alias(alias)) = self.scope.symbols.get(name) {
             // Identity aliases retain their use obligations even inside pre/next/derivative.
@@ -266,7 +285,7 @@ impl ExpressionChecker<'_, '_, '_> {
                     )
                 })?
             }
-            _ => name.as_str(),
+            _ => name,
         };
         let inferred = match self.scope.symbols.get(target) {
             Some(SymbolContract::Field(inferred, role, activation)) => {

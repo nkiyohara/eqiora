@@ -1,5 +1,7 @@
 //! Typed definitions for the closed Semantic Kernel (RFC-0001).
 
+mod record;
+pub use record::{RecordDef, RecordInstanceDef};
 mod enumeration;
 pub use enumeration::EnumDef;
 mod boundary_physical;

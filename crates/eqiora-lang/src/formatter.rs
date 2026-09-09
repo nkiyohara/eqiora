@@ -63,6 +63,28 @@ pub fn format(document: &Document) -> String {
         output.push_str(" }\n");
         output.end();
     }
+    for declaration in &document.records {
+        separate_declaration(&mut output, &mut declaration_count);
+        output.begin(&declaration.comments);
+        if declaration.visibility() == VisibilitySyntax::Public {
+            output.push_str("public ");
+        }
+        writeln!(
+            output,
+            "record {} {{",
+            declaration.comments.named(&declaration.name)
+        )
+        .expect("String write");
+        for member in declaration.members() {
+            output.begin(&member.comments);
+            write!(output, "    {}: ", member.comments.named(&member.name)).expect("String write");
+            value_type::format_value_type(member.value_type(), &mut output);
+            output.push_str(",\n");
+            output.end();
+        }
+        output.push_str("}\n");
+        output.end();
+    }
     for space in &document.finite_spaces {
         separate_declaration(&mut output, &mut declaration_count);
         output.begin(&space.comments);

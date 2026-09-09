@@ -70,6 +70,12 @@ pub(super) struct RelationIdentity {
 
 #[derive(Debug, Clone)]
 pub(super) enum FlatItemBlueprint {
+    RecordInstance {
+        name: String,
+        definition: Id<kinds::Record>,
+        members: Vec<crate::lower::LoweringExpression>,
+        identity: EntityIdentity,
+    },
     Nominal {
         name: String,
         definition: eqiora_schema::kernel::KernelNode,
@@ -147,7 +153,7 @@ pub(super) enum FlatItemBlueprint {
 impl FlatItemBlueprint {
     pub(super) fn sort_key(&self) -> (u8, String) {
         match self {
-            Self::Nominal { name, .. } => (0, name.clone()),
+            Self::Nominal { name, .. } | Self::RecordInstance { name, .. } => (0, name.clone()),
             Self::Domain { name, .. } => (0, name.clone()),
             Self::Representation { name, .. } => (1, name.clone()),
             Self::Field { name, .. } => (2, name.clone()),
@@ -274,7 +280,8 @@ impl ExpandedBlueprint {
                 | FlatItemBlueprint::Field { identity, .. }
                 | FlatItemBlueprint::Parameter { identity, .. }
                 | FlatItemBlueprint::Port { identity, .. }
-                | FlatItemBlueprint::Event { identity, .. } => {
+                | FlatItemBlueprint::Event { identity, .. }
+                | FlatItemBlueprint::RecordInstance { identity, .. } => {
                     allocator
                         .stage(&identity.key)
                         .map_err(|error| vec![error])?;
@@ -310,7 +317,7 @@ impl ExpandedBlueprint {
         let staged = allocator.finish();
         let mut identities =
             AssignedLoweringIdentities::new(self, &staged).map_err(|error| vec![error])?;
-        let model = self.lowering_model().map_err(|error| vec![error])?;
+        let model = self.lowering_model(&staged).map_err(|error| vec![error])?;
         let compiled =
             crate::lower::lower_typed_model(&self.model_source.file, &model, &mut identities)?;
         let symbols = self
@@ -402,7 +409,7 @@ impl ExpandedBlueprint {
         PhysicalExposureProjectionMap::from_sorted(projections)
     }
 
-    fn lowering_model(&self) -> Result<LoweringModel, Diagnostic> {
+    fn lowering_model(&self, staged: &StagedIdentities) -> Result<LoweringModel, Diagnostic> {
         let mut items = Vec::new();
         items
             .try_reserve_exact(self.items.len())
@@ -442,6 +449,16 @@ impl ExpandedBlueprint {
                     role: *role,
                     activation: activation.clone(),
                     range: *range,
+                },
+                FlatItemBlueprint::RecordInstance {
+                    definition,
+                    members,
+                    identity,
+                    ..
+                } => LoweringItem::RecordInstance {
+                    id: staged.resolve::<kinds::RecordInstance>(identity.full)?.id(),
+                    definition: *definition,
+                    members: members.clone(),
                 },
                 FlatItemBlueprint::Nominal {
                     name, definition, ..
@@ -577,7 +594,8 @@ impl ExpandedBlueprint {
                 | FlatItemBlueprint::Port { identity, .. }
                 | FlatItemBlueprint::Nominal { identity, .. }
                 | FlatItemBlueprint::Clock { identity, .. }
-                | FlatItemBlueprint::Event { identity, .. } => {
+                | FlatItemBlueprint::Event { identity, .. }
+                | FlatItemBlueprint::RecordInstance { identity, .. } => {
                     insert_provenance(&mut builder, identity, staged)?;
                 }
                 FlatItemBlueprint::Connection { identity, .. } => {
@@ -699,7 +717,9 @@ impl AssignedLoweringIdentities {
                         .connections
                         .push_back(staged.resolve::<kinds::Connection>(identity.full)?.id());
                 }
-                FlatItemBlueprint::Nominal { .. } | FlatItemBlueprint::Boundary { .. } => {}
+                FlatItemBlueprint::Nominal { .. }
+                | FlatItemBlueprint::RecordInstance { .. }
+                | FlatItemBlueprint::Boundary { .. } => {}
             }
         }
         Ok(result)
@@ -768,6 +788,11 @@ fn resolve_entity_raw(
         EntityKind::Field => Ok(staged.resolve::<kinds::Field>(identity)?.id().erase()),
         EntityKind::Parameter => Ok(staged.resolve::<kinds::Parameter>(identity)?.id().erase()),
         EntityKind::Port => Ok(staged.resolve::<kinds::Port>(identity)?.id().erase()),
+        EntityKind::Record => Ok(staged.resolve::<kinds::Record>(identity)?.id().erase()),
+        EntityKind::RecordInstance => Ok(staged
+            .resolve::<kinds::RecordInstance>(identity)?
+            .id()
+            .erase()),
         EntityKind::Enum => Ok(staged.resolve::<kinds::Enum>(identity)?.id().erase()),
         EntityKind::FiniteSpace => Ok(staged.resolve::<kinds::FiniteSpace>(identity)?.id().erase()),
         EntityKind::IndexSet => Ok(staged.resolve::<kinds::IndexSet>(identity)?.id().erase()),

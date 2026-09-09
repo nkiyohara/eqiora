@@ -10,6 +10,7 @@ fn resolve(
     required_policy: RequiredParameterPolicy,
     resolve_clock: &mut dyn FnMut(&str) -> Option<Option<RationalTime>>,
     frames: BTreeMap<String, SpatialSupport<String>>,
+    records: &RecordContext,
 ) -> Result<SymbolicParameterMap, Vec<Diagnostic>> {
     let mut declarations = model
         .signature()
@@ -35,10 +36,14 @@ fn resolve(
     }
     SymbolicParameterResolver {
         declaration_file: file,
-        declarations: declarations
-            .iter()
-            .map(|value| (value.name().to_owned(), value))
-            .collect(),
+        declarations: records::expand(
+            file,
+            declarations
+                .into_iter()
+                .map(|value| (value.name().to_owned(), value))
+                .collect(),
+            records,
+        )?,
         bindings: None,
         bound_values: BTreeMap::new(),
         resolved: BTreeMap::new(),
@@ -52,6 +57,7 @@ pub(in crate::hierarchy) fn resolve_model_parameters_symbolically(
     file: &str,
     model: &ModelDecl,
     mut resolve_clock: impl FnMut(&str) -> Option<Option<RationalTime>>,
+    records: &RecordContext,
 ) -> Result<SymbolicParameterMap, Vec<Diagnostic>> {
     resolve(
         file,
@@ -59,6 +65,7 @@ pub(in crate::hierarchy) fn resolve_model_parameters_symbolically(
         RequiredParameterPolicy::PublicIsFree,
         &mut resolve_clock,
         super::super::supports::model_spatial_supports(file, model)?,
+        records,
     )
 }
 
@@ -67,6 +74,7 @@ pub(in crate::hierarchy) fn resolve_model_parameters(
     model: &ModelDecl,
     mut resolve_clock: impl FnMut(&str) -> Option<Option<RationalTime>>,
     bound_frames: BTreeMap<String, SpatialSupport<String>>,
+    records: &RecordContext,
 ) -> Result<BTreeMap<String, ResolvedParameter>, Vec<Diagnostic>> {
     let mut frames = super::super::supports::model_spatial_supports(file, model)?;
     frames.extend(bound_frames);
@@ -76,6 +84,7 @@ pub(in crate::hierarchy) fn resolve_model_parameters(
         RequiredParameterPolicy::RejectUnbound,
         &mut resolve_clock,
         frames,
+        records,
     )
     .and_then(concrete_parameters)
 }
@@ -94,9 +103,12 @@ mod tests {
         let model = model(
             "model M(clock tick: periodic, parameter twice: s = 2 * dt, parameter dt: s = period(tick)) { parameter four: s = 2 * twice; }",
         );
-        let symbolic = resolve_model_parameters_symbolically("period.eqi", &model, |name| {
-            (name == "tick").then_some(None)
-        })
+        let symbolic = resolve_model_parameters_symbolically(
+            "period.eqi",
+            &model,
+            |name| (name == "tick").then_some(None),
+            &RecordContext::default(),
+        )
         .unwrap();
         assert_eq!(
             symbolic["twice"].value_type.dimension(),
@@ -108,6 +120,7 @@ mod tests {
             &model,
             |name| (name == "tick").then_some(Some(RationalTime::new(1, 8).unwrap())),
             BTreeMap::new(),
+            &RecordContext::default(),
         )
         .unwrap();
         assert_eq!(
@@ -165,17 +178,26 @@ mod tests {
         ] {
             let model = model(source);
             assert!(
-                resolve_model_parameters_symbolically("period.eqi", &model, |name| (name
-                    == "tick")
-                    .then_some(None))
+                resolve_model_parameters_symbolically(
+                    "period.eqi",
+                    &model,
+                    |name| (name == "tick").then_some(None),
+                    &RecordContext::default()
+                )
                 .is_err(),
                 "{source}"
             );
         }
         let model = model("model M(clock tick: periodic, parameter dt: s = period(tick)) {}");
         assert!(
-            resolve_model_parameters("period.eqi", &model, |_| Some(None), BTreeMap::new())
-                .is_err()
+            resolve_model_parameters(
+                "period.eqi",
+                &model,
+                |_| Some(None),
+                BTreeMap::new(),
+                &RecordContext::default()
+            )
+            .is_err()
         );
     }
 }

@@ -5,7 +5,7 @@ use eqiora_core::{Diagnostic, Id};
 use eqiora_schema::kernel::{
     ActivationDef, BoundaryPhysicalConnector, ConnectionDef, DomainDef, DomainKind, EnumDef,
     FieldDef, FiniteSpaceDef, GeometryDigest, IndexSetDef, KernelNode, ParameterDef, PortDef,
-    PortPayload, RelationDef, RepresentationDef,
+    PortPayload, RecordDef, RecordInstanceDef, RelationDef, RepresentationDef,
 };
 use serde::{Deserialize, Serialize};
 
@@ -18,6 +18,17 @@ use super::{expression::*, primitive::*, vocabulary::*};
 impl WireNode {
     pub(crate) fn encode(node: &KernelNode) -> Result<Self, Diagnostic> {
         let definition = match node {
+            KernelNode::Record(value) => WireNodeDefinition::Record {
+                members: value
+                    .members()
+                    .iter()
+                    .map(|(name, ty)| Ok((name.clone(), WireValueType::encode(ty)?)))
+                    .collect::<Result<_, Diagnostic>>()?,
+            },
+            KernelNode::RecordInstance(value) => WireNodeDefinition::RecordInstance {
+                definition: WireId::from_raw(value.definition().erase()),
+                expression: WireExpression::encode(value.expression())?,
+            },
             KernelNode::Enum(value) => WireNodeDefinition::Enum {
                 members: value.members().to_vec(),
             },
@@ -87,6 +98,25 @@ impl WireNode {
 
     pub(crate) fn decode(&self) -> Result<KernelNode, Diagnostic> {
         match &self.definition {
+            WireNodeDefinition::Record { members } => RecordDef::new(
+                self.id.typed::<kinds::Record>()?,
+                members
+                    .iter()
+                    .map(|(name, ty)| Ok((name.clone(), ty.decode()?)))
+                    .collect::<Result<_, Diagnostic>>()?,
+            )
+            .map(Into::into)
+            .map_err(|error| invalid_artifact(error.message())),
+            WireNodeDefinition::RecordInstance {
+                definition,
+                expression,
+            } => RecordInstanceDef::new(
+                self.id.typed::<kinds::RecordInstance>()?,
+                definition.typed::<kinds::Record>()?,
+                expression.decode()?,
+            )
+            .map(Into::into)
+            .map_err(|error| invalid_artifact(error.message())),
             WireNodeDefinition::Enum { members } => {
                 EnumDef::new(self.id.typed::<kinds::Enum>()?, members.iter().cloned())
                     .map(Into::into)
@@ -180,7 +210,8 @@ impl WireNode {
 
     pub(crate) fn expression_node_count(&self) -> usize {
         match &self.definition {
-            WireNodeDefinition::Relation { expression, .. } => expression.nodes.len(),
+            WireNodeDefinition::Relation { expression, .. }
+            | WireNodeDefinition::RecordInstance { expression, .. } => expression.nodes.len(),
             WireNodeDefinition::Activation { activation } => activation.expression_node_count(),
             _ => 0,
         }
@@ -188,7 +219,8 @@ impl WireNode {
 
     pub(crate) fn expression_root_count(&self) -> usize {
         match &self.definition {
-            WireNodeDefinition::Relation { expression, .. } => expression.roots.len(),
+            WireNodeDefinition::Relation { expression, .. }
+            | WireNodeDefinition::RecordInstance { expression, .. } => expression.roots.len(),
             WireNodeDefinition::Activation { activation } => activation.expression_root_count(),
             _ => 0,
         }
@@ -196,7 +228,10 @@ impl WireNode {
 
     pub(crate) fn pure_operator_counts(&self) -> Result<PureOperatorWireCounts, Diagnostic> {
         match &self.definition {
-            WireNodeDefinition::Relation { expression, .. } => expression.pure_operator_counts(),
+            WireNodeDefinition::Relation { expression, .. }
+            | WireNodeDefinition::RecordInstance { expression, .. } => {
+                expression.pure_operator_counts()
+            }
             WireNodeDefinition::Activation { activation } => activation.pure_operator_counts(),
             _ => Ok(PureOperatorWireCounts::default()),
         }
@@ -204,7 +239,8 @@ impl WireNode {
 
     pub(crate) fn validate_pure_operator_features(&self) -> Result<(), Diagnostic> {
         match &self.definition {
-            WireNodeDefinition::Relation { expression, .. } => {
+            WireNodeDefinition::Relation { expression, .. }
+            | WireNodeDefinition::RecordInstance { expression, .. } => {
                 expression.validate_pure_operator_features()
             }
             WireNodeDefinition::Activation { activation } => {
@@ -216,7 +252,8 @@ impl WireNode {
 
     pub(crate) fn canonicalize_pure_operator_definitions(&mut self) -> Result<(), Diagnostic> {
         match &mut self.definition {
-            WireNodeDefinition::Relation { expression, .. } => {
+            WireNodeDefinition::Relation { expression, .. }
+            | WireNodeDefinition::RecordInstance { expression, .. } => {
                 expression.canonicalize_pure_operator_definitions()
             }
             WireNodeDefinition::Activation { activation } => {
@@ -229,7 +266,10 @@ impl WireNode {
     pub(crate) fn literal_component_count(&self) -> Result<usize, Diagnostic> {
         match &self.definition {
             WireNodeDefinition::Parameter { value } => Ok(value.component_payload_count()),
-            WireNodeDefinition::Relation { expression, .. } => expression.literal_component_count(),
+            WireNodeDefinition::Relation { expression, .. }
+            | WireNodeDefinition::RecordInstance { expression, .. } => {
+                expression.literal_component_count()
+            }
             WireNodeDefinition::Activation { activation } => activation.literal_component_count(),
             _ => Ok(0),
         }
@@ -240,6 +280,17 @@ impl WireNode {
         limits: ModelDecoderLimits,
     ) -> Result<(), Diagnostic> {
         match &self.definition {
+            WireNodeDefinition::Record { members } => {
+                require_decoder_count(
+                    "record members",
+                    members.len(),
+                    limits.max_value_shape_components,
+                )?;
+                for (_, ty) in members {
+                    ty.ensure_limits(limits)?;
+                }
+                Ok(())
+            }
             WireNodeDefinition::Enum { members: labels }
             | WireNodeDefinition::FiniteSpace { labels } => require_decoder_count(
                 "nominal declaration members",
@@ -249,7 +300,8 @@ impl WireNode {
             WireNodeDefinition::Field { value_type, .. }
             | WireNodeDefinition::SignalPort { value_type, .. } => value_type.ensure_limits(limits),
             WireNodeDefinition::Parameter { value } => value.ensure_limits(limits),
-            WireNodeDefinition::Relation { expression, .. } => {
+            WireNodeDefinition::Relation { expression, .. }
+            | WireNodeDefinition::RecordInstance { expression, .. } => {
                 expression.ensure_value_shape_limits(limits)
             }
             WireNodeDefinition::Activation { activation } => {
@@ -282,6 +334,16 @@ impl WireNode {
 
     pub(crate) fn semantic_references(&self) -> Vec<&WireId> {
         match &self.definition {
+            WireNodeDefinition::Record { members } => members
+                .iter()
+                .filter_map(|(_, ty)| ty.nominal_reference())
+                .collect(),
+            WireNodeDefinition::RecordInstance {
+                definition,
+                expression,
+            } => std::iter::once(definition)
+                .chain(expression.semantic_references())
+                .collect(),
             WireNodeDefinition::Field { value_type, .. }
             | WireNodeDefinition::SignalPort { value_type, .. } => {
                 value_type.nominal_reference().into_iter().collect()
@@ -333,6 +395,13 @@ impl WireNode {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub(crate) enum WireNodeDefinition {
+    Record {
+        members: Vec<(String, WireValueType)>,
+    },
+    RecordInstance {
+        definition: WireId,
+        expression: WireExpression,
+    },
     Enum {
         members: Vec<String>,
     },
