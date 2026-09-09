@@ -86,13 +86,13 @@ Rust authoring uses `Notation::parse("@{...}")` and a declaration's `with_notati
 Python uses the same native admission owner:
 
 ```python
-source = eqiora.lang.Source()
+source = eqiora.Module("main")
 material = source.component("Material")
 material.parameter("viscosity", value_type=eqiora.ValueType.real())
 material.set_notation("viscosity", eqiora.lang.Notation(r"@{\mu}"))
 ```
 
-`Source.set_notation` targets an existing top-level declaration; `Component.set_notation`
+`Module.set_notation` targets an existing top-level declaration; `Component.set_notation`
 targets an existing declaration in that component or model. Emission freezes these metadata
 with the source. Notation survives source formatting, declaration cloning and source-package
 reopening. Editing it changes exact source bytes and source-bundle identity, but not the
