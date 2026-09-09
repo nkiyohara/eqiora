@@ -51,10 +51,8 @@ pub(crate) fn opposite_parent_interface(
                     if owns {
                         *occurrences.entry((a.min(b), a.max(b))).or_default() += 1;
                     }
-                    if boundary_members.contains(&index) {
-                        if !owns || !selected.insert((a, b)) {
-                            return None;
-                        }
+                    if boundary_members.contains(&index) && (!owns || !selected.insert((a, b))) {
+                        return None;
                     }
                     index += 1;
                 }
