@@ -372,8 +372,12 @@ def _check_case(
                     "Cylinder route accepted source-form sentinel must be the exact-head L45-L57 anchor"
                 )
             continue
-        navigation = stage_navigation or (
-            tag == "a" and attrs.get("href", "").startswith(source_base)
+        href = attrs.get("href", "")
+        section_navigation = (
+            tag == "a" and href.startswith("#") and unquote(href[1:]) in page.id_text
+        )
+        navigation = stage_navigation or section_navigation or (
+            tag == "a" and href.startswith(source_base)
         )
         action = not navigation or attrs.get("role") == "button" or handlers
         if action and EXECUTION_CONTROL.search(f"{label} {accessible}"):

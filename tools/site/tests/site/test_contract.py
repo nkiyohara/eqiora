@@ -219,6 +219,25 @@ class CompleteContractTests(unittest.TestCase):
                     errors,
                 )
 
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            artifact, identities = make_fixture(root)
+            case = artifact / "gallery/exact-cylinder-steady-stokes/index.html"
+            self._replace(
+                case, "</main>",
+                '<h2 id="before-you-begin">Before you begin</h2>'
+                '<a href="#before-you-begin">Before you begin</a></main>',
+            )
+            self.assertEqual(checker.check_site(root, artifact, SOURCE_SHA, identities), [])
+            self._replace(
+                case, '<a href="#before-you-begin">',
+                '<a href="#before-you-begin" role="button">',
+            )
+            self.assertTrue(any(
+                "uncontracted execution control" in error
+                for error in checker.check_site(root, artifact, SOURCE_SHA, identities)
+            ))
+
         controls = {
             "accessible anchor label": (
                 '<a href="/get-started/" aria-label="Run simulation">Documentation</a>'
