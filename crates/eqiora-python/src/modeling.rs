@@ -20,6 +20,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyComplex, PyInt, PyList, PyModule, PyTuple};
 
 use crate::diagnostic_error;
+use predicates::symbolic_truth_error;
 
 /// SI base-dimension exponents in M,L,T,I,Theta,N,J order.
 #[pyclass(
@@ -967,12 +968,6 @@ fn binary(
 
 fn expression_type_error() -> PyErr {
     PyTypeError::new_err("expected an Expression, Field, Parameter, or real/complex number")
-}
-
-fn symbolic_truth_error() -> PyErr {
-    PyTypeError::new_err(
-        "symbolic Eqiora values have no truth value; construct a Relation explicitly",
-    )
 }
 
 fn equation_pairs(values: &Bound<'_, PyAny>) -> PyResult<Vec<(DraftExpression, DraftExpression)>> {
