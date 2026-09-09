@@ -39,6 +39,7 @@ mod circular_hole_v2;
 mod correspondence;
 mod identity;
 mod planar_adjacent_rectangle_partition_v1;
+mod planar_interface;
 mod planar_operation;
 mod planar_rectangle_v2;
 mod region;

@@ -309,16 +309,20 @@ impl CanonicalGeometryV1 {
         let Some(second_region) = self.entity_set(second_region) else {
             return false;
         };
-        match &self.kind {
-            CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(geometry) => geometry
-                .selections_form_opposite_parent_interface(
-                    first_boundary,
-                    first_region,
-                    second_boundary,
-                    second_region,
-                ),
-            _ => false,
-        }
+        let topology = match &self.kind {
+            CanonicalGeometryKind::StraightEdgedPlanarV1 { region, .. } => region,
+            CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(geometry) => {
+                geometry.region()
+            }
+            _ => return false,
+        };
+        crate::planar_interface::opposite_parent_interface(
+            topology,
+            first_boundary,
+            first_region,
+            second_boundary,
+            second_region,
+        )
     }
     /// Derive canonical bytes and identity from one validated region.
     ///
