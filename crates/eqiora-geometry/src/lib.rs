@@ -36,6 +36,7 @@ mod canonical;
 mod cartesian_box_v1;
 mod circular_hole;
 mod circular_hole_v2;
+mod convex_polyhedra;
 mod correspondence;
 mod identity;
 mod planar_adjacent_rectangle_partition_v1;
