@@ -103,7 +103,7 @@ test('transient cylinder startup publishes accessible caller-owned motion', asyn
   await expect(video.locator('source[type="video/mp4"]')).toHaveCount(1);
   await expect(video).not.toHaveAttribute('autoplay', /.*/u);
   await expect(page.locator('#startup-motion-description')).toContainText(
-    'It does not show, and must not be read as, periodic shedding or a developed vortex street.',
+    'The sequence stays largely symmetric and attached.',
   );
   await assertNoSeriousAxeViolations(page);
 

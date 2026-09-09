@@ -115,8 +115,8 @@ export const TABLE_ROUTES = [
   { route: '/reference/language/', tables: 1, direct: 1, component: 0 },
   { route: '/reference/language/declarations/', tables: 1, direct: 1, component: 0 },
   { route: '/reference/language/units/', tables: 1, direct: 1, component: 0 },
-  { route: '/reference/python/', tables: 2, direct: 2, component: 0 },
-  { route: '/reference/rust/', tables: 3, direct: 3, component: 0 },
+  { route: '/reference/python/', tables: 1, direct: 1, component: 0 },
+  { route: '/reference/rust/', tables: 2, direct: 2, component: 0 },
   { route: '/reference/standard-packages/', tables: 2, direct: 2, component: 0 },
   { route: '/reference/standard-packages/electrical/', tables: 1, direct: 1, component: 0 },
 ] as const satisfies readonly TableRouteShape[];
