@@ -12,7 +12,7 @@ permissions:
   deployments: read
   pull-requests: read
 concurrency:
-  group: pages-${{ github.workflow }}-${{ github.ref }}
+  group: pages-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action != 'edited' }}
 jobs:
   build:
