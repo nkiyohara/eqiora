@@ -19,8 +19,8 @@ def test_native_enum_values_edit_and_replay_preserve_nominal_identity():
     assert heating != foreign.member("Heating")
     parameter = eqiora.Parameter("mode", value_type=mode.value_type, value=heating)
     observed = eqiora.Field("observed", role=eqiora.FieldRole.Variable)
-    model = eqiora.Model.define("NativeEnum", mode, parameter, observed,
-                               eqiora.Relation("observe", equations=[(observed, 0)]))
+    model = eqiora.compile(source=eqiora.Module("NativeEnum", mode, parameter, observed,
+                               eqiora.Relation("observe", equations=[(observed, 0)])))
     reference = model.parameter("mode")
     assert reference.value == heating and reference.value_type == mode.value_type
     for current in (model, eqiora.Model.from_bytes(model.to_bytes())):

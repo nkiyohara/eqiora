@@ -66,7 +66,7 @@ def test_native_field_type_matches_source_and_replays(value_type, syntax) -> Non
     field = eqiora.Field("u", role=eqiora.FieldRole.Variable, domain=domain,
                          value_type=value_type)
     balance = eqiora.Relation("balance", domain=domain, equations=[(field - field, 0)])
-    native = eqiora.Model.define("typed", domain, field, balance)
+    native = eqiora.compile(source=eqiora.Module("typed", domain, field, balance))
     source = eqiora.compile(source=f"""
 model typed() {{
   domain body = box(0, 1, 0, 1);
@@ -90,7 +90,7 @@ def test_spatial_type_requires_matching_support() -> None:
                          value_type=eqiora.ValueType.vector(eqiora.ValueType.real(), 3))
     balance = eqiora.Relation("balance", domain=domain, equations=[(field - field, 0)])
     with pytest.raises(eqiora.EqioraError) as caught:
-        eqiora.Model.define("typed", domain, field, balance)
+        eqiora.compile(source=eqiora.Module("typed", domain, field, balance))
     assert caught.value.diagnostics[0].graph_path == ["typed", "u"]
 
 def test_field_has_one_type_input_and_requires_explicit_role() -> None:
@@ -154,7 +154,7 @@ def test_initial_equations_preserve_native_source_identity_and_foreign_ownership
     rate = eqiora.Parameter("rate", value_type=eqiora.ValueType.real(eqiora.Dimension(time=-1)), value=1.0)
     flow = eqiora.Relation("flow", equations=[(eqiora.derivative(x) + rate * x, 0)])
     initial = eqiora.Initial((x, 2.0))
-    native = eqiora.Model.define("decay", x, rate, flow, initial)
+    native = eqiora.compile(source=eqiora.Module("decay", x, rate, flow, initial))
     source = eqiora.compile(source="""
 model decay() {
   state x: 1;
@@ -168,14 +168,14 @@ model decay() {
     assert eqiora.Model.from_bytes(native.to_bytes()).digest == native.digest
     foreign = eqiora.Field("x", role=eqiora.FieldRole.State)
     with pytest.raises(eqiora.ValidationError, match="foreign|omitted"):
-        eqiora.Model.define("foreign", x, rate, flow, eqiora.Initial((foreign, 2.0)))
+        eqiora.compile(source=eqiora.Module("foreign", x, rate, flow, eqiora.Initial((foreign, 2.0))))
 
 
 def test_initial_equations_do_not_broadcast_scalars_to_shaped_fields() -> None:
     channels = eqiora.Field("channels", role=eqiora.FieldRole.State,
                             value_type=eqiora.ValueType.array(eqiora.ValueType.real(), 2))
     with pytest.raises(eqiora.ValidationError):
-        eqiora.Model.define("no_broadcast", channels, eqiora.Initial((channels, 1.0)))
+        eqiora.compile(source=eqiora.Module("no_broadcast", channels, eqiora.Initial((channels, 1.0))))
 
 
 def test_value_edits_reject_fields_by_alias_and_exact_identity() -> None:
@@ -237,8 +237,8 @@ def test_complete_native_parameter_matches_source_and_retains_typed_edits():
     kind = eqiora.ValueType.array(eqiora.ValueType.complex(), 2)
     coefficient = eqiora.Parameter("coefficient", value_type=kind, value=[1 + 2j, 3 - 4j])
     field = eqiora.Field("x", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.complex())
-    native = eqiora.Model.define("typed", coefficient, field,
-                                 eqiora.Relation("law", equations=[(field - coefficient[1], 0)]))
+    native = eqiora.compile(source=eqiora.Module("typed", coefficient, field,
+                                 eqiora.Relation("law", equations=[(field - coefficient[1], 0)])))
     source = eqiora.compile(source="""
 model typed() {
   parameter coefficient: array<complex<1>, 2> = [math.complex(1, 2), math.complex(3, -4)];
@@ -263,4 +263,4 @@ def test_nonzero_spatial_parameter_requires_an_explicit_registered_frame():
     observed = eqiora.Field("observed", role=eqiora.FieldRole.Variable, domain=body)
     law = eqiora.Relation("observe", domain=body, equations=[(observed, 0)])
     with pytest.raises(eqiora.ValidationError, match="frame"):
-        eqiora.Model.define("missing_frame", body, coefficient, observed, law)
+        eqiora.compile(source=eqiora.Module("missing_frame", body, coefficient, observed, law))

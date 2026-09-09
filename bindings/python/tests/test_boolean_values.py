@@ -17,7 +17,7 @@ def test_boolean_native_creation_edit_and_replay_are_typed(value):
     parameter = eqiora.Parameter("enabled", value_type=kind, value=value)
     observed = eqiora.Field("observed", role=eqiora.FieldRole.Variable, value_type=kind)
     relation = eqiora.Relation("observe", equations=[(observed, parameter)])
-    model = eqiora.Model.define("Boolean", parameter, observed, relation)
+    model = eqiora.compile(source=eqiora.Module("Boolean", parameter, observed, relation))
     reference = model.parameter("enabled")
     assert reference.value is value
     assert reference.value_type == kind
@@ -163,8 +163,8 @@ def test_native_named_comparisons_match_exact_source_equation_sides(function, op
     integer = eqiora.Parameter("n", value_type=eqiora.ValueType.integer(), value=2**53 + 1)
     flag = eqiora.Field("flag", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.boolean())
     predicate = getattr(eqiora, function)(integer, 2**53)
-    native = eqiora.Model.define("Compare", integer, flag,
-                                eqiora.Relation("compare", equations=[(flag, predicate)]))
+    native = eqiora.compile(source=eqiora.Module("Compare", integer, flag,
+                                eqiora.Relation("compare", equations=[(flag, predicate)])))
     source = eqiora.compile(source=f"""
 model Compare() {{
   parameter n: integer = 9007199254740993;

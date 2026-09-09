@@ -140,7 +140,7 @@ def test_native_field_parameter_expression_slices_match_source_types(domain):
     field = eqiora.Field("values", role=eqiora.FieldRole.Variable, value_type=kind)
     outputs = [eqiora.Field(name, role=eqiora.FieldRole.Variable, value_type=short)
                for name in ("field_cut", "parameter_cut", "expression_cut")]
-    native = eqiora.Model.define(
+    native = eqiora.compile(source=eqiora.Module(
         "Slices", data, field, *outputs,
         eqiora.Relation("copy", equations=[(field, data)]),
         eqiora.Relation("cuts", equations=[
@@ -148,7 +148,7 @@ def test_native_field_parameter_expression_slices_match_source_types(domain):
             (outputs[1], data[0:2]),
             (outputs[2], (-field)[0:2]),
         ]),
-    )
+    ))
     literal = "[" + ", ".join(
         str(value) if domain == "integer" else f"{value} [V]"
         for value in values) + "]"
@@ -199,8 +199,8 @@ def test_invalid_python_slices_reject_without_mutating_declarations(bound):
     output = eqiora.Field("result", role=eqiora.FieldRole.Variable,
                           value_type=eqiora.ValueType.array(eqiora.ValueType.integer(), 2))
     with pytest.raises((TypeError, ValueError, OverflowError, eqiora.ValidationError)):
-        eqiora.Model.define("InvalidSlice", parameter, output,
-                            eqiora.Relation("cut", equations=[(output, parameter[bound])]))
+        eqiora.compile(source=eqiora.Module("InvalidSlice", parameter, output,
+                            eqiora.Relation("cut", equations=[(output, parameter[bound])])))
     assert parameter.value == (2, 3, 5)
     assert parameter.value_type == kind
 

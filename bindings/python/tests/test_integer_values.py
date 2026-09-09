@@ -7,8 +7,8 @@ import eqiora
 
 def native_model(name, *declarations):
     observed = eqiora.Field("observed", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
-    return eqiora.Model.define(name, *declarations, observed,
-                               eqiora.Relation("observe", equations=[(observed, 0)]))
+    return eqiora.compile(source=eqiora.Module(name, *declarations, observed,
+                               eqiora.Relation("observe", equations=[(observed, 0)])))
 
 
 VALUES = (-(2**63), -(2**53 + 1), 0, 2**53, 2**53 + 1, 2**53 + 2, 2**63 - 1)

@@ -32,7 +32,7 @@ def test_python_authoring_and_replay_use_the_current_public_schema() -> None:
 
     state = eqiora.Field("x", role=eqiora.FieldRole.State)
     hold = eqiora.Relation("hold", equations=[(eqiora.derivative(state), 0)])
-    native = eqiora.Model.define("hold", state, hold, eqiora.Initial((state, 1.0)))
+    native = eqiora.compile(source=eqiora.Module("hold", state, hold, eqiora.Initial((state, 1.0))))
     assert json.loads(native.to_bytes())["schema"] == CURRENT_MODEL_SCHEMA
     replayed = eqiora.Model.from_bytes(model.to_bytes())
     assert replayed.to_bytes() == model.to_bytes()
@@ -221,7 +221,7 @@ def test_native_declarations_share_the_canonical_compile_and_run_path() -> None:
         equations=[(eqiora.derivative(state) + rate * state, 0)],
     )
 
-    model = eqiora.Model.define("decay", state, rate, flow, eqiora.Initial((state, 1.0)))
+    model = eqiora.compile(source=eqiora.Module("decay", state, rate, flow, eqiora.Initial((state, 1.0))))
     assert json.loads(model.to_bytes())["schema"] == "eqiora.model-envelope/v21"
     field = model.field(model.field_ids[0])
     plan = eqiora.resolve(
@@ -262,7 +262,7 @@ def test_source_and_native_models_share_only_structural_identity() -> None:
         "balance",
         equations=[(eqiora.derivative(state) + rate * state, 0)],
     )
-    native = eqiora.Model.define("native_decay", balance, rate, state, eqiora.Initial((state, 1.0)))
+    native = eqiora.compile(source=eqiora.Module("native_decay", balance, rate, state, eqiora.Initial((state, 1.0))))
 
     assert source.model_id != native.model_id
     assert source.digest != native.digest
@@ -283,7 +283,7 @@ def test_source_and_native_models_share_only_structural_identity() -> None:
         "balance",
         equations=[(eqiora.derivative(state) + changed_rate * state, 0)],
     )
-    changed = eqiora.Model.define("changed", state, changed_rate, changed_balance)
+    changed = eqiora.compile(source=eqiora.Module("changed", state, changed_rate, changed_balance))
     assert not source.structurally_equivalent(changed)
 
 
@@ -311,7 +311,7 @@ def test_native_spatial_model_reuses_shared_support_and_operator_semantics() -> 
         value_type=eqiora.ValueType.real(eqiora.Dimension(length=-2)),
         value=1.0,
     )
-    native = eqiora.Model.define(
+    native = eqiora.compile(source=eqiora.Module(
         "native_poisson",
         source_scale,
         upper,
@@ -334,7 +334,7 @@ def test_native_spatial_model_reuses_shared_support_and_operator_semantics() -> 
             domain=lower,
             equations=[(eqiora.trace(potential), 0)],
         ),
-    )
+    ))
     source = eqiora.compile(source=SPATIAL_SOURCE, filename="source-poisson.eqi")
 
     assert native.digest != source.digest
@@ -354,7 +354,7 @@ def test_native_spatial_model_reuses_shared_support_and_operator_semantics() -> 
         equations=[(eqiora.trace(potential), 0)],
     )
     with pytest.raises(eqiora.ValidationError):
-        eqiora.Model.define("support_mismatch", interval, potential, invalid)
+        eqiora.compile(source=eqiora.Module("support_mismatch", interval, potential, invalid))
 
 def test_native_declarations_fail_closed_without_python_semantics() -> None:
     included = eqiora.Field("x", role=eqiora.FieldRole.Variable)
@@ -362,7 +362,7 @@ def test_native_declarations_fail_closed_without_python_semantics() -> None:
     relation = eqiora.Relation("flow", equations=[(foreign, 0)])
 
     with pytest.raises(eqiora.EqioraError) as caught:
-        eqiora.Model.define("invalid", included, relation)
+        eqiora.compile(source=eqiora.Module("invalid", included, relation))
     diagnostic = caught.value.diagnostics[0]
     assert diagnostic.code == "EQ0603"
     assert diagnostic.graph_path == ["invalid", "flow"]
@@ -371,8 +371,8 @@ def test_native_declarations_fail_closed_without_python_semantics() -> None:
     with pytest.raises(TypeError, match="no truth value"):
         bool(included + 1.0)
     with pytest.raises(eqiora.EqioraError):
-        eqiora.Model.define("invalid_boolean", included,
-                            eqiora.Relation("invalid", equations=[(True, 0)]))
+        eqiora.compile(source=eqiora.Module("invalid_boolean", included,
+                            eqiora.Relation("invalid", equations=[(True, 0)])))
 
 
 def test_native_declarations_are_frozen_and_keep_typed_compiler_diagnostics() -> None:
@@ -395,7 +395,7 @@ def test_native_declarations_are_frozen_and_keep_typed_compiler_diagnostics() ->
     with pytest.raises(AttributeError):
         temperature.name = "renamed"
     with pytest.raises(eqiora.EqioraError) as caught:
-        eqiora.Model.define("thermal", temperature, duration, relation)
+        eqiora.compile(source=eqiora.Module("thermal", temperature, duration, relation))
     diagnostic = caught.value.diagnostics[0]
     assert diagnostic.code == "EQ0603"
     assert diagnostic.graph_path == ["thermal", "invalid"]
@@ -404,7 +404,7 @@ def test_native_declarations_are_frozen_and_keep_typed_compiler_diagnostics() ->
     non_finite = eqiora.Field("x", role=eqiora.FieldRole.State)
     flow = eqiora.Relation("flow", equations=[(eqiora.derivative(non_finite), 0)])
     with pytest.raises(ValueError, match="finite"):
-        eqiora.Model.define("invalid", non_finite, flow, eqiora.Initial((non_finite, float("nan"))))
+        eqiora.compile(source=eqiora.Module("invalid", non_finite, flow, eqiora.Initial((non_finite, float("nan")))))
 
 def physical_pair(across_name: str = "voltage", through_name: str = "current") -> tuple[
     eqiora.PhysicalDomain,
@@ -435,7 +435,7 @@ def physical_pair(across_name: str = "voltage", through_name: str = "current") -
 def test_native_physical_declarations_use_current_and_retain_replay() -> None:
     declarations = physical_pair()
 
-    model = eqiora.Model.define("physical_pair", *declarations)
+    model = eqiora.compile(source=eqiora.Module("physical_pair", *declarations))
     artifact = model.to_bytes()
     reconstructed = eqiora.Model.from_bytes(artifact)
     assert reconstructed.to_bytes() == artifact
@@ -487,7 +487,7 @@ def test_native_physical_handles_are_frozen_and_nominal() -> None:
     foreign = eqiora.ConservingPort("foreign", domain=equal_but_foreign)
     invalid = eqiora.connect(left, foreign)
     with pytest.raises(eqiora.EqioraError, match="exact same"):
-        eqiora.Model.define(
+        eqiora.compile(source=eqiora.Module(
             "nominal",
             electrical,
             equal_but_foreign,
@@ -496,7 +496,7 @@ def test_native_physical_handles_are_frozen_and_nominal() -> None:
             eqiora.Relation("left_owner", equations=[(eqiora.across(left), 0)]),
             eqiora.Relation("foreign_owner", equations=[(eqiora.across(foreign), 0)]),
             invalid,
-        )
+        ))
 
 
 @pytest.mark.parametrize(
@@ -506,7 +506,7 @@ def test_named_quantities_preserve_native_roles_and_exact_source_lookup(
     across_name: str, through_name: str
 ) -> None:
     declarations = physical_pair(across_name, through_name)
-    native = eqiora.Model.define("physical_pair", *declarations)
+    native = eqiora.compile(source=eqiora.Module("physical_pair", *declarations))
     source = (
         PHYSICAL_SOURCE.replace("voltage", "__across__")
         .replace("current", through_name)
@@ -529,9 +529,9 @@ def test_physical_quantity_names_are_required_and_checked_by_native_admission() 
             through_type=electrical.through_type,
         )
     with pytest.raises(eqiora.EqioraError, match="distinct"):
-        eqiora.Model.define("duplicate", *physical_pair("quantity", "quantity"))
+        eqiora.compile(source=eqiora.Module("duplicate", *physical_pair("quantity", "quantity")))
     with pytest.raises(eqiora.EqioraError, match="identifier"):
-        eqiora.Model.define("invalid", *physical_pair("not a member", "flow"))
+        eqiora.compile(source=eqiora.Module("invalid", *physical_pair("not a member", "flow")))
     for old in ["across(left)", "through(left)"]:
         with pytest.raises(eqiora.EqioraError):
             eqiora.compile(
@@ -563,4 +563,4 @@ def test_native_physical_category_errors_do_not_reach_semantics() -> None:
 
     empty = eqiora.Relation("empty", equations=[])
     with pytest.raises(eqiora.EqioraError, match="at least one equation"):
-        eqiora.Model.define("empty", empty)
+        eqiora.compile(source=eqiora.Module("empty", empty))

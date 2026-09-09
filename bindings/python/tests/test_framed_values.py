@@ -84,7 +84,7 @@ def test_native_frame_values_match_source_and_preserve_edits_replay(kind, values
     coefficient = eqiora.Parameter("coefficient", value_type=kind, value=values, frame=body)
     field = eqiora.Field("field", role=eqiora.FieldRole.Variable, value_type=kind, domain=body)
     law = eqiora.Relation("law", domain=body, equations=[(field, coefficient)])
-    native = eqiora.Model.define("Framed", body, coefficient, field, law)
+    native = eqiora.compile(source=eqiora.Module("Framed", body, coefficient, field, law))
     text = f"""
 model Framed() {{
   domain body = box(0, 1, 0, 1);
@@ -150,8 +150,8 @@ def test_outer_channel_axes_remain_distinct_from_spatial_component_axes():
     values = ((1.0, 2.0), (3.0, 4.0))
     coefficient = eqiora.Parameter("channels", value_type=kind, value=values, frame=body)
     observed = eqiora.Field("observed", role=eqiora.FieldRole.Variable, domain=body)
-    native = eqiora.Model.define("Channels", body, coefficient, observed,
-                                eqiora.Relation("observe", domain=body, equations=[(observed, 0)]))
+    native = eqiora.compile(source=eqiora.Module("Channels", body, coefficient, observed,
+                                eqiora.Relation("observe", domain=body, equations=[(observed, 0)])))
     source = eqiora.compile(source="""
 model Channels() {
   domain body = box(0, 1, 0, 1);
@@ -192,11 +192,11 @@ def test_frame_handles_reject_foreign_identity_and_invalid_shape():
     vector = eqiora.ValueType.vector(eqiora.ValueType.real(), 2)
     parameter = eqiora.Parameter("coefficient", value_type=vector, value=(1, 2), frame=foreign)
     with pytest.raises(eqiora.ValidationError, match="frame|foreign|omitted|registered"):
-        eqiora.Model.define("Foreign", body, parameter, observed, law)
+        eqiora.compile(source=eqiora.Module("Foreign", body, parameter, observed, law))
     wrong_extent = eqiora.Parameter("coefficient", value_type=eqiora.ValueType.vector(eqiora.ValueType.real(), 3),
                                     value=(1, 2, 3), frame=body)
     with pytest.raises(eqiora.ValidationError, match="frame|extent|dimension|shape"):
-        eqiora.Model.define("WrongExtent", body, wrong_extent, observed, law)
+        eqiora.compile(source=eqiora.Module("WrongExtent", body, wrong_extent, observed, law))
     for invalid in (1, (1,), ((1, 2), (3, 4)), (True, 2)):
         with pytest.raises((TypeError, ValueError)):
             eqiora.Parameter("invalid", value_type=vector, value=invalid, frame=body)
@@ -240,9 +240,9 @@ def test_uniform_zero_keeps_contextual_shape_and_invariant_values_have_no_frame(
     zero = eqiora.Parameter("zero", value_type=kind, value=0)
     field = eqiora.Field("field", role=eqiora.FieldRole.Variable, domain=body, value_type=kind)
     law = eqiora.Relation("law", domain=body, equations=[(field, zero)])
-    model = eqiora.Model.define("Zero", body, zero, field, law)
+    model = eqiora.compile(source=eqiora.Module("Zero", body, zero, field, law))
     assert model.parameter("zero").value == (0.0, 0.0)
     assert model.parameter("zero").value_type == kind
     invariant = eqiora.Parameter("invariant", value=1.0, frame=body)
     with pytest.raises(eqiora.ValidationError, match="frame|invariant"):
-        eqiora.Model.define("NotSpatial", body, zero, field, law, invariant)
+        eqiora.compile(source=eqiora.Module("NotSpatial", body, zero, field, law, invariant))
