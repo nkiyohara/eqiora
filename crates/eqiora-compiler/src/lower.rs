@@ -285,6 +285,11 @@ enum LoweringExpressionNode {
 
 #[derive(Debug, Clone)]
 pub(crate) enum LoweringItem {
+    RecordInstance {
+        id: Id<kinds::RecordInstance>,
+        definition: Id<kinds::Record>,
+        members: Vec<LoweringExpression>,
+    },
     Nominal {
         name: String,
         definition: eqiora_schema::kernel::KernelNode,
@@ -576,7 +581,8 @@ pub(crate) fn lower_typed_model(
                     &mut diagnostics,
                 );
             }
-            LoweringItem::Nominal { .. }
+            LoweringItem::RecordInstance { .. }
+            | LoweringItem::Nominal { .. }
             | LoweringItem::Connection { .. }
             | LoweringItem::Boundary { .. } => {}
         }
@@ -698,6 +704,17 @@ pub(crate) fn lower_typed_model(
                         }
                     })
             }
+            LoweringItem::RecordInstance {
+                id,
+                definition,
+                members,
+            } => expression::lower_record(file, members, &bindings).and_then(|expression| {
+                nodes.push(
+                    eqiora_schema::kernel::RecordInstanceDef::new(*id, *definition, expression)?
+                        .into(),
+                );
+                Ok(())
+            }),
             LoweringItem::Nominal { definition, .. } => {
                 nodes.push(definition.clone());
                 Ok(())
@@ -950,7 +967,8 @@ pub(crate) fn lower_typed_model(
                 initial: false,
                 ..
             } => Some(name),
-            LoweringItem::Nominal { .. }
+            LoweringItem::RecordInstance { .. }
+            | LoweringItem::Nominal { .. }
             | LoweringItem::Representation { .. }
             | LoweringItem::Relation { initial: true, .. }
             | LoweringItem::Connection { .. }

@@ -235,6 +235,10 @@ pub(in crate::hierarchy) fn rewrite_expression_with_boundary_member(
                 expression.range(),
             )
         }
+        ExprKind::Path(path) if scope.value_expression(path.as_str()).is_some() => scope
+            .value_expression(path.as_str())
+            .expect("known Parameter expression")
+            .clone(),
         ExprKind::Path(path) => match crate::math::constant(path) {
             Some(value) => LoweringExpression::quantity(
                 DynQuantity::new(value, DimExponents::DIMENSIONLESS),

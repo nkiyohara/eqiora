@@ -1,6 +1,7 @@
 //! Nominal product occurrences reuse the existing typed leaf allocation owners.
 use super::super::flat::DisplayIdentity;
 use super::*;
+use crate::lower::LoweringExpression;
 
 pub(super) struct RecordFieldOccurrence<'a> {
     pub(super) namespace: &'a DefinitionNamespace,
@@ -124,10 +125,10 @@ impl RootExpansion<'_, '_> {
                 SymbolKind::Field,
                 scope,
             )?;
-            members.push(DisplayIdentity {
-                full: identity.full,
-                kind: EntityKind::Field,
-            });
+            members.push(LoweringExpression::name(
+                internal_name(identity.full),
+                declaration.range(),
+            ));
             identities.entities.insert(local, identity);
         }
         self.items.push(FlatItemBlueprint::RecordInstance {

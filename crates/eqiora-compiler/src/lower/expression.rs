@@ -1,3 +1,5 @@
+mod record;
+pub(super) use record::lower_record;
 mod source;
 pub(super) use source::from_source;
 mod contextual;

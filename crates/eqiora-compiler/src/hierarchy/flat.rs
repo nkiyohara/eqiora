@@ -73,7 +73,7 @@ pub(super) enum FlatItemBlueprint {
     RecordInstance {
         name: String,
         definition: Id<kinds::Record>,
-        members: Vec<DisplayIdentity>,
+        members: Vec<crate::lower::LoweringExpression>,
         identity: EntityIdentity,
     },
     Nominal {
@@ -451,29 +451,14 @@ impl ExpandedBlueprint {
                     range: *range,
                 },
                 FlatItemBlueprint::RecordInstance {
-                    name,
                     definition,
                     members,
                     identity,
-                } => LoweringItem::Nominal {
-                    name: name.clone(),
-                    definition: eqiora_schema::kernel::RecordInstanceDef::new(
-                        staged.resolve::<kinds::RecordInstance>(identity.full)?.id(),
-                        *definition,
-                        {
-                            let mut expression = eqiora_schema::kernel::ExprDagBuilder::new();
-                            let roots = members
-                                .iter()
-                                .map(|member| {
-                                    expression.symbol(eqiora_schema::kernel::SymbolRef::Field(
-                                        staged.resolve::<kinds::Field>(member.full)?.id(),
-                                    ))
-                                })
-                                .collect::<Result<Vec<_>, Diagnostic>>()?;
-                            expression.finish(roots)?
-                        },
-                    )?
-                    .into(),
+                    ..
+                } => LoweringItem::RecordInstance {
+                    id: staged.resolve::<kinds::RecordInstance>(identity.full)?.id(),
+                    definition: *definition,
+                    members: members.clone(),
                 },
                 FlatItemBlueprint::Nominal {
                     name, definition, ..
