@@ -365,6 +365,9 @@ impl Scope {
     }
 
     pub(super) fn resolve_symbol(&self, path: &NamePath) -> Option<&FlatSymbol> {
+        if let Some(symbol) = self.symbols.get(path.as_str()) {
+            return Some(symbol);
+        }
         let segments = path.segments().collect::<Vec<_>>();
         match segments.as_slice() {
             [name] => self.symbols.get(*name),

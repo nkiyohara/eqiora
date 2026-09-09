@@ -328,6 +328,9 @@ impl<'e, 'd> DefinitionScope<'e, 'd> {
         path: &NamePath,
         ordinal: Option<u32>,
     ) -> Result<SymbolContract, Diagnostic> {
+        if let Some(symbol) = self.symbols.get(path.as_str()) {
+            return Ok(symbol.clone());
+        }
         let segments = path.segments().collect::<Vec<_>>();
         match segments.as_slice() {
             [name] => self

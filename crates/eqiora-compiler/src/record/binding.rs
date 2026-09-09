@@ -199,29 +199,6 @@ pub(crate) fn resolved_declarations(
         .collect()
 }
 
-/// Return precisely the local and explicitly imported public declarations.
-pub(crate) fn visible(
-    definitions: &BTreeMap<CompilationModuleId, BTreeMap<String, BoundRecord>>,
-    module: &CompilationModuleId,
-    aliases: &[ResolvedAlias],
-) -> BTreeMap<String, BoundRecord> {
-    let mut result = definitions.get(module).cloned().unwrap_or_default();
-    for alias in aliases
-        .iter()
-        .filter(|alias| alias.declaring_module() == module)
-    {
-        if let Some(target) = definitions.get(alias.target_module()) {
-            for (name, record) in target
-                .iter()
-                .filter(|(_, record)| record.visibility == VisibilitySyntax::Public)
-            {
-                result.insert(format!("{}.{}", alias.alias(), name), record.clone());
-            }
-        }
-    }
-    result
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -48,7 +48,15 @@ pub(super) fn component_local_footprint(
             ),
             ComponentItem::Field(field) => checked_local_add(
                 &mut declarations,
-                if field.domain().is_some() { 2 } else { 1 },
+                elaborator
+                    .record_for_type(&definition.namespace, field.value_type())
+                    .map_or_else(
+                        || if field.domain().is_some() { 2 } else { 1 },
+                        |record| {
+                            1 + record.definition.members().len()
+                                * if field.domain().is_some() { 2 } else { 1 }
+                        },
+                    ),
                 definition.file,
                 field.range(),
                 "Field and continuum representation",
@@ -346,7 +354,15 @@ pub(super) fn model_local_footprint(
         match item {
             Item::Field(field) => checked_local_add(
                 &mut footprint.declarations,
-                if field.domain().is_some() { 2 } else { 1 },
+                elaborator
+                    .record_for_type(&definition.namespace, field.value_type())
+                    .map_or_else(
+                        || if field.domain().is_some() { 2 } else { 1 },
+                        |record| {
+                            1 + record.definition.members().len()
+                                * if field.domain().is_some() { 2 } else { 1 }
+                        },
+                    ),
                 definition.file,
                 field.range(),
                 "Field and continuum representation",

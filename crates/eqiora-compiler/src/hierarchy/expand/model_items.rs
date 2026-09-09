@@ -85,6 +85,20 @@ impl RootExpansion<'_, '_> {
                     });
                 }
                 Item::Field(declaration) => {
+                    if let Some(record) = self
+                        .elaborator
+                        .record_for_type(&self.model.namespace, declaration.value_type())
+                        .cloned()
+                    {
+                        self.emit_record_field(
+                            scope,
+                            declaration,
+                            &record,
+                            identities,
+                            self.model.file,
+                        )?;
+                        continue;
+                    }
                     let identity = identities.entities[declaration.name()].clone();
                     self.record_type_structure(
                         &internal_name(identity.full),

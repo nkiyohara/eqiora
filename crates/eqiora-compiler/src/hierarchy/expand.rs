@@ -54,6 +54,7 @@ mod model_lets;
 mod names;
 mod nominal;
 mod notation;
+mod records;
 mod structural;
 
 use super::parameters::{ParameterLineage, ParameterResolver, ResolvedParameter};
@@ -377,6 +378,22 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         let mut owned_items = model.owned_items().collect::<Vec<_>>();
         owned_items.sort_by_key(|item| !matches!(item, Item::Clock(_)));
         for item in owned_items {
+            if let Item::Field(field) = item
+                && self.allocate_record_field(
+                    scope,
+                    field,
+                    records::RecordFieldOccurrence {
+                        namespace: &model.namespace,
+                        definition_name: model.name(),
+                        instance_path: &self.root_path.clone(),
+                        display_prefix: "",
+                        file: model.file,
+                    },
+                    &mut identities,
+                )?
+            {
+                continue;
+            }
             let (name, kind, symbol_kind, parameter_value, range) = match item {
                 Item::Domain(value) => (
                     value.name(),
@@ -557,6 +574,31 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             let support = declaration
                 .domain()
                 .and_then(|domain| scope.spatial_support(domain).cloned());
+            if let Some(record) = self
+                .elaborator
+                .record_for_type(&self.model.namespace, declaration.value_type())
+            {
+                let activation = super::scope::rewrite_activation(
+                    self.model.file,
+                    declaration.activation(),
+                    declaration.range(),
+                    scope,
+                )?;
+                for (name, value_type) in record.definition.members() {
+                    let local = format!("{}.{name}", declaration.name());
+                    scope
+                        .field_evolution
+                        .insert(local.clone(), (declaration.role(), activation.clone()));
+                    scope.insert_field_type(
+                        local,
+                        eqiora_schema::kernel::typing::ExpressionType::new(
+                            value_type.clone(),
+                            support.clone(),
+                        ),
+                    );
+                }
+                continue;
+            }
             let field_type = field_expression_type(
                 self.model.file,
                 declaration,

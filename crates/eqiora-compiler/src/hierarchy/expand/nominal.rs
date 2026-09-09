@@ -3,6 +3,7 @@ use super::*;
 
 impl<'a, 'd> RootExpansion<'a, 'd> {
     pub(super) fn allocate_finite_spaces(&mut self) -> Result<(), Diagnostic> {
+        self.allocate_record_definitions()?;
         for (namespace, enumerations) in &self.elaborator.enumerations {
             for (name, value) in enumerations {
                 let full = value.key.full_identity()?;

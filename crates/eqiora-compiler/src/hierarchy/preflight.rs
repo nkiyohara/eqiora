@@ -137,6 +137,7 @@ pub(super) struct Elaborator<'a> {
     pub(super) selected_component: Option<(DefinitionKey, super::parameters::SymbolicParameterMap)>,
     pub(super) notations: BTreeMap<(String, u32, u32), eqiora_lang::Notation>,
     pub(super) native: BTreeMap<DefinitionNamespace, &'a eqiora_lang::Module>,
+    pub(super) records: BTreeMap<DefinitionNamespace, BTreeMap<String, crate::record::BoundRecord>>,
     pub(super) enumerations:
         BTreeMap<DefinitionNamespace, BTreeMap<String, crate::enumeration::BoundEnum>>,
     pub(super) finite_spaces:
@@ -230,6 +231,12 @@ impl<'a> Elaborator<'a> {
                 .map(|module| (DefinitionNamespace::Local, module))
                 .into_iter()
                 .collect(),
+            records: BTreeMap::from([(
+                namespace.clone(),
+                crate::record::declarations(file, document, &identity_namespace, |name| {
+                    native.and_then(|native| native.nominal_identity(name))
+                })?,
+            )]),
             enumerations: BTreeMap::from([(
                 namespace.clone(),
                 crate::enumeration::declarations(file, document, &identity_namespace, |name| {
@@ -323,6 +330,10 @@ impl<'a> Elaborator<'a> {
                         .as_deref()
                         .map(|module| (DefinitionNamespace::Resolved(unit.module.clone()), module))
                 })
+                .collect(),
+            records: crate::record::resolved_declarations(&analysis.units, &analysis.aliases)?
+                .into_iter()
+                .map(|(module, values)| (DefinitionNamespace::Resolved(module), values))
                 .collect(),
             enumerations: analysis
                 .units
@@ -445,6 +456,46 @@ impl<'a> Elaborator<'a> {
         &self,
     ) -> impl ExactSizeIterator<Item = (&DefinitionKey, &PureOperatorSourceDefinition<'a>)> {
         self.pure_operators.iter()
+    }
+
+    pub(super) fn record_for_type(
+        &self,
+        owner: &DefinitionNamespace,
+        syntax: &eqiora_lang::ValueTypeSyntax,
+    ) -> Option<&crate::record::BoundRecord> {
+        let eqiora_lang::ValueTypeSyntaxKind::Named(path) = syntax.kind() else {
+            return None;
+        };
+        self.visible_records(owner).get(path.as_str()).copied()
+    }
+
+    pub(super) fn visible_records(
+        &self,
+        owner: &DefinitionNamespace,
+    ) -> BTreeMap<String, &crate::record::BoundRecord> {
+        let mut visible = self
+            .records
+            .get(owner)
+            .into_iter()
+            .flat_map(|values| values.iter())
+            .map(|(name, value)| (name.clone(), value))
+            .collect::<BTreeMap<_, _>>();
+        for ((declaring, alias), target) in &self.aliases {
+            if declaring != owner {
+                continue;
+            }
+            for (name, value) in self
+                .records
+                .get(target)
+                .into_iter()
+                .flat_map(|values| values.iter())
+            {
+                if value.visibility == eqiora_lang::VisibilitySyntax::Public {
+                    visible.insert(format!("{alias}.{name}"), value);
+                }
+            }
+        }
+        visible
     }
 
     pub(super) fn visible_enumerations(

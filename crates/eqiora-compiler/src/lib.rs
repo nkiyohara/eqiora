@@ -26,6 +26,7 @@ mod property;
 #[doc(hidden)]
 pub mod provenance;
 mod pure_operator;
+mod record;
 mod resolved;
 mod source_compile;
 mod source_endpoints;

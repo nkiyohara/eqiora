@@ -243,13 +243,17 @@ impl ExpressionChecker<'_, '_, '_> {
                 "sample operand cannot contain an evolution operator",
             ));
         }
-        let ExprKind::Name(name) = argument.kind() else {
-            return Err(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                self.scope.file,
-                argument.range(),
-                format!("{callee_name}(...) requires one Field name"),
-            ));
+        let name = match argument.kind() {
+            ExprKind::Name(name) => name.as_str(),
+            ExprKind::Path(path) => path.as_str(),
+            _ => {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.scope.file,
+                    argument.range(),
+                    format!("{callee_name}(...) requires one exact Field or record member"),
+                ));
+            }
         };
         if let Some(SymbolContract::Alias(alias)) = self.scope.symbols.get(name) {
             // Identity aliases retain their use obligations even inside pre/next/derivative.
@@ -266,7 +270,7 @@ impl ExpressionChecker<'_, '_, '_> {
                     )
                 })?
             }
-            _ => name.as_str(),
+            _ => name,
         };
         let inferred = match self.scope.symbols.get(target) {
             Some(SymbolContract::Field(inferred, role, activation)) => {

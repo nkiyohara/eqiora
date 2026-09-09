@@ -2,7 +2,7 @@ use eqiora_lang::{VisibilitySyntax, format, parse};
 
 #[test]
 fn closed_records_preserve_member_types_order_visibility_and_comments() {
-    let source = "// sensor bus\npublic record Sensor { voltage: V, // health\n valid: boolean, samples: array<integer,3> } model M() {}";
+    let source = "// sensor bus\npublic record Sensor { voltage: V, // health\n valid: bool, samples: array<integer,3> } model M() {}";
     let document = parse("record.eqi", source).into_document().unwrap();
     let record = &document.records()[0];
     assert_eq!(record.name(), "Sensor");
@@ -16,7 +16,7 @@ fn closed_records_preserve_member_types_order_visibility_and_comments() {
         ["voltage", "valid", "samples"]
     );
     assert_eq!(record.members()[0].value_type().to_source(), "V");
-    assert_eq!(record.members()[1].value_type().to_source(), "boolean");
+    assert_eq!(record.members()[1].value_type().to_source(), "bool");
     assert_eq!(
         record.members()[2].value_type().to_source(),
         "array<integer, 3>"

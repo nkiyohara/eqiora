@@ -26,6 +26,7 @@ mod instance;
 mod limits;
 mod model;
 mod property;
+mod record;
 mod signature;
 mod value_type;
 mod visibility;
@@ -60,7 +61,7 @@ use property::{encode_material_composition, encode_property_contract, encode_pro
 use visibility::encode_visibility;
 
 const MAGIC: &[u8; 8] = b"EQIORASU";
-const CANONICAL_VERSION: u16 = 11;
+const CANONICAL_VERSION: u16 = 12;
 const COMPONENT_CONNECTION_ITEM_TAG: u16 = 6;
 const MODEL_CONNECTION_ITEM_TAG: u16 = 8;
 const COMPONENT_PORT_FAMILY_ITEM_TAG: u16 = 11;
@@ -167,6 +168,7 @@ fn canonical_source_bytes_with_aliases(
         .and_then(|count| count.checked_add(document.connectors().len()))
         .and_then(|count| count.checked_add(document.pure_operators().len()))
         .and_then(|count| count.checked_add(document.enumerations().len()))
+        .and_then(|count| count.checked_add(document.records().len()))
         .and_then(|count| count.checked_add(document.components().len()))
         .and_then(|count| count.checked_add(document.models().len()))
         .ok_or_else(|| source_identity_error("top-level declaration count overflows usize"))?;
@@ -236,6 +238,7 @@ fn canonical_source_bytes_with_aliases(
         &mut budget,
         declarations::encode_enumeration,
     )?;
+    let records = encode_sorted_records(document.records(), &mut budget, record::encode_record)?;
     let mut encoder = Encoder::new(limits.max_canonical_bytes);
     encoder.raw(MAGIC)?;
     encoder.u16(CANONICAL_VERSION)?;
@@ -262,6 +265,9 @@ fn canonical_source_bytes_with_aliases(
     }
     if !enumerations.is_empty() {
         encoder.field(10, |encoder| encoder.records(&enumerations))?;
+    }
+    if !records.is_empty() {
+        encoder.field(11, |encoder| encoder.records(&records))?;
     }
     encoder.finish()
 }
