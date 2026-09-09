@@ -44,6 +44,7 @@ fn semantic_content(
         .filter(|declaration| declaration.namespace() == selected)
         .map(|declaration| {
             let kind = match declaration.kind() {
+                CanonicalDeclarationKind::Dimension => DeclarationKindV1::Dimension,
                 CanonicalDeclarationKind::PureOperator => DeclarationKindV1::PureOperator,
                 CanonicalDeclarationKind::Enum => DeclarationKindV1::Enum,
                 CanonicalDeclarationKind::Connector => DeclarationKindV1::Connector,

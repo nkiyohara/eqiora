@@ -81,16 +81,19 @@ impl PyAstModule {
     }
 
     #[new]
+    #[pyo3(signature = (definitions, operators, connector_inputs, field_connector_inputs, dimension_inputs=Vec::new()))]
     fn new(
         definitions: Vec<PyRef<'_, PyAstDefinition>>,
         operators: Vec<OperatorInput<'_>>,
         connector_inputs: Vec<ConnectorInput<'_>>,
         field_connector_inputs: Vec<FieldConnectorInput<'_>>,
+        dimension_inputs: Vec<(String, PyRef<'_, PyAstType>, u32)>,
     ) -> PyResult<Self> {
         if definitions.len()
             + operators.len()
             + connector_inputs.len()
             + field_connector_inputs.len()
+            + dimension_inputs.len()
             > 256
         {
             return Err(syntax_error("module exceeds 256 definitions"));
@@ -133,8 +136,25 @@ impl PyAstModule {
             .collect::<PyResult<_>>()?;
         let mut connectors = connectors(connector_inputs)?;
         connectors.extend(super::boundaries::connectors(field_connector_inputs)?);
-        let document = Ast::document_with_pure_operators(
+        let dimensions = dimension_inputs
+            .into_iter()
+            .map(|(name, kind, ordinal)| {
+                let dimension = kind
+                    .value
+                    .dimension()
+                    .ok_or_else(|| syntax_error("dimension alias requires a scalar dimension"))?;
+                Ast::dimension_alias(
+                    VisibilitySyntax::Public,
+                    name,
+                    dimension.clone(),
+                    range(ordinal),
+                )
+                .map_err(syntax_error)
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        let document = Ast::document_with_dimensions(
             Vec::new(),
+            dimensions,
             connectors,
             components,
             operators,
@@ -197,6 +217,16 @@ impl PyAstModule {
             .imports()
             .map(|(module, alias, _)| (alias.to_owned(), module.to_string()))
             .collect()
+    }
+
+    fn dimension_descriptor(
+        &self,
+        root: (String, String),
+        units: Vec<(String, String, PyRef<'_, PyAstModule>)>,
+        dependencies: Vec<(String, String)>,
+        name: &str,
+    ) -> PyResult<crate::modeling::PyDimension> {
+        super::dimensions::resolve(self, root, units, dependencies, name)
     }
 
     fn component(&self, name: &str) -> PyResult<Vec<(String, String, bool)>> {

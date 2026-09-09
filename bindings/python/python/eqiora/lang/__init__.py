@@ -18,7 +18,7 @@ from builtins import property as _property
 from typing import Final, Literal
 from types import MappingProxyType
 
-from .._eqiora import FieldRole, ValueType, FiniteSpace, IndexSet, Enum as _NativeEnum, _nominal_type, Notation, ModuleError, _AstExpression as _Ast, _AstDeclaration, _AstDefinition, _AstModule, _module_from_declarations
+from .._eqiora import Dimension, FieldRole, ValueType, FiniteSpace, IndexSet, Enum as _NativeEnum, _nominal_type, Notation, ModuleError, _AstExpression as _Ast, _AstDeclaration, _AstDefinition, _AstModule, _module_from_declarations
 
 from ..units import Unit
 from .._source_bounds import _MAX_EXPRESSION_DEPTH, _MAX_EXPRESSION_NODES, _MAX_OUTPUT_BYTES
@@ -1805,6 +1805,11 @@ class ModuleRef:
         return ComponentRef(_CREATE, self, name, graph.component(name),
                             graph.component_ports(name), graph.component_supports(name))
 
+    def dimension(self, name: str) -> Dimension:
+        """Resolve one public imported structural dimension through the compiler."""
+        from . import _dimensions
+        return _dimensions.imported(self, name)
+
     def connector(self, name: str) -> Connector:
         """Refer to one public nominal connector in this exact imported Module."""
         return _imports.connector(self, name)
@@ -1814,6 +1819,7 @@ class Module:
     """Author bounded Model and Component definitions; freeze on first emission."""
 
     __slots__ = (
+        "_dimensions",
         "_components",
         "_operators",
         "_connectors",
@@ -1840,6 +1846,7 @@ class Module:
         self._imports: dict[str, Module] = {}
         self._graph = None if not declarations else _module_from_declarations(name, *declarations)
         self._owner = object()
+        self._dimensions = []
         self._components: list[Component] = []
         self._operators: list[Operator] = []
         self._connectors: list[Connector] = []
@@ -1857,6 +1864,11 @@ class Module:
     def __repr__(self) -> str:
         state = "frozen" if self._graph is not None else "open"
         return f"Module({self._name!r}, state={state!r})"
+
+    def dimension(self, name: str, value: Dimension, *, doc: str | None = None) -> Dimension:
+        """Export a structural Dimension; input-unit spelling remains separate."""
+        from . import _dimensions
+        return _dimensions.declare(self, name, value, doc)
 
     def _type_syntax(self, value_type: ValueType) -> str:
         try:
@@ -2208,7 +2220,10 @@ class Module:
              allocate(connector._doc, self._notations.get(connector._name)))
             for connector in self._connectors if isinstance(connector, FieldConnector)
         ]
-        graph = _AstModule(definitions, operators, connectors, field_connectors)
+        dimensions = [(name, self._type_syntax(ValueType.real(value)),
+                       allocate(doc, self._notations.get(name)))
+                      for name, value, doc in self._dimensions]
+        graph = _AstModule(definitions, operators, connectors, field_connectors, dimensions)
         for record in self._records:
             graph = graph.with_record(record.name, [(name, kind, allocate()) for name, kind in record._syntax],
                                       allocate(record._doc, self._notations.get(record.name)))

@@ -9,6 +9,9 @@ pub(super) fn format_dimension(
     output: &mut crate::formatter::comments::Output,
 ) {
     output.begin(&declaration.comments);
+    if declaration.visibility() == crate::VisibilitySyntax::Public {
+        output.push_str("public ");
+    }
     write!(
         output,
         "dimension {} = ",

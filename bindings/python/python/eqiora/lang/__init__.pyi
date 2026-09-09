@@ -11,7 +11,7 @@ from decimal import Decimal
 from ..units import Unit
 from os import PathLike
 from typing import Final, Literal, final, overload
-from .. import FieldRole, ValueType, FiniteSpace, IndexSet, _ModelDeclaration
+from .. import Dimension, FieldRole, ValueType, FiniteSpace, IndexSet, _ModelDeclaration
 
 class Connector:
     """Immutable nominal scalar across/through declaration owned by one Module.
@@ -445,6 +445,7 @@ class ModuleRef:
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::ModuleRef``.
     """
 
+    def dimension(self, name: str) -> Dimension: ...
     def component(self, name: str) -> ComponentRef: ...
     def connector(self, name: str) -> Connector | FieldConnector:
         """Refer to one public nominal connector in the exact imported Module.
@@ -460,6 +461,7 @@ class Module:
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Module``.
     """
 
+    def dimension(self, name: str, value: Dimension, *, doc: str | None = None) -> Dimension: ...
     def set_notation(self, name: str, notation: Notation) -> None:
         """Attach notation to an existing top-level declaration."""
         ...

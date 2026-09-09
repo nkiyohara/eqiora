@@ -101,14 +101,10 @@ impl Document {
             .map(|import| (&import.module, import.alias.as_str(), import.range))
     }
 
-    /// Ordered compilation-unit structural dimension aliases.
+    /// Structural dimension declarations, including their export visibility.
     #[must_use]
-    pub fn dimension_syntax(
-        &self,
-    ) -> impl ExactSizeIterator<Item = (&str, &super::Expr, super::TextRange)> {
-        self.dimensions
-            .iter()
-            .map(|value| (value.name(), value.value(), value.range()))
+    pub fn dimensions(&self) -> &[NamedDefinitionDecl] {
+        &self.dimensions
     }
 
     /// Compilation-unit connector declarations in source order.

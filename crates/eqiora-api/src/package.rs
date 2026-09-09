@@ -890,6 +890,7 @@ fn semantic_content_for_namespace(
                 CanonicalDeclarationKind::MaterialComposition => {
                     DeclarationKindV1::MaterialComposition
                 }
+                CanonicalDeclarationKind::Dimension => DeclarationKindV1::Dimension,
                 CanonicalDeclarationKind::PureOperator => DeclarationKindV1::PureOperator,
                 CanonicalDeclarationKind::Enum => DeclarationKindV1::Enum,
                 CanonicalDeclarationKind::Connector => DeclarationKindV1::Connector,

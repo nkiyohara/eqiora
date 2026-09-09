@@ -14,6 +14,29 @@ pub(super) fn collect_canonical_declarations(
             .filter(|alias| alias.declaring_module() == &unit.module)
             .map(|alias| (alias.alias().to_owned(), canonical_alias_target(alias)))
             .collect::<BTreeMap<_, _>>();
+        for declaration in unit.document.dimensions() {
+            let document = SourceAstFactory::document_with_dimensions(
+                Vec::new(),
+                vec![declaration.clone()],
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
+            .expect("parsed dimension document");
+            push_canonical(
+                &mut result,
+                &mut paths,
+                unit.module.owner(),
+                &canonical_declaration_path(&unit.module, declaration.name()),
+                CanonicalDeclarationKind::Dimension,
+                declaration.visibility(),
+                &document,
+                &resolved_aliases,
+                &operator_formals,
+                diagnostics,
+            );
+        }
         for (name, visibility, document) in unit.document.isolated_property_declarations() {
             let kind = if document.property_contract_syntax().next().is_some() {
                 CanonicalDeclarationKind::PropertyContract

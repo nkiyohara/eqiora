@@ -120,8 +120,9 @@ pub(super) fn validate_graph_shape(
 
 fn top_level_names(document: &eqiora_lang::Document) -> BTreeSet<&str> {
     document
-        .dimension_syntax()
-        .map(|(name, _, _)| name)
+        .dimensions()
+        .iter()
+        .map(|value| value.name())
         .chain(
             document
                 .property_contract_syntax()

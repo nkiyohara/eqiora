@@ -155,20 +155,7 @@ fn analyze_inner(
     };
     let canonical_units = analysis.units.clone();
     crate::enumeration::bind_resolved(&mut analysis.units, &analysis.aliases)?;
-    for unit in &mut analysis.units {
-        if is_cancelled() {
-            return Ok(None);
-        }
-        if let Err(mut errors) =
-            crate::dimensions::elaborate_dimension_aliases_in_place(&unit.file, &mut unit.document)
-        {
-            diagnostics.append(&mut errors);
-        }
-    }
-    if !diagnostics.is_empty() {
-        stable_sort(&mut diagnostics);
-        return Err(diagnostics);
-    }
+    crate::dimensions::bind_resolved(&mut analysis.units, &analysis.aliases)?;
     crate::nominal::bind_resolved(&mut analysis.units, &analysis.aliases)?;
     for unit in &mut analysis.units {
         unit.authored_document = std::sync::Arc::new(unit.document.clone());

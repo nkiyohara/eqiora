@@ -617,6 +617,43 @@ impl AnalyzedResolvedHierarchy {
             .map(|(identity, (file, range))| (identity, file.as_str(), *range))
     }
 
+    /// Resolve a structural dimension in the root module or one direct public import.
+    ///
+    /// The result is a structural SI dimension, never a nominal declaration identity.
+    /// # Errors
+    /// Rejects absent, private, wrong-kind, or transitive declaration paths.
+    pub fn dimension_alias(&self, name: &str) -> Result<eqiora_core::DimExponents, Diagnostic> {
+        let parts = name.splitn(3, '.').collect::<Vec<_>>();
+        let selected = match parts.as_slice() {
+            [_] => Some((&self.root, name, false)),
+            [alias, local] => self
+                .aliases
+                .iter()
+                .find(|edge| edge.declaring_module() == &self.root && edge.alias() == *alias)
+                .map(|edge| (edge.target_module(), *local, true)),
+            _ => None,
+        };
+        if let Some((module, local, imported)) = selected
+            && let Some(unit) = self.units.iter().find(|unit| &unit.module == module)
+            && let Some(declaration) = unit
+                .document
+                .dimensions()
+                .iter()
+                .find(|declaration| declaration.name() == local)
+            && (!imported || declaration.visibility() == VisibilitySyntax::Public)
+        {
+            return crate::dimensions::lower_dimension(&unit.file, declaration.value());
+        }
+        Err(crate::diagnostics::source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            "modules",
+            TextRange::new(0, 0),
+            format!(
+                "unknown or private dimension alias `{name}`; expected local or direct imported declaration"
+            ),
+        ))
+    }
+
     /// Read-only nominal property bindings retained through elaboration.
     #[must_use]
     pub fn property_bindings(
