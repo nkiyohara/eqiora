@@ -15,7 +15,7 @@ use eqiora_geometry::{CanonicalGeometryLimits, CanonicalGeometryV1, PlanarRegion
 
 use crate::{ArtifactDigest, JsonDecoderLimits, check_json_limits};
 
-/// Admission budgets for one authored planar geometry artifact.
+/// Admission budgets for one authored planar or convex-polyhedral artifact.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct GeometryDefinitionDecoderLimits {
     /// Common JSON byte and nesting admission.
@@ -44,6 +44,18 @@ pub struct GeometryDefinitionV1 {
 }
 
 impl GeometryDefinitionV1 {
+    /// Wrap supported canonical Geometry with the ordinary artifact budgets.
+    /// Currently admits straight-planar definitions and convex-polyhedral shells;
+    /// circular and other source families return an unsupported-family error.
+    /// # Errors
+    /// Returns `EQ0901` for an unsupported family or exceeded admission budget.
+    pub fn from_canonical(geometry: &CanonicalGeometryV1) -> Result<Self, Diagnostic> {
+        Self::from_json(
+            geometry.canonical_bytes(),
+            GeometryDefinitionDecoderLimits::default(),
+        )
+    }
+
     /// Wrap one already canonical region as an addressable artifact.
     ///
     /// The region cannot be invalid, because [`PlanarRegion`] admits nothing
@@ -61,7 +73,8 @@ impl GeometryDefinitionV1 {
     /// Decode externally supplied canonical geometry JSON under explicit
     /// syntax and geometry-work budgets.
     ///
-    /// The decoded wire is revalidated as a [`PlanarRegion`] and re-encoded.
+    /// The decoded wire is revalidated by its straight-planar or convex-polyhedral
+    /// Geometry owner and re-encoded. Other source families remain unsupported.
     /// The input is admitted only when those reconstructed bytes equal it
     /// exactly, so one geometry cannot acquire a second artifact identity.
     ///
@@ -73,15 +86,26 @@ impl GeometryDefinitionV1 {
         limits: GeometryDefinitionDecoderLimits,
     ) -> Result<Self, Diagnostic> {
         check_json_limits(bytes, limits.json)?;
-        Ok(Self {
-            inner: CanonicalGeometryV1::decode_canonical(bytes, limits.geometry)?,
-        })
+        let metadata: serde_json::Value = serde_json::from_slice(bytes).map_err(|error| {
+            Diagnostic::error(
+                codes::INVALID_ARTIFACT,
+                format!("invalid Geometry definition JSON: {error}"),
+            )
+        })?;
+        let inner = if metadata.get("schema").and_then(serde_json::Value::as_str)
+            == Some("eqiora.convex-polyhedra-envelope/v1")
+        {
+            CanonicalGeometryV1::replay_canonical(bytes, limits.geometry)?
+        } else {
+            CanonicalGeometryV1::decode_canonical(bytes, limits.geometry)?
+        };
+        Ok(Self { inner })
     }
 
     /// Replay the validated region this artifact encodes.
     ///
     /// # Errors
-    /// This preserved signature cannot fail for a constructed artifact.
+    /// Returns `EQ0901` when the artifact is not a straight-planar region.
     pub fn region(&self) -> Result<PlanarRegion, Diagnostic> {
         self.inner.region().cloned().ok_or_else(|| {
             Diagnostic::error(

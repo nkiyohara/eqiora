@@ -90,6 +90,7 @@ pub(super) enum WireCorrespondenceV1 {
     Cartesian(WireGeometryMeshCorrespondenceV1),
     CartesianBoxV1(cartesian_box_v1_correspondence::WireCartesianBoxV1CorrespondenceV1),
     AuthoredRegion(correspondence_sources::WireAuthoredRegionCorrespondenceV1),
+    Polyhedra(polyhedral_correspondence::WirePolyhedra),
     PlanarCircularHoleV2(
         planar_circular_hole_v2_correspondence::WirePlanarCircularHoleV2CorrespondenceV1,
     ),
@@ -101,6 +102,7 @@ impl WireCorrespondenceV1 {
         match self {
             Self::Cartesian(wire) => Some(wire),
             Self::CartesianBoxV1(_)
+            | Self::Polyhedra(_)
             | Self::AuthoredRegion(_)
             | Self::PlanarCircularHoleV2(_)
             | Self::PlanarRectangleV2(_) => None,
@@ -112,6 +114,7 @@ impl WireCorrespondenceV1 {
             Self::Cartesian(wire) => &wire.geometry_sha256,
             Self::CartesianBoxV1(wire) => &wire.geometry_sha256,
             Self::AuthoredRegion(wire) => &wire.geometry_sha256,
+            Self::Polyhedra(wire) => &wire.geometry_sha256,
             Self::PlanarCircularHoleV2(wire) => &wire.geometry_sha256,
             Self::PlanarRectangleV2(wire) => &wire.geometry_sha256,
         }
@@ -122,6 +125,7 @@ impl WireCorrespondenceV1 {
             Self::Cartesian(wire) => &wire.mesh_sha256,
             Self::CartesianBoxV1(wire) => &wire.mesh_sha256,
             Self::AuthoredRegion(wire) => &wire.mesh_sha256,
+            Self::Polyhedra(wire) => &wire.mesh_sha256,
             Self::PlanarCircularHoleV2(wire) => &wire.mesh_sha256,
             Self::PlanarRectangleV2(wire) => &wire.mesh_sha256,
         }

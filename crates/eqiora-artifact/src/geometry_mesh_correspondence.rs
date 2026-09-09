@@ -1,5 +1,8 @@
 //! Exact geometry-revision to mesh-revision entity correspondence.
 
+#[path = "geometry_mesh_correspondence_polyhedra.rs"]
+mod polyhedral_correspondence;
+
 #[path = "geometry_mesh_correspondence_cartesian_box_v1.rs"]
 mod cartesian_box_v1_correspondence;
 #[path = "geometry_mesh_correspondence_sources.rs"]
@@ -735,6 +738,7 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
             WireCorrespondenceV1::Cartesian(wire) => validate_cartesian_wire(wire, limits),
             WireCorrespondenceV1::CartesianBoxV1(wire) => wire.validate_local(limits),
             WireCorrespondenceV1::AuthoredRegion(wire) => wire.validate_local(limits),
+            WireCorrespondenceV1::Polyhedra(wire) => wire.validate_local(limits),
             WireCorrespondenceV1::PlanarCircularHoleV2(wire) => wire.validate_local(limits),
             WireCorrespondenceV1::PlanarRectangleV2(wire) => wire.validate_local(limits),
         }

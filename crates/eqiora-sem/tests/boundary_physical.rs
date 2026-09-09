@@ -37,7 +37,7 @@ fn interface_program_with_geometry(
     semantics: ConnectionSemantics,
     share_parent: bool,
     channels: Option<u32>,
-    geometry: Option<(&eqiora_geometry::CanonicalGeometryV1, &str)>,
+    geometry: Option<(&eqiora_geometry::CanonicalGeometryV1, [&str; 2], [&str; 2])>,
 ) -> Result<InterfaceFixture, Vec<eqiora_core::Diagnostic>> {
     let connector = Id::<kinds::Domain>::new();
     let left_volume = Id::<kinds::Domain>::new();
@@ -153,25 +153,21 @@ fn interface_program_with_geometry(
         KernelNode::from(ActivationDef::continuous(right_activation)),
         KernelNode::from(ConnectionDef::new(connection, semantics)),
     ]);
-    if let Some((artifact, upper)) = geometry {
+    if let Some((artifact, regions, boundaries)) = geometry {
         for node in &mut nodes {
             let id = node.id();
             if id == left_volume.erase() || id == right_volume.erase() {
                 *node = DomainDef::geometry_region(
                     id.downcast().unwrap(),
                     eqiora_schema::kernel::GeometryDigest::new(artifact.digest_bytes()),
-                    "domain",
+                    regions[usize::from(id == right_volume.erase() && !share_parent)],
                 )
                 .unwrap()
                 .into();
             } else if id == left_boundary.erase() || id == right_boundary.erase() {
                 *node = DomainDef::geometry_boundary(
                     id.downcast().unwrap(),
-                    if id == left_boundary.erase() {
-                        upper
-                    } else {
-                        "left"
-                    },
+                    boundaries[usize::from(id == right_boundary.erase())],
                 )
                 .unwrap()
                 .into();
@@ -253,7 +249,7 @@ fn interface_program_with_geometry(
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
     let program = match geometry {
-        Some((artifact, _)) => {
+        Some((artifact, _, _)) => {
             KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[artifact])
         }
         None => KernelProgram::from_snapshot(&store.snapshot(), model),
@@ -380,7 +376,7 @@ fn exact_geometry_periodic_pair_composes_after_canonical_round_trip() {
         ConnectionSemantics::SpatialPeriodic,
         true,
         Some(3),
-        Some((&artifact, "right")),
+        Some((&artifact, ["domain", "domain"], ["right", "left"])),
     )
     .unwrap();
     let junction = fixture
@@ -405,7 +401,7 @@ fn geometry_periodic_pair_rejects_nonopposite_and_stale_selections() {
             ConnectionSemantics::SpatialPeriodic,
             true,
             None,
-            Some((&artifact, upper)),
+            Some((&artifact, ["domain", "domain"], [upper, "left"])),
         )
         .expect_err("invalid exact periodic selection must fail");
         let expected = if upper == "missing" {
@@ -425,7 +421,7 @@ fn geometry_periodic_pair_rejects_nonopposite_and_stale_selections() {
         ConnectionSemantics::SpatialPeriodic,
         false,
         None,
-        Some((&artifact, "right")),
+        Some((&artifact, ["domain", "domain"], ["right", "left"])),
     )
     .expect_err("equal geometry does not equate distinct parent identities");
     assert!(
@@ -444,7 +440,7 @@ fn exact_geometry_coincident_contract_retains_parent_and_selection_identity() {
         ConnectionSemantics::Conserving,
         true,
         Some(3),
-        Some((&artifact, "left")),
+        Some((&artifact, ["domain", "domain"], ["left", "left"])),
     )
     .unwrap();
     assert!(matches!(
@@ -461,7 +457,7 @@ fn exact_geometry_coincident_contract_retains_parent_and_selection_identity() {
             ConnectionSemantics::Conserving,
             share_parent,
             None,
-            Some((&artifact, selection)),
+            Some((&artifact, ["domain", "domain"], [selection, "left"])),
         )
         .unwrap_err();
         assert!(
@@ -471,4 +467,54 @@ fn exact_geometry_coincident_contract_retains_parent_and_selection_identity() {
             "{errors:?}"
         );
     }
+}
+
+#[test]
+fn authored_diagonal_interface_admits_exact_opposite_parent_boundary_ports() {
+    use eqiora_geometry::{CanonicalGeometryV1, NamedEntitySet, PlanarFace, PlanarRegion};
+    let region = PlanarRegion::new(
+        vec![[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]],
+        vec![
+            PlanarFace::new(vec![0, 2, 1], vec![]),
+            PlanarFace::new(vec![1, 2, 3], vec![]),
+        ],
+        vec![
+            NamedEntitySet::new("first", 2, vec![0]),
+            NamedEntitySet::new("second", 2, vec![1]),
+            NamedEntitySet::new("first_interface", 1, vec![1]),
+            NamedEntitySet::new("second_interface", 1, vec![3]),
+        ],
+        1e-12,
+    )
+    .unwrap();
+    let artifact = CanonicalGeometryV1::from_region(&region).unwrap();
+    let fixture = interface_program_with_geometry(
+        0.0,
+        ConnectionSemantics::Conserving,
+        false,
+        None,
+        Some((
+            &artifact,
+            ["first", "second"],
+            ["first_interface", "second_interface"],
+        )),
+    )
+    .unwrap();
+    let junction = fixture
+        .program
+        .compose_boundary_physical_junction(fixture.connection)
+        .unwrap();
+    assert_eq!(junction.typed().expression().roots().len(), 2);
+    let rejected = interface_program_with_geometry(
+        0.0,
+        ConnectionSemantics::Conserving,
+        false,
+        None,
+        Some((
+            &artifact,
+            ["first", "second"],
+            ["second_interface", "first_interface"],
+        )),
+    );
+    assert!(rejected.is_err());
 }
