@@ -12,7 +12,19 @@ impl super::SourceAstFactory {
             expression(Some(operator.name.as_str()), &mut operator.body, &mut visit);
         }
         for release in &mut document.property_releases {
-            expression(None, &mut release.source_value, &mut visit);
+            match &mut release.source_value {
+                crate::PropertySourceSyntax::Expression(value) => {
+                    expression(None, value, &mut visit)
+                }
+                crate::PropertySourceSyntax::Table(table) => {
+                    for endpoint in &mut table.validity {
+                        expression(None, endpoint, &mut visit);
+                    }
+                }
+            }
+            if let Some(validity) = &mut release.validity {
+                expression(None, validity, &mut visit);
+            }
         }
         for component in &mut document.components {
             let scope = Some(component.name.as_str());

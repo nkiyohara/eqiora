@@ -61,7 +61,7 @@ use property::{encode_material_composition, encode_property_contract, encode_pro
 use visibility::encode_visibility;
 
 const MAGIC: &[u8; 8] = b"EQIORASU";
-const CANONICAL_VERSION: u16 = 15;
+const CANONICAL_VERSION: u16 = 16;
 const COMPONENT_CONNECTION_ITEM_TAG: u16 = 6;
 const MODEL_CONNECTION_ITEM_TAG: u16 = 8;
 const COMPONENT_PORT_FAMILY_ITEM_TAG: u16 = 11;
@@ -195,18 +195,24 @@ fn canonical_source_bytes_with_aliases(
         }));
     let dimensions = encode_dimensions(document.dimensions().iter(), &mut budget)?;
     let connectors = encode_sorted_records(document.connectors(), &mut budget, encode_connector)?;
-    let property_contract_syntax = document.property_contract_syntax().collect::<Vec<_>>();
-    let property_release_syntax = document.property_release_syntax().collect::<Vec<_>>();
+    let property_contract_syntax = document
+        .property_contract_syntax()
+        .zip(document.property_contract_profiles())
+        .collect::<Vec<_>>();
+    let property_release_syntax = document
+        .property_release_syntax()
+        .zip(document.property_release_profiles())
+        .collect::<Vec<_>>();
     let material_composition_syntax = document.material_composition_syntax().collect::<Vec<_>>();
     let property_contracts = encode_sorted_records(
         &property_contract_syntax,
         &mut budget,
-        encode_property_contract,
+        |(syntax, profile), budget| encode_property_contract(syntax, profile, budget),
     )?;
     let property_releases = encode_sorted_records(
         &property_release_syntax,
         &mut budget,
-        encode_property_release,
+        |(syntax, profile), budget| encode_property_release(syntax, profile, budget),
     )?;
     let material_compositions = encode_sorted_records(
         &material_composition_syntax,

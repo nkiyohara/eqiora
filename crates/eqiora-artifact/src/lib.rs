@@ -32,6 +32,7 @@ mod model_transaction;
 mod model_transaction_wire;
 mod model_wire;
 mod physical_exposure;
+mod property_table;
 mod realization;
 mod realization_reference;
 mod realization_v6;
@@ -114,6 +115,7 @@ pub use physical_exposure::{
     PhysicalExposureObservationBindingV1, PhysicalExposureProjectionV1, PhysicalExposureQuantityV1,
     PhysicalExposureSourceOriginV1, PhysicalExposureSourceSpanV1,
 };
+pub use property_table::decode_real_table;
 pub use realization::{LayoutArtifacts, RealizationDecoderLimits, RealizationEnvelopeV1};
 pub use realization_reference::{
     CanonicalRealizationArtifact, RealizationArtifactReference,

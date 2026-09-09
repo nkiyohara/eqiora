@@ -50,4 +50,4 @@ pub use notation::{
 pub use notation_labels::{NotationLabel, NotationProfile};
 pub use parser::{ParseResult, parse};
 
-pub use ast_property::ComponentPropertyDecl;
+pub use ast_property::{ComponentPropertyDecl, PropertySourceSyntax, PropertyTableSyntax};

@@ -1,9 +1,10 @@
 # Property contracts and releases
 
-These target-language declarations extend the existing contract/release owner. The
-[data-backed specimen](data-backed-property.md) defines the exact mathematical table and
-two consumers; this page fixes its source declaration syntax. No current callable-table
-execution or new artifact encoding is implied.
+These declarations use the existing contract/release owner. Bounded real analytic and
+one-dimensional exact table releases execute through source, package, Python and current
+Model replay. The [data-backed specimen](data-backed-property.md) derives the table and two
+consumer laws independently; its complete target-language consumer surface remains broader
+than the implemented scalar and Parameter-bound Component forms.
 
 ## Contract
 
@@ -52,6 +53,19 @@ typed asset roles, not the ordinary value namespace. The specimen package binds 
 the two-column, three-row data described in the consumer page, the second to that synthetic
 derivation, and the third to the actual repository license. They are not filenames searched
 at execution time, URLs fetched during compilation, or magic globally registered names.
+
+Array assets use the exact bundle role `resolved_array` and paths
+`data/<NamePath segments>.json`: `data/curves/Cp.json` binds `curves.Cp` in
+its owning package. Local projects inventory that directory under the same bounded,
+no-follow file rules as their source tree. The files contain the existing canonical
+resolved-array JSON; only verified finite binary64 payloads enter compilation.
+The exact bundle identity retains each complete path, role, and file payload.
+
+Attribution assets use the existing `documentation` bundle role and the exact
+`docs/<NamePath segments>.md` mapping. `README.md` is ordinary documentation and
+has no typed attribution name. Citation and license references retain their owning
+package, typed path and role, and SHA-256 of the complete UTF-8 payload already
+authenticated by the exact bundle. Only referenced payloads affect release meaning.
 
 The existing package/artifact owner validates content identity, data shape, and exact closure
 membership before accepting the release. Missing or foreign references reject. This syntax

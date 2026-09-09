@@ -57,6 +57,30 @@ pub(super) fn collect_canonical_declarations(
                 &operator_formals,
                 diagnostics,
             );
+            if let Some((
+                _,
+                _,
+                _,
+                eqiora_lang::PropertySourceSyntax::Table(table),
+                _,
+                _,
+                citation,
+                license,
+                _,
+            )) = document.property_release_syntax().next()
+                && let Some(identity) = result.last_mut()
+            {
+                match crate::property::table::canonical_asset_identity(
+                    unit,
+                    table,
+                    citation,
+                    license,
+                    &identity.canonical_form,
+                ) {
+                    Ok(form) => identity.canonical_form = form,
+                    Err(diagnostic) => diagnostics.push(diagnostic),
+                }
+            }
         }
         for enumeration in unit.document.enumerations() {
             let document = SourceAstFactory::document(

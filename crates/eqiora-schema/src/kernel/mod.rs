@@ -14,6 +14,7 @@ pub use observable::{ObservableDef, ObservableMeasure, ObservableReduction};
 mod index_set;
 pub use index_set::IndexSetDef;
 pub mod physical_closure;
+pub mod property_table;
 pub mod pure_operator;
 pub mod scalar_connection;
 mod time;
@@ -33,6 +34,7 @@ pub use definition::{
     ParameterDef, PortDef, PortPayload, RelationDef, RepresentationDef, RepresentationKind,
     SignalDirection,
 };
+pub use expression::property::{PropertyDerivatives, PropertyMeaning, PropertyRelease};
 pub use expression::{
     ComparisonOp, ExprDag, ExprDagBuilder, ExprId, ExprNode, PureOperatorApplication, SymbolRef,
     UnaryMathFunction,

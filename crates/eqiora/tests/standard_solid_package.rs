@@ -282,13 +282,13 @@ fn root_source_with_boundaries(
         };
         (
             format!(
-                r#"public property release ReferenceYoungModulus implements solid.YoungModulus {{
-  value = 120; source_unit: kg / (m * s ^ 2) = 1;
-  validity = unconditional; citation = org.example.reference; license = spdx.CC0_1_0;
+                r#"public property release ReferenceYoungModulus: solid.YoungModulus {{
+  analytic {{ value = 120; source_unit: kg / (m * s ^ 2) = 1; }}
+  validity unconditional; outside reject; branch single; citation org.example.reference; license spdx.CC0_1_0;
 }}
-public property release ReferencePoissonRatio implements solid.PoissonRatio {{
-  value = {poisson_ratio}; source_unit: 1 = 1;
-  validity = unconditional; citation = org.example.reference; license = spdx.CC0_1_0;
+public property release ReferencePoissonRatio: solid.PoissonRatio {{
+  analytic {{ value = {poisson_ratio}; source_unit: 1 = 1; }}
+  validity unconditional; outside reject; branch single; citation org.example.reference; license spdx.CC0_1_0;
 }}
 public material composition ReferenceMaterial {{
   property poisson_ratio = ReferencePoissonRatio;

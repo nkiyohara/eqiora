@@ -1,8 +1,9 @@
 # Specimen: consume a data-backed conductivity
 
 This [target-language](core.md) specimen binds one exact property release into two components.
-Constant property contracts already have a source owner; callable contracts, table-backed
-releases, and the complete converged source below await their implementation slices.
+Callable real contracts and exact one-dimensional table releases now have source, package,
+Python and Model-replay owners. The complete converged consumer surface below remains a
+target: executable scalar and Parameter-bound Component tests use the same table and laws.
 
 ## Contract and complete consumer
 

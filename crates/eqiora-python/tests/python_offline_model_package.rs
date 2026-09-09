@@ -12,12 +12,12 @@ use pyo3::types::{PyBytes, PyDict, PyModule};
 
 const SOURCE: &str = r#"
 public property contract Diffusivity(): 1 { derivatives value_only; }
-public property release ReferenceDiffusivity implements Diffusivity {
-  value = 25;
-  source_unit: 1 = 1 / 1000;
-  validity = unconditional;
-  citation = org.example.measurement;
-  license = spdx.CC0_1_0;
+public property release ReferenceDiffusivity: Diffusivity {
+  analytic { value = 25;
+  source_unit: 1 = 1 / 1000; }
+  validity unconditional; outside reject; branch single;
+  citation org.example.measurement;
+  license spdx.CC0_1_0;
 }
 
 public component PoissonLaw(
@@ -468,12 +468,12 @@ fn typed_property_projection_preserves_scaled_complex_channels() -> PyResult<()>
     let (store, resolution, _) = locked_store(
         r#"
 public property contract Response(): array<complex<1>, 2> { derivatives value_only; }
-public property release Reference implements Response {
-  value = [math.complex(1, 2), math.complex(3, -4)];
-  source_unit: 1 = 2;
-  validity = unconditional;
-  citation = org.example.measurement;
-  license = spdx.CC0_1_0;
+public property release Reference: Response {
+  analytic { value = [math.complex(1, 2), math.complex(3, -4)];
+  source_unit: 1 = 2; }
+  validity unconditional; outside reject; branch single;
+  citation org.example.measurement;
+  license spdx.CC0_1_0;
 }
 public component Consumer(
   property response: Response

@@ -311,11 +311,48 @@ impl PyAstModule {
         })
     }
 
-    fn with_contract(&self, name: String, kind: &PyAstType, ordinal: u32) -> PyResult<Self> {
+    fn property_contract_descriptor(
+        &self,
+        root: (String, String),
+        units: Vec<(String, String, PyRef<'_, PyAstModule>)>,
+        dependencies: Vec<(String, String)>,
+        name: &str,
+    ) -> PyResult<super::imported_properties::ContractDescriptor> {
+        super::imported_properties::contract(root, units, dependencies, name)
+    }
+
+    fn property_release_descriptor(&self, name: &str) -> PyResult<String> {
+        super::imported_properties::release(&self.value, name)
+    }
+
+    #[staticmethod]
+    fn with_contract(
+        module: Option<&Self>,
+        name: String,
+        kind: &PyAstType,
+        profile: (Vec<(String, PyRef<'_, PyAstType>)>, String, Option<String>),
+        ordinal: u32,
+    ) -> PyResult<Self> {
         let document = Ast::with_property_contract(
-            self.document_for_edit()?,
+            module.map(Self::document_for_edit).transpose()?,
             name,
             kind.value.clone(),
+            (
+                profile
+                    .0
+                    .into_iter()
+                    .map(|(name, kind)| (name, kind.value.clone()))
+                    .collect(),
+                match profile.1.as_str() {
+                    "value_only" => eqiora::kernel::PropertyDerivatives::ValueOnly,
+                    "first_partials" => eqiora::kernel::PropertyDerivatives::FirstPartials,
+                    "first_open_intervals" => {
+                        eqiora::kernel::PropertyDerivatives::FirstOpenIntervals
+                    }
+                    _ => return Err(syntax_error("unsupported property derivative profile")),
+                },
+                profile.2.as_deref().map(path).transpose()?,
+            ),
             range(ordinal),
         )
         .map_err(syntax_error)?;
@@ -324,8 +361,56 @@ impl PyAstModule {
         })
     }
 
+    #[staticmethod]
+    fn with_table_release(
+        module: Option<&Self>,
+        name: String,
+        contract: &str,
+        table: (
+            String,
+            String,
+            PyRef<'_, PyAstExpression>,
+            PyRef<'_, PyAstExpression>,
+            PyRef<'_, PyAstExpression>,
+            PyRef<'_, PyAstExpression>,
+        ),
+        attribution: (String, String, String),
+        ordinal: u32,
+    ) -> PyResult<Self> {
+        let range = range(ordinal);
+        let definition = Ast::property_table(
+            path(&table.0)?,
+            (table.1, table.2.value.clone()),
+            ("sample".into(), table.3.value.clone()),
+            [table.4.value.clone(), table.5.value.clone()],
+            range,
+        )
+        .map_err(syntax_error)?;
+        let scale = Ast::expression(
+            eqiora::language::ExprKind::Number(
+                eqiora::language::DecimalLiteral::parse("1").map_err(syntax_error)?,
+            ),
+            range,
+        )
+        .map_err(syntax_error)?;
+        let document = Ast::with_property_release(
+            module.map(Self::document_for_edit).transpose()?,
+            name,
+            path(contract)?,
+            (definition, table.3.value.clone(), scale),
+            (path(&attribution.0)?, path(&attribution.1)?),
+            (None, Some(path(&attribution.2)?)),
+            range,
+        )
+        .map_err(syntax_error)?;
+        Ok(Self {
+            value: Module::from_document(document),
+        })
+    }
+
+    #[staticmethod]
     fn with_release(
-        &self,
+        module: Option<&Self>,
         name: String,
         contract: &str,
         source: (
@@ -333,20 +418,29 @@ impl PyAstModule {
             PyRef<'_, PyAstExpression>,
             PyRef<'_, PyAstExpression>,
         ),
-        citation: &str,
-        license: &str,
+        attribution: (String, String),
+        profile: (Option<PyRef<'_, PyAstExpression>>, Option<String>, String),
         ordinal: u32,
     ) -> PyResult<Self> {
+        if profile.2 != "reject" {
+            return Err(syntax_error(
+                "property outside-domain policy must be reject",
+            ));
+        }
         let document = Ast::with_property_release(
-            self.document_for_edit()?,
+            module.map(Self::document_for_edit).transpose()?,
             name,
             path(contract)?,
             (
-                source.0.value.clone(),
+                source.0.value.clone().into(),
                 source.1.value.clone(),
                 source.2.value.clone(),
             ),
-            (path(citation)?, path(license)?),
+            (path(&attribution.0)?, path(&attribution.1)?),
+            (
+                profile.0.map(|value| value.value.clone()),
+                profile.1.as_deref().map(path).transpose()?,
+            ),
             range(ordinal),
         )
         .map_err(syntax_error)?;

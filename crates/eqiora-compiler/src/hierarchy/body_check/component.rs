@@ -78,6 +78,10 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
     }
 
     fn validate(&mut self) {
+        self.diagnostics.extend(super::property::bind(
+            &mut self.scope,
+            self.definition.declaration.signature(),
+        ));
         self.scope.static_values = self.compile_time_values.clone();
         self.scope.record_context = super::super::parameters::RecordContext::component(
             self.scope.elaborator,

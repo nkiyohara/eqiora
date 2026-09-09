@@ -232,6 +232,52 @@ pub(super) fn load(
         }
     }
 
+    match directory.open_dir_nofollow("data") {
+        Ok(data) => {
+            let arrays = PackageDirectory::try_from_dir(data)
+                .and_then(|data| data.discover_resolved_arrays())
+                .map_err(|source| PackagePreparationError::Directory {
+                    path: project_path.join(&relative_path).join("data"),
+                    source,
+                })?;
+            for (path, bytes) in arrays {
+                files.push(SourceFileV1::new(
+                    NormalizedRelativePath::parse(format!("data/{path}"))?,
+                    BundleRoleV1::ResolvedArray,
+                    bytes,
+                ));
+            }
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(git::error(&format!(
+                "cannot read package `{name}` data directory: {error}"
+            )));
+        }
+    }
+    match directory.open_dir_nofollow("docs") {
+        Ok(docs) => {
+            let documents = PackageDirectory::try_from_dir(docs)
+                .and_then(|docs| docs.discover_documentation_assets())
+                .map_err(|source| PackagePreparationError::Directory {
+                    path: project_path.join(&relative_path).join("docs"),
+                    source,
+                })?;
+            for (path, bytes) in documents {
+                files.push(SourceFileV1::new(
+                    NormalizedRelativePath::parse(format!("docs/{path}"))?,
+                    BundleRoleV1::Documentation,
+                    bytes,
+                ));
+            }
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(git::error(&format!(
+                "cannot read package `{name}` docs directory: {error}"
+            )));
+        }
+    }
     files.sort_by(|left, right| left.path().cmp(right.path()));
     if manifest.dependencies.len() > 4096 {
         return Err(git::error(

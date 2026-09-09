@@ -316,6 +316,18 @@ fn compile_external_component_from_definition<'a>(
         })
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| vec![hierarchy_error(error.message())])?;
+    let property_bindings = binding
+        .properties()
+        .keys()
+        .map(|name| {
+            SourceAstFactory::named_binding(
+                name,
+                SourceAstFactory::expression(ExprKind::Name(name.clone()), range)?,
+                range,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| vec![hierarchy_error(error.message())])?;
     let instance = SourceAstFactory::instance(
         "definition",
         component_path,
@@ -323,6 +335,7 @@ fn compile_external_component_from_definition<'a>(
         parameter_bindings
             .into_iter()
             .chain(support_bindings)
+            .chain(property_bindings)
             .chain(clock_bindings)
             .collect(),
         range,
@@ -352,7 +365,12 @@ fn compile_external_component_from_definition<'a>(
         },
     )
     .map_err(|error| vec![error])?
-    .expand_external(component, binding.supports(), &binding.clocks)?
+    .expand_external(
+        component,
+        binding.supports(),
+        &binding.clocks,
+        binding.properties(),
+    )?
     .compile(limits)
 }
 

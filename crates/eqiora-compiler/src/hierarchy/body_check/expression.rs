@@ -465,6 +465,9 @@ impl ExpressionChecker<'_, '_, '_> {
         expression: &Expr,
         name: &str,
     ) -> Result<ExpressionType<String>, Diagnostic> {
+        if let Some(contract) = self.scope.properties.get(name) {
+            return super::property::bare(self.scope.file, expression.range(), contract);
+        }
         let contract = self.scope.symbols.get(name).cloned().ok_or_else(|| {
             unresolved(
                 self.scope.file,
@@ -566,6 +569,15 @@ impl ExpressionChecker<'_, '_, '_> {
         arguments: &eqiora_lang::CallArguments,
     ) -> Result<ExpressionType<String>, Diagnostic> {
         let callee_name = callee.as_str();
+        if let Some(contract) = self.scope.properties.get(callee_name).cloned() {
+            return super::property::application(
+                self.scope.file,
+                expression.range(),
+                &contract,
+                arguments,
+                |argument| self.check(argument),
+            );
+        }
         if !is_builtin_operator(callee)
             && !matches!(callee_name, "counts" | "coordinates" | "index" | "sin")
             && crate::lower::IntegerBuiltin::named(callee_name).is_none()

@@ -175,6 +175,14 @@ class Support:
     ...
 
 @final
+class PropertyRequirement(Expression):
+    """A nominal property requirement with ordered named input application.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::PropertyRequirement``.
+    """
+    def __call__(self, /, **arguments: object) -> Expression: ...
+
+@final
 class BoundarySet(Support):
     """An exact complete exterior requirement with a declared parent volume.
 
@@ -218,7 +226,7 @@ class PropertyContract:
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::PropertyContract``.
     """
 
-    ...
+    def input(self, name: str) -> Expression: ...
 
 @final
 class PropertyRelease:
@@ -357,7 +365,7 @@ class Component:
         *,
         contract: PropertyContract,
         doc: str | None = None,
-    ) -> Expression: ...
+    ) -> PropertyRequirement: ...
     @overload
     def field(self, name: str, *, on: Support | None = None, value_type: Record,
               role: FieldRole, at: Clock | None = None, doc: str | None = None) -> RecordField: ...
@@ -445,6 +453,8 @@ class ModuleRef:
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::ModuleRef``.
     """
 
+    def property_contract(self, name: str) -> PropertyContract: ...
+    def property_release(self, name: str) -> PropertyRelease: ...
     def dimension(self, name: str) -> Dimension: ...
     def component(self, name: str) -> ComponentRef: ...
     def operator(self, name: str) -> Operator:
@@ -526,18 +536,28 @@ class Module:
         name: str,
         *,
         value_type: ValueType,
+        inputs: Mapping[str, ValueType] | None = None,
+        derivatives: Literal["value_only", "first_partials", "first_open_intervals"] = "value_only",
+        branch: str | None = None,
         doc: str | None = None,
     ) -> PropertyContract: ...
+    def property_table_release(self, name: str, *, implements: PropertyContract,
+                               data: str, axis_unit: Unit, source_unit: Unit,
+                               validity: tuple[object, object], citation: str, license: str,
+                               branch: str = "single", doc: str | None = None) -> PropertyRelease: ...
     def property_release(
         self,
         name: str,
         *,
         implements: PropertyContract,
-        value: int | float | complex | Sequence[object],
+        value: Expression | int | float | complex | Sequence[object],
         source_unit: Unit,
         source_scale: int | float,
         citation: str,
         license: str,
+        validity: Expression | bool | None = None,
+        branch: str | None = None,
+        outside: Literal["reject"] = "reject",
         doc: str | None = None,
     ) -> PropertyRelease: ...
     def material_composition(
@@ -827,6 +847,7 @@ __all__ = [
     "Notation",
     "Operator",
     "PropertyContract",
+    "PropertyRequirement",
     "PropertyRelease",
     "Relation",
     "Module",

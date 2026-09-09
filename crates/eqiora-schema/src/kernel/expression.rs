@@ -1,5 +1,6 @@
 //! Inspectable expression DAG.
 
+pub mod property;
 mod scalar_projection;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -257,6 +258,7 @@ pub struct ExprDag {
     nodes: Vec<ExprNode>,
     roots: Vec<ExprId>,
     definitions: BTreeMap<OperatorDefinitionDigest, PureOperatorDefinition>,
+    properties: BTreeMap<ExprId, property::PropertyRelease>,
 }
 
 impl ExprDag {
@@ -276,6 +278,12 @@ impl ExprDag {
     #[must_use]
     pub const fn definitions(&self) -> &BTreeMap<OperatorDefinitionDigest, PureOperatorDefinition> {
         &self.definitions
+    }
+
+    /// Scientific release bindings on exact value/application occurrences.
+    #[must_use]
+    pub const fn properties(&self) -> &BTreeMap<ExprId, property::PropertyRelease> {
+        &self.properties
     }
 
     /// Resolve one application digest against this expression's closed table.
@@ -298,6 +306,7 @@ impl ExprDag {
 pub struct ExprDagBuilder {
     nodes: Vec<ExprNode>,
     definitions: BTreeMap<OperatorDefinitionDigest, PureOperatorDefinition>,
+    properties: BTreeMap<ExprId, property::PropertyRelease>,
 }
 
 impl ExprDagBuilder {
@@ -305,6 +314,16 @@ impl ExprDagBuilder {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Extend an admitted DAG while retaining exact node indices, definitions and releases.
+    #[must_use]
+    pub fn from_dag(expression: &ExprDag) -> Self {
+        Self {
+            nodes: expression.nodes.clone(),
+            definitions: expression.definitions.clone(),
+            properties: expression.properties.clone(),
+        }
     }
 
     /// Append one node and return its stable local ID.
@@ -638,6 +657,7 @@ impl ExprDagBuilder {
             nodes: self.nodes,
             roots,
             definitions: self.definitions,
+            properties: self.properties,
         })
     }
 }

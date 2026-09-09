@@ -325,19 +325,22 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
     }
 
     pub(super) fn expand(self) -> Result<ExpandedBlueprint, Vec<Diagnostic>> {
-        self.expand_bound(&[], &[])
+        self.expand_bound(&[], &[], &BTreeMap::new())
     }
 
     pub(super) fn expand_bound(
         mut self,
         supports: &[crate::external::ExternalGeometrySupportBinding],
         clocks: &[(String, eqiora_schema::kernel::ClockDomainDef)],
+        properties: &BTreeMap<String, std::sync::Arc<eqiora_schema::kernel::PropertyRelease>>,
     ) -> Result<ExpandedBlueprint, Vec<Diagnostic>> {
         let model = self.model.clone();
         let mut root_scope = Scope::default();
+        root_scope.properties = properties.clone();
         root_scope.record_context =
             super::parameters::RecordContext::model(self.elaborator, &model);
         root_scope.reduction_terms_limit = self.elaborator.limits.max_parameter_terms;
+        root_scope.lexical_namespace = Some(model.namespace.clone());
         root_scope.set_pure_operators(self.elaborator.visible_pure_operators(&model.namespace));
         self.allocate_external_clocks(&mut root_scope, clocks)
             .map_err(one_diagnostic)?;
@@ -477,6 +480,15 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         ));
         normalize_binding_locations(&mut forwarded_boundary_set_resolution_bindings);
         let mut scope = Scope::child(parent_scope);
+        scope.lexical_namespace = Some(component.namespace.clone());
+        scope.bind_properties(
+            self.elaborator,
+            &component.namespace,
+            component.declaration,
+            instance,
+            parent_scope,
+            instance_file,
+        )?;
         scope.record_context =
             super::parameters::RecordContext::component(self.elaborator, &component);
         scope.set_pure_operators(self.elaborator.visible_pure_operators(&component.namespace));
@@ -641,6 +653,17 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 .insert(slot.clone(), (requirement.role, activation));
             scope.insert_field_type(slot, field_type);
         }
+        self.record_properties(
+            ComponentOccurrence {
+                definition: &component,
+                instance,
+                instance_file,
+                instance_path: &instance_path,
+                display_prefix: &display_prefix,
+            },
+            &bindings,
+        )
+        .map_err(one_diagnostic)?;
         self.record_borrowed_fields(
             ComponentOccurrence {
                 definition: &component,

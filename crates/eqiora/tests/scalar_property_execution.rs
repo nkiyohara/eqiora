@@ -119,13 +119,13 @@ fn public_material_composition_crosses_an_exact_package_boundary() {
         r#"
 public property contract Conductivity(): 1 { derivatives value_only; }
 public property contract Capacity(): 1 { derivatives value_only; }
-property release ConductivityA implements Conductivity {
-  value = 2; source_unit: 1 = 1; validity = unconditional;
-  citation = org.example.a; license = spdx.CC0_1_0;
+property release ConductivityA: Conductivity {
+  analytic { value = 2; source_unit: 1 = 1; } validity unconditional; outside reject; branch single;
+  citation org.example.a; license spdx.CC0_1_0;
 }
-property release CapacityA implements Capacity {
-  value = 4; source_unit: 1 = 1; validity = unconditional;
-  citation = org.example.a; license = spdx.CC0_1_0;
+property release CapacityA: Capacity {
+  analytic { value = 4; source_unit: 1 = 1; } validity unconditional; outside reject; branch single;
+  citation org.example.a; license spdx.CC0_1_0;
 }
 public material composition MaterialA {
   property conductivity = ConductivityA;
@@ -185,7 +185,13 @@ fn one_exact_release_runs_through_two_independent_common_scalar_consumers() {
         let binding = property.property_bindings().next().unwrap();
         assert_eq!(binding.4, consumer.requirement());
         assert_eq!(
-            binding.5.real_scalar_value().unwrap().value(),
+            binding
+                .5
+                .constant_value()
+                .unwrap()
+                .real_scalar_value()
+                .unwrap()
+                .value(),
             NORMALIZED_DIFFUSIVITY
         );
         assert_eq!(binding.6, "unconditional");
@@ -401,12 +407,12 @@ fn property_release(value: u32, citation: &str, contract: &str) -> PackageReleas
         r#"
 public property contract Diffusivity(): 1 {{ derivatives value_only; }}
 public property contract OtherDiffusivity(): 1 {{ derivatives value_only; }}
-public property release ReferenceDiffusivity implements {contract} {{
-  value = {value};
-  source_unit: 1 = 1 / 1000;
-  validity = unconditional;
-  citation = {citation};
-  license = spdx.CC0_1_0;
+public property release ReferenceDiffusivity: {contract} {{
+  analytic {{ value = {value};
+  source_unit: 1 = 1 / 1000; }}
+  validity unconditional; outside reject; branch single;
+  citation {citation};
+  license spdx.CC0_1_0;
 }}
 "#
     );
@@ -419,12 +425,12 @@ fn reordered_property_release() -> PackageReleaseV1 {
         r#"
 public property contract OtherDiffusivity(): 1 { derivatives value_only; }
 public property contract Diffusivity(): 1 { derivatives value_only; }
-public property release ReferenceDiffusivity implements Diffusivity {
-  value = 25;
-  source_unit: 1 = 1 / 1000;
-  validity = unconditional;
-  citation = org.example.measurement;
-  license = spdx.CC0_1_0;
+public property release ReferenceDiffusivity: Diffusivity {
+  analytic { value = 25;
+  source_unit: 1 = 1 / 1000; }
+  validity unconditional; outside reject; branch single;
+  citation org.example.measurement;
+  license spdx.CC0_1_0;
 }
 "#,
         &[],
@@ -491,13 +497,13 @@ fn material_source(composed: bool, conductivity: u32, capacity: u32, reverse: bo
         format!(
             r#"public property contract Conductivity(): 1 {{ derivatives value_only; }}
 public property contract Capacity(): 1 {{ derivatives value_only; }}
-public property release ConductivityValue implements Conductivity {{
-  value = {conductivity}; source_unit: 1 = 1; validity = unconditional;
-  citation = org.example.measurement; license = spdx.CC0_1_0;
+public property release ConductivityValue: Conductivity {{
+  analytic {{ value = {conductivity}; source_unit: 1 = 1; }} validity unconditional; outside reject; branch single;
+  citation org.example.measurement; license spdx.CC0_1_0;
 }}
-public property release CapacityValue implements Capacity {{
-  value = {capacity}; source_unit: 1 = 1; validity = unconditional;
-  citation = org.example.measurement; license = spdx.CC0_1_0;
+public property release CapacityValue: Capacity {{
+  analytic {{ value = {capacity}; source_unit: 1 = 1; }} validity unconditional; outside reject; branch single;
+  citation org.example.measurement; license spdx.CC0_1_0;
 }}
 public material composition ReferenceMaterial {{
 {properties}

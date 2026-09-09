@@ -229,6 +229,9 @@ pub struct ResolvedSourceUnit {
     file: String,
     source: String,
     authored: Option<eqiora_lang::Module>,
+    resolved_arrays:
+        std::sync::Arc<BTreeMap<String, eqiora_schema::resolved_array::ResolvedF64Array>>,
+    resolved_documents: std::sync::Arc<BTreeMap<String, std::sync::Arc<[u8]>>>,
     input_bytes: usize,
 }
 
@@ -270,8 +273,102 @@ impl ResolvedSourceUnit {
             file,
             source,
             authored: None,
+            resolved_arrays: Default::default(),
+            resolved_documents: Default::default(),
             input_bytes,
         })
+    }
+
+    /// Attach the owning package's verified immutable data assets.
+    ///
+    /// # Errors
+    /// Rejects invalid names, array work excess, repeated attachment or hierarchy input excess.
+    pub fn with_resolved_arrays(
+        mut self,
+        arrays: std::sync::Arc<BTreeMap<String, eqiora_schema::resolved_array::ResolvedF64Array>>,
+    ) -> Result<Self, Diagnostic> {
+        if !self.resolved_arrays.is_empty() || arrays.len() > 65_536 {
+            return Err(resolved_error(
+                "resolved array closure is already attached or exceeds its entry bound",
+            ));
+        }
+        let mut bytes = self.input_bytes;
+        let mut portable = BTreeSet::new();
+        for (name, array) in arrays.iter() {
+            ModuleName::new(name.split('.'))?;
+            if !portable.insert(name.to_ascii_lowercase()) {
+                return Err(resolved_error(
+                    "resolved array names collide under ASCII case folding",
+                ));
+            }
+            if name.len() > 512 || array.shape().len() > 8 || array.values().len() > 16_000_000 {
+                return Err(resolved_error(
+                    "resolved array asset exceeds name, rank or scalar limits",
+                ));
+            }
+            bytes = array
+                .values()
+                .len()
+                .checked_add(array.shape().len())
+                .and_then(|count| count.checked_mul(8))
+                .and_then(|size| size.checked_add(name.len()))
+                .and_then(|size| size.checked_add(bytes))
+                .ok_or_else(|| resolved_error("resolved array asset byte count overflow"))?;
+        }
+        preflight_resolved_hierarchy([bytes], 0)?;
+        self.input_bytes = bytes;
+        self.resolved_arrays = arrays;
+        Ok(self)
+    }
+
+    /// Exact package-owned array names and immutable payloads available to this unit.
+    #[must_use]
+    pub fn resolved_arrays(
+        &self,
+    ) -> &BTreeMap<String, eqiora_schema::resolved_array::ResolvedF64Array> {
+        &self.resolved_arrays
+    }
+
+    /// Attach exact package-owned UTF-8 attribution payloads, shared across modules.
+    ///
+    /// # Errors
+    /// Rejects invalid/ambiguous names, invalid UTF-8, repeated attachment or input excess.
+    pub fn with_resolved_documents(
+        mut self,
+        documents: std::sync::Arc<BTreeMap<String, std::sync::Arc<[u8]>>>,
+    ) -> Result<Self, Diagnostic> {
+        if !self.resolved_documents.is_empty() || documents.len() > 65_536 {
+            return Err(resolved_error(
+                "documentation closure is already attached or exceeds its entry bound",
+            ));
+        }
+        let mut bytes = self.input_bytes;
+        let mut portable = BTreeSet::new();
+        for (name, content) in documents.iter() {
+            ModuleName::new(name.split('.'))?;
+            if name.len() > 512 || !portable.insert(name.to_ascii_lowercase()) {
+                return Err(resolved_error(
+                    "documentation asset names exceed bounds or collide under ASCII case folding",
+                ));
+            }
+            std::str::from_utf8(content)
+                .map_err(|_| resolved_error("documentation asset must be UTF-8"))?;
+            bytes = content
+                .len()
+                .checked_add(name.len())
+                .and_then(|size| bytes.checked_add(size))
+                .ok_or_else(|| resolved_error("documentation asset byte count overflow"))?;
+        }
+        preflight_resolved_hierarchy([bytes], 0)?;
+        self.input_bytes = bytes;
+        self.resolved_documents = documents;
+        Ok(self)
+    }
+
+    /// Exact package-owned attribution names and immutable UTF-8 payloads.
+    #[must_use]
+    pub fn resolved_documents(&self) -> &BTreeMap<String, std::sync::Arc<[u8]>> {
+        &self.resolved_documents
     }
 
     /// Admit a directly authored module under the same explicit path and package
@@ -569,6 +666,9 @@ where
 #[derive(Clone, Debug)]
 pub(crate) struct AnalyzedSourceUnit {
     pub(crate) native: Option<std::sync::Arc<eqiora_lang::Module>>,
+    pub(crate) resolved_documents: std::sync::Arc<BTreeMap<String, std::sync::Arc<[u8]>>>,
+    pub(crate) resolved_arrays:
+        std::sync::Arc<BTreeMap<String, eqiora_schema::resolved_array::ResolvedF64Array>>,
     pub(crate) module: CompilationModuleId,
     pub(crate) file: String,
     pub(crate) source_bytes: usize,
@@ -591,6 +691,7 @@ pub struct AnalyzedResolvedHierarchy {
     declaration_locations: Box<[(String, TextRange)]>,
     reference_locations: Box<[(usize, String, TextRange)]>,
     property_bindings: Box<[crate::property::ResolvedPropertyBinding]>,
+    pub(crate) property_catalog: std::sync::Arc<crate::property::catalog::Catalog>,
 }
 
 impl AnalyzedResolvedHierarchy {
@@ -665,7 +766,7 @@ impl AnalyzedResolvedHierarchy {
             &str,
             &str,
             &str,
-            &eqiora_core::ValueLiteral,
+            &eqiora_schema::kernel::PropertyMeaning,
             &str,
             &str,
             &str,
@@ -678,7 +779,7 @@ impl AnalyzedResolvedHierarchy {
                 value.release(),
                 value.component(),
                 value.requirement(),
-                value.normalized_value(),
+                value.meaning(),
                 value.validity(),
                 value.citation(),
                 value.license(),

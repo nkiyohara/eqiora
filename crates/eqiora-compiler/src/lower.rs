@@ -283,6 +283,10 @@ enum LoweringExpressionNode {
         name: String,
         arguments: Vec<LoweringExpression>,
     },
+    Property {
+        release: Arc<eqiora_schema::kernel::PropertyRelease>,
+        arguments: Vec<LoweringExpression>,
+    },
     PureOperator {
         definition: PureOperatorDefinition,
         arguments: Vec<LoweringExpression>,

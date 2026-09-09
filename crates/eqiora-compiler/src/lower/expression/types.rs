@@ -385,6 +385,17 @@ fn expression_type_cached(
             .map_err(violation)
         }
         LoweringExpressionNode::Sample { value, .. } => infer(value),
+        LoweringExpressionNode::Property { release, arguments } => {
+            let arguments = arguments.iter().map(infer).collect::<Result<Vec<_>, _>>()?;
+            super::property::infer(release, &arguments).map_err(|message| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    expression.range(),
+                    message,
+                )
+            })
+        }
         LoweringExpressionNode::PureOperator {
             definition,
             arguments,

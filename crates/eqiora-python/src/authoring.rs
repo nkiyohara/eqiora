@@ -7,6 +7,7 @@ mod declaration;
 mod definition;
 mod dimensions;
 mod expression;
+mod imported_properties;
 mod imports;
 mod module;
 mod records;

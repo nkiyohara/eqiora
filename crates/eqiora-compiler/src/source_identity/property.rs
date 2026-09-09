@@ -8,6 +8,12 @@ use super::{
 
 pub(super) fn encode_property_contract(
     declaration: &(VisibilitySyntax, &str, &ValueTypeSyntax, TextRange),
+    profile: &(
+        &str,
+        &[(String, ValueTypeSyntax)],
+        eqiora_schema::kernel::PropertyDerivatives,
+        Option<&NamePath>,
+    ),
     budget: &mut Budget,
 ) -> Result<Vec<u8>, Diagnostic> {
     let (visibility, name, value_type, _) = *declaration;
@@ -19,6 +25,27 @@ pub(super) fn encode_property_contract(
     if visibility == VisibilitySyntax::Public {
         encoder.field(3, |encoder| encode_visibility(encoder, visibility))?;
     }
+    encoder.field(4, |encoder| {
+        encoder.u32(
+            u32::try_from(profile.1.len())
+                .map_err(|_| source_identity_error("property input count exceeds u32"))?,
+        )?;
+        for (name, value_type) in profile.1 {
+            encode_name(encoder, name, budget)?;
+            super::value_type::encode_value_type(encoder, value_type, budget, 1)?;
+        }
+        Ok(())
+    })?;
+    encoder.field(5, |encoder| {
+        encoder.u8(match profile.2 {
+            eqiora_schema::kernel::PropertyDerivatives::ValueOnly => 0,
+            eqiora_schema::kernel::PropertyDerivatives::FirstPartials => 1,
+            eqiora_schema::kernel::PropertyDerivatives::FirstOpenIntervals => 2,
+        })
+    })?;
+    if let Some(branch) = profile.3 {
+        encoder.field(6, |encoder| encode_type_path(encoder, branch, budget))?;
+    }
     encoder.finish()
 }
 
@@ -27,13 +54,14 @@ pub(super) fn encode_property_release(
         VisibilitySyntax,
         &str,
         &NamePath,
-        &Expr,
-        &Expr,
+        &eqiora_lang::PropertySourceSyntax,
+        Option<&Expr>,
         &Expr,
         &NamePath,
         &NamePath,
         TextRange,
     ),
+    profile: &(&str, Option<&Expr>, Option<&NamePath>),
     budget: &mut Budget,
 ) -> Result<Vec<u8>, Diagnostic> {
     let (visibility, name, contract, source_value, source_dimension, scale, citation, license, _) =
@@ -41,17 +69,42 @@ pub(super) fn encode_property_release(
     let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
     encoder.field(1, |encoder| encode_name(encoder, name, budget))?;
     encoder.field(2, |encoder| encode_type_path(encoder, contract, budget))?;
-    encoder.field(3, |encoder| {
-        encode_expression(encoder, source_value, budget, 1)
+    encoder.field(3, |encoder| match source_value {
+        eqiora_lang::PropertySourceSyntax::Expression(value) => {
+            encoder.u8(0)?;
+            encode_expression(encoder, value, budget, 1)
+        }
+        eqiora_lang::PropertySourceSyntax::Table(table) => {
+            encoder.u8(1)?;
+            encode_type_path(encoder, table.data(), budget)?;
+            encode_name(encoder, table.axis(), budget)?;
+            encode_expression(encoder, table.axis_dimension(), budget, 1)?;
+            encode_name(encoder, table.value(), budget)?;
+            encode_expression(encoder, table.value_dimension(), budget, 1)?;
+            for endpoint in table.validity() {
+                encode_expression(encoder, endpoint, budget, 1)?;
+            }
+            Ok(())
+        }
     })?;
     encoder.field(4, |encoder| {
-        encode_expression(encoder, source_dimension, budget, 1)
+        encoder.u8(u8::from(source_dimension.is_some()))?;
+        if let Some(dimension) = source_dimension {
+            encode_expression(encoder, dimension, budget, 1)?;
+        }
+        Ok(())
     })?;
     encoder.field(5, |encoder| encode_expression(encoder, scale, budget, 1))?;
     encoder.field(6, |encoder| encode_type_path(encoder, citation, budget))?;
     encoder.field(7, |encoder| encode_type_path(encoder, license, budget))?;
     if visibility == VisibilitySyntax::Public {
         encoder.field(8, |encoder| encode_visibility(encoder, visibility))?;
+    }
+    if let Some(validity) = profile.1 {
+        encoder.field(9, |encoder| encode_expression(encoder, validity, budget, 1))?;
+    }
+    if let Some(branch) = profile.2 {
+        encoder.field(10, |encoder| encode_type_path(encoder, branch, budget))?;
     }
     encoder.finish()
 }

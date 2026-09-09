@@ -395,12 +395,12 @@ fn editor_workspace_replays_exact_locked_dependency_sources() {
 fn locked_scalar_property_replays_offline_with_inspectable_provenance() {
     const SOURCE: &str = r#"
 public property contract Diffusivity(): m ^ 2 / s { derivatives value_only; }
-property release ReferenceDiffusivity implements Diffusivity {
-  value = 25;
-  source_unit: m ^ 2 / s = 1 / 1000;
-  validity = unconditional;
-  citation = org.example.measurement;
-  license = spdx.CC0_1_0;
+property release ReferenceDiffusivity: Diffusivity {
+  analytic { value = 25;
+  source_unit: m ^ 2 / s = 1 / 1000; }
+  validity unconditional; outside reject; branch single;
+  citation org.example.measurement;
+  license spdx.CC0_1_0;
 }
 public component Diffusion(
   property diffusivity: Diffusivity
@@ -442,7 +442,16 @@ model Main() {
     );
     let binding = first.property_bindings().next().unwrap();
     assert_eq!(binding.0, None);
-    assert_eq!(binding.5.real_scalar_value().unwrap().value(), 0.025);
+    assert_eq!(
+        binding
+            .5
+            .constant_value()
+            .unwrap()
+            .real_scalar_value()
+            .unwrap()
+            .value(),
+        0.025
+    );
     assert_eq!(binding.4, "diffusivity");
     assert_eq!(binding.6, "unconditional");
     assert_eq!(binding.7, "org.example.measurement");

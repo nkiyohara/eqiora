@@ -294,6 +294,15 @@ impl Resolver<'_> {
                 value: self.resolve(value, None)?,
                 clock: clock.clone(),
             },
+            LoweringExpressionNode::Property { release, arguments } => {
+                LoweringExpressionNode::Property {
+                    release: release.clone(),
+                    arguments: arguments
+                        .iter()
+                        .map(|value| self.resolve(value, None))
+                        .collect::<Result<_, _>>()?,
+                }
+            }
             LoweringExpressionNode::PureOperator {
                 definition,
                 arguments,

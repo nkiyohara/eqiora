@@ -111,6 +111,15 @@ impl LoweringExpression {
                 value: value.clone_shared(cache),
                 clock: clock.clone(),
             },
+            LoweringExpressionNode::Property { release, arguments } => {
+                LoweringExpressionNode::Property {
+                    release: release.clone(),
+                    arguments: arguments
+                        .iter()
+                        .map(|argument| argument.clone_shared(cache))
+                        .collect(),
+                }
+            }
             LoweringExpressionNode::PureOperator {
                 definition,
                 arguments,

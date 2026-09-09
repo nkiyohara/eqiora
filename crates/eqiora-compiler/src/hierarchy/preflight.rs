@@ -1,5 +1,6 @@
 mod interfaces;
 mod notation;
+mod property;
 pub(crate) use interfaces::model_items as owned_model_items;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -134,6 +135,9 @@ impl DefinitionKey {
 }
 
 pub(super) struct Elaborator<'a> {
+    pub(super) property_catalog: std::sync::Arc<crate::property::catalog::Catalog>,
+    pub(super) property_aliases: Vec<crate::resolved::ResolvedAlias>,
+    pub(super) property_local_module: Option<crate::resolved::CompilationModuleId>,
     pub(super) selected_models: BTreeSet<DefinitionKey>,
     pub(super) selected_boundary_sides:
         BTreeMap<(DefinitionKey, String), (usize, eqiora_schema::kernel::BoundarySide)>,
@@ -228,6 +232,9 @@ impl<'a> Elaborator<'a> {
                 native.and_then(|native| native.nominal_identity(name))
             })?;
         let elaborator = Self {
+            property_catalog: std::sync::Arc::new(Default::default()),
+            property_aliases: Vec::new(),
+            property_local_module: None,
             selected_boundary_sides: BTreeMap::new(),
             selected_models: BTreeSet::new(),
             selected_component: None,
@@ -321,6 +328,9 @@ impl<'a> Elaborator<'a> {
             })
             .collect();
         let elaborator = Self {
+            property_catalog: analysis.property_catalog.clone(),
+            property_aliases: analysis.aliases.to_vec(),
+            property_local_module: None,
             selected_boundary_sides: BTreeMap::new(),
             selected_models: BTreeSet::new(),
             selected_component: None,

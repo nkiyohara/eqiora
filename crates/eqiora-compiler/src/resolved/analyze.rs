@@ -61,6 +61,8 @@ fn analyze_inner(
         return Ok(None);
     }
 
+    source::validate_array_closures(&units).map_err(|diagnostic| vec![diagnostic])?;
+
     let authored_imports = units.iter().try_fold(0_usize, |count, unit| {
         count.checked_add(unit.document.imports().len())
     });
@@ -152,6 +154,7 @@ fn analyze_inner(
         declaration_locations: Box::new([]),
         reference_locations: Box::new([]),
         property_bindings: Box::new([]),
+        property_catalog: std::sync::Arc::new(Default::default()),
     };
     let canonical_units = analysis.units.clone();
     crate::enumeration::bind_resolved(&mut analysis.units, &analysis.aliases)?;
@@ -160,8 +163,15 @@ fn analyze_inner(
     for unit in &mut analysis.units {
         unit.authored_document = std::sync::Arc::new(unit.document.clone());
     }
-    analysis.property_bindings =
-        crate::property::validate_and_elaborate(&mut analysis.units, &analysis.aliases)?;
+    analysis.property_catalog = std::sync::Arc::new(crate::property::catalog::build(
+        &analysis.units,
+        &analysis.aliases,
+    )?);
+    analysis.property_bindings = crate::property::validate_bindings(
+        &analysis.units,
+        &analysis.aliases,
+        &analysis.property_catalog,
+    )?;
     if is_cancelled() {
         return Ok(None);
     }

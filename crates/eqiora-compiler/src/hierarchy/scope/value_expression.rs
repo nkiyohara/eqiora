@@ -266,6 +266,9 @@ pub(in crate::hierarchy) fn rewrite_expression_with_boundary_member(
             LoweringExpression::name(name.clone(), expression.range())
         }
         ExprKind::Name(name) => {
+            if let Some(value) = scope.property_value(file, name, expression.range())? {
+                return Ok(value);
+            }
             if let Some(value) = scope.value_expression(name) {
                 return Ok(value);
             }

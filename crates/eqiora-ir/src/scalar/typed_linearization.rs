@@ -3,7 +3,7 @@ use super::*;
 use eqiora_core::ValueLiteral;
 
 impl ScalarOperatorIr {
-    /// Bind a typed real scalar point, rejecting demanded branch/domain boundaries.
+    /// Bind a typed real scalar point, rejecting demanded active-input boundaries.
     /// Inactive branches are type-checked but never evaluated or differentiated.
     /// All input symbols and differentiation roles retain their original order.
     ///
@@ -29,6 +29,7 @@ impl ScalarOperatorIr {
             .collect::<HashMap<_, _>>();
         let (_, trace) =
             projected.evaluate_trace(&roots, &mut |symbol| point.get(&symbol).cloned())?;
+        let dependencies = projected.active_input_dependencies(&trace, roles)?;
         for (index, node) in projected.instructions.iter().enumerate() {
             if trace[index].is_none() {
                 continue;
@@ -37,7 +38,8 @@ impl ScalarOperatorIr {
                 Instruction::Compare(_, a, b) => {
                     let a = trace[a.0 as usize].as_ref().expect("demanded comparison");
                     let b = trace[b.0 as usize].as_ref().expect("demanded comparison");
-                    if a.real_scalar_value().is_some()
+                    if dependencies[index]
+                        && a.real_scalar_value().is_some()
                         && b.real_scalar_value().is_some()
                         && a.checked_equal(b)
                             .map_err(|e| ir_builder_error(e.to_string()))?
@@ -85,6 +87,67 @@ impl ScalarOperatorIr {
             unknown_dimension,
             parameter_dimension,
         })
+    }
+
+    // A branch boundary constrains derivatives only when its predicate can
+    // vary with this admitted input map. Frozen values still pass ordinary
+    // domain validation in evaluate_trace, but contribute no derivative inputs.
+    fn active_input_dependencies(
+        &self,
+        trace: &[Option<ValueLiteral>],
+        roles: &[DifferentiationRole],
+    ) -> Result<Vec<bool>, Diagnostic> {
+        let mut dependencies = Vec::with_capacity(self.instructions.len());
+        for (index, node) in self.instructions.iter().enumerate() {
+            let depends = if trace[index].is_none() {
+                false
+            } else {
+                let at = |id: ValueId| dependencies[id.0 as usize];
+                match *node {
+                    Instruction::Constant(_) | Instruction::TypedConstant(_) => false,
+                    Instruction::Read(slot) => {
+                        roles[slot.0 as usize] != DifferentiationRole::Frozen
+                    }
+                    Instruction::Neg(a)
+                    | Instruction::PowI(a, _)
+                    | Instruction::Sqrt(a)
+                    | Instruction::Not(a) => at(a),
+                    Instruction::Add(a, b)
+                    | Instruction::Sub(a, b)
+                    | Instruction::Mul(a, b)
+                    | Instruction::Div(a, b)
+                    | Instruction::Compare(_, a, b)
+                    | Instruction::And(a, b)
+                    | Instruction::Or(a, b) => at(a) || at(b),
+                    Instruction::Require { condition, value } => at(condition) || at(value),
+                    Instruction::Select {
+                        condition,
+                        then_value,
+                        else_value,
+                    } => {
+                        at(condition)
+                            || at(
+                                if trace[condition.0 as usize]
+                                    .as_ref()
+                                    .and_then(ValueLiteral::as_bool)
+                                    .expect("typed demanded selector")
+                                {
+                                    then_value
+                                } else {
+                                    else_value
+                                },
+                            )
+                    }
+                    _ => {
+                        return Err(ir_builder_error(
+                            "active derivative dependency is outside the real scalar profile",
+                        ));
+                    }
+                }
+            };
+            dependencies.push(depends);
+        }
+        Ok(dependencies)
     }
 
     fn active_program(&self, trace: &[Option<ValueLiteral>]) -> Result<Self, Diagnostic> {

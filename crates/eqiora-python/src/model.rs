@@ -74,7 +74,10 @@ pub(crate) struct PyPropertyBinding {
     release: String,
     component: String,
     requirement: String,
-    normalized_value: eqiora::ValueLiteral,
+    meaning: eqiora::kernel::PropertyMeaning,
+    inputs: Vec<String>,
+    branch: Option<String>,
+    derivatives: String,
     validity: String,
     citation: String,
     license: String,
@@ -109,14 +112,38 @@ impl PyPropertyBinding {
 
     #[getter]
     fn normalized_value(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        crate::modeling::value_literal::to_python(py, &self.normalized_value)
+        match self.meaning.constant_value() {
+            Some(value) => crate::modeling::value_literal::to_python(py, value),
+            None => Ok(py.None()),
+        }
     }
 
     #[getter]
     fn value_type(&self) -> crate::modeling::PyValueType {
         crate::modeling::PyValueType {
-            value: self.normalized_value.value_type().clone(),
+            value: self
+                .meaning
+                .value_type()
+                .expect("admitted complete property type"),
         }
+    }
+
+    #[getter]
+    fn inputs(&self) -> Vec<String> {
+        self.inputs.clone()
+    }
+    #[getter]
+    fn branch(&self) -> Option<&str> {
+        self.branch.as_deref()
+    }
+    #[getter]
+    fn derivatives(&self) -> &str {
+        &self.derivatives
+    }
+
+    #[getter]
+    fn first_partials(&self) -> bool {
+        self.derivatives != "value_only"
     }
 
     #[getter]
@@ -142,7 +169,7 @@ impl PyPropertyBinding {
             self.release,
             self.component,
             self.requirement,
-            self.normalized_value,
+            self.meaning,
             self.validity,
             self.citation,
             self.license,
@@ -376,6 +403,55 @@ pub(crate) struct PyModel {
     _geometry: Option<Py<PyGeometry>>,
 }
 
+fn property_bindings<'a>(
+    nodes: impl Iterator<Item = &'a eqiora::kernel::KernelNode>,
+) -> Box<[PyPropertyBinding]> {
+    nodes
+        .filter_map(|node| match node {
+            eqiora::kernel::KernelNode::Relation(relation) => Some(relation),
+            _ => None,
+        })
+        .flat_map(|relation| {
+            relation
+                .expression()
+                .properties()
+                .iter()
+                .map(move |(root, release)| {
+                    let (component, requirement) = release
+                        .consumer()
+                        .map(|(component, requirement)| {
+                            (component.to_owned(), requirement.to_owned())
+                        })
+                        .unwrap_or_else(|| {
+                            (
+                                relation.id().erase().ulid().to_string(),
+                                format!("expression.{}", root.index()),
+                            )
+                        });
+                    PyPropertyBinding {
+                        composition: release.composition().map(str::to_owned),
+                        contract: release.contract().to_owned(),
+                        release: release.release().to_owned(),
+                        component,
+                        requirement,
+                        meaning: release.meaning().clone(),
+                        inputs: release.inputs().to_vec(),
+                        branch: release.branch().map(str::to_owned),
+                        derivatives: release.derivatives().as_str().to_owned(),
+                        validity: if release.guarded() {
+                            "checked"
+                        } else {
+                            "unconditional"
+                        }
+                        .to_owned(),
+                        citation: release.citation().to_owned(),
+                        license: release.license().to_owned(),
+                    }
+                })
+        })
+        .collect()
+}
+
 impl PyModel {
     pub(crate) fn package_compilation_digest_value(&self) -> Result<Option<String>, Diagnostic> {
         self.package_compilation
@@ -398,6 +474,7 @@ impl PyModel {
             .canonical_json()
             .and_then(|bytes| ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default()))
             .map_err(|diagnostic| internal_diagnostic_error(py, &[diagnostic]))?;
+        let property_bindings = property_bindings(document.program().nodes());
         Ok(Self {
             revision: PyRevision {
                 model_id: reference.model().ulid().to_string(),
@@ -407,7 +484,7 @@ impl PyModel {
             document: Some(document),
             artifact,
             package_compilation: None,
-            property_bindings: Box::new([]),
+            property_bindings,
             _geometry: None,
         })
     }
@@ -426,6 +503,17 @@ impl PyModel {
         let reference = artifact
             .artifact_reference()
             .map_err(|diagnostic| internal_diagnostic_error(py, &[diagnostic]))?;
+        // Typed artifact reconstruction authenticates expression metadata while
+        // preserving deferred admission of an external Geometry closure.
+        let (transaction, _) = artifact
+            .to_transaction()
+            .map_err(|diagnostics| internal_diagnostic_error(py, &diagnostics))?;
+        let property_bindings = property_bindings(transaction.ops().iter().filter_map(
+            |operation| match operation {
+                Op::DefineKernelNode { node } => Some(node),
+                _ => None,
+            },
+        ));
         Ok(Self {
             revision: PyRevision {
                 model_id: reference.model().ulid().to_string(),
@@ -435,42 +523,15 @@ impl PyModel {
             document: None,
             artifact,
             package_compilation: None,
-            property_bindings: Box::new([]),
+            property_bindings,
             _geometry: None,
         })
     }
 
     pub(crate) fn from_packaged(py: Python<'_>, packaged: PackagedModelDocument) -> PyResult<Self> {
         let compilation = packaged.compilation().clone();
-        let property_bindings = packaged
-            .property_bindings()
-            .map(
-                |(
-                    composition,
-                    contract,
-                    release,
-                    component,
-                    requirement,
-                    normalized_value,
-                    validity,
-                    citation,
-                    license,
-                )| PyPropertyBinding {
-                    composition: composition.map(str::to_owned),
-                    contract: contract.to_owned(),
-                    release: release.to_owned(),
-                    component: component.to_owned(),
-                    requirement: requirement.to_owned(),
-                    normalized_value: normalized_value.clone(),
-                    validity: validity.to_owned(),
-                    citation: citation.to_owned(),
-                    license: license.to_owned(),
-                },
-            )
-            .collect();
         let mut model = Self::from_document(py, packaged.model().clone())?;
         model.package_compilation = Some(compilation);
-        model.property_bindings = property_bindings;
         Ok(model)
     }
 

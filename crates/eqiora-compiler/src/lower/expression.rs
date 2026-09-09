@@ -1,3 +1,4 @@
+mod property;
 mod pure_operator;
 mod record;
 pub(super) use record::lower_record;
@@ -419,6 +420,9 @@ impl ExpressionLowerer<'_> {
             } => self.lower_binary(expression, *operator, left, right),
             LoweringExpressionNode::Call { callee, argument } => {
                 self.lower_call(expression, callee, argument)
+            }
+            LoweringExpressionNode::Property { release, arguments } => {
+                self.lower_property(expression, release, arguments)
             }
             LoweringExpressionNode::PureOperator {
                 definition,
