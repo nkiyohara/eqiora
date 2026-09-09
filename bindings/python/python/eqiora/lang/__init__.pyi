@@ -447,6 +447,11 @@ class ModuleRef:
 
     def dimension(self, name: str) -> Dimension: ...
     def component(self, name: str) -> ComponentRef: ...
+    def operator(self, name: str) -> Operator:
+        """Refer to one public pure operator in the exact imported Module.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::ModuleRef.operator``.
+        """
     def connector(self, name: str) -> Connector | FieldConnector:
         """Refer to one public nominal connector in the exact imported Module.
 

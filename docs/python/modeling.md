@@ -719,6 +719,16 @@ ports keep their declaring connector's nominal identity, including boundary
 family selection binders. A locally declared connector with equal quantity types
 is a distinct connector.
 
+`ModuleRef.operator(name)` returns an immutable callable for a public pure operator
+in the exact imported Module. Calls supply every formal by name and preserve the
+provider's declared argument order and types. For example,
+`main.import_module("laws", provider).operator("conductivity")(x=temperature,
+k0=base, a=slope)` authors a qualified call in `main`; it does not copy the
+provider's declaration. Explicit parsed Modules and local `.eqi` imports use the
+same path. The existing compiler checks units, purity, and bounded definition
+closure. Numerical execution remains within the admitted real scalar profile;
+this adapter adds no source partial-derivative API or complex execution.
+
 ## Compile one exact locked package Model or Component
 
 Python can bind an existing content-addressed package's public Component to

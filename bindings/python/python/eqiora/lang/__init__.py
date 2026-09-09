@@ -341,7 +341,7 @@ class _EnumMember(Expression):
 class Operator:
     """An immutable typed operator declared by one Module; call with named arguments."""
 
-    __slots__ = ("_source", "_name", "_inputs", "_result", "_body", "_doc")
+    __slots__ = ("_owner", "_name", "_inputs", "_result", "_body", "_doc")
 
     def __init__(self, _token: object = _MISSING, *, _source: Module | None = None,
                  _name: str = "", _inputs: tuple[tuple[str, str], ...] = (),
@@ -349,7 +349,8 @@ class Operator:
                  _doc: tuple[str, ...] = ()) -> None:
         if _token is not _CREATE:
             raise TypeError("operators are created by Module.operator()")
-        for key, value in (("_source", _source), ("_name", _name), ("_inputs", _inputs),
+        for key, value in (("_owner", None if _source is None else _source._owner),
+                           ("_name", _name), ("_inputs", _inputs),
                            ("_result", _result), ("_body", _body), ("_doc", _doc)):
             object.__setattr__(self, key, value)
 
@@ -363,7 +364,7 @@ class Operator:
         values = tuple(_expression(arguments[name]) for name in names)
         owner = None
         for value in values:
-            if value._sources - {self._source._owner}:
+            if value._sources - {self._owner}:
                 raise ModuleError("operator arguments must belong to this Module")
             if owner is not None and value._owner is not None and owner is not value._owner:
                 raise ModuleError("operator arguments must belong to the same Component")
@@ -375,7 +376,7 @@ class Operator:
             raise ModuleError("operator call exceeds the expression depth or node limit")
         return Expression(_CREATE, _Ast.call(self._name, [value._ast for value in values], names), owner,
                           _binders=frozenset().union(*(value._binders for value in values)),
-                          _sources=frozenset((self._source._owner,)))
+                          _sources=frozenset((self._owner,)))
 
 
 class _Math:
@@ -1809,6 +1810,11 @@ class ModuleRef:
         """Resolve one public imported structural dimension through the compiler."""
         from . import _dimensions
         return _dimensions.imported(self, name)
+
+    def operator(self, name: str) -> Operator:
+        """Call one public pure operator from this exact imported Module."""
+        from ._import_operators import operator
+        return operator(self, name)
 
     def connector(self, name: str) -> Connector:
         """Refer to one public nominal connector in this exact imported Module."""

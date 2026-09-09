@@ -126,3 +126,36 @@ pub(super) fn supports(module: &Module, name: &str) -> PyResult<Vec<SupportDescr
         })
         .collect()
 }
+
+/// Signature metadata only: bodies remain owned by the exact provider module.
+pub(super) type OperatorDescriptor = (Vec<(String, String)>, String);
+
+pub(super) fn operator(module: &Module, name: &str) -> PyResult<OperatorDescriptor> {
+    use eqiora::language::PureValueClassSyntax;
+    fn syntax(value: &PureValueClassSyntax) -> PyResult<String> {
+        match value {
+            PureValueClassSyntax::Typed(value) => Ok(value.to_source()),
+            PureValueClassSyntax::Scalar => Ok("scalar".to_owned()),
+            _ => Err(syntax_error("unsupported imported operator value class")),
+        }
+    }
+    let mut found = module
+        .document()
+        .pure_operators()
+        .iter()
+        .filter(|value| value.name() == name);
+    let value = found
+        .next()
+        .ok_or_else(|| syntax_error("import requires one public operator"))?;
+    if found.next().is_some() || value.visibility() != VisibilitySyntax::Public {
+        return Err(syntax_error("import requires one public operator"));
+    }
+    Ok((
+        value
+            .formals()
+            .iter()
+            .map(|formal| Ok((formal.name().to_owned(), syntax(formal.value_class())?)))
+            .collect::<PyResult<_>>()?,
+        syntax(value.result())?,
+    ))
+}

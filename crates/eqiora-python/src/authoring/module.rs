@@ -249,6 +249,10 @@ impl PyAstModule {
             .collect::<PyResult<_>>()
     }
 
+    fn operator_descriptor(&self, name: &str) -> PyResult<super::imports::OperatorDescriptor> {
+        super::imports::operator(&self.value, name)
+    }
+
     fn connector_descriptor(&self, name: &str, public: bool) -> PyResult<(String, String, String)> {
         super::imports::connector(&self.value, name, public)
     }
