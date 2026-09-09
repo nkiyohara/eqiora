@@ -65,6 +65,18 @@ pub(super) fn _compile_module(
                     )]
                 };
                 let entry = entry
+                    .or_else(|| {
+                        let [(owner, name, module)] = units.as_slice() else {
+                            return None;
+                        };
+                        if owner != &package || name != &root {
+                            return None;
+                        }
+                        let [model] = module.document().models() else {
+                            return None;
+                        };
+                        Some(model.name().to_owned())
+                    })
                     .ok_or_else(|| error("multi-module compilation requires an explicit entry"))?;
                 let namespace =
                     CompilationNamespaceId::new([package]).map_err(|error| vec![error])?;

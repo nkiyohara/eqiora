@@ -67,3 +67,9 @@ def test_duplicate_module_handles_cannot_hide_conflicting_attached_transitive_so
     root.model("Main")
     with pytest.raises(eqiora.lang.ModuleError, match="conflicting contents"):
         eqiora.compile(source=root, entry="Main")
+
+
+def test_single_package_module_uses_the_existing_unique_model_selection():
+    module = eqiora.Module.parse("main", "model Main() {parameter value:1=1; relation law {value-1=0;}}",
+                                 package="org.example.Application")
+    assert eqiora.compile(source=module).to_bytes() == eqiora.compile(source=module, entry="Main").to_bytes()
