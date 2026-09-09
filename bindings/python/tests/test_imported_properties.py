@@ -72,9 +72,13 @@ public dimension Distance = m;
 public dimension Duration = s;
 public property contract Displacement(input elapsed: Duration): Distance {
   derivatives first_partials;
+  branch uniform;
 }
 public property release Uniform: Displacement {
   analytic { value = 2[m / s] * elapsed; source_unit: m = 1; }
+  validity unconditional;
+  outside reject;
+  branch uniform;
   citation org.example.motion;
   license spdx.CC0_1_0;
 }

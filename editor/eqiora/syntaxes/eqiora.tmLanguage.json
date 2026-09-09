@@ -48,7 +48,7 @@
     "keywords": {
       "patterns": [{
         "name": "keyword.control.eqiora",
-        "match": "\\b(?:across|ambient_dimension|as|at|axis|boundaries|boundary|case|citation|clock|complete_exterior|component|components|composition|connect|connector|contract|crossing|delta|derivatives|dimension|direction|discrete|domain|else|enum|event|field|flux(?!\\s*\\()|for|form|frame|holding|if|implements|import|in|initial|input|instance|license|let|lower|material|model|observable|on|operator|orientation|output|over|pairing|parameter|parent|period|periodic|phase|port|primal|private|property|public|pure|rational|record|relation|release|scalar|shape|side|signal|source_unit|spatial|state|support|then|through|trace(?!\\s*\\()|unconditional|upper|validity|value|value_only|variable|volume|wrt)\\b"
+        "match": "\\b(?:across|ambient_dimension|analytic|as|at|axis|boundaries|boundary|branch|case|citation|clock|complete_exterior|component|components|composition|connect|connector|contract|crossing|data|delta|derivatives|dimension|direction|discrete|domain|else|endpoint_derivative|enum|event|field|first_open_intervals|first_partials|flux(?!\\s*\\()|for|form|frame|holding|identity|if|implements|import|in|initial|input|instance|interpolation|knot_derivative|license|let|lower|material|missing|model|observable|on|operator|orientation|outside|output|over|pairing|parameter|parent|period|periodic|phase|piecewise_affine|port|preprocessing|primal|private|property|public|pure|rational|record|reject|relation|release|scalar|shape|side|signal|source_unit|spatial|state|support|table|then|through|trace(?!\\s*\\()|unconditional|upper|validity|value|value_only|variable|volume|wrt)\\b"
       }]
     },
     "functions": {
