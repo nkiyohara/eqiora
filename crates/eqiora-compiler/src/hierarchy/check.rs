@@ -509,7 +509,7 @@ fn validate_definition_bodies_and_parameters(
                     occurrences_valid = false;
                     continue;
                 };
-                let support_bindings = match resolve_instance_support_bindings(
+                let support_bindings = match super::supports::resolve_definition_support_bindings(
                     definition.file,
                     child.declaration,
                     child_supports,
@@ -570,6 +570,11 @@ fn validate_definition_bodies_and_parameters(
                         eqiora_schema::kernel::typing::SpatialSupport::Interface { .. } => None,
                     },
                     |name| model_boundary_sets.get(name).cloned(),
+                    |name| {
+                        !elaborator.selected_models.contains(key) && definition.signature().iter().any(|item| {
+                        matches!(item, eqiora_lang::SignatureItem::Support(slot) if slot.name() == name && matches!(slot.syntax(), eqiora_lang::SupportSlotSyntax::Boundary { .. }))
+                    })
+                    },
                     &mut complete_exterior_budget,
                 ) {
                     Ok(bindings) => Some(bindings),
