@@ -194,8 +194,12 @@ pub(crate) fn bind_resolved(
         .iter()
         .map(|unit| {
             let namespace = resolved_namespace(&unit.module).map_err(|e| vec![e])?;
-            declarations(&unit.file, &unit.document, &namespace, |_| None)
-                .map(|values| (unit.module.clone(), values))
+            declarations(&unit.file, &unit.document, &namespace, |name| {
+                unit.native
+                    .as_ref()
+                    .and_then(|module| module.nominal_identity(name))
+            })
+            .map(|values| (unit.module.clone(), values))
         })
         .collect::<Result<BTreeMap<_, _>, _>>()?;
     for unit in units {

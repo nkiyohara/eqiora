@@ -73,17 +73,26 @@ pub(super) fn local_document(
 }
 
 pub(crate) fn native_document(
-    native: &eqiora_lang::NativeModelAst,
+    native: &eqiora_lang::Module,
+    entry: Option<&str>,
+    bindings: &[(&str, StaticBindingValue<'_>)],
 ) -> Result<CompiledModel, Vec<Diagnostic>> {
+    let bytes = crate::source_identity::module_input_bytes(native).map_err(|error| vec![error])?;
     let mut models = local_document_in(
-        "<native>",
-        0,
+        native.source_file().unwrap_or("<module>"),
+        bytes,
         native.document().clone(),
-        Some(native.model().name()),
-        &[],
+        entry,
+        bindings,
         HierarchyLimits::default(),
-        Some(native),
+        native.has_native_metadata().then_some(native),
     )?;
+    if models.len() != 1 {
+        return Err(vec![Diagnostic::error(
+            codes::LANGUAGE_LOWERING_ERROR,
+            "Module compilation requires one selected Model",
+        )]);
+    }
     Ok(models.remove(0))
 }
 
@@ -94,7 +103,7 @@ fn local_document_in(
     entry: Option<&str>,
     bindings: &[(&str, StaticBindingValue<'_>)],
     limits: HierarchyLimits,
-    native: Option<&eqiora_lang::NativeModelAst>,
+    native: Option<&eqiora_lang::Module>,
 ) -> Result<Vec<CompiledModel>, Vec<Diagnostic>> {
     source_budget(file, source_bytes, limits)?;
     let identity = LocalSourceIdentity::from_document(&document).map_err(|error| vec![error])?;
@@ -128,6 +137,7 @@ fn local_document_in(
         ModuleName::new(["main"]).map_err(|error| vec![error])?,
     );
     let mut units = vec![AnalyzedSourceUnit {
+        native: native.cloned().map(std::sync::Arc::new),
         module: module.clone(),
         file: file.to_owned(),
         source_bytes,

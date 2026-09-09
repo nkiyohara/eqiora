@@ -1,219 +1,164 @@
-//! Projection of native expressions into the shared AST.
-
+//! Native handles construct the same Expr algebra as parsed and Python modules.
 use super::*;
+use std::sync::Arc;
 
+#[derive(Debug, Clone)]
+pub(super) enum NativeReference {
+    EnumValue(eqiora_core::ValueLiteral),
+    Value(DraftReference),
+    Port(DraftPortReference),
+}
+#[derive(Debug, Clone, Copy)]
+pub(super) enum DraftExpressionReference<'a> {
+    EnumValue(&'a eqiora_core::ValueLiteral),
+    Value(&'a DraftReference),
+    Port(&'a DraftPortReference),
+}
 impl DraftExpression {
+    pub(super) fn failed(message: &str) -> Self {
+        Self {
+            syntax: Err(crate::AstConstructionError::new(message)),
+            references: Arc::new(Vec::new()),
+            depth: 0,
+            nodes: 0,
+        }
+    }
+    pub(super) fn leaf(kind: ExprKind) -> Self {
+        Self {
+            syntax: Ok(Arc::new(Expr {
+                kind,
+                range: TextRange::default(),
+                resolved_enum: None,
+                resolved_nominal: None,
+            })),
+            references: Arc::new(Vec::new()),
+            depth: 1,
+            nodes: 1,
+        }
+    }
+    pub(super) fn compose(children: Vec<Self>, make: impl FnOnce(Vec<Expr>) -> ExprKind) -> Self {
+        let mut depth = 1;
+        let mut nodes = 1usize;
+        for child in &children {
+            if let Err(error) = &child.syntax {
+                return Self::failed(error.message());
+            }
+            depth = depth.max(child.depth.saturating_add(1));
+            let Some(count) = nodes.checked_add(child.nodes) else {
+                return Self::failed("native expression node count overflows");
+            };
+            nodes = count;
+            if depth > crate::SourceAstFactory::MAX_EXPRESSION_DEPTH
+                || nodes > crate::SourceAstFactory::MAX_EXPRESSION_NODES
+            {
+                return Self::failed(
+                    "native expression exceeds the shared AST depth or node limit",
+                );
+            }
+        }
+        // Bounds precede subtree copies and metadata concatenation. A handle
+        // clone itself only clones Arcs, including for shared subexpressions.
+        let mut references = Vec::new();
+        let values = children
+            .into_iter()
+            .map(|child| {
+                references.extend(child.references.iter().cloned());
+                Arc::unwrap_or_clone(child.syntax.expect("checked child"))
+            })
+            .collect();
+        let mut value = Self::leaf(make(values));
+        value.references = Arc::new(references);
+        value.depth = depth;
+        value.nodes = nodes;
+        value
+    }
+    pub(super) fn call(name: &str, children: Vec<Self>) -> Self {
+        Self::compose(children, |values| ExprKind::Call {
+            callee: NamePath::from_parsed_segments(
+                name.split('.').map(str::to_owned),
+                TextRange::default(),
+            ),
+            arguments: crate::CallArguments::Positional(values),
+        })
+    }
+    pub(super) fn unary(self, op: UnaryOp) -> Self {
+        Self::compose(vec![self], |mut values| ExprKind::Unary {
+            op,
+            value: Box::new(values.pop().expect("one operand")),
+        })
+    }
     /// Construct an ordered channel-array expression.
     #[must_use]
     pub fn array(values: impl IntoIterator<Item = Self>) -> Self {
-        Self {
-            kind: DraftExpressionKind::Array(values.into_iter().collect()),
+        let mut children = Vec::new();
+        let mut nodes = 1usize;
+        for value in values {
+            if let Err(error) = &value.syntax {
+                return Self::failed(error.message());
+            }
+            let Some(count) = nodes.checked_add(value.nodes) else {
+                return Self::failed("native array node count overflows");
+            };
+            nodes = count;
+            if nodes > crate::SourceAstFactory::MAX_EXPRESSION_NODES {
+                return Self::failed("native array exceeds the shared AST node limit");
+            }
+            children.push(value);
         }
+        if children.is_empty() {
+            return Self::failed("native array literal must not be empty");
+        }
+        Self::compose(children, ExprKind::Array)
     }
-
     /// Select a static channel index. The compiler checks type and bounds.
     #[must_use]
     pub fn index(self, index: u32) -> Self {
-        Self {
-            kind: DraftExpressionKind::Index {
-                value: Box::new(self),
-                index,
+        Self::compose(
+            vec![
+                self,
+                Self::constant(
+                    crate::DecimalLiteral::parse(&index.to_string()).expect("u32 ordinal"),
+                ),
+            ],
+            |mut values| {
+                let index = values.pop().expect("index");
+                let value = values.pop().expect("array");
+                ExprKind::Index {
+                    value: Box::new(value),
+                    index: Box::new(index),
+                }
             },
-        }
-    }
-
-    /// Select an immutable half-open channel slice with explicit static bounds.
-    /// The compiler requires a nonempty interval within the array extent.
-    #[must_use]
-    pub fn slice(self, lower: u32, upper: u32) -> Self {
-        Self {
-            kind: DraftExpressionKind::Slice {
-                value: Box::new(self),
-                lower,
-                upper,
-            },
-        }
-    }
-}
-
-impl From<&DraftConservingPort> for DraftPortReference {
-    fn from(port: &DraftConservingPort) -> Self {
-        Self {
-            symbol: port.symbol.clone(),
-            name: port.name.clone(),
-            across_name: port.domain.across_name.clone(),
-            through_name: port.domain.through_name.clone(),
-        }
-    }
-}
-
-impl DraftExpression {
-    /// Project an authored expression into the shared AST with synthetic ranges.
-    #[doc(hidden)]
-    /// # Errors
-    /// Rejects invalid literal syntax and enum members without exact lexical declarations.
-    pub fn source_ast<'a>(
-        &self,
-        mut resolve: impl FnMut(eqiora_core::RawId) -> Option<NamePath>,
-        mut resolve_enum: impl FnMut(eqiora_core::RawId) -> Option<&'a eqiora_schema::kernel::EnumDef>,
-    ) -> Result<Expr, crate::AstConstructionError> {
-        if self.contains_invalid_literal() {
-            return Err(crate::AstConstructionError::new(
-                "invalid native expression literal",
-            ));
-        }
-        self.ast(
-            &GraphPath::new(["argument".to_owned()]),
-            &mut RangeAllocator::default(),
-            &mut HashMap::new(),
-            &mut resolve,
-            &mut resolve_enum,
         )
     }
-
-    pub(super) fn ast<'a>(
-        &self,
-        path: &GraphPath,
-        ranges: &mut RangeAllocator,
-        paths: &mut HashMap<TextRange, GraphPath>,
-        resolve: &mut dyn FnMut(eqiora_core::RawId) -> Option<NamePath>,
-        resolve_enum: &mut dyn FnMut(
-            eqiora_core::RawId,
-        ) -> Option<&'a eqiora_schema::kernel::EnumDef>,
-    ) -> Result<Expr, crate::AstConstructionError> {
-        let kind = match &self.kind {
-            DraftExpressionKind::EnumValue(value) => {
-                return crate::SourceAstFactory::value_literal(
-                    value,
-                    None,
-                    ranges.allocate(path, paths),
-                    resolve,
-                    resolve_enum,
-                );
-            }
-            DraftExpressionKind::Select {
-                condition,
-                then_value,
-                else_value,
-            } => ExprKind::Select {
-                condition: Box::new(condition.ast(path, ranges, paths, resolve, resolve_enum)?),
-                then_value: Box::new(then_value.ast(path, ranges, paths, resolve, resolve_enum)?),
-                else_value: Box::new(else_value.ast(path, ranges, paths, resolve, resolve_enum)?),
-            },
-            DraftExpressionKind::Boolean(value) => ExprKind::Boolean(*value),
-            DraftExpressionKind::Constant(value) => ExprKind::Number(value.clone()),
-            DraftExpressionKind::Complex(real, imaginary) => ExprKind::Call {
-                callee: NamePath::from_parsed_segments(
-                    vec!["math".to_owned(), "complex".to_owned()],
-                    ranges.allocate(path, paths),
+    /// Select an immutable nonempty half-open channel slice.
+    #[must_use]
+    pub fn slice(self, lower: u32, upper: u32) -> Self {
+        Self::compose(
+            vec![
+                self,
+                Self::constant(
+                    crate::DecimalLiteral::parse(&lower.to_string()).expect("u32 ordinal"),
                 ),
-                arguments: crate::CallArguments::Positional(
-                    [*real, *imaginary]
-                        .into_iter()
-                        .map(|number| Expr {
-                            resolved_enum: None,
-                            resolved_nominal: None,
-                            kind: ExprKind::Number(
-                                crate::DecimalLiteral::from_f64(number)
-                                    .expect("validated native literal"),
-                            ),
-                            range: ranges.allocate(path, paths),
-                        })
-                        .collect(),
+                Self::constant(
+                    crate::DecimalLiteral::parse(&upper.to_string()).expect("u32 ordinal"),
                 ),
+            ],
+            |mut values| {
+                let upper = values.pop().expect("upper");
+                let lower = values.pop().expect("lower");
+                let value = values.pop().expect("array");
+                ExprKind::Slice {
+                    value: Box::new(value),
+                    lower: Box::new(lower),
+                    upper: Box::new(upper),
+                }
             },
-            DraftExpressionKind::Array(values) => ExprKind::Array(
-                values
-                    .iter()
-                    .map(|value| value.ast(path, ranges, paths, resolve, resolve_enum))
-                    .collect::<Result<_, _>>()?,
-            ),
-            DraftExpressionKind::Index { value, index } => ExprKind::Index {
-                value: Box::new(value.ast(path, ranges, paths, resolve, resolve_enum)?),
-                index: Box::new(Expr {
-                    resolved_enum: None,
-                    resolved_nominal: None,
-                    kind: ExprKind::Number(
-                        crate::DecimalLiteral::parse(&index.to_string()).expect("u32 index"),
-                    ),
-                    range: ranges.allocate(path, paths),
-                }),
-            },
-            DraftExpressionKind::Slice {
-                value,
-                lower,
-                upper,
-            } => ExprKind::Slice {
-                value: Box::new(value.ast(path, ranges, paths, resolve, resolve_enum)?),
-                lower: Box::new(Expr {
-                    resolved_enum: None,
-                    resolved_nominal: None,
-                    kind: ExprKind::Number(
-                        crate::DecimalLiteral::parse(&lower.to_string()).expect("u32 bound"),
-                    ),
-                    range: ranges.allocate(path, paths),
-                }),
-                upper: Box::new(Expr {
-                    resolved_enum: None,
-                    resolved_nominal: None,
-                    kind: ExprKind::Number(
-                        crate::DecimalLiteral::parse(&upper.to_string()).expect("u32 bound"),
-                    ),
-                    range: ranges.allocate(path, paths),
-                }),
-            },
-            DraftExpressionKind::Reference(reference) => ExprKind::Name(reference.name.clone()),
-            DraftExpressionKind::Derivative(reference) => ExprKind::Call {
-                callee: NamePath::single("derivative".to_owned(), ranges.allocate(path, paths)),
-                arguments: crate::CallArguments::Positional(vec![Expr {
-                    resolved_enum: None,
-                    resolved_nominal: None,
-                    kind: ExprKind::Name(reference.name.clone()),
-                    range: ranges.allocate(path, paths),
-                }]),
-            },
-            DraftExpressionKind::Across(reference) => {
-                physical_accessor_ast(&reference.across_name, reference, path, ranges, paths)
-            }
-            DraftExpressionKind::Through(reference) => {
-                physical_accessor_ast(&reference.through_name, reference, path, ranges, paths)
-            }
-            DraftExpressionKind::SpatialCall { operator, value } => ExprKind::Call {
-                callee: NamePath::single(
-                    operator.source_name().to_owned(),
-                    ranges.allocate(path, paths),
-                ),
-                arguments: crate::CallArguments::Positional(vec![value.ast(
-                    path,
-                    ranges,
-                    paths,
-                    resolve,
-                    resolve_enum,
-                )?]),
-            },
-            DraftExpressionKind::Unary { operator, value } => ExprKind::Unary {
-                op: *operator,
-                value: Box::new(value.ast(path, ranges, paths, resolve, resolve_enum)?),
-            },
-            DraftExpressionKind::Binary {
-                operator,
-                left,
-                right,
-            } => ExprKind::Binary {
-                op: *operator,
-                left: Box::new(left.ast(path, ranges, paths, resolve, resolve_enum)?),
-                right: Box::new(right.ast(path, ranges, paths, resolve, resolve_enum)?),
-            },
-        };
-        crate::SourceAstFactory::expression(kind, ranges.allocate(path, paths))
+        )
     }
-}
-
-impl DraftExpression {
-    /// Retain one checked nominal enum member without storing source names.
+    /// Construct one checked enum member, retaining its exact declaration identity.
     ///
     /// # Errors
-    /// Rejects values that are not enum members.
+    /// Rejects literals that are not enum members.
     pub fn enum_value(
         value: eqiora_core::ValueLiteral,
     ) -> Result<Self, crate::AstConstructionError> {
@@ -222,37 +167,40 @@ impl DraftExpression {
                 "enum expression requires an exact enum member",
             ));
         }
-        Ok(Self {
-            kind: DraftExpressionKind::EnumValue(value),
-        })
+        // This existing nominal annotation is authoritative until Module closure
+        // supplies lexical spelling. source_ast must resolve it before emission.
+        let mut result = Self::leaf(ExprKind::Path(NamePath::from_parsed_segments(
+            vec!["_native_enum".into(), "_member".into()],
+            TextRange::default(),
+        )));
+        Arc::make_mut(result.syntax.as_mut().expect("leaf")).resolved_enum =
+            Some(Box::new(value.clone()));
+        result.references = Arc::new(vec![NativeReference::EnumValue(value)]);
+        Ok(result)
     }
     /// Boolean literal with no numeric coercion.
     #[must_use]
-    pub const fn boolean(value: bool) -> Self {
-        Self {
-            kind: DraftExpressionKind::Boolean(value),
-        }
+    pub fn boolean(value: bool) -> Self {
+        Self::leaf(ExprKind::Boolean(value))
     }
-    /// Select one value lazily from a Boolean condition and two authored branches.
+    /// Select one value lazily from a Boolean condition and two branches.
     #[must_use]
     pub fn select(condition: Self, then_value: Self, else_value: Self) -> Self {
-        Self {
-            kind: DraftExpressionKind::Select {
+        Self::compose(vec![condition, then_value, else_value], |mut values| {
+            let else_value = values.pop().expect("else");
+            let then_value = values.pop().expect("then");
+            let condition = values.pop().expect("condition");
+            ExprKind::Select {
                 condition: Box::new(condition),
                 then_value: Box::new(then_value),
                 else_value: Box::new(else_value),
-            },
-        }
+            }
+        })
     }
     /// Boolean negation.
     #[must_use]
     pub fn logical_not(self) -> Self {
-        Self {
-            kind: DraftExpressionKind::Unary {
-                operator: UnaryOp::Not,
-                value: Box::new(self),
-            },
-        }
+        self.unary(UnaryOp::Not)
     }
     /// Construct a `equal` predicate.
     #[must_use]
@@ -294,131 +242,84 @@ impl DraftExpression {
     pub fn logical_or(self, right: Self) -> Self {
         self.binary(BinaryOp::Or, right)
     }
-}
-
-impl DraftExpression {
+    pub(super) fn construction_error(&self) -> Option<&crate::AstConstructionError> {
+        self.syntax.as_ref().err()
+    }
     pub(super) fn references<'a>(&'a self, output: &mut Vec<DraftExpressionReference<'a>>) {
-        match &self.kind {
-            DraftExpressionKind::Select {
-                condition,
-                then_value,
-                else_value,
-            } => {
-                condition.references(output);
-                then_value.references(output);
-                else_value.references(output);
+        output.extend(self.references.iter().map(|reference| match reference {
+            NativeReference::EnumValue(value) => DraftExpressionReference::EnumValue(value),
+            NativeReference::Value(value) => DraftExpressionReference::Value(value),
+            NativeReference::Port(value) => DraftExpressionReference::Port(value),
+        }));
+    }
+    /// Resolve native annotations into the shared lexical Expr graph.
+    #[doc(hidden)]
+    /// # Errors
+    /// Rejects failed construction and enum members without exact declarations.
+    pub fn source_ast<'a>(
+        &self,
+        mut resolve: impl FnMut(eqiora_core::RawId) -> Option<NamePath>,
+        mut resolve_enum: impl FnMut(eqiora_core::RawId) -> Option<&'a eqiora_schema::kernel::EnumDef>,
+    ) -> Result<Expr, crate::AstConstructionError> {
+        self.ast(
+            &GraphPath::new(["argument".to_owned()]),
+            &mut RangeAllocator::default(),
+            &mut HashMap::new(),
+            &mut resolve,
+            &mut resolve_enum,
+        )
+    }
+    pub(super) fn ast<'a>(
+        &self,
+        path: &GraphPath,
+        ranges: &mut RangeAllocator,
+        paths: &mut HashMap<TextRange, GraphPath>,
+        resolve: &mut dyn FnMut(eqiora_core::RawId) -> Option<NamePath>,
+        resolve_enum: &mut dyn FnMut(
+            eqiora_core::RawId,
+        ) -> Option<&'a eqiora_schema::kernel::EnumDef>,
+    ) -> Result<Expr, crate::AstConstructionError> {
+        let mut expression = self.syntax.as_ref().map_err(Clone::clone)?.as_ref().clone();
+        let mut error = None;
+        crate::factory::expression_visit::expression(None, &mut expression, &mut |_, node| {
+            if error.is_some() {
+                return;
             }
-            DraftExpressionKind::EnumValue(value) => {
-                output.push(DraftExpressionReference::EnumValue(value))
-            }
-            DraftExpressionKind::Boolean(_)
-            | DraftExpressionKind::Constant(_)
-            | DraftExpressionKind::Complex(_, _) => {}
-            DraftExpressionKind::Array(values) => {
-                for value in values {
-                    value.references(output);
+            let range = ranges.allocate(path, paths);
+            if let Some(value) = node.resolved_enum() {
+                match crate::SourceAstFactory::value_literal(
+                    value,
+                    None,
+                    range,
+                    &mut *resolve,
+                    &mut *resolve_enum,
+                ) {
+                    Ok(value) => *node = value,
+                    Err(failure) => {
+                        error = Some(failure);
+                        return;
+                    }
                 }
             }
-            DraftExpressionKind::Index { value, .. } | DraftExpressionKind::Slice { value, .. } => {
-                value.references(output)
+            node.range = range;
+            match &mut node.kind {
+                ExprKind::Path(path) => *path = path.clone().with_range(range),
+                ExprKind::Call { callee, .. } => *callee = callee.clone().with_range(range),
+                _ => {}
             }
-            DraftExpressionKind::Reference(reference)
-            | DraftExpressionKind::Derivative(reference) => {
-                output.push(DraftExpressionReference::Value(reference));
-            }
-            DraftExpressionKind::Across(reference) | DraftExpressionKind::Through(reference) => {
-                output.push(DraftExpressionReference::Port(reference));
-            }
-            DraftExpressionKind::Unary { value, .. }
-            | DraftExpressionKind::SpatialCall { value, .. } => {
-                value.references(output);
-            }
-            DraftExpressionKind::Binary { left, right, .. } => {
-                left.references(output);
-                right.references(output);
-            }
+        });
+        if let Some(error) = error {
+            return Err(error);
         }
-    }
-
-    pub(super) fn contains_invalid_literal(&self) -> bool {
-        match &self.kind {
-            DraftExpressionKind::Select {
-                condition,
-                then_value,
-                else_value,
-            } => {
-                condition.contains_invalid_literal()
-                    || then_value.contains_invalid_literal()
-                    || else_value.contains_invalid_literal()
-            }
-            DraftExpressionKind::EnumValue(_)
-            | DraftExpressionKind::Boolean(_)
-            | DraftExpressionKind::Constant(_) => false,
-            DraftExpressionKind::Complex(real, imaginary) => {
-                !real.is_finite() || !imaginary.is_finite()
-            }
-            DraftExpressionKind::Array(values) => {
-                values.is_empty() || values.iter().any(Self::contains_invalid_literal)
-            }
-            DraftExpressionKind::Index { value, .. } | DraftExpressionKind::Slice { value, .. } => {
-                value.contains_invalid_literal()
-            }
-            DraftExpressionKind::Reference(_)
-            | DraftExpressionKind::Derivative(_)
-            | DraftExpressionKind::Across(_)
-            | DraftExpressionKind::Through(_) => false,
-            DraftExpressionKind::Unary { value, .. }
-            | DraftExpressionKind::SpatialCall { value, .. } => value.contains_invalid_literal(),
-            DraftExpressionKind::Binary { left, right, .. } => {
-                left.contains_invalid_literal() || right.contains_invalid_literal()
-            }
-        }
+        crate::factory::validate_expression(&expression)?;
+        Ok(expression)
     }
 }
-
-#[derive(Debug, Clone)]
-pub(super) enum DraftExpressionKind {
-    Select {
-        condition: Box<DraftExpression>,
-        then_value: Box<DraftExpression>,
-        else_value: Box<DraftExpression>,
-    },
-    EnumValue(eqiora_core::ValueLiteral),
-    Boolean(bool),
-    Constant(crate::DecimalLiteral),
-    Complex(f64, f64),
-    Array(Vec<DraftExpression>),
-    Index {
-        value: Box<DraftExpression>,
-        index: u32,
-    },
-    Slice {
-        value: Box<DraftExpression>,
-        lower: u32,
-        upper: u32,
-    },
-    Reference(DraftReference),
-    Derivative(DraftReference),
-    Across(DraftPortReference),
-    Through(DraftPortReference),
-    SpatialCall {
-        operator: DraftSpatialOperator,
-        value: Box<DraftExpression>,
-    },
-    Unary {
-        operator: UnaryOp,
-        value: Box<DraftExpression>,
-    },
-    Binary {
-        operator: BinaryOp,
-        left: Box<DraftExpression>,
-        right: Box<DraftExpression>,
-    },
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(super) enum DraftExpressionReference<'a> {
-    EnumValue(&'a eqiora_core::ValueLiteral),
-    Value(&'a DraftReference),
-    Port(&'a DraftPortReference),
+impl From<&DraftConservingPort> for DraftPortReference {
+    fn from(port: &DraftConservingPort) -> Self {
+        Self {
+            symbol: port.symbol.clone(),
+            name: port.name.clone(),
+        }
+    }
 }

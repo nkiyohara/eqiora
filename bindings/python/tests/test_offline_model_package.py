@@ -56,6 +56,7 @@ CONFORMANCE_REPORT_FIELDS = (
     "deterministic_replay_agreement",
 )
 EXPECTED_EQIORA_ALL = [
+    "Module",
     "equal",
     "not_equal",
     "less",

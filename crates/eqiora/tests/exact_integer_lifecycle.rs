@@ -2,7 +2,7 @@
 
 use eqiora::api::ModelDocument;
 use eqiora::language::{
-    DraftExpression, DraftField, DraftParameter, DraftRelation, FieldRoleSyntax, ModelDraft,
+    DraftExpression, DraftField, DraftParameter, DraftRelation, FieldRoleSyntax, Module,
 };
 use eqiora::{DimExponents, ScalarDomain, ValueLiteral, ValueType};
 
@@ -57,8 +57,8 @@ fn adjacent_exact_values_survive_source_native_edit_and_artifact_replay() {
             ),
         )],
     );
-    let native = ModelDocument::define(
-        &ModelDraft::new(
+    let native = ModelDocument::compile_module(
+        &Module::new(
             "Exact",
             [
                 DraftParameter::new("count", integer(FIRST)).into(),
@@ -67,6 +67,8 @@ fn adjacent_exact_values_survive_source_native_edit_and_artifact_replay() {
             ],
         )
         .unwrap(),
+        None,
+        &[],
     )
     .unwrap();
     assert_eq!(parameter(&native, "count"), integer(FIRST));

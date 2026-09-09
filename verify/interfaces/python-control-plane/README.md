@@ -47,7 +47,7 @@ control-plane use independent of optional data and framework adapters.
 
 Historical v1--v7 bytes and caller-selected codecs are outside the Python
 surface; the canonical-identity case owns their negative corpus. This evidence
-does not claim control-envelope overflow parity. Native ModelDraft occurrence
+does not claim control-envelope overflow parity. Native Module occurrence
 identity and modeling vocabulary belong to
 `language.native-modeling` and its Python-specific follow-up. Async execution,
 cancellation, progress, array exchange, DLPack, and framework integration are

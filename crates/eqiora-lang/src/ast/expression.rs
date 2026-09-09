@@ -10,6 +10,12 @@ pub struct Expr {
 }
 
 impl Expr {
+    /// Render this expression with the canonical module formatter.
+    #[must_use]
+    pub fn to_source(&self) -> String {
+        crate::formatter::expression_source(self)
+    }
+
     /// Checked nominal constructor type supplied by lexical declaration resolution.
     #[must_use]
     pub fn resolved_nominal(&self) -> Option<&eqiora_core::ValueType> {

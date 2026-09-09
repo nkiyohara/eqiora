@@ -400,7 +400,7 @@ def test_python_source_emits_and_fresh_compile_inspects_scalar_primal_form(
     form = model.authored_formulations[0]
     assert form.kind == "primal"
     assert len(form.source_identity) == 64
-    assert form.filename == "<python-source>"
+    assert form.filename == "<module>"
     assert form.trial_field_id in model.field_ids
 
     path = tmp_path / "scalar-primal.eqi"
@@ -619,8 +619,8 @@ def test_canonical_compiler_owns_expression_shape_diagnostics() -> None:
         eqiora.compile(source=cylinder_source(velocity_type=eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1))), geometry=(_binding_geometry := cylinder_geometry()), entry='SteadyFlowPastCylinder', bindings={**support_bindings(_binding_geometry, ['fluid'], [('inlet', 'fluid'), ('outlet', 'fluid'), ('walls', 'fluid'), ('cylinder', 'fluid')]), **PARAMETERS})
     assert error.value.diagnostics
     assert any(
-        diagnostic.source_span is not None
-        and diagnostic.source_span[0] == "<python-source>"
+        diagnostic.source_span is None
+        and diagnostic.graph_path is not None
         for diagnostic in error.value.diagnostics
     )
 
@@ -996,7 +996,7 @@ def clocked_alias_source(*, aliases=True, wrong_clock=False):
 
 def test_clock_authoring_emits_exact_activation_and_simultaneous_initial():
     text = clocked_alias_source().to_eqi()
-    assert "/// Exact sampling clock.\n  clock tick = periodic(1 [s] / 10, phase = 0 [s] / 1);" in text
+    assert "/// Exact sampling clock.\n  clock tick = periodic(1 [s] / 10 [1], phase = 0 [s] / 1 [1]);" in text
     assert "state memory: 1 on region at tick;" in text
     assert "let current: 1 on region at tick = 2 * memory;" in text
     assert "/// Fresh pre-tick memory.\n  initial {\n    pre(memory) - 1 = 0;\n  }" in text
@@ -1019,7 +1019,7 @@ def test_clock_authoring_normalizes_rationals_and_preserves_nominal_immutability
         q.Clock()
     with pytest.raises(AttributeError, match="immutable"):
         tick._name = "changed"
-    assert source.to_eqi().count("periodic(3 [s] / 4, phase = 1 [s] / 4") == 2
+    assert source.to_eqi().count("periodic(3 [s] / 4 [1], phase = 1 [s] / 4 [1]") == 2
     with pytest.raises(q.ModuleError, match="frozen"):
         component.clock("late", period_s=1)
     with pytest.raises(q.ModuleError, match="frozen"):
@@ -1348,7 +1348,7 @@ def test_signature_authoring_preserves_output_ownership_and_forward_default_boun
     parent.relation("observe", q.equation(observed, instance['result']))
     with pytest.raises(TypeError):
         instance['result'] = required
-    with pytest.raises(q.ModuleError, match="belong to this Component"):
+    with pytest.raises(q.ModuleError, match="Component.*owners"):
         child.relation("foreign", q.equation(output, instance['result']))
     with pytest.raises(q.ModuleError, match="Parameter requirement"):
         child.set_default(required, 1)

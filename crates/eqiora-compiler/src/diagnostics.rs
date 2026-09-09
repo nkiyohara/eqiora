@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use eqiora_core::diagnostic::{Code, codes};
 use eqiora_core::{Diagnostic, GraphPath, Severity, Span};
-use eqiora_lang::{ModelDraft, NativeModelAst, TextRange};
+use eqiora_lang::{Module, TextRange};
 
 /// Construct one source-spanned compiler diagnostic.
 ///
@@ -24,17 +24,26 @@ pub(crate) fn source_error(
 }
 
 /// Replace synthetic native-AST coordinates with one stable declaration path.
-pub(crate) fn native_diagnostic(
-    draft: &ModelDraft,
-    native: &NativeModelAst,
-    diagnostic: Diagnostic,
-) -> Diagnostic {
+pub(crate) fn native_diagnostic(native: &Module, diagnostic: Diagnostic) -> Diagnostic {
     let path = diagnostic
         .source_span()
         .and_then(|span| native.graph_path(TextRange::new(span.start, span.end)))
         .cloned()
         .or_else(|| diagnostic.graph_path().cloned())
-        .unwrap_or_else(|| GraphPath::new([draft.name().to_owned()]));
+        .unwrap_or_else(|| {
+            let owner = if native.has_native_metadata() {
+                native.model().name()
+            } else {
+                diagnostic
+                    .source_span()
+                    .map_or("module", |span| span.file.as_str())
+            };
+            let mut path = vec![owner.to_owned()];
+            if let Some(span) = diagnostic.source_span() {
+                path.push(format!("ast[{}:{}]", span.start, span.end));
+            }
+            GraphPath::new(path)
+        });
     let suggestion = diagnostic.suggestion().cloned();
     let mut native =
         Diagnostic::error(diagnostic.code(), diagnostic.message()).with_graph_path(path);

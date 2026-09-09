@@ -140,6 +140,24 @@ pub struct ModelNotation {
 }
 
 impl ModelNotation {
+    pub(crate) fn retain_source_files(&mut self, keep: impl Fn(&str) -> bool) {
+        for entry in self.entries.values_mut() {
+            if entry
+                .definition
+                .as_ref()
+                .is_some_and(|span| !keep(&span.file))
+            {
+                entry.definition = None;
+            }
+            if entry
+                .instance
+                .as_ref()
+                .is_some_and(|span| !keep(&span.file))
+            {
+                entry.instance = None;
+            }
+        }
+    }
     /// Full-scope entries in exact identity order, independent of discovery order.
     pub fn iter(&self) -> impl ExactSizeIterator<Item = &ResolvedNotation> {
         self.entries.values()

@@ -110,6 +110,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 .then(|| {
                     self.elaborator
                         .native
+                        .get(namespace)
                         .and_then(|native| native.nominal_identity(declaration.name()))
                 })
                 .flatten();

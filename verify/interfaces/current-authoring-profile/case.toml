@@ -11,8 +11,8 @@ capabilities = [
 ]
 
 [claim_boundary]
-rust_compile_define_current = true
-python_compile_define_current = true
+rust_compile_module_current = true
+python_compile_module_current = true
 studio_compile_current = true
 model_owner = "current"
 current_artifact_replay = true

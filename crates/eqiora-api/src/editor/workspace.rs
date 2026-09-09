@@ -244,7 +244,7 @@ impl EditorWorkspaceSnapshot {
             return None;
         }
         if let Err(diagnostic) = preflight_resolved_hierarchy(
-            input.units().iter().map(|unit| unit.source().len()),
+            input.units().iter().map(|unit| unit.input_bytes()),
             input.dependencies().len(),
         ) {
             if is_cancelled() {
@@ -257,7 +257,7 @@ impl EditorWorkspaceSnapshot {
             if is_cancelled() {
                 return None;
             }
-            sources.push((unit.diagnostic_file(), unit.source().to_owned()));
+            sources.push((unit.diagnostic_file(), unit.source().into_owned()));
         }
         let analyzed = match input.analyze_with_cancellation(&mut is_cancelled) {
             Ok(Some(analyzed)) => analyzed,

@@ -223,11 +223,13 @@ impl fmt::Display for CompilationModuleId {
 }
 
 /// One exact UTF-8 source unit owned by a resolved package namespace.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ResolvedSourceUnit {
     module: CompilationModuleId,
     file: String,
     source: String,
+    authored: Option<eqiora_lang::Module>,
+    input_bytes: usize,
 }
 
 impl ResolvedSourceUnit {
@@ -261,11 +263,34 @@ impl ResolvedSourceUnit {
             )));
         }
         let module = ModuleName::new(without_extension.split('/'))?;
+        let source = source.into();
+        let input_bytes = source.len();
         Ok(Self {
             module: CompilationModuleId::new(namespace, module),
             file,
-            source: source.into(),
+            source,
+            authored: None,
+            input_bytes,
         })
+    }
+
+    /// Admit a directly authored module under the same explicit path and package
+    /// identity as a parsed source unit. Compilation consumes the owned AST;
+    /// formatting is performed only when a consumer explicitly requests text.
+    ///
+    /// # Errors
+    /// Rejects invalid paths and the existing compiler AST/source resource limits.
+    pub fn from_module(
+        namespace: CompilationNamespaceId,
+        file: impl Into<String>,
+        module: eqiora_lang::Module,
+    ) -> Result<Self, Diagnostic> {
+        let input_bytes = crate::source_identity::module_input_bytes(&module)?;
+        preflight_resolved_hierarchy([input_bytes], 0)?;
+        let mut unit = Self::new(namespace, file, "")?;
+        unit.authored = Some(module);
+        unit.input_bytes = input_bytes;
+        Ok(unit)
     }
 
     /// Owning package namespace.
@@ -292,10 +317,20 @@ impl ResolvedSourceUnit {
         &self.file
     }
 
-    /// Exact decoded UTF-8 source.
+    /// Original UTF-8 source, or explicitly requested canonical AST emission.
     #[must_use]
-    pub fn source(&self) -> &str {
-        &self.source
+    pub fn source(&self) -> std::borrow::Cow<'_, str> {
+        self.authored.as_ref().map_or_else(
+            || std::borrow::Cow::Borrowed(self.source.as_str()),
+            |module| std::borrow::Cow::Owned(eqiora_lang::format(module.document())),
+        )
+    }
+
+    /// Bounded input size: UTF-8 bytes for parsed text or canonical structural
+    /// bytes for native AST. Neither path skips the compiler's AST budgets.
+    #[must_use]
+    pub const fn input_bytes(&self) -> usize {
+        self.input_bytes
     }
 
     /// Package-qualified source label used by compiler diagnostics.
@@ -383,7 +418,7 @@ impl ResolvedAlias {
 }
 
 /// Closed input for one exact multi-package hierarchy analysis.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ResolvedHierarchyInput {
     root: CompilationModuleId,
     units: Vec<ResolvedSourceUnit>,
@@ -533,6 +568,7 @@ where
 
 #[derive(Clone, Debug)]
 pub(crate) struct AnalyzedSourceUnit {
+    pub(crate) native: Option<std::sync::Arc<eqiora_lang::Module>>,
     pub(crate) module: CompilationModuleId,
     pub(crate) file: String,
     pub(crate) source_bytes: usize,
@@ -621,11 +657,40 @@ impl AnalyzedResolvedHierarchy {
     /// Transaction, occurrence identity, or provenance entry is created.
     pub fn validate_definitions(self) -> Result<ValidatedResolvedHierarchy, Vec<Diagnostic>> {
         let checked =
-            crate::hierarchy::validate_resolved_definitions(&self, HierarchyLimits::default())?;
+            crate::hierarchy::validate_resolved_definitions(&self, HierarchyLimits::default())
+                .map_err(|errors| self.native_diagnostics(errors))?;
         Ok(ValidatedResolvedHierarchy {
             analysis: self,
             checked,
         })
+    }
+
+    pub(crate) fn native_diagnostics(&self, errors: Vec<Diagnostic>) -> Vec<Diagnostic> {
+        let modules = self
+            .units
+            .iter()
+            .filter_map(|unit| {
+                unit.native
+                    .as_ref()
+                    .filter(|module| module.source_file().is_none())
+                    .map(|module| (unit.file.clone(), module.as_ref().clone()))
+            })
+            .collect::<Vec<_>>();
+        source::native_diagnostics(&modules, errors)
+    }
+
+    pub(crate) fn retain_authored_provenance(&self, model: CompiledModel) -> CompiledModel {
+        let synthetic = self
+            .units
+            .iter()
+            .filter(|unit| {
+                unit.native
+                    .as_ref()
+                    .is_some_and(|module| module.source_file().is_none())
+            })
+            .map(|unit| unit.file.as_str())
+            .collect::<BTreeSet<_>>();
+        model.retain_source_files(|file| !synthetic.contains(file))
     }
 }
 
@@ -666,265 +731,13 @@ impl ValidatedResolvedHierarchy {
             model,
             HierarchyLimits::default(),
         )
+        .map(|model| self.analysis.retain_authored_provenance(model))
+        .map_err(|errors| self.analysis.native_diagnostics(errors))
     }
 }
 
-fn collect_canonical_declarations(
-    units: &[AnalyzedSourceUnit],
-    aliases: &[ResolvedAlias],
-    diagnostics: &mut Vec<Diagnostic>,
-) -> Vec<CanonicalDeclarationIdentity> {
-    let mut result = Vec::new();
-    let mut paths = BTreeSet::new();
-    for unit in units {
-        let operator_formals = visible_operator_formals(unit, units, aliases);
-        let resolved_aliases = aliases
-            .iter()
-            .filter(|alias| alias.declaring_module() == &unit.module)
-            .map(|alias| (alias.alias().to_owned(), canonical_alias_target(alias)))
-            .collect::<BTreeMap<_, _>>();
-        for (name, visibility, document) in unit.document.isolated_property_declarations() {
-            let kind = if document.property_contract_syntax().next().is_some() {
-                CanonicalDeclarationKind::PropertyContract
-            } else if document.property_release_syntax().next().is_some() {
-                CanonicalDeclarationKind::PropertyRelease
-            } else {
-                CanonicalDeclarationKind::MaterialComposition
-            };
-            push_canonical(
-                &mut result,
-                &mut paths,
-                unit.module.owner(),
-                &canonical_declaration_path(&unit.module, &name),
-                kind,
-                visibility,
-                &document,
-                &resolved_aliases,
-                &operator_formals,
-                diagnostics,
-            );
-        }
-        for enumeration in unit.document.enumerations() {
-            let document = SourceAstFactory::document(
-                vec![enumeration.clone()],
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-            )
-            .expect("parsed enum document");
-            push_canonical(
-                &mut result,
-                &mut paths,
-                unit.module.owner(),
-                &canonical_declaration_path(&unit.module, enumeration.name()),
-                CanonicalDeclarationKind::Enum,
-                enumeration.visibility(),
-                &document,
-                &resolved_aliases,
-                &operator_formals,
-                diagnostics,
-            );
-        }
-        for connector in unit.document.connectors() {
-            let document = SourceAstFactory::document(
-                Vec::new(),
-                vec![connector.clone()],
-                Vec::new(),
-                Vec::new(),
-            )
-            .expect("one parsed Connector is a valid document");
-            push_canonical(
-                &mut result,
-                &mut paths,
-                unit.module.owner(),
-                &canonical_declaration_path(&unit.module, connector.name()),
-                CanonicalDeclarationKind::Connector,
-                connector.visibility(),
-                &document,
-                &resolved_aliases,
-                &operator_formals,
-                diagnostics,
-            );
-        }
-        let operators = match crate::pure_operator::compile_definitions(&unit.file, &unit.document)
-        {
-            Ok(definitions) => definitions,
-            Err(error) => {
-                diagnostics.push(error);
-                BTreeMap::new()
-            }
-        };
-        for operator in unit.document.pure_operators() {
-            let path = canonical_declaration_path(&unit.module, operator.name());
-            if !paths.insert((unit.module.owner().clone(), path.clone())) {
-                diagnostics.push(resolved_error(format!(
-                    "duplicate top-level declaration `{}` in module `{}`",
-                    operator.name(),
-                    unit.module
-                )));
-                continue;
-            }
-            if let Some(definition) = operators.get(operator.name()) {
-                result.push(CanonicalDeclarationIdentity {
-                    namespace: unit.module.owner().clone(),
-                    path,
-                    kind: CanonicalDeclarationKind::PureOperator,
-                    visibility: operator.visibility(),
-                    canonical_form: pure_operator_identity_form(definition.digest().bytes()),
-                });
-            }
-        }
-        for component in unit.document.components() {
-            let document = SourceAstFactory::document(
-                Vec::new(),
-                Vec::new(),
-                vec![component.clone()],
-                Vec::new(),
-            )
-            .expect("one parsed component is a valid document");
-            push_canonical(
-                &mut result,
-                &mut paths,
-                unit.module.owner(),
-                &canonical_declaration_path(&unit.module, component.name()),
-                CanonicalDeclarationKind::Component,
-                component.visibility(),
-                &document,
-                &resolved_aliases,
-                &operator_formals,
-                diagnostics,
-            );
-        }
-        for model in unit.document.models() {
-            let document =
-                SourceAstFactory::document(Vec::new(), Vec::new(), Vec::new(), vec![model.clone()])
-                    .expect("one parsed Model is a valid document");
-            push_canonical(
-                &mut result,
-                &mut paths,
-                unit.module.owner(),
-                &canonical_declaration_path(&unit.module, model.name()),
-                CanonicalDeclarationKind::Model,
-                model.visibility(),
-                &document,
-                &resolved_aliases,
-                &operator_formals,
-                diagnostics,
-            );
-        }
-    }
-    result.sort_by(|left, right| {
-        (
-            &left.namespace,
-            &left.path,
-            left.kind,
-            visibility_rank(left.visibility),
-            &left.canonical_form,
-        )
-            .cmp(&(
-                &right.namespace,
-                &right.path,
-                right.kind,
-                visibility_rank(right.visibility),
-                &right.canonical_form,
-            ))
-    });
-    result
-}
-
-fn visible_operator_formals(
-    unit: &AnalyzedSourceUnit,
-    units: &[AnalyzedSourceUnit],
-    aliases: &[ResolvedAlias],
-) -> BTreeMap<String, Vec<String>> {
-    let names = |operator: &eqiora_lang::PureOperatorDecl| {
-        operator
-            .formals()
-            .iter()
-            .map(|formal| formal.name().to_owned())
-            .collect()
-    };
-    let mut visible = unit
-        .document
-        .pure_operators()
-        .iter()
-        .map(|operator| (operator.name().to_owned(), names(operator)))
-        .collect::<BTreeMap<_, _>>();
-    for alias in aliases
-        .iter()
-        .filter(|alias| alias.declaring_module() == &unit.module)
-    {
-        for target in units
-            .iter()
-            .filter(|target| &target.module == alias.target_module())
-        {
-            for operator in target
-                .document
-                .pure_operators()
-                .iter()
-                .filter(|operator| operator.visibility() == VisibilitySyntax::Public)
-            {
-                visible.insert(
-                    format!("{}.{}", alias.alias(), operator.name()),
-                    names(operator),
-                );
-            }
-        }
-    }
-    visible
-}
-
-fn canonical_alias_target(alias: &ResolvedAlias) -> ResolvedAliasTarget {
-    let target = alias.target_module();
-    if alias.declaring_module().owner() == target.owner() {
-        ResolvedAliasTarget::local_module(target.name().segments())
-    } else {
-        ResolvedAliasTarget::external_module(target.owner().segments(), target.name().segments())
-    }
-}
-
-fn canonical_declaration_path(module: &CompilationModuleId, declaration: &str) -> String {
-    format!("{}.{}", module.name(), declaration)
-}
-
-#[allow(clippy::too_many_arguments)]
-fn push_canonical(
-    result: &mut Vec<CanonicalDeclarationIdentity>,
-    paths: &mut BTreeSet<(CompilationNamespaceId, String)>,
-    namespace: &CompilationNamespaceId,
-    path: &str,
-    kind: CanonicalDeclarationKind,
-    visibility: VisibilitySyntax,
-    document: &Document,
-    resolved_aliases: &BTreeMap<String, ResolvedAliasTarget>,
-    operator_formals: &BTreeMap<String, Vec<String>>,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    if !paths.insert((namespace.clone(), path.to_owned())) {
-        diagnostics.push(resolved_error(format!(
-            "duplicate top-level declaration `{path}` in namespace `{namespace}`"
-        )));
-        return;
-    }
-    let identity = match LocalSourceIdentity::from_document_with_resolved_aliases(
-        document,
-        resolved_aliases,
-        operator_formals,
-    ) {
-        Ok(identity) => identity,
-        Err(error) => {
-            diagnostics.push(error);
-            return;
-        }
-    };
-    result.push(CanonicalDeclarationIdentity {
-        namespace: namespace.clone(),
-        path: path.to_owned(),
-        kind,
-        visibility,
-        canonical_form: declaration_identity_form(identity.digest()),
-    });
-}
+mod canonical;
+use canonical::{canonical_declaration_path, collect_canonical_declarations};
 
 fn is_identifier(value: &str) -> bool {
     let mut bytes = value.bytes();

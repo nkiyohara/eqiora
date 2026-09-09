@@ -1,6 +1,62 @@
 use super::*;
 
 #[test]
+fn direct_module_metadata_consumes_the_shared_input_byte_budget() {
+    let owner = namespace("metadata");
+    let document = eqiora_lang::parse("authored.eqi", "model Main() {}")
+        .into_document()
+        .unwrap();
+    let range = document.models()[0].range();
+    let bare = ResolvedSourceUnit::from_module(
+        owner.clone(),
+        "src/main.eqi",
+        eqiora_lang::Module::from_document(document.clone()),
+    )
+    .unwrap();
+    let documented = document
+        .with_declaration_metadata(range, Some("d".repeat(64)), None)
+        .unwrap();
+    let documented = ResolvedSourceUnit::from_module(
+        owner.clone(),
+        "src/docs.eqi",
+        eqiora_lang::Module::from_document(documented),
+    )
+    .unwrap();
+    assert_eq!(documented.input_bytes(), bare.input_bytes() + 64);
+    let total = bare.input_bytes() + documented.input_bytes();
+    let limits = ResolvedHierarchyResourceLimits {
+        source_units: 2,
+        aliases: 0,
+        source_unit_bytes: documented.input_bytes(),
+        total_source_bytes: total,
+    };
+    let counts = [bare.input_bytes(), documented.input_bytes()];
+    preflight_resolved_hierarchy_with_limits(counts, 0, limits).unwrap();
+    let error = preflight_resolved_hierarchy_with_limits(
+        counts,
+        0,
+        ResolvedHierarchyResourceLimits {
+            total_source_bytes: total - 1,
+            ..limits
+        },
+    )
+    .unwrap_err();
+    assert!(error.message().contains("total source-byte limit"));
+
+    let text = format!("// {}\nmodel Main() {{}}", "x".repeat(512));
+    let parsed = ResolvedSourceUnit::from_module(
+        owner,
+        "src/parsed.eqi",
+        eqiora_lang::Module::parse("parsed.eqi", &text).unwrap(),
+    )
+    .unwrap();
+    assert!(
+        parsed.input_bytes() >= text.len(),
+        "ordinary parsed comments remain budgeted"
+    );
+}
+
+#[test]
 fn canonical_declarations_ignore_files_formatting_and_input_order() {
     let package = namespace("org.example.library");
     let split = ResolvedHierarchyInput::with_root_module(

@@ -110,8 +110,8 @@ def test_compiler_rejects_nonexhaustive_or_duplicate_case_arms(labels):
     mode = source.enum("Mode", members=MEMBERS)
     owner = source.model("InvalidCase")
     observed = owner.field("observed", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
-    owner.relation("observe", eqiora.lang.equation(observed, q.case(mode.member("Heating"), [(mode.member(label), 1) for label in labels])))
-    with pytest.raises(eqiora.ValidationError, match="(?i)case|arm|exhaustive|duplicate|member"):
+    with pytest.raises((q.ModuleError, eqiora.ValidationError), match="(?i)case|arm|exhaustive|duplicate|member"):
+        owner.relation("observe", eqiora.lang.equation(observed, q.case(mode.member("Heating"), [(mode.member(label), 1) for label in labels])))
         eqiora.compile(source=source, entry="InvalidCase")
 
 

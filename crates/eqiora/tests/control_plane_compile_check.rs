@@ -444,7 +444,7 @@ fn assert_no_lower_compiler_entrypoint(function: &str, adapter: &str) {
         "eqiora::compiler::",
         "eqiora_compiler",
         "compiler::compile(",
-        "lower_draft(",
+        "lower_module(",
         "lower_model(",
     ] {
         assert!(

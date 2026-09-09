@@ -43,11 +43,33 @@ impl fmt::Write for Output {
 
 impl Output {
     pub(super) fn begin(&mut self, comments: &SourceComments) {
+        let mut comments = comments.clone();
+        // Parsed docs own exact trivia; directly constructed docs use this
+        // same formatter's canonical leading-comment projection.
+        if let Some(doc) = &comments.doc
+            && !comments
+                .comments
+                .iter()
+                .any(|comment| comment.text.starts_with("///") && !comment.detached_doc)
+        {
+            comments.comments.extend(doc.text().split('\n').map(|line| {
+                crate::ast::comments::CommentTrivia {
+                    text: if line.is_empty() {
+                        "///".to_owned()
+                    } else {
+                        format!("/// {line}")
+                    },
+                    range: doc.range(),
+                    position: CommentPosition::Leading,
+                    detached_doc: false,
+                }
+            }));
+        }
         let index = self.owners.len();
         self.owners.push(Owner {
             span: self.text.len()..self.text.len(),
             parent: self.stack.last().copied(),
-            comments: comments.clone(),
+            comments,
         });
         self.stack.push(index);
     }

@@ -5,7 +5,7 @@ use eqiora::kernel::{
 };
 use eqiora::language::{
     DraftConservingConnection, DraftConservingPort, DraftExpression, DraftField, DraftParameter,
-    DraftPhysicalDomain, DraftRelation, ModelDraft,
+    DraftPhysicalDomain, DraftRelation, Module,
 };
 use eqiora::ontology::{Model, ModelView, OntologyId};
 use eqiora::sem::KernelProgram;
@@ -115,8 +115,8 @@ fn source_native_codec_and_allocation_routes_share_only_structural_identity() {
         "model renamed() { parameter r: 1/s=1; state state: 1; initial { state = 1; } relation balance { derivative(state)+r*state=0; } }",
     )
     .unwrap();
-    let native = ModelDocument::define(&native_decay(false)).unwrap();
-    let reordered_native = ModelDocument::define(&native_decay(true)).unwrap();
+    let native = ModelDocument::compile_module(&native_decay(false), None, &[]).unwrap();
+    let reordered_native = ModelDocument::compile_module(&native_decay(true), None, &[]).unwrap();
 
     for equivalent in [&independently_compiled, &native, &reordered_native] {
         assert!(source.structurally_equivalent(equivalent).unwrap());
@@ -165,8 +165,9 @@ fn source_native_codec_and_allocation_routes_share_only_structural_identity() {
 #[test]
 fn nominal_identity_graph_wiring_values_and_operators_remain_meaning() {
     let source = ModelDocument::compile("resistor.eqi", PHYSICAL).unwrap();
-    let native = ModelDocument::define(&native_resistor(false)).unwrap();
-    let reordered_native = ModelDocument::define(&native_resistor(true)).unwrap();
+    let native = ModelDocument::compile_module(&native_resistor(false), None, &[]).unwrap();
+    let reordered_native =
+        ModelDocument::compile_module(&native_resistor(true), None, &[]).unwrap();
     assert!(source.structurally_equivalent(&native).unwrap());
     assert!(source.structurally_equivalent(&reordered_native).unwrap());
     assert_ne!(source.digest().unwrap(), native.digest().unwrap());
@@ -306,7 +307,7 @@ fn pathological_default_projection_fails_without_a_partial_identity() {
     assert!(error.message().contains("individualization-depth limit"));
 }
 
-fn native_decay(reversed: bool) -> ModelDraft {
+fn native_decay(reversed: bool) -> Module {
     let field = DraftField::new(
         "state",
         eqiora_core::ValueType::scalar(
@@ -348,10 +349,10 @@ fn native_decay(reversed: bool) -> ModelDraft {
     } else {
         vec![field.into(), rate.into(), relation.into(), initial]
     };
-    ModelDraft::new("native_decay", declarations).unwrap()
+    Module::new("native_decay", declarations).unwrap()
 }
 
-fn native_resistor(reversed: bool) -> ModelDraft {
+fn native_resistor(reversed: bool) -> Module {
     let electrical = DraftPhysicalDomain::new(
         "pin",
         "voltage",
@@ -425,7 +426,7 @@ fn native_resistor(reversed: bool) -> ModelDraft {
             connection.into(),
         ]
     };
-    ModelDraft::new("native_resistor", declarations).unwrap()
+    Module::new("native_resistor", declarations).unwrap()
 }
 
 fn physical_domain_aliasing(shared: bool) -> ModelDocument {

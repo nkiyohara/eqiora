@@ -25,6 +25,16 @@ Module authority: [`bindings/python/python/eqiora/__init__.py`](../../bindings/p
 
 Shipped stub: [`bindings/python/python/eqiora/__init__.pyi`](../../bindings/python/python/eqiora/__init__.pyi)
 
+<a id="api-eqiora-Module"></a>
+
+### `eqiora.Module`
+
+**Canonical re-export.** This spelling resolves to [`eqiora.lang.Module`](#api-eqiora-lang-Module).
+
+Own a compiler-backed module graph and freeze declarations on emission or compilation.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::Module`](../../bindings/python/python/eqiora/lang/__init__.py)
+
 <a id="api-eqiora-equal"></a>
 
 ### `eqiora.equal`
@@ -1319,16 +1329,6 @@ class Model:
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 ```
-
-<a id="api-eqiora-Module"></a>
-
-### `eqiora.Module`
-
-**Canonical re-export.** This spelling resolves to [`eqiora.lang.Module`](#api-eqiora-lang-Module).
-
-Own a compiler-backed module graph and freeze declarations on emission or compilation.
-
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::Module`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 <a id="api-eqiora-PackageConformancePackage"></a>
 

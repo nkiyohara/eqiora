@@ -1933,6 +1933,7 @@ def trace(value: _ExpressionLike) -> Expression:
 from . import diff as diff
 
 __all__ = [
+    "Module",
     "equal",
     "not_equal",
     "less",
@@ -1995,7 +1996,6 @@ __all__ = [
     "MathReference",
     "MathRendering",
     "Model",
-    "Module",
     "PackageConformancePackage",
     "PackageConformanceReport",
     "Parameter",

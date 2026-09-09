@@ -130,7 +130,7 @@ def test_piecewise_operator_body_can_compose_named_helpers():
 
 
 def test_conditional_and_clamp_share_the_existing_expression_budget():
-    expression = q.quantity(1, eqiora.units.m)
+    expression = q.math.pi
     for _ in range(11):
         expression = expression + expression
     for construct in (lambda: q.if_else(True, expression, 0),

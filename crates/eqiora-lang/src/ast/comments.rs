@@ -53,7 +53,8 @@ mod visit;
 
 /// Documentation attached to one declaration or signature entry in its source.
 ///
-/// The range refers to the original UTF-8 source, including the `///` markers.
+/// Parsed ranges refer to original UTF-8 source, including the `///` markers.
+/// Direct Module builders instead supply an exact synthetic declaration range.
 /// Cloning a declaration preserves that provenance; formatting does not retarget it
 /// to the generated document. Parse the generated source to obtain its ranges.
 #[derive(Debug, Clone, PartialEq, Eq)]

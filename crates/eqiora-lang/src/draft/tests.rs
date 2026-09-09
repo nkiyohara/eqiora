@@ -4,6 +4,110 @@ use crate::{
     ConnectionSyntax, DomainDecl, DomainSyntax, FieldRoleSyntax, Item, PortDecl, PortSyntax,
 };
 
+#[test]
+fn shared_expression_depth_rejects_before_copying_and_never_becomes_a_literal() {
+    let mut expression = DraftExpression::constant(crate::DecimalLiteral::parse("1").unwrap());
+    for _ in 1..crate::SourceAstFactory::MAX_EXPRESSION_DEPTH {
+        expression = -expression;
+    }
+    assert_eq!(
+        expression.depth,
+        crate::SourceAstFactory::MAX_EXPRESSION_DEPTH
+    );
+    assert!(expression.source_ast(|_| None, |_| None).is_ok());
+    let rejected = -expression;
+    assert!(rejected.source_ast(|_| None, |_| None).is_err());
+    let errors = Module::new(
+        "M",
+        [DraftRelation::continuous("law", [(rejected.clone(), rejected)]).into()],
+    )
+    .unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message().contains("depth or node limit"))
+    );
+}
+
+#[test]
+fn module_bounds_the_total_before_projecting_shared_equation_subtrees() {
+    let mut expression = DraftExpression::constant(crate::DecimalLiteral::parse("1").unwrap());
+    for _ in 0..9 {
+        expression = expression.clone() + expression;
+    }
+    assert_eq!(expression.nodes, 1023);
+    let equation_count = crate::SourceAstFactory::MAX_EXPRESSION_NODES / (2 * expression.nodes) + 1;
+    let relation = DraftRelation::continuous(
+        "law",
+        std::iter::repeat_n((expression.clone(), expression), equation_count),
+    );
+    let errors = Module::new("M", [relation.into()]).unwrap_err();
+    assert!(errors[0].message().contains("shared expression node limit"));
+}
+
+#[test]
+fn literal_projection_counts_prefixes_before_nested_array_allocation() {
+    let integer = eqiora_core::ValueType::scalar(
+        eqiora_core::ScalarDomain::Integer,
+        DimExponents::DIMENSIONLESS,
+    )
+    .unwrap();
+    let mut inner = integer;
+    for _ in 0..26 {
+        inner = inner.array(1).unwrap();
+    }
+    // One outer array plus 27 nodes for each member (26 singleton arrays
+    // and one integer leaf): 1 + 37_037 * 27 = 1_000_000 exactly.
+    let value = ValueLiteral::integer(
+        inner.clone().array(37_037).unwrap(),
+        std::iter::repeat_n(1, 37_037),
+    )
+    .unwrap();
+    assert_eq!(
+        crate::SourceAstFactory::value_literal_nodes(&value, false).unwrap(),
+        1_000_000
+    );
+    let excessive =
+        ValueLiteral::integer(inner.array(37_038).unwrap(), std::iter::repeat_n(1, 37_038))
+            .unwrap();
+    assert!(
+        crate::SourceAstFactory::value_literal_nodes(&excessive, false)
+            .unwrap_err()
+            .message()
+            .contains("node limit")
+    );
+    assert!(
+        crate::SourceAstFactory::value_literal(
+            &excessive,
+            None,
+            TextRange::new(0, 1),
+            |_| None,
+            |_| None
+        )
+        .is_err()
+    );
+    // A second scalar leaf exceeds the module's aggregate bound without
+    // constructing the million-node first initializer at all.
+    let first = DraftParameter::new("values", value);
+    let second = DraftParameter::new(
+        "extra",
+        ValueLiteral::from_integer(
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Integer,
+                DimExponents::DIMENSIONLESS,
+            )
+            .unwrap(),
+            1,
+        )
+        .unwrap(),
+    );
+    assert!(
+        Module::new("M", [first.into(), second.into()]).unwrap_err()[0]
+            .message()
+            .contains("node limit")
+    );
+}
+
 fn voltage_dimension() -> DimExponents {
     DimExponents::from_integers([1, 2, -3, -1, 0, 0, 0]).expect("bounded dimension")
 }
@@ -40,7 +144,7 @@ fn native_draft_rejects_foreign_symbol_even_when_name_matches() {
         )],
     );
 
-    let diagnostic = ModelDraft::new("decay", [included.into(), relation.into()]).unwrap_err();
+    let diagnostic = Module::new("decay", [included.into(), relation.into()]).unwrap_err();
     assert_eq!(diagnostic[0].code(), codes::LANGUAGE_TYPE_ERROR);
     assert_eq!(
         diagnostic[0].graph_path().unwrap().to_string(),
@@ -76,7 +180,7 @@ fn typed_dimensions_and_expression_references_become_source_ast() {
         DraftExpression::constant(crate::DecimalLiteral::parse("1.0").unwrap()),
     )]);
     let residual = DraftExpression::derivative(&state) + rate.expression() * state.expression();
-    let draft = ModelDraft::new(
+    let draft = Module::new(
         "decay",
         [
             state.into(),
@@ -94,7 +198,7 @@ fn typed_dimensions_and_expression_references_become_source_ast() {
     )
     .unwrap();
 
-    let native = draft.native_ast();
+    let native = draft;
     assert_eq!(native.model().name(), "decay");
     assert_eq!(native.model().items().len(), 4);
     assert!(native.graph_path(native.model().range()).is_some());
@@ -131,7 +235,7 @@ fn native_draft_rejects_names_and_numbers_source_could_not_express() {
         )],
     );
 
-    let diagnostics = ModelDraft::new(
+    let diagnostics = Module::new(
         "",
         [
             field.into(),
@@ -206,7 +310,7 @@ fn physical_vocabulary_projects_only_to_existing_source_ast_forms() {
         ],
     );
     let connection = DraftConservingConnection::new([&positive, &negative]);
-    let draft = ModelDraft::new(
+    let draft = Module::new(
         "resistor",
         [
             electrical.into(),
@@ -219,7 +323,7 @@ fn physical_vocabulary_projects_only_to_existing_source_ast_forms() {
     )
     .unwrap();
 
-    let native = draft.native_ast();
+    let native = draft;
     let items = native.model().items();
     assert!(matches!(
         items[0],
@@ -299,7 +403,7 @@ fn draft_closure_rejects_foreign_domain_and_port_identity_before_rebinding_names
         )],
     );
 
-    let diagnostics = ModelDraft::new(
+    let diagnostics = Module::new(
         "identity",
         [
             declared_domain.into(),
@@ -350,7 +454,7 @@ fn draft_closure_rejects_invalid_connection_membership_atomically() {
     let b = DraftConservingPort::new("b", &electrical);
     let incompatible = DraftConservingPort::new("incompatible", &other);
     let foreign = DraftConservingPort::new("a", &electrical);
-    let diagnostics = ModelDraft::new(
+    let diagnostics = Module::new(
         "invalid_connections",
         [
             electrical.into(),
@@ -412,7 +516,7 @@ fn duplicate_names_are_rejected_across_physical_and_scalar_declarations() {
         .unwrap(),
         FieldRoleSyntax::Variable,
     );
-    let diagnostics = ModelDraft::new("duplicates", [domain.into(), field.into()]).unwrap_err();
+    let diagnostics = Module::new("duplicates", [domain.into(), field.into()]).unwrap_err();
     assert!(
         diagnostics[0]
             .message()
@@ -442,7 +546,7 @@ fn anonymous_connection_diagnostic_paths_follow_membership_not_declaration_posit
         FieldRoleSyntax::Variable,
     );
     let connection = DraftConservingConnection::new([&terminal]);
-    let forward = ModelDraft::new(
+    let forward = Module::new(
         "stable_path",
         [
             domain.clone().into(),
@@ -452,7 +556,7 @@ fn anonymous_connection_diagnostic_paths_follow_membership_not_declaration_posit
         ],
     )
     .unwrap_err();
-    let reordered = ModelDraft::new(
+    let reordered = Module::new(
         "stable_path",
         [
             unrelated.into(),
@@ -487,8 +591,7 @@ fn spatial_draft_retains_exact_scope_identity_before_ast_projection() {
         .unwrap(),
         FieldRoleSyntax::Variable,
     );
-    let diagnostics =
-        ModelDraft::new("foreign_scope", [included.into(), field.into()]).unwrap_err();
+    let diagnostics = Module::new("foreign_scope", [included.into(), field.into()]).unwrap_err();
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message()
@@ -526,7 +629,7 @@ fn spatial_draft_projects_only_to_existing_source_ast_forms() {
             DraftExpression::constant(crate::DecimalLiteral::parse("0").unwrap()),
         )],
     );
-    let draft = ModelDraft::new(
+    let draft = Module::new(
         "poisson",
         [
             interval.into(),
@@ -538,7 +641,7 @@ fn spatial_draft_projects_only_to_existing_source_ast_forms() {
     )
     .unwrap();
 
-    let native = draft.native_ast();
+    let native = draft;
     assert!(matches!(
         native.model().items()[0],
         Item::Domain(DomainDecl {
@@ -636,7 +739,7 @@ fn draft_channel_literals_cannot_hide_empty_arrays_or_foreign_symbols() {
     );
     let array = DraftExpression::array([omitted.expression()]).index(0);
     assert!(
-        ModelDraft::new(
+        Module::new(
             "foreign",
             [DraftRelation::continuous(
                 "law",
@@ -650,7 +753,7 @@ fn draft_channel_literals_cannot_hide_empty_arrays_or_foreign_symbols() {
         .is_err()
     );
     assert!(
-        ModelDraft::new(
+        Module::new(
             "empty",
             [DraftRelation::continuous(
                 "law",

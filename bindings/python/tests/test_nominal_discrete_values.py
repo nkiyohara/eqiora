@@ -103,7 +103,7 @@ def test_source_nominal_constructors_share_scope_and_file_meaning(tmp_path):
     owner.set_default(change, owner.coordinates(species, (-1, 1)))
     owner.set_default(ordinal, q.ordinal(selected))
     text = source.to_eqi()
-    assert "/// Ordered species basis.\nspace Species = orthonormal(A, B);" in text
+    assert "/// Ordered species basis.\npublic space Species = orthonormal(A, B);" in text
     assert "/// Three fixed rows.\n  indexset Rows = range(3);" in text
     assert "counts(Species, [9007199254740993, 2])" in text
     compiled = eqiora.compile(source=source, entry="Population")

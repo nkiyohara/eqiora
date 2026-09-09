@@ -3,6 +3,63 @@ use crate::{BinaryOp, Expr, ExprKind, NamePath, TextRange};
 use eqiora_core::{DimExponents, ScalarDomain, ValueFrame, ValueLiteral};
 
 impl SourceAstFactory {
+    pub(crate) fn value_literal_nodes(
+        value: &ValueLiteral,
+        framed: bool,
+    ) -> Result<usize, AstConstructionError> {
+        crate::ValueTypeSyntax::validate_checked(value.value_type())?;
+        let nominal =
+            value.value_type().finite_space().is_some() || value.value_type().index_set().is_some();
+        if value.enum_tag().is_some()
+            || value.as_bool().is_some()
+            || (!framed && !nominal && value.is_zero() && !value.value_type().shape().is_scalar())
+        {
+            return Ok(1);
+        }
+        let mut dimension_nodes = 0usize;
+        let _unit = dimension_expression(value.value_type().dimension(), || {
+            dimension_nodes += 1;
+            TextRange::default()
+        });
+        let scalar = if value.value_type().scalar_domain() == ScalarDomain::Integer
+            || value.value_type().dimension() == DimExponents::DIMENSIONLESS
+        {
+            1
+        } else {
+            1 + dimension_nodes
+        };
+        let leaf = if value.value_type().scalar_domain() == ScalarDomain::Complex {
+            1 + 2 * scalar
+        } else {
+            scalar
+        };
+        let mut prefix = 1usize;
+        let mut nodes = if nominal { 2usize } else { 0 };
+        for (axis, extent) in value.value_type().shape().extents().iter().enumerate() {
+            if framed && axis == value.value_type().array_rank() {
+                nodes = nodes.checked_add(2 * prefix).ok_or_else(|| {
+                    AstConstructionError::new("value projection node count overflows")
+                })?;
+            }
+            nodes = nodes.checked_add(prefix).ok_or_else(|| {
+                AstConstructionError::new("value projection node count overflows")
+            })?;
+            prefix = prefix.checked_mul(extent.get() as usize).ok_or_else(|| {
+                AstConstructionError::new("value projection cardinality overflows")
+            })?;
+        }
+        let nodes = prefix
+            .checked_mul(leaf)
+            .and_then(|count| nodes.checked_add(count))
+            .filter(|count| *count <= Self::MAX_EXPRESSION_NODES)
+            .ok_or_else(|| {
+                AstConstructionError::new(
+                    "value projection exceeds the shared expression node limit",
+                )
+            })?;
+        Ok(nodes)
+    }
+
     /// Project one complete coherent-SI value into the canonical source vocabulary.
     ///
     /// # Errors
@@ -16,6 +73,7 @@ impl SourceAstFactory {
         mut resolve_enum: impl FnMut(eqiora_core::RawId) -> Option<&'a eqiora_schema::kernel::EnumDef>,
     ) -> Result<Expr, AstConstructionError> {
         checked_range(range)?;
+        Self::value_literal_nodes(value, frame.is_some())?;
         if let Some(tag) = value.enum_tag() {
             if frame.is_some() {
                 return Err(AstConstructionError::new(

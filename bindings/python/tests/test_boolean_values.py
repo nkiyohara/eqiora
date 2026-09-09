@@ -118,7 +118,11 @@ def test_predicate_authoring_preserves_identity_ownership_and_rejects_host_truth
     left, right = source.component("Left"), source.component("Right")
     a = left.parameter("n", value_type=eqiora.ValueType.integer())
     b = right.parameter("n", value_type=eqiora.ValueType.integer())
-    assert a == a and a != b and len({a, b}) == 2
+    assert a is a and a is not b and len({a, b}) == 2
+    with pytest.raises(TypeError, match="equality"):
+        a == a
+    with pytest.raises(TypeError, match="equality"):
+        a != b
     predicates = (q.equal, q.not_equal, q.less, q.less_equal, q.greater, q.greater_equal,
                   q.logical_and, q.logical_or)
     for predicate in predicates:

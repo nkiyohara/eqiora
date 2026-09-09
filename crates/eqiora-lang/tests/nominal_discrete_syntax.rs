@@ -1,6 +1,6 @@
 use eqiora_core::{Id, ValueLiteral, entity::kinds};
 use eqiora_lang::{
-    DecimalLiteral, DraftDeclaration, DraftParameter, Item, ModelDraft, SourceAstFactory,
+    DecimalLiteral, DraftDeclaration, DraftParameter, Item, Module, SourceAstFactory,
     ValueTypeSyntaxKind, format, parse,
 };
 use eqiora_schema::kernel::FiniteSpaceDef;
@@ -43,8 +43,8 @@ fn native_nominal_projection_requires_registered_exact_declaration_identity() {
     .unwrap();
     let value = ValueLiteral::integer(definition.counts(), [2, 9007199254740993]).unwrap();
     let parameter = DraftParameter::new("population", value.clone());
-    assert!(ModelDraft::new("M", [parameter.clone().into()]).is_err());
-    let draft = ModelDraft::new(
+    assert!(Module::new("M", [parameter.clone().into()]).is_err());
+    let draft = Module::new(
         "M",
         [
             DraftDeclaration::FiniteSpace {

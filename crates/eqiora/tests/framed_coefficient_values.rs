@@ -5,7 +5,7 @@ use eqiora::artifact::{ModelDecoderLimits, ModelTransactionEnvelope};
 use eqiora::graph::{EdgeKind, Op};
 use eqiora::kernel::KernelNode;
 use eqiora::language::{
-    DecimalLiteral, DraftExpression, DraftParameter, DraftRelation, DraftSpatialDomain, ModelDraft,
+    DecimalLiteral, DraftExpression, DraftParameter, DraftRelation, DraftSpatialDomain, Module,
 };
 use eqiora::{DimExponents, ScalarDomain, ValueFrame, ValueLiteral, ValueShape, ValueType};
 
@@ -72,7 +72,12 @@ fn native() -> ModelDocument {
     }
     let zero = || DraftExpression::constant(DecimalLiteral::parse("0").unwrap());
     declarations.push(DraftRelation::continuous("witness", [(zero(), zero())]).into());
-    ModelDocument::define(&ModelDraft::new("Coefficients", declarations).unwrap()).unwrap()
+    ModelDocument::compile_module(
+        &Module::new("Coefficients", declarations).unwrap(),
+        None,
+        &[],
+    )
+    .unwrap()
 }
 
 fn assert_uniform_coefficients(document: &ModelDocument) {
@@ -265,7 +270,7 @@ fn native_frame_reference_must_belong_to_the_actual_draft() {
             )],
         )
     };
-    let valid = ModelDraft::new(
+    let valid = Module::new(
         "ForeignFrame",
         [
             included.clone().into(),
@@ -276,10 +281,10 @@ fn native_frame_reference_must_belong_to_the_actual_draft() {
         ],
     )
     .unwrap();
-    ModelDocument::define(&valid).unwrap();
+    ModelDocument::compile_module(&valid, None, &[]).unwrap();
     let parameter = DraftParameter::new("direction", value).with_frame(&foreign);
     assert!(
-        ModelDraft::new(
+        Module::new(
             "ForeignFrame",
             [included.into(), parameter.into(), witness().into()]
         )

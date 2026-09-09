@@ -52,7 +52,7 @@ fn native_domain_projection_uses_the_same_declared_member_frontdoor() {
     use eqiora_core::{DimExponents, ScalarDomain, ValueType};
     use eqiora_lang::{
         DraftConservingConnection, DraftConservingPort, DraftExpression, DraftPhysicalDomain,
-        DraftRelation, ModelDraft,
+        DraftRelation, Module,
     };
     let scalar = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap();
     let domain = DraftPhysicalDomain::new("physical", "potential", scalar.clone(), "flow", scalar);
@@ -69,7 +69,7 @@ fn native_domain_projection_uses_the_same_declared_member_frontdoor() {
         ],
     );
     let connection = DraftConservingConnection::new([&p, &n]);
-    let draft = ModelDraft::new(
+    let draft = Module::new(
         "M",
         [
             domain.into(),
@@ -80,7 +80,7 @@ fn native_domain_projection_uses_the_same_declared_member_frontdoor() {
         ],
     )
     .unwrap();
-    let model = eqiora_compiler::lower_draft(&draft).unwrap();
+    let model = eqiora_compiler::lower_module(&draft, None, &[]).unwrap();
     assert_eq!(scalar_roles(&[model]), (2, 2));
 }
 

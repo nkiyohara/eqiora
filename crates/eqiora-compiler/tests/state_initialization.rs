@@ -45,7 +45,7 @@ fn flat_source_symbols_exclude_synthesized_owners_but_keep_kernel_nodes() {
 #[test]
 fn native_symbols_exclude_unnamed_initial_relations() {
     use eqiora_core::{DimExponents, ScalarDomain, ValueType};
-    use eqiora_lang::{DraftDeclaration, DraftExpression, DraftField, FieldRoleSyntax, ModelDraft};
+    use eqiora_lang::{DraftDeclaration, DraftExpression, DraftField, FieldRoleSyntax, Module};
     let state = DraftField::new(
         "x",
         ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
@@ -56,12 +56,12 @@ fn native_symbols_exclude_unnamed_initial_relations() {
         state.expression(),
         DraftExpression::constant(eqiora_lang::DecimalLiteral::parse("1").unwrap()),
     );
-    let draft = ModelDraft::new(
+    let draft = Module::new(
         "M",
         [state.into(), DraftDeclaration::Initial(vec![condition])],
     )
     .unwrap();
-    let compiled = eqiora_compiler::lower_draft(&draft).unwrap();
+    let compiled = eqiora_compiler::lower_module(&draft, None, &[]).unwrap();
     assert_eq!(
         compiled
             .symbols()

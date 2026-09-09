@@ -157,7 +157,7 @@ def test_operator_calls_preserve_existing_node_budget():
     source = eqiora.Module("main")
     operator = source.operator("combine", inputs={"x": eqiora.ValueType.real(), "y": eqiora.ValueType.real()},
                                result_type=eqiora.ValueType.real(), body=lambda x, y: x+y)
-    value = q.quantity(1, eqiora.units.m)
+    value = q.math.pi
     for _ in range(11):
         value = value + value
     with pytest.raises(q.ModuleError, match="node limit"):

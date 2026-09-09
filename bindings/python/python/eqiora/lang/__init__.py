@@ -14,11 +14,11 @@ import os
 from pathlib import Path
 import re
 import tempfile
-import textwrap
+from builtins import property as _property
 from typing import Final, Literal
 from types import MappingProxyType
 
-from .._eqiora import FieldRole, ValueType, FiniteSpace, IndexSet, Enum as _NativeEnum, _nominal_type_source, Notation
+from .._eqiora import FieldRole, ValueType, FiniteSpace, IndexSet, Enum as _NativeEnum, _nominal_type, Notation, ModuleError, _AstExpression as _Ast, _AstDeclaration, _AstDefinition, _AstModule, _module_from_declarations
 
 from ..units import Unit
 from .._source_bounds import _MAX_EXPRESSION_DEPTH, _MAX_EXPRESSION_NODES, _MAX_OUTPUT_BYTES
@@ -30,10 +30,6 @@ _MAX_IDENTIFIER_BYTES = 1_024
 _MAX_DOC_BYTES = 16_384
 _CREATE = object()
 _MISSING = object()
-
-
-class SourceError(ValueError):
-    """A source-authoring value violates the bounded authoring contract."""
 
 
 class PropertyContract:
@@ -50,7 +46,7 @@ class PropertyContract:
         _doc: tuple[str, ...] = (),
     ) -> None:
         if _token is not _CREATE or _value_type is None:
-            raise TypeError("property contracts are created by Source")
+            raise TypeError("property contracts are created by Module")
         object.__setattr__(self, "_owner", _owner)
         object.__setattr__(self, "_name", _name_value)
         object.__setattr__(self, "_value_type", _value_type)
@@ -90,7 +86,7 @@ class PropertyRelease:
         _doc: tuple[str, ...] = (),
     ) -> None:
         if _token is not _CREATE or _contract is None or _source_unit is None:
-            raise TypeError("property releases are created by Source")
+            raise TypeError("property releases are created by Module")
         object.__setattr__(self, "_owner", _owner)
         object.__setattr__(self, "_name", _name_value)
         object.__setattr__(self, "_contract", _contract)
@@ -120,7 +116,7 @@ class MaterialComposition:
         _doc: tuple[str, ...] = (),
     ) -> None:
         if _token is not _CREATE:
-            raise TypeError("material compositions are created by Source")
+            raise TypeError("material compositions are created by Module")
         object.__setattr__(self, "_owner", _owner)
         object.__setattr__(self, "_name", _name_value)
         object.__setattr__(self, "_bindings", _bindings)
@@ -144,38 +140,32 @@ class MaterialComposition:
 class Expression:
     """A closed Eqiora Language expression; equality is not an equation builder."""
 
-    __slots__ = ("_depth", "_nodes", "_owner", "_precedence", "_text", "_binders", "_sources")
+    __slots__ = ("_owner", "_ast", "_binders", "_sources")
 
     def __init__(
         self,
         _token: object = _MISSING,
-        _text: str = "",
+        _ast: _Ast | None = None,
         _owner: object | None = None,
-        _depth: int = 0,
-        _nodes: int = 0,
-        _precedence: int = 0,
         *, _binders: frozenset[object] = frozenset(),
         _sources: frozenset[object] = frozenset(),
     ) -> None:
-        if _token is not _CREATE:
+        if _token is not _CREATE or not isinstance(_ast, _Ast):
             raise TypeError(
                 "expressions are created by eqiora.lang declarations and operators"
             )
-        if _depth > _MAX_EXPRESSION_DEPTH:
-            raise SourceError(
-                f"expression depth exceeds the {_MAX_EXPRESSION_DEPTH}-node nesting limit"
-            )
-        if _nodes > _MAX_EXPRESSION_NODES:
-            raise SourceError(
-                f"expression exceeds the {_MAX_EXPRESSION_NODES}-node limit"
-            )
         object.__setattr__(self, "_sources", _sources)
         object.__setattr__(self, "_binders", _binders)
-        object.__setattr__(self, "_text", _text)
+        object.__setattr__(self, "_ast", _ast)
         object.__setattr__(self, "_owner", _owner)
-        object.__setattr__(self, "_depth", _depth)
-        object.__setattr__(self, "_nodes", _nodes)
-        object.__setattr__(self, "_precedence", _precedence)
+
+    @property
+    def _depth(self) -> int:
+        return self._ast.depth
+
+    @property
+    def _nodes(self) -> int:
+        return self._ast.node_count
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("Expression values are immutable")
@@ -208,28 +198,24 @@ class Expression:
         if isinstance(exponent, bool) or not isinstance(exponent, int):
             raise TypeError("expression powers require an integer exponent")
         if not -32 <= exponent <= 32:
-            raise SourceError("expression exponent must be between -32 and 32")
-        base = f"({self._text})" if self._precedence <= 30 else self._text
+            raise ModuleError("expression exponent must be between -32 and 32")
         return Expression(
             _CREATE,
-            f"{base} ^ {exponent}",
+            self._ast.binary("^", _Ast.number(str(exponent))),
             self._owner,
-            self._depth + 1,
-            self._nodes + 1,
-            30,
             _binders=self._binders,
          _sources=self._sources)
 
     def __getitem__(self, index: int | Expression | slice) -> Expression:
         if isinstance(index, slice):
             if index.step is not None:
-                raise SourceError("expression slices do not accept a step")
+                raise ModuleError("expression slices do not accept a step")
             bounds = []
             for bound in (index.start, index.stop):
                 if isinstance(bound, bool) or not isinstance(bound, (int, Expression)):
                     raise TypeError("expression slices require explicit exact integer bounds")
                 if isinstance(bound, int) and bound < 0:
-                    raise SourceError("expression slice bounds must be nonnegative")
+                    raise ModuleError("expression slice bounds must be nonnegative")
                 bounds.append(_expression(bound))
             lower, upper = bounds
             # The shared compiler checks exact static values and array bounds;
@@ -237,53 +223,88 @@ class Expression:
             owner = _owner(self, lower)
             upper_owner = _owner(self, upper)
             if owner is not None and upper_owner is not None and owner is not upper_owner:
-                raise SourceError("cannot combine expressions from different Source or Component owners")
-            value = f"({self._text})" if self._precedence < 100 else self._text
-            return Expression(_CREATE, f"{value}[{lower._text}:{upper._text}]", owner or upper_owner,
-                              max(self._depth, lower._depth, upper._depth) + 1,
-                              self._nodes + lower._nodes + upper._nodes + 1, 100,
+                raise ModuleError("cannot combine expressions from different Module or Component owners")
+            return Expression(_CREATE, self._ast.slice(lower._ast, upper._ast), owner or upper_owner,
                               _binders=self._binders | lower._binders | upper._binders,
                               _sources=self._sources | lower._sources | upper._sources)
         if isinstance(index, Expression):
-            value = f"({self._text})" if self._precedence < 100 else self._text
-            return Expression(_CREATE, f"{value}[{index._text}]", _owner(self, index),
-                              max(self._depth, index._depth) + 1,
-                              self._nodes + index._nodes + 1, 100,
+            return Expression(_CREATE, self._ast.index(index._ast), _owner(self, index),
                               _binders=self._binders | index._binders, _sources=self._sources | index._sources)
         if isinstance(index, bool) or not isinstance(index, int):
             raise TypeError("expression indices must be nonnegative integers")
         if index < 0:
-            raise SourceError("expression indices must be nonnegative")
+            raise ModuleError("expression indices must be nonnegative")
         text = _number(index)
-        value = f"({self._text})" if self._precedence < 100 else self._text
-        return Expression(_CREATE, f"{value}[{text}]", self._owner,
-                          self._depth + 1, self._nodes + 2, 100, _binders=self._binders, _sources=self._sources)
+        return Expression(_CREATE, self._ast.index(_Ast.number(text)), self._owner, _binders=self._binders, _sources=self._sources)
 
     def __bool__(self) -> bool:
         raise TypeError("symbolic Eqiora expressions have no truth value; use explicit predicates")
 
+    __hash__ = object.__hash__
+
+    def __eq__(self, other: object) -> bool:
+        raise TypeError("symbolic equality requires equal() or equation()")
+
+    def __ne__(self, other: object) -> bool:
+        raise TypeError("symbolic inequality requires not_equal()")
+
+    def __lt__(self, other: object) -> bool:
+        raise TypeError("symbolic ordering requires an explicit predicate")
+
+    __le__ = __lt__
+    __gt__ = __lt__
+    __ge__ = __lt__
+
     def __neg__(self) -> Expression:
-        value = f"({self._text})" if self._precedence < 25 else self._text
         return Expression(
             _CREATE,
-            f"-{value}",
+            self._ast.unary("-"),
             self._owner,
-            self._depth + 1,
-            self._nodes + 1,
-            25,
             _binders=self._binders,
          _sources=self._sources)
 
 
+class Equation:
+    """Immutable ordered mathematical equality, never a Python truth value."""
+
+    __slots__ = ("_lhs", "_rhs")
+
+    def __init__(self, token: object, lhs: Expression, rhs: Expression) -> None:
+        if token is not _CREATE:
+            raise TypeError("use equation(lhs, rhs)")
+        object.__setattr__(self, "_lhs", lhs)
+        object.__setattr__(self, "_rhs", rhs)
+
+    def __setattr__(self, name, value):
+        raise AttributeError("Equation is immutable")
+
+    @property
+    def lhs(self) -> Expression:
+        return self._lhs
+
+    @property
+    def rhs(self) -> Expression:
+        return self._rhs
+
+    def __bool__(self) -> bool:
+        raise TypeError("mathematical equations have no Python truth value")
+
+
+def equation(lhs: object, rhs: object) -> Equation:
+    left, right = _expression(lhs), _expression(rhs)
+    _owner(left, right)
+    return Equation(_CREATE, left, right)
+
+
 class Enum:
-    """A closed enum declaration in one Source; members are exact symbolic paths."""
+    """A closed enum declaration in one Module; members are exact symbolic paths."""
 
     __slots__ = ("_source", "_definition")
 
-    def __init__(self, _token: object = _MISSING, *, _source: Source | None = None,
+    def __init__(self, _token: object = _MISSING, *, _source: Module | None = None,
                  _definition: _NativeEnum | None = None) -> None:
         if _token is not _CREATE:
-            raise TypeError("Source enum handles are created by Source.enum()")
+            raise TypeError("Module enum handles are created by Module.enum()")
         object.__setattr__(self, "_source", _source)
         object.__setattr__(self, "_definition", _definition)
 
@@ -308,25 +329,26 @@ class Enum:
 
 
 class _EnumMember(Expression):
-    __slots__ = ("_enumeration",)
+    __slots__ = ("_enumeration", "_member_name")
 
     def __init__(self, enumeration: Enum, name: str) -> None:
-        super().__init__(_CREATE, f"{enumeration.name}.{name}", None, 1, 1, 100,
+        super().__init__(_CREATE, _Ast.name(f"{enumeration.name}.{name}"), None,
                          _sources=frozenset((enumeration._source._owner,)))
         object.__setattr__(self, "_enumeration", enumeration)
+        object.__setattr__(self, "_member_name", name)
 
 
 class Operator:
-    """An immutable typed operator declared by one Source; call with named arguments."""
+    """An immutable typed operator declared by one Module; call with named arguments."""
 
     __slots__ = ("_source", "_name", "_inputs", "_result", "_body", "_doc")
 
-    def __init__(self, _token: object = _MISSING, *, _source: Source | None = None,
+    def __init__(self, _token: object = _MISSING, *, _source: Module | None = None,
                  _name: str = "", _inputs: tuple[tuple[str, str], ...] = (),
                  _result: str = "", _body: Expression | None = None,
                  _doc: tuple[str, ...] = ()) -> None:
         if _token is not _CREATE:
-            raise TypeError("operators are created by Source.operator()")
+            raise TypeError("operators are created by Module.operator()")
         for key, value in (("_source", _source), ("_name", _name), ("_inputs", _inputs),
                            ("_result", _result), ("_body", _body), ("_doc", _doc)):
             object.__setattr__(self, key, value)
@@ -337,40 +359,35 @@ class Operator:
     def __call__(self, /, **arguments: object) -> Expression:
         names = tuple(name for name, _ in self._inputs)
         if set(arguments) != set(names):
-            raise SourceError("operator call must supply exactly its named inputs")
+            raise ModuleError("operator call must supply exactly its named inputs")
         values = tuple(_expression(arguments[name]) for name in names)
         owner = None
         for value in values:
             if value._sources - {self._source._owner}:
-                raise SourceError("operator arguments must belong to this Source")
+                raise ModuleError("operator arguments must belong to this Module")
             if owner is not None and value._owner is not None and owner is not value._owner:
-                raise SourceError("operator arguments must belong to the same Component")
+                raise ModuleError("operator arguments must belong to the same Component")
             if value._owner is not None:
                 owner = value._owner
         depth = max((value._depth for value in values), default=0) + 1
         nodes = sum(value._nodes for value in values) + 1
         if depth > _MAX_EXPRESSION_DEPTH or nodes > _MAX_EXPRESSION_NODES:
-            raise SourceError("operator call exceeds the expression depth or node limit")
-        if sum(len(value._text.encode("utf-8")) + len(name) + 5 for name, value in zip(names, values)) > _MAX_OUTPUT_BYTES:
-            raise SourceError("operator call exceeds the output byte limit")
-        arguments_text = ", ".join(f"{name} = {value._text}" for name, value in zip(names, values))
-        return Expression(_CREATE, f"{self._name}({arguments_text})", owner,
-                          depth, nodes, 100,
+            raise ModuleError("operator call exceeds the expression depth or node limit")
+        return Expression(_CREATE, _Ast.call(self._name, [value._ast for value in values], names), owner,
                           _binders=frozenset().union(*(value._binders for value in values)),
                           _sources=frozenset((self._source._owner,)))
 
 
 class _Math:
     __slots__ = ()
-    pi: Final = Expression(_CREATE, "math.pi", None, 1, 1, 100)
-    i: Final = Expression(_CREATE, "math.i", None, 1, 1, 100)
+    pi: Final = Expression(_CREATE, _Ast.name("math.pi"), None)
+    i: Final = Expression(_CREATE, _Ast.name("math.i"), None)
 
     @staticmethod
     def complex(real: object, imaginary: object) -> Expression:
         left, right = _expression(real), _expression(imaginary)
-        return Expression(_CREATE, f"math.complex({left._text}, {right._text})",
-                          _owner(left, right), max(left._depth, right._depth) + 1,
-                          left._nodes + right._nodes + 1, 100, _binders=left._binders | right._binders, _sources=left._sources | right._sources)
+        return Expression(_CREATE, _Ast.call("math.complex", [left._ast, right._ast]),
+                          _owner(left, right), _binders=left._binders | right._binders, _sources=left._sources | right._sources)
 
     @staticmethod
     def sin(value: object) -> Expression:
@@ -419,7 +436,7 @@ class _Parameter(Expression):
     __slots__ = ("_component", "_name")
 
     def __init__(self, component: object, name: str) -> None:
-        super().__init__(_CREATE, name, component, 1, 1, 100)
+        super().__init__(_CREATE, _Ast.name(name), component)
         object.__setattr__(self, "_component", component)
         object.__setattr__(self, "_name", name)
 
@@ -428,13 +445,13 @@ class _Field(Expression):
     __slots__ = ("_component", "_name")
 
     def __init__(self, component: object, name: str) -> None:
-        super().__init__(_CREATE, name, component, 1, 1, 100)
+        super().__init__(_CREATE, _Ast.name(name), component)
         object.__setattr__(self, "_component", component)
         object.__setattr__(self, "_name", name)
 
 
 class Relation:
-    """An opaque Source-owned relation declaration handle."""
+    """An opaque Module-owned relation declaration handle."""
 
     __slots__ = ("_component", "_name", "_owner")
 
@@ -464,7 +481,7 @@ class _PropertyRequirement(Expression):
         name: str,
         contract: PropertyContract,
     ) -> None:
-        super().__init__(_CREATE, name, component, 1, 1, 100)
+        super().__init__(_CREATE, _Ast.name(name), component)
         object.__setattr__(self, "_component", component)
         object.__setattr__(self, "_name", name)
         object.__setattr__(self, "_contract", contract)
@@ -536,9 +553,9 @@ def _clock_seconds(value: Fraction | int, *, positive: bool) -> Fraction:
         raise TypeError("clock seconds must be Fraction or int, not float or bool")
     exact = Fraction(value)
     if exact < 0 or (positive and exact == 0):
-        raise SourceError("clock period must be positive and phase must be nonnegative")
+        raise ModuleError("clock period must be positive and phase must be nonnegative")
     if exact.numerator > (1 << 64) - 1 or exact.denominator > (1 << 64) - 1:
-        raise SourceError("clock rational numerator and denominator must fit u64")
+        raise ModuleError("clock rational numerator and denominator must fit u64")
     return exact
 
 
@@ -546,24 +563,24 @@ def _number(value: object) -> str:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise TypeError("numeric literals must be finite int or float values, not bool")
     if isinstance(value, float) and not _stdlib_math.isfinite(value):
-        raise SourceError("numeric literals must be finite")
+        raise ModuleError("numeric literals must be finite")
     if isinstance(value, int) and value.bit_length() > 1_024:
-        raise SourceError("integer literal exceeds the 1024-bit authoring limit")
+        raise ModuleError("integer literal exceeds the 1024-bit authoring limit")
     text = repr(value)
     if len(text) > 1_024:
-        raise SourceError("numeric literal exceeds the 1024-byte authoring limit")
+        raise ModuleError("numeric literal exceeds the 1024-byte authoring limit")
     return text
 
 
 def _expression(value: object) -> Expression:
     if isinstance(value, bool):
-        return Expression(_CREATE, "true" if value else "false", None, 1, 1, 100)
+        return Expression(_CREATE, _Ast.boolean(value), None)
     if isinstance(value, Expression):
         return value
     if isinstance(value, complex):
         return math.complex(value.real, value.imag)
     text = _number(value)
-    return Expression(_CREATE, text, None, 1, 1, 25 if text.startswith("-") else 100)
+    return Expression(_CREATE, _Ast.number(text), None)
 
 
 def tensor_value(*, frame: Support, components: Sequence[object] | Expression) -> Expression:
@@ -576,37 +593,37 @@ def tensor_value(*, frame: Support, components: Sequence[object] | Expression) -
         raise TypeError("tensor_value frame must be an eqiora.lang.Support")
     value = components if isinstance(components, Expression) else array(components)
     if value._owner is not None and value._owner is not frame._component:
-        raise SourceError("tensor_value components and frame must belong to the same Component")
+        raise ModuleError("tensor_value components and frame must belong to the same Component")
     return Expression(_CREATE,
-                      f"tensor_value(frame = {frame._name}, components = {value._text})",
-                      frame._component, value._depth + 1, value._nodes + 2, 100, _binders=value._binders, _sources=value._sources)
+                      _Ast.call("tensor_value", [_Ast.name(frame._name), value._ast], ["frame", "components"]),
+                      frame._component, _binders=value._binders, _sources=value._sources)
 
 
 def array(values: Sequence[object]) -> Expression:
     """Construct ordered channel axes; arrays never infer spatial vector roles."""
     def build(items: Sequence[object], depth: int) -> Expression:
         if depth > _MAX_EXPRESSION_DEPTH:
-            raise SourceError("array expression depth exceeds the 64-node nesting limit")
+            raise ModuleError("array expression depth exceeds the 64-node nesting limit")
         if isinstance(items, (str, bytes)) or not isinstance(items, Sequence):
             raise TypeError("array values must be a nonempty sequence")
         if not items:
-            raise SourceError("array values must be nonempty")
+            raise ModuleError("array values must be nonempty")
         if len(items) >= _MAX_EXPRESSION_NODES:
-            raise SourceError("array expression exceeds the 4096-node limit")
+            raise ModuleError("array expression exceeds the 4096-node limit")
         expressions = []
         owner = None
         nodes = 1
         for item in items:
             value = build(item, depth + 1) if isinstance(item, Sequence) and not isinstance(item, (str, bytes)) else _expression(item)
             if owner is not None and value._owner is not None and value._owner is not owner:
-                raise SourceError("cannot combine expressions from different Source or Component owners")
+                raise ModuleError("cannot combine expressions from different Module or Component owners")
             owner = owner if value._owner is None else value._owner
             nodes += value._nodes
             if nodes > _MAX_EXPRESSION_NODES:
-                raise SourceError("array expression exceeds the 4096-node limit")
+                raise ModuleError("array expression exceeds the 4096-node limit")
             expressions.append(value)
-        return Expression(_CREATE, "[" + ", ".join(value._text for value in expressions) + "]",
-                          owner, max(value._depth for value in expressions) + 1, nodes, 100, _binders=frozenset().union(*(value._binders for value in expressions)), _sources=frozenset().union(*(value._sources for value in expressions)))
+        return Expression(_CREATE, _Ast.array([value._ast for value in expressions]),
+                          owner, _binders=frozenset().union(*(value._binders for value in expressions)), _sources=frozenset().union(*(value._sources for value in expressions)))
     return build(values, 1)
 
 
@@ -616,12 +633,12 @@ def _literal_expression(value: object) -> Expression:
         nonlocal nodes
         nodes += 1
         if nodes > _MAX_EXPRESSION_NODES:
-            raise SourceError("literal exceeds the 4096-node limit")
+            raise ModuleError("literal exceeds the 4096-node limit")
         if depth > _MAX_EXPRESSION_DEPTH:
-            raise SourceError("literal depth exceeds the 64-node nesting limit")
+            raise ModuleError("literal depth exceeds the 64-node nesting limit")
         if isinstance(item, Sequence) and not isinstance(item, (str, bytes)):
             if len(item) >= _MAX_EXPRESSION_NODES:
-                raise SourceError("literal exceeds the 4096-node limit")
+                raise ModuleError("literal exceeds the 4096-node limit")
             return array([literal(child, depth + 1) for child in item])
         if isinstance(item, Expression):
             raise TypeError("property release values must be numeric literals")
@@ -640,21 +657,20 @@ def quantity(value: int | float | Decimal, unit: Unit) -> Expression:
         raise TypeError("unit must be an eqiora.units.Unit")
     if isinstance(value, Decimal):
         if not value.is_finite():
-            raise SourceError("quantity literals must be finite")
+            raise ModuleError("quantity literals must be finite")
         # Count significant digits before formatting; never expand an exponent
         # into a potentially enormous fixed-point decimal string.
         try:
             bounded = Context(prec=256, Emax=MAX_EMAX, Emin=MIN_EMIN,
                               traps=[Inexact, Rounded, Overflow, InvalidOperation]).create_decimal(value)
         except DecimalException as error:
-            raise SourceError("quantity literal exceeds the 256-byte limit") from error
+            raise ModuleError("quantity literal exceeds the 256-byte limit") from error
         literal = str(bounded)
     else:
         literal = _number(value)
     if len(literal.encode("ascii")) > 256:
-        raise SourceError("quantity literal exceeds the 256-byte limit")
-    text = f"{literal} [{unit._text}]"
-    return Expression(_CREATE, text, None, 1, 1, 25 if literal.startswith("-") else 100)
+        raise ModuleError("quantity literal exceeds the 256-byte limit")
+    return Expression(_CREATE, _Ast.quantity(literal, unit._ast), None)
 
 
 def _owner(left: Expression, right: Expression) -> object | None:
@@ -663,7 +679,7 @@ def _owner(left: Expression, right: Expression) -> object | None:
         and right._owner is not None
         and left._owner is not right._owner
     ):
-        raise SourceError("cannot combine expressions from different Source or Component owners")
+        raise ModuleError("cannot combine expressions from different Module or Component owners")
     return left._owner if left._owner is not None else right._owner
 
 
@@ -672,19 +688,17 @@ def _ternary(operation: str, first: object, second: object, third: object) -> Ex
     owner = None
     for value in values:
         if owner is not None and value._owner is not None and owner is not value._owner:
-            raise SourceError("cannot combine expressions from different Source or Component owners")
+            raise ModuleError("cannot combine expressions from different Module or Component owners")
         if value._owner is not None:
             owner = value._owner
     depth = max(value._depth for value in values) + 1
     nodes = sum(value._nodes for value in values) + 1
     if depth > _MAX_EXPRESSION_DEPTH or nodes > _MAX_EXPRESSION_NODES:
-        raise SourceError("expression exceeds the depth or node limit")
-    if sum(len(value._text.encode("utf-8")) for value in values) + len(operation) + 20 > _MAX_OUTPUT_BYTES:
-        raise SourceError("expression exceeds the output byte limit")
-    first, second, third = (value._text for value in values)
-    text = (f"(if {first} then {second} else {third})" if operation == "if"
-            else f"{operation}({first}, {second}, {third})")
-    return Expression(_CREATE, text, owner, depth, nodes, 100,
+        raise ModuleError("expression exceeds the depth or node limit")
+    first, second, third = (value._ast for value in values)
+    ast = (_Ast.select(first, second, third) if operation == "if"
+           else _Ast.call(operation, [first, second, third]))
+    return Expression(_CREATE, ast, owner,
                       _binders=frozenset().union(*(value._binders for value in values)),
                       _sources=frozenset().union(*(value._sources for value in values)))
 
@@ -695,31 +709,29 @@ def case(value: object, arms: Sequence[tuple[Expression, object]]) -> Expression
     if isinstance(arms, (str, bytes)) or not isinstance(arms, Sequence) or not arms:
         raise TypeError("case arms must be a nonempty ordered sequence of member/value pairs")
     if len(arms) >= _MAX_EXPRESSION_NODES:
-        raise SourceError("case arms exceed the expression node limit")
+        raise ModuleError("case arms exceed the expression node limit")
     checked = []
     expressions = [value]
     nodes = value._nodes + 1
     owner = value._owner
     for arm in arms:
         if not isinstance(arm, (tuple, list)) or len(arm) != 2 or not isinstance(arm[0], _EnumMember):
-            raise TypeError("case patterns require declared Source enum members")
+            raise TypeError("case patterns require declared Module enum members")
         pattern, result = arm[0], _expression(arm[1])
         if owner is not None and result._owner is not None and owner is not result._owner:
-            raise SourceError("case expressions must belong to the same Component")
+            raise ModuleError("case expressions must belong to the same Component")
         if result._owner is not None:
             owner = result._owner
         nodes += pattern._nodes + result._nodes
         if nodes > _MAX_EXPRESSION_NODES:
-            raise SourceError("case exceeds the expression node limit")
+            raise ModuleError("case exceeds the expression node limit")
         checked.append((pattern, result))
         expressions.extend((pattern, result))
     depth = max(item._depth for item in expressions) + 1
     if depth > _MAX_EXPRESSION_DEPTH:
-        raise SourceError("case exceeds the expression depth limit")
-    if sum(len(item._text.encode("utf-8")) + 8 for item in expressions) > _MAX_OUTPUT_BYTES:
-        raise SourceError("case exceeds the output byte limit")
-    body = ", ".join(f"{pattern._text} => {result._text}" for pattern, result in checked)
-    return Expression(_CREATE, f"(case {value._text} {{ {body} }})", owner, depth, nodes, 100,
+        raise ModuleError("case exceeds the expression depth limit")
+    ast = value._ast.case([f"{pattern._enumeration.name}.{pattern._member_name}" for pattern, _ in checked], [result._ast for _, result in checked])
+    return Expression(_CREATE, ast, owner,
                       _binders=frozenset().union(*(item._binders for item in expressions)),
                       _sources=frozenset().union(*(item._sources for item in expressions)))
 
@@ -736,31 +748,17 @@ def _binary(left: object, operator: str, right: object) -> Expression:
     left_expr = _expression(left)
     right_expr = _expression(right)
     precedence = 10 if operator in ("+", "-") else 20
-    left_text = (
-        f"({left_expr._text})"
-        if left_expr._precedence < precedence
-        else left_expr._text
-    )
-    right_text = (
-        f"({right_expr._text})"
-        if right_expr._precedence <= precedence
-        else right_expr._text
-    )
     return Expression(
         _CREATE,
-        f"{left_text} {operator} {right_text}",
+        left_expr._ast.binary(operator, right_expr._ast),
         _owner(left_expr, right_expr),
-        max(left_expr._depth, right_expr._depth) + 1,
-        left_expr._nodes + right_expr._nodes + 1,
-        precedence,
         _binders=left_expr._binders | right_expr._binders, _sources=left_expr._sources | right_expr._sources)
 
 
 def _predicate(left: object, operator: str, right: object) -> Expression:
     left, right = _expression(left), _expression(right)
-    return Expression(_CREATE, f"({left._text}) {operator} ({right._text})",
-                      _owner(left, right), max(left._depth, right._depth) + 1,
-                      left._nodes + right._nodes + 1, 1, _binders=left._binders | right._binders, _sources=left._sources | right._sources)
+    return Expression(_CREATE, left._ast.binary(operator, right._ast),
+                      _owner(left, right), _binders=left._binders | right._binders, _sources=left._sources | right._sources)
 
 
 def equal(left: object, right: object) -> Expression:
@@ -806,19 +804,15 @@ def logical_or(left: object, right: object) -> Expression:
 def logical_not(value: object) -> Expression:
     """Author logical negation without evaluating Python truthiness."""
     value = _expression(value)
-    return Expression(_CREATE, f"not ({value._text})", value._owner,
-                      value._depth + 1, value._nodes + 1, 1, _binders=value._binders, _sources=value._sources)
+    return Expression(_CREATE, value._ast.unary("not"), value._owner, _binders=value._binders, _sources=value._sources)
 
 
 def _unary(name: str, value: object) -> Expression:
     expression = _expression(value)
     return Expression(
         _CREATE,
-        f"{name}({expression._text})",
+        _Ast.call(name, [expression._ast]),
         expression._owner,
-        expression._depth + 1,
-        expression._nodes + 1,
-        100,
         _binders=expression._binders, _sources=expression._sources)
 
 
@@ -826,8 +820,8 @@ def coordinate(axis: int) -> Expression:
     if isinstance(axis, bool) or not isinstance(axis, int):
         raise TypeError("coordinate axis must be an integer")
     if not 0 <= axis <= 15:
-        raise SourceError("coordinate axis must be between 0 and 15")
-    return Expression(_CREATE, f"coordinate({axis})", None, 1, 1, 100)
+        raise ModuleError("coordinate axis must be between 0 and 15")
+    return Expression(_CREATE, _Ast.call("coordinate", [_Ast.number(str(axis))]), None)
 
 
 def grad(value: object) -> Expression:
@@ -836,7 +830,7 @@ def grad(value: object) -> Expression:
 
 def test(field: object) -> Expression:
     if not isinstance(field, _Field):
-        raise SourceError("test() requires a Field from this Source")
+        raise ModuleError("test() requires a Field from this Module")
     return _unary("test", field)
 
 
@@ -845,11 +839,8 @@ def _binary_function(name: str, left: object, right: object) -> Expression:
     right_expression = _expression(right)
     return Expression(
         _CREATE,
-        f"{name}({left_expression._text}, {right_expression._text})",
+        _Ast.call(name, [left_expression._ast, right_expression._ast]),
         _owner(left_expression, right_expression),
-        max(left_expression._depth, right_expression._depth) + 1,
-        left_expression._nodes + right_expression._nodes + 1,
-        100,
         _binders=left_expression._binders | right_expression._binders, _sources=left_expression._sources | right_expression._sources)
 
 
@@ -884,17 +875,14 @@ def to_integer(value: object) -> Expression:
 
 def integrate(domain: Support, integrand: object) -> Expression:
     if not isinstance(domain, Support) or domain._kind != "volume":
-        raise SourceError("integrate() requires a volume Support")
+        raise ModuleError("integrate() requires a volume Support")
     expression = _expression(integrand)
     if expression._owner is not None and expression._owner is not domain._component:
-        raise SourceError("integrand and Support must belong to the same Component")
+        raise ModuleError("integrand and Support must belong to the same Component")
     return Expression(
         _CREATE,
-        f"integrate({domain._name}, {expression._text})",
+        _Ast.call("integrate", [_Ast.name(domain._name), expression._ast]),
         domain._component,
-        expression._depth + 1,
-        expression._nodes + 1,
-        100,
         _binders=expression._binders, _sources=expression._sources)
 
 
@@ -932,7 +920,7 @@ def _name(value: object) -> str:
     if not isinstance(value, str):
         raise TypeError("declaration names must be strings")
     if not _NAME.fullmatch(value) or len(value.encode("utf-8")) > _MAX_IDENTIFIER_BYTES:
-        raise SourceError(f"invalid Eqiora Language declaration name {value!r}")
+        raise ModuleError(f"invalid Eqiora Language declaration name {value!r}")
     return value
 
 
@@ -943,7 +931,7 @@ def _name_path(value: object, label: str) -> str:
         not _NAME_PATH.fullmatch(value)
         or len(value.encode("utf-8")) > _MAX_IDENTIFIER_BYTES
     ):
-        raise SourceError(f"invalid Eqiora Language {label} {value!r}")
+        raise ModuleError(f"invalid Eqiora Language {label} {value!r}")
     return value
 
 
@@ -953,34 +941,12 @@ def _doc(value: object | None) -> tuple[str, ...]:
     if not isinstance(value, str):
         raise TypeError("doc must be a string or None")
     if len(value.encode("utf-8")) > _MAX_DOC_BYTES:
-        raise SourceError(f"doc exceeds the {_MAX_DOC_BYTES}-byte limit")
+        raise ModuleError(f"doc exceeds the {_MAX_DOC_BYTES}-byte limit")
     if "\r" in value or any(
         character < " " and character not in "\n\t" for character in value
     ):
-        raise SourceError("doc contains unsupported control characters")
+        raise ModuleError("doc contains unsupported control characters")
     return tuple(value.split("\n"))
-
-
-def _comment(lines: tuple[str, ...], indent: str) -> list[str]:
-    return [f"{indent}/// {line}" if line else f"{indent}///" for line in lines]
-
-
-def _relation_lines(left: Expression, right: Expression) -> list[str]:
-    lines = textwrap.wrap(
-        f"{left._text} = {right._text};",
-        width=88,
-        initial_indent="    ",
-        subsequent_indent="      ",
-        break_long_words=False,
-        break_on_hyphens=False,
-    )
-    for index in range(len(lines) - 1):
-        stripped = lines[index].rstrip()
-        if stripped[-1:] in ("+", "-", "*", "/"):
-            operator = stripped[-1]
-            lines[index] = stripped[:-1].rstrip()
-            lines[index + 1] = f"      {operator} {lines[index + 1].lstrip()}"
-    return lines
 
 
 class Component:
@@ -1018,12 +984,12 @@ class Component:
     def __init__(
         self,
         _token: object = _MISSING,
-        _source: Source | None = None,
+        _source: Module | None = None,
         _name_value: str = "",
         _doc_value: object | None = None,
     ) -> None:
         if _token is not _CREATE:
-            raise TypeError("components are created by Source.component()")
+            raise TypeError("components are created by Module.component()")
         assert _source is not None
         self._source = _source
         self._kind = "component"
@@ -1066,32 +1032,31 @@ class Component:
 
     def _type_syntax(self, value_type: ValueType) -> str:
         try:
-            return _nominal_type_source(value_type, [space for space, _ in self._source._spaces], [item for item, _ in self._index_sets], [item._definition for item, _ in self._source._enums])
+            return _nominal_type(value_type, [space for space, _ in self._source._spaces], [item for item, _ in self._index_sets], [item._definition for item, _ in self._source._enums])
         except ValueError as error:
-            raise SourceError(str(error)) from error
+            raise ModuleError(str(error)) from error
 
     def _nominal_value(self, function: str, name: str, value: Expression) -> Expression:
         if value._owner is not None and value._owner is not self._component_token:
-            raise SourceError("nominal value components must belong to this Component")
-        return Expression(_CREATE, f"{function}({name}, {value._text})", self._component_token,
-                          value._depth + 1, value._nodes + 2, 100, _binders=value._binders, _sources=value._sources)
+            raise ModuleError("nominal value components must belong to this Component")
+        return Expression(_CREATE, _Ast.call(function, [_Ast.name(name), value._ast]), self._component_token, _binders=value._binders, _sources=value._sources)
 
     def counts(self, space: FiniteSpace, components: Sequence[object]) -> Expression:
-        """Construct nonnegative counts in an exact basis registered by this Source."""
+        """Construct nonnegative counts in an exact basis registered by this Module."""
         if not isinstance(space, FiniteSpace) or not any(space == item for item, _ in self._source._spaces):
-            raise SourceError("count space must belong to this Source")
+            raise ModuleError("count space must belong to this Module")
         return self._nominal_value("counts", space.name, array(components))
 
     def coordinates(self, space: FiniteSpace, components: Sequence[object]) -> Expression:
-        """Construct signed integer coordinates in this Source's exact finite basis."""
+        """Construct signed integer coordinates in this Module's exact finite basis."""
         if not isinstance(space, FiniteSpace) or not any(space == item for item, _ in self._source._spaces):
-            raise SourceError("coordinate space must belong to this Source")
+            raise ModuleError("coordinate space must belong to this Module")
         return self._nominal_value("coordinates", space.name, array(components))
 
     def index(self, set: IndexSet, value: object) -> Expression:
         """Construct a checked ordinal in an index set registered by this Component."""
         if not isinstance(set, IndexSet) or not any(set == item for item, _ in self._index_sets):
-            raise SourceError("index set must belong to this Component")
+            raise ModuleError("index set must belong to this Component")
         return self._nominal_value("index", set.name, _expression(value))
 
     def index_set(self, name: str, *, extent: int, doc: str | None = None) -> IndexSet:
@@ -1129,28 +1094,28 @@ class Component:
                    over: IndexSet, name: str) -> Expression:
         self._source._ensure_open()
         if not isinstance(over, IndexSet) or not any(over == item for item, _ in self._index_sets):
-            raise SourceError("reduction index set must belong to this Component")
+            raise ModuleError("reduction index set must belong to this Component")
         name = _name(name)
         if name in self._names or name in self._source._top_names or name in self._active_binders.values():
-            raise SourceError("reduction binder must not capture an existing name")
+            raise ModuleError("reduction binder must not capture an existing name")
         if not callable(body):
             raise TypeError("reduction body must be callable")
         if len(self._active_binders) >= _MAX_EXPRESSION_DEPTH:
-            raise SourceError("reduction nesting exceeds the expression depth limit")
+            raise ModuleError("reduction nesting exceeds the expression depth limit")
         if name not in self._reduction_names and len(self._reduction_names) >= _MAX_EXPRESSION_NODES:
-            raise SourceError("reduction names exceed the expression node limit")
+            raise ModuleError("reduction names exceed the expression node limit")
         token = object()
         self._active_binders[token] = name
         try:
-            index = Expression(_CREATE, name, self._component_token, 1, 1, 100,
+            index = Expression(_CREATE, _Ast.name(name), self._component_token,
                                _binders=frozenset((token,)))
             value = _expression(body(index))
             if value._owner is not None and value._owner is not self._component_token:
-                raise SourceError("reduction body must belong to this Component")
+                raise ModuleError("reduction body must belong to this Component")
             if not value._binders <= self._active_binders.keys():
-                raise SourceError("reduction body contains an escaped binder")
-            result = Expression(_CREATE, f"{operation}({value._text}, over = ({name} in {over.name}))",
-                                self._component_token, value._depth + 1, value._nodes + 2, 100,
+                raise ModuleError("reduction body contains an escaped binder")
+            result = Expression(_CREATE, value._ast.reduction(operation, name, over.name),
+                                self._component_token,
                                 _binders=value._binders - {token}, _sources=value._sources)
         finally:
             del self._active_binders[token]
@@ -1159,23 +1124,23 @@ class Component:
 
     def _closed_expression(self, value: Expression) -> None:
         if value._sources - {self._source._owner}:
-            raise SourceError("operator expression must belong to this Source")
+            raise ModuleError("operator expression must belong to this Module")
         if self._active_binders:
-            raise SourceError("reduction callbacks construct expressions, not declarations")
+            raise ModuleError("reduction callbacks construct expressions, not declarations")
         if value._binders:
-            raise SourceError("declaration expression contains a free reduction binder")
+            raise ModuleError("declaration expression contains a free reduction binder")
 
     def _add_name(self, name: object) -> str:
         self._source._ensure_open()
         admitted = _name(name)
         if self._active_binders:
-            raise SourceError("reduction callbacks construct expressions, not declarations")
+            raise ModuleError("reduction callbacks construct expressions, not declarations")
         if admitted in self._reduction_names:
-            raise SourceError("declaration name would capture a reduction binder")
+            raise ModuleError("declaration name would capture a reduction binder")
         if admitted in self._names:
-            raise SourceError(f"duplicate declaration name {admitted!r}")
+            raise ModuleError(f"duplicate declaration name {admitted!r}")
         if self._declaration_count >= _MAX_DECLARATIONS:
-            raise SourceError(
+            raise ModuleError(
                 f"Component exceeds the {_MAX_DECLARATIONS}-declaration limit"
             )
         self._names.add(admitted)
@@ -1187,20 +1152,20 @@ class Component:
             not isinstance(support, Support)
             or support._component is not self._component_token
         ):
-            raise SourceError("support must belong to this Component and Source")
+            raise ModuleError("support must belong to this Component and Module")
         return support
 
     def _clock(self, clock: Clock | None) -> Clock | None:
         if clock is not None and (
             not isinstance(clock, Clock) or clock._component is not self._component_token
         ):
-            raise SourceError("clock must belong to this Component and Source")
+            raise ModuleError("clock must belong to this Component and Module")
         return clock
 
     def _activation(self, activation: Clock | Event | None) -> Clock | Event | None:
         if isinstance(activation, Event):
             if activation._component is not self._component_token:
-                raise SourceError("event must belong to this Component and Source")
+                raise ModuleError("event must belong to this Component and Module")
             return activation
         return self._clock(activation)
 
@@ -1213,13 +1178,13 @@ class Component:
         """
         self._source._ensure_open()
         if not isinstance(direction, str) or direction not in ("any", "rising", "falling"):
-            raise SourceError("event direction must be any, rising, or falling")
+            raise ModuleError("event direction must be any, rising, or falling")
         expression = _expression(guard)
         self._closed_expression(expression)
         if expression._owner is not None and expression._owner is not self._component_token:
-            raise SourceError("event guard must belong to this Component and Source")
+            raise ModuleError("event guard must belong to this Component and Module")
         if sum(value._nodes for _, value, _, _ in self._events) + expression._nodes > _MAX_EXPRESSION_NODES:
-            raise SourceError("event guards exceed the expression node limit")
+            raise ModuleError("event guards exceed the expression node limit")
         documentation = _doc(doc)
         admitted = self._add_name(name)
         event = Event(_CREATE, self._component_token, admitted)
@@ -1259,14 +1224,14 @@ class Component:
         for value in expressions:
             self._closed_expression(value)
         if any(value._owner is not None and value._owner is not self._component_token for value in expressions):
-            raise SourceError("initial expressions must belong to this Component")
+            raise ModuleError("initial expressions must belong to this Component")
         total_nodes = sum(value._nodes for equations, _ in self._initials for pair in equations for value in pair)
         total_nodes += sum(value._nodes for value in expressions)
         if total_nodes > _MAX_EXPRESSION_NODES:
-            raise SourceError(f"Component initial expressions exceed the {_MAX_EXPRESSION_NODES}-node limit")
+            raise ModuleError(f"Component initial expressions exceed the {_MAX_EXPRESSION_NODES}-node limit")
         doc_lines = _doc(doc)
         if self._declaration_count >= _MAX_DECLARATIONS:
-            raise SourceError(f"Component exceeds the {_MAX_DECLARATIONS}-declaration limit")
+            raise ModuleError(f"Component exceeds the {_MAX_DECLARATIONS}-declaration limit")
         self._declaration_count += 1
         self._initials.append((pairs, doc_lines))
 
@@ -1280,7 +1245,7 @@ class Component:
         if isinstance(dimensions, bool) or not isinstance(dimensions, int):
             raise TypeError("volume dimensions must be an integer")
         if not 1 <= dimensions <= 15:
-            raise SourceError("volume dimensions must be between 1 and 15")
+            raise ModuleError("volume dimensions must be between 1 and 15")
         doc_lines = _doc(doc)
         admitted = self._add_name(name)
         support = Support(
@@ -1298,7 +1263,7 @@ class Component:
     ) -> Support:
         parent = self._support(parent)
         if parent._kind != "volume":
-            raise SourceError("a boundary parent must be a volume from this Component")
+            raise ModuleError("a boundary parent must be a volume from this Component")
         doc_lines = _doc(doc)
         admitted = self._add_name(name)
         support = Support(
@@ -1328,14 +1293,14 @@ class Component:
         """Set a signature Parameter default after declaring its lexical dependencies."""
         self._source._ensure_open()
         if not isinstance(parameter, _Parameter) or parameter not in self._requirements:
-            raise SourceError("default target must be this Component's Parameter requirement")
+            raise ModuleError("default target must be this Component's Parameter requirement")
         expression = _expression(value)
         self._closed_expression(expression)
         if expression._owner is not None and expression._owner is not self._component_token:
-            raise SourceError("Parameter defaults must belong to this Component")
+            raise ModuleError("Parameter defaults must belong to this Component")
         total = expression._nodes + sum(value._nodes for target, value in self._defaults.items() if target is not parameter)
         if total > _MAX_EXPRESSION_NODES:
-            raise SourceError("Parameter defaults exceed the 4096-node expression limit")
+            raise ModuleError("Parameter defaults exceed the 4096-node expression limit")
         self._defaults[parameter] = expression
 
     def clock_requirement(self, name: str, *, doc: str | None = None) -> Clock:
@@ -1377,7 +1342,7 @@ class Component:
         value = _expression(expression)
         self._closed_expression(value)
         if value._owner is not None and value._owner is not self._component_token:
-            raise SourceError("alias expressions must belong to this Component")
+            raise ModuleError("alias expressions must belong to this Component")
         if value_type is not None and not isinstance(value_type, ValueType):
             raise TypeError("value_type must be an eqiora.ValueType")
         if on is not None:
@@ -1386,12 +1351,12 @@ class Component:
         syntax = None if value_type is None else self._type_syntax(value_type)
         doc_lines = _doc(doc)
         if sum(item[1]._nodes for item in self._aliases) + value._nodes > _MAX_EXPRESSION_NODES:
-            raise SourceError(
+            raise ModuleError(
                 f"Component alias expressions exceed the {_MAX_EXPRESSION_NODES}-node limit"
             )
         admitted = self._add_name(name)
         self._aliases.append((admitted, value, syntax, on, at, doc_lines))
-        return Expression(_CREATE, admitted, self._component_token, 1, 1, 100)
+        return Expression(_CREATE, _Ast.name(admitted), self._component_token)
 
     def property(
         self,
@@ -1401,7 +1366,7 @@ class Component:
         doc: str | None = None,
     ) -> Expression:
         if not isinstance(contract, PropertyContract) or contract._owner is not self._owner:
-            raise SourceError("property contract must belong to this Source")
+            raise ModuleError("property contract must belong to this Module")
         admitted = self._add_name(name)
         requirement = _PropertyRequirement(
             self._component_token, admitted, contract
@@ -1423,8 +1388,8 @@ class Component:
         at = self._clock(at)
         on = None if on is None else self._support(on)
         if on is not None and on._kind != "volume":
-            raise SourceError(
-                "the initial Source vocabulary admits fields on volumes only"
+            raise ModuleError(
+                "the initial Module vocabulary admits fields on volumes only"
             )
         if not isinstance(value_type, ValueType):
             raise TypeError("value_type must be an eqiora.ValueType")
@@ -1459,14 +1424,15 @@ class Component:
     def relation(
         self,
         name: str,
+        equality: Equation,
         *,
         on: Support | None = None,
-        left: Expression | int | float | complex,
-        right: Expression | int | float | complex,
         at: Clock | Event | None = None,
         doc: str | None = None,
     ) -> Relation:
         """Declare an equality, optionally active on one exact local clock or event."""
+        if not isinstance(equality, Equation):
+            raise TypeError("relation requires equation(lhs, rhs)")
         at = self._activation(at)
         on = None if on is None else self._support(on)
         def admit(value: Expression | int | float | complex) -> Expression:
@@ -1475,18 +1441,15 @@ class Component:
             if expression._owner is None:
                 return Expression(
                     _CREATE,
-                    expression._text,
+                    expression._ast,
                     self._component_token,
-                    expression._depth,
-                    expression._nodes,
-                    expression._precedence,
                     _binders=expression._binders, _sources=expression._sources)
             if expression._owner is not self._component_token:
-                raise SourceError("relation expressions must belong to this Component")
+                raise ModuleError("relation expressions must belong to this Component")
             return expression
 
-        left_expression = admit(left)
-        right_expression = admit(right)
+        left_expression = admit(equality.lhs)
+        right_expression = admit(equality.rhs)
         doc_lines = _doc(doc)
         total_nodes = (
             sum(
@@ -1497,7 +1460,7 @@ class Component:
             + right_expression._nodes
         )
         if total_nodes > _MAX_EXPRESSION_NODES:
-            raise SourceError(
+            raise ModuleError(
                 f"Component relation expressions exceed the {_MAX_EXPRESSION_NODES}-node limit"
             )
         admitted = self._add_name(name)
@@ -1521,15 +1484,15 @@ class Component:
             not isinstance(relation, Relation)
             or relation._component is not self._component_token
         ):
-            raise SourceError("form relation must belong to this Component")
+            raise ModuleError("form relation must belong to this Component")
         left_expression = _expression(left)
         right_expression = _expression(right)
         for expression in (left_expression, right_expression):
             self._closed_expression(expression)
             if expression._owner is not self._component_token:
-                raise SourceError("form expressions must belong to this Component")
+                raise ModuleError("form expressions must belong to this Component")
         if self._formulations:
-            raise SourceError("the scalar-primal Source vocabulary admits one form")
+            raise ModuleError("the scalar-primal Module vocabulary admits one form")
         total_nodes = (
             sum(
                 item[2]._nodes + item[3]._nodes
@@ -1539,11 +1502,11 @@ class Component:
             + right_expression._nodes
         )
         if total_nodes > _MAX_EXPRESSION_NODES:
-            raise SourceError(
+            raise ModuleError(
                 f"Component relation and form expressions exceed the {_MAX_EXPRESSION_NODES}-node limit"
             )
         if self._declaration_count >= _MAX_DECLARATIONS:
-            raise SourceError(
+            raise ModuleError(
                 f"Component exceeds the {_MAX_DECLARATIONS}-declaration limit"
             )
         self._declaration_count += 1
@@ -1551,182 +1514,194 @@ class Component:
             (relation, left_expression, right_expression, _doc(doc))
         )
 
+    @_property
+    def _qualified_name(self) -> str:
+        return self._name
+
     def instance(
-        self, name: str, *, component: Component,
-        bindings: Mapping[object, object], doc: str | None = None,
-    ) -> Mapping[Expression, Expression]:
-        """Bind explicit target signature handles to values in this lexical scope."""
-        if not isinstance(component, Component) or component._owner is not self._owner:
-            raise SourceError("instance component must belong to this Source")
-        if component is self or component._kind != "component":
-            raise SourceError("an instance requires another Component definition")
+        self, name: str, *, component: Component | ComponentRef,
+        bindings: Mapping[str, object], doc: str | None = None,
+    ) -> Mapping[str, Expression]:
+        """Bind explicit signature names to typed enclosing values."""
+        if not isinstance(component, (Component, ComponentRef)) or component._owner is not self._owner:
+            raise ModuleError("instance component must belong to this Module's explicit imports")
+        if component is self or isinstance(component, Component) and component._kind != "component":
+            raise ModuleError("an instance requires another Component definition")
         if not isinstance(bindings, Mapping):
-            raise TypeError("bindings must map target signature handles to enclosing values")
-        targets = (set(component._requirements)
-                   | {item[0] for item in component._supports}
-                   | {item[0] for item in component._properties})
-        required = targets - set(component._defaults)
-        if not required <= set(bindings) or not set(bindings) <= targets:
-            raise SourceError("instance bindings must satisfy the exact required signature")
+            raise TypeError("bindings must map target signature names to enclosing values")
+        if len(bindings) > _MAX_DECLARATIONS:
+            raise ModuleError("instance bindings exceed the declaration limit")
+        handles = {}
+        if isinstance(component, ComponentRef):
+            signature = component._signature
+        else:
+            targets = (set(component._requirements)
+                       | {item[0] for item in component._supports}
+                       | {item[0] for item in component._properties})
+            signature = []
+            for target in targets:
+                handles[target._name] = target
+                role = ("support" if isinstance(target, Support)
+                        else "clock" if isinstance(target, Clock)
+                        else "property" if isinstance(target, _PropertyRequirement)
+                        else "input" if component._causal.get(target) == "input"
+                        else "field" if isinstance(target, _Field)
+                        else "parameter")
+                signature.append((target._name, role, target not in component._defaults))
+        targets = {name: role for name, role, _ in signature if role not in ("output", "port")}
+        required = {name for name, role, required in signature if required and role not in ("output", "port")}
+        if not required <= set(bindings) or not set(bindings) <= targets.keys():
+            raise ModuleError("instance bindings must satisfy the exact required signature")
         admitted_bindings = []
         for target, value in bindings.items():
-            if isinstance(target, Support):
-                self._support(value)
-                expression = value._name
-            elif isinstance(target, Clock):
-                if not isinstance(value, Clock):
-                    raise SourceError("clock requirement needs an enclosing Clock")
-                self._clock(value)
-                expression = value._name
-            elif component._causal.get(target) == "input":
-                value = _expression(value)
-                self._closed_expression(value)
-                if value._owner is not None and value._owner is not self._component_token:
-                    raise SourceError("input bindings must belong to this Component")
-                expression = value._text
-            elif isinstance(target, _Field):
-                if not isinstance(value, _Field) or value._component is not self._component_token:
-                    raise SourceError("Field requirement needs an enclosing Field")
-                expression = value._name
-            elif isinstance(target, _PropertyRequirement):
+            target = _name(target)
+            role = targets[target]
+            if role in ("support", "clock"):
+                if role == "support":
+                    self._support(value)
+                else:
+                    if not isinstance(value, Clock):
+                        raise ModuleError("clock requirement needs an enclosing Clock")
+                    self._clock(value)
+                expression = _Ast.name(value._name)
+            elif role == "property":
+                required_property = handles.get(target)
                 if (not isinstance(value, PropertyRelease) or value._owner is not self._owner
-                        or value._contract is not target._contract):
-                    raise SourceError("property binding requires the exact Source contract release")
-                expression = value._name
+                        or required_property is not None and value._contract is not required_property._contract):
+                    raise ModuleError("property binding requires the exact Module contract release")
+                expression = _Ast.name(value._name)
             else:
+                if role == "field" and (not isinstance(value, _Field) or value._component is not self._component_token):
+                    raise ModuleError("Field requirement needs an enclosing Field")
                 value = _expression(value)
                 self._closed_expression(value)
                 if value._owner is not None and value._owner is not self._component_token:
-                    raise SourceError("instance Parameter values must belong to this Component")
-                expression = value._text
-            admitted_bindings.append((target._name, expression))
-        doc_lines = _doc(doc)
+                    raise ModuleError("instance bindings must belong to this Component")
+                expression = value._ast
+            admitted_bindings.append((target, expression))
+        outputs = (component._outputs if isinstance(component, ComponentRef)
+                   else tuple(field._name for field, kind in component._causal.items() if kind == "output"))
+        documentation = _doc(doc)
         admitted = self._add_name(name)
-        self._instances.append((admitted, component, tuple(admitted_bindings), doc_lines))
+        self._instances.append((admitted, component, tuple(admitted_bindings), documentation))
         return MappingProxyType({
-            field: Expression(_CREATE, f"{admitted}.{field._name}", self._component_token, 1, 1, 100)
-            for field, kind in component._causal.items() if kind == "output"
+            field: Expression(_CREATE, _Ast.name(f"{admitted}.{field}"),
+                              self._component_token)
+            for field in outputs
         })
 
     def set_notation(self, name: str, notation: Notation) -> None:
         """Attach validated notation to an existing declaration in this lexical scope."""
         self._source._ensure_open()
         if name not in self._names:
-            raise SourceError("notation target must be an existing declaration in this Component")
+            raise ModuleError("notation target must be an existing declaration in this Component")
         if not isinstance(notation, Notation):
             raise TypeError("notation must be an eqiora.lang.Notation")
         self._notations[name] = notation
 
-    def _header_name(self, name: str) -> str:
-        notation = self._notations.get(name)
-        return name if notation is None else f"{name} {notation.canonical}"
-
-    def _render(self) -> str:
-        lines = _comment(self._doc, "")
-        signature = []
+    def _declaration(self, allocate) -> _AstDefinition:
+        declarations = []
+        def add(name, doc, factory):
+            ordinal = allocate(doc, self._notations.get(name))
+            declarations.append(factory(ordinal))
         for support, kind, detail, doc in self._supports:
-            syntax = (f"volume(ambient_dimension = {detail})" if kind == "volume"
-                      else f"boundary(parent = {detail._name})")
-            signature.extend(_comment(doc, "  "))
-            signature.append(f"  support {self._header_name(support._name)}: {syntax},")
-        for parameter, value_type, doc in self._parameters:
-            signature.extend(_comment(doc, "  "))
+            add(support._name, doc, lambda n: _AstDeclaration.support(
+                support._name, detail if kind == "volume" else None,
+                detail._name if kind == "boundary" else None, n))
+        for parameter, kind, doc in self._parameters:
             default = self._defaults.get(parameter)
-            suffix = "" if default is None else f" = {default._text}"
-            signature.append(f"  parameter {self._header_name(parameter._name)}: {value_type}{suffix},")
+            add(parameter._name, doc, lambda n: _AstDeclaration.parameter(
+                parameter._name, kind, None if default is None else default._ast, n))
         for requirement, contract, doc in self._properties:
-            signature.extend(_comment(doc, "  "))
-            signature.append(f"  property {self._header_name(requirement._name)}: {contract._name},")
+            add(requirement._name, doc, lambda n: _AstDeclaration.property(
+                requirement._name, contract._name, n))
         for clock, period, phase, doc in self._clocks:
-            if clock in self._requirements:
-                signature.extend(_comment(doc, "  "))
-                signature.append(f"  clock {self._header_name(clock._name)}: periodic,")
-        for field, support, value_type, role, clock, doc in self._fields:
-            if field in self._requirements or field in self._causal:
-                signature.extend(_comment(doc, "  "))
-                keyword = self._causal.get(field, "state" if role == FieldRole.State else "variable")
-                activation = "" if clock is None else f" at {clock._name}"
-                spatial = "" if support is None else f" on {support._name}"
-                signature.append(f"  {keyword} {self._header_name(field._name)}: {value_type}{spatial}{activation},")
-        lines.append(f"public {self._kind} {self._source._header_name(self._name)}(")
-        lines.extend(signature)
-        lines.append(") {")
+            def declaration(n):
+                if clock in self._requirements:
+                    return _AstDeclaration.clock(clock._name, None, None, n)
+                second = _Ast.name("s")
+                def seconds(value):
+                    return _Ast.quantity(str(value.numerator), second).binary(
+                        "/", _Ast.quantity(str(value.denominator), _Ast.number("1")))
+                return _AstDeclaration.clock(clock._name, seconds(period), seconds(phase), n)
+            add(clock._name, doc, declaration)
         for index_set, doc in self._index_sets:
-            lines.extend(_comment(doc, "  "))
-            lines.append(f"  indexset {self._header_name(index_set.name)} = range({index_set.extent});")
-        for clock, period, phase, doc in self._clocks:
-            if clock in self._requirements:
-                continue
-            lines.extend(_comment(doc, "  "))
-            lines.append(
-                f"  clock {self._header_name(clock._name)} = periodic({period.numerator} [s] / {period.denominator}, "
-                f"phase = {phase.numerator} [s] / {phase.denominator});"
-            )
+            add(index_set.name, doc, lambda n: _AstDeclaration.index_set(
+                index_set.name, _Ast.number(str(index_set.extent)), n))
+        for field, support, kind, role, clock, doc in self._fields:
+            position = self._causal.get(field, "field" if field in self._requirements else "")
+            add(field._name, doc, lambda n: _AstDeclaration.field(
+                field._name, kind, "state" if role == FieldRole.State else "variable",
+                None if support is None else support._name,
+                None if clock is None else clock._name, position, n))
+        for name, value, kind, support, clock, doc in self._aliases:
+            add(name, doc, lambda n: _AstDeclaration.alias(
+                name, kind, None if support is None else support._name,
+                None if clock is None else clock._name, value._ast, n))
         for event, guard, direction, doc in self._events:
-            lines.extend(_comment(doc, "  "))
-            lines.append(f"  event {self._header_name(event._name)} = crossing({guard._text}, direction = {direction});")
-        for name, expression, value_type, support, clock, doc in self._aliases:
-            lines.extend(_comment(doc, "  "))
-            assertion = "" if value_type is None else f": {value_type}"
-            support_assertion = "" if support is None else f" on {support._name}"
-            activation = "" if clock is None else f" at {clock._name}"
-            lines.append(f"  let {self._header_name(name)}{assertion}{support_assertion}{activation} = {expression._text};")
-        if self._aliases and (self._fields or self._relations or self._instances):
-            lines.append("")
-        if self._fields:
-            for field, support, value_type, role, clock, doc in self._fields:
-                if field in self._requirements or field in self._causal:
-                    continue
-                lines.extend(_comment(doc, "  "))
-                keyword = "state" if role == FieldRole.State else "variable"
-                activation = "" if clock is None else f" at {clock._name}"
-                spatial = "" if support is None else f" on {support._name}"
-                lines.append(f"  {keyword} {self._header_name(field._name)}: {value_type}{spatial}{activation};")
-        if self._fields and (self._relations or self._instances):
-            lines.append("")
+            add(event._name, doc, lambda n: _AstDeclaration.event(
+                event._name, guard._ast, direction, n))
         for equations, doc in self._initials:
-            lines.extend(_comment(doc, "  "))
-            lines.append("  initial {")
-            for left, right in equations:
-                lines.extend(_relation_lines(left, right))
-            lines.append("  }")
-        for index, (name, support, left, right, clock, doc) in enumerate(self._relations):
-            lines.extend(_comment(doc, "  "))
-            activation = "" if clock is None else f" at {clock._name}"
-            spatial = "" if support is None else f" on {support._name}"
-            lines.append(f"  relation {self._header_name(name)}{spatial}{activation} {{")
-            lines.extend(_relation_lines(left, right))
-            lines.append("  }")
-            if index + 1 != len(self._relations):
-                lines.append("")
-        if self._relations and self._instances:
-            lines.append("")
-        for index, (name, component, named_bindings, doc) in enumerate(self._instances):
-            lines.extend(_comment(doc, "  "))
-            bindings = [f"{target} = {value}" for target, value in named_bindings]
-            if bindings:
-                lines.append(f"  instance {self._header_name(name)}: {component._name}(")
-                for binding_index, binding in enumerate(bindings):
-                    comma = "," if binding_index + 1 != len(bindings) else ""
-                    lines.append(f"    {binding}{comma}")
-                lines.append("  );")
-            else:
-                lines.append(f"  instance {self._header_name(name)}: {component._name}();")
-            if index + 1 != len(self._instances):
-                lines.append("")
+            add("", doc, lambda n: _AstDeclaration.initial(
+                [(left._ast, right._ast) for left, right in equations], n))
+        for name, support, left, right, clock, doc in self._relations:
+            add(name, doc, lambda n: _AstDeclaration.relation(
+                name, None if support is None else support._name,
+                None if clock is None else clock._name, left._ast, right._ast, n))
+        for name, component, bindings, doc in self._instances:
+            add(name, doc, lambda n: _AstDeclaration.instance(
+                name, component._qualified_name, bindings, n))
+        form = None
         if self._formulations:
-            if self._relations or self._instances:
-                lines.append("")
-            for relation, left, right, doc in self._formulations:
-                lines.extend(_comment(doc, "  "))
-                lines.append(f"  form primal for {relation._name} {{")
-                lines.append(f"    {left._text} = {right._text};")
-                lines.append("  }")
-        lines.append("}")
-        return "\n".join(lines) + "\n"
+            relation, left, right, doc = self._formulations[0]
+            form = (relation._name, left._ast, right._ast, allocate(doc))
+        ordinal = allocate(self._doc, self._source._notations.get(self._name))
+        return _AstDefinition(self._name, self._kind == "model", declarations, form, ordinal)
+
+class ComponentRef:
+    """Immutable reference to one public Component in an explicit import."""
+
+    __slots__ = ("_owner", "_name", "_qualified_name", "_outputs", "_signature")
+
+    def __init__(self, token, owner, alias, name, signature):
+        if token is not _CREATE:
+            raise TypeError("Component references come from an explicit import")
+        object.__setattr__(self, "_owner", owner)
+        object.__setattr__(self, "_name", name)
+        object.__setattr__(self, "_qualified_name", f"{alias}.{name}")
+        object.__setattr__(self, "_signature", tuple(signature))
+        object.__setattr__(self, "_outputs", tuple(name for name, role, _ in signature if role == "output"))
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def __setattr__(self, name, value):
+        raise AttributeError("ComponentRef is immutable")
 
 
-class Source:
+class ModuleRef:
+    """An explicit module import, with no ambient lookup registry."""
+
+    __slots__ = ("_owner", "_alias", "_target")
+
+    def __init__(self, token, owner, alias, target):
+        if token is not _CREATE:
+            raise TypeError("Module references come from import_module()")
+        object.__setattr__(self, "_owner", owner)
+        object.__setattr__(self, "_alias", alias)
+        object.__setattr__(self, "_target", target)
+
+    def __setattr__(self, name, value):
+        raise AttributeError("ModuleRef is immutable")
+
+    def component(self, name: str) -> ComponentRef:
+        name = _name(name)
+        signature = self._target._freeze().component(name)
+        return ComponentRef(_CREATE, self._owner, self._alias, name, signature)
+
+
+class Module:
     """Author bounded Model and Component definitions; freeze on first emission."""
 
     __slots__ = (
@@ -1742,9 +1717,15 @@ class Source:
         "_notations",
         "_spaces",
         "_enums",
+        "_name",
+        "_imports",
+        "_graph",
     )
 
-    def __init__(self) -> None:
+    def __init__(self, name: str, *declarations: object) -> None:
+        self._name = _name_path(name, "module name")
+        self._imports: dict[str, Module] = {}
+        self._graph = None if not declarations else _module_from_declarations(name, *declarations)
         self._owner = object()
         self._components: list[Component] = []
         self._operators: list[Operator] = []
@@ -1760,30 +1741,30 @@ class Source:
 
     def _type_syntax(self, value_type: ValueType) -> str:
         try:
-            return _nominal_type_source(value_type, [space for space, _ in self._spaces], [], [item._definition for item, _ in self._enums])
+            return _nominal_type(value_type, [space for space, _ in self._spaces], [], [item._definition for item, _ in self._enums])
         except ValueError as error:
-            raise SourceError(str(error)) from error
+            raise ModuleError(str(error)) from error
 
     def operator(self, name: str, *, inputs: Mapping[str, ValueType], result_type: ValueType,
                  body: Callable[..., object], doc: str | None = None) -> Operator:
         """Declare a closed real-scalar operator from one symbolic callback invocation.
 
         Formal types include physical dimensions. Calls use named arguments;
-        hidden Model captures and values from another Source are rejected.
+        hidden Model captures and values from another Module are rejected.
         """
         self._ensure_open()
         admitted = _name(name)
         if admitted in self._top_names:
-            raise SourceError("duplicate top-level declaration name")
+            raise ModuleError("duplicate top-level declaration name")
         if not isinstance(inputs, Mapping):
             raise TypeError("operator inputs must map names to ValueType")
         if len(inputs) > _MAX_DECLARATIONS:
-            raise SourceError("operator input count exceeds the declaration limit")
+            raise ModuleError("operator input count exceeds the declaration limit")
         def checked(value: ValueType) -> str:
             if not isinstance(value, ValueType):
                 raise TypeError("operator contracts require ValueType")
             if value.scalar_domain != "real" or value.shape:
-                raise SourceError("Python operators require ordinary real scalar types")
+                raise ModuleError("Python operators require ordinary real scalar types")
             return self._type_syntax(value)
         signature = tuple((_name(key), checked(value)) for key, value in inputs.items())
         result = checked(result_type)
@@ -1791,18 +1772,18 @@ class Source:
         if not callable(body):
             raise TypeError("operator body must be callable")
         token = object()
-        formals = {key: Expression(_CREATE, key, token, 1, 1, 100) for key, _ in signature}
+        formals = {key: Expression(_CREATE, _Ast.name(key), token) for key, _ in signature}
         self._operator_building = True
         try:
             expression = _expression(body(**formals))
         finally:
             self._operator_building = False
         if expression._owner is not None and expression._owner is not token:
-            raise SourceError("operator body must use only its own formal inputs")
+            raise ModuleError("operator body must use only its own formal inputs")
         if expression._binders or expression._sources - {self._owner}:
-            raise SourceError("operator body contains a foreign Source or free binder")
+            raise ModuleError("operator body contains a foreign Module or free binder")
         if sum(item._body._nodes for item in self._operators) + expression._nodes > _MAX_EXPRESSION_NODES:
-            raise SourceError("operator bodies exceed the expression node limit")
+            raise ModuleError("operator bodies exceed the expression node limit")
         self._add_top_name(admitted)
         operator = Operator(_CREATE, _source=self, _name=admitted, _inputs=signature,
                             _result=result, _body=expression, _doc=documentation)
@@ -1810,7 +1791,7 @@ class Source:
         return operator
 
     def enum(self, name: str, *, members: Sequence[str], doc: str | None = None) -> Enum:
-        """Declare a closed enum shared by all occurrences in this Source."""
+        """Declare a closed enum shared by all occurrences in this Module."""
         self._ensure_open()
         if isinstance(members, (str, bytes)) or not isinstance(members, Sequence):
             raise TypeError("enum members must be an ordered sequence of names")
@@ -1822,7 +1803,7 @@ class Source:
         return result
 
     def space(self, name: str, *, labels: Sequence[str], doc: str | None = None) -> FiniteSpace:
-        """Declare one exact ordered finite basis shared by this Source's components."""
+        """Declare one exact ordered finite basis shared by this Module's components."""
         self._ensure_open()
         doc_lines = _doc(doc)
         if isinstance(labels, str) or not isinstance(labels, Sequence):
@@ -1834,21 +1815,78 @@ class Source:
 
     def _ensure_open(self) -> None:
         if self._operator_building:
-            raise SourceError("operator callbacks construct expressions, not declarations")
-        if self._frozen_text is not None:
-            raise SourceError("Source is frozen after emission or compilation")
+            raise ModuleError("operator callbacks construct expressions, not declarations")
+        if self._graph is not None:
+            raise ModuleError("Module is frozen after emission or compilation")
+
+    @classmethod
+    def parse(cls, name: str, source: str) -> Module:
+        module = cls(name)
+        if not isinstance(source, str):
+            raise TypeError("source must be Unicode text")
+        module._graph = _AstModule.parse(f"src/{name.replace('.', '/')}.eqi", source)
+        return module
+
+    def import_module(self, alias: str, module: Module | None = None, *, path=None) -> ModuleRef:
+        alias = _name(alias)
+        if (module is None) == (path is None):
+            raise TypeError("import_module requires exactly one Module or path")
+        if path is not None:
+            path = Path(os.fspath(path))
+            if path.suffix != ".eqi" or not path.is_file():
+                raise ModuleError("an imported path must name an explicit .eqi file")
+            if path.stat().st_size > _MAX_OUTPUT_BYTES:
+                raise ModuleError("imported source exceeds the source byte limit")
+            module = Module.parse(_name(path.stem), path.read_text(encoding="utf-8"))
+        if not isinstance(module, Module):
+            raise TypeError("import target must be a Module")
+        if module is self:
+            raise ModuleError("a Module cannot import itself")
+        previous = self._imports.get(alias)
+        if previous is not None and previous is not module:
+            raise ModuleError("import alias already has an attached module")
+        if self._graph is not None:
+            imports = dict(self._graph.imports())
+            if imports.get(alias) != f"eqiora.local_project.{module._name}":
+                raise ModuleError("a frozen Module only permits attaching an exact existing import")
+        self._imports[alias] = module
+        return ModuleRef(_CREATE, self._owner, alias, module)
+
+    def _units(self):
+        units, active = {}, set()
+        def visit(module):
+            if module._name in active:
+                raise ModuleError("recursive module imports are not supported")
+            graph = module._freeze()
+            previous = units.get(module._name)
+            if previous is not None:
+                if not graph.same_graph(previous):
+                    raise ModuleError("one logical module name has conflicting contents")
+                return
+            if len(units) + len(active) >= _MAX_DECLARATIONS:
+                raise ModuleError("module closure exceeds the bounded module count")
+            active.add(module._name)
+            for alias, target in graph.imports():
+                imported = module._imports.get(alias)
+                if imported is None or f"eqiora.local_project.{imported._name}" != target:
+                    raise ModuleError(f"explicit module import {alias!r} has no matching attached source")
+                visit(imported)
+            active.remove(module._name)
+            units[module._name] = graph
+        visit(self)
+        return sorted(units.items())
 
     def _add_top_name(self, name: object) -> str:
         self._ensure_open()
         admitted = _name(name)
         if any(admitted in component._reduction_names or admitted in component._active_binders.values()
                for component in self._components):
-            raise SourceError("top-level declaration would capture a reduction binder")
+            raise ModuleError("top-level declaration would capture a reduction binder")
         if admitted in self._top_names:
-            raise SourceError(f"duplicate top-level declaration name {admitted!r}")
+            raise ModuleError(f"duplicate top-level declaration name {admitted!r}")
         if len(self._top_names) >= _MAX_DECLARATIONS:
-            raise SourceError(
-                f"Source exceeds the {_MAX_DECLARATIONS}-declaration limit"
+            raise ModuleError(
+                f"Module exceeds the {_MAX_DECLARATIONS}-declaration limit"
             )
         self._top_names.add(admitted)
         return admitted
@@ -1882,7 +1920,7 @@ class Source:
         """Declare a complete result type for constant value-only property releases."""
         self._ensure_open()
         if self._components:
-            raise SourceError("property declarations must precede Components")
+            raise ModuleError("property declarations must precede Components")
         if not isinstance(value_type, ValueType):
             raise TypeError("value_type must be an eqiora.ValueType")
         self._type_syntax(value_type)
@@ -1913,19 +1951,19 @@ class Source:
         """Declare ordered numeric components; the compiler scales every component to SI."""
         self._ensure_open()
         if self._components:
-            raise SourceError("property declarations must precede Components")
+            raise ModuleError("property declarations must precede Components")
         if (
             not isinstance(implements, PropertyContract)
             or implements._owner is not self._owner
             or implements not in self._contracts
         ):
-            raise SourceError("release contract must be the exact contract from this Source")
+            raise ModuleError("release contract must be the exact contract from this Module")
         if not isinstance(source_unit, Unit):
             raise TypeError("source_unit must be an eqiora.units.Unit")
         literal = _literal_expression(value)
         _number(source_scale)
         if source_scale <= 0:
-            raise SourceError("source_scale must be finite and strictly positive")
+            raise ModuleError("source_scale must be finite and strictly positive")
         citation_identity = _name_path(citation, "citation identity")
         license_identity = _name_path(license, "license identity")
         doc_lines = _doc(doc)
@@ -1956,12 +1994,12 @@ class Source:
         if not isinstance(properties, Mapping):
             raise TypeError("properties must be a mapping of property requirements to releases")
         if not properties:
-            raise SourceError("material composition requires at least one property")
+            raise ModuleError("material composition requires at least one property")
         bindings: list[tuple[str, PropertyRelease]] = []
         for requirement, release in properties.items():
             admitted_requirement = _name(requirement)
             if not isinstance(release, PropertyRelease) or release._owner is not self._owner:
-                raise SourceError("material property releases must belong to this Source")
+                raise ModuleError("material property releases must belong to this Module")
             bindings.append((admitted_requirement, release))
         bindings.sort(key=lambda binding: binding[0])
         doc_lines = _doc(doc)
@@ -1980,94 +2018,77 @@ class Source:
         """Attach validated notation to an existing top-level declaration."""
         self._ensure_open()
         if name not in self._top_names:
-            raise SourceError("notation target must be an existing top-level declaration")
+            raise ModuleError("notation target must be an existing top-level declaration")
         if not isinstance(notation, Notation):
             raise TypeError("notation must be an eqiora.lang.Notation")
         self._notations[name] = notation
 
-    def _header_name(self, name: str) -> str:
-        notation = self._notations.get(name)
-        return name if notation is None else f"{name} {notation.canonical}"
+    def _freeze(self, *, commit: bool = True) -> _AstModule:
+        if self._graph is not None:
+            return self._graph
+        self._ensure_open()
+        metadata = []
+        metadata_bytes = 0
+        ordinal = 0
+        def allocate(doc=(), notation=None):
+            nonlocal ordinal, metadata_bytes
+            ordinal += 1
+            if ordinal > _MAX_DECLARATIONS * _MAX_DECLARATIONS:
+                raise ModuleError("Module exceeds the total declaration limit")
+            if doc or notation is not None:
+                metadata_bytes += sum(len(line.encode("utf-8")) + 1 for line in doc)
+                metadata_bytes += len(notation.canonical.encode("utf-8")) if notation is not None else 0
+                if metadata_bytes > _MAX_OUTPUT_BYTES:
+                    raise ModuleError(f"Module exceeds the {_MAX_OUTPUT_BYTES}-byte limit")
+                metadata.append((ordinal, "\n".join(doc) if doc else None, notation))
+            return ordinal
+        definitions = [component._declaration(allocate) for component in self._components]
+        operators = [
+            (operator._name, [(name, kind, allocate()) for name, kind in operator._inputs], operator._result, operator._body._ast,
+             allocate(operator._doc, self._notations.get(operator._name)))
+            for operator in self._operators
+        ]
+        graph = _AstModule(definitions, operators)
+        for enumeration, doc in self._enums:
+            graph = graph.with_enum(enumeration.name, enumeration.members,
+                                    allocate(doc, self._notations.get(enumeration.name)))
+        for space, doc in self._spaces:
+            graph = graph.with_space(space.name, space.labels,
+                                     allocate(doc, self._notations.get(space.name)))
+        for contract in self._contracts:
+            graph = graph.with_contract(contract._name, self._type_syntax(contract._value_type),
+                                        allocate(contract._doc, self._notations.get(contract._name)))
+        for release in self._releases:
+            graph = graph.with_release(
+                release._name, release._contract._name,
+                (release._value._ast, release._source_unit._ast,
+                 _Ast.number(_number(release._source_scale))),
+                release._citation, release._license,
+                allocate(release._doc, self._notations.get(release._name)))
+        for material in self._materials:
+            graph = graph.with_material(
+                material._name, [(name, release._name, allocate()) for name, release in material._bindings],
+                allocate(material._doc, self._notations.get(material._name)))
+        for alias, module in sorted(self._imports.items()):
+            graph = graph.with_import(f"eqiora.local_project.{module._name}", alias, allocate())
+        for declaration, doc, notation in metadata:
+            graph = graph.metadata(declaration, doc, notation)
+        graph.check()
+        if commit:
+            self._graph = graph
+        return graph
 
     def to_eqi(self) -> str:
-        """Return deterministic UTF-8 Eqiora Language text and freeze this Source."""
-
+        """Canonically format the compiler-owned module and freeze its declarations."""
         if self._frozen_text is None:
-            self._ensure_open()
-            if not self._components:
-                raise SourceError(
-                    "Source requires at least one public Component before emission"
-                )
-            declarations: list[str] = []
-            for enumeration, doc in self._enums:
-                declarations.extend(_comment(doc, ""))
-                declarations.append(f"public enum {self._header_name(enumeration.name)} {{ {', '.join(enumeration.members)} }}")
-                declarations.append("")
-            for operator in self._operators:
-                declarations.extend(_comment(operator._doc, ""))
-                inputs = ", ".join(f"input {name}: {kind}" for name, kind in operator._inputs)
-                declarations.append(f"operator {self._header_name(operator._name)}({inputs}): {operator._result} = {operator._body._text};")
-                declarations.append("")
-            for space, doc in self._spaces:
-                declarations.extend(_comment(doc, ""))
-                declarations.append(f"space {self._header_name(space.name)} = orthonormal({', '.join(space.labels)});")
-                declarations.append("")
-            if self._contracts:
-                if not self._releases:
-                    raise SourceError(
-                        "property Source requires releases"
-                    )
-                for contract in self._contracts:
-                    declarations.extend(_comment(contract._doc, ""))
-                    declarations.append(
-                        f"public property contract {self._header_name(contract._name)}(): {self._type_syntax(contract._value_type)} {{"
-                    )
-                    declarations.append("  derivatives value_only;")
-                    declarations.append("}")
-                    declarations.append("")
-                for release in self._releases:
-                    declarations.extend(_comment(release._doc, ""))
-                    declarations.append(
-                        "public property release "
-                        f"{self._header_name(release._name)} implements {release._contract._name} {{"
-                    )
-                    declarations.append(f"  value = {release._value._text};")
-                    declarations.append(
-                        "  source_unit: "
-                        f"{release._source_unit._text} = "
-                        f"{_number(release._source_scale)};"
-                    )
-                    declarations.append("  validity = unconditional;")
-                    declarations.append(f"  citation = {release._citation};")
-                    declarations.append(f"  license = {release._license};")
-                    declarations.append("}")
-                    declarations.append("")
-                for material in self._materials:
-                    declarations.extend(_comment(material._doc, ""))
-                    declarations.append(f"public material composition {self._header_name(material._name)} {{")
-                    for requirement, release in material._bindings:
-                        declarations.append(
-                            f"  property {requirement} = {release._name};"
-                        )
-                    declarations.append("}")
-                    declarations.append("")
-            rendered_components: list[str] = []
-            emitted_bytes = sum(len(line.encode("utf-8")) + 1 for line in declarations) + 1
-            for component in self._components:
-                rendered = component._render().rstrip("\n")
-                emitted_bytes += len(rendered.encode("utf-8")) + (2 if rendered_components else 0)
-                if emitted_bytes > _MAX_OUTPUT_BYTES:
-                    raise SourceError(
-                        f"emitted source exceeds the {_MAX_OUTPUT_BYTES}-byte limit"
-                    )
-                rendered_components.append(rendered)
-            declarations.append("\n\n".join(rendered_components))
-            text = "\n".join(declarations) + "\n"
+            graph = self._freeze(commit=False)
+            text = graph.source()
+            self._graph = graph
             self._frozen_text = text
         return self._frozen_text
 
     def write_eqi(self, path: str | os.PathLike[str]) -> None:
-        """Atomically replace one regular path with this Source's UTF-8 text."""
+        """Atomically replace one regular path with this Module's UTF-8 text."""
 
         target = Path(os.fspath(path))
         if "\x00" in str(target):
@@ -2103,6 +2124,10 @@ class Source:
 
 
 __all__ = [
+    "Equation",
+    "equation",
+    "ComponentRef",
+    "ModuleRef",
     "equal",
     "not_equal",
     "less",
@@ -2124,8 +2149,8 @@ __all__ = [
     "PropertyContract",
     "PropertyRelease",
     "Relation",
-    "Source",
-    "SourceError",
+    "Module",
+    "ModuleError",
     "Support",
     "array",
     "case",

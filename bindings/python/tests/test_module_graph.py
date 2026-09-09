@@ -9,8 +9,7 @@ import eqiora as q
 
 LOCAL_GAIN = """
 public component Gain(clock tick: periodic, parameter gain: 1,
-                      input x: 1 at tick) {
-  output y: 1 at tick;
+                      input x: 1 at tick, output y: 1 at tick) {
   relation scale at tick { y = gain * x; }
 }
 """
@@ -163,3 +162,57 @@ def test_equation_rejects_host_callback_without_executing_it():
         with pytest.raises((TypeError, ValueError)):
             q.lang.equation(x, value)
     assert calls == []
+
+
+def test_direct_diagnostics_use_ast_owners_and_parsed_diagnostics_keep_real_coordinates():
+    module = q.Module("main")
+    body = module.model("Main")
+    x = body.field("x", role=q.FieldRole.Variable,
+                   value_type=q.ValueType.real(q.Dimension(length=1)))
+    body.relation("bad", q.lang.equation(x, q.lang.quantity(1, q.units.s)))
+    source = module.to_eqi()
+    with pytest.raises(q.ValidationError) as direct:
+        q.compile(source=module, entry="Main")
+    assert any(d.graph_path is not None and d.source_span is None
+               for d in direct.value.diagnostics)
+    with pytest.raises(q.ValidationError) as parsed:
+        q.compile(source=q.Module.parse("main", source), entry="Main")
+    assert any(d.source_span is not None and d.source_span[0] == "src/main.eqi"
+               and 0 <= d.source_span[1] < d.source_span[2] <= len(source.encode("utf-8"))
+               for d in parsed.value.diagnostics)
+
+
+@pytest.mark.parametrize("compare", (lambda x: bool(x), lambda x: x == x,
+                                      lambda x: x != 0, lambda x: x < 1))
+def test_native_symbolic_handles_never_produce_host_boolean(compare):
+    field = q.Field("x", value_type=q.ValueType.real(), role=q.FieldRole.Variable)
+    parameter = q.Parameter("gain", value=2)
+    for value in (field, parameter, field + parameter):
+        with pytest.raises(TypeError):
+            compare(value)
+
+
+def test_imported_closed_native_module_retains_nominal_identity_and_rejects_mutation():
+    mode = q.Enum("Mode", members=("On", "Off"))
+    parameter = q.Parameter("mode", value_type=mode.value_type, value=mode.member("On"))
+    observed = q.Field("observed", value_type=q.ValueType.real(), role=q.FieldRole.Variable)
+    native = q.Module("native", mode, parameter, observed,
+                      q.Relation("law", equations=[(observed, 0)]))
+    root = q.Module.parse("main", "import eqiora.local_project.native as native; model Main() {}")
+    root.import_module("native", native)
+    imported = q.compile(source=root, entry="native.native")
+    assert imported.enum(mode.id).id == mode.id
+    assert imported.parameter("mode").value == mode.member("On")
+    assert q.Model.from_bytes(imported.to_bytes()).enum(mode.id).id == mode.id
+    with pytest.raises(q.lang.ModuleError, match="frozen"):
+        native.model("Mutation")
+    with pytest.raises(q.lang.ModuleError, match="frozen"):
+        native.import_module("other", q.Module("other"))
+    retained = q.compile(source=root, entry="native.native")
+    assert retained.to_bytes() == imported.to_bytes()
+    foreign = q.Enum("Mode", members=("On", "Off"))
+    foreign_parameter = q.Parameter("mode", value_type=foreign.value_type, value=foreign.member("On"))
+    with pytest.raises(q.ValidationError, match="(?i)enum|scope|declaration"):
+        q.Module("foreign", mode, foreign_parameter)
+    with pytest.raises(q.ValidationError, match="(?i)enum|scope|declaration"):
+        q.Module("omitted", parameter)

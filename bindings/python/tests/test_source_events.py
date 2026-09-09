@@ -114,7 +114,7 @@ def test_event_cannot_satisfy_a_borrowed_periodic_clock_requirement():
 
 def test_event_guard_budget_is_checked_before_reserving_the_event():
     owner = eqiora.Module("main").model("Events")
-    guard = q.quantity(1, eqiora.units.m)
+    guard = q.math.pi
     for _ in range(11):
         guard = guard + guard
     owner.event("first", guard, direction="any")  # 4095 authored nodes

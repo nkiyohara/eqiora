@@ -1,7 +1,9 @@
 //! Lexical nominal declaration binding through existing elaboration identities.
 use std::collections::BTreeMap;
 mod local_index;
+mod resolved;
 pub(crate) use local_index::bind_local_index_types;
+pub(crate) use resolved::bind_resolved;
 
 use eqiora_core::{Diagnostic, EntityKind, RawId, ValueType, diagnostic::codes, entity::kinds};
 use eqiora_lang::{Document, ExprKind, SourceAstFactory, ValueTypeSyntax, ValueTypeSyntaxKind};

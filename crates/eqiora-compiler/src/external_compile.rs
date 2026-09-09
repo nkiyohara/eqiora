@@ -194,6 +194,8 @@ impl ValidatedResolvedHierarchy {
     ) -> Result<CompiledModel, Vec<Diagnostic>> {
         validate_selected_bindings("<selected-entry>", entry, bindings)?;
         crate::hierarchy::selected::resolved(self, entry, bindings)
+            .map(|model| self.analysis.retain_authored_provenance(model))
+            .map_err(|errors| self.analysis.native_diagnostics(errors))
     }
 }
 

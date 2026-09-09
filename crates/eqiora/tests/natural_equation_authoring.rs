@@ -3,7 +3,7 @@
 use eqiora::api::ModelDocument;
 use eqiora::kernel::{ExprDag, ExprId, ExprNode, KernelNode, SymbolRef};
 use eqiora::language::{
-    BinaryOp, Document, DraftField, DraftRelation, Expr, ExprKind, Item, ModelDraft, RelationDecl,
+    BinaryOp, Document, DraftField, DraftRelation, Expr, ExprKind, Item, Module, RelationDecl,
     UnaryOp, format, parse,
 };
 use eqiora::package::{
@@ -502,12 +502,12 @@ fn exact_package_and_native_residuals_share_only_checked_structural_meaning() {
             (-a.expression(), -b.expression()),
         ],
     );
-    let draft = ModelDraft::new(
+    let draft = Module::new(
         "natural_equation_oracle",
         vec![a.into(), b.into(), c.into(), d.into(), relation.into()],
     )
     .unwrap();
-    let native = ModelDocument::define(&draft).unwrap();
+    let native = ModelDocument::compile_module(&draft, None, &[]).unwrap();
     assert!(native.structurally_equivalent(&natural).unwrap());
     assert_eq!(
         native.structural_fingerprint().unwrap(),

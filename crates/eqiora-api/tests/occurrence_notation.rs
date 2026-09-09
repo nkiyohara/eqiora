@@ -62,7 +62,7 @@ fn source_labels_do_not_change_model_meaning_and_bare_replay_does_not_guess_them
 #[test]
 fn native_model_draft_uses_labels_without_synthetic_source_locations() {
     use eqiora_core::{DimExponents, ScalarDomain, ValueLiteral, ValueType};
-    use eqiora_lang::{DraftField, DraftParameter, DraftRelation, FieldRoleSyntax, ModelDraft};
+    use eqiora_lang::{DraftField, DraftParameter, DraftRelation, FieldRoleSyntax, Module};
     let value_type = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap();
     let p = DraftParameter::new(
         "p",
@@ -70,8 +70,8 @@ fn native_model_draft_uses_labels_without_synthetic_source_locations() {
     );
     let x = DraftField::new("x", value_type, FieldRoleSyntax::Variable);
     let law = DraftRelation::continuous("law", [(x.expression(), p.expression())]);
-    let draft = ModelDraft::new("M", [p.into(), x.into(), law.into()]).unwrap();
-    let model = ModelDocument::define(&draft).unwrap();
+    let draft = Module::new("M", [p.into(), x.into(), law.into()]).unwrap();
+    let model = ModelDocument::compile_module(&draft, None, &[]).unwrap();
     assert_eq!(model.notation().iter().len(), 2);
     assert!(
         model
