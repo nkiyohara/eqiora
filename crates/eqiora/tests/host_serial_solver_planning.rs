@@ -388,7 +388,7 @@ fn spd_and_saddle_point_profiles_select_exact_current_backends() {
             SolverPlanningObjective::LowMemory,
         ] {
             let decision = plan_host_serial_solver_v2(
-                HostSerialSolverProfile::canonical_csr(properties, diagonal),
+                HostSerialSolverProfile::canonical_csr(properties, Some(diagonal)),
                 objective,
                 1e-12,
                 1e-14,
@@ -466,4 +466,55 @@ fn spd_and_saddle_point_profiles_select_exact_current_backends() {
             );
         }
     }
+}
+
+#[test]
+fn unclaimed_diagonal_ranks_only_independently_admissible_candidates() {
+    let faer = FaerLinearSolver;
+    let system = CanonicalCsrSystemView::new(&Fixture, LinearOperatorProperties::General).unwrap();
+    let problem = system.linear_problem().unwrap();
+    for objective in [
+        SolverPlanningObjective::Robust,
+        SolverPlanningObjective::Fast,
+        SolverPlanningObjective::LowMemory,
+    ] {
+        let profile =
+            HostSerialSolverProfile::canonical_csr(LinearOperatorProperties::General, None);
+        let decision = plan_host_serial_solver_v2(
+            profile,
+            objective,
+            1e-12,
+            1e-14,
+            NonZeroUsize::new(100).unwrap(),
+            &REFERENCE_LINEAR_SOLVER,
+            &faer,
+        )
+        .unwrap();
+        // A diagonal has not been established during planning: both Jacobi
+        // candidates are ineligible. Identity LU is the sole admissible tuple.
+        assert_eq!(decision.selected_candidate_id(), FAER_SPARSE_LU_ID);
+        assert_eq!(decision.solver_plan(), faer_sparse_lu_plan());
+        assert_eq!(decision.solver_provider(), faer.provider());
+        let solution = decision.solve(&problem).unwrap();
+        let manual = LinearSolveRequest::new(&faer, faer_sparse_lu_plan())
+            .solve(&problem)
+            .unwrap();
+        assert_eq!(solution.values(), manual.values());
+        assert_eq!(solution.report(), manual.report());
+        assert!((solution.values()[0] - 1.).abs() <= 2_f64.powi(-40));
+        assert!((solution.values()[1] - 2.).abs() <= 2_f64.powi(-40));
+        assert!((4. * solution.values()[0] + solution.values()[1] - 6.).abs() <= 2_f64.powi(-38));
+        assert!(
+            (2. * solution.values()[0] + 3. * solution.values()[1] - 8.).abs() <= 2_f64.powi(-38)
+        );
+    }
+    // Unknown is not fabricated absence. A genuinely asserted absence must
+    // still reject this matrix's present diagonal before any numerical work.
+    assert!(
+        HostSerialSolverProfile::canonical_csr(LinearOperatorProperties::General, Some(false))
+            .require_problem(&problem)
+            .unwrap_err()
+            .message()
+            .contains("diagonal-availability-mismatch")
+    );
 }

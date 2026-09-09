@@ -509,18 +509,75 @@ mesh = package.meshing.generate(mesh_plan)
         locals.set_item("variable_model", Py::new(py, variable_model)?)?;
         py.run(
                 c_str!(r#"
-linear = package.solve.Linear(relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=10000)
+linear = package.solve.Linear(
+    algorithm=package.solve.LinearSolver.BiConjugateGradientStabilized,
+    preconditioner=package.solve.Preconditioner.Identity,
+    reduction=package.solve.Reduction.Reproducible,
+    provider=package.solve.SolverProvider.reference(),
+    relative_tolerance=1e-10,
+    absolute_tolerance=1e-12,
+    maximum_iterations=10000,
+)
+tpfa_linear = package.solve.Linear(
+    relative_tolerance=1e-10,
+    absolute_tolerance=1e-12,
+    maximum_iterations=10000,
+    algorithm=package.solve.LinearSolver.ConjugateGradient,
+    preconditioner=package.solve.Preconditioner.Identity,
+    reduction=package.solve.Reduction.Reproducible,
+    provider=package.solve.SolverProvider.reference(),
+)
 q1 = package.resolve(model, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
 q1_repeat = package.resolve(model, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
 q1_exact = package.resolve(
     model, mesh=mesh, spatial=package.fem.Q1(),
     formulation=package.formulation.PrimalGalerkin, solve=linear,
 )
-tpfa = package.resolve(model, mesh=mesh, spatial=package.fvm.CellCenteredTpfa(), solve=linear)
+tpfa = package.resolve(model, mesh=mesh, spatial=package.fvm.CellCenteredTpfa(), solve=tpfa_linear)
 variable_q1 = package.resolve(variable_model, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
-variable_tpfa = package.resolve(variable_model, mesh=mesh, spatial=package.fvm.CellCenteredTpfa(), solve=linear)
+variable_tpfa = package.resolve(variable_model, mesh=mesh, spatial=package.fvm.CellCenteredTpfa(), solve=tpfa_linear)
+# Manual intent is complete and never acquires an invented ranking objective.
+assert linear.objective is None and q1.solve.objective is None
+assert linear.provider.id == "eqiora.reference"
+assert linear.provider.implementation_version == q1.solve.backend_version
+assert linear.provider.libraries == []
+controls = dict(relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=10000)
+for incomplete in ({}, {"algorithm": package.solve.LinearSolver.ConjugateGradient},
+    {"objective": package.solve.Robust, "provider": package.solve.SolverProvider.reference()}):
+    try:
+        package.solve.Linear(**controls, **incomplete)
+    except TypeError:
+        pass
+    else:
+        raise AssertionError("incomplete or mixed solver intent must reject before resolution")
 q1_bytes = q1.to_bytes()
 portable_q1 = package.Plan.from_bytes(q1_bytes)
+assert portable_q1.requested_solve == linear
+assert portable_q1.requested_solve.provider == linear.provider
+import copy, json
+plan_payload = json.loads(q1_bytes)
+assert plan_payload["schema"] == "eqiora.resolved-common-plan/v3"
+assert plan_payload["solve"]["linear"]["intent"]["kind"] == "exact"
+for mutation in ("version", "library", "missing-intent", "mixed-intent", "old-schema"):
+    payload = copy.deepcopy(plan_payload)
+    request = payload["solve"]["linear"]
+    if mutation == "version":
+        request["intent"]["provider"]["implementation_version"] = "stale-release"
+    elif mutation == "library":
+        request["intent"]["provider"]["libraries"] = [["invented", "1"]]
+    elif mutation == "missing-intent":
+        del request["intent"]
+    elif mutation == "mixed-intent":
+        request["intent"]["objective"] = "robust"
+    else:
+        payload["schema"] = "eqiora.resolved-common-plan/v2"
+    try:
+        package.Plan.from_bytes(json.dumps(payload, separators=(",", ":")).encode())
+    except (package.CompatibilityError, package.ValidationError) as error:
+        if mutation in ("version", "library"):
+            assert "provider release or library inventory" in str(error)
+    else:
+        raise AssertionError(f"altered exact intent must reject: {mutation}")
 plan_directory_owner = tempfile.TemporaryDirectory()
 plan_directory = pathlib.Path(plan_directory_owner.name)
 plan_path = plan_directory / "q1.eqplan"
@@ -535,7 +592,7 @@ assert file_q1.to_bytes() == q1_bytes
 for rejected_name, rejected_bytes in (
     ("truncated.eqplan", q1_bytes[:-1]),
     ("trailing.eqplan", q1_bytes + b"\n"),
-    ("unknown-version.eqplan", q1_bytes.replace(b"resolved-common-plan/v2", b"resolved-common-plan/v9")),
+    ("unknown-version.eqplan", q1_bytes.replace(b"resolved-common-plan/v3", b"resolved-common-plan/v9")),
 ):
     rejected_path = plan_directory / rejected_name
     rejected_path.write_bytes(rejected_bytes)
@@ -849,7 +906,15 @@ mesh = package.meshing.generate(mesh_plan)
         locals.set_item("foreign_model", Py::new(py, foreign_model)?)?;
         py.run(
                 c_str!(r#"
-linear = package.solve.Linear(relative_tolerance=1e-6, absolute_tolerance=1e-13, maximum_iterations=10000)
+linear = package.solve.Linear(
+    algorithm=package.solve.LinearSolver.SparseLu,
+    preconditioner=package.solve.Preconditioner.Identity,
+    reduction=package.solve.Reduction.Fast,
+    provider=package.solve.SolverProvider.faer(),
+    relative_tolerance=1e-6,
+    absolute_tolerance=1e-13,
+    maximum_iterations=10000,
+)
 plan = package.resolve(model, mesh=mesh, spatial=package.fem.MiniP1(), solve=linear)
 explicit_none = package.resolve(model, mesh=mesh, spatial=package.fem.MiniP1(), solve=linear, scaling=None)
 all_auto_request = package.fluid.IncompressibleScaling()
@@ -977,6 +1042,33 @@ stokes_evidence = package.fluid.steady_stokes_evidence(result)
 assert isinstance(stokes_evidence, package.fluid.SteadyStokesEvidence)
 assert stokes_evidence.plan_key == result.plan_key
 assert stokes_evidence.exact_bounds == ((0.0, 2.2), (0.0, 0.41))
+for objective, algorithm, provider, reduction in (
+    (package.solve.Robust, package.solve.LinearSolver.MinimumResidual, package.solve.SolverProvider.reference(), package.solve.Reduction.Reproducible),
+    (package.solve.Fast, package.solve.LinearSolver.SparseLu, package.solve.SolverProvider.faer(), package.solve.Reduction.Fast),
+):
+    controls = dict(relative_tolerance=1e-6, absolute_tolerance=1e-13, maximum_iterations=10000)
+    ranked_request = package.solve.Linear(**controls, objective=objective)
+    exact_request = package.solve.Linear(**controls, algorithm=algorithm,
+        preconditioner=package.solve.Preconditioner.Identity, reduction=reduction, provider=provider)
+    ranked_plan = package.resolve(model, mesh=mesh, spatial=package.fem.MiniP1(), solve=ranked_request)
+    exact_plan = package.resolve(model, mesh=mesh, spatial=package.fem.MiniP1(), solve=exact_request)
+    assert ranked_plan.solve.operator == "symmetric-indefinite"
+    assert ranked_plan.solve.provider == provider
+    assert ranked_plan.solve.objective is objective
+    assert exact_plan.solve.objective is None
+    assert ranked_plan.solve.algorithm == exact_plan.solve.algorithm
+    ranked_plan = package.Plan.from_bytes(ranked_plan.to_bytes())
+    assert ranked_plan.requested_solve == ranked_request
+    ranked_result = package.run(ranked_plan)
+    exact_result = package.run(exact_plan)
+    for ranked_field, exact_field in zip(ranked_plan.fields, exact_plan.fields):
+        ranked_output = ranked_result.output(ranked_field)
+        exact_output = exact_result.output(exact_field)
+        for association in ranked_output.associations:
+            assert ranked_output.values(association).numpy().tolist() == exact_output.values(association).numpy().tolist()
+    observation = package.fluid.steady_stokes_evidence(ranked_result)
+    assert observation.solve.true_residual_norm <= observation.solve.residual_target
+
 try:
     package.State.zero(plan)
 except ValueError:
@@ -1126,7 +1218,15 @@ source = graph.build(fluid, named_topology={
 mesher = package.meshing.GmshMesher(maximum_boundary_error=1e-4, minimum_mean_ratio=1e-5, maximum_boundary_facets=50)
 mesh = package.meshing.generate(package.meshing.resolve(source, mesher))
 import numpy as np
-linear = package.solve.Linear(relative_tolerance=1e-6, absolute_tolerance=1e-9, maximum_iterations=20000)
+linear = package.solve.Linear(
+    algorithm=package.solve.LinearSolver.SparseLu,
+    preconditioner=package.solve.Preconditioner.Identity,
+    reduction=package.solve.Reduction.Fast,
+    provider=package.solve.SolverProvider.faer(),
+    relative_tolerance=1e-6,
+    absolute_tolerance=1e-9,
+    maximum_iterations=20000,
+)
 steady_plan = package.resolve(
     steady_model,
     mesh=mesh,
@@ -1295,7 +1395,25 @@ affine_plan = package.meshing.resolve(source, package.meshing.AffineTriangleMesh
 affine = package.meshing.generate(affine_plan)
 cartesian_plan = package.meshing.resolve(source, package.meshing.CartesianMesher(cells=(4, 4)))
 cartesian = package.meshing.generate(cartesian_plan)
-linear = package.solve.Linear(relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=2000)
+linear = package.solve.Linear(
+    algorithm=package.solve.LinearSolver.SparseLu,
+    preconditioner=package.solve.Preconditioner.Identity,
+    reduction=package.solve.Reduction.Fast,
+    provider=package.solve.SolverProvider.faer(),
+    relative_tolerance=1e-10,
+    absolute_tolerance=1e-12,
+    maximum_iterations=2000,
+)
+fvm_linear = package.solve.Linear(
+    relative_tolerance=1e-10,
+    absolute_tolerance=1e-12,
+    maximum_iterations=2000,
+    algorithm=package.solve.LinearSolver.BiConjugateGradientStabilized,
+    preconditioner=package.solve.Preconditioner.Identity,
+    reduction=package.solve.Reduction.Reproducible,
+    provider=package.solve.SolverProvider.reference(),
+)
+fvm_newton = package.solve.Newton(linear=fvm_linear)
 newton = package.solve.Newton(linear=linear)
 custom_newton = package.solve.Newton(
     linear=linear,
@@ -1310,7 +1428,7 @@ scaling = package.fluid.IncompressibleScaling(length_m=1.0, velocity_m_per_s=2.0
 model_fingerprint = model.structural_fingerprint
 model_bytes = model.to_bytes()
 mini = package.resolve(model, mesh=affine, spatial=package.fem.MiniP1(), solve=newton, scaling=scaling, temporal=temporal)
-fvm = package.resolve(model, mesh=cartesian, spatial=package.fvm.CellCentered(), solve=newton, scaling=scaling, temporal=temporal)
+fvm = package.resolve(model, mesh=cartesian, spatial=package.fvm.CellCentered(), solve=fvm_newton, scaling=scaling, temporal=temporal)
 mini_bytes = mini.to_bytes()
 portable_mini = package.Plan.from_bytes(mini_bytes)
 fvm_bytes = fvm.to_bytes()
@@ -1343,7 +1461,7 @@ mini_exact = package.resolve(
 fvm_exact = package.resolve(
     model, mesh=cartesian, spatial=package.fvm.CellCentered(),
     formulation=package.formulation.IntegralConservative,
-    solve=newton, scaling=scaling, temporal=temporal,
+    solve=fvm_newton, scaling=scaling, temporal=temporal,
 )
 replayed = package.resolve(package.Model.from_bytes(model.to_bytes()), mesh=affine, spatial=package.fem.MiniP1(), solve=newton, scaling=scaling, temporal=temporal)
 custom = package.resolve(model, mesh=affine, spatial=package.fem.MiniP1(), solve=custom_newton, scaling=scaling, temporal=temporal)
@@ -1432,28 +1550,11 @@ for numerical_plan in (mini, fvm, mini_exact, fvm_exact, *planned.values()):
     assert numerical_plan.model is model
     assert numerical_plan.model.structural_fingerprint == model_fingerprint
     assert numerical_plan.model.to_bytes() == model_bytes
+# No diagonal claim is established before assembly. Both Jacobi tuples are
+# ineligible, so identity LU is the sole admissible candidate for every objective.
 expected_planning = {
-    "robust": (
-        package.solve.Robust,
-        "eqiora.reference.bicgstab-general-jacobi-reproducible-f64",
-        "eqiora.reference",
-        "bicgstab",
-        "reproducible",
-    ),
-    "fast": (
-        package.solve.Fast,
-        "eqiora.faer.sparse-lu-general-identity-fast-f64",
-        "eqiora.faer",
-        "sparse-lu",
-        "fast",
-    ),
-    "low-memory": (
-        package.solve.LowMemory,
-        "eqiora.faer.bicgstab-general-jacobi-fast-f64",
-        "eqiora.faer",
-        "bicgstab",
-        "fast",
-    ),
+    name: (objective, "eqiora.faer.sparse-lu-general-identity-fast-f64", "eqiora.faer", "sparse-lu", "fast")
+    for name, objective in (("robust", package.solve.Robust), ("fast", package.solve.Fast), ("low-memory", package.solve.LowMemory))
 }
 for name, plan in planned.items():
     objective, candidate, backend, algorithm, reduction = expected_planning[name]
@@ -1462,32 +1563,17 @@ for name, plan in planned.items():
     assert resolved.planning_policy_id == "eqiora.host-serial-solver-planning/v2"
     assert resolved.selected_candidate_id == candidate
     assert resolved.selected_evidence_case is not None
-    assert len(resolved.planning_reasons) == 6
+    assert len(resolved.planning_reasons) == 4
     assert resolved.backend == backend
     assert resolved.algorithm == algorithm
     assert resolved.reduction == reduction
     assert plan.identity != fvm.identity
 assert len({plan.identity for plan in planned.values()}) == 3
-try:
-    package.resolve(
-        model,
-        mesh=affine,
-        spatial=package.fem.MiniP1(),
-        solve=package.solve.Newton(
-            linear=package.solve.Linear(
-                relative_tolerance=1e-10,
-                absolute_tolerance=1e-12,
-                maximum_iterations=2000,
-                objective=package.solve.Robust,
-            ),
-        ),
-        scaling=scaling,
-        temporal=temporal,
-    )
-except package.ValidationError:
-    pass
-else:
-    raise AssertionError("program-controlled MINI/P1 request was admitted")
+planned_mini = package.resolve(model, mesh=affine, spatial=package.fem.MiniP1(),
+    solve=package.solve.Newton(linear=package.solve.Linear(relative_tolerance=1e-10, absolute_tolerance=1e-12,
+        maximum_iterations=2000, objective=package.solve.Robust)), scaling=scaling, temporal=temporal)
+assert planned_mini.solve.linear.algorithm == "sparse-lu"
+assert planned_mini.solve.linear.backend == "eqiora.faer"
 assert mini.capability.scaling.length_m == 1.0 and mini.capability.scaling.velocity_m_per_s == 2.0 and mini.capability.scaling.pressure_pa == 3.0
 
 for kwargs in (
@@ -1673,7 +1759,7 @@ fvm_second = package.run(fvm, state=fvm_restart, steps=1, output_steps=(1,))
 assert fvm_two.trajectory.states[0] == fvm_second.trajectory.states[0]
 alternate_scaling = package.fluid.IncompressibleScaling(length_m=2.0, velocity_m_per_s=4.0, pressure_pa=6.0)
 fvm_alternate = package.resolve(
-    model, mesh=cartesian, spatial=package.fvm.CellCentered(), solve=newton,
+    model, mesh=cartesian, spatial=package.fvm.CellCentered(), solve=fvm_newton,
     scaling=alternate_scaling, temporal=temporal,
 )
 assert fvm_alternate.identity != fvm.identity
@@ -1771,7 +1857,15 @@ mesh = package.meshing.generate(mesh_plan)
 model = package.compile(source=elasticity_source, filename='elasticity.eqi', geometry=geometry, entry='MixedBoundaryElasticity', bindings={'region': geometry.selection('region'), 'left': (geometry.selection('left'), geometry.selection('region')), 'right': (geometry.selection('right'), geometry.selection('region')), 'bottom': (geometry.selection('bottom'), geometry.selection('region')), 'top': (geometry.selection('top'), geometry.selection('region')), **{'mu': 3.0, 'lambda': 0.0, 'length_scale': 1.0}})
 replayed = package.Model.from_bytes(model.to_bytes())
 alternate = package.compile(source=elasticity_source, filename='alternate-elasticity.eqi', geometry=geometry, entry='MixedBoundaryElasticity', bindings={'region': geometry.selection('region'), 'left': (geometry.selection('left'), geometry.selection('region')), 'right': (geometry.selection('right'), geometry.selection('region')), 'bottom': (geometry.selection('bottom'), geometry.selection('region')), 'top': (geometry.selection('top'), geometry.selection('region')), **{'mu': 4.0, 'lambda': 0.0, 'length_scale': 1.0}})
-linear = package.solve.Linear(relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=10000)
+linear = package.solve.Linear(
+    algorithm=package.solve.LinearSolver.ConjugateGradient,
+    preconditioner=package.solve.Preconditioner.Identity,
+    reduction=package.solve.Reduction.Reproducible,
+    provider=package.solve.SolverProvider.reference(),
+    relative_tolerance=1e-10,
+    absolute_tolerance=1e-12,
+    maximum_iterations=10000,
+)
 plan = package.resolve(model, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
 replayed_plan = package.resolve(replayed, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
 alternate_plan = package.resolve(alternate, mesh=mesh, spatial=package.fem.Q1(), solve=linear)
@@ -1815,6 +1909,36 @@ assert output.dimension == (0, 1, 0, 0, 0, 0, 0)
 assert output.associations == ("vertex",)
 assert result.mesh(plan.capability.displacement) is mesh
 assert package.submit(plan).result().output(plan.capability.displacement).coefficient_count("vertex") == 12
+# The known SPD class with no diagonal claim admits reference CG/Identity and
+# identity LU. Exact provider selection, manual parity, and replay are observed
+# through ordinary Linear authoring, rather than a Newton-only adapter.
+for objective, algorithm, provider, reduction in (
+    (package.solve.Robust, package.solve.LinearSolver.ConjugateGradient, package.solve.SolverProvider.reference(), package.solve.Reduction.Reproducible),
+    (package.solve.Fast, package.solve.LinearSolver.SparseLu, package.solve.SolverProvider.faer(), package.solve.Reduction.Fast),
+    (package.solve.LowMemory, package.solve.LinearSolver.ConjugateGradient, package.solve.SolverProvider.reference(), package.solve.Reduction.Reproducible),
+):
+    common_controls = dict(relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=10000)
+    ranked_request = package.solve.Linear(**common_controls, objective=objective)
+    manual_request = package.solve.Linear(**common_controls, algorithm=algorithm,
+        preconditioner=package.solve.Preconditioner.Identity, reduction=reduction, provider=provider)
+    ranked_plan = package.resolve(model, mesh=mesh, spatial=package.fem.Q1(), solve=ranked_request)
+    manual_plan = package.resolve(model, mesh=mesh, spatial=package.fem.Q1(), solve=manual_request)
+    assert ranked_plan.solve.operator == "symmetric-positive-definite"
+    assert ranked_plan.solve.provider == provider
+    assert ranked_plan.solve.backend == provider.id
+    assert ranked_plan.solve.backend_version == provider.implementation_version
+    assert ranked_plan.solve.objective is objective
+    assert manual_plan.solve.objective is None
+    assert ranked_plan.solve.algorithm == manual_plan.solve.algorithm
+    assert ranked_plan.solve.preconditioner == manual_plan.solve.preconditioner == "identity"
+    ranked_plan = package.Plan.from_bytes(ranked_plan.to_bytes())
+    assert ranked_plan.requested_solve == ranked_request
+    ranked_result = package.run(ranked_plan)
+    manual_result = package.run(manual_plan)
+    assert ranked_result.output(ranked_plan.capability.displacement).values("vertex").numpy().tolist() == manual_result.output(manual_plan.capability.displacement).values("vertex").numpy().tolist()
+    observation = package.solid.linear_elasticity_evidence(ranked_result)
+    assert observation.solve.true_residual_norm <= observation.solve.residual_target
+
 
 load_potential_id = model.field_ids[0]
 if load_potential_id == plan.capability.displacement.id:

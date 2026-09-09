@@ -1,7 +1,4 @@
-use super::solver_planning::{
-    resolve_fixed_reference_fsi, resolve_general, resolve_reference_spd, resolve_stokes_mini,
-    resolve_transient_flow,
-};
+use super::solver_planning::resolve_linear;
 use super::spatial_planning::{
     TransientSpatialDecision, require_fixed_reference_fsi, resolve_elasticity, resolve_scalar,
     resolve_stokes, resolve_transient,
@@ -67,8 +64,18 @@ pub fn resolve_common_plan(
                 _ => unreachable!("scalar resolution returns only scalar policies"),
             };
             let linear = match spatial {
-                NativeSpatialPolicy::ScalarQ1 => resolve_general(solve, stokes_backend)?,
-                NativeSpatialPolicy::ScalarTpfa => resolve_reference_spd(solve)?,
+                NativeSpatialPolicy::ScalarQ1 => resolve_linear(
+                    solve,
+                    LinearOperatorProperties::General,
+                    None,
+                    stokes_backend,
+                )?,
+                NativeSpatialPolicy::ScalarTpfa => resolve_linear(
+                    solve,
+                    LinearOperatorProperties::SymmetricPositiveDefinite,
+                    None,
+                    stokes_backend,
+                )?,
                 _ => unreachable!("scalar spatial selection"),
             };
             let admission = recognized.complete(spatial, linear, None, None)?;
@@ -98,7 +105,12 @@ pub fn resolve_common_plan(
                 ));
             }
             let spatial = resolve_elasticity(spatial)?;
-            let linear = resolve_reference_spd(solve)?;
+            let linear = resolve_linear(
+                solve,
+                LinearOperatorProperties::SymmetricPositiveDefinite,
+                None,
+                stokes_backend,
+            )?;
             let admission = recognized.complete(spatial, linear, None, None)?;
             CommonElasticityPlan::from_admission(model, admission)
                 .map(|plan| ResolvedCommonPlan::Elasticity(Box::new(plan)))
@@ -124,7 +136,12 @@ pub fn resolve_common_plan(
                 unreachable!("steady-Stokes capability recognition returns a Stokes binding")
             };
             let scaling = binding.resolve_incompressible_scaling(model, scaling)?;
-            let linear = resolve_stokes_mini(solve, stokes_backend)?;
+            let linear = resolve_linear(
+                solve,
+                LinearOperatorProperties::SymmetricIndefinite,
+                None,
+                stokes_backend,
+            )?;
             let admission =
                 recognized.complete(spatial.with_scaling(scaling.scales()), linear, None, None)?;
             CommonSteadyStokesPlan::from_admission(model, admission, formulation_selection, scaling)
@@ -158,7 +175,12 @@ pub fn resolve_common_plan(
                 correspondence,
                 mesh,
             )?;
-            let linear = resolve_transient_flow(linear, spatial, stokes_backend)?;
+            let linear = resolve_linear(
+                linear,
+                LinearOperatorProperties::General,
+                None,
+                stokes_backend,
+            )?;
             let native_spatial = spatial.with_scaling(scaling.scales());
             let admission =
                 recognized.complete(native_spatial, linear, Some(temporal), Some(nonlinear))?;
@@ -185,7 +207,12 @@ pub fn resolve_common_plan(
                 unreachable!("FSI capability owns recognized FSI meaning")
             };
             require_fixed_reference_fsi(model, canonical, spatial)?;
-            let effective_linear = resolve_fixed_reference_fsi(linear)?;
+            let effective_linear = resolve_linear(
+                linear,
+                LinearOperatorProperties::SymmetricIndefinite,
+                None,
+                stokes_backend,
+            )?;
             CommonFsiPlan::from_recognized(model, recognized, scaling, temporal, effective_linear)
                 .map(|plan| ResolvedCommonPlan::Fsi(Box::new(plan)))
         }

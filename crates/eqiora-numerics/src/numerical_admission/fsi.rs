@@ -2,7 +2,7 @@ use super::*;
 
 pub(super) struct PreparedCommonFsiExecution<'a> {
     plan: &'a CommonFsiPlan,
-    backend: &'a dyn LinearSolverBackend,
+    backend: super::native::ProfileCheckedBackend<'a>,
     prepared: PreparedResolvedFixedReferenceFsiRun2d<'a>,
 }
 
@@ -14,7 +14,7 @@ impl PreparedCommonFsiExecution<'_> {
         else {
             return Err(invalid("FSI Plan received a non-FSI common State"));
         };
-        let solution = self.prepared.finalize(previous)?.solve(self.backend)?;
+        let solution = self.prepared.finalize(previous)?.solve(&self.backend)?;
         let next = FixedReferenceFsiState::<2>::new(
             self.plan.mesh(),
             &self.plan.partition,
@@ -70,7 +70,7 @@ impl CommonFsiPlan {
         recognized: RecognizedNativeAdmission,
         scaling_request: Option<IncompressibleScalingRequest2d>,
         temporal: CommonBackwardEuler,
-        linear: SolverPlan,
+        linear: NativeLinearPolicy,
     ) -> Result<Self, Diagnostic> {
         let RecognizedNativeModel::Fsi(canonical) = &recognized.recognized else {
             return Err(invalid("native FSI Plan requires recognized FSI meaning"));
@@ -178,7 +178,7 @@ impl CommonFsiPlan {
             mesh_reference,
             temporal.step(),
             scaling,
-            linear,
+            linear.solver,
         )?;
         let resolved = resolve_coupled_fieldwise(
             &CoupledFieldwiseRealizationRequest::explicit(
@@ -197,10 +197,8 @@ impl CommonFsiPlan {
             .ok_or_else(|| invalid("FSI solid kinematic Relation lost its semantic kind"))?;
         let portable = resolved.portable_graph(solid_kinematic_relation)?;
         let reference = model.artifact_reference()?;
-        let solver_provider = REFERENCE_LINEAR_SOLVER.provider();
-        let solver_capabilities = REFERENCE_LINEAR_SOLVER.capabilities();
-        let execution_provider = SERIAL_EXECUTION_PROVIDER;
-        let workers = NonZeroUsize::MIN;
+        let solver_provider = linear.provider;
+        let execution_provider = linear.execution;
         let model_id = reference.model().ulid().to_string();
         let model_revision = reference.semantic_revision().get();
         let model_digest = recognized.model_digest.as_str();
@@ -238,6 +236,34 @@ impl CommonFsiPlan {
         ] {
             push_framed(&mut identity_bytes, value.as_bytes());
         }
+        for library in linear.provider.libraries() {
+            push_framed(&mut identity_bytes, library.name().as_bytes());
+            push_framed(&mut identity_bytes, library.version().as_bytes());
+        }
+        if let Some(objective) = linear.planning_objective {
+            push_framed(
+                &mut identity_bytes,
+                match objective {
+                    SolverPlanningObjective::Robust => b"robust",
+                    SolverPlanningObjective::Fast => b"fast",
+                    SolverPlanningObjective::LowMemory => b"low-memory",
+                },
+            );
+            push_framed(
+                &mut identity_bytes,
+                linear
+                    .planning_policy_id
+                    .expect("ranked policy identity")
+                    .as_bytes(),
+            );
+            push_framed(
+                &mut identity_bytes,
+                linear
+                    .selected_candidate_id
+                    .expect("ranked candidate identity")
+                    .as_bytes(),
+            );
+        }
         identity_bytes.extend_from_slice(&temporal.step().value().to_bits().to_be_bytes());
         let digest: [u8; 32] = Sha256::digest(identity_bytes).into();
         let identity = format!("common-fsi:{}", hex_bytes(&digest));
@@ -257,10 +283,6 @@ impl CommonFsiPlan {
             scaling_receipt,
             temporal,
             linear,
-            solver_provider,
-            solver_capabilities,
-            execution_provider,
-            workers,
             lineage,
             field_ids,
             domain_ids,
@@ -469,8 +491,8 @@ impl CommonFsiPlan {
                 "FSI State belongs to an incompatible common state space",
             ));
         }
-        if backend.provider() != self.solver_provider
-            || backend.capabilities() != self.solver_capabilities
+        if backend.provider() != self.linear.provider
+            || backend.capabilities() != self.linear.capabilities
         {
             return Err(invalid(
                 "FSI execution backend differs from admitted MINRES provider/capabilities",
@@ -499,7 +521,7 @@ impl CommonFsiPlan {
         )?;
         Ok(PreparedCommonFsiExecution {
             plan: self,
-            backend,
+            backend: self.linear.checked_backend(backend)?,
             prepared,
         })
     }
@@ -542,23 +564,23 @@ impl CommonFsiPlan {
     }
     #[must_use]
     pub const fn linear(&self) -> SolverPlan {
-        self.linear
+        self.linear.solver
     }
     #[must_use]
     pub const fn solver_provider(&self) -> SolverProvider {
-        self.solver_provider
+        self.linear.provider
     }
     #[must_use]
     pub const fn solver_capabilities(&self) -> &SolverCapabilities {
-        &self.solver_capabilities
+        &self.linear.capabilities
     }
     #[must_use]
     pub const fn execution_provider(&self) -> ExecutionProvider {
-        self.execution_provider
+        self.linear.execution
     }
     #[must_use]
     pub const fn workers(&self) -> NonZeroUsize {
-        self.workers
+        self.linear.workers
     }
     #[must_use]
     pub const fn temporal(&self) -> CommonBackwardEuler {

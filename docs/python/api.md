@@ -4017,7 +4017,7 @@ Fast: Final[SolverPlanningObjective]
 
 ### `eqiora.solve.LowMemory`
 
-Prefer the fixed-vector Krylov catalog member.
+Prefer admitted iterative candidates before direct factorization; no memory guarantee.
 
 ```python
 LowMemory: Final[SolverPlanningObjective]
@@ -4027,12 +4027,15 @@ LowMemory: Final[SolverPlanningObjective]
 
 ### `eqiora.solve.Linear`
 
-Linear-solve controls for the Model operator.
+Explicit exact or program-controlled solve intent for the Model operator.
+
+Supply either an objective or all algorithm/preconditioner/reduction/provider
+fields. Incomplete or mixed intent is rejected before resolution.
 
 ```python
 @final
 class Linear:
-    def __new__(cls, *, relative_tolerance: float, absolute_tolerance: float, maximum_iterations: int, objective: SolverPlanningObjective | None=None) -> Self: ...
+    def __new__(cls, *, relative_tolerance: float, absolute_tolerance: float, maximum_iterations: int, objective: SolverPlanningObjective | None=None, algorithm: LinearSolver | None=None, preconditioner: Preconditioner | None=None, reduction: Reduction | None=None, provider: SolverProvider | None=None) -> Self: ...
     @property
     def relative_tolerance(self) -> float: ...
     @property
@@ -4041,6 +4044,14 @@ class Linear:
     def maximum_iterations(self) -> int: ...
     @property
     def objective(self) -> SolverPlanningObjective | None: ...
+    @property
+    def algorithm(self) -> LinearSolver | None: ...
+    @property
+    def preconditioner(self) -> Preconditioner | None: ...
+    @property
+    def reduction(self) -> Reduction | None: ...
+    @property
+    def provider(self) -> SolverProvider | None: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
     def __repr__(self) -> str: ...
@@ -4059,6 +4070,76 @@ class AlgebraicPlanView:
     def kind(self) -> str: ...
     @property
     def unknown_count(self) -> int: ...
+```
+
+<a id="api-eqiora-solve-LinearSolver"></a>
+
+### `eqiora.solve.LinearSolver`
+
+Exact existing algorithm identity.
+
+```python
+@final
+class LinearSolver:
+    ConjugateGradient: ClassVar[LinearSolver]
+    MinimumResidual: ClassVar[LinearSolver]
+    BiConjugateGradientStabilized: ClassVar[LinearSolver]
+    SparseLu: ClassVar[LinearSolver]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
+<a id="api-eqiora-solve-Preconditioner"></a>
+
+### `eqiora.solve.Preconditioner`
+
+Exact existing preconditioner policy.
+
+```python
+@final
+class Preconditioner:
+    Identity: ClassVar[Preconditioner]
+    Jacobi: ClassVar[Preconditioner]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
+<a id="api-eqiora-solve-Reduction"></a>
+
+### `eqiora.solve.Reduction`
+
+Exact existing reduction policy.
+
+```python
+@final
+class Reduction:
+    Reproducible: ClassVar[Reduction]
+    Fast: ClassVar[Reduction]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
+<a id="api-eqiora-solve-SolverProvider"></a>
+
+### `eqiora.solve.SolverProvider`
+
+Complete identity of one compiled backend release.
+
+```python
+@final
+class SolverProvider:
+    @staticmethod
+    def reference() -> SolverProvider: ...
+    @staticmethod
+    def faer() -> SolverProvider: ...
+    @property
+    def id(self) -> str: ...
+    @property
+    def implementation_version(self) -> str: ...
+    @property
+    def libraries(self) -> list[tuple[str, str]]: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
 ```
 
 <a id="api-eqiora-solve-Newton"></a>
@@ -4113,6 +4194,8 @@ class ResolvedLinear:
     def backend(self) -> str: ...
     @property
     def backend_version(self) -> str: ...
+    @property
+    def provider(self) -> SolverProvider: ...
     @property
     def objective(self) -> SolverPlanningObjective | None: ...
     @property

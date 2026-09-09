@@ -160,13 +160,22 @@ fn transient_plan() -> CommonTransientFlowPlan {
             .unwrap();
     let nonlinear =
         NonlinearSolvePlan::new(1.0e-9, 1.0e-11, NonZeroUsize::new(16).unwrap(), 12).unwrap();
-    let solve = CommonSolvePolicy::newton(
-        1.0e-10,
-        1.0e-12,
-        NonZeroUsize::new(2_000).unwrap(),
+    let solve = CommonSolvePolicy::Newton {
         nonlinear,
-    )
-    .unwrap();
+        linear: eqiora_numerics::CommonLinearRequest::exact(
+            eqiora_solver::SolverPlan::new(
+                eqiora_solver::LinearSolver::BiConjugateGradientStabilized,
+                1e-10,
+                1e-12,
+                NonZeroUsize::new(2_000).unwrap(),
+            )
+            .unwrap()
+            .with_preconditioner(eqiora_solver::PreconditionerPolicy::Identity)
+            .with_reduction(eqiora_solver::ReductionPolicy::Reproducible),
+            eqiora_solver::REFERENCE_SOLVER_PROVIDER,
+        )
+        .unwrap(),
+    };
     let scaling = IncompressibleScalingRequest2d::from_si(Some(1.0), Some(2.0), Some(3.0)).unwrap();
     let temporal = CommonBackwardEuler::from_seconds(0.01).unwrap();
     resolve_common_plan(

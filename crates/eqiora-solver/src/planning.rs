@@ -69,6 +69,9 @@ impl HostSerialSolverProfile {
 
     /// Describe a normal-orientation canonical CSR f64 operator using exact
     /// method-owned mathematical properties and structural diagonal availability.
+    /// `Some(true)` asserts a complete diagonal, `Some(false)` asserts its
+    /// absence, and `None` makes no diagonal claim. Jacobi requires `Some(true)`;
+    /// identity-preconditioned candidates need no diagonal assertion.
     ///
     /// Properties are assertions supplied by the mathematical admission owner.
     /// This profile does not establish positive definiteness, remove a nullspace,
@@ -78,7 +81,7 @@ impl HostSerialSolverProfile {
     #[must_use]
     pub const fn canonical_csr(
         properties: LinearOperatorProperties,
-        complete_diagonal: bool,
+        complete_diagonal: Option<bool>,
     ) -> Self {
         Self {
             facts: PlanningProfileFacts {
@@ -88,6 +91,23 @@ impl HostSerialSolverProfile {
                 complete_diagonal,
             },
         }
+    }
+
+    /// Reauthenticate every claimed fact against the actual canonical problem.
+    /// An unclaimed diagonal remains unconstrained; known facts must match exactly.
+    ///
+    /// # Errors
+    /// Returns `EQ0807` before numerical work when a claimed fact differs.
+    pub fn require_problem(self, problem: &LinearProblem<'_>) -> Result<(), Diagnostic> {
+        let actual = PlanningProfileFacts::from_problem(problem);
+        let mut claimed = self.facts;
+        if claimed.complete_diagonal.is_none() {
+            claimed.complete_diagonal = actual.complete_diagonal;
+        }
+        if claimed != actual {
+            return Err(invalid_profile(claimed, actual));
+        }
+        Ok(())
     }
 }
 
@@ -212,6 +232,12 @@ pub struct ResolvedHostSerialSolverPlan<'backend> {
 }
 
 impl<'backend> ResolvedHostSerialSolverPlan<'backend> {
+    /// Mathematical and structural assertions admitted before execution.
+    #[must_use]
+    pub const fn profile(&self) -> HostSerialSolverProfile {
+        self.profile
+    }
+
     /// Frozen objective used to rank admitted candidates.
     #[must_use]
     pub const fn objective(&self) -> SolverPlanningObjective {
@@ -266,10 +292,7 @@ impl<'backend> ResolvedHostSerialSolverPlan<'backend> {
     /// Returns a profile diagnostic before backend work, or the selected
     /// backend's capability/numerical diagnostic. No retry or fallback occurs.
     pub fn solve(&self, problem: &LinearProblem<'_>) -> Result<LinearSolution, Diagnostic> {
-        let actual = PlanningProfileFacts::from_problem(problem);
-        if actual != self.profile.facts {
-            return Err(invalid_profile(self.profile.facts, actual));
-        }
+        self.profile.require_problem(problem)?;
         self.selected.request().solve(problem)
     }
 }
@@ -279,7 +302,7 @@ struct PlanningProfileFacts {
     properties: LinearOperatorProperties,
     orientation: LinearOperatorOrientation,
     canonical_csr: bool,
-    complete_diagonal: bool,
+    complete_diagonal: Option<bool>,
 }
 
 impl PlanningProfileFacts {
@@ -287,7 +310,7 @@ impl PlanningProfileFacts {
         properties: LinearOperatorProperties::General,
         orientation: LinearOperatorOrientation::Normal,
         canonical_csr: true,
-        complete_diagonal: true,
+        complete_diagonal: Some(true),
     };
 
     fn from_problem(problem: &LinearProblem<'_>) -> Self {
@@ -296,9 +319,9 @@ impl PlanningProfileFacts {
             properties: problem.properties(),
             orientation: problem.operator().orientation(),
             canonical_csr: system.is_some(),
-            complete_diagonal: system.is_some_and(|system| {
+            complete_diagonal: Some(system.is_some_and(|system| {
                 has_complete_diagonal(system.rows(), system.row_offsets(), system.column_indices())
-            }),
+            })),
         }
     }
 }
@@ -587,7 +610,9 @@ fn rejection_reason(
     if !profile.canonical_csr {
         return Some("profile.canonical-csr-required");
     }
-    if expected.preconditioner == PreconditionerPolicy::Jacobi && !profile.complete_diagonal {
+    if expected.preconditioner == PreconditionerPolicy::Jacobi
+        && profile.complete_diagonal != Some(true)
+    {
         return Some("profile.complete-diagonal-required");
     }
     let required = SolverCapability {

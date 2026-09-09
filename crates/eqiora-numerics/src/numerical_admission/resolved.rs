@@ -153,7 +153,9 @@ impl ResolvedCommonPlan {
         }
     }
 
-    pub(crate) const fn linear_solver_provider(&self) -> Option<SolverProvider> {
+    /// Exact spatial solver release, including its declared library inventory.
+    #[must_use]
+    pub const fn linear_solver_provider(&self) -> Option<SolverProvider> {
         match self {
             Self::Algebraic(plan) => Some(plan.solver_provider()),
             Self::Ode(_) => None,
@@ -238,74 +240,59 @@ impl ResolvedCommonPlan {
         }
     }
 
+    const fn linear_policy(&self) -> Option<&super::NativeLinearPolicy> {
+        match self {
+            Self::Algebraic(plan) => Some(&plan.linear),
+            Self::Ode(_) => None,
+            Self::Scalar(plan) => Some(&plan.admission.linear),
+            Self::Elasticity(plan) => Some(&plan.admission.linear),
+            Self::SteadyStokes(plan) => Some(&plan.admission.linear),
+            Self::TransientFlow(plan) => Some(&plan.admission.linear),
+            Self::Fsi(plan) => Some(&plan.linear),
+        }
+    }
+
     /// Program-controlled solver-planning objective when one was requested.
     #[must_use]
     pub const fn solver_planning_objective(&self) -> Option<SolverPlanningObjective> {
-        match self {
-            Self::TransientFlow(plan) => plan.solver_planning_objective(),
-            Self::Algebraic(_)
-            | Self::Ode(_)
-            | Self::Scalar(_)
-            | Self::Elasticity(_)
-            | Self::SteadyStokes(_)
-            | Self::Fsi(_) => None,
+        match self.linear_policy() {
+            Some(linear) => linear.planning_objective,
+            None => None,
         }
     }
 
     /// Versioned solver-planning policy identity, when applicable.
     #[must_use]
     pub const fn solver_planning_policy_id(&self) -> Option<&'static str> {
-        match self {
-            Self::TransientFlow(plan) => plan.solver_planning_policy_id(),
-            Self::Algebraic(_)
-            | Self::Ode(_)
-            | Self::Scalar(_)
-            | Self::Elasticity(_)
-            | Self::SteadyStokes(_)
-            | Self::Fsi(_) => None,
+        match self.linear_policy() {
+            Some(linear) => linear.planning_policy_id,
+            None => None,
         }
     }
 
     /// Selected solver candidate identity, when planning was requested.
     #[must_use]
     pub const fn selected_solver_candidate_id(&self) -> Option<&'static str> {
-        match self {
-            Self::TransientFlow(plan) => plan.selected_solver_candidate_id(),
-            Self::Algebraic(_)
-            | Self::Ode(_)
-            | Self::Scalar(_)
-            | Self::Elasticity(_)
-            | Self::SteadyStokes(_)
-            | Self::Fsi(_) => None,
+        match self.linear_policy() {
+            Some(linear) => linear.selected_candidate_id,
+            None => None,
         }
     }
 
     /// Evidence case attached to the selected solver candidate.
     #[must_use]
     pub const fn selected_solver_evidence_case(&self) -> Option<&'static str> {
-        match self {
-            Self::TransientFlow(plan) => plan.selected_solver_evidence_case(),
-            Self::Algebraic(_)
-            | Self::Ode(_)
-            | Self::Scalar(_)
-            | Self::Elasticity(_)
-            | Self::SteadyStokes(_)
-            | Self::Fsi(_) => None,
+        match self.linear_policy() {
+            Some(linear) => linear.selected_evidence_case,
+            None => None,
         }
     }
 
     /// Stable reason codes for program-controlled solver planning.
     #[must_use]
     pub fn solver_planning_reasons(&self) -> &[(&'static str, &'static str)] {
-        match self {
-            Self::TransientFlow(plan) => plan.solver_planning_reasons(),
-            Self::Algebraic(_)
-            | Self::Ode(_)
-            | Self::Scalar(_)
-            | Self::Elasticity(_)
-            | Self::SteadyStokes(_)
-            | Self::Fsi(_) => &[],
-        }
+        self.linear_policy()
+            .map_or(&[], |linear| linear.planning_reasons.as_slice())
     }
 
     /// Borrow the exact ODE Plan when this is the ODE variant.

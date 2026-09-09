@@ -64,6 +64,10 @@ def solve() -> eqiora.Result:
         spatial=(eqiora.fem.MiniP1().at(fluid), eqiora.fem.P1().at(solid)),
         temporal=eqiora.time.BackwardEuler(step_s=0.05),
         solve=eqiora.solve.Linear(
+            algorithm=eqiora.solve.LinearSolver.MinimumResidual,
+            preconditioner=eqiora.solve.Preconditioner.Identity,
+            reduction=eqiora.solve.Reduction.Reproducible,
+            provider=eqiora.solve.SolverProvider.reference(),
             relative_tolerance=1.0e-11,
             absolute_tolerance=1.0e-13,
             maximum_iterations=20_000,

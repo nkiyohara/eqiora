@@ -534,12 +534,25 @@ fn plan_for(
     } else {
         2.0e-10
     };
-    let solver = CommonSolvePolicy::linear(
-        relative_tolerance,
-        1.0e-12,
-        NonZeroUsize::new(10_000).unwrap(),
-    )
-    .unwrap();
+    let solver = CommonSolvePolicy::Linear(
+        eqiora_numerics::CommonLinearRequest::exact(
+            eqiora_solver::SolverPlan::new(
+                if spatial == CommonSpatialPolicy::CellCenteredTpfa {
+                    eqiora_solver::LinearSolver::ConjugateGradient
+                } else {
+                    eqiora_solver::LinearSolver::BiConjugateGradientStabilized
+                },
+                relative_tolerance,
+                1.0e-12,
+                NonZeroUsize::new(10_000).unwrap(),
+            )
+            .unwrap()
+            .with_preconditioner(eqiora_solver::PreconditionerPolicy::Identity)
+            .with_reduction(eqiora_solver::ReductionPolicy::Reproducible),
+            eqiora_solver::REFERENCE_SOLVER_PROVIDER,
+        )
+        .unwrap(),
+    );
     let model = ModelEnvelope::from_program(document.program()).unwrap();
     resolve_common_plan(
         &model,

@@ -98,6 +98,10 @@ def model_and_plan(method, *, diffusion: float = 1.0):
         mesh=mesh,
         spatial=spatial,
         solve=eqiora.solve.Linear(
+            algorithm=(eqiora.solve.LinearSolver.ConjugateGradient if spatial == eqiora.fvm.CellCenteredTpfa() else eqiora.solve.LinearSolver.BiConjugateGradientStabilized),
+            preconditioner=eqiora.solve.Preconditioner.Identity,
+            reduction=eqiora.solve.Reduction.Reproducible,
+            provider=eqiora.solve.SolverProvider.reference(),
             relative_tolerance=1.0e-10,
             absolute_tolerance=1.0e-12,
             maximum_iterations=10_000,
@@ -115,6 +119,10 @@ def test_numerical_method_changes_plan_but_not_model_identity() -> None:
         mesh=fem_plan.mesh,
         spatial=eqiora.fvm.CellCenteredTpfa(),
         solve=eqiora.solve.Linear(
+            algorithm=eqiora.solve.LinearSolver.ConjugateGradient,
+            preconditioner=eqiora.solve.Preconditioner.Identity,
+            reduction=eqiora.solve.Reduction.Reproducible,
+            provider=eqiora.solve.SolverProvider.reference(),
             relative_tolerance=1.0e-10,
             absolute_tolerance=1.0e-12,
             maximum_iterations=10_000,
@@ -149,6 +157,10 @@ def elasticity_model_and_plan():
         mesh=mesh,
         spatial=eqiora.fem.Q1(),
         solve=eqiora.solve.Linear(
+            algorithm=eqiora.solve.LinearSolver.ConjugateGradient,
+            preconditioner=eqiora.solve.Preconditioner.Identity,
+            reduction=eqiora.solve.Reduction.Reproducible,
+            provider=eqiora.solve.SolverProvider.reference(),
             relative_tolerance=1.0e-10,
             absolute_tolerance=1.0e-12,
             maximum_iterations=10_000,

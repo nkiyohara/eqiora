@@ -42,7 +42,15 @@ request = eqiora.meshing.GmshMesher(
 )
 mesh_plan = eqiora.meshing.resolve(geometry, request)
 mesh = eqiora.meshing.generate(mesh_plan)
-linear = eqiora.solve.Linear(relative_tolerance=1e-6, absolute_tolerance=1e-13, maximum_iterations=10000)
+linear = eqiora.solve.Linear(
+    algorithm=eqiora.solve.LinearSolver.SparseLu,
+    preconditioner=eqiora.solve.Preconditioner.Identity,
+    reduction=eqiora.solve.Reduction.Fast,
+    provider=eqiora.solve.SolverProvider.faer(),
+    relative_tolerance=1e-6,
+    absolute_tolerance=1e-13,
+    maximum_iterations=10000,
+)
 fresh_plan = eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.MiniP1(), solve=linear)
 replayed_plan = eqiora.resolve(replayed, mesh=mesh, spatial=eqiora.fem.MiniP1(), solve=linear)
 assert fresh_plan.identity == replayed_plan.identity

@@ -83,8 +83,9 @@ fn execute_job(
         }
         NativeRunJob::Elasticity(plan) => {
             let started = Instant::now();
+            let backend = resolved_linear_backend(plan.solver_provider())?;
             let result = plan
-                .run_result()
+                .run_result(backend)
                 .and_then(|result| result.with_elapsed_seconds(started.elapsed().as_secs_f64()))
                 .map_err(|diagnostic| vec![diagnostic])?;
             Ok(NativeWorkerOutcome::Completed(NativeRunOutput::Result(
@@ -93,8 +94,9 @@ fn execute_job(
         }
         NativeRunJob::SteadyStokes(plan) => {
             let started = Instant::now();
+            let backend = resolved_linear_backend(plan.solver_provider())?;
             let result = plan
-                .run_result(&FaerLinearSolver)
+                .run_result(backend)
                 .map_err(|diagnostic| vec![diagnostic])?;
             let result = result
                 .with_elapsed_seconds(started.elapsed().as_secs_f64())
@@ -147,9 +149,10 @@ fn execute_job(
         }
         NativeRunJob::Fsi(request) => {
             let started = Instant::now();
+            let backend = resolved_linear_backend(request.plan().solver_provider())?;
             let maximum_steps = request.accepted_steps().get();
             let outcome = request
-                .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |accepted_steps, state| {
+                .advance_accepted_actions(backend, |accepted_steps, state| {
                     if accepted_steps > 0 {
                         shared.publish_progress(NativeRunProgress::CommonTransient(
                             PyCommonTransientRunProgress {

@@ -85,6 +85,12 @@ impl CommonSteadyStokesPlan {
         })
     }
 
+    /// Exact selected solver release and library inventory.
+    #[must_use]
+    pub const fn solver_provider(&self) -> SolverProvider {
+        self.admission.linear.provider
+    }
+
     /// Execute solely from the state retained by this Plan.
     fn run(
         &self,
@@ -99,11 +105,12 @@ impl CommonSteadyStokesPlan {
                 "steady-Stokes execution backend differs from the admitted provider or capabilities",
             ));
         }
+        let checked_backend = self.admission.linear.checked_backend(backend)?;
         let solution = solve_resolved_steady_stokes_geometry_mini_2d(
             self.admission.program(),
             &self.resolved,
             &self.binding,
-            backend,
+            &checked_backend,
         )?;
         if solution.scales() != self.scaling.scales() {
             return Err(invalid(

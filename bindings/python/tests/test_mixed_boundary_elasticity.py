@@ -44,6 +44,10 @@ def accepted() -> tuple[eqiora.Model, eqiora.Plan, eqiora.Result]:
         mesh=mesh,
         spatial=eqiora.fem.Q1(),
         solve=eqiora.solve.Linear(
+            algorithm=eqiora.solve.LinearSolver.ConjugateGradient,
+            preconditioner=eqiora.solve.Preconditioner.Identity,
+            reduction=eqiora.solve.Reduction.Reproducible,
+            provider=eqiora.solve.SolverProvider.reference(),
             relative_tolerance=1.0e-10,
             absolute_tolerance=1.0e-12,
             maximum_iterations=10_000,
@@ -94,6 +98,10 @@ def test_root_plan_rejects_foreign_model_field_and_observation() -> None:
         mesh=foreign_mesh,
         spatial=eqiora.fem.Q1(),
         solve=eqiora.solve.Linear(
+            algorithm=eqiora.solve.LinearSolver.ConjugateGradient,
+            preconditioner=eqiora.solve.Preconditioner.Identity,
+            reduction=eqiora.solve.Reduction.Reproducible,
+            provider=eqiora.solve.SolverProvider.reference(),
             relative_tolerance=1.0e-10,
             absolute_tolerance=1.0e-12,
             maximum_iterations=10_000,
@@ -108,6 +116,10 @@ def test_root_plan_rejects_foreign_model_field_and_observation() -> None:
             mesh=plan.mesh,
             spatial=eqiora.fem.MiniP1(),
             solve=eqiora.solve.Linear(
+                algorithm=eqiora.solve.LinearSolver.ConjugateGradient,
+                preconditioner=eqiora.solve.Preconditioner.Identity,
+                reduction=eqiora.solve.Reduction.Reproducible,
+                provider=eqiora.solve.SolverProvider.reference(),
                 relative_tolerance=1.0e-10,
                 absolute_tolerance=1.0e-12,
                 maximum_iterations=10_000,

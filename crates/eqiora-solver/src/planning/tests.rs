@@ -1598,7 +1598,7 @@ fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
         let mut faer = CountingBackend::new(FAER_PROVIDER, faer_sparse_lu_plan());
         // These descriptors advertise only General capabilities. The correct
         // algorithm alone cannot admit the requested symmetric operator class.
-        let profile = HostSerialSolverProfile::canonical_csr(properties, false);
+        let profile = HostSerialSolverProfile::canonical_csr(properties, Some(false));
         let rejected = plan_host_serial_solver_v2(
             profile,
             SolverPlanningObjective::Robust,

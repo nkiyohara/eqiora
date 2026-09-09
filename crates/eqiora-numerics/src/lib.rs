@@ -53,7 +53,7 @@ pub use common_trajectory::CommonTrajectory;
 pub use numerical_admission::{
     AuthenticatedCommonMesh, CommonAlgebraicPlan, CommonAlgebraicState, CommonBackwardEuler,
     CommonElasticityPlan, CommonFormulationDescription, CommonFsiPlan, CommonFsiRunRequest,
-    CommonInitialField, CommonInitialValues, CommonMethodRequest, CommonPressureGauge2d,
+    CommonInitialField, CommonInitialValues, CommonLinearRequest, CommonMethodRequest, CommonPressureGauge2d,
     CommonScalarPlan, CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy,
     CommonState, CommonSteadyStokesPlan, CommonTransientFlowPlan, CommonTransientRunRequest,
     FormulationKind, FormulationSelectionMode, ResolvedCommonPlan, resolve_common_ode_plan,

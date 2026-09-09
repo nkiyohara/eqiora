@@ -24,14 +24,71 @@ Robust: Final[SolverPlanningObjective]
 #:
 #: Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PySolverPlanningObjective``.
 Fast: Final[SolverPlanningObjective]
-#: Prefer the fixed-vector Krylov catalog member.
+#: Prefer admitted iterative candidates before direct factorization; no memory guarantee.
 #:
 #: Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PySolverPlanningObjective``.
 LowMemory: Final[SolverPlanningObjective]
 
 @final
+class LinearSolver:
+    """Exact existing algorithm identity.
+
+    Authority: ``crates/eqiora-python/src/common_plan/solver_request.rs::PyLinearSolver``.
+    """
+    ConjugateGradient: ClassVar[LinearSolver]
+    MinimumResidual: ClassVar[LinearSolver]
+    BiConjugateGradientStabilized: ClassVar[LinearSolver]
+    SparseLu: ClassVar[LinearSolver]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
+class Preconditioner:
+    """Exact existing preconditioner policy.
+
+    Authority: ``crates/eqiora-python/src/common_plan/solver_request.rs::PyPreconditioner``.
+    """
+    Identity: ClassVar[Preconditioner]
+    Jacobi: ClassVar[Preconditioner]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
+class Reduction:
+    """Exact existing reduction policy.
+
+    Authority: ``crates/eqiora-python/src/common_plan/solver_request.rs::PyReduction``.
+    """
+    Reproducible: ClassVar[Reduction]
+    Fast: ClassVar[Reduction]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
+class SolverProvider:
+    """Complete identity of one compiled backend release.
+
+    Authority: ``crates/eqiora-python/src/common_plan/solver_request.rs::PySolverProvider``.
+    """
+    @staticmethod
+    def reference() -> SolverProvider: ...
+    @staticmethod
+    def faer() -> SolverProvider: ...
+    @property
+    def id(self) -> str: ...
+    @property
+    def implementation_version(self) -> str: ...
+    @property
+    def libraries(self) -> list[tuple[str, str]]: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
 class Linear:
-    """Linear-solve controls for the Model operator.
+    """Explicit exact or program-controlled solve intent for the Model operator.
+
+    Supply either an objective or all algorithm/preconditioner/reduction/provider
+    fields. Incomplete or mixed intent is rejected before resolution.
 
     Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyLinear``.
     """
@@ -42,6 +99,10 @@ class Linear:
         absolute_tolerance: float,
         maximum_iterations: int,
         objective: SolverPlanningObjective | None = None,
+        algorithm: LinearSolver | None = None,
+        preconditioner: Preconditioner | None = None,
+        reduction: Reduction | None = None,
+        provider: SolverProvider | None = None,
     ) -> Self: ...
     @property
     def relative_tolerance(self) -> float: ...
@@ -51,6 +112,15 @@ class Linear:
     def maximum_iterations(self) -> int: ...
     @property
     def objective(self) -> SolverPlanningObjective | None: ...
+    @property
+    def algorithm(self) -> LinearSolver | None: ...
+    @property
+    def preconditioner(self) -> Preconditioner | None: ...
+    @property
+    def reduction(self) -> Reduction | None: ...
+    @property
+    def provider(self) -> SolverProvider | None: ...
+
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
     def __repr__(self) -> str: ...
@@ -109,6 +179,8 @@ class ResolvedLinear:
     @property
     def backend_version(self) -> str: ...
     @property
+    def provider(self) -> SolverProvider: ...
+    @property
     def objective(self) -> SolverPlanningObjective | None: ...
     @property
     def planning_policy_id(self) -> str | None: ...
@@ -145,6 +217,10 @@ __all__ = [
     "LowMemory",
     "Linear",
     "AlgebraicPlanView",
+    "LinearSolver",
+    "Preconditioner",
+    "Reduction",
+    "SolverProvider",
     "Newton",
     "ResolvedLinear",
     "ResolvedNewton",

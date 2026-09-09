@@ -99,6 +99,10 @@ def make_plan(model, method):
         mesh=mesh,
         spatial=spatial,
         solve=eqiora.solve.Linear(
+            algorithm=(eqiora.solve.LinearSolver.ConjugateGradient if spatial == eqiora.fvm.CellCenteredTpfa() else eqiora.solve.LinearSolver.BiConjugateGradientStabilized),
+            preconditioner=eqiora.solve.Preconditioner.Identity,
+            reduction=eqiora.solve.Reduction.Reproducible,
+            provider=eqiora.solve.SolverProvider.reference(),
             relative_tolerance=1e-12,
             absolute_tolerance=1e-14,
             maximum_iterations=10000,

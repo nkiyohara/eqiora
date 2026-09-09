@@ -18,7 +18,7 @@ use crate::{ScalingComponent2d, ScalingMode2d};
 
 use super::*;
 
-const SCHEMA: &str = "eqiora.resolved-common-plan/v2";
+const SCHEMA: &str = "eqiora.resolved-common-plan/v3";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 
@@ -84,8 +84,43 @@ struct WireLinearControls {
     relative_tolerance: f64,
     absolute_tolerance: f64,
     maximum_iterations: usize,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    objective: Option<WireSolverObjective>,
+    intent: WireLinearIntent,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+enum WireLinearIntent {
+    ProgramControlled {
+        objective: WireSolverObjective,
+    },
+    Exact {
+        algorithm: String,
+        preconditioner: String,
+        reduction: String,
+        provider: WireLinearProvider,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WireLinearProvider {
+    id: String,
+    implementation_version: String,
+    libraries: Vec<(String, String)>,
+}
+
+impl From<SolverProvider> for WireLinearProvider {
+    fn from(provider: SolverProvider) -> Self {
+        Self {
+            id: provider.id().as_str().into(),
+            implementation_version: provider.implementation_version().into(),
+            libraries: provider
+                .libraries()
+                .iter()
+                .map(|library| (library.name().into(), library.version().into()))
+                .collect(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -142,7 +177,7 @@ enum WireTemporal {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireResolvedCommonPlanV2 {
+struct WireResolvedCommonPlanV3 {
     schema: String,
     encoding: String,
     family: WirePlanFamily,
@@ -242,10 +277,10 @@ impl ResolvedCommonPlan {
     pub fn canonical_solve_request(&self) -> Option<CommonSolvePolicy> {
         let solver = self.effective_solver()?;
         let linear = match self.solver_planning_objective() {
-            None => CommonLinearRequest::new(
-                solver.relative_tolerance(),
-                solver.absolute_tolerance(),
-                solver.maximum_iterations(),
+            None => CommonLinearRequest::exact(
+                solver,
+                self.linear_solver_provider()
+                    .expect("a spatial solver retains its exact provider"),
             ),
             Some(objective) => CommonLinearRequest::program_controlled(
                 solver.relative_tolerance(),
@@ -307,7 +342,7 @@ impl ResolvedCommonPlan {
 
     /// Encode this complete resolved Plan and its exact replay roots.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&WireResolvedCommonPlanV2::from_plan(self)?).map_err(|error| {
+        serde_json::to_vec(&WireResolvedCommonPlanV3::from_plan(self)?).map_err(|error| {
             invalid(format!(
                 "cannot encode resolved common Plan artifact: {error}"
             ))
@@ -329,7 +364,7 @@ impl ResolvedCommonPlan {
                 bytes.len()
             )));
         }
-        let wire: WireResolvedCommonPlanV2 = serde_json::from_slice(bytes)
+        let wire: WireResolvedCommonPlanV3 = serde_json::from_slice(bytes)
             .map_err(|error| invalid(format!("invalid resolved common Plan JSON: {error}")))?;
         wire.validate_header()?;
         let resolved = wire.resolve(linear_backend, time_backend)?;
@@ -342,7 +377,7 @@ impl ResolvedCommonPlan {
     }
 }
 
-impl WireResolvedCommonPlanV2 {
+impl WireResolvedCommonPlanV3 {
     fn from_plan(plan: &ResolvedCommonPlan) -> Result<Self, Diagnostic> {
         let model = plan_model_artifact(plan).canonical_json()?;
         let mesh = plan_authenticated_mesh(plan)
@@ -513,7 +548,7 @@ impl WireResolvedCommonPlanV2 {
             .solve
             .as_ref()
             .ok_or_else(|| invalid("spatial Plan omitted its solve request"))?
-            .to_native()?;
+            .to_native(linear_backend)?;
         let scaling = self
             .scaling
             .as_ref()
@@ -575,48 +610,84 @@ impl WireSpatialRequest {
 }
 
 impl WireSolve {
-    fn to_native(&self) -> Result<CommonSolvePolicy, Diagnostic> {
+    fn to_native(
+        &self,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<CommonSolvePolicy, Diagnostic> {
         match self {
-            Self::Linear { linear } => linear.to_native_linear(),
-            Self::Newton { linear, nonlinear } => {
-                let nonlinear = NonlinearSolvePlan::new(
+            Self::Linear { linear } => linear.to_native(backend).map(CommonSolvePolicy::Linear),
+            Self::Newton { linear, nonlinear } => Ok(CommonSolvePolicy::Newton {
+                linear: linear.to_native(backend)?,
+                nonlinear: NonlinearSolvePlan::new(
                     nonlinear.relative_tolerance,
                     nonlinear.absolute_tolerance,
                     nonzero(nonlinear.maximum_iterations, "nonlinear maximum_iterations")?,
                     nonlinear.maximum_line_search_steps,
-                )?;
-                match linear.objective {
-                    None => CommonSolvePolicy::newton(
-                        linear.relative_tolerance,
-                        linear.absolute_tolerance,
-                        nonzero(linear.maximum_iterations, "linear maximum_iterations")?,
-                        nonlinear,
-                    ),
-                    Some(objective) => CommonSolvePolicy::newton_program_controlled(
-                        linear.relative_tolerance,
-                        linear.absolute_tolerance,
-                        nonzero(linear.maximum_iterations, "linear maximum_iterations")?,
-                        nonlinear,
-                        objective.into(),
-                    ),
-                }
-            }
+                )?,
+            }),
         }
     }
 }
 
 impl WireLinearControls {
-    fn to_native_linear(&self) -> Result<CommonSolvePolicy, Diagnostic> {
-        if self.objective.is_some() {
-            return Err(invalid(
-                "program-controlled solver planning requires a Newton Plan",
-            ));
+    fn to_native(
+        &self,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<CommonLinearRequest, Diagnostic> {
+        let maximum = nonzero(self.maximum_iterations, "linear maximum_iterations")?;
+        match &self.intent {
+            WireLinearIntent::ProgramControlled { objective } => {
+                CommonLinearRequest::program_controlled(
+                    self.relative_tolerance,
+                    self.absolute_tolerance,
+                    maximum,
+                    (*objective).into(),
+                )
+            }
+            WireLinearIntent::Exact {
+                algorithm,
+                preconditioner,
+                reduction,
+                provider,
+            } => {
+                let algorithm = match algorithm.as_str() {
+                    "conjugate-gradient" => LinearSolver::ConjugateGradient,
+                    "minimum-residual" => LinearSolver::MinimumResidual,
+                    "bicgstab" => LinearSolver::BiConjugateGradientStabilized,
+                    "sparse-lu" => LinearSolver::SparseLu,
+                    _ => return Err(invalid("unknown exact linear algorithm")),
+                };
+                let preconditioner = match preconditioner.as_str() {
+                    "identity" => PreconditionerPolicy::Identity,
+                    "jacobi" => PreconditionerPolicy::Jacobi,
+                    _ => return Err(invalid("unknown exact linear preconditioner")),
+                };
+                let reduction = match reduction.as_str() {
+                    "reproducible" => ReductionPolicy::Reproducible,
+                    "fast" => ReductionPolicy::Fast,
+                    _ => return Err(invalid("unknown exact linear reduction")),
+                };
+                let reference = REFERENCE_LINEAR_SOLVER.provider();
+                let provider = if *provider == WireLinearProvider::from(reference) {
+                    reference
+                } else if *provider == WireLinearProvider::from(backend.provider()) {
+                    backend.provider()
+                } else {
+                    return Err(invalid(
+                        "persisted exact solver provider release or library inventory is unavailable",
+                    ));
+                };
+                let plan = SolverPlan::new(
+                    algorithm,
+                    self.relative_tolerance,
+                    self.absolute_tolerance,
+                    maximum,
+                )?
+                .with_preconditioner(preconditioner)
+                .with_reduction(reduction);
+                CommonLinearRequest::exact(plan, provider)
+            }
         }
-        CommonSolvePolicy::linear(
-            self.relative_tolerance,
-            self.absolute_tolerance,
-            nonzero(self.maximum_iterations, "linear maximum_iterations")?,
-        )
     }
 }
 
@@ -792,7 +863,34 @@ fn solve_request(plan: &ResolvedCommonPlan) -> Option<WireSolve> {
         relative_tolerance: solver.relative_tolerance(),
         absolute_tolerance: solver.absolute_tolerance(),
         maximum_iterations: solver.maximum_iterations().get(),
-        objective: plan.solver_planning_objective().map(Into::into),
+        intent: match plan.solver_planning_objective() {
+            Some(objective) => WireLinearIntent::ProgramControlled {
+                objective: objective.into(),
+            },
+            None => WireLinearIntent::Exact {
+                algorithm: match solver.algorithm() {
+                    LinearSolver::ConjugateGradient => "conjugate-gradient",
+                    LinearSolver::MinimumResidual => "minimum-residual",
+                    LinearSolver::BiConjugateGradientStabilized => "bicgstab",
+                    LinearSolver::SparseLu => "sparse-lu",
+                }
+                .into(),
+                preconditioner: match solver.preconditioner() {
+                    PreconditionerPolicy::Identity => "identity",
+                    PreconditionerPolicy::Jacobi => "jacobi",
+                }
+                .into(),
+                reduction: match solver.reduction() {
+                    ReductionPolicy::Reproducible => "reproducible",
+                    ReductionPolicy::Fast => "fast",
+                }
+                .into(),
+                provider: plan
+                    .linear_solver_provider()
+                    .expect("spatial Plan owns its solver provider")
+                    .into(),
+            },
+        },
     };
     match plan {
         ResolvedCommonPlan::TransientFlow(plan) => Some(WireSolve::Newton {
