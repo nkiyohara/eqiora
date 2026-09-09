@@ -149,8 +149,12 @@ pub(super) fn compute_action(
         }
     }
     let points = parameters.chunks_exact(width).collect::<Vec<_>>();
-    let plan = EvaluationMapPlan::new(program, &points, NUMERICAL_BYTES_LIMIT)
-        .map_err(|error| diagnostics_failure(&[error]))?;
+    let plan = EvaluationMapPlan::new(
+        program,
+        &points,
+        eqiora::api::EvaluationMapExecutionPolicy::retained(NUMERICAL_BYTES_LIMIT),
+    )
+    .map_err(|error| diagnostics_failure(&[error]))?;
     let map = plan.execute().map_err(|report| {
         let mut error = diagnostics_failure(report.diagnostics());
         error.message = format!(
@@ -160,8 +164,11 @@ pub(super) fn compute_action(
         );
         error
     })?;
+    let members = map.members().ok_or_else(|| {
+        HandlerFailure::internal("dense JAX map requires retained native members")
+    })?;
     let primal = || {
-        map.members()
+        members
             .iter()
             .flat_map(|evaluation| evaluation.primal().into_parts().0)
             .collect()

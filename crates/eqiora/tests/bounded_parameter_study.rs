@@ -16,12 +16,76 @@ const P2: [f64; 3] = [3.0, 1.25, -0.25];
 const BYTE_LIMIT: usize = 1 << 30;
 
 #[test]
+fn bounded_public_policies_deliver_ordered_members_and_recompute_exact_receipts() {
+    use eqiora::api::{EvaluationMapExecutionPolicy, EvaluationMapRetention};
+    use eqiora::realization::Target;
+    use std::num::NonZeroUsize;
+
+    for program in programs() {
+        let expected = [&P2, &P1, &P2].map(|point| program.evaluate(point).unwrap());
+        for (chunk, workers) in [(1, 1), (2, 1), (2, 2), (3, 2)] {
+            for retention in [
+                EvaluationMapRetention::Retain,
+                EvaluationMapRetention::Recompute,
+            ] {
+                let policy = EvaluationMapExecutionPolicy::new(
+                    chunk,
+                    Target::HostCpu {
+                        threads: NonZeroUsize::new(workers).unwrap(),
+                    },
+                    retention,
+                    BYTE_LIMIT,
+                )
+                .unwrap();
+                let plan =
+                    EvaluationMapPlan::new(program.clone(), &[&P2, &P1, &P2], policy).unwrap();
+                let mut indices = Vec::new();
+                let complete = plan
+                    .execute_with_delivery(
+                        || false,
+                        |index, member| {
+                            indices.push(index);
+                            assert_evaluation_matches(member, &expected[index]);
+                        },
+                    )
+                    .unwrap();
+                assert_eq!(indices, [0, 1, 2]);
+                assert_eq!(complete.len(), 3);
+                for (index, expected) in expected.iter().enumerate() {
+                    assert_eq!(
+                        complete.receipt(index),
+                        Some(expected.primal().evidence().receipt())
+                    );
+                    match retention {
+                        EvaluationMapRetention::Retain => {
+                            assert_evaluation_matches(complete.evaluation(index).unwrap(), expected)
+                        }
+                        EvaluationMapRetention::Recompute => {
+                            assert!(complete.members().is_none());
+                            assert_evaluation_matches(
+                                &complete.recompute(index).unwrap(),
+                                expected,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn ordered_duplicates_match_independent_q1_and_tpfa_evaluations() {
     for program in programs() {
         // Reference calls use the unchanged pointwise owner outside the map.
         let expected = [&P2, &P1, &P2].map(|point| program.evaluate(point).unwrap());
         let original_default = program.default_point().values().to_vec();
-        let plan = EvaluationMapPlan::new(program.clone(), &[&P2, &P1, &P2], BYTE_LIMIT).unwrap();
+        let plan = EvaluationMapPlan::new(
+            program.clone(),
+            &[&P2, &P1, &P2],
+            eqiora::api::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
+        )
+        .unwrap();
         assert_eq!(plan.program_identity(), program.identity());
         assert_eq!(plan.points().len(), 3);
         for (point, values) in plan.points().iter().zip([P2, P1, P2]) {
@@ -36,16 +100,29 @@ fn ordered_duplicates_match_independent_q1_and_tpfa_evaluations() {
 #[test]
 fn request_permutation_changes_membership_positions_without_sorting() {
     for program in programs() {
-        let original =
-            EvaluationMapPlan::new(program.clone(), &[&P2, &P1, &P2], BYTE_LIMIT).unwrap();
-        let permuted =
-            EvaluationMapPlan::new(program.clone(), &[&P1, &P2, &P2], BYTE_LIMIT).unwrap();
+        let original = EvaluationMapPlan::new(
+            program.clone(),
+            &[&P2, &P1, &P2],
+            eqiora::api::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
+        )
+        .unwrap();
+        let permuted = EvaluationMapPlan::new(
+            program.clone(),
+            &[&P1, &P2, &P2],
+            eqiora::api::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
+        )
+        .unwrap();
         assert_ne!(original, permuted);
         let expected = [&P1, &P2, &P2].map(|point| program.evaluate(point).unwrap());
         assert_complete_matches(&permuted.execute().unwrap(), &permuted, &expected);
         assert_eq!(
             original,
-            EvaluationMapPlan::new(program, &[&P2, &P1, &P2], BYTE_LIMIT).unwrap()
+            EvaluationMapPlan::new(
+                program,
+                &[&P2, &P1, &P2],
+                eqiora::api::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT)
+            )
+            .unwrap()
         );
     }
 }
@@ -58,7 +135,12 @@ fn retained_primal_jvp_and_vjp_survive_other_points_and_repeated_occurrences() {
         let cotangent = vec![1.0; program.identity().output_dimension()];
         let expected_jvp = original.jvp(&direction).unwrap();
         let expected_vjp = original.vjp(&cotangent).unwrap();
-        let plan = EvaluationMapPlan::new(program.clone(), &[&P0, &P1, &P0], BYTE_LIMIT).unwrap();
+        let plan = EvaluationMapPlan::new(
+            program.clone(),
+            &[&P0, &P1, &P0],
+            eqiora::api::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
+        )
+        .unwrap();
         let complete = plan.execute().unwrap();
         let first = complete.evaluation(0).unwrap();
         let repeated = complete.evaluation(2).unwrap();
@@ -84,13 +166,18 @@ fn numerical_failure_retains_exact_accepted_prefix_and_indexed_terminal_states()
         let invalid = [1.0, -1.0, 0.0];
         let expected_failure = program.evaluate(&invalid).unwrap_err();
         let expected_first = program.evaluate(&P2).unwrap();
-        let plan = EvaluationMapPlan::new(program, &[&P2, &invalid, &P1], BYTE_LIMIT).unwrap();
+        let plan = EvaluationMapPlan::new(
+            program,
+            &[&P2, &invalid, &P1],
+            eqiora::api::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
+        )
+        .unwrap();
         let report = plan.execute().unwrap_err();
         assert_eq!(report.plan(), &plan);
         assert!(!report.is_cancelled());
         assert_eq!(report.stopped_index(), 1);
         assert_eq!(report.diagnostics(), expected_failure);
-        assert_evaluation_matches(&report.accepted_members()[0], &expected_first);
+        assert_evaluation_matches(report.accepted_members().next().unwrap().1, &expected_first);
         assert!(matches!(
             report.occurrence(0),
             Some(EvaluationMapOccurrence::Accepted(_))
@@ -103,14 +190,27 @@ fn numerical_failure_retains_exact_accepted_prefix_and_indexed_terminal_states()
             Some(EvaluationMapOccurrence::NotStarted)
         ));
         assert!(report.occurrence(3).is_none());
-        assert!(report.accepted_members()[0].jvp(&[1.0, 0.0, 0.0]).is_ok());
+        assert!(
+            report
+                .accepted_members()
+                .next()
+                .unwrap()
+                .1
+                .jvp(&[1.0, 0.0, 0.0])
+                .is_ok()
+        );
     }
 }
 
 #[test]
 fn cancellation_preserves_prefix_and_final_completion() {
     for program in programs() {
-        let plan = EvaluationMapPlan::new(program, &[&P2, &P1, &P2], BYTE_LIMIT).unwrap();
+        let plan = EvaluationMapPlan::new(
+            program,
+            &[&P2, &P1, &P2],
+            eqiora::api::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
+        )
+        .unwrap();
         for after in [0, 1, 3] {
             let mut polls = 0;
             let outcome = plan.execute_with_cancellation(|| {
@@ -119,13 +219,13 @@ fn cancellation_preserves_prefix_and_final_completion() {
                 cancel
             });
             if after == 3 {
-                assert_eq!(outcome.unwrap().members().len(), 3);
+                assert_eq!(outcome.unwrap().members().unwrap().len(), 3);
                 assert_eq!(polls, 3);
             } else {
                 let report = outcome.unwrap_err();
                 assert!(report.is_cancelled());
                 assert_eq!(report.stopped_index(), after);
-                assert_eq!(report.accepted_members().len(), after);
+                assert_eq!(report.accepted_members().count(), after);
                 assert_eq!(report.diagnostics()[0].code(), codes::EXECUTION_CANCELLED);
                 assert!(matches!(
                     report.occurrence(after),
@@ -139,27 +239,70 @@ fn cancellation_preserves_prefix_and_final_completion() {
 #[test]
 fn empty_singleton_and_structural_admission_use_the_exact_static_signature() {
     for program in programs() {
-        let empty = EvaluationMapPlan::new(program.clone(), &[], 0).unwrap();
+        let empty = EvaluationMapPlan::new(
+            program.clone(),
+            &[],
+            eqiora::api::EvaluationMapExecutionPolicy::retained(0),
+        )
+        .unwrap();
         let complete = empty
             .execute_with_cancellation(|| panic!("empty map is complete"))
             .unwrap();
-        assert!(complete.members().is_empty());
+        assert!(complete.members().unwrap().is_empty());
         assert_eq!(complete.plan().program_identity(), program.identity());
-        assert_eq!(empty.estimated_retained_bytes(), 0);
-        let singleton = EvaluationMapPlan::new(program.clone(), &[&P2], BYTE_LIMIT).unwrap();
+        assert_eq!(empty.estimated_storage_bytes(), 0);
+        let singleton = EvaluationMapPlan::new(
+            program.clone(),
+            &[&P2],
+            eqiora::api::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
+        )
+        .unwrap();
         let expected = program.evaluate(&P2).unwrap();
         assert_evaluation_matches(
             singleton.execute().unwrap().evaluation(0).unwrap(),
             &expected,
         );
-        assert!(EvaluationMapPlan::new(program.clone(), &[&P1, &[1.0]], BYTE_LIMIT).is_err());
         assert!(
-            EvaluationMapPlan::new(program.clone(), &[&[1.0, f64::NAN, 0.0]], BYTE_LIMIT).is_err()
+            EvaluationMapPlan::new(
+                program.clone(),
+                &[&P1, &[1.0]],
+                eqiora::api::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT)
+            )
+            .is_err()
         );
-        assert!(EvaluationMapPlan::new(program.clone(), &[&P1], 0).is_err());
-        let required = singleton.estimated_retained_bytes();
-        assert!(EvaluationMapPlan::new(program.clone(), &[&P2], required).is_ok());
-        assert!(EvaluationMapPlan::new(program, &[&P2], required - 1).is_err());
+        assert!(
+            EvaluationMapPlan::new(
+                program.clone(),
+                &[&[1.0, f64::NAN, 0.0]],
+                eqiora::api::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT)
+            )
+            .is_err()
+        );
+        assert!(
+            EvaluationMapPlan::new(
+                program.clone(),
+                &[&P1],
+                eqiora::api::EvaluationMapExecutionPolicy::retained(0)
+            )
+            .is_err()
+        );
+        let required = singleton.estimated_storage_bytes();
+        assert!(
+            EvaluationMapPlan::new(
+                program.clone(),
+                &[&P2],
+                eqiora::api::EvaluationMapExecutionPolicy::retained(required)
+            )
+            .is_ok()
+        );
+        assert!(
+            EvaluationMapPlan::new(
+                program,
+                &[&P2],
+                eqiora::api::EvaluationMapExecutionPolicy::retained(required - 1)
+            )
+            .is_err()
+        );
     }
 }
 
@@ -186,8 +329,9 @@ fn assert_complete_matches(
     expected: &[DifferentiableEvaluation],
 ) {
     assert_eq!(complete.plan(), plan);
-    assert_eq!(complete.members().len(), expected.len());
-    for (index, (actual, expected)) in complete.members().iter().zip(expected).enumerate() {
+    assert_eq!(complete.members().unwrap().len(), expected.len());
+    for (index, (actual, expected)) in complete.members().unwrap().iter().zip(expected).enumerate()
+    {
         assert_evaluation_matches(actual, expected);
         assert_evaluation_matches(complete.evaluation(index).unwrap(), expected);
     }

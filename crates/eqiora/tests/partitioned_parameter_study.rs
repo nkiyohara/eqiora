@@ -21,13 +21,13 @@ fn partition_expansion_matches_complete_ordered_points_for_both_methods() {
             &[2.0],
             &[3.0, 0.5, 1.0, -0.25, 3.0, 0.5],
             &[1, 3],
-            1 << 30,
+            eqiora::api::EvaluationMapExecutionPolicy::retained(1 << 30),
         )
         .unwrap();
         let exact = EvaluationMapPlan::new(
             program.clone(),
             &[&[3.0, 2.0, 0.5], &[1.0, 2.0, -0.25], &[3.0, 2.0, 0.5]],
-            1 << 30,
+            eqiora::api::EvaluationMapExecutionPolicy::retained(1 << 30),
         )
         .unwrap();
         assert_eq!(partition, exact);
@@ -37,7 +37,7 @@ fn partition_expansion_matches_complete_ordered_points_for_both_methods() {
             &[2.0],
             &[],
             &[2, 0],
-            0,
+            eqiora::api::EvaluationMapExecutionPolicy::retained(0),
         )
         .unwrap();
         assert!(empty.points().is_empty());
@@ -47,7 +47,7 @@ fn partition_expansion_matches_complete_ordered_points_for_both_methods() {
             &[0.5, 3.0, 2.0],
             &[],
             &[3],
-            1 << 30,
+            eqiora::api::EvaluationMapExecutionPolicy::retained(1 << 30),
         )
         .unwrap();
         for point in all_shared.points() {
@@ -61,7 +61,7 @@ fn partition_expansion_matches_complete_ordered_points_for_both_methods() {
                     &[],
                     &[],
                     shape,
-                    usize::MAX
+                    eqiora::api::EvaluationMapExecutionPolicy::retained(usize::MAX)
                 )
                 .is_err()
             );
@@ -73,7 +73,7 @@ fn partition_expansion_matches_complete_ordered_points_for_both_methods() {
                 &[f64::NAN],
                 &[],
                 &[0],
-                0
+                eqiora::api::EvaluationMapExecutionPolicy::retained(0)
             )
             .is_err()
         );
@@ -84,17 +84,30 @@ fn partition_expansion_matches_complete_ordered_points_for_both_methods() {
                 &[1.0, 1.0],
                 &[],
                 &[0],
-                0
+                eqiora::api::EvaluationMapExecutionPolicy::retained(0)
             )
             .is_err()
         );
         assert!(
-            EvaluationMapPlan::from_partition(program.clone(), &[], &[], &[1.0, 2.0, 0.0], &[], 0)
-                .is_err()
+            EvaluationMapPlan::from_partition(
+                program.clone(),
+                &[],
+                &[],
+                &[1.0, 2.0, 0.0],
+                &[],
+                eqiora::api::EvaluationMapExecutionPolicy::retained(0)
+            )
+            .is_err()
         );
-        let singleton =
-            EvaluationMapPlan::from_partition(program, &[], &[], &[1.0, 2.0, 0.0], &[], 1 << 30)
-                .unwrap();
+        let singleton = EvaluationMapPlan::from_partition(
+            program,
+            &[],
+            &[],
+            &[1.0, 2.0, 0.0],
+            &[],
+            eqiora::api::EvaluationMapExecutionPolicy::retained(1 << 30),
+        )
+        .unwrap();
         assert_eq!(singleton.points().len(), 1);
     }
 }

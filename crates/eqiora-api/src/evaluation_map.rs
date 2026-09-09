@@ -1,310 +1,218 @@
-//! Ordered serial composition of immutable accepted evaluations.
-
-use std::sync::Arc;
-
-use eqiora_core::Diagnostic;
-use eqiora_core::diagnostic::codes;
+//! Bounded ordered composition of immutable accepted evaluations.
 
 use crate::{
     DifferentiableEvaluation, DifferentiableParameterPoint, DifferentiableProgram,
-    DifferentiableProgramIdentity,
+    DifferentiableProgramIdentity, SampledParameterPoint,
 };
+use eqiora_core::{Diagnostic, diagnostic::codes};
+use std::sync::Arc;
 
 mod axes;
+mod outcomes;
 mod partition;
+mod policy;
 mod products;
+mod resources;
+mod schedule;
 
+pub use outcomes::{CompleteEvaluationMap, EvaluationMapOccurrence, EvaluationMapTerminalReport};
+pub use policy::{EvaluationMapExecutionPolicy, EvaluationMapRetention};
 pub use products::{EvaluationMapJvp, EvaluationMapProducts, EvaluationMapVjp};
 
-/// An admitted ordered collection of complete inputs for one immutable program.
+/// An admitted ordered inventory of complete inputs for one immutable program.
 ///
-/// Request position identifies an occurrence. Equal points remain separate
-/// occurrences; neither sorting, deduplication nor a default anchor is applied.
+/// Position identifies an occurrence. Equal points remain separate: no sorting,
+/// deduplication, default anchor, retry or sampling occurs during execution.
 #[derive(Debug, Clone)]
 pub struct EvaluationMapPlan {
     program: Arc<DifferentiableProgram>,
     points: Arc<[DifferentiableParameterPoint]>,
-    estimated_retained_bytes: usize,
+    samples: Option<Arc<[SampledParameterPoint]>>,
+    policy: EvaluationMapExecutionPolicy,
+    estimated_storage_bytes: usize,
 }
 
 impl EvaluationMapPlan {
-    /// Admit complete points without evaluating any of them.
+    /// Admit complete points and a checked scheduling/retention policy.
     ///
-    /// Points follow the program's exact ordered Parameter inputs. The caller
-    /// shares an already admitted program; mapping does not clone its Model or
-    /// Mesh. Empty and singleton collections are permitted.
-    ///
-    /// `retained_bytes_limit` bounds a conservative estimate of additional
-    /// retained numerical storage: point/member records, states, CSR storage,
-    /// and dense input/output Jacobians. It excludes the shared program,
-    /// deployment metadata, allocator overhead, diagnostics and solver scratch;
-    /// it is not a process or peak-memory limit. All products are checked before
-    /// copying points or reserving member storage.
+    /// The storage estimate includes every planned point and indexed terminal
+    /// receipt, the policy's resident numerical buffers and bounded ordering
+    /// buffers. Deployment metadata uses its encoded-size charge, not a heap
+    /// upper bound. Shared Program storage, allocator overhead, solver scratch,
+    /// OS thread stacks, diagnostic strings and callback-owned allocations are
+    /// excluded: this is neither a process-memory nor peak-memory limit.
     ///
     /// # Errors
-    /// Rejects incomplete/nonfinite points, unrepresentable dimensions, or an
-    /// estimate above the supplied byte limit. Physical/numerical admission
-    /// remains with ordinary evaluation during execution.
+    /// Rejects incomplete/nonfinite points, unsupported providers and checked
+    /// count/storage overflow before any member executes or points are copied.
     pub fn new(
         program: Arc<DifferentiableProgram>,
         points: &[&[f64]],
-        retained_bytes_limit: usize,
+        policy: EvaluationMapExecutionPolicy,
     ) -> Result<Self, Diagnostic> {
         for point in points {
             program.validate_map_point(point)?;
         }
-        let estimated_retained_bytes =
-            retained_bytes(program.map_occurrence_bytes()?, points.len())?;
-        if estimated_retained_bytes > retained_bytes_limit {
-            return Err(invalid(format!(
-                "evaluation map requires an estimated {estimated_retained_bytes} retained numerical bytes, above limit {retained_bytes_limit}"
-            )));
-        }
-        let points = points
-            .iter()
-            .map(|values| program.map_point(values))
-            .collect::<Vec<_>>()
-            .into();
+        program.validate_map_provider()?;
+        let estimate = resources::estimate(&program, points.len(), policy, 0)?;
         Ok(Self {
+            points: points
+                .iter()
+                .map(|values| program.map_point(values))
+                .collect::<Vec<_>>()
+                .into(),
             program,
-            points,
-            estimated_retained_bytes,
+            samples: None,
+            policy,
+            estimated_storage_bytes: estimate,
         })
     }
 
-    /// Exact program, Model, Plan, input order and output authority.
+    /// Admit already frozen sampled points with their full sampling identity.
+    ///
+    /// No sampler is retained or called. Repeated IDs and equal points keep their
+    /// separate request positions; chunking and recomputation cannot change the
+    /// generator, master stream, coupling, lineage or frozen input.
+    ///
+    /// # Errors
+    /// Rejects a foreign Program or point/input order and the same structural,
+    /// provider and storage limits as [Self::new], including sample metadata.
+    pub fn from_samples(
+        program: Arc<DifferentiableProgram>,
+        samples: &[SampledParameterPoint],
+        policy: EvaluationMapExecutionPolicy,
+    ) -> Result<Self, Diagnostic> {
+        for sample in samples {
+            if sample.program_identity() != program.identity()
+                || sample.point().inputs() != program.identity().inputs()
+            {
+                return Err(invalid(
+                    "evaluation map sample belongs to a foreign Program or input order",
+                ));
+            }
+            program.validate_map_point(sample.point().values())?;
+        }
+        program.validate_map_provider()?;
+        let sample_bytes = resources::sample_bytes(samples)?;
+        let estimate = resources::estimate(&program, samples.len(), policy, sample_bytes)?;
+        Ok(Self {
+            points: samples
+                .iter()
+                .map(|sample| sample.point().clone())
+                .collect::<Vec<_>>()
+                .into(),
+            program,
+            samples: Some(samples.to_vec().into()),
+            policy,
+            estimated_storage_bytes: estimate,
+        })
+    }
+
+    /// Exact Model, Plan, ordered inputs and output authority.
     #[must_use]
     pub fn program_identity(&self) -> &DifferentiableProgramIdentity {
         self.program.identity()
     }
-
-    /// Complete immutable inputs in request order, including duplicates.
+    /// Frozen complete points in request order, including duplicates.
     #[must_use]
     pub fn points(&self) -> &[DifferentiableParameterPoint] {
         &self.points
     }
-
-    /// Admitted additional retained numerical-storage estimate, not peak memory.
+    /// Full frozen sampling association, when constructed from samples.
     #[must_use]
-    pub const fn estimated_retained_bytes(&self) -> usize {
-        self.estimated_retained_bytes
+    pub fn samples(&self) -> Option<&[SampledParameterPoint]> {
+        self.samples.as_deref()
+    }
+    /// Explicit scheduling and accepted-state lifetime.
+    #[must_use]
+    pub const fn policy(&self) -> EvaluationMapExecutionPolicy {
+        self.policy
+    }
+    /// Admitted defined storage charge, not actual heap or peak process memory.
+    #[must_use]
+    pub const fn estimated_storage_bytes(&self) -> usize {
+        self.estimated_storage_bytes
     }
 
-    /// Evaluate serially through the retained program's ordinary admission.
+    /// Execute with this plan's bounded host scheduling and retention policy.
     ///
     /// # Errors
-    /// Stops at the first failed occurrence, retaining its original diagnostics
-    /// and all earlier accepted members in a terminal report, not a complete map.
+    /// Returns indexed partial outcomes, never a fake complete collection.
     pub fn execute(&self) -> Result<CompleteEvaluationMap, EvaluationMapTerminalReport> {
         self.execute_with_cancellation(|| false)
     }
 
-    /// Execute with cooperative cancellation before or between occurrences.
+    /// Execute with cooperative cancellation before dispatching occurrences.
     ///
-    /// No poll occurs within an evaluation or after the final accepted member.
-    /// An empty map is already complete and never polls cancellation. At a
-    /// boundary cancellation marks the next occurrence cancelled, and every
-    /// later occurrence not started. A failure inside evaluation wins over a
-    /// cancellation that becomes true during that evaluation.
+    /// In-flight members finish ordinary acceptance; no cancellation poll occurs
+    /// within a member or after all occurrences are accepted. Empty maps are
+    /// already complete. A failed member stays failed even if cancellation also
+    /// arrives; independently accepted in-flight members remain inspectable.
     ///
     /// # Errors
-    /// Returns an indexed terminal report on cancellation or first failure.
-    pub fn execute_with_cancellation<F>(
+    /// Returns indexed failure/cancelled/not-started states on incomplete work.
+    pub fn execute_with_cancellation<C: FnMut() -> bool>(
         &self,
-        mut should_cancel: F,
+        should_cancel: C,
+    ) -> Result<CompleteEvaluationMap, EvaluationMapTerminalReport> {
+        self.execute_with_delivery(should_cancel, |_, _| {})
+    }
+
+    /// Deliver accepted members in request order, at bounded chunk boundaries.
+    ///
+    /// The callback only borrows each evaluation. Under Recompute, its primal
+    /// and derivative buffers are released immediately after delivery. Retained
+    /// callback copies are caller-owned, outside this plan's storage charge.
+    /// Accepted members of an incomplete chunk may also be delivered; only the
+    /// final return type establishes complete membership. No reduction, failure
+    /// filtering or normalization is implicit in delivery.
+    ///
+    /// # Errors
+    /// Preserves every member failure and cancellation in an indexed report.
+    pub fn execute_with_delivery<C, D>(
+        &self,
+        mut should_cancel: C,
+        mut deliver: D,
     ) -> Result<CompleteEvaluationMap, EvaluationMapTerminalReport>
     where
-        F: FnMut() -> bool,
+        C: FnMut() -> bool,
+        D: FnMut(usize, &DifferentiableEvaluation),
     {
-        self.execute_with_evaluator(
-            &mut |program, point| program.evaluate(point),
+        schedule::execute(
+            self,
+            &|program, point| program.evaluate(point),
             &mut should_cancel,
+            &mut deliver,
+            &mut |_| {},
         )
     }
 
+    #[cfg(test)]
     fn execute_with_evaluator<E, C>(
         &self,
-        evaluator: &mut E,
+        evaluator: &E,
         should_cancel: &mut C,
     ) -> Result<CompleteEvaluationMap, EvaluationMapTerminalReport>
     where
-        E: FnMut(
-            &DifferentiableProgram,
-            &[f64],
-        ) -> Result<DifferentiableEvaluation, Vec<Diagnostic>>,
+        E: Fn(&DifferentiableProgram, &[f64]) -> Result<DifferentiableEvaluation, Vec<Diagnostic>>
+            + Sync,
         C: FnMut() -> bool,
     {
-        let mut members = Vec::with_capacity(self.points.len());
-        for point in self.points.iter() {
-            if should_cancel() {
-                return Err(EvaluationMapTerminalReport {
-                    plan: self.clone(),
-                    members,
-                    diagnostics: vec![Diagnostic::error(
-                        codes::EXECUTION_CANCELLED,
-                        "evaluation map cancelled at an occurrence boundary",
-                    )],
-                    cancelled: true,
-                });
-            }
-            let member = evaluator(&self.program, point.values()).and_then(|member| {
-                validate_member(self, point, &member)
-                    .map(|()| member)
-                    .map_err(|diagnostic| vec![diagnostic])
-            });
-            match member {
-                Ok(member) => members.push(member),
-                Err(mut diagnostics) => {
-                    if diagnostics.is_empty() {
-                        diagnostics.push(invalid("evaluation failed without a diagnostic"));
-                    }
-                    return Err(EvaluationMapTerminalReport {
-                        plan: self.clone(),
-                        members,
-                        diagnostics,
-                        cancelled: false,
-                    });
-                }
-            }
-        }
-        // Every position has passed the same member admission used by the
-        // private composition falsifier. No partial result has this type.
-        Ok(CompleteEvaluationMap {
-            plan: self.clone(),
-            members,
-        })
+        schedule::execute(self, evaluator, should_cancel, &mut |_, _| {}, &mut |_| {})
     }
 }
 
 impl PartialEq for EvaluationMapPlan {
     fn eq(&self, other: &Self) -> bool {
+        // Scheduling and retention never change mathematical identity.
         self.program_identity() == other.program_identity()
+            && self.samples == other.samples
             && self.points.len() == other.points.len()
             && self
                 .points
                 .iter()
                 .zip(other.points.iter())
                 .all(|(a, b)| a.inputs() == b.inputs() && exact_values(a.values(), b.values()))
-    }
-}
-
-/// A complete ordered map; every requested occurrence has an accepted member.
-#[derive(Debug, Clone)]
-pub struct CompleteEvaluationMap {
-    plan: EvaluationMapPlan,
-    members: Vec<DifferentiableEvaluation>,
-}
-
-impl CompleteEvaluationMap {
-    #[cfg(test)]
-    fn from_members(
-        plan: &EvaluationMapPlan,
-        members: Vec<DifferentiableEvaluation>,
-    ) -> Result<Self, Diagnostic> {
-        if members.len() != plan.points.len() {
-            return Err(invalid(
-                "complete evaluation map requires exactly one member per occurrence",
-            ));
-        }
-        for (point, member) in plan.points.iter().zip(&members) {
-            validate_member(plan, point, member)?;
-        }
-        Ok(Self {
-            plan: plan.clone(),
-            members,
-        })
-    }
-
-    /// Exact admitted request owning the collection, including empty outputs.
-    #[must_use]
-    pub const fn plan(&self) -> &EvaluationMapPlan {
-        &self.plan
-    }
-
-    /// Accepted members in request order, without coalescing equal points.
-    #[must_use]
-    pub fn members(&self) -> &[DifferentiableEvaluation] {
-        &self.members
-    }
-
-    /// Select an occurrence by its request position.
-    #[must_use]
-    pub fn evaluation(&self, index: usize) -> Option<&DifferentiableEvaluation> {
-        self.members.get(index)
-    }
-}
-
-/// Borrowed state of one request position in a terminal map report.
-#[derive(Debug)]
-pub enum EvaluationMapOccurrence<'a> {
-    /// Ordinary accepted evaluation, still independently inspectable.
-    Accepted(&'a DifferentiableEvaluation),
-    /// The failed occurrence's original nonempty diagnostics.
-    Failed(&'a [Diagnostic]),
-    /// Cancellation was observed before this occurrence began.
-    Cancelled,
-    /// Execution stopped before reaching this later occurrence.
-    NotStarted,
-}
-
-/// First failure or boundary cancellation, retaining accepted members locally.
-///
-/// This cannot be converted to a complete map. A dense adapter must propagate
-/// this terminal outcome instead of silently stacking its accepted prefix.
-#[derive(Debug, Clone)]
-pub struct EvaluationMapTerminalReport {
-    plan: EvaluationMapPlan,
-    members: Vec<DifferentiableEvaluation>,
-    diagnostics: Vec<Diagnostic>,
-    cancelled: bool,
-}
-
-impl EvaluationMapTerminalReport {
-    /// Complete planned inventory, including unstarted occurrences.
-    #[must_use]
-    pub const fn plan(&self) -> &EvaluationMapPlan {
-        &self.plan
-    }
-
-    /// Accepted prefix, indexed by the same zero-based request positions.
-    #[must_use]
-    pub fn accepted_members(&self) -> &[DifferentiableEvaluation] {
-        &self.members
-    }
-
-    /// Position that failed or was cancelled before it began.
-    #[must_use]
-    pub fn stopped_index(&self) -> usize {
-        self.members.len()
-    }
-
-    /// Original numerical failure or typed boundary-cancellation diagnostic.
-    #[must_use]
-    pub fn diagnostics(&self) -> &[Diagnostic] {
-        &self.diagnostics
-    }
-
-    /// Whether the terminal occurrence was cancelled rather than failed.
-    #[must_use]
-    pub const fn is_cancelled(&self) -> bool {
-        self.cancelled
-    }
-
-    /// Inspect an exact occurrence; out-of-inventory positions return None.
-    #[must_use]
-    pub fn occurrence(&self, index: usize) -> Option<EvaluationMapOccurrence<'_>> {
-        if index >= self.plan.points.len() {
-            return None;
-        }
-        Some(if let Some(member) = self.members.get(index) {
-            EvaluationMapOccurrence::Accepted(member)
-        } else if index > self.stopped_index() {
-            EvaluationMapOccurrence::NotStarted
-        } else if self.cancelled {
-            EvaluationMapOccurrence::Cancelled
-        } else {
-            EvaluationMapOccurrence::Failed(&self.diagnostics)
-        })
     }
 }
 
@@ -327,20 +235,14 @@ fn validate_member(
     }
     Ok(())
 }
-
 fn exact_values(a: &[f64], b: &[f64]) -> bool {
     a.len() == b.len() && a.iter().zip(b).all(|(a, b)| a.to_bits() == b.to_bits())
 }
-
 fn invalid(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_LINEARIZATION, message)
 }
 
-fn retained_bytes(per_occurrence: usize, count: usize) -> Result<usize, Diagnostic> {
-    per_occurrence
-        .checked_mul(count)
-        .ok_or_else(|| invalid("evaluation map retained storage estimate overflows usize"))
-}
-
+#[cfg(test)]
+mod bounded_tests;
 #[cfg(test)]
 mod tests;

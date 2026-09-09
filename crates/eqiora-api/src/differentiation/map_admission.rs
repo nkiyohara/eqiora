@@ -1,8 +1,42 @@
 //! Private shape and retained-numerical-storage projection for independent maps.
 
 use super::*;
+use eqiora_solver::LinearSolverBackend;
 
 impl DifferentiableProgram {
+    pub(crate) fn validate_map_provider(&self) -> Result<(), Diagnostic> {
+        let receipt = &self.default.receipt;
+        if receipt.solver_provider() != REFERENCE_LINEAR_SOLVER.provider()
+            || receipt.report().execution() != eqiora_solver::ExecutionReport::host_serial()
+            || receipt.report().verification() != eqiora_solver::ExecutionReport::host_serial()
+            || receipt.acceptance_verification() != eqiora_solver::ExecutionReport::host_serial()
+            || receipt.cuda_trace().is_some()
+            || receipt.distributed_trace().is_some()
+        {
+            return Err(invalid(
+                "bounded maps require the one-thread reference host provider",
+            ));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn map_binding_metadata_bytes(&self) -> Result<usize, Diagnostic> {
+        Ok(self
+            .default
+            .receipt
+            .binding()
+            .realization()
+            .to_bytes()?
+            .len())
+    }
+
+    pub(crate) fn share_map_receipt(
+        &self,
+        mut member: DifferentiableEvaluation,
+    ) -> Result<DifferentiableEvaluation, Diagnostic> {
+        member.receipt = member.receipt.with_shared_binding(&self.default.receipt)?;
+        Ok(member)
+    }
     pub(crate) fn validate_map_point(&self, values: &[f64]) -> Result<(), Diagnostic> {
         if values.len() != self.identity.input_dimension()
             || values.iter().any(|value| !value.is_finite())
@@ -63,6 +97,12 @@ impl DifferentiableProgram {
         .try_fold(0usize, |total, bytes| {
             total.checked_add(bytes).ok_or_else(overflow)
         })
+    }
+}
+
+impl DifferentiableEvaluation {
+    pub(crate) fn map_receipt(&self) -> &ExecutionReceipt {
+        &self.receipt
     }
 }
 

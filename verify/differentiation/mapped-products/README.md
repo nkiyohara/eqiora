@@ -3,7 +3,9 @@
 This case owns coordinate composition, not a new PDE solver or pointwise derivative.
 `EvaluationMapProducts` borrows a complete accepted map and explicitly partitions exact
 Program inputs into shared and occurrence-local coordinates. Every point/seed action uses
-the retained ordinary JVP/VJP. Shared reverse contributions are summed in request order;
+the ordinary JVP/VJP. `Retain` never resolves another primal; `Recompute` explicitly reaccepts
+one frozen point, verifies its entire original receipt and reuses it across seeds. Shared
+reverse contributions are summed in request order;
 they are never averaged or obtained by filtering failed members.
 
 ## Independent derivation
@@ -26,6 +28,8 @@ Separately accepted Q1 and TPFA products are compared in every occurrence of nes
 `[2,3]` point axes and `[2,2]` seed axes, including point-major, seed-major and interleaved
 layouts. Original request order controls shared accumulation in every layout. Exact
 primal/action evidence remains point-local after other Program evaluations.
+The released-state probe independently evaluates each original point and compares both seed
+products plus the shared request-order sum, without changing the analytic specimen below.
 
 Negative probes cover foreign/shared Parameter selections, inconsistent shared values,
 missing/foreign primal members, foreign/stale derivative evidence, wrong shape, nonfinite

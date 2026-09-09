@@ -1,10 +1,13 @@
 # Expected observations
 
-The evaluator is called once for every reached key in canonical order and its
-maximum active depth is one. Failure stops before the next key, cancellation is
-polled only before or between evaluations, and completion wins after the final
-member.
+Every dispatched occurrence is evaluated once, with no implicit retry. The serial profile
+has maximum active depth one; the parallel profile never exceeds its declared worker cap.
+Finished numerical payloads under Recompute reach at most the chunk extent and then zero
+at ordered delivery boundaries. Full O(n) point, outcome and receipt metadata remains charged.
 
-Missing, duplicated, inserted, reordered, foreign, or point-substituted members
-must not construct a complete study. No numerical table, coefficient, digest,
-or tolerance is introduced.
+Failure/cancellation stops further dispatch, not acceptance of already in-flight members.
+All outcomes keep original request indices, including successful holes. Empty and final
+completion win over later cancellation. Missing, inserted, reordered, foreign or point-
+substituted members cannot become complete. Recomputing a different original receipt fails.
+Frozen generator/master/sample/coupling/lineage survives equal points and repeated sample IDs.
+No numerical expected coefficient, tolerance, platform timing or heap-size claim is introduced.

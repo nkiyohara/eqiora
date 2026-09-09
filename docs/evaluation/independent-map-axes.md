@@ -103,34 +103,61 @@ sample association and foreign program signatures have separate focused tests.
 
 The indexing reference remains in `eqiora-api` unit tests. Native `EvaluationMapPlan` accepts
 one shared `Arc<DifferentiableProgram>`, a request-ordered slice of complete input slices and
-an explicit retained-numerical-byte limit. Its `execute` returns either `CompleteEvaluationMap`
-or `EvaluationMapTerminalReport`. `members()` and `evaluation(index)` on a complete result
-preserve every position. A report's `occurrence(index)` distinguishes accepted, failed,
-cancelled and not-started positions; its accepted prefix remains individually inspectable.
-Cancellation is polled only before/between members. Empty completion never polls, final
-completion wins, and a numerical failure inside evaluation precedes a newly raised cancellation.
+an `EvaluationMapExecutionPolicy`. Its `execute` returns either `CompleteEvaluationMap`
+or `EvaluationMapTerminalReport`. The policy selects a bounded chunk, a host worker cap,
+and `Retain` or `Recompute`. Workers use independent, single-threaded reference solves;
+there is no nested solver pool. Completion order cannot reorder requested membership.
+
+With `Retain`, `members()` returns the ordered evaluations and `evaluation(index)` borrows
+one. With `Recompute`, those buffers are released and `members()` returns `None`, while
+`receipt(index)` retains complete original acceptance and `len()` retains full membership.
+`execute_with_delivery(cancel, callback)` delivers borrowed evaluations in request order
+at chunk boundaries. Copies retained by the callback belong to the caller's storage budget.
+The callback may receive accepted members of an incomplete chunk; only the final complete
+return authorizes complete membership. It does not implicitly reduce or filter failures.
+
+A terminal report's `occurrence(index)` distinguishes retained or released accepted state,
+failed, cancelled and not-started positions. Accepted members need not form a prefix:
+already-dispatched workers complete normal acceptance after another member fails. Every
+failure keeps its original diagnostics; `stopped_index()` identifies the smallest failed or
+cancelled index, not an accepted-member count. Cancellation is polled before dispatch,
+never inside a solve. Empty and final completion win; failure of an in-flight member remains
+a failure even when cancellation also arrives. There are no implicit retries.
 
 For an already compiled program with three selected inputs in the declared order:
 
 ```rust
 use std::sync::Arc;
-use eqiora::api::EvaluationMapPlan;
+use eqiora::api::{EvaluationMapExecutionPolicy, EvaluationMapPlan};
 
 let program = Arc::new(program);
 let p1 = [2.0, 0.75, 0.5];
 let p2 = [3.0, 1.25, -0.25];
-let plan = EvaluationMapPlan::new(program, &[&p2, &p1, &p2], 64 * 1024 * 1024)?;
+let policy = EvaluationMapExecutionPolicy::retained(64 * 1024 * 1024);
+let plan = EvaluationMapPlan::new(program, &[&p2, &p1, &p2], policy)?;
 match plan.execute() {
-    Ok(complete) => assert_eq!(complete.members().len(), 3),
+    Ok(complete) => assert_eq!(complete.len(), 3),
     Err(report) => eprintln!("Stopped at {}: {:?}", report.stopped_index(), report.diagnostics()),
 }
 ```
 
-The native storage estimate includes complete point/member records, state/RHS vectors, a
+For bounded parallel release, select e.g. chunk size 8, `Target::HostCpu { threads: 2 }`
+(the thread count is a `NonZeroUsize`), `EvaluationMapRetention::Recompute`, and a storage
+limit through `EvaluationMapExecutionPolicy::new`. Explicit `recompute(index)` re-evaluates
+only that frozen point and must reproduce the entire original receipt. It does not promote
+a terminal report to complete membership. `from_samples` retains full already-frozen
+`SampledParameterPoint` records; no sampler runs during execution or recomputation.
+
+The defined native storage estimate includes every point, indexed outcome and receipt,
+including output fingerprints, plus policy-resident state/RHS vectors, a
 conservative dense upper bound on CSR nonzeros, output and residual Parameter Jacobians, and
-output-state associations. It checks products before copying input points or reserving output
-members. It excludes the already shared Program, deployment metadata, allocator overhead,
-diagnostics and transient solver workspace; it is not a peak-process-memory bound. The
+output-state associations. Frozen sample metadata, bounded channels and ordering buffers are
+charged too. Accepted receipts share an exactly equal immutable deployment binding;
+temporary worker bindings use a deterministic encoded-size charge, not a heap upper bound.
+`estimated_storage_bytes()` reports this defined estimate. It checks products before copying
+points or reserving members, but excludes the shared Program, allocator overhead, diagnostic
+strings, OS thread stacks, caller callback copies and transient solver workspace. It is not
+a process/peak-memory limit. The
 existing accepted Program owns the fixed state/output dimensions; no default sparsity count
 is assumed to remain unchanged at a new point.
 
@@ -179,7 +206,9 @@ placement. Overflow is an error; arbitrary regrouping is not promised bit-identi
 An arithmetic mean requires a separate explicit outer reduction.
 
 Each result retains the unchanged ordinary JVP/VJP record, complete primal output and exact
-point/Plan evidence. Neither execution nor reverse execution reruns the primal. Malformed or
+point/Plan evidence. Retained maps reuse their original primal. A `Recompute` map explicitly
+reaccepts one frozen point per product action, verifies its original receipt, then reuses
+that evaluation for all seeds before releasing it. Malformed or
 nonfinite inputs reject before actions; an action, evidence or finite-sum failure publishes
 no partial derivative collection. Empty point axes produce empty records and zero shared
 sums; zero seed axes perform no derivative actions. Only real first-order implicit products
@@ -196,7 +225,7 @@ shared chain rule independently and compares current Q1/TPFA products with ordin
 evaluation actions. Run it with `--case differentiation.mapped-products` in addition to the
 two ordered-map cases above when changing this composition.
 
-This native map consumes explicit complete points. General installed input-axis adapters,
-Python/JAX/PyTorch batching, higher derivatives, stochastic execution, threading and
-persistence remain subsequent capabilities. No new source-language executor or source
-syntax is introduced here.
+Python/JAX dense adapters explicitly select serial retained execution; their CPU/f64
+batching rules remain separate adapter contracts. This scheduler adds no GPU, MPI, remote
+execution, new stochastic law, persistence, higher derivatives or speedup guarantee. No
+source-language executor or source syntax is introduced here.

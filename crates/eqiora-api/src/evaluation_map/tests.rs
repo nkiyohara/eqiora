@@ -1,7 +1,7 @@
-use std::cell::Cell;
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 use eqiora_artifact::{
     CartesianMeshCellsV2, GeometryMeshCorrespondenceEnvelopeV1, MeshProductionLineageEnvelopeV1,
@@ -52,13 +52,19 @@ fn registered_composition_oracle_executes_all_private_falsifiers() {
     foreign_evaluator_cannot_accept_an_unrequested_member();
     cancellation_marks_exact_occurrences_and_completion_wins();
     structural_admission_and_resource_limits_precede_evaluation();
+    super::bounded_tests::registered_bounded_falsifiers();
 }
 
 #[test]
 fn complete_construction_binds_positions_and_rejects_foreign_members() {
     let (document, program) = fixture();
     let program = Arc::new(program);
-    let plan = EvaluationMapPlan::new(program.clone(), &[&P2, &P1, &P2], BYTE_LIMIT).unwrap();
+    let plan = EvaluationMapPlan::new(
+        program.clone(),
+        &[&P2, &P1, &P2],
+        crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
+    )
+    .unwrap();
     let members = [&P2, &P1, &P2]
         .map(|point| program.evaluate(point).unwrap())
         .to_vec();
@@ -113,7 +119,7 @@ fn complete_construction_binds_positions_and_rejects_foreign_members() {
     assert!(CompleteEvaluationMap::from_members(&plan, substituted).is_err());
     // Declared repeated points are two valid positions, not a deduplication error.
     let complete = CompleteEvaluationMap::from_members(&plan, members).unwrap();
-    assert_eq!(complete.members().len(), 3);
+    assert_eq!(complete.members().unwrap().len(), 3);
     assert!(complete.evaluation(3).is_none());
 }
 
@@ -121,34 +127,42 @@ fn complete_construction_binds_positions_and_rejects_foreign_members() {
 fn execution_records_each_ordered_occurrence_and_stops_on_original_failure() {
     let (_, program) = fixture();
     let program = Arc::new(program);
-    let plan = EvaluationMapPlan::new(program, &[&P2, &P1, &P2], BYTE_LIMIT).unwrap();
-    let mut calls = Vec::new();
-    let depth = Cell::new(0);
+    let plan = EvaluationMapPlan::new(
+        program,
+        &[&P2, &P1, &P2],
+        crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
+    )
+    .unwrap();
+    let calls = Mutex::new(Vec::new());
+    let depth = AtomicUsize::new(0);
     let result = plan
         .execute_with_evaluator(
-            &mut |program, point| {
-                assert_eq!(depth.replace(1), 0);
-                calls.push(point.to_vec());
+            &|program, point| {
+                assert_eq!(depth.swap(1, Ordering::SeqCst), 0);
+                calls.lock().unwrap().push(point.to_vec());
                 let result = program.evaluate(point);
-                depth.set(0);
+                depth.store(0, Ordering::SeqCst);
                 result
             },
             &mut || false,
         )
         .unwrap();
-    assert_eq!(calls, [P2.to_vec(), P1.to_vec(), P2.to_vec()]);
-    assert_eq!(result.members().len(), 3);
+    assert_eq!(
+        *calls.lock().unwrap(),
+        [P2.to_vec(), P1.to_vec(), P2.to_vec()]
+    );
+    assert_eq!(result.members().unwrap().len(), 3);
 
     let original = vec![Diagnostic::error(
         codes::INVALID_LINEARIZATION,
         "original member failure",
     )];
-    let mut calls = 0;
+    let calls = AtomicUsize::new(0);
     let report = plan
         .execute_with_evaluator(
-            &mut |program, point| {
-                calls += 1;
-                if calls == 2 {
+            &|program, point| {
+                let call = calls.fetch_add(1, Ordering::SeqCst) + 1;
+                if call == 2 {
                     Err(original.clone())
                 } else {
                     program.evaluate(point)
@@ -157,10 +171,13 @@ fn execution_records_each_ordered_occurrence_and_stops_on_original_failure() {
             &mut || false,
         )
         .unwrap_err();
-    assert_eq!(calls, 2);
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
     assert_eq!(report.stopped_index(), 1);
     assert_eq!(report.diagnostics(), original);
-    assert_eq!(report.accepted_members()[0].point().values(), P2);
+    assert_eq!(
+        report.accepted_members().next().unwrap().1.point().values(),
+        P2
+    );
     assert!(matches!(
         report.occurrence(0),
         Some(EvaluationMapOccurrence::Accepted(_))
@@ -174,7 +191,14 @@ fn execution_records_each_ordered_occurrence_and_stops_on_original_failure() {
     ));
     assert!(report.occurrence(3).is_none());
     assert!(
-        CompleteEvaluationMap::from_members(&plan, report.accepted_members().to_vec()).is_err()
+        CompleteEvaluationMap::from_members(
+            &plan,
+            report
+                .accepted_members()
+                .map(|(_, member)| member.clone())
+                .collect()
+        )
+        .is_err()
     );
 }
 
@@ -182,7 +206,12 @@ fn execution_records_each_ordered_occurrence_and_stops_on_original_failure() {
 fn foreign_evaluator_cannot_accept_an_unrequested_member() {
     let (document, program) = fixture();
     let program = Arc::new(program);
-    let plan = EvaluationMapPlan::new(program.clone(), &[&P2, &P1, &P2], BYTE_LIMIT).unwrap();
+    let plan = EvaluationMapPlan::new(
+        program.clone(),
+        &[&P2, &P1, &P2],
+        crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
+    )
+    .unwrap();
     let foreign = program_for(
         &document,
         CommonSpatialPolicy::CellCenteredTpfa,
@@ -193,20 +222,20 @@ fn foreign_evaluator_cannot_accept_an_unrequested_member() {
         program.evaluate(&P1).unwrap(),
         foreign.evaluate(&P2).unwrap(),
     ] {
-        let mut calls = 0;
+        let calls = AtomicUsize::new(0);
         let report = plan
             .execute_with_evaluator(
-                &mut |_, _| {
-                    calls += 1;
+                &|_, _| {
+                    calls.fetch_add(1, Ordering::SeqCst);
                     Ok(substitute.clone())
                 },
                 &mut || false,
             )
             .unwrap_err();
-        assert_eq!(calls, 1);
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
         assert_eq!(report.stopped_index(), 0);
         assert_eq!(report.diagnostics()[0].code(), codes::INVALID_LINEARIZATION);
-        assert!(report.accepted_members().is_empty());
+        assert!(report.accepted_members().next().is_none());
     }
 }
 
@@ -214,34 +243,39 @@ fn foreign_evaluator_cannot_accept_an_unrequested_member() {
 fn cancellation_marks_exact_occurrences_and_completion_wins() {
     let (_, program) = fixture();
     let program = Arc::new(program);
-    let plan = EvaluationMapPlan::new(program.clone(), &[&P2, &P1, &P2], BYTE_LIMIT).unwrap();
+    let plan = EvaluationMapPlan::new(
+        program.clone(),
+        &[&P2, &P1, &P2],
+        crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
+    )
+    .unwrap();
     for stop_after in [0, 1, 2, 3] {
-        let calls = Cell::new(0);
-        let polls = Cell::new(0);
-        let in_evaluation = Cell::new(false);
+        let calls = AtomicUsize::new(0);
+        let polls = AtomicUsize::new(0);
+        let in_evaluation = AtomicBool::new(false);
         let result = plan.execute_with_evaluator(
-            &mut |program, point| {
-                in_evaluation.set(true);
-                calls.set(calls.get() + 1);
+            &|program, point| {
+                in_evaluation.store(true, Ordering::SeqCst);
+                calls.fetch_add(1, Ordering::SeqCst);
                 let result = program.evaluate(point);
-                in_evaluation.set(false);
+                in_evaluation.store(false, Ordering::SeqCst);
                 result
             },
             &mut || {
-                assert!(!in_evaluation.get());
-                polls.set(polls.get() + 1);
-                calls.get() >= stop_after
+                assert!(!in_evaluation.load(Ordering::SeqCst));
+                polls.fetch_add(1, Ordering::SeqCst);
+                calls.load(Ordering::SeqCst) >= stop_after
             },
         );
-        assert_eq!(calls.get(), stop_after);
+        assert_eq!(calls.load(Ordering::SeqCst), stop_after);
         if stop_after == 3 {
-            assert_eq!(result.unwrap().members().len(), 3);
-            assert_eq!(polls.get(), 3);
+            assert_eq!(result.unwrap().members().unwrap().len(), 3);
+            assert_eq!(polls.load(Ordering::SeqCst), 3);
         } else {
             let report = result.unwrap_err();
             assert!(report.is_cancelled());
             assert_eq!(report.stopped_index(), stop_after);
-            assert_eq!(report.accepted_members().len(), stop_after);
+            assert_eq!(report.accepted_members().count(), stop_after);
             assert_eq!(report.diagnostics()[0].code(), codes::EXECUTION_CANCELLED);
             assert!(matches!(
                 report.occurrence(stop_after),
@@ -255,23 +289,28 @@ fn cancellation_marks_exact_occurrences_and_completion_wins() {
             }
         }
     }
-    let empty = EvaluationMapPlan::new(program, &[], 0).unwrap();
+    let empty = EvaluationMapPlan::new(
+        program,
+        &[],
+        crate::EvaluationMapExecutionPolicy::retained(0),
+    )
+    .unwrap();
     assert!(
         empty
             .execute_with_cancellation(|| panic!("empty map does not poll"))
             .is_ok()
     );
-    let cancel = Cell::new(false);
+    let cancel = AtomicBool::new(false);
     let failed = plan
         .execute_with_evaluator(
-            &mut |_, _| {
-                cancel.set(true);
+            &|_, _| {
+                cancel.store(true, Ordering::SeqCst);
                 Err(vec![Diagnostic::error(
                     codes::INVALID_LINEARIZATION,
                     "failed during evaluation",
                 )])
             },
-            &mut || cancel.get(),
+            &mut || cancel.load(Ordering::SeqCst),
         )
         .unwrap_err();
     assert!(
@@ -289,20 +328,55 @@ fn structural_admission_and_resource_limits_precede_evaluation() {
         &[1.0, f64::NAN, 0.0],
         &[1.0, f64::INFINITY, 0.0],
     ] {
-        assert!(EvaluationMapPlan::new(program.clone(), &[&P2, invalid], BYTE_LIMIT).is_err());
+        assert!(
+            EvaluationMapPlan::new(
+                program.clone(),
+                &[&P2, invalid],
+                crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT)
+            )
+            .is_err()
+        );
     }
-    let plan = EvaluationMapPlan::new(program.clone(), &[&P2, &P1], BYTE_LIMIT).unwrap();
-    let required = plan.estimated_retained_bytes();
+    let plan = EvaluationMapPlan::new(
+        program.clone(),
+        &[&P2, &P1],
+        crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
+    )
+    .unwrap();
+    let required = plan.estimated_storage_bytes();
     assert!(required > 2 * program.identity().output_dimension() * size_of::<f64>());
-    assert!(EvaluationMapPlan::new(program.clone(), &[&P2, &P1], required).is_ok());
-    assert!(EvaluationMapPlan::new(program.clone(), &[&P2, &P1], required - 1).is_err());
-    assert!(super::retained_bytes(2, usize::MAX).is_err());
+    assert!(
+        EvaluationMapPlan::new(
+            program.clone(),
+            &[&P2, &P1],
+            crate::EvaluationMapExecutionPolicy::retained(required)
+        )
+        .is_ok()
+    );
+    assert!(
+        EvaluationMapPlan::new(
+            program.clone(),
+            &[&P2, &P1],
+            crate::EvaluationMapExecutionPolicy::retained(required - 1)
+        )
+        .is_err()
+    );
+    assert!(super::resources::multiply(2, usize::MAX).is_err());
     let more_than_historical_bound = vec![P2.as_slice(); 65];
     assert!(
-        EvaluationMapPlan::new(program.clone(), &more_than_historical_bound, BYTE_LIMIT).is_ok()
+        EvaluationMapPlan::new(
+            program.clone(),
+            &more_than_historical_bound,
+            crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT)
+        )
+        .is_ok()
     );
-    let zeros = EvaluationMapPlan::new(program, &[&[1.0, 1.0, -0.0], &[1.0, 1.0, 0.0]], BYTE_LIMIT)
-        .unwrap();
+    let zeros = EvaluationMapPlan::new(
+        program,
+        &[&[1.0, 1.0, -0.0], &[1.0, 1.0, 0.0]],
+        crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
+    )
+    .unwrap();
     assert_ne!(
         zeros.points()[0].values()[2].to_bits(),
         zeros.points()[1].values()[2].to_bits()

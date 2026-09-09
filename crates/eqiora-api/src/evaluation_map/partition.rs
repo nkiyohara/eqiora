@@ -22,7 +22,7 @@ impl EvaluationMapPlan {
         shared_values: &[f64],
         mapped_values: &[f64],
         point_shape: &[usize],
-        retained_bytes_limit: usize,
+        policy: EvaluationMapExecutionPolicy,
     ) -> Result<Self, Diagnostic> {
         if point_shape.len() > 32 {
             return Err(invalid("mapped input point rank exceeds 32"));
@@ -76,14 +76,8 @@ impl EvaluationMapPlan {
                 )));
             }
         }
-        let estimated_retained_bytes = retained_bytes(program.map_occurrence_bytes()?, count)?;
-        if estimated_retained_bytes > retained_bytes_limit
-            || estimated_retained_bytes > isize::MAX as usize
-        {
-            return Err(invalid(
-                "partitioned map exceeds the retained numerical byte limit",
-            ));
-        }
+        program.validate_map_provider()?;
+        let estimated_storage_bytes = resources::estimate(&program, count, policy, 0)?;
         let mut points = Vec::with_capacity(count);
         for occurrence in 0..count {
             let mut values = vec![0.0; inputs.len()];
@@ -99,7 +93,9 @@ impl EvaluationMapPlan {
         Ok(Self {
             program,
             points: points.into(),
-            estimated_retained_bytes,
+            samples: None,
+            policy,
+            estimated_storage_bytes,
         })
     }
 }

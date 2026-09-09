@@ -967,6 +967,40 @@ fn host_receipt_seals_the_fixed_dag_and_existing_identities() {
 }
 
 #[test]
+fn receipt_binding_sharing_preserves_the_entire_accepted_receipt_and_rejects_foreign_authority() {
+    let graph = portable_graph();
+    let accept = |graph: &eqiora_realization::PortableRealizationGraph, right| {
+        let system = system(right);
+        let binding = serial_binding(graph);
+        let plan = binding.solver_plan();
+        AdmittedExecution::admit_host_linear(graph, &system, binding)
+            .unwrap()
+            .accept(solve(&system, plan))
+            .unwrap()
+            .into_parts()
+            .1
+    };
+    let authority = accept(&graph, [1.0, 0.0]);
+    let other = accept(&graph, [0.0, 1.0]);
+    assert_ne!(authority.output(), other.output());
+    assert!(!std::ptr::eq(authority.binding(), other.binding()));
+    let shared = other.clone().with_shared_binding(&authority).unwrap();
+    assert_eq!(
+        shared, other,
+        "sharing preserves every report/evidence/operator/output field"
+    );
+    assert!(std::ptr::eq(authority.binding(), shared.binding()));
+    let foreign = accept(&portable_graph(), [0.0, 1.0]);
+    let error = other.with_shared_binding(&foreign).unwrap_err();
+    assert_eq!(error.code(), codes::INVALID_REALIZATION);
+    assert!(
+        error
+            .message()
+            .contains("foreign execution receipt deployment binding")
+    );
+}
+
+#[test]
 fn insufficient_worker_capacity_fails_before_system_admission() {
     let graph = portable_graph_with_workers(NonZeroUsize::new(4).unwrap());
     let two_workers = HostExecutorDescriptor::new(
