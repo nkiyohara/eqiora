@@ -40,8 +40,9 @@ pub(crate) fn declarations(
         if result.contains_key(declaration.name())
             || crate::units::coherent_dimension(declaration.name()).is_some()
             || document
-                .dimension_syntax()
-                .any(|(name, _, _)| name == declaration.name())
+                .dimensions()
+                .iter()
+                .any(|value| value.name() == declaration.name())
         {
             return Err(vec![invalid(
                 "enum name duplicates a type or dimension declaration".into(),

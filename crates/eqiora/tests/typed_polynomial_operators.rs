@@ -280,3 +280,89 @@ fn cubic_force_first_and_second_derivatives_retain_stiffness_units() {
         [stiffness, force.div(length.pow(2, 1).unwrap()).unwrap()],
     );
 }
+
+#[test]
+fn exact_imported_polynomial_replay_preserves_values_and_typed_partials() {
+    use eqiora::artifact::ModelEnvelope;
+    use eqiora::compiler::{
+        CompilationNamespaceId, ResolvedDependency, ResolvedHierarchyInput, ResolvedSourceUnit,
+        analyze_resolved_hierarchy,
+    };
+    let root = CompilationNamespaceId::new(["consumer.example", "1.0.0", "root"]).unwrap();
+    let provider = CompilationNamespaceId::new(["provider.example", "1.0.0", "provider"]).unwrap();
+    let (declaration, body) = SOURCE.trim().split_once('\n').unwrap();
+    let input = ResolvedHierarchyInput::with_root_module(
+        root.clone(),
+        ["main"],
+        vec![
+            ResolvedSourceUnit::new(
+                root.clone(),
+                "src/main.eqi",
+                format!(
+                    "import provider.example.main as laws;\n{}",
+                    body.replace("=conductivity(", "=laws.conductivity(")
+                ),
+            )
+            .unwrap(),
+            ResolvedSourceUnit::new(
+                provider.clone(),
+                "src/main.eqi",
+                format!("public {declaration}"),
+            )
+            .unwrap(),
+        ],
+        vec![ResolvedDependency::new(root, provider)],
+    )
+    .unwrap();
+    let compiled = analyze_resolved_hierarchy(input)
+        .unwrap()
+        .validate_definitions()
+        .unwrap()
+        .compile_root("Conductivity")
+        .unwrap();
+    let (transaction, model, symbols) = compiled.into_parts();
+    let field = symbols.get("value").unwrap();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    let bytes = ModelEnvelope::from_program(&program)
+        .unwrap()
+        .canonical_json()
+        .unwrap();
+    let replay = ModelEnvelope::from_json(&bytes, Default::default())
+        .unwrap()
+        .to_program()
+        .unwrap();
+    for program in [&program, &replay] {
+        // K0(1+aT+a²T²)=12.4; d/dT=K0(a+2a²T)=.14; d²/dT²=2K0a²=.002.
+        execute(program, field, 12.4);
+        let definition = program
+            .nodes()
+            .find_map(|node| {
+                let KernelNode::Relation(relation) = node else {
+                    return None;
+                };
+                relation.expression().nodes().iter().find_map(|node| {
+                    let ExprNode::PureOperatorApplication(app) = node else {
+                        return None;
+                    };
+                    relation.expression().definition(app.definition())
+                })
+            })
+            .unwrap();
+        check_partials(
+            definition,
+            [
+                real(t(), 20.),
+                real(k(), 10.),
+                real(t().pow(-1, 1).unwrap(), 0.01),
+            ],
+            0,
+            [0.14, 0.002],
+            [
+                k().div(t()).unwrap(),
+                k().div(t().pow(2, 1).unwrap()).unwrap(),
+            ],
+        );
+    }
+}

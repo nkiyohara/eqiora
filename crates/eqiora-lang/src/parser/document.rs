@@ -19,7 +19,6 @@ impl Parser<'_> {
         let mut pure_operators = Vec::new();
         let mut models = Vec::new();
         let mut models_started = false;
-        let mut declarations_started = false;
         let mut import_prefix_closed = false;
         while !self.at(TokenKind::Eof) {
             let modifier = if self.at_keyword("public") {
@@ -51,7 +50,6 @@ impl Parser<'_> {
                 }
             } else if self.at_keyword("record") {
                 import_prefix_closed = true;
-                declarations_started = true;
                 if let Some(declaration) = self.parse_record(declaration_start, visibility) {
                     records.push(declaration);
                 } else {
@@ -59,7 +57,6 @@ impl Parser<'_> {
                 }
             } else if self.at_keyword("enum") {
                 import_prefix_closed = true;
-                declarations_started = true;
                 if let Some(declaration) = self.parse_enumeration(declaration_start, visibility) {
                     enumerations.push(declaration);
                 } else {
@@ -67,22 +64,13 @@ impl Parser<'_> {
                 }
             } else if self.at_keyword("dimension") {
                 import_prefix_closed = true;
-                if modifier.is_some() {
-                    self.error_here(
-                        "compilation-unit dimension aliases have no visibility modifier",
-                    );
-                }
-                if declarations_started {
-                    self.error_here("compilation-unit dimension aliases must form a prefix before all other declarations");
-                }
-                if let Some(dimension) = self.parse_dimension(declaration_start) {
+                if let Some(dimension) = self.parse_dimension(declaration_start, visibility) {
                     dimensions.push(dimension);
                 } else {
                     self.recover_top_level();
                 }
             } else if self.at_keyword("property") {
                 import_prefix_closed = true;
-                declarations_started = true;
                 self.parse_top_property(
                     declaration_start,
                     visibility,
@@ -92,7 +80,6 @@ impl Parser<'_> {
                 );
             } else if self.at_keyword("material") {
                 import_prefix_closed = true;
-                declarations_started = true;
                 if models_started {
                     self.error_here("material compositions must precede model declarations");
                 }
@@ -105,7 +92,6 @@ impl Parser<'_> {
                 }
             } else if self.at_keyword("connector") {
                 import_prefix_closed = true;
-                declarations_started = true;
                 if models_started {
                     self.error_here(
                         "compilation-unit Connector declarations must precede model declarations",
@@ -118,7 +104,6 @@ impl Parser<'_> {
                 }
             } else if self.at_keyword("component") {
                 import_prefix_closed = true;
-                declarations_started = true;
                 if models_started {
                     self.error_here(
                         "compilation-unit component declarations must precede model declarations",
@@ -131,7 +116,6 @@ impl Parser<'_> {
                 }
             } else if self.at_keyword("operator") {
                 import_prefix_closed = true;
-                declarations_started = true;
                 if models_started {
                     self.error_here(
                         "compilation-unit pure operator declarations must precede model declarations",
@@ -144,7 +128,6 @@ impl Parser<'_> {
                 }
             } else if self.at_keyword("space") {
                 import_prefix_closed = true;
-                declarations_started = true;
                 if models_started {
                     self.error_here("finite spaces must precede Model declarations");
                 }
@@ -155,7 +138,6 @@ impl Parser<'_> {
                 }
             } else if self.at_keyword("model") {
                 import_prefix_closed = true;
-                declarations_started = true;
                 models_started = true;
                 if let Some(model) = self.parse_model(declaration_start, visibility) {
                     models.push(model);
@@ -258,7 +240,11 @@ impl Parser<'_> {
         })
     }
 
-    fn parse_dimension(&mut self, start: u32) -> Option<NamedDefinitionDecl> {
+    fn parse_dimension(
+        &mut self,
+        start: u32,
+        visibility: VisibilitySyntax,
+    ) -> Option<NamedDefinitionDecl> {
         self.expect_keyword("dimension")?;
         let name = self
             .declaration_name("dimension alias name")?
@@ -274,7 +260,7 @@ impl Parser<'_> {
             name,
             expression,
             TextRange::new(start, end),
-            VisibilitySyntax::Private,
+            visibility,
         ))
     }
 }

@@ -438,9 +438,9 @@ fn document_symbols(document: &Document) -> Vec<EditorSymbol> {
             .map(|(_, alias, range)| EditorSymbol::leaf(EditorSymbolKind::Import, alias, range)),
     );
     symbols.extend(
-        document
-            .dimension_syntax()
-            .map(|(name, _, range)| EditorSymbol::leaf(EditorSymbolKind::Dimension, name, range)),
+        document.dimensions().iter().map(|value| {
+            EditorSymbol::leaf(EditorSymbolKind::Dimension, value.name(), value.range())
+        }),
     );
     symbols.extend(
         document

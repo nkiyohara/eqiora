@@ -61,7 +61,7 @@ use property::{encode_material_composition, encode_property_contract, encode_pro
 use visibility::encode_visibility;
 
 const MAGIC: &[u8; 8] = b"EQIORASU";
-const CANONICAL_VERSION: u16 = 14;
+const CANONICAL_VERSION: u16 = 15;
 const COMPONENT_CONNECTION_ITEM_TAG: u16 = 6;
 const MODEL_CONNECTION_ITEM_TAG: u16 = 8;
 const COMPONENT_PORT_FAMILY_ITEM_TAG: u16 = 11;
@@ -160,7 +160,7 @@ fn canonical_source_bytes_with_aliases(
     operator_formals: BTreeMap<String, Vec<String>>,
 ) -> Result<Vec<u8>, Diagnostic> {
     let top_level_count = document
-        .dimension_syntax()
+        .dimensions()
         .len()
         .checked_add(document.property_contract_syntax().len())
         .and_then(|count| count.checked_add(document.property_release_syntax().len()))
@@ -193,7 +193,7 @@ fn canonical_source_bytes_with_aliases(
                     .collect(),
             )
         }));
-    let dimensions = encode_dimensions(document.dimension_syntax(), &mut budget)?;
+    let dimensions = encode_dimensions(document.dimensions().iter(), &mut budget)?;
     let connectors = encode_sorted_records(document.connectors(), &mut budget, encode_connector)?;
     let property_contract_syntax = document.property_contract_syntax().collect::<Vec<_>>();
     let property_release_syntax = document.property_release_syntax().collect::<Vec<_>>();

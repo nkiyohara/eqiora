@@ -50,6 +50,7 @@ impl AnalyzedResolvedHierarchy {
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 #[non_exhaustive]
 pub enum CanonicalDeclarationKind {
+    Dimension,
     Enum,
     PropertyContract,
     PropertyRelease,
@@ -110,6 +111,13 @@ pub(super) fn collect_declaration_locations(
                 (unit.file.clone(), range),
             );
         };
+        for value in unit.document.dimensions() {
+            insert(
+                value.name(),
+                CanonicalDeclarationKind::Dimension,
+                value.range(),
+            );
+        }
         for (_, name, _, range) in unit.document.property_contract_syntax() {
             insert(name, CanonicalDeclarationKind::PropertyContract, range);
         }
@@ -240,6 +248,37 @@ pub(super) fn collect_reference_locations(
         let is_composition = |path: &NamePath| {
             resolve(path, CanonicalDeclarationKind::MaterialComposition).is_some()
         };
+        let mut dimension_document = unit.document.clone();
+        eqiora_lang::SourceAstFactory::rewrite_dimension_expressions(
+            &mut dimension_document,
+            |expression| {
+                let mut pending = vec![expression];
+                while let Some(value) = pending.pop() {
+                    let path = match value.kind() {
+                        eqiora_lang::ExprKind::Name(name) => Some(
+                            NamePath::from_segments([name.clone()], value.range())
+                                .expect("parsed dimension name"),
+                        ),
+                        eqiora_lang::ExprKind::Path(path) => Some(path.clone()),
+                        eqiora_lang::ExprKind::Binary { left, right, .. } => {
+                            pending.extend([left.as_ref(), right.as_ref()]);
+                            None
+                        }
+                        eqiora_lang::ExprKind::Unary { value, .. } => {
+                            pending.push(value);
+                            None
+                        }
+                        _ => None,
+                    };
+                    if let Some(path) = path
+                        && let Some(target) = resolve(&path, CanonicalDeclarationKind::Dimension)
+                    {
+                        references.push((target, unit.file.clone(), path.range()));
+                    }
+                }
+                expression.clone()
+            },
+        );
         let mut enum_document = unit.document.clone();
         eqiora_lang::SourceAstFactory::visit_value_types(&mut enum_document, |_, syntax| {
             if let eqiora_lang::ValueTypeSyntaxKind::Named(path) = syntax.kind()

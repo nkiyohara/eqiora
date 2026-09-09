@@ -819,8 +819,9 @@ fn parser_and_formatter_retain_ordered_dimension_prefix_with_exact_ranges() {
         .into_document()
         .expect("dimension prefix parses");
 
-    assert_eq!(document.dimension_syntax().len(), 2);
-    let (name, _, range) = document.dimension_syntax().next().expect("first alias");
+    assert_eq!(document.dimensions().len(), 2);
+    let declaration = document.dimensions().first().expect("first alias");
+    let (name, range) = (declaration.name(), declaration.range());
     assert_eq!(name, "Speed");
     assert_eq!(
         &source[range.start() as usize..range.end() as usize],
@@ -832,14 +833,11 @@ fn parser_and_formatter_retain_ordered_dimension_prefix_with_exact_ranges() {
         .expect("formatted prefix reparses");
     assert_eq!(crate::format(&reparsed), formatted);
 
-    let misplaced = parse(
-        "misplaced.eqi",
-        "model M() { variable x: m; } dimension Length = m;",
-    );
-    assert!(
-        misplaced
-            .diagnostics()
-            .iter()
-            .any(|diagnostic| diagnostic.message().contains("must form a prefix"))
-    );
+    let later = parse(
+        "later.eqi",
+        "model M() { variable x: Length; } public dimension Length = m;",
+    )
+    .into_document()
+    .expect("complete scope permits later dimensions");
+    assert!(crate::format(&later).contains("public dimension Length = m;"));
 }

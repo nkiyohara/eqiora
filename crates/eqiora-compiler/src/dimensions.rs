@@ -14,10 +14,8 @@ use eqiora_lang::{BinaryOp, Document, Expr, ExprKind, SourceAstFactory, TextRang
 use crate::diagnostics::source_error;
 use crate::units::coherent_dimension;
 
-#[derive(Default)]
-struct DimensionEnvironment {
-    aliases: BTreeMap<String, DimExponents>,
-}
+mod resolved;
+pub(crate) use resolved::bind_resolved;
 
 pub(crate) fn lower_dimension(file: &str, expression: &Expr) -> Result<DimExponents, Diagnostic> {
     lower_dimension_with_aliases(file, expression, &BTreeMap::new(), None)
@@ -50,6 +48,10 @@ fn lower_dimension_with_aliases(
                     message,
                 )
             }),
+        ExprKind::Path(path) => aliases.get(&path.to_string()).copied().ok_or_else(|| {
+            source_error(codes::LANGUAGE_TYPE_ERROR, file, expression.range(),
+                format!("unknown or private dimension alias `{path}`; imports require one direct alias-qualified name"))
+        }),
         ExprKind::Binary { op, left, right } if matches!(op, BinaryOp::Mul | BinaryOp::Div) => {
             let left = lower_dimension_with_aliases(file, left, aliases, declared_names)?;
             let right = lower_dimension_with_aliases(file, right, aliases, declared_names)?;
@@ -91,75 +93,133 @@ pub(crate) fn elaborate_dimension_aliases<'a>(
     file: &str,
     document: &'a Document,
 ) -> Result<Cow<'a, Document>, Vec<Diagnostic>> {
-    if document.dimension_syntax().len() == 0 {
+    if document.dimensions().is_empty() {
         return Ok(Cow::Borrowed(document));
     }
-    let declared_names = document
-        .dimension_syntax()
-        .map(|(name, _, _)| name.to_owned())
-        .collect::<BTreeSet<_>>();
-    let mut environment = DimensionEnvironment::default();
-    let mut seen = BTreeSet::new();
-    let mut diagnostics = Vec::new();
-    for (name, expression, range) in document.dimension_syntax() {
-        if name == crate::math::ROOT {
-            diagnostics.push(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                file,
-                range,
-                "identifier `math` is reserved for compiler-owned scalar mathematics",
-            ));
-            continue;
-        }
-        if coherent_dimension(name).is_some() {
-            diagnostics.push(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                file,
-                range,
-                format!("dimension alias `{name}` cannot shadow a coherent-SI symbol"),
-            ));
-            continue;
-        }
-        if !seen.insert(name.to_owned()) {
-            diagnostics.push(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                file,
-                range,
-                format!("duplicate dimension alias `{name}`"),
-            ));
-            continue;
-        }
-        match lower_dimension_with_aliases(
-            file,
-            expression,
-            &environment.aliases,
-            Some(&declared_names),
-        ) {
-            Ok(dimension) => {
-                environment.aliases.insert(name.to_owned(), dimension);
-            }
-            Err(error) => diagnostics.push(error),
-        }
-    }
-    if !diagnostics.is_empty() {
-        return Err(diagnostics);
-    }
-
+    let aliases = resolve_aliases(file, document, BTreeMap::new())?;
     let mut elaborated = document.clone();
-    SourceAstFactory::rewrite_dimension_expressions(&mut elaborated, |expression| {
-        rewrite_alias_uses(expression, &environment.aliases)
-    });
+    rewrite_document(&mut elaborated, &aliases);
     Ok(Cow::Owned(elaborated))
 }
 
-pub(crate) fn elaborate_dimension_aliases_in_place(
+fn resolve_aliases(
     file: &str,
-    document: &mut Document,
-) -> Result<(), Vec<Diagnostic>> {
-    if document.dimension_syntax().len() != 0 {
-        *document = elaborate_dimension_aliases(file, document)?.into_owned();
+    document: &Document,
+    mut aliases: BTreeMap<String, DimExponents>,
+) -> Result<BTreeMap<String, DimExponents>, Vec<Diagnostic>> {
+    let mut pending = BTreeMap::new();
+    for declaration in document.dimensions() {
+        let (name, expression, range) =
+            (declaration.name(), declaration.value(), declaration.range());
+        let error = if name == crate::math::ROOT {
+            Some("identifier `math` is reserved for compiler-owned scalar mathematics".to_owned())
+        } else if coherent_dimension(name).is_some() {
+            Some(format!(
+                "dimension alias `{name}` cannot shadow a coherent-SI symbol"
+            ))
+        } else if pending.insert(name, (expression, range)).is_some() {
+            Some(format!("duplicate dimension alias `{name}`"))
+        } else {
+            None
+        };
+        if let Some(message) = error {
+            return Err(vec![source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                file,
+                range,
+                message,
+            )]);
+        }
     }
-    Ok(())
+    let declared = pending
+        .keys()
+        .map(|name| (*name).to_owned())
+        .collect::<BTreeSet<_>>();
+    let mut depth = BTreeMap::<String, usize>::new();
+    while !pending.is_empty() {
+        let mut ready = Vec::new();
+        for (&name, &(expression, range)) in &pending {
+            let mut references = BTreeSet::new();
+            dimension_references(expression, &mut references);
+            for reference in &references {
+                if coherent_dimension(reference).is_none()
+                    && !aliases.contains_key(reference)
+                    && !declared.contains(reference)
+                {
+                    return Err(vec![source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        range,
+                        format!(
+                            "unknown coherent-SI dimension symbol or alias `{reference}` (unknown or private direct import)"
+                        ),
+                    )]);
+                }
+            }
+            if references
+                .iter()
+                .any(|reference| pending.contains_key(reference.as_str()))
+            {
+                continue;
+            }
+            let level = references
+                .iter()
+                .filter_map(|reference| depth.get(reference))
+                .max()
+                .copied()
+                .unwrap_or(0)
+                + 1;
+            if level > 256 {
+                return Err(vec![source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    range,
+                    "dimension alias dependency depth exceeds 256",
+                )]);
+            }
+            let value = lower_dimension_with_aliases(file, expression, &aliases, Some(&declared))
+                .map_err(|error| vec![error])?;
+            ready.push((name, value, level));
+        }
+        if ready.is_empty() {
+            let (name, (_, range)) = pending.first_key_value().expect("nonempty aliases");
+            return Err(vec![source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                file,
+                *range,
+                format!("dimension alias dependency cycle includes `{name}`"),
+            )]);
+        }
+        for (name, value, level) in ready {
+            pending.remove(name);
+            aliases.insert(name.to_owned(), value);
+            depth.insert(name.to_owned(), level);
+        }
+    }
+    Ok(aliases)
+}
+
+fn dimension_references(expression: &Expr, references: &mut BTreeSet<String>) {
+    match expression.kind() {
+        ExprKind::Name(name) => {
+            references.insert(name.clone());
+        }
+        ExprKind::Path(path) => {
+            references.insert(path.to_string());
+        }
+        ExprKind::Binary { left, right, .. } => {
+            dimension_references(left, references);
+            dimension_references(right, references);
+        }
+        ExprKind::Unary { value, .. } => dimension_references(value, references),
+        _ => {}
+    }
+}
+
+fn rewrite_document(document: &mut Document, aliases: &BTreeMap<String, DimExponents>) {
+    SourceAstFactory::rewrite_dimension_expressions(document, |expression| {
+        rewrite_alias_uses(expression, aliases)
+    });
 }
 
 fn rewrite_alias_uses(expression: &Expr, aliases: &BTreeMap<String, DimExponents>) -> Expr {
@@ -170,6 +230,12 @@ fn rewrite_alias_uses(expression: &Expr, aliases: &BTreeMap<String, DimExponents
                 return dimension_expression(*dimension, range);
             }
             ExprKind::Name(name.clone())
+        }
+        ExprKind::Path(path) => {
+            if let Some(dimension) = aliases.get(&path.to_string()) {
+                return dimension_expression(*dimension, range);
+            }
+            ExprKind::Path(path.clone())
         }
         ExprKind::Number(value) => ExprKind::Number(value.clone()),
         ExprKind::Unary { op, value } => ExprKind::Unary {
@@ -532,14 +598,9 @@ model Example() {
     fn structural_aliases_reject_ambiguous_or_invalid_names_and_overflow() {
         for (case, source, message) in [
             (
-                "forward",
-                "dimension A1 = B1; dimension B1 = m; model M() { variable x: A1; initial { x = 0; } }",
-                "forward or self reference",
-            ),
-            (
                 "self",
                 "dimension A1 = A1; model M() { variable x: A1; initial { x = 0; } }",
-                "forward or self reference",
+                "dependency cycle",
             ),
             (
                 "duplicate",

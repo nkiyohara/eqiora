@@ -17,7 +17,8 @@ impl SourceAstFactory {
     ///
     /// # Errors
     /// Returns an error for a malformed name, expression, or range.
-    pub(crate) fn dimension_alias(
+    pub fn dimension_alias(
+        visibility: crate::VisibilitySyntax,
         name: impl Into<String>,
         expression: Expr,
         range: TextRange,
@@ -27,7 +28,7 @@ impl SourceAstFactory {
             checked_identifier(name, "dimension alias")?,
             expression,
             checked_range(range)?,
-            crate::VisibilitySyntax::Private,
+            visibility,
         ))
     }
 
@@ -117,7 +118,15 @@ mod tests {
             .clone();
         let document = SourceAstFactory::document_with_dimensions(
             Vec::new(),
-            vec![("Length".to_owned(), expression, range)],
+            vec![
+                SourceAstFactory::dimension_alias(
+                    crate::VisibilitySyntax::Private,
+                    "Length",
+                    expression,
+                    range,
+                )
+                .unwrap(),
+            ],
             Vec::new(),
             Vec::new(),
             Vec::new(),

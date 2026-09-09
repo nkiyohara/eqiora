@@ -57,8 +57,9 @@ fn declarations_with_names(
         if result.contains_key(declaration.name())
             || crate::units::coherent_dimension(declaration.name()).is_some()
             || document
-                .dimension_syntax()
-                .any(|(name, _, _)| name == declaration.name())
+                .dimensions()
+                .iter()
+                .any(|value| value.name() == declaration.name())
             || document
                 .enumerations()
                 .iter()

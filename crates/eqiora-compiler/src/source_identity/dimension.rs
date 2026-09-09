@@ -1,21 +1,28 @@
 use eqiora_core::Diagnostic;
-use eqiora_lang::{Expr, TextRange};
+use eqiora_lang::NamedDefinitionDecl;
 
-use super::{Budget, Encoder, encode_expression, encode_name, source_identity_error};
+use super::{
+    Budget, Encoder, encode_expression, encode_name, encode_visibility, source_identity_error,
+};
 
 pub(super) fn encode_dimensions<'a>(
-    declarations: impl ExactSizeIterator<Item = (&'a str, &'a Expr, TextRange)>,
+    declarations: impl ExactSizeIterator<Item = &'a NamedDefinitionDecl>,
     budget: &mut Budget,
 ) -> Result<Vec<Vec<u8>>, Diagnostic> {
     let mut records = Vec::new();
     records
         .try_reserve_exact(declarations.len())
         .map_err(|_| source_identity_error("cannot reserve canonical dimension records"))?;
-    for (name, expression, _) in declarations {
+    for declaration in declarations {
         let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
-        encoder.field(1, |encoder| encode_name(encoder, name, budget))?;
+        encoder.field(1, |encoder| {
+            encode_name(encoder, declaration.name(), budget)
+        })?;
         encoder.field(2, |encoder| {
-            encode_expression(encoder, expression, budget, 1)
+            encode_expression(encoder, declaration.value(), budget, 1)
+        })?;
+        encoder.field(3, |encoder| {
+            encode_visibility(encoder, declaration.visibility())
         })?;
         let record = encoder.finish()?;
         budget.account_materialized_bytes(record.len())?;
@@ -48,6 +55,10 @@ mod tests {
         let reordered = "dimension Acceleration = m / s ^ 2; dimension Speed = m / s; model M() { variable x: Acceleration; initial { x = 0; } }";
         let expanded = "model M() { variable x: m / s ^ 2; initial { x = 0; } }";
 
+        assert_ne!(
+            identity(first),
+            identity(&first.replacen("dimension", "public dimension", 1))
+        );
         assert_ne!(identity(first), identity(renamed));
         assert_ne!(identity(first), identity(changed));
         assert_ne!(identity(first), identity(reordered));

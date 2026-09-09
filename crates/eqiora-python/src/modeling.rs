@@ -32,7 +32,7 @@ use predicates::symbolic_truth_error;
 )]
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct PyDimension {
-    value: DimExponents,
+    pub(crate) value: DimExponents,
 }
 
 /// Closed orientation of one Cartesian boundary Domain.

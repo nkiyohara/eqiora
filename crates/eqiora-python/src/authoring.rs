@@ -5,6 +5,7 @@ mod compile;
 mod connections;
 mod declaration;
 mod definition;
+mod dimensions;
 mod expression;
 mod imports;
 mod module;

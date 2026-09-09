@@ -139,6 +139,24 @@ a hidden unit conversion. For example, a declared `dimension Energy = J;` can ty
 operator result while its literal is still written `2 [J]`, not `2 [Energy]`.
 Aliasing a dimension does not erase a connector, species, basis, or support's nominal identity.
 
+Python uses the same structural dimension values and exact module resolver:
+
+```python
+from eqiora import Dimension, Module, ValueType
+
+units = Module("units", package="org.example.mechanics")
+units.dimension("Speed", Dimension(length=1, time=-1))
+consumer = Module("main")
+mechanics = consumer.import_module("mechanics", units)
+speed_type = ValueType.real(mechanics.dimension("Speed"))
+```
+
+`Module.dimension` exports a public alias; `ModuleRef.dimension` admits one public
+alias from its exact attached module, including parsed `.eqi` modules. The returned
+`Dimension` remains structural and accepts ordinary `ValueType` construction. Emission
+retains the alias declaration and explicit module import, while value types may use their
+coherent SI expansion. Private or unknown aliases and invalid dependency cycles reject.
+
 Presentation chooses a compatible output unit without changing the Model value. A plot label
 cannot redefine a quantity or turn Hz into angular frequency. New catalog entries require
 the shared source/Python/type checks rather than consumer-local string parsing.

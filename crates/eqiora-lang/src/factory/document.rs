@@ -1,7 +1,7 @@
 use crate::ast::document::ImportDecl;
 use crate::ast::{
-    ComponentDecl, ConnectorDecl, Document, Expr, Item, ModelDecl, NamePath, PureOperatorDecl,
-    TextRange, VisibilitySyntax,
+    ComponentDecl, ConnectorDecl, Document, Item, ModelDecl, NamePath, PureOperatorDecl, TextRange,
+    VisibilitySyntax,
 };
 
 use super::{
@@ -87,7 +87,7 @@ impl SourceAstFactory {
     /// Returns an error when the compilation unit contains no declaration.
     pub fn document_with_dimensions(
         enumerations: Vec<crate::EnumDecl>,
-        dimensions: Vec<(String, Expr, TextRange)>,
+        dimensions: Vec<crate::NamedDefinitionDecl>,
         connectors: Vec<ConnectorDecl>,
         components: Vec<ComponentDecl>,
         pure_operators: Vec<PureOperatorDecl>,
@@ -104,10 +104,16 @@ impl SourceAstFactory {
                 "a source document requires at least one top-level declaration",
             ));
         }
-        let dimensions = dimensions
-            .into_iter()
-            .map(|(name, expression, range)| Self::dimension_alias(name, expression, range))
-            .collect::<Result<_, _>>()?;
+        for declaration in &dimensions {
+            if declaration.value_type().is_some()
+                || declaration.domain().is_some()
+                || declaration.activation().is_some()
+            {
+                return Err(AstConstructionError::new(
+                    "dimension aliases accept no type, support, or activation assertion",
+                ));
+            }
+        }
         Ok(Document {
             records: Vec::new(),
             comments: Default::default(),
