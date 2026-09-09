@@ -213,7 +213,7 @@ fn selection_depth_uses_existing_shared_limit() {
 #[test]
 fn native_selection_checks_unselected_branch_ownership_and_literals() {
     use eqiora_core::{DimExponents, ScalarDomain, ValueType};
-    use eqiora_lang::{DraftField, DraftRelation, FieldRoleSyntax, ModelDraft};
+    use eqiora_lang::{DraftField, DraftRelation, FieldRoleSyntax, Module};
     let kind = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap();
     let included = DraftField::new("x", kind.clone(), FieldRoleSyntax::Variable);
     let foreign = DraftField::new("x", kind, FieldRoleSyntax::Variable);
@@ -224,7 +224,7 @@ fn native_selection_checks_unselected_branch_ownership_and_literals() {
             branch,
         );
         let relation = DraftRelation::continuous("law", [(included.expression(), selected)]);
-        ModelDraft::new("M", [included.clone().into(), relation.into()])
+        Module::new("M", [included.clone().into(), relation.into()])
     };
     assert!(make(included.expression()).is_ok());
     assert!(make(foreign.expression()).is_err());

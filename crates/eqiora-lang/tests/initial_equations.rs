@@ -5,7 +5,7 @@ use eqiora_lang::{
 #[test]
 fn native_initial_equations_share_source_ast_without_field_literals() {
     use eqiora_core::{DimExponents, ScalarDomain, ValueType};
-    use eqiora_lang::{DraftDeclaration, DraftExpression, DraftField, ModelDraft};
+    use eqiora_lang::{DraftDeclaration, DraftExpression, DraftField, Module};
     let state = DraftField::new(
         "x",
         ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap(),
@@ -15,12 +15,12 @@ fn native_initial_equations_share_source_ast_without_field_literals() {
         state.expression(),
         DraftExpression::constant(eqiora_lang::DecimalLiteral::parse("1.0").unwrap()),
     );
-    let draft = ModelDraft::new(
+    let draft = Module::new(
         "Decay",
         [state.into(), DraftDeclaration::Initial(vec![condition])],
     )
     .unwrap();
-    let native = draft.native_ast();
+    let native = &draft;
     let Item::Initial(initial) = &native.model().items()[1] else {
         panic!("initial equations keep their own owner");
     };
@@ -42,7 +42,7 @@ fn native_initial_equations_share_source_ast_without_field_literals() {
 #[test]
 fn native_initial_conditions_reject_empty_nonfinite_and_foreign_symbols() {
     use eqiora_core::{DimExponents, ScalarDomain, ValueType};
-    use eqiora_lang::{DraftDeclaration, DraftExpression, DraftField, ModelDraft};
+    use eqiora_lang::{DraftDeclaration, DraftExpression, DraftField, Module};
     let value_type = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap();
     let included = DraftField::new("x", value_type.clone(), FieldRoleSyntax::State);
     let foreign = DraftField::new("x", value_type, FieldRoleSyntax::State);
@@ -70,7 +70,7 @@ fn native_initial_conditions_reject_empty_nonfinite_and_foreign_symbols() {
             "foreign or omitted Field",
         ),
     ] {
-        let diagnostics = ModelDraft::new(
+        let diagnostics = Module::new(
             "M",
             [
                 included.clone().into(),

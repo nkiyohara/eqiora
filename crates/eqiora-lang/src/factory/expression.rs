@@ -5,12 +5,12 @@ use super::{
     validate_identifier, validate_name_path,
 };
 
-pub(super) fn validate_expression(expression: &Expr) -> Result<(), AstConstructionError> {
+pub(crate) fn validate_expression(expression: &Expr) -> Result<(), AstConstructionError> {
     validate_expression_depth(expression, 1)
 }
 
 fn validate_expression_depth(expression: &Expr, depth: usize) -> Result<(), AstConstructionError> {
-    if depth > 256 {
+    if depth > super::SourceAstFactory::MAX_EXPRESSION_DEPTH {
         return Err(AstConstructionError::new(
             "expression tree exceeds the 256-level limit",
         ));
@@ -94,11 +94,6 @@ fn validate_expression_depth(expression: &Expr, depth: usize) -> Result<(), AstC
             if matches!(callee.as_str(), "sum" | "product") {
                 return Err(AstConstructionError::new(
                     "sum/product require a structured reduction binder",
-                ));
-            }
-            if arguments.expressions().len() == 0 && callee.as_str() != "boundaries" {
-                return Err(AstConstructionError::new(
-                    "an expression operator call requires at least one argument",
                 ));
             }
             if let Some(bindings) = arguments.named() {

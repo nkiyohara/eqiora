@@ -1,11 +1,10 @@
 //! Immutable Python declarations over the client-neutral Rust model draft.
 
 use eqiora::DimExponents;
-use eqiora::api::ModelDocument;
 use eqiora::language::{
     BoundarySideSyntax, DraftConservingConnection, DraftConservingPort, DraftDeclaration,
     DraftExpression, DraftField, DraftParameter, DraftPhysicalDomain, DraftRelation,
-    DraftSpatialDomain, FieldRoleSyntax, ModelDraft,
+    DraftSpatialDomain, FieldRoleSyntax, Module,
 };
 pub(crate) mod dimension;
 pub(crate) mod enumeration;
@@ -322,6 +321,14 @@ impl PyField {
         Err(symbolic_truth_error())
     }
 
+    fn __richcmp__(
+        &self,
+        _other: &Bound<'_, PyAny>,
+        _op: pyo3::basic::CompareOp,
+    ) -> PyResult<bool> {
+        Err(symbolic_truth_error())
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "Field({:?}, role=FieldRole.{:?}, domain={:?}, value_type={:?})",
@@ -330,6 +337,10 @@ impl PyField {
             self.value.domain().map(DraftSpatialDomain::name),
             self.value.value_type()
         )
+    }
+
+    fn __hash__(&self) -> usize {
+        std::ptr::from_ref(self) as usize
     }
 }
 
@@ -448,6 +459,14 @@ impl PyParameter {
         Err(symbolic_truth_error())
     }
 
+    fn __richcmp__(
+        &self,
+        _other: &Bound<'_, PyAny>,
+        _op: pyo3::basic::CompareOp,
+    ) -> PyResult<bool> {
+        Err(symbolic_truth_error())
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "Parameter({:?}, value_type={:?}, value={:?})",
@@ -455,6 +474,10 @@ impl PyParameter {
             self.value.value_type(),
             self.value.value()
         )
+    }
+
+    fn __hash__(&self) -> usize {
+        std::ptr::from_ref(self) as usize
     }
 }
 
@@ -659,8 +682,20 @@ impl PyExpression {
         Err(symbolic_truth_error())
     }
 
+    fn __richcmp__(
+        &self,
+        _other: &Bound<'_, PyAny>,
+        _op: pyo3::basic::CompareOp,
+    ) -> PyResult<bool> {
+        Err(symbolic_truth_error())
+    }
+
     fn __repr__(&self) -> &'static str {
         "Expression(<symbolic>)"
+    }
+
+    fn __hash__(&self) -> usize {
+        std::ptr::from_ref(self) as usize
     }
 }
 
@@ -792,37 +827,34 @@ pub(crate) fn connect(ports: &Bound<'_, PyTuple>) -> PyResult<PyConnection> {
     })
 }
 
-pub(crate) fn define_model(
+#[pyfunction]
+#[pyo3(signature = (name, *declarations))]
+pub(crate) fn _module_from_declarations(
     py: Python<'_>,
     name: String,
     declarations: &Bound<'_, PyTuple>,
-) -> PyResult<ModelDocument> {
-    let draft = model_draft(py, name, declarations)?;
-    py.detach(move || ModelDocument::define(&draft))
-        .map_err(|diagnostics| diagnostic_error(py, &diagnostics))
-}
-
-fn model_draft(
-    py: Python<'_>,
-    name: String,
-    declarations: &Bound<'_, PyTuple>,
-) -> PyResult<ModelDraft> {
+) -> PyResult<crate::authoring::PyAstModule> {
+    if declarations.len() > 256 {
+        return Err(PyValueError::new_err("Module exceeds 256 declarations"));
+    }
     let mut draft_declarations = Vec::with_capacity(declarations.len());
     for declaration in declarations.iter() {
         draft_declarations.push(declaration_from_python(&declaration)?);
     }
-    ModelDraft::new(name, draft_declarations)
+    Module::new(name, draft_declarations)
+        .map(|value| crate::authoring::PyAstModule { value })
         .map_err(|diagnostics| diagnostic_error(py, &diagnostics))
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_function(wrap_pyfunction!(_module_from_declarations, module)?)?;
     module.add_class::<PyDimension>()?;
     module.add_class::<PyValueType>()?;
     module.add_class::<enumeration::PyEnum>()?;
     module.add_class::<enumeration::PyEnumValue>()?;
     module.add_class::<nominal::PyFiniteSpace>()?;
     module.add_class::<nominal::PyIndexSet>()?;
-    module.add_function(wrap_pyfunction!(nominal::_nominal_type_source, module)?)?;
+    module.add_function(wrap_pyfunction!(nominal::_nominal_type, module)?)?;
     module.add_class::<PyBoundarySide>()?;
     module.add_class::<PyDomain>()?;
     module.add_class::<PyFieldRole>()?;
@@ -845,140 +877,5 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-fn declaration_from_python(value: &Bound<'_, PyAny>) -> PyResult<DraftDeclaration> {
-    if let Ok(definition) = value.extract::<PyRef<'_, enumeration::PyEnum>>() {
-        let name = definition.name.clone().ok_or_else(|| {
-            PyValueError::new_err("native enum declarations require an authored lexical name")
-        })?;
-        return Ok(DraftDeclaration::Enum {
-            name,
-            definition: definition.value.clone(),
-        });
-    }
-    if let Ok(space) = value.extract::<PyRef<'_, nominal::PyFiniteSpace>>() {
-        return Ok(DraftDeclaration::FiniteSpace {
-            name: space.name.clone(),
-            definition: space.value.clone(),
-        });
-    }
-    if let Ok(set) = value.extract::<PyRef<'_, nominal::PyIndexSet>>() {
-        return Ok(DraftDeclaration::IndexSet {
-            name: set.name.clone(),
-            definition: set.value.clone(),
-        });
-    }
-    if let Ok(domain) = value.extract::<PyRef<'_, PyDomain>>() {
-        return Ok(domain.value.clone().into());
-    }
-    if let Ok(initial) = value.extract::<PyRef<'_, PyInitial>>() {
-        return Ok(DraftDeclaration::Initial(initial.equations.clone()));
-    }
-    if let Ok(field) = value.extract::<PyRef<'_, PyField>>() {
-        return Ok(field.value.clone().into());
-    }
-    if let Ok(parameter) = value.extract::<PyRef<'_, PyParameter>>() {
-        return Ok(parameter.value.clone().into());
-    }
-    if let Ok(domain) = value.extract::<PyRef<'_, PyPhysicalDomain>>() {
-        return Ok(domain.value.clone().into());
-    }
-    if let Ok(port) = value.extract::<PyRef<'_, PyConservingPort>>() {
-        return Ok(port.value.clone().into());
-    }
-    if let Ok(relation) = value.extract::<PyRef<'_, PyRelation>>() {
-        return Ok(relation.value.clone().into());
-    }
-    if let Ok(connection) = value.extract::<PyRef<'_, PyConnection>>() {
-        return Ok(connection.value.clone().into());
-    }
-    Err(PyTypeError::new_err(
-        "Model.define arguments must be model declaration objects",
-    ))
-}
-
-fn expression_from_python(value: &Bound<'_, PyAny>) -> PyResult<DraftExpression> {
-    if let Ok(value) = value.extract::<PyRef<'_, enumeration::PyEnumValue>>() {
-        return DraftExpression::enum_value(value.value.clone())
-            .map_err(|error| PyValueError::new_err(error.to_string()));
-    }
-    if let Ok(expression) = value.extract::<PyRef<'_, PyExpression>>() {
-        return Ok(expression.value.clone());
-    }
-    if let Ok(field) = value.extract::<PyRef<'_, PyField>>() {
-        return Ok(field.value.expression());
-    }
-    if let Ok(parameter) = value.extract::<PyRef<'_, PyParameter>>() {
-        return Ok(parameter.value.expression());
-    }
-    if let Ok(value) = value.cast::<PyComplex>() {
-        return Ok(DraftExpression::complex(value.real(), value.imag()));
-    }
-    if value.is_instance_of::<PyBool>() {
-        return Ok(DraftExpression::boolean(value.extract()?));
-    }
-    if value.is_instance_of::<PyInt>() {
-        return value_literal::expression(value);
-    }
-    value
-        .extract::<f64>()
-        .map_err(|_| expression_type_error())
-        .and_then(|value| {
-            eqiora::language::DecimalLiteral::from_f64(value)
-                .map_err(|error| PyValueError::new_err(error.to_string()))
-        })
-        .map(DraftExpression::constant)
-}
-
-#[derive(Debug, Clone, Copy)]
-enum Binary {
-    Add,
-    Subtract,
-    Multiply,
-    Divide,
-}
-
-fn binary(
-    own: DraftExpression,
-    other: &Bound<'_, PyAny>,
-    operator: Binary,
-    reverse: bool,
-) -> PyResult<PyExpression> {
-    let other = expression_from_python(other)?;
-    let (left, right) = if reverse { (other, own) } else { (own, other) };
-    let value = match operator {
-        Binary::Add => left + right,
-        Binary::Subtract => left - right,
-        Binary::Multiply => left * right,
-        Binary::Divide => left / right,
-    };
-    Ok(PyExpression::new(value))
-}
-
-fn expression_type_error() -> PyErr {
-    PyTypeError::new_err("expected an Expression, Field, Parameter, or real/complex number")
-}
-
-fn equation_pairs(values: &Bound<'_, PyAny>) -> PyResult<Vec<(DraftExpression, DraftExpression)>> {
-    if !(values.is_instance_of::<PyTuple>() || values.is_instance_of::<PyList>()) {
-        return Err(PyTypeError::new_err(
-            "equations must be an ordered tuple or list of pairs",
-        ));
-    }
-    values
-        .try_iter()?
-        .map(|pair| {
-            let pair = pair?;
-            if !(pair.is_instance_of::<PyTuple>() || pair.is_instance_of::<PyList>())
-                || pair.len()? != 2
-            {
-                return Err(PyTypeError::new_err(
-                    "each equation requires exactly two explicit sides",
-                ));
-            }
-            Ok((
-                expression_from_python(&pair.get_item(0)?)?,
-                expression_from_python(&pair.get_item(1)?)?,
-            ))
-        })
-        .collect()
-}
+mod ingress;
+use ingress::{Binary, binary, declaration_from_python, equation_pairs, expression_from_python};

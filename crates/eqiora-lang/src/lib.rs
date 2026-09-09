@@ -36,7 +36,7 @@ pub use cartesian::CartesianCoordinateSyntax;
 pub use decimal::DecimalLiteral;
 pub use draft::{
     DraftConservingConnection, DraftConservingPort, DraftDeclaration, DraftExpression, DraftField,
-    DraftParameter, DraftPhysicalDomain, DraftRelation, ModelDraft, NativeModelAst,
+    DraftParameter, DraftPhysicalDomain, DraftRelation, Module,
 };
 pub use draft_spatial::DraftSpatialDomain;
 pub use factory::{AstConstructionError, SourceAstFactory};

@@ -109,9 +109,9 @@ References:
 - The private `eqiora._eqiora` module depends only on the public Rust facade.
   Python contains ergonomics and bindings, never a second implementation of
   Eqiora semantics.
-- Frozen native declarations close into a client-neutral Rust `ModelDraft` and
-  join parsed source before one typed lowerer. They do not generate/evaluate
-  source strings, mint final graph IDs during expression assembly, or overload
+- Frozen native declarations close into the client-neutral Rust `Module` graph and
+  share the parsed-source AST before one typed lowerer. Direct compilation does not
+  generate/evaluate source strings, mint final graph IDs during expression assembly, or overload
   symbolic equality/truth as hidden model construction.
 - The NumPy C API means the first wheel matrix does not claim `abi3`.
   Long-running Rust work detaches from Python; numerical inner loops never

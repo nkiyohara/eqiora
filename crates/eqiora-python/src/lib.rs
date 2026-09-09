@@ -4,6 +4,7 @@
 //! semantics. It depends only on the public Rust facade.
 
 mod array;
+mod authoring;
 mod cad_authored;
 mod clock;
 mod common_plan;
@@ -246,6 +247,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     geometry::register(module)?;
     meshing::register(module)?;
     modeling::register(module)?;
+    authoring::register(module)?;
     planar_operation::register(module)?;
     realization::register(module)?;
     steady_stokes::register(module)?;

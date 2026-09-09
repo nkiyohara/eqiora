@@ -1,6 +1,6 @@
 use eqiora::DimExponents;
 use eqiora::api::ModelDocument;
-use eqiora::language::{DraftExpression, DraftField, DraftParameter, DraftRelation, ModelDraft};
+use eqiora::language::{DraftExpression, DraftField, DraftParameter, DraftRelation, Module};
 
 const SOURCE: &str = include_str!("../../../verify/language/native-modeling/models/decay.eqi");
 
@@ -43,11 +43,10 @@ fn native_and_source_models_share_structure_and_artifacts() {
             eqiora::language::DecimalLiteral::from_f64(1.0).expect("finite fixture literal"),
         ),
     )]);
-    let draft =
-        ModelDraft::new("decay", [rate.into(), state.into(), flow.into(), initial]).unwrap();
+    let draft = Module::new("decay", [rate.into(), state.into(), flow.into(), initial]).unwrap();
 
     let source = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
-    let native = ModelDocument::define(&draft).unwrap();
+    let native = ModelDocument::compile_module(&draft, None, &[]).unwrap();
     assert!(native.structurally_equivalent(&source).unwrap());
     assert_eq!(
         native.structural_fingerprint().unwrap(),
@@ -93,7 +92,7 @@ fn native_modeling_failures_have_paths_and_never_return_a_model() {
             ),
         )],
     );
-    let diagnostic = ModelDraft::new("decay", [included.into(), relation.into()]).unwrap_err();
+    let diagnostic = Module::new("decay", [included.into(), relation.into()]).unwrap_err();
     assert_eq!(
         diagnostic[0].graph_path().unwrap().to_string(),
         "decay.flow"
@@ -129,12 +128,12 @@ fn native_modeling_failures_have_paths_and_never_return_a_model() {
             ),
         )],
     );
-    let draft = ModelDraft::new(
+    let draft = Module::new(
         "thermal",
         [temperature.into(), duration.into(), invalid.into()],
     )
     .unwrap();
-    let diagnostics = ModelDocument::define(&draft).unwrap_err();
+    let diagnostics = ModelDocument::compile_module(&draft, None, &[]).unwrap_err();
     assert_eq!(
         diagnostics[0].graph_path().unwrap().to_string(),
         "thermal.invalid"

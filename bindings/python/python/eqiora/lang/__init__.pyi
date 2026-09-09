@@ -1,4 +1,4 @@
-"""Bounded Python authoring for deterministic Eqiora Language source.
+"""Bounded Python authoring through the compiler-owned Eqiora Module graph.
 
 Authority: ``bindings/python/python/eqiora/lang/__init__.py``.
 """
@@ -11,7 +11,7 @@ from decimal import Decimal
 from ..units import Unit
 from os import PathLike
 from typing import Final, Literal, final
-from .. import FieldRole, ValueType, FiniteSpace, IndexSet
+from .. import FieldRole, ValueType, FiniteSpace, IndexSet, _ModelDeclaration
 
 @final
 class Notation:
@@ -26,7 +26,7 @@ class Notation:
 
 @final
 class Enum:
-    """A closed enum declaration shared within its Source.
+    """A closed enum declaration shared within its Module.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Enum``.
     """
@@ -40,17 +40,17 @@ class Enum:
 
 @final
 class Operator:
-    """An immutable typed operator declared by one Source; call with named arguments.
+    """An immutable typed operator declared by one Module; call with named arguments.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Operator``.
     """
     def __call__(self, /, **arguments: object) -> Expression: ...
 
 @final
-class SourceError(ValueError):
-    """Reject a structurally invalid bounded Source draft.
+class ModuleError(ValueError):
+    """Reject a structurally invalid bounded Module draft.
 
-    Authority: ``bindings/python/python/eqiora/lang/__init__.py::SourceError``.
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::ModuleError``.
     """
 
     ...
@@ -72,8 +72,34 @@ class Expression:
     def __rtruediv__(self, other: float | int, /) -> Expression: ...
     def __pow__(self, exponent: int, /) -> Expression: ...
     def __bool__(self) -> bool: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __ne__(self, other: object) -> bool: ...
+    def __lt__(self, other: object) -> bool: ...
+    def __le__(self, other: object) -> bool: ...
+    def __gt__(self, other: object) -> bool: ...
+    def __ge__(self, other: object) -> bool: ...
     def __neg__(self) -> Expression: ...
     def __getitem__(self, index: int | Expression | slice) -> Expression: ...
+
+@final
+class Equation:
+    """Immutable ordered mathematical equality, never a Python truth value.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::Equation``.
+    """
+
+    @property
+    def lhs(self) -> Expression: ...
+    @property
+    def rhs(self) -> Expression: ...
+    def __bool__(self) -> bool: ...
+
+def equation(lhs: object, rhs: object) -> Equation:
+    """Construct an explicit equality from typed expressions and admitted literals.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::equation``.
+    """
+    ...
 
 @final
 class Event:
@@ -94,7 +120,7 @@ class Clock:
 
 @final
 class Support:
-    """Identify one volume or parent-boundary declaration in its exact Source.
+    """Identify one volume or parent-boundary declaration in its exact Module.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Support``.
     """
@@ -103,7 +129,7 @@ class Support:
 
 @final
 class PropertyContract:
-    """Identify one typed property contract in its exact Source.
+    """Identify one typed property contract in its exact Module.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::PropertyContract``.
     """
@@ -112,7 +138,7 @@ class PropertyContract:
 
 @final
 class PropertyRelease:
-    """Identify one exact constant scalar release in its exact Source.
+    """Identify one exact constant scalar release in its exact Module.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::PropertyRelease``.
     """
@@ -121,7 +147,7 @@ class PropertyRelease:
 
 @final
 class MaterialComposition:
-    """Identify one immutable typed material composition in its exact Source.
+    """Identify one immutable typed material composition in its exact Module.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::MaterialComposition``.
     """
@@ -130,7 +156,7 @@ class MaterialComposition:
 
 @final
 class Relation:
-    """Identify one relation declaration in its exact Source.
+    """Identify one relation declaration in its exact Module.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Relation``.
     """
@@ -149,13 +175,13 @@ class Component:
         ...
 
     def counts(self, space: FiniteSpace, components: Sequence[Expression | int]) -> Expression:
-        """Construct counts in this Source's exact registered finite basis.
+        """Construct counts in this Module's exact registered finite basis.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.counts``.
         """
         ...
     def coordinates(self, space: FiniteSpace, components: Sequence[Expression | int]) -> Expression:
-        """Construct signed coordinates in this Source's registered finite basis.
+        """Construct signed coordinates in this Module's registered finite basis.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.coordinates``.
         """
@@ -255,10 +281,9 @@ class Component:
     def relation(
         self,
         name: str,
+        equality: Equation,
         *,
         on: Support | None = None,
-        left: Expression | int | float | complex,
-        right: Expression | int | float | complex,
         at: Clock | Event | None = None,
         doc: str | None = None,
     ) -> Relation: ...
@@ -271,9 +296,9 @@ class Component:
         doc: str | None = None,
     ) -> None: ...
     def instance(
-        self, name: str, *, component: Component,
-        bindings: Mapping[object, object], doc: str | None = None,
-    ) -> Mapping[Expression, Expression]: ...
+        self, name: str, *, component: Component | ComponentRef,
+        bindings: Mapping[str, object], doc: str | None = None,
+    ) -> Mapping[str, Expression]: ...
     def clock_requirement(self, name: str, *, doc: str | None = None) -> Clock: ...
     def field_requirement(
         self, name: str, *, value_type: ValueType, role: FieldRole,
@@ -290,10 +315,29 @@ class Component:
     ) -> Expression: ...
 
 @final
-class Source:
-    """Own a bounded Component hierarchy and freeze it on emission.
+class ComponentRef:
+    """Immutable reference to one public Component in an explicit import.
 
-    Authority: ``bindings/python/python/eqiora/lang/__init__.py::Source``.
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::ComponentRef``.
+    """
+
+    @property
+    def name(self) -> str: ...
+
+@final
+class ModuleRef:
+    """An explicit module import with immutable Component references.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::ModuleRef``.
+    """
+
+    def component(self, name: str) -> ComponentRef: ...
+
+@final
+class Module:
+    """Own a compiler-backed module graph and freeze declarations on emission or compilation.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::Module``.
     """
 
     def set_notation(self, name: str, notation: Notation) -> None:
@@ -305,18 +349,28 @@ class Source:
         """Declare a closed real-scalar operator from one symbolic callback invocation."""
         ...
     def enum(self, name: str, *, members: Sequence[str], doc: str | None = None) -> Enum:
-        """Declare a closed enum shared by occurrences in this Source.
+        """Declare a closed enum shared by occurrences in this Module.
 
-        Authority: ``bindings/python/python/eqiora/lang/__init__.py::Source.enum``.
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::Module.enum``.
         """
         ...
     def space(self, name: str, *, labels: Sequence[str], doc: str | None = None) -> FiniteSpace:
-        """Declare an exact ordered basis registered in this Source.
+        """Declare an exact ordered basis registered in this Module.
 
-        Authority: ``bindings/python/python/eqiora/lang/__init__.py::Source.space``.
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::Module.space``.
         """
         ...
-    def __init__(self) -> None: ...
+    def __init__(self, name: str, *declarations: _ModelDeclaration) -> None: ...
+    @classmethod
+    def parse(cls, name: str, source: str) -> Module:
+        """Parse one source unit; attach its exact imports explicitly before compilation."""
+        ...
+    def import_module(
+        self, alias: str, module: Module | None = None, *,
+        path: str | PathLike[str] | None = None,
+    ) -> ModuleRef:
+        """Attach exactly one Module or local .eqi path to an explicit import alias."""
+        ...
     def component(
         self,
         name: str,
@@ -411,7 +465,7 @@ class _Math:
         """
         ...
 
-#: Exact language constants used by Source expressions.
+#: Exact language constants used by Module expressions.
 #:
 #: Authority: ``bindings/python/python/eqiora/lang/__init__.py::math``.
 math: _Math
@@ -454,7 +508,7 @@ def grad(value: Expression) -> Expression:
     ...
 
 def test(field: Expression) -> Expression:
-    """Return the test function associated with one Source Field.
+    """Return the test function associated with one Module Field.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::test``.
     """
@@ -511,7 +565,7 @@ def integrate(
     domain: Support,
     integrand: Expression | float | int | complex,
 ) -> Expression:
-    """Return one volume integral over an exact Source Support.
+    """Return one volume integral over an exact Module Support.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::integrate``.
     """
@@ -592,6 +646,9 @@ __all__ = [
 
     "Clock",
     "Component",
+    "ComponentRef",
+    "Equation",
+    "equation",
     "Expression",
     "Enum",
     "Event",
@@ -601,8 +658,9 @@ __all__ = [
     "PropertyContract",
     "PropertyRelease",
     "Relation",
-    "Source",
-    "SourceError",
+    "Module",
+    "ModuleError",
+    "ModuleRef",
     "Support",
     "array",
     "case",

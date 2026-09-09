@@ -21,7 +21,7 @@ def conductivity(source, *, body=None):
 
 
 def test_operator_callback_once_named_reordering_and_immutable_handle():
-    source = q.Source()
+    source = eqiora.Module("main")
     calls = []
     def body(x, k0, a):
         calls.append((x, k0, a))
@@ -30,13 +30,12 @@ def test_operator_callback_once_named_reordering_and_immutable_handle():
     first = operator(x=20, k0=10, a=0.01)
     second = operator(a=0.01, x=20, k0=10)
     assert len(calls) == 1
-    assert first._text == second._text
     owner = source.model("Conductivity")
     owner.let_alias("first", first)
     owner.let_alias("second", second)
     text = source.to_eqi()
     assert "input x: K" in text
-    assert "conductivity(x = 20, k0 = 10, a = 0.01)" in text
+    assert text.count("conductivity(x = 20, k0 = 10, a = 0.01)") == 2
     assert "Quadratic conductivity in temperature." in text
     with pytest.raises(AttributeError):
         operator.name = "changed"
@@ -44,16 +43,16 @@ def test_operator_callback_once_named_reordering_and_immutable_handle():
 
 
 def conductivity_model_source():
-    source = q.Source()
+    source = eqiora.Module("main")
     operator = conductivity(source)
     owner = source.model("Conductivity")
     tick = owner.clock("tick", period_s=1)
     kind = eqiora.ValueType.real(eqiora.Dimension(mass=1, length=1, time=-3, temperature=-1))
     out = owner.output("result", value_type=kind, at=tick)
-    owner.relation("evaluate", at=tick, left=out, right=operator(
+    owner.relation("evaluate", q.equation(out, operator(
         x=q.quantity(20, eqiora.units.K),
         k0=q.quantity(10, eqiora.units.W / eqiora.units.m / eqiora.units.K),
-        a=q.quantity(0.01, eqiora.units.K ** -1)))
+        a=q.quantity(0.01, eqiora.units.K ** -1))), at=tick)
     return source
 
 
@@ -77,8 +76,8 @@ def test_typed_polynomial_operator_source_file_replay_and_execution(tmp_path):
 
 @pytest.mark.parametrize("arguments", ({"x": 1}, {"x": 1, "k0": 2, "a": 3, "extra": 4}))
 def test_operator_rejects_missing_and_unknown_named_arguments(arguments):
-    operator = conductivity(q.Source())
-    with pytest.raises(q.SourceError, match="named inputs"):
+    operator = conductivity(eqiora.Module("main"))
+    with pytest.raises(q.ModuleError, match="named inputs"):
         operator(**arguments)
     with pytest.raises(TypeError):
         operator(1, 2, 3)
@@ -96,11 +95,11 @@ def test_operator_rejects_wrong_actual_units_at_shared_compiler():
 
 @pytest.mark.parametrize("foreign", (False, True))
 def test_operator_body_rejects_hidden_model_capture_and_releases_failed_name(foreign):
-    source = q.Source()
-    hidden_source = q.Source() if foreign else source
+    source = eqiora.Module("main")
+    hidden_source = eqiora.Module("main") if foreign else source
     owner = hidden_source.model("Hidden")
     hidden = owner.parameter("hidden", value_type=eqiora.ValueType.real())
-    with pytest.raises(q.SourceError, match="formal inputs|different Source|different.*owners"):
+    with pytest.raises(q.ModuleError, match="formal inputs|different Module|different.*owners"):
         source.operator("bad", inputs={"x": eqiora.ValueType.real()},
                         result_type=eqiora.ValueType.real(), body=lambda x: x + hidden)
     source.operator("bad", inputs={"x": eqiora.ValueType.real()},
@@ -110,20 +109,20 @@ def test_operator_body_rejects_hidden_model_capture_and_releases_failed_name(for
 @pytest.mark.parametrize("wrap", (lambda x: x + 1, lambda x: -x, lambda x: q.array((x,))[0],
                                    lambda x: q.math.sin(x), lambda x: x ** 2))
 def test_foreign_constant_operator_calls_cannot_lose_source_ownership(wrap):
-    source = q.Source()
+    source = eqiora.Module("main")
     operator = source.operator("offset", inputs={"x": eqiora.ValueType.real()},
                                result_type=eqiora.ValueType.real(), body=lambda x: x + 1)
-    foreign = q.Source()
+    foreign = eqiora.Module("main")
     owner = foreign.model("Foreign")
-    with pytest.raises(q.SourceError, match="Source"):
+    with pytest.raises(q.ModuleError, match="Module"):
         owner.let_alias("bad", wrap(operator(x=2)))
-    with pytest.raises(q.SourceError, match="foreign Source"):
+    with pytest.raises(q.ModuleError, match="foreign Module"):
         foreign.operator("bad", inputs={}, result_type=eqiora.ValueType.real(),
                          body=lambda: wrap(operator(x=2)))
 
 
 def test_operator_composition_accepts_same_source_and_rejects_escaped_formals():
-    source = q.Source()
+    source = eqiora.Module("main")
     first = source.operator("increment", inputs={"x": eqiora.ValueType.real()},
                             result_type=eqiora.ValueType.real(), body=lambda x: x + 1)
     escaped = []
@@ -134,13 +133,13 @@ def test_operator_composition_accepts_same_source_and_rejects_escaped_formals():
                              result_type=eqiora.ValueType.real(), body=body)
     owner = source.model("Composed")
     owner.let_alias("valid", second(x=3))
-    with pytest.raises(q.SourceError, match="Component"):
+    with pytest.raises(q.ModuleError, match="Component"):
         owner.let_alias("escaped", escaped[0])
     assert "increment(x = x) * 2" in source.to_eqi()
 
 
 def test_failed_operator_callback_does_not_make_formals_portable():
-    source = q.Source()
+    source = eqiora.Module("main")
     escaped = []
     def fail(x):
         escaped.append(x)
@@ -148,18 +147,18 @@ def test_failed_operator_callback_does_not_make_formals_portable():
     with pytest.raises(RuntimeError, match="body failed"):
         source.operator("bad", inputs={"x": eqiora.ValueType.real()},
                         result_type=eqiora.ValueType.real(), body=fail)
-    with pytest.raises(q.SourceError, match="formal inputs"):
+    with pytest.raises(q.ModuleError, match="formal inputs"):
         source.operator("bad", inputs={}, result_type=eqiora.ValueType.real(),
                         body=lambda: escaped[0])
     source.operator("bad", inputs={}, result_type=eqiora.ValueType.real(), body=lambda: 1)
 
 
 def test_operator_calls_preserve_existing_node_budget():
-    source = q.Source()
+    source = eqiora.Module("main")
     operator = source.operator("combine", inputs={"x": eqiora.ValueType.real(), "y": eqiora.ValueType.real()},
                                result_type=eqiora.ValueType.real(), body=lambda x, y: x+y)
-    value = q.quantity(1, eqiora.units.m)
+    value = q.math.pi
     for _ in range(11):
         value = value + value
-    with pytest.raises(q.SourceError, match="node limit"):
+    with pytest.raises(q.ModuleError, match="node limit"):
         operator(x=value, y=value)

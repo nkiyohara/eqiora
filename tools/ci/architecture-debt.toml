@@ -436,7 +436,7 @@ ceiling = 45
 
 [[public_surface]]
 crate = "eqiora-lang"
-ceiling = 93
+ceiling = 92
 # #879 adds NotationLabel/NotationProfile for checked generated suffix composition
 # and shared LaTeX/MathML/Unicode/plain/speech labels. Source Notation keeps
 # its admission bounds; native and Python callers use this one projection owner.

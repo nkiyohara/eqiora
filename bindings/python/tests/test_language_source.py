@@ -12,7 +12,7 @@ u = eqiora.units
 
 
 def test_source_power_preserves_python_negative_base_grouping():
-    source = q.Source()
+    source = eqiora.Module("main")
     component = source.component("Powers")
     body = component.volume("body", dimensions=1)
     x = component.parameter("x", value_type=eqiora.ValueType.real(eqiora.Dimension()))
@@ -23,27 +23,27 @@ def test_source_power_preserves_python_negative_base_grouping():
         ("quantity_base", q.quantity(-2, u.one)**2, "(-2 [1]) ^ 2 = 0;"),
     ]
     for name, expression, _ in cases:
-        component.relation(name, on=body, left=expression, right=0)
+        component.relation(name, q.equation(expression, 0), on=body)
     emitted = source.to_eqi()
     for _, _, text in cases:
         assert text in emitted
 
 
 def test_documentation_emits_attached_paragraphs_with_utf8_byte_bound():
-    source = q.Source()
+    source = eqiora.Module("main")
     source.component("Documented", doc="Summary.\n\nFurther **prose**.")
     assert "/// Summary.\n///\n/// Further **prose**.\n" in source.to_eqi()
-    bounded = q.Source()
+    bounded = eqiora.Module("main")
     bounded.component("Bounded", doc="é" * 8192)
     assert "/// " + "é" * 8192 in bounded.to_eqi()
-    with pytest.raises(q.SourceError, match="16384-byte limit"):
-        q.Source().component("TooLong", doc="é" * 8193)
+    with pytest.raises(q.ModuleError, match="16384-byte limit"):
+        eqiora.Module("main").component("TooLong", doc="é" * 8193)
 
 
 @pytest.mark.parametrize("value, syntax", [
     (0, "0"),
-    (q.quantity(2, u.one / u.m**2), "2 [(1 / (m ^ 2))]"),
-    (q.quantity(-2, u.one / u.m**2), "-2 [(1 / (m ^ 2))]"),
+    (q.quantity(2, u.one / u.m**2), "2 [1 / m ^ 2]"),
+    (q.quantity(-2, u.one / u.m**2), "-2 [1 / m ^ 2]"),
 ])
 def test_component_parameter_bindings_emit_explicit_units(value, syntax):
     source = scalar_property_source(binding=value)
@@ -51,7 +51,7 @@ def test_component_parameter_bindings_emit_explicit_units(value, syntax):
 
 
 def test_rational_unit_exponents_preserve_exact_source_spelling():
-    source = q.Source()
+    source = eqiora.Module("main")
     component = source.component("Wave")
     component.parameter("amplitude", value_type=eqiora.ValueType.real(eqiora.Dimension(length=Fraction(-1, 2))))
     text = source.to_eqi()
@@ -65,15 +65,12 @@ def test_rational_unit_exponents_preserve_exact_source_spelling():
 
 
 def test_input_quantities_compile_from_python_and_emitted_source(tmp_path: Path):
-    source = q.Source()
+    source = eqiora.Module("main")
     law = source.component("RootLength")
     region = law.volume("region", dimensions=2)
     length = law.field("length", role=eqiora.FieldRole.Variable, on=region, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
-    law.relation(
-        "balance", on=region,
-        right=0, left=length - q.math.sqrt(q.quantity(4, u.m.prefixed("m") ** 2)),
-    )
-    assert "4 [(mm ^ 2)]" in source.to_eqi()
+    law.relation("balance", q.equation(length - q.math.sqrt(q.quantity(4, u.m.prefixed("m") ** 2)), 0), on=region)
+    assert "4 [mm ^ 2]" in source.to_eqi()
     direct = eqiora.compile(source=source, geometry=(_binding_geometry := rectangle_geometry()), entry='RootLength', bindings={**support_bindings(_binding_geometry, ['region'], []), **{}})
     path = tmp_path / "quantity.eqi"
     source.write_eqi(path)
@@ -98,7 +95,7 @@ def cylinder_source(
     doc: str = "Equations-only steady incompressible flow component.",
     velocity_type=eqiora.ValueType.vector(eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1)), 2),
 ):
-    source = q.Source()
+    source = eqiora.Module("main")
     stokes = source.component("SteadyFlowPastCylinder", doc=doc)
     fluid = stokes.volume("fluid", dimensions=2)
     inlet = stokes.boundary("inlet", parent=fluid)
@@ -118,57 +115,40 @@ def cylinder_source(
     )
     inlet_profile = stokes.field("inlet_profile", role=eqiora.FieldRole.Variable, on=fluid, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1)))
 
-    stokes.relation(
-        "force_definition", on=fluid, left=force_potential, right=zero_pressure
-    )
+    stokes.relation("force_definition", q.equation(force_potential, zero_pressure), on=fluid)
     stokes.relation(
         "inlet_profile_definition",
-        on=fluid,
-        left=inlet_profile,
-        right=(
+        q.equation(
+            inlet_profile,
             4
             * inlet_speed
             * q.coordinate(1)
             * (channel_height - q.coordinate(1))
-            / channel_height**2
+            / channel_height**2,
         ),
+        on=fluid,
     )
     stress = 2 * dynamic_viscosity * q.symmetric_part(
         q.grad(velocity)
     ) - q.isotropic_lift(pressure)
-    stokes.relation(
-        "momentum",
-        on=fluid,
-        right=0, left=-q.div(stress) - q.grad(force_potential),
-        doc="Steady Stokes momentum balance.",
-    )
-    stokes.relation("incompressibility", on=fluid, right=0, left=q.div(velocity))
-    stokes.relation(
-        "inlet_velocity",
-        on=inlet,
-        right=0, left=q.trace(velocity) + q.normal(q.isotropic_lift(inlet_profile)),
-    )
-    stokes.relation("outlet_traction", on=outlet, right=0, left=q.normal(stress))
-    stokes.relation("wall_velocity", on=walls, right=0, left=q.trace(velocity))
-    stokes.relation("cylinder_velocity", on=cylinder, right=0, left=q.trace(velocity))
+    stokes.relation("momentum", q.equation(-q.div(stress) - q.grad(force_potential), 0), on=fluid, doc="Steady Stokes momentum balance.")
+    stokes.relation("incompressibility", q.equation(q.div(velocity), 0), on=fluid)
+    stokes.relation("inlet_velocity", q.equation(q.trace(velocity) + q.normal(q.isotropic_lift(inlet_profile)), 0), on=inlet)
+    stokes.relation("outlet_traction", q.equation(q.normal(stress), 0), on=outlet)
+    stokes.relation("wall_velocity", q.equation(q.trace(velocity), 0), on=walls)
+    stokes.relation("cylinder_velocity", q.equation(q.trace(velocity), 0), on=cylinder)
     return source
 
 
 def test_relation_requires_ordered_left_and_right_including_zero() -> None:
-    source = q.Source()
+    source = eqiora.Module("main")
     component = source.component("NaturalEquation")
     body = component.volume("body", dimensions=2)
     value = component.field("value", role=eqiora.FieldRole.Variable, on=body, value_type=eqiora.ValueType.real())
     source_scale = component.parameter("source_scale", value_type=eqiora.ValueType.real())
 
-    natural = component.relation(
-        "natural",
-        on=body,
-        left=q.div(q.grad(value)),
-        right=-source_scale,
-        doc="Natural equation.",
-    )
-    residual = component.relation("residual", on=body, right=0, left=value)
+    natural = component.relation("natural", q.equation(q.div(q.grad(value)), -source_scale), on=body, doc="Natural equation.")
+    residual = component.relation("residual", q.equation(value, 0), on=body)
     assert isinstance(natural, q.Relation)
     assert isinstance(residual, q.Relation)
     with pytest.raises(TypeError):
@@ -183,31 +163,25 @@ def test_relation_requires_ordered_left_and_right_including_zero() -> None:
 
 
 def test_relation_rejects_mixed_incomplete_foreign_and_nonfinite_equations() -> None:
-    source = q.Source()
+    source = eqiora.Module("main")
     component = source.component("Relations")
     body = component.volume("body", dimensions=2)
     value = component.field("value", role=eqiora.FieldRole.Variable, on=body, value_type=eqiora.ValueType.real())
-    foreign = q.Source()
+    foreign = eqiora.Module("main")
     foreign_component = foreign.component("Foreign")
     foreign_body = foreign_component.volume("body", dimensions=2)
     foreign_value = foreign_component.field("value", role=eqiora.FieldRole.Variable, on=foreign_body, value_type=eqiora.ValueType.real())
 
     invalid = (
         lambda: component.relation("missing", on=body),
-        lambda: component.relation("left_only", on=body, left=value),
-        lambda: component.relation("right_only", on=body, right=value),
-        lambda: component.relation(
-            "mixed", on=body, residual=value, left=value, right=0
-        ),
-        lambda: component.relation(
-            "foreign", on=body, left=value, right=foreign_value
-        ),
-        lambda: component.relation(
-            "nonfinite", on=body, left=value, right=float("nan")
-        ),
+        lambda: component.relation("left_only", q.equation(value), on=body),
+        lambda: component.relation("right_only", q.equation(rhs=value), on=body),
+        lambda: component.relation("mixed", q.equation(value, 0), on=body, residual=value),
+        lambda: component.relation("foreign", q.equation(value, foreign_value), on=body),
+        lambda: component.relation("nonfinite", q.equation(value, float("nan")), on=body),
     )
     for operation in invalid:
-        with pytest.raises((q.SourceError, TypeError)):
+        with pytest.raises((q.ModuleError, TypeError)):
             operation()
 
 
@@ -238,7 +212,7 @@ PARAMETERS = {
 
 
 def scalar_property_source(*, doc: str = "Reference scalar diffusivity release.", binding=None):
-    source = q.Source()
+    source = eqiora.Module("main")
     contract = source.property_contract("Diffusivity", value_type=eqiora.ValueType.real())
     release = source.property_release(
         "ReferenceDiffusivity",
@@ -262,16 +236,13 @@ def scalar_property_source(*, doc: str = "Reference scalar diffusivity release."
     potential = law.field("potential", role=eqiora.FieldRole.Variable, on=law_region, value_type=eqiora.ValueType.real())
     law.relation(
         "balance",
+        q.equation(-q.div(diffusivity * q.grad(potential)) - law_source_scale, 0),
         on=law_region,
-        right=0, left=(
-            -q.div(diffusivity * q.grad(potential))
-            - law_source_scale
-        ),
     )
-    law.relation("left_value", on=law_left, right=0, left=q.trace(potential))
-    law.relation("right_value", on=law_right, right=0, left=q.trace(potential))
-    law.relation("bottom_value", on=law_bottom, right=0, left=q.trace(potential))
-    law.relation("top_value", on=law_top, right=0, left=q.trace(potential))
+    law.relation("left_value", q.equation(q.trace(potential), 0), on=law_left)
+    law.relation("right_value", q.equation(q.trace(potential), 0), on=law_right)
+    law.relation("bottom_value", q.equation(q.trace(potential), 0), on=law_bottom)
+    law.relation("top_value", q.equation(q.trace(potential), 0), on=law_top)
 
     root = source.component("PoissonRectangle")
     root_region = root.volume("region", dimensions=2)
@@ -280,12 +251,12 @@ def scalar_property_source(*, doc: str = "Reference scalar diffusivity release."
     root_bottom = root.boundary("bottom", parent=root_region)
     root_top = root.boundary("top", parent=root_region)
     root_source_scale = root.parameter("source_scale", value_type=eqiora.ValueType.real(eqiora.Dimension(length=-2)))
-    root.instance('equation', component=law, bindings={law_region: root_region, law_left: root_left, law_right: root_right, law_bottom: root_bottom, law_top: root_top, law_source_scale: root_source_scale if binding is None else binding, diffusivity: release})
+    root.instance('equation', component=law, bindings={'region': root_region, 'left': root_left, 'right': root_right, 'bottom': root_bottom, 'top': root_top, 'source_scale': root_source_scale if binding is None else binding, 'diffusivity': release})
     return source
 
 
-def material_composition_source() -> q.Source:
-    source = q.Source()
+def material_composition_source() -> eqiora.Module:
+    source = eqiora.Module("main")
     conductivity_contract = source.property_contract("Conductivity", value_type=eqiora.ValueType.real())
     capacity_contract = source.property_contract("Capacity", value_type=eqiora.ValueType.real())
     conductivity_release = source.property_release(
@@ -310,7 +281,7 @@ def material_composition_source() -> q.Source:
     region = law.volume("region", dimensions=2)
     conductivity = law.property("conductivity", contract=conductivity_contract)
     capacity = law.property("capacity", contract=capacity_contract)
-    law.relation("law", on=region, right=0, left=conductivity / capacity)
+    law.relation("law", q.equation(conductivity / capacity, 0), on=region)
     material = source.material_composition(
         "MaterialA",
         properties={
@@ -320,16 +291,16 @@ def material_composition_source() -> q.Source:
     )
     root = source.component("UseMaterial")
     root_region = root.volume("region", dimensions=2)
-    root.instance('law', component=law, bindings={region: root_region, conductivity: material['conductivity'], capacity: material['capacity']})
+    root.instance('law', component=law, bindings={'region': root_region, 'conductivity': material['conductivity'], 'capacity': material['capacity']})
     return source
 
 
 def test_removed_source_choice_keywords_are_unexpected() -> None:
-    source = q.Source()
+    source = eqiora.Module("main")
     with pytest.raises(TypeError, match="unexpected keyword argument 'public'"):
         source.component("Component", public=True)
 
-    contract_source = q.Source()
+    contract_source = eqiora.Module("main")
     with pytest.raises(TypeError, match="unexpected keyword argument 'public'"):
         contract_source.property_contract("Diffusivity", value_type=eqiora.ValueType.real(), public=True)
     contract = contract_source.property_contract("Diffusivity", value_type=eqiora.ValueType.real())
@@ -380,7 +351,7 @@ def rectangle_geometry():
 
 
 def scalar_primal_source():
-    source = q.Source()
+    source = eqiora.Module("main")
     law = source.component("ScalarDiffusion")
     region = law.volume("region", dimensions=2)
     diffusion = law.parameter("diffusion", value_type=eqiora.ValueType.real())
@@ -389,11 +360,12 @@ def scalar_primal_source():
     potential = law.field("potential", role=eqiora.FieldRole.Variable, on=region, value_type=eqiora.ValueType.real())
     balance = law.relation(
         "balance",
-        on=region,
-        right=0, left=(
+        q.equation(
             -q.div(diffusion * q.grad(potential))
-            - source_scale * q.math.sin(q.math.pi * wave_number * q.coordinate(0))
+            - source_scale * q.math.sin(q.math.pi * wave_number * q.coordinate(0)),
+            0,
         ),
+        on=region,
     )
     law.primal_form(
         balance,
@@ -428,7 +400,7 @@ def test_python_source_emits_and_fresh_compile_inspects_scalar_primal_form(
     form = model.authored_formulations[0]
     assert form.kind == "primal"
     assert len(form.source_identity) == 64
-    assert form.filename == "<python-source>"
+    assert form.filename == "<module>"
     assert form.trial_field_id in model.field_ids
 
     path = tmp_path / "scalar-primal.eqi"
@@ -443,11 +415,11 @@ def test_python_source_emits_and_fresh_compile_inspects_scalar_primal_form(
 def test_uninitialized_scalar_field_compiles_from_source_and_emitted_file(
     tmp_path: Path,
 ) -> None:
-    source = q.Source()
+    source = eqiora.Module("main")
     law = source.component("AlgebraicField")
     region = law.volume("region", dimensions=2)
     potential = law.field("potential", role=eqiora.FieldRole.Variable, on=region, value_type=eqiora.ValueType.real())
-    law.relation("balance", on=region, right=0, left=potential)
+    law.relation("balance", q.equation(potential, 0), on=region)
 
     text = source.to_eqi()
     assert "variable potential: 1 on region;" in text
@@ -516,13 +488,13 @@ def test_material_composition_emits_one_ordered_typed_binding_set() -> None:
 
 
 def test_scalar_property_source_owns_exact_handles_and_complete_binding() -> None:
-    source = q.Source()
+    source = eqiora.Module("main")
     contract = source.property_contract("Diffusivity", value_type=eqiora.ValueType.real())
     with pytest.raises(TypeError):
         q.PropertyContract()
     with pytest.raises(TypeError):
         q.PropertyRelease()
-    with pytest.raises(q.SourceError, match="strictly positive"):
+    with pytest.raises(q.ModuleError, match="strictly positive"):
         source.property_release(
             "ReferenceDiffusivity",
             implements=contract,
@@ -532,7 +504,7 @@ def test_scalar_property_source_owns_exact_handles_and_complete_binding() -> Non
             citation="org.example.measurement",
             license="spdx.CC0_1_0",
         )
-    with pytest.raises(q.SourceError, match="citation identity"):
+    with pytest.raises(q.ModuleError, match="citation identity"):
         source.property_release(
             "ReferenceDiffusivity",
             implements=contract,
@@ -556,7 +528,7 @@ def test_scalar_property_source_owns_exact_handles_and_complete_binding() -> Non
     with pytest.raises(AttributeError):
         release.value = 1
 
-    foreign = q.Source()
+    foreign = eqiora.Module("main")
     foreign_contract = foreign.property_contract("Diffusivity", value_type=eqiora.ValueType.real())
     foreign_release = foreign.property_release(
         "ReferenceDiffusivity", implements=foreign_contract, value=25,
@@ -564,28 +536,28 @@ def test_scalar_property_source_owns_exact_handles_and_complete_binding() -> Non
         citation="org.example.measurement", license="spdx.CC0_1_0",
     )
     foreign_component = foreign.component("Foreign")
-    with pytest.raises(q.SourceError, match="belong to this Source"):
+    with pytest.raises(q.ModuleError, match="belong to this Module"):
         foreign_component.property("diffusivity", contract=contract)
 
     consumer = source.component("Consumer")
     requirement = consumer.property("diffusivity", contract=contract)
     root = source.component("Root")
-    with pytest.raises(q.SourceError, match="bindings must satisfy the exact required signature"):
+    with pytest.raises(q.ModuleError, match="bindings must satisfy the exact required signature"):
         root.instance('equation', component=consumer, bindings={})
-    with pytest.raises(q.SourceError, match="Source|contract"):
-        root.instance("equation", component=consumer, bindings={requirement: foreign_release})
-    root.instance('equation', component=consumer, bindings={requirement: release})
+    with pytest.raises(q.ModuleError, match="Module|contract"):
+        root.instance("equation", component=consumer, bindings={'diffusivity': foreign_release})
+    root.instance('equation', component=consumer, bindings={'diffusivity': release})
     assert "diffusivity = ReferenceDiffusivity" in source.to_eqi()
-    with pytest.raises(q.SourceError):
+    with pytest.raises(q.ModuleError):
         source.component("Third")
 
 
 def test_source_owns_handles_limits_and_atomic_output(tmp_path: Path) -> None:
-    left = q.Source()
+    left = eqiora.Module("main")
     left_component = left.component("Left")
     left_volume = left_component.volume("left", dimensions=2)
     left_value = left_component.field("value", role=eqiora.FieldRole.Variable, on=left_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
-    right = q.Source()
+    right = eqiora.Module("main")
     right_component = right.component("Right")
     right_volume = right_component.volume("right", dimensions=2)
     right_value = right_component.field("value", role=eqiora.FieldRole.Variable, on=right_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
@@ -598,7 +570,7 @@ def test_source_owns_handles_limits_and_atomic_output(tmp_path: Path) -> None:
         lambda: left_value + float("nan"),
     )
     for operation in invalid:
-        with pytest.raises(q.SourceError):
+        with pytest.raises(q.ModuleError):
             operation()
 
     assert isinstance(q.math.pi, q.Expression)
@@ -607,29 +579,29 @@ def test_source_owns_handles_limits_and_atomic_output(tmp_path: Path) -> None:
         float(q.math.pi)
     with pytest.raises(AttributeError):
         q.math.pi = left_value
-    with pytest.raises(q.SourceError, match="different Source"):
+    with pytest.raises(q.ModuleError, match="different Module"):
         q.math.pi + left_value + right_value
 
-    with pytest.raises(q.SourceError):
-        q.Source().component("not-valid")
-    with pytest.raises(q.SourceError):
-        q.Source().component("a" * 1025)
-    with pytest.raises(q.SourceError):
+    with pytest.raises(q.ModuleError):
+        eqiora.Module("main").component("not-valid")
+    with pytest.raises(q.ModuleError):
+        eqiora.Module("main").component("a" * 1025)
+    with pytest.raises(q.ModuleError):
         left_value + (1 << 1025)
 
     deep = q.math.pi
-    with pytest.raises(q.SourceError):
+    with pytest.raises(q.ModuleError):
         for _ in range(100):
             deep = q.grad(deep)
 
     wide = q.coordinate(0)
-    with pytest.raises(q.SourceError):
+    with pytest.raises(q.ModuleError):
         for _ in range(20):
             wide = wide + wide
 
-    bounded = q.Source().component("Bounded")
+    bounded = eqiora.Module("main").component("Bounded")
     bounded_volume = bounded.volume("volume", dimensions=2)
-    with pytest.raises(q.SourceError):
+    with pytest.raises(q.ModuleError):
         for index in range(300):
             bounded.field(f"value_{index}", role=eqiora.FieldRole.Variable, on=bounded_volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
 
@@ -647,14 +619,14 @@ def test_canonical_compiler_owns_expression_shape_diagnostics() -> None:
         eqiora.compile(source=cylinder_source(velocity_type=eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1))), geometry=(_binding_geometry := cylinder_geometry()), entry='SteadyFlowPastCylinder', bindings={**support_bindings(_binding_geometry, ['fluid'], [('inlet', 'fluid'), ('outlet', 'fluid'), ('walls', 'fluid'), ('cylinder', 'fluid')]), **PARAMETERS})
     assert error.value.diagnostics
     assert any(
-        diagnostic.source_span is not None
-        and diagnostic.source_span[0] == "<python-source>"
+        diagnostic.source_span is None
+        and diagnostic.graph_path is not None
         for diagnostic in error.value.diagnostics
     )
 
 
 def test_static_alias_authoring_emits_private_typed_immutable_expressions():
-    source = q.Source()
+    source = eqiora.Module("main")
     component = source.component("Aliases")
     pressure = eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2))
     supplied = component.parameter("supplied", value_type=pressure)
@@ -668,44 +640,44 @@ def test_static_alias_authoring_emits_private_typed_immutable_expressions():
     assert f"/// Twice the supplied pressure.\n  let doubled: {pressure.to_eqi()} = supplied * 2;" in text
     assert "let opposite = -doubled;" in text
     assert "public parameter doubled" not in text
-    with pytest.raises(q.SourceError, match="frozen"):
+    with pytest.raises(q.ModuleError, match="frozen"):
         component.let_alias("late", 1)
 
 
 def test_static_alias_authoring_rejects_foreign_values_and_invalid_assertions():
-    component = q.Source().component("Owner")
-    foreign = q.Source().component("Foreign").parameter("input", value_type=eqiora.ValueType.real())
-    with pytest.raises(q.SourceError, match="this Component"):
+    component = eqiora.Module("main").component("Owner")
+    foreign = eqiora.Module("main").component("Foreign").parameter("input", value_type=eqiora.ValueType.real())
+    with pytest.raises(q.ModuleError, match="this Component"):
         component.let_alias("foreign", foreign + 1)
     with pytest.raises(TypeError, match="eqiora.ValueType"):
         component.let_alias("invalid", 1, value_type=u.one)
-    with pytest.raises(q.SourceError, match="finite"):
+    with pytest.raises(q.ModuleError, match="finite"):
         component.let_alias("invalid", float("nan"))
     component.let_alias("invalid", 1)
-    with pytest.raises(q.SourceError, match="duplicate"):
+    with pytest.raises(q.ModuleError, match="duplicate"):
         component.parameter("invalid", value_type=eqiora.ValueType.real())
 
 
 def test_static_alias_authoring_bounds_total_expression_nodes():
-    component = q.Source().component("BoundedAliases")
+    component = eqiora.Module("main").component("BoundedAliases")
     expression = q.math.pi
     for _ in range(11):
         expression = expression + expression
     component.let_alias("large", expression)
     component.let_alias("last", 0)
-    with pytest.raises(q.SourceError, match="alias expressions exceed the 4096-node limit"):
+    with pytest.raises(q.ModuleError, match="alias expressions exceed the 4096-node limit"):
         component.let_alias("overflow", 0)
 
 
 def test_static_alias_compiles_without_required_binding_or_edit_target(tmp_path):
-    source = q.Source()
+    source = eqiora.Module("main")
     component = source.component("StaticAlias")
     region = component.volume("region", dimensions=2)
     supplied = component.parameter("supplied", value_type=eqiora.ValueType.real())
     doubled = component.let_alias("doubled", supplied * 2)
     value = component.field("value", on=region, role=eqiora.FieldRole.Variable,
                             value_type=eqiora.ValueType.real())
-    component.relation("balance", on=region, left=value, right=doubled)
+    component.relation("balance", q.equation(value, doubled), on=region)
     model = eqiora.compile(source=source, geometry=(_binding_geometry := rectangle_geometry()), entry='StaticAlias', bindings={**support_bindings(_binding_geometry, ['region'], []), **{'supplied': 3.0}})
     assert len(model.parameter_ids) == 1
     assert len(model.field_ids) == 1
@@ -718,22 +690,22 @@ def test_static_alias_compiles_without_required_binding_or_edit_target(tmp_path)
 
 
 def test_static_alias_nested_parameter_binding_uses_expression_rhs():
-    source = q.Source()
+    source = eqiora.Module("main")
     child = source.component("Child")
     child_region = child.volume("region", dimensions=2)
     required = child.parameter("source_scale", value_type=eqiora.ValueType.real())
     private = child.let_alias("child_source", required * 3)
     value = child.field("value", on=child_region, role=eqiora.FieldRole.Variable,
                         value_type=eqiora.ValueType.real())
-    child.relation("balance", on=child_region, left=value, right=private)
+    child.relation("balance", q.equation(value, private), on=child_region)
     parent = source.component("Parent")
     parent_region = parent.volume("region", dimensions=2)
     supplied = parent.parameter("source_scale", value_type=eqiora.ValueType.real())
     adjusted = parent.let_alias("adjusted_source", supplied * 2)
-    for parameters in ({}, {required: adjusted, private: 1}):
-        with pytest.raises(q.SourceError, match="bindings must satisfy the exact required signature"):
-            parent.instance('child', component=child, bindings={child_region: parent_region, **parameters})
-    parent.instance('child', component=child, bindings={child_region: parent_region, required: adjusted})
+    for parameters in ({}, {'source_scale': adjusted, 'child_source': 1}):
+        with pytest.raises(q.ModuleError, match="bindings must satisfy the exact required signature"):
+            parent.instance('child', component=child, bindings={'region': parent_region, **parameters})
+    parent.instance('child', component=child, bindings={'region': parent_region, 'source_scale': adjusted})
     text = source.to_eqi()
     assert "let adjusted_source = source_scale * 2;" in text
     assert "source_scale = adjusted_source" in text
@@ -744,20 +716,20 @@ def test_static_alias_nested_parameter_binding_uses_expression_rhs():
 
 
 def test_static_alias_authoring_cannot_bind_private_alias_as_parameter():
-    source = q.Source()
+    source = eqiora.Module("main")
     child = source.component("Child")
     required = child.parameter("required", value_type=eqiora.ValueType.real())
     private = child.let_alias("private", required * 2)
     root = source.component("Root")
     rhs = root.let_alias("rhs", 3)
-    with pytest.raises(q.SourceError, match="bindings must satisfy the exact required signature"):
-        root.instance('child', component=child, bindings={required: rhs, private: 1})
-    root.instance('child', component=child, bindings={required: rhs})
+    with pytest.raises(q.ModuleError, match="bindings must satisfy the exact required signature"):
+        root.instance('child', component=child, bindings={'required': rhs, 'private': 1})
+    root.instance('child', component=child, bindings={'required': rhs})
 
 
 @pytest.mark.parametrize("kind", ["parameter", "alias", "compound", "trace", "property"])
 def test_static_alias_authoring_rejects_same_source_sibling_capture(kind):
-    source = q.Source()
+    source = eqiora.Module("main")
     contract = source.property_contract("Scalar", value_type=eqiora.ValueType.real())
     release = source.property_release(
         "Unit", implements=contract, value=1, source_unit=u.one, source_scale=1,
@@ -775,7 +747,7 @@ def test_static_alias_authoring_rejects_same_source_sibling_capture(kind):
     right_parameter = right.parameter("supplied", value_type=eqiora.ValueType.real())
     right.let_alias("derived", right_parameter * 3)
     right.property("coefficient", contract=contract)
-    right_relation = right.relation("own", on=right_region, left=right_parameter, right=0)
+    right_relation = right.relation("own", q.equation(right_parameter, 0), on=right_region)
     foreign = {
         "parameter": left_parameter,
         "alias": left_alias,
@@ -785,36 +757,36 @@ def test_static_alias_authoring_rejects_same_source_sibling_capture(kind):
     }[kind]
     for operation in (
         lambda: right.let_alias("captured", foreign),
-        lambda: right.relation("captured", on=right_region, left=foreign, right=0),
+        lambda: right.relation("captured", q.equation(foreign, 0), on=right_region),
         lambda: q.integrate(right_region, foreign),
         lambda: foreign + right_parameter,
         lambda: right.primal_form(right_relation, left=q.integrate(left_region, foreign),
                                   right=q.integrate(right_region, right_parameter)),
-        lambda: right.instance('child', component=left, bindings={left_region: right_region, left_parameter: foreign, left_property: release}),
+        lambda: right.instance('child', component=left, bindings={'region': right_region, 'supplied': foreign, 'coefficient': release}),
     ):
-        with pytest.raises(q.SourceError, match="Component"):
+        with pytest.raises(q.ModuleError, match="Component"):
             operation()
 
 
 def test_component_hierarchy_uses_shared_top_level_bound_and_freezes():
-    source = q.Source()
+    source = eqiora.Module("main")
     for index in range(256):
         source.component(f"Component{index}")
-    with pytest.raises(q.SourceError, match="256-declaration limit"):
+    with pytest.raises(q.ModuleError, match="256-declaration limit"):
         source.component("Overflow")
     assert source.to_eqi().count("public component ") == 256
-    with pytest.raises(q.SourceError, match="frozen"):
+    with pytest.raises(q.ModuleError, match="frozen"):
         source.component("Late")
 
 
 def test_component_hierarchy_retains_total_output_byte_bound():
-    source = q.Source()
+    source = eqiora.Module("main")
     doc = "x" * 16_384
     for index in range(130):
         component = source.component(f"Component{index}", doc=doc)
         for alias_index in range(3):
             component.let_alias(f"alias{alias_index}", 1, doc=doc)
-    with pytest.raises(q.SourceError, match="8388608-byte limit"):
+    with pytest.raises(q.ModuleError, match="8388608-byte limit"):
         source.to_eqi()
     source.component("StillOpenAfterRejectedEmission")
 
@@ -831,7 +803,7 @@ def test_property_hierarchy_allows_unselected_local_definitions():
 
 
 def runtime_arithmetic_alias_source(*, aliases=True):
-    source = q.Source()
+    source = eqiora.Module("main")
     component = source.component("RuntimeArithmetic")
     region = component.volume("region", dimensions=2)
     supplied = component.parameter("supplied", value_type=eqiora.ValueType.real())
@@ -839,12 +811,12 @@ def runtime_arithmetic_alias_source(*, aliases=True):
                             value_type=eqiora.ValueType.real())
     doubled = component.let_alias("doubled", value * 2) if aliases else value * 2
     shifted = component.let_alias("shifted", doubled + supplied) if aliases else doubled + supplied
-    component.relation("balance", on=region, left=shifted, right=0)
+    component.relation("balance", q.equation(shifted, 0), on=region)
     return source
 
 
 def runtime_heatflux_alias_source(*, aliases=True, assert_support=False):
-    source = q.Source()
+    source = eqiora.Module("main")
     component = source.component("RuntimeHeatFlux")
     region = component.volume("region", dimensions=2)
     left = component.boundary("left", parent=region)
@@ -857,8 +829,8 @@ def runtime_heatflux_alias_source(*, aliases=True, assert_support=False):
         flux = component.let_alias("heatflux", flux, on=region if assert_support else None,
                                    value_type=eqiora.ValueType.vector(
                                        eqiora.ValueType.real(eqiora.Dimension(length=-1)), 2))
-    component.relation("balance", on=region, left=-q.div(flux) - forcing, right=0)
-    component.relation("left_value", on=left, left=q.trace(potential), right=0)
+    component.relation("balance", q.equation(-q.div(flux) - forcing, 0), on=region)
+    component.relation("left_value", q.equation(q.trace(potential), 0), on=left)
     return source
 
 
@@ -900,27 +872,27 @@ def test_runtime_aliases_compile_like_expanded_expressions_without_storage(
 
 
 def test_transitive_runtime_alias_cannot_supply_child_parameter_binding():
-    source = q.Source()
+    source = eqiora.Module("main")
     child = source.component("Child")
     child_region = child.volume("region", dimensions=2)
     required = child.parameter("required", value_type=eqiora.ValueType.real())
     output = child.field("output", on=child_region, role=eqiora.FieldRole.Variable,
                          value_type=eqiora.ValueType.real())
-    child.relation("balance", on=child_region, left=output - required, right=0)
+    child.relation("balance", q.equation(output - required, 0), on=child_region)
     parent = source.component("Parent")
     region = parent.volume("region", dimensions=2)
     value = parent.field("value", on=region, role=eqiora.FieldRole.Variable,
                          value_type=eqiora.ValueType.real())
     first = parent.let_alias("first", value * 2)
     transitive = parent.let_alias("transitive", first + 1)
-    parent.relation("balance", on=region, left=value - 1, right=0)
-    parent.instance('child', component=child, bindings={child_region: region, required: transitive})
+    parent.relation("balance", q.equation(value - 1, 0), on=region)
+    parent.instance('child', component=child, bindings={'region': region, 'required': transitive})
     with pytest.raises(eqiora.ValidationError, match="static|runtime|[Pp]arameter"):
         eqiora.compile(source=source, geometry=(_binding_geometry := rectangle_geometry()), entry='Parent', bindings={**support_bindings(_binding_geometry, ['region'], []), **{}})
 
 
 def test_alias_support_authoring_preserves_type_documentation_and_freeze():
-    source = q.Source()
+    source = eqiora.Module("main")
     component = source.component("Supported")
     region = component.volume("region", dimensions=2)
     value = component.field("value", on=region, role=eqiora.FieldRole.Variable,
@@ -933,22 +905,22 @@ def test_alias_support_authoring_preserves_type_documentation_and_freeze():
     assert f"  /// Exact nominal support.\n  let local: {kind.to_eqi()} on region = value * 2;" in text
     assert "let untyped on region = local + value;" in text
     with pytest.raises(AttributeError):
-        alias._text = "changed"
-    with pytest.raises(q.SourceError, match="frozen"):
+        alias._ast = None
+    with pytest.raises(q.ModuleError, match="frozen"):
         component.let_alias("late", value, on=region)
 
 
 @pytest.mark.parametrize("foreign_kind", ["sibling", "source", "invalid"])
 def test_alias_support_authoring_rejects_foreign_support_before_mutation(foreign_kind):
-    source = q.Source()
+    source = eqiora.Module("main")
     component = source.component("Owner")
     region = component.volume("region", dimensions=2)
     value = component.field("value", on=region, role=eqiora.FieldRole.Variable,
                             value_type=eqiora.ValueType.real())
-    other_source = q.Source() if foreign_kind == "source" else source
+    other_source = eqiora.Module("main") if foreign_kind == "source" else source
     other = other_source.component("Other")
     foreign = other.volume("region", dimensions=2) if foreign_kind != "invalid" else "region"
-    with pytest.raises(q.SourceError, match="Component"):
+    with pytest.raises(q.ModuleError, match="Component"):
         component.let_alias("local", value, on=foreign)
     component.let_alias("local", value, on=region)
     assert source.to_eqi().count("let local on region = value;") == 1
@@ -972,7 +944,7 @@ def test_alias_support_heatflux_compiles_like_expanded_expression(tmp_path):
 
 @pytest.mark.parametrize("kind", ["wrong_region", "constant", "boundary_trace"])
 def test_alias_support_assertion_rejects_inference_or_context_changes(kind):
-    source = q.Source()
+    source = eqiora.Module("main")
     component = source.component("InvalidSupport")
     region = component.volume("region", dimensions=2)
     value = component.field("value", on=region, role=eqiora.FieldRole.Variable,
@@ -991,7 +963,7 @@ def test_alias_support_assertion_rejects_inference_or_context_changes(kind):
         selected_value = selected.field("value", on=selected_region,
                                         role=eqiora.FieldRole.Variable,
                                         value_type=eqiora.ValueType.real())
-        selected.relation("balance", on=selected_region, left=selected_value, right=0)
+        selected.relation("balance", q.equation(selected_value, 0), on=selected_region)
     elif kind == "constant":
         expression = 2
     else:
@@ -999,13 +971,13 @@ def test_alias_support_assertion_rejects_inference_or_context_changes(kind):
         component.boundary("right", parent=region)
         expression = q.trace(value)
     component.let_alias("invalid", expression, on=support)
-    component.relation("balance", on=region, left=value, right=0)
+    component.relation("balance", q.equation(value, 0), on=region)
     with pytest.raises(eqiora.ValidationError, match="support|scope|context|trace"):
         eqiora.compile(source=source, geometry=geometry, entry=entry, bindings={**support_bindings(geometry, ['region'], [('left', 'region'), ('right', 'region')] if kind == 'boundary_trace' else []), **{}})
 
 
 def clocked_alias_source(*, aliases=True, wrong_clock=False):
-    source = q.Source()
+    source = eqiora.Module("main")
     component = source.component("Clocked")
     region = component.volume("region", dimensions=2)
     tick = component.clock("tick", period_s=Fraction(1, 10), doc="Exact sampling clock.")
@@ -1015,29 +987,29 @@ def clocked_alias_source(*, aliases=True, wrong_clock=False):
     observer = component.field("observer", on=region, role=eqiora.FieldRole.Variable,
                                value_type=eqiora.ValueType.real())
     component.initial((q.pre(state) - 1, 0), doc="Fresh pre-tick memory.")
-    component.relation("hold", on=region, at=tick, left=q.next(state), right=q.pre(state))
+    component.relation("hold", q.equation(q.next(state), q.pre(state)), on=region, at=tick)
     current = component.let_alias("current", 2 * state, on=region, at=asserted,
                                   value_type=eqiora.ValueType.real()) if aliases else 2 * state
-    component.relation("observe", on=region, left=observer, right=current)
+    component.relation("observe", q.equation(observer, current), on=region)
     return source
 
 
 def test_clock_authoring_emits_exact_activation_and_simultaneous_initial():
     text = clocked_alias_source().to_eqi()
-    assert "/// Exact sampling clock.\n  clock tick = periodic(1 [s] / 10, phase = 0 [s] / 1);" in text
+    assert "/// Exact sampling clock.\n  clock tick = periodic(1 [s] / 10 [1], phase = 0 [s] / 1 [1]);" in text
     assert "state memory: 1 on region at tick;" in text
     assert "let current: 1 on region at tick = 2 * memory;" in text
     assert "/// Fresh pre-tick memory.\n  initial {\n    pre(memory) - 1 = 0;\n  }" in text
     assert "relation hold on region at tick {\n    next(memory) = pre(memory);" in text
     assert "relation observe on region {" in text
-    simultaneous = q.Source()
+    simultaneous = eqiora.Module("main")
     component = simultaneous.component("Simultaneous")
     component.initial((1, 0), (2, 0))
     assert "initial {\n    1 = 0;\n    2 = 0;\n  }" in simultaneous.to_eqi()
 
 
 def test_clock_authoring_normalizes_rationals_and_preserves_nominal_immutability():
-    source = q.Source()
+    source = eqiora.Module("main")
     component = source.component("Clocks")
     tick = component.clock("tick", period_s=Fraction(6, 8), phase_s=Fraction(2, 8))
     equal = component.clock("equal", period_s=Fraction(3, 4), phase_s=Fraction(1, 4))
@@ -1047,23 +1019,23 @@ def test_clock_authoring_normalizes_rationals_and_preserves_nominal_immutability
         q.Clock()
     with pytest.raises(AttributeError, match="immutable"):
         tick._name = "changed"
-    assert source.to_eqi().count("periodic(3 [s] / 4, phase = 1 [s] / 4") == 2
-    with pytest.raises(q.SourceError, match="frozen"):
+    assert source.to_eqi().count("periodic(3 [s] / 4 [1], phase = 1 [s] / 4 [1]") == 2
+    with pytest.raises(q.ModuleError, match="frozen"):
         component.clock("late", period_s=1)
-    with pytest.raises(q.SourceError, match="frozen"):
+    with pytest.raises(q.ModuleError, match="frozen"):
         component.initial((0, 0))
 
 
 @pytest.mark.parametrize("keyword, value, error", [
-    ("period_s", 0, q.SourceError), ("period_s", -1, q.SourceError),
-    ("phase_s", -1, q.SourceError), ("period_s", 0.1, TypeError),
+    ("period_s", 0, q.ModuleError), ("period_s", -1, q.ModuleError),
+    ("phase_s", -1, q.ModuleError), ("period_s", 0.1, TypeError),
     ("phase_s", 0.0, TypeError), ("period_s", True, TypeError),
     ("phase_s", False, TypeError), ("period_s", "1/10", TypeError),
-    ("period_s", 1 << 64, q.SourceError),
-    ("phase_s", Fraction(1, 1 << 64), q.SourceError),
+    ("period_s", 1 << 64, q.ModuleError),
+    ("phase_s", Fraction(1, 1 << 64), q.ModuleError),
 ])
 def test_clock_authoring_rejects_invalid_seconds_before_reserving_name(keyword, value, error):
-    component = q.Source().component("Clocks")
+    component = eqiora.Module("main").component("Clocks")
     arguments = {"period_s": 1, keyword: value}
     with pytest.raises(error):
         component.clock("tick", **arguments)
@@ -1073,11 +1045,11 @@ def test_clock_authoring_rejects_invalid_seconds_before_reserving_name(keyword, 
 @pytest.mark.parametrize("consumer", ["field", "relation", "alias"])
 @pytest.mark.parametrize("owner", ["sibling", "source", "string"])
 def test_clock_authoring_rejects_foreign_activation_before_mutation(consumer, owner):
-    source = q.Source()
+    source = eqiora.Module("main")
     component = source.component("Owner")
     region = component.volume("region", dimensions=2)
     tick = component.clock("tick", period_s=1)
-    other = (q.Source() if owner == "source" else source).component("Other")
+    other = (eqiora.Module("main") if owner == "source" else source).component("Other")
     foreign = "tick" if owner == "string" else other.clock("tick", period_s=1)
 
     def declare(clock):
@@ -1085,17 +1057,17 @@ def test_clock_authoring_rejects_foreign_activation_before_mutation(consumer, ow
             component.field("candidate", on=region, at=clock, role=eqiora.FieldRole.State,
                             value_type=eqiora.ValueType.real())
         elif consumer == "relation":
-            component.relation("candidate", on=region, at=clock, left=0, right=0)
+            component.relation("candidate", q.equation(0, 0), on=region, at=clock)
         else:
             component.let_alias("candidate", 0, at=clock)
 
-    with pytest.raises(q.SourceError, match="clock must belong to this Component"):
+    with pytest.raises(q.ModuleError, match="clock must belong to this Component"):
         declare(foreign)
     declare(tick)
 
 
 def test_clock_authoring_initial_and_tick_operators_preserve_lexical_expression_ownership():
-    source = q.Source()
+    source = eqiora.Module("main")
     owner = source.component("Owner")
     sibling = source.component("Sibling")
     region = sibling.volume("region", dimensions=2)
@@ -1103,37 +1075,37 @@ def test_clock_authoring_initial_and_tick_operators_preserve_lexical_expression_
     state = sibling.field("memory", on=region, at=tick, role=eqiora.FieldRole.State,
                           value_type=eqiora.ValueType.real())
     for expression in (q.pre(state), q.next(state) + 1):
-        with pytest.raises(q.SourceError, match="this Component"):
+        with pytest.raises(q.ModuleError, match="this Component"):
             owner.initial((expression, 0))
-        with pytest.raises(q.SourceError, match="this Component"):
+        with pytest.raises(q.ModuleError, match="this Component"):
             owner.let_alias("foreign", expression)
     owner.initial((0, 0))
 
 
 def test_clock_authoring_initial_uses_existing_declaration_and_expression_bounds():
-    source = q.Source()
+    source = eqiora.Module("main")
     component = source.component("Bounded")
     component.clock("tick", period_s=1)
     for _ in range(255):
         component.initial((0, 0))
-    with pytest.raises(q.SourceError, match="256-declaration limit"):
+    with pytest.raises(q.ModuleError, match="256-declaration limit"):
         component.initial((0, 0))
-    with pytest.raises(q.SourceError, match="256-declaration limit"):
+    with pytest.raises(q.ModuleError, match="256-declaration limit"):
         component.clock("excess", period_s=1)
-    bounded_source = q.Source()
+    bounded_source = eqiora.Module("main")
     bounded = bounded_source.component("Expressions")
     expression = q.math.pi
     for _ in range(11):
         expression = expression + expression
-    explicit_source = q.Source()
+    explicit_source = eqiora.Module("main")
     explicit = explicit_source.component("ExplicitExpressions")
     # Both authored equality sides count, including an explicitly supplied zero.
     explicit.initial(left=expression, right=0)
-    with pytest.raises(q.SourceError, match="initial expressions exceed the 4096-node limit"):
+    with pytest.raises(q.ModuleError, match="initial expressions exceed the 4096-node limit"):
         explicit.initial(left=0, right=0)
     assert explicit_source.to_eqi().count("initial {") == 1
     bounded.initial((expression, 0))
-    with pytest.raises(q.SourceError, match="initial expressions exceed the 4096-node limit"):
+    with pytest.raises(q.ModuleError, match="initial expressions exceed the 4096-node limit"):
         bounded.initial((0, 0))
     # A rejected equation batch cannot consume a declaration or its output.
     assert bounded_source.to_eqi().count("initial {") == 1
@@ -1160,21 +1132,21 @@ def test_clocked_alias_rejects_distinct_equal_period_clock_assertion():
 
 
 def test_clock_authoring_tick_expressions_retain_depth_bound_and_doc_validation():
-    component = q.Source().component("Bounded")
-    with pytest.raises(q.SourceError, match="doc"):
+    component = eqiora.Module("main").component("Bounded")
+    with pytest.raises(q.ModuleError, match="doc"):
         component.clock("tick", period_s=1, doc="x" * 16_385)
     component.clock("tick", period_s=1)
-    with pytest.raises(q.SourceError, match="doc"):
+    with pytest.raises(q.ModuleError, match="doc"):
         component.initial((0, 0), doc="x" * 16_385)
     expression = q.math.pi
     for _ in range(63):
         expression = q.pre(expression)
-    with pytest.raises(q.SourceError, match="depth"):
+    with pytest.raises(q.ModuleError, match="depth"):
         q.next(expression)
 
 
 def test_typed_value_authoring_preserves_complex_and_nested_channel_expressions():
-    source = q.Source()
+    source = eqiora.Module("main")
     component = source.component("Typed")
     supplied = component.parameter("supplied", value_type=eqiora.ValueType.complex())
     component.let_alias("imaginary", q.math.i)
@@ -1184,45 +1156,45 @@ def test_typed_value_authoring_preserves_complex_and_nested_channel_expressions(
     text = source.to_eqi()
     assert "let imaginary = math.i;" in text
     assert "let phasor = math.complex(2, -3);" in text
-    assert "[[supplied, math.complex(0.0, 2.0)], [3, 4]]" in text
+    assert "[[supplied, math.complex(0, 2)], [3, 4]]" in text
     assert "([supplied, 1] + [2, 3])[1]" in text
 
 
 def test_typed_value_authoring_rejects_foreign_array_and_complex_operands():
-    source = q.Source()
+    source = eqiora.Module("main")
     left = source.component("Left")
     right = source.component("Right")
     local = left.parameter("value", value_type=eqiora.ValueType.real())
     foreign = right.parameter("value", value_type=eqiora.ValueType.real())
     for make in (lambda: q.array([local, foreign]), lambda: q.math.complex(local, foreign)):
-        with pytest.raises(q.SourceError, match="Component"):
+        with pytest.raises(q.ModuleError, match="Component"):
             make()
-    with pytest.raises(q.SourceError, match="Component"):
+    with pytest.raises(q.ModuleError, match="Component"):
         right.let_alias("captured", q.array([local])[0])
 
 
 def test_typed_value_authoring_retains_bounds_and_explicit_array_admission():
-    with pytest.raises(q.SourceError, match="nonempty"):
+    with pytest.raises(q.ModuleError, match="nonempty"):
         q.array([])
     with pytest.raises(TypeError, match="sequence"):
         q.array("123")
-    with pytest.raises(q.SourceError, match="4096"):
+    with pytest.raises(q.ModuleError, match="4096"):
         q.array([1] * 4096)
     cyclic = []
     cyclic.append(cyclic)
-    with pytest.raises(q.SourceError, match="depth"):
+    with pytest.raises(q.ModuleError, match="depth"):
         q.array(cyclic)
     for index in (True, 1.5, "0"):
         with pytest.raises(TypeError, match="indices"):
             q.array([1])[index]
-    with pytest.raises(q.SourceError, match="nonnegative"):
+    with pytest.raises(q.ModuleError, match="nonnegative"):
         q.array([1])[-1]
-    with pytest.raises(q.SourceError, match="finite"):
+    with pytest.raises(q.ModuleError, match="finite"):
         q.math.complex(1, float("inf"))
 
 
 def test_typed_property_authoring_emits_complete_contract_and_literal_components():
-    source = q.Source()
+    source = eqiora.Module("main")
     kind = eqiora.ValueType.array(eqiora.ValueType.complex(), 2)
     contract = source.property_contract("Response", value_type=kind)
     source.property_release("Reference", implements=contract, value=[1 + 2j, 3 - 4j],
@@ -1231,21 +1203,21 @@ def test_typed_property_authoring_emits_complete_contract_and_literal_components
     text = source.to_eqi()
     assert f"property contract Response(): {kind.to_eqi()} {{" in text
     assert "derivatives value_only;" in text
-    assert "value = [math.complex(1.0, 2.0), math.complex(3.0, -4.0)];" in text
+    assert "value = [math.complex(1, 2), math.complex(3, -4)];" in text
     assert "source_unit: 1 = 2;" in text
     assert not hasattr(source, "scalar_property_contract")
     assert not hasattr(source, "scalar_property_release")
 
 
 def test_typed_parameter_geometry_input_preserves_complex_channel_index(tmp_path):
-    source = q.Source()
+    source = eqiora.Module("main")
     component = source.component("TypedInputs")
     region = component.volume("region", dimensions=2)
     kind = eqiora.ValueType.array(eqiora.ValueType.complex(), 2)
     parameter = component.parameter("coefficients", value_type=kind)
     field = component.field("value", on=region, role=eqiora.FieldRole.Variable,
                             value_type=eqiora.ValueType.complex())
-    component.relation("law", on=region, left=field, right=parameter[1])
+    component.relation("law", q.equation(field, parameter[1]), on=region)
     parameters = {"coefficients": [1 + 2j, 3 - 4j]}
     model = eqiora.compile(source=source, geometry=(_binding_geometry := rectangle_geometry()), entry='TypedInputs', bindings={**support_bindings(_binding_geometry, ['region'], []), **parameters})
     path = tmp_path / "typed-inputs.eqi"
@@ -1260,15 +1232,15 @@ def test_typed_parameter_geometry_input_preserves_complex_channel_index(tmp_path
 
 
 def sampled_source():
-    source = q.Source()
+    source = eqiora.Module("main")
     model = source.model("Sampled")
     tick = model.clock_requirement("tick", doc="Caller-owned nominal clock.")
     drive = model.input("drive", value_type=eqiora.ValueType.real(), at=tick)
     observed = model.output("observed", value_type=eqiora.ValueType.real(), at=tick)
     memory = model.field("memory", value_type=eqiora.ValueType.real(), role=eqiora.FieldRole.State, at=tick)
     model.initial((q.pre(memory), 0))
-    model.relation("update", at=tick, left=q.next(memory), right=q.pre(memory) + drive)
-    model.relation("observe", at=tick, left=observed, right=q.pre(memory))
+    model.relation("update", q.equation(q.next(memory), q.pre(memory) + drive), at=tick)
+    model.relation("observe", q.equation(observed, q.pre(memory)), at=tick)
     return source
 
 
@@ -1307,7 +1279,7 @@ def test_source_model_sampled_signature_and_exact_snapshot_resume(tmp_path):
 
 
 def test_source_signature_borrowing_and_forward_defaults_use_exact_handles():
-    source = q.Source()
+    source = eqiora.Module("main")
     child = source.component("Increment")
     tick = child.clock_requirement("tick")
     borrowed = child.field_requirement("memory", value_type=eqiora.ValueType.real(),
@@ -1316,17 +1288,17 @@ def test_source_signature_borrowing_and_forward_defaults_use_exact_handles():
     factor = child.parameter("factor", value_type=eqiora.ValueType.real())
     child.set_default(amount, factor * 2)
     child.set_default(factor, 1)
-    child.relation("increment", at=tick, left=q.next(borrowed), right=q.pre(borrowed) + amount)
+    child.relation("increment", q.equation(q.next(borrowed), q.pre(borrowed) + amount), at=tick)
     root = source.model("Root")
     root_tick = root.clock("tick", period_s=Fraction(1, 10))
     memory = root.field("memory", value_type=eqiora.ValueType.real(),
                         role=eqiora.FieldRole.State, at=root_tick)
     root.initial((q.pre(memory), 0))
-    with pytest.raises(q.SourceError, match="exact required signature"):
-        root.instance("child", component=child, bindings={tick: root_tick})
-    with pytest.raises(q.SourceError, match="enclosing Field"):
-        root.instance("child", component=child, bindings={tick: root_tick, borrowed: borrowed})
-    root.instance("child", component=child, bindings={tick: root_tick, borrowed: memory})
+    with pytest.raises(q.ModuleError, match="exact required signature"):
+        root.instance("child", component=child, bindings={'tick': root_tick})
+    with pytest.raises(q.ModuleError, match="enclosing Field"):
+        root.instance("child", component=child, bindings={'tick': root_tick, 'memory': borrowed})
+    root.instance("child", component=child, bindings={'tick': root_tick, 'memory': memory})
     text = source.to_eqi()
     assert "parameter amount: 1 = factor * 2," in text
     assert "memory = memory" in text
@@ -1361,24 +1333,24 @@ def test_clock_domain_identity_is_nominal_and_exact():
 
 
 def test_signature_authoring_preserves_output_ownership_and_forward_default_bounds():
-    source = q.Source()
+    source = eqiora.Module("main")
     child = source.component("Child")
     input_value = child.input("supplied", value_type=eqiora.ValueType.real())
     output = child.output("result", value_type=eqiora.ValueType.real())
-    child.relation("evaluate", left=output, right=input_value * 2)
+    child.relation("evaluate", q.equation(output, input_value * 2))
     parent = source.model("Parent")
     required = parent.parameter("required", value_type=eqiora.ValueType.real())
     later = parent.parameter("later", value_type=eqiora.ValueType.real())
     parent.set_default(required, later + 1)
     parent.set_default(later, 2)
-    instance = parent.instance("child", component=child, bindings={input_value: required})
+    instance = parent.instance("child", component=child, bindings={'supplied': required})
     observed = parent.output("observed", value_type=eqiora.ValueType.real())
-    parent.relation("observe", left=observed, right=instance[output])
+    parent.relation("observe", q.equation(observed, instance['result']))
     with pytest.raises(TypeError):
-        instance[output] = required
-    with pytest.raises(q.SourceError, match="belong to this Component"):
-        child.relation("foreign", left=output, right=instance[output])
-    with pytest.raises(q.SourceError, match="Parameter requirement"):
+        instance['result'] = required
+    with pytest.raises(q.ModuleError, match="Component.*owners"):
+        child.relation("foreign", q.equation(output, instance['result']))
+    with pytest.raises(q.ModuleError, match="Parameter requirement"):
         child.set_default(required, 1)
     text = source.to_eqi()
     assert "parameter required: 1 = later + 1," in text
@@ -1386,21 +1358,21 @@ def test_signature_authoring_preserves_output_ownership_and_forward_default_boun
     assert "variable result" not in text
     assert "input supplied: 1," in text
     assert "output observed: 1," in text
-    with pytest.raises(q.SourceError, match="frozen"):
+    with pytest.raises(q.ModuleError, match="frozen"):
         parent.set_default(later, 3)
 
 
 def test_external_clock_alias_assertion_compares_nominal_identity():
-    source = q.Source()
+    source = eqiora.Module("main")
     owner = source.model("Clocks")
     first = owner.clock_requirement("first")
     second = owner.clock_requirement("second")
     memory = owner.field("memory", value_type=eqiora.ValueType.real(), role=eqiora.FieldRole.State, at=first)
     observed = owner.output("observed", value_type=eqiora.ValueType.real(), at=first)
     owner.initial((q.pre(memory) - 1, 0))
-    owner.relation("hold", at=first, left=q.next(memory), right=q.pre(memory))
+    owner.relation("hold", q.equation(q.next(memory), q.pre(memory)), at=first)
     alias = owner.let_alias("current", memory, at=second)
-    owner.relation("observe", at=first, left=observed, right=alias)
+    owner.relation("observe", q.equation(observed, alias), at=first)
     shared = eqiora.ClockDomain(period_s=Fraction(1, 10))
     assert eqiora.compile(source=source, entry="Clocks", bindings={"first": shared, "second": shared}).digest
     with pytest.raises(eqiora.EqioraError, match="clock|activation"):

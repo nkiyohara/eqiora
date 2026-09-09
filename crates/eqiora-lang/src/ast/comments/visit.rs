@@ -119,6 +119,44 @@ macro_rules! owners {
 }
 
 impl Document {
+    /// Attach builder documentation and notation to one exact declaration.
+    /// Builder ranges identify AST owners; they do not claim a source-file span.
+    ///
+    /// # Errors
+    /// Rejects missing or ambiguous owners and oversized documentation.
+    pub fn with_declaration_metadata(
+        mut self,
+        declaration: TextRange,
+        doc: Option<String>,
+        notation: Option<crate::Notation>,
+    ) -> Result<Self, crate::AstConstructionError> {
+        let mut count = 0;
+        self.visit_comments(|range, _| {
+            if range == declaration {
+                count += 1;
+            }
+        });
+        if count != 1 {
+            return Err(crate::AstConstructionError::new(
+                "metadata needs one exact declaration owner",
+            ));
+        }
+        let doc = doc
+            .map(|text| {
+                super::DocComment::new(text, declaration).ok_or_else(|| {
+                    crate::AstConstructionError::new("documentation exceeds 16384 bytes")
+                })
+            })
+            .transpose()?;
+        self.visit_comments_mut(|range, owner| {
+            if range == declaration {
+                owner.doc = doc.clone();
+                owner.notation = notation.clone();
+            }
+        });
+        Ok(self)
+    }
+
     /// Typed declaration notations paired with their original declaration ranges.
     #[must_use]
     pub fn notations(&self) -> impl ExactSizeIterator<Item = (TextRange, &crate::Notation)> {

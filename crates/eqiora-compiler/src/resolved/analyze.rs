@@ -16,13 +16,31 @@ pub fn analyze_resolved_hierarchy(
 
 pub(super) fn analyze_resolved_hierarchy_with_cancellation(
     input: ResolvedHierarchyInput,
+    is_cancelled: impl FnMut() -> bool,
+) -> Result<Option<AnalyzedResolvedHierarchy>, Vec<Diagnostic>> {
+    let modules = input
+        .units
+        .iter()
+        .filter_map(|unit| {
+            unit.authored
+                .as_ref()
+                .filter(|module| module.source_file().is_none())
+                .map(|module| (source::source_label(unit), module.clone()))
+        })
+        .collect::<Vec<_>>();
+    analyze_inner(input, is_cancelled)
+        .map_err(|errors| source::native_diagnostics(&modules, errors))
+}
+
+fn analyze_inner(
+    input: ResolvedHierarchyInput,
     mut is_cancelled: impl FnMut() -> bool,
 ) -> Result<Option<AnalyzedResolvedHierarchy>, Vec<Diagnostic>> {
     if is_cancelled() {
         return Ok(None);
     }
     preflight_resolved_hierarchy(
-        input.units.iter().map(|unit| unit.source.len()),
+        input.units.iter().map(ResolvedSourceUnit::input_bytes),
         input.dependencies.len(),
     )
     .map_err(|diagnostic| vec![diagnostic])?;
@@ -151,6 +169,7 @@ pub(super) fn analyze_resolved_hierarchy_with_cancellation(
         stable_sort(&mut diagnostics);
         return Err(diagnostics);
     }
+    crate::nominal::bind_resolved(&mut analysis.units, &analysis.aliases)?;
     for unit in &mut analysis.units {
         unit.authored_document = std::sync::Arc::new(unit.document.clone());
     }

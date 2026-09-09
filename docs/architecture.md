@@ -541,9 +541,9 @@ nonclaims. [RFC
 0039](../rfcs/0039-canonical-isotropic-elasticity-2d.md) records the bounded
 projection contract.
 
-The public `ModelDocument::compile`, `define`, and `replay` operations own the
+The public `ModelDocument::compile`, `compile_module`, and `replay` operations own the
 single current Model contract and accept no artifact-generation selector.
-Source callers use `compile`, client-neutral `ModelDraft` callers use `define`,
+Source-text callers use `compile`, client-neutral `Module` callers use `compile_module`,
 and persisted current bytes use `replay`; all three converge before artifact
 acceptance.
 Canonical bytes expose the persisted `eqiora.model-envelope/v21` schema as an
@@ -588,9 +588,9 @@ real-time scheduling, or dynamic-plugin support.
 
 The flat electrical case also closes the client-neutral authoring path. Its
 immutable Domain, Port, Relation, and N-ary Connection handles are validated by
-draft-local identity, projected into the existing typed AST vocabulary, and
-sent through the same lowerer. The application facade passes the draft through
-the current Transaction wire, commits atomically, reconstructs the current
+Module-local identity, retained in the shared typed AST vocabulary, and
+sent through the same lowerer. The application facade passes the lowered transaction
+through the current Transaction wire, commits atomically, reconstructs the current
 Model artifact, and produces the same analytic physical solution as the
 source-authored model. Native construction is an authoring surface, not a
 second semantics implementation.
@@ -742,18 +742,19 @@ Python is an L4 adapter over the public `eqiora` facade, not a parallel model
 implementation. Parsed source and frozen native role-bearing `Field`, `Parameter`,
 `Initial`, and `Relation`, scalar physical `PhysicalDomain` / `ConservingPort`, and anonymous
 N-ary `Connection` declarations converge before one typed compiler lowerer.
-The bounded spatial authoring surface adds runtime-dimensional draft-local
+The bounded spatial authoring surface adds runtime-dimensional Module-local
 Cartesian volume and boundary `Domain` identities, compiler-supplied continuum
 Representation, supported scalar Fields and Relations, and closed `grad` /
 `div` / `trace` expression forms. Registered source/Python equivalence and
 execution evidence is one-dimensional.
-Draft closure checks only exact handle membership; dimension, shape, frame,
+Module closure checks exact handle membership; dimension, shape, frame,
 support, operator applicability, and residual rules remain owned by the same
 identity-parametric Semantic Kernel typing used for source models.
-The native path uses a client-neutral immutable `ModelDraft`; it neither
-manufactures source text nor assigns graph IDs before draft closure. Python
-`compile`, `Model.define`, and `Model.from_bytes` use the same current contract as Rust
-and Studio without a generation argument. Historical Model bytes reject; replay
+The native path uses the client-neutral Rust `Module` graph; direct compilation
+neither manufactures source text nor reparses formatted output. Parsed and constructed
+declarations share the same AST owner, with real source spans or graph-path diagnostics
+respectively. Python `compile(source=module)` and `Model.from_bytes` use the same
+current contract as Rust and Studio without a generation argument. Historical Model bytes reject; replay
 does not sniff, retry, or migrate them. Both authoring paths cross the current
 bounded Transaction envelope, commit atomically, and reconstruct the immutable
 current Model envelope. The data plane groups common explicit-ODE samples by

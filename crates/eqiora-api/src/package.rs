@@ -65,7 +65,7 @@ pub(crate) fn analyze_editor_workspace_with_cancellation(
         if is_cancelled() {
             return Ok(None);
         }
-        sources.push((unit.file().to_owned(), unit.source().to_owned()));
+        sources.push((unit.file().to_owned(), unit.source().into_owned()));
     }
     let Some(analyzed) = input.analyze_with_cancellation(&mut is_cancelled)? else {
         return Ok(None);

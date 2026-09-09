@@ -160,6 +160,7 @@ class PackageConformanceReport(NamedTuple):
 
 
 __all__ = [
+    "Module",
     "equal",
     "not_equal",
     "less",
@@ -289,6 +290,10 @@ __all__ = [
 
 
 
+from .lang import Module
+from ._eqiora import _compile_module
+
+
 def compile(
     *,
     path=None,
@@ -298,13 +303,13 @@ def compile(
     bindings=None,
     entry=None,
 ):
-    """Compile text, a path, or one :class:`eqiora.lang.Source` canonically."""
+    """Compile text, a path, or one compiler-owned Module graph."""
 
-    if isinstance(source, lang.Source):
-        text = source.to_eqi()
-        source = text
-        if filename is None:
-            filename = "<python-source>"
+    if isinstance(source, Module):
+        if path is not None or filename is not None:
+            raise TypeError("a Module owns its logical paths; path/filename are text-only")
+        return _compile_module(source._name, source._units(), entry=entry,
+                               geometry=geometry, bindings=bindings)
     return _compile(
         path=path,
         source=source,

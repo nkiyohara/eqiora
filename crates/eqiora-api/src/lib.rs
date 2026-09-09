@@ -67,7 +67,7 @@ use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, RawId};
 use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_graph::{GraphStore, InMemoryGraphStore, Revision};
-use eqiora_lang::ModelDraft;
+use eqiora_lang::Module;
 use eqiora_sem::KernelProgram;
 
 /// One immutable, validated canonical model revision plus non-semantic source
@@ -131,11 +131,12 @@ impl ModelDocument {
     pub fn compile_modules(
         input: ResolvedHierarchyInput,
         entry_model: &str,
+        bindings: &[(&str, eqiora_compiler::StaticBindingValue<'_>)],
     ) -> Result<Self, Vec<Diagnostic>> {
         let compiled = eqiora_compiler::analyze_resolved_hierarchy(input)?
             .validate_definitions()?
-            .compile_selected(entry_model, &[])?;
-        Self::accept_compiled(compiled)
+            .compile_selected(entry_model, bindings)?;
+        Self::accept_bound_compiled(compiled, bindings)
     }
 
     /// Compile one selected Model from a closed inventory of local project sources.
@@ -206,7 +207,7 @@ impl ModelDocument {
         let input =
             ResolvedHierarchyInput::with_root_module(owner, root_module.split('.'), units, vec![])
                 .map_err(single_diagnostic)?;
-        Self::compile_modules(input, entry_model)
+        Self::compile_modules(input, entry_model, &[])
     }
 
     /// Discover and compile one bounded local `.eqi` source directory.
@@ -256,8 +257,15 @@ impl ModelDocument {
     /// # Errors
     /// Returns graph-path compiler/semantic diagnostics, or one artifact
     /// diagnostic, when no valid model revision can be constructed.
-    pub fn define(draft: &ModelDraft) -> Result<Self, Vec<Diagnostic>> {
-        Self::accept_compiled(eqiora_compiler::lower_draft(draft)?)
+    pub fn compile_module(
+        module: &Module,
+        entry: Option<&str>,
+        bindings: &[(&str, eqiora_compiler::StaticBindingValue<'_>)],
+    ) -> Result<Self, Vec<Diagnostic>> {
+        Self::accept_bound_compiled(
+            eqiora_compiler::lower_module(module, entry, bindings)?,
+            bindings,
+        )
     }
 
     pub(crate) fn accept_compiled(compiled: CompiledModel) -> Result<Self, Vec<Diagnostic>> {
@@ -514,7 +522,7 @@ mod tests {
     use eqiora_artifact::ReplayableCanonicalModelArtifact;
     use eqiora_compiler::{CompilationNamespaceId, ResolvedHierarchyInput, ResolvedSourceUnit};
     use eqiora_core::{DimExponents, EntityKind, RawId, ValueLiteral};
-    use eqiora_lang::{DraftExpression, DraftField, DraftParameter, DraftRelation, ModelDraft};
+    use eqiora_lang::{DraftExpression, DraftField, DraftParameter, DraftRelation, Module};
 
     const SOURCE: &str = r#"
 model decay() {
@@ -575,8 +583,8 @@ model decay() {
             .unwrap()
         };
 
-        let document = ModelDocument::compile_modules(input(false), "Main").unwrap();
-        let reversed = ModelDocument::compile_modules(input(true), "Main").unwrap();
+        let document = ModelDocument::compile_modules(input(false), "Main", &[]).unwrap();
+        let reversed = ModelDocument::compile_modules(input(true), "Main", &[]).unwrap();
         let bytes = document.canonical_json().unwrap();
         assert_eq!(reversed.canonical_json().unwrap(), bytes);
         assert_eq!(
@@ -713,9 +721,9 @@ public component Resistor(
             DraftExpression::constant(eqiora_lang::DecimalLiteral::from_f64(1.0).unwrap()),
         )]);
         let draft =
-            ModelDraft::new("decay", [state.into(), rate.into(), flow.into(), initial]).unwrap();
+            Module::new("decay", [state.into(), rate.into(), flow.into(), initial]).unwrap();
 
-        let native = ModelDocument::define(&draft).unwrap();
+        let native = ModelDocument::compile_module(&draft, None, &[]).unwrap();
         let bytes = native.canonical_json().unwrap();
         let reconstructed = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(reconstructed.canonical_json().unwrap(), bytes);

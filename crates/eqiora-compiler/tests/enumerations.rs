@@ -110,9 +110,7 @@ fn selected_enum_binding_requires_exact_declaration_identity() {
 
 #[test]
 fn native_enum_values_retain_registered_identity() {
-    use eqiora_lang::{
-        DraftDeclaration, DraftExpression, DraftParameter, DraftRelation, ModelDraft,
-    };
+    use eqiora_lang::{DraftDeclaration, DraftExpression, DraftParameter, DraftRelation, Module};
     let definition =
         eqiora_schema::kernel::EnumDef::new(eqiora_core::Id::new(), ["A".into(), "B".into()])
             .unwrap();
@@ -125,7 +123,7 @@ fn native_enum_values_retain_registered_identity() {
             DraftExpression::enum_value(value.clone()).unwrap(),
         )],
     );
-    let draft = ModelDraft::new(
+    let draft = Module::new(
         "M",
         [
             DraftDeclaration::Enum {
@@ -137,7 +135,8 @@ fn native_enum_values_retain_registered_identity() {
         ],
     )
     .unwrap();
-    let model = eqiora_compiler::lower_draft(&draft).unwrap_or_else(|errors| panic!("{errors:?}"));
+    let model = eqiora_compiler::lower_module(&draft, None, &[])
+        .unwrap_or_else(|errors| panic!("{errors:?}"));
     assert_eq!(model.symbols().get("Mode"), Some(definition.id().erase()));
     assert!(model.transaction().ops().iter().any(|op|matches!(op,Op::DefineKernelNode{node:KernelNode::Parameter(parameter)} if parameter.value()==&value)));
 }

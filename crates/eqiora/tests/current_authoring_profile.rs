@@ -1,7 +1,7 @@
 use eqiora::DimExponents;
 use eqiora::api::ModelDocument;
 use eqiora::control::{CompileRequestV2, execute_compile_v2};
-use eqiora::language::{DraftExpression, DraftField, DraftRelation, ModelDraft};
+use eqiora::language::{DraftExpression, DraftField, DraftRelation, Module};
 use serde_json::Value;
 
 const SCALAR_SOURCE: &str = r#"
@@ -80,8 +80,8 @@ fn rust_authoring_edit_replay_and_control_share_the_current_profile() {
             eqiora::language::DecimalLiteral::from_f64(1.0).expect("finite fixture literal"),
         ),
     )]);
-    let draft = ModelDraft::new("decay", [state.into(), hold.into(), initial]).unwrap();
-    let native = ModelDocument::define(&draft).unwrap();
+    let draft = Module::new("decay", [state.into(), hold.into(), initial]).unwrap();
+    let native = ModelDocument::compile_module(&draft, None, &[]).unwrap();
     let source_scalar = ModelDocument::compile("decay.eqi", SCALAR_SOURCE).unwrap();
     assert!(native.structurally_equivalent(&source_scalar).unwrap());
 

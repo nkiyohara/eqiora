@@ -14,17 +14,12 @@ from eqiora.trajectory import FieldSnapshot, Trajectory, State
 
 
 def check_language_source() -> None:
-    source = eqiora.lang.Source()
+    source = eqiora.Module('main')
     component = source.component("Poisson")
     volume = component.volume("volume", dimensions=2)
     value = component.field("value", role=eqiora.FieldRole.Variable, on=volume, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
-    natural = component.relation(
-        "balance",
-        on=volume,
-        left=eqiora.lang.div(value),
-        right=-eqiora.lang.math.pi * value,
-    )
-    residual = component.relation("reference", on=volume, left=value, right=0)
+    natural = component.relation("balance", eqiora.lang.equation(eqiora.lang.div(value), -eqiora.lang.math.pi * value), on=volume)
+    residual = component.relation("reference", eqiora.lang.equation(value, 0), on=volume)
     assert_type(natural, eqiora.lang.Relation)
     assert_type(residual, eqiora.lang.Relation)
     assert_type(eqiora.lang.math.pi, eqiora.lang.Expression)
@@ -55,14 +50,14 @@ def check_native_modeling() -> None:
     )
 
     assert_type(
-        eqiora.Model.define(
+        eqiora.compile(source=eqiora.Module(
             "thermal",
             domain,
 
             temperature,
             conductivity,
             balance,
-        ),
+        )),
         eqiora.Model,
     )
 

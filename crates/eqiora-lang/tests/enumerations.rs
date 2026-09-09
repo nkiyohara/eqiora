@@ -358,7 +358,7 @@ fn enum_literal_projection_uses_registered_labels_and_rejects_foreign_or_incompl
 fn native_model_enum_initialization_checks_exact_registry_without_copying_definition_into_expressions()
  {
     use eqiora_core::Id;
-    use eqiora_lang::{DraftDeclaration, DraftExpression, DraftField, FieldRoleSyntax, ModelDraft};
+    use eqiora_lang::{DraftDeclaration, DraftExpression, DraftField, FieldRoleSyntax, Module};
     use eqiora_schema::kernel::EnumDef;
     let definition = EnumDef::new(Id::new(), ["Heating".into(), "Cooling".into()]).unwrap();
     let foreign = EnumDef::new(Id::new(), ["Heating".into(), "Cooling".into()]).unwrap();
@@ -373,7 +373,7 @@ fn native_model_enum_initialization_checks_exact_registry_without_copying_defini
         name: "Mode".into(),
         definition: definition.clone(),
     };
-    let model = ModelDraft::new(
+    let model = Module::new(
         "Controller",
         [
             mode.clone().into(),
@@ -382,7 +382,7 @@ fn native_model_enum_initialization_checks_exact_registry_without_copying_defini
         ],
     )
     .unwrap();
-    let ast = model.native_ast();
+    let ast = &model;
     assert_eq!(ast.nominal_identity("Mode"), Some(definition.id().erase()));
     assert_eq!(
         ast.document().enumerations()[0].tags()[0].as_str(),
@@ -396,7 +396,7 @@ fn native_model_enum_initialization_checks_exact_registry_without_copying_defini
         Some(&definition.value(0).unwrap())
     );
     assert!(
-        ModelDraft::new(
+        Module::new(
             "Foreign",
             [
                 mode.clone().into(),
@@ -406,7 +406,7 @@ fn native_model_enum_initialization_checks_exact_registry_without_copying_defini
         )
         .is_err()
     );
-    assert!(ModelDraft::new("Missing", [mode.into()]).is_err());
+    assert!(Module::new("Missing", [mode.into()]).is_err());
     fn initial_for(mode: &DraftField, definition: &EnumDef) -> DraftDeclaration {
         DraftDeclaration::Initial(vec![(
             mode.expression(),

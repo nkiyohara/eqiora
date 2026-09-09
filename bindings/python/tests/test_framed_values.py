@@ -84,7 +84,7 @@ def test_native_frame_values_match_source_and_preserve_edits_replay(kind, values
     coefficient = eqiora.Parameter("coefficient", value_type=kind, value=values, frame=body)
     field = eqiora.Field("field", role=eqiora.FieldRole.Variable, value_type=kind, domain=body)
     law = eqiora.Relation("law", domain=body, equations=[(field, coefficient)])
-    native = eqiora.Model.define("Framed", body, coefficient, field, law)
+    native = eqiora.compile(source=eqiora.Module("Framed", body, coefficient, field, law))
     text = f"""
 model Framed() {{
   domain body = box(0, 1, 0, 1);
@@ -127,13 +127,13 @@ def geometry():
 
 @pytest.mark.parametrize("kind, values, _", CASES)
 def test_source_tensor_value_defaults_use_explicit_support_and_file_path(kind, values, _, tmp_path):
-    source = q.Source()
+    source = eqiora.Module("main")
     owner = source.component("Framed")
     body = owner.volume("body", dimensions=2)
     coefficient = owner.parameter("coefficient", value_type=kind)
     owner.set_default(coefficient, q.tensor_value(frame=body, components=values))
     field = owner.field("field", role=eqiora.FieldRole.Variable, value_type=kind, on=body)
-    owner.relation("law", on=body, left=field, right=coefficient)
+    owner.relation("law", eqiora.lang.equation(field, coefficient), on=body)
     shape = geometry()
     bindings = {"body": shape.selection("body")}
     compiled = eqiora.compile(source=source, entry="Framed", geometry=shape, bindings=bindings)
@@ -150,8 +150,8 @@ def test_outer_channel_axes_remain_distinct_from_spatial_component_axes():
     values = ((1.0, 2.0), (3.0, 4.0))
     coefficient = eqiora.Parameter("channels", value_type=kind, value=values, frame=body)
     observed = eqiora.Field("observed", role=eqiora.FieldRole.Variable, domain=body)
-    native = eqiora.Model.define("Channels", body, coefficient, observed,
-                                eqiora.Relation("observe", domain=body, equations=[(observed, 0)]))
+    native = eqiora.compile(source=eqiora.Module("Channels", body, coefficient, observed,
+                                eqiora.Relation("observe", domain=body, equations=[(observed, 0)])))
     source = eqiora.compile(source="""
 model Channels() {
   domain body = box(0, 1, 0, 1);
@@ -167,7 +167,7 @@ model Channels() {
     assert native.parameter("channels").value == values
     assert native.parameter("channels").value_type.array_rank == 1
     assert kind != eqiora.ValueType.tensor(eqiora.ValueType.real(), 2, 2)
-    authored = q.Source()
+    authored = eqiora.Module("main")
     owner = authored.component("Channels")
     support = owner.volume("body", dimensions=2)
     channels = owner.parameter("channels", value_type=kind)
@@ -176,7 +176,7 @@ model Channels() {
     ]))
     field = owner.field("observed", on=support, role=eqiora.FieldRole.Variable,
                         value_type=kind)
-    owner.relation("observe", on=support, left=field, right=channels)
+    owner.relation("observe", eqiora.lang.equation(field, channels), on=support)
     shape = geometry()
     compiled = eqiora.compile(source=authored, entry="Channels", geometry=shape,
                               bindings={"body": shape.selection("body")})
@@ -192,30 +192,30 @@ def test_frame_handles_reject_foreign_identity_and_invalid_shape():
     vector = eqiora.ValueType.vector(eqiora.ValueType.real(), 2)
     parameter = eqiora.Parameter("coefficient", value_type=vector, value=(1, 2), frame=foreign)
     with pytest.raises(eqiora.ValidationError, match="frame|foreign|omitted|registered"):
-        eqiora.Model.define("Foreign", body, parameter, observed, law)
+        eqiora.compile(source=eqiora.Module("Foreign", body, parameter, observed, law))
     wrong_extent = eqiora.Parameter("coefficient", value_type=eqiora.ValueType.vector(eqiora.ValueType.real(), 3),
                                     value=(1, 2, 3), frame=body)
     with pytest.raises(eqiora.ValidationError, match="frame|extent|dimension|shape"):
-        eqiora.Model.define("WrongExtent", body, wrong_extent, observed, law)
+        eqiora.compile(source=eqiora.Module("WrongExtent", body, wrong_extent, observed, law))
     for invalid in (1, (1,), ((1, 2), (3, 4)), (True, 2)):
         with pytest.raises((TypeError, ValueError)):
             eqiora.Parameter("invalid", value_type=vector, value=invalid, frame=body)
 
 
 def test_tensor_value_preserves_component_ownership_and_expression_bounds():
-    source = q.Source()
+    source = eqiora.Module("main")
     left, right = source.component("Left"), source.component("Right")
     body = left.volume("body", dimensions=2)
     other = right.volume("body", dimensions=2)
     value = left.parameter("value", value_type=eqiora.ValueType.real())
     expression = q.tensor_value(frame=body, components=(value, 2))
-    with pytest.raises(q.SourceError, match="Component|owner"):
+    with pytest.raises(q.ModuleError, match="Component|owner"):
         right.let_alias("foreign", expression)
-    with pytest.raises(q.SourceError, match="Component"):
+    with pytest.raises(q.ModuleError, match="Component"):
         q.tensor_value(frame=other, components=(value, 2))
     with pytest.raises(TypeError, match="Support"):
         q.tensor_value(frame="body", components=(1, 2))
-    with pytest.raises(q.SourceError, match="4096"):
+    with pytest.raises(q.ModuleError, match="4096"):
         q.tensor_value(frame=body, components=[1] * 4095)
     left.let_alias("valid", expression)
     assert "tensor_value(frame = body, components = [value, 2])" in source.to_eqi()
@@ -240,9 +240,9 @@ def test_uniform_zero_keeps_contextual_shape_and_invariant_values_have_no_frame(
     zero = eqiora.Parameter("zero", value_type=kind, value=0)
     field = eqiora.Field("field", role=eqiora.FieldRole.Variable, domain=body, value_type=kind)
     law = eqiora.Relation("law", domain=body, equations=[(field, zero)])
-    model = eqiora.Model.define("Zero", body, zero, field, law)
+    model = eqiora.compile(source=eqiora.Module("Zero", body, zero, field, law))
     assert model.parameter("zero").value == (0.0, 0.0)
     assert model.parameter("zero").value_type == kind
     invariant = eqiora.Parameter("invariant", value=1.0, frame=body)
     with pytest.raises(eqiora.ValidationError, match="frame|invariant"):
-        eqiora.Model.define("NotSpatial", body, zero, field, law, invariant)
+        eqiora.compile(source=eqiora.Module("NotSpatial", body, zero, field, law, invariant))

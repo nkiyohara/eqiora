@@ -14,12 +14,12 @@ use eqiora_core::{Diagnostic, DimExponents, GraphPath, ValueLiteral, ValueType};
 
 /// One immutable native model definition request.
 #[derive(Debug, Clone)]
-pub struct ModelDraft {
+struct ModelDeclarations {
     name: String,
     declarations: Vec<DraftDeclaration>,
 }
 
-impl ModelDraft {
+impl ModelDeclarations {
     /// Close a set of declarations into one atomic model draft.
     ///
     /// # Errors
@@ -30,24 +30,56 @@ impl ModelDraft {
         name: impl Into<String>,
         declarations: impl IntoIterator<Item = DraftDeclaration>,
     ) -> Result<Self, Vec<Diagnostic>> {
+        let name = name.into();
+        let mut admitted = Vec::new();
+        let mut expression_nodes = 0usize;
+        for declaration in declarations {
+            let error = |message| vec![native_diagnostic(&name, "declarations", message)];
+            if admitted.len() == crate::SourceAstFactory::MAX_CONTAINER_MEMBERS {
+                return Err(error("native module exceeds the shared declaration limit"));
+            }
+            if let DraftDeclaration::Parameter(parameter) = &declaration {
+                let nodes = crate::SourceAstFactory::value_literal_nodes(
+                    parameter.value(),
+                    parameter.frame.is_some(),
+                )
+                .map_err(|failure| {
+                    vec![native_diagnostic(
+                        &name,
+                        "declarations",
+                        failure.to_string(),
+                    )]
+                })?;
+                expression_nodes = expression_nodes
+                    .checked_add(nodes)
+                    .filter(|count| *count <= crate::SourceAstFactory::MAX_EXPRESSION_NODES)
+                    .ok_or_else(|| {
+                        error("native module exceeds the shared expression node limit")
+                    })?;
+            }
+            if let Some((_, equations)) = declaration.equations() {
+                if equations.len() > crate::SourceAstFactory::MAX_CONTAINER_MEMBERS {
+                    return Err(error(
+                        "native equation group exceeds the shared member limit",
+                    ));
+                }
+                for expression in equations.iter().flat_map(|(left, right)| [left, right]) {
+                    expression_nodes = expression_nodes
+                        .checked_add(expression.nodes)
+                        .filter(|count| *count <= crate::SourceAstFactory::MAX_EXPRESSION_NODES)
+                        .ok_or_else(|| {
+                            error("native module exceeds the shared expression node limit")
+                        })?;
+                }
+            }
+            admitted.push(declaration);
+        }
         let value = Self {
-            name: name.into(),
-            declarations: declarations.into_iter().collect(),
+            name,
+            declarations: admitted,
         };
         value.validate()?;
         Ok(value)
-    }
-
-    /// Native model name.
-    #[must_use]
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Declarations in request order.
-    #[must_use]
-    pub fn declarations(&self) -> &[DraftDeclaration] {
-        &self.declarations
     }
 
     fn validate(&self) -> Result<(), Vec<Diagnostic>> {
@@ -144,14 +176,12 @@ impl ModelDraft {
                         "equation group requires at least one equation",
                     ));
                 }
-                if residuals.iter().any(|(left, right)| {
-                    left.contains_invalid_literal() || right.contains_invalid_literal()
-                }) {
-                    diagnostics.push(native_diagnostic(
-                        &self.name,
-                        path,
-                        "equation group contains a non-finite numeric literal or empty array",
-                    ));
+                for error in residuals
+                    .iter()
+                    .flat_map(|(left, right)| [left, right])
+                    .filter_map(DraftExpression::construction_error)
+                {
+                    diagnostics.push(native_diagnostic(&self.name, path, error.message()));
                 }
             }
             match declaration {
@@ -661,7 +691,7 @@ pub struct DraftConservingConnection {
 impl DraftConservingConnection {
     /// Request one N-ary conserving connection.
     ///
-    /// Membership is checked atomically by [`ModelDraft::new`]. In
+    /// Membership is checked atomically by [`Module::new`]. In
     /// particular, the closed draft requires at least two distinct declared
     /// Ports on the exact same nominal Domain, and each Port may belong to at
     /// most one Connection.
@@ -786,108 +816,113 @@ pub struct DraftParameter {
 /// validator infers them and checks the compatibility of each equation’s sides.
 #[derive(Debug, Clone)]
 pub struct DraftExpression {
-    kind: DraftExpressionKind,
+    syntax: Result<std::sync::Arc<Expr>, crate::AstConstructionError>,
+    references: std::sync::Arc<Vec<expression::NativeReference>>,
+    depth: usize,
+    nodes: usize,
 }
 
 impl DraftExpression {
     /// Dimensionless numeric literal.
     #[must_use]
-    pub const fn constant(value: crate::DecimalLiteral) -> Self {
-        Self {
-            kind: DraftExpressionKind::Constant(value),
-        }
+    pub fn constant(value: crate::DecimalLiteral) -> Self {
+        Self::leaf(ExprKind::Number(value))
     }
 
     /// Construct a complex scalar without discarding either component.
     #[must_use]
     pub fn complex(real: f64, imaginary: f64) -> Self {
-        Self {
-            kind: DraftExpressionKind::Complex(real, imaginary),
+        let values = [real, imaginary].map(crate::DecimalLiteral::from_f64);
+        match values {
+            [Ok(real), Ok(imaginary)] => Self::call(
+                "math.complex",
+                vec![Self::constant(real), Self::constant(imaginary)],
+            ),
+            _ => Self::failed("native expression contains a non-finite numeric literal"),
         }
     }
 
     fn reference(symbol: DraftSymbol, name: String, kind: DraftSymbolKind) -> Self {
-        Self {
-            kind: DraftExpressionKind::Reference(DraftReference { symbol, name, kind }),
-        }
+        let mut value = Self::leaf(ExprKind::Name(name.clone()));
+        value.references =
+            std::sync::Arc::new(vec![expression::NativeReference::Value(DraftReference {
+                symbol,
+                name,
+                kind,
+            })]);
+        value
     }
 
     /// Time derivative of one Field.
     #[must_use]
     pub fn derivative(field: &DraftField) -> Self {
-        Self {
-            kind: DraftExpressionKind::Derivative(DraftReference {
-                symbol: field.symbol.clone(),
-                name: field.name.clone(),
-                kind: DraftSymbolKind::Field,
-            }),
-        }
+        Self::call(
+            "derivative",
+            vec![Self::reference(
+                field.symbol.clone(),
+                field.name.clone(),
+                DraftSymbolKind::Field,
+            )],
+        )
     }
 
     /// Read the across variable of one scalar conserving Port.
     #[must_use]
     pub fn across(port: &DraftConservingPort) -> Self {
-        Self {
-            kind: DraftExpressionKind::Across(DraftPortReference::from(port)),
-        }
+        Self::port_reference(port, &port.domain.across_name)
     }
 
     /// Read the through variable of one scalar conserving Port.
     #[must_use]
     pub fn through(port: &DraftConservingPort) -> Self {
-        Self {
-            kind: DraftExpressionKind::Through(DraftPortReference::from(port)),
-        }
+        Self::port_reference(port, &port.domain.through_name)
+    }
+
+    fn port_reference(port: &DraftConservingPort, member: &str) -> Self {
+        let reference = DraftPortReference::from(port);
+        let mut value = Self::leaf(ExprKind::Path(NamePath::from_parsed_segments(
+            vec![reference.name.clone(), member.to_owned()],
+            TextRange::default(),
+        )));
+        value.references = std::sync::Arc::new(vec![expression::NativeReference::Port(reference)]);
+        value
     }
 
     /// Spatial gradient of one expression.
     #[must_use]
     pub fn gradient(value: Self) -> Self {
-        Self::spatial_call(DraftSpatialOperator::Gradient, value)
+        Self::call("grad", vec![value])
     }
 
     /// Spatial divergence of one expression.
     #[must_use]
     pub fn divergence(value: Self) -> Self {
-        Self::spatial_call(DraftSpatialOperator::Divergence, value)
+        Self::call("div", vec![value])
     }
 
     /// Boundary trace of one expression.
     #[must_use]
     pub fn trace(value: Self) -> Self {
-        Self::spatial_call(DraftSpatialOperator::Trace, value)
-    }
-
-    fn spatial_call(operator: DraftSpatialOperator, value: Self) -> Self {
-        Self {
-            kind: DraftExpressionKind::SpatialCall {
-                operator,
-                value: Box::new(value),
-            },
-        }
+        Self::call("trace", vec![value])
     }
 
     fn binary(self, operator: BinaryOp, right: Self) -> Self {
-        Self {
-            kind: DraftExpressionKind::Binary {
-                operator,
-                left: Box::new(self),
+        Self::compose(vec![self, right], |mut values| {
+            let right = values.pop().expect("two operands");
+            let left = values.pop().expect("two operands");
+            ExprKind::Binary {
+                op: operator,
+                left: Box::new(left),
                 right: Box::new(right),
-            },
-        }
+            }
+        })
     }
 }
 
 impl Neg for DraftExpression {
     type Output = Self;
-
     fn neg(self) -> Self::Output {
-        Self {
-            kind: DraftExpressionKind::Unary {
-                operator: UnaryOp::Neg,
-                value: Box::new(self),
-            },
-        }
+        self.unary(UnaryOp::Neg)
     }
 }
 
@@ -908,23 +943,6 @@ impl_binary_expression_operator!(Sub, sub, BinaryOp::Sub);
 impl_binary_expression_operator!(Mul, mul, BinaryOp::Mul);
 impl_binary_expression_operator!(Div, div, BinaryOp::Div);
 
-#[derive(Debug, Clone, Copy)]
-enum DraftSpatialOperator {
-    Gradient,
-    Divergence,
-    Trace,
-}
-
-impl DraftSpatialOperator {
-    const fn source_name(self) -> &'static str {
-        match self {
-            Self::Gradient => "grad",
-            Self::Divergence => "div",
-            Self::Trace => "trace",
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 struct DraftReference {
     symbol: DraftSymbol,
@@ -936,8 +954,6 @@ struct DraftReference {
 struct DraftPortReference {
     symbol: DraftSymbol,
     name: String,
-    across_name: String,
-    through_name: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -958,7 +974,7 @@ impl DraftSymbolKind {
 mod ast_bridge;
 mod dimension;
 mod expression;
-use expression::{DraftExpressionKind, DraftExpressionReference};
+use expression::DraftExpressionReference;
 mod parameter;
 mod relation;
 pub use relation::DraftRelation;
@@ -966,8 +982,8 @@ mod nominal;
 mod symbol;
 mod validation;
 mod value_type;
-pub use ast_bridge::NativeModelAst;
-use ast_bridge::{RangeAllocator, physical_accessor_ast};
+pub use ast_bridge::Module;
+use ast_bridge::RangeAllocator;
 use dimension::dimension_expression;
 pub(crate) use symbol::DraftSymbol;
 use validation::{connection_path, is_language_identifier, native_diagnostic};

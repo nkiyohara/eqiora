@@ -1,4 +1,4 @@
-"""The root unit owner projects compiler metadata and exact Source inputs."""
+"""The root unit owner projects compiler metadata and exact Module inputs."""
 
 from decimal import Decimal, localcontext
 from fractions import Fraction
@@ -54,7 +54,7 @@ def test_unit_expression_bounds_precede_repeated_composition():
 
 
 def test_decimal_quantity_authoring_is_bounded_and_independent_of_decimal_context():
-    source = q.Source()
+    source = eqiora.Module("main")
     component = source.component("Quantities")
     with localcontext() as context:
         context.prec = 2
@@ -64,8 +64,8 @@ def test_decimal_quantity_authoring_is_bounded_and_independent_of_decimal_contex
         component.let_alias("float_value", q.quantity(0.1, u.s))
         component.let_alias("length", q.quantity(10, u.m.prefixed("c")))
     text = source.to_eqi()
-    assert "998.2 [(kg / (m ^ 3))]" in text
-    assert "1E-1000000 [s]" in text
+    assert "998.2 [kg / m ^ 3]" in text
+    assert "1e-1000000 [s]" in text
     assert "9007199254740993 [1]" in text
     assert "0.1 [s]" in text
     assert "10 [cm]" in text
@@ -80,13 +80,12 @@ def test_decimal_quantity_authoring_is_bounded_and_independent_of_decimal_contex
 
 
 def test_decimal_and_centiprefix_quantity_matches_coherent_source():
-    source = q.Source()
+    source = eqiora.Module("main")
     component = source.component("Length")
     region = component.volume("region", dimensions=2)
     field = component.field("length", on=region, role=eqiora.FieldRole.Variable,
                             value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
-    component.relation("law", on=region, left=field,
-                       right=q.quantity(Decimal("10"), u.m.prefixed("c")))
+    component.relation("law", eqiora.lang.equation(field, q.quantity(Decimal("10"), u.m.prefixed("c"))), on=region)
     graph = eqiora.geometry.GeometryGraph()
     rectangle = graph.rectangle(x_bounds=(0, 1), y_bounds=(0, 1))
     geometry = graph.build(rectangle, named_topology={
@@ -107,14 +106,14 @@ public component Length(support region: volume(ambient_dimension = 2)) {
 
 
 def test_clock_seconds_emit_exact_quantity_ratios_without_float_conversion():
-    source = q.Source()
+    source = eqiora.Module("main")
     component = source.component("ExactClocks")
     maximum = (1 << 64) - 1
     component.clock("third", period_s=Fraction(1, 3))
     component.clock("maximum", period_s=maximum, phase_s=Fraction(1, maximum))
     text = source.to_eqi()
-    assert "periodic(1 [s] / 3, phase = 0 [s] / 1" in text
-    assert f"periodic({maximum} [s] / 1, phase = 1 [s] / {maximum}" in text
+    assert "periodic(1 [s] / 3 [1], phase = 0 [s] / 1 [1]" in text
+    assert f"periodic({maximum} [s] / 1 [1], phase = 1 [s] / {maximum} [1]" in text
     for value in (0.1, Decimal("0.1"), True):
         with pytest.raises(TypeError):
-            q.Source().component("InvalidClock").clock("tick", period_s=value)
+            eqiora.Module("main").component("InvalidClock").clock("tick", period_s=value)

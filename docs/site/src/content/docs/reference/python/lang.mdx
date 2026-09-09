@@ -9,13 +9,13 @@ import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
 [← Python API index](/reference/python/)
 
-Bounded Python authoring for deterministic Eqiora Language source.
+Bounded Python authoring through the compiler-owned Eqiora Module graph.
 
 Module authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py</ExactSourceLink>
 
 Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.pyi" kind="blob">bindings/python/python/eqiora/lang/__init__.pyi</ExactSourceLink>
 
-This module publishes **46** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+This module publishes **50** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
 
 <a id="api-eqiora-lang-equal"></a>
 
@@ -168,14 +168,59 @@ class Component:
     def let_alias(self, name: str, expression: Expression | int | float | complex, *, value_type: ValueType | None=None, on: Support | None=None, at: Clock | Event | None=None, doc: str | None=None) -> Expression: ...
     def property(self, name: str, *, contract: PropertyContract, doc: str | None=None) -> Expression: ...
     def field(self, name: str, *, on: Support | None=None, value_type: ValueType, role: FieldRole, at: Clock | None=None, doc: str | None=None) -> Expression: ...
-    def relation(self, name: str, *, on: Support | None=None, left: Expression | int | float | complex, right: Expression | int | float | complex, at: Clock | Event | None=None, doc: str | None=None) -> Relation: ...
+    def relation(self, name: str, equality: Equation, *, on: Support | None=None, at: Clock | Event | None=None, doc: str | None=None) -> Relation: ...
     def primal_form(self, relation: Relation, *, left: Expression, right: Expression, doc: str | None=None) -> None: ...
-    def instance(self, name: str, *, component: Component, bindings: Mapping[object, object], doc: str | None=None) -> Mapping[Expression, Expression]: ...
+    def instance(self, name: str, *, component: Component | ComponentRef, bindings: Mapping[str, object], doc: str | None=None) -> Mapping[str, Expression]: ...
     def clock_requirement(self, name: str, *, doc: str | None=None) -> Clock: ...
     def field_requirement(self, name: str, *, value_type: ValueType, role: FieldRole, on: Support | None=None, at: Clock | None=None, doc: str | None=None) -> Expression: ...
     def set_default(self, parameter: Expression, value: Expression | int | float | complex) -> None: ...
     def input(self, name: str, *, value_type: ValueType, on: Support | None=None, at: Clock | None=None, doc: str | None=None) -> Expression: ...
     def output(self, name: str, *, value_type: ValueType, on: Support | None=None, at: Clock | None=None, doc: str | None=None) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-ComponentRef"></a>
+
+## `ComponentRef`
+
+Immutable reference to one public Component in an explicit import.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::ComponentRef</ExactSourceLink>
+
+```python
+@final
+class ComponentRef:
+    @property
+    def name(self) -> str: ...
+```
+
+<a id="api-eqiora-lang-Equation"></a>
+
+## `Equation`
+
+Immutable ordered mathematical equality, never a Python truth value.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::Equation</ExactSourceLink>
+
+```python
+@final
+class Equation:
+    @property
+    def lhs(self) -> Expression: ...
+    @property
+    def rhs(self) -> Expression: ...
+    def __bool__(self) -> bool: ...
+```
+
+<a id="api-eqiora-lang-equation"></a>
+
+## `equation`
+
+Construct an explicit equality from typed expressions and admitted literals.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::equation</ExactSourceLink>
+
+```python
+def equation(lhs: object, rhs: object) -> Equation: ...
 ```
 
 <a id="api-eqiora-lang-Expression"></a>
@@ -199,6 +244,12 @@ class Expression:
     def __rtruediv__(self, other: float | int, /) -> Expression: ...
     def __pow__(self, exponent: int, /) -> Expression: ...
     def __bool__(self) -> bool: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __ne__(self, other: object) -> bool: ...
+    def __lt__(self, other: object) -> bool: ...
+    def __le__(self, other: object) -> bool: ...
+    def __gt__(self, other: object) -> bool: ...
+    def __ge__(self, other: object) -> bool: ...
     def __neg__(self) -> Expression: ...
     def __getitem__(self, index: int | Expression | slice) -> Expression: ...
 ```
@@ -207,7 +258,7 @@ class Expression:
 
 ## `Enum`
 
-A closed enum declaration shared within its Source.
+A closed enum declaration shared within its Module.
 
 Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::Enum</ExactSourceLink>
 
@@ -241,7 +292,7 @@ class Event:
 
 ## `MaterialComposition`
 
-Identify one immutable typed material composition in its exact Source.
+Identify one immutable typed material composition in its exact Module.
 
 Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::MaterialComposition</ExactSourceLink>
 
@@ -272,7 +323,7 @@ class Notation:
 
 ## `Operator`
 
-An immutable typed operator declared by one Source; call with named arguments.
+An immutable typed operator declared by one Module; call with named arguments.
 
 Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::Operator</ExactSourceLink>
 
@@ -286,7 +337,7 @@ class Operator:
 
 ## `PropertyContract`
 
-Identify one typed property contract in its exact Source.
+Identify one typed property contract in its exact Module.
 
 Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::PropertyContract</ExactSourceLink>
 
@@ -300,7 +351,7 @@ class PropertyContract:
 
 ## `PropertyRelease`
 
-Identify one exact constant scalar release in its exact Source.
+Identify one exact constant scalar release in its exact Module.
 
 Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::PropertyRelease</ExactSourceLink>
 
@@ -314,7 +365,7 @@ class PropertyRelease:
 
 ## `Relation`
 
-Identify one relation declaration in its exact Source.
+Identify one relation declaration in its exact Module.
 
 Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::Relation</ExactSourceLink>
 
@@ -324,22 +375,25 @@ class Relation:
     ...
 ```
 
-<a id="api-eqiora-lang-Source"></a>
+<a id="api-eqiora-lang-Module"></a>
 
-## `Source`
+## `Module`
 
-Own a bounded Component hierarchy and freeze it on emission.
+Own a compiler-backed module graph and freeze declarations on emission or compilation.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::Source</ExactSourceLink>
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::Module</ExactSourceLink>
 
 ```python
 @final
-class Source:
+class Module:
     def set_notation(self, name: str, notation: Notation) -> None: ...
     def operator(self, name: str, *, inputs: Mapping[str, ValueType], result_type: ValueType, body: Callable[..., object], doc: str | None=None) -> Operator: ...
     def enum(self, name: str, *, members: Sequence[str], doc: str | None=None) -> Enum: ...
     def space(self, name: str, *, labels: Sequence[str], doc: str | None=None) -> FiniteSpace: ...
-    def __init__(self) -> None: ...
+    def __init__(self, name: str, *declarations: _ModelDeclaration) -> None: ...
+    @classmethod
+    def parse(cls, name: str, source: str) -> Module: ...
+    def import_module(self, alias: str, module: Module | None=None, *, path: str | PathLike[str] | None=None) -> ModuleRef: ...
     def component(self, name: str, *, doc: str | None=None) -> Component: ...
     def model(self, name: str, *, doc: str | None=None) -> Component: ...
     def property_contract(self, name: str, *, value_type: ValueType, doc: str | None=None) -> PropertyContract: ...
@@ -349,25 +403,39 @@ class Source:
     def write_eqi(self, path: str | PathLike[str]) -> None: ...
 ```
 
-<a id="api-eqiora-lang-SourceError"></a>
+<a id="api-eqiora-lang-ModuleError"></a>
 
-## `SourceError`
+## `ModuleError`
 
-Reject a structurally invalid bounded Source draft.
+Reject a structurally invalid bounded Module draft.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::SourceError</ExactSourceLink>
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::ModuleError</ExactSourceLink>
 
 ```python
 @final
-class SourceError(ValueError):
+class ModuleError(ValueError):
     ...
+```
+
+<a id="api-eqiora-lang-ModuleRef"></a>
+
+## `ModuleRef`
+
+An explicit module import with immutable Component references.
+
+Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::ModuleRef</ExactSourceLink>
+
+```python
+@final
+class ModuleRef:
+    def component(self, name: str) -> ComponentRef: ...
 ```
 
 <a id="api-eqiora-lang-Support"></a>
 
 ## `Support`
 
-Identify one volume or parent-boundary declaration in its exact Source.
+Identify one volume or parent-boundary declaration in its exact Module.
 
 Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::Support</ExactSourceLink>
 
@@ -453,7 +521,7 @@ def grad(value: Expression) -> Expression: ...
 
 ## `integrate`
 
-Return one volume integral over an exact Source Support.
+Return one volume integral over an exact Module Support.
 
 Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::integrate</ExactSourceLink>
 
@@ -489,7 +557,7 @@ def isotropic_lift(value: Expression) -> Expression: ...
 
 ## `math`
 
-Exact language constants used by Source expressions.
+Exact language constants used by Module expressions.
 
 Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::math</ExactSourceLink>
 
@@ -621,7 +689,7 @@ def symmetric_part(value: Expression) -> Expression: ...
 
 ## `test`
 
-Return the test function associated with one Source Field.
+Return the test function associated with one Module Field.
 
 Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::test</ExactSourceLink>
 

@@ -4,7 +4,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 #[pyclass(name = "Notation", module = "eqiora.lang", frozen)]
-pub(crate) struct PyNotation(eqiora::language::Notation);
+pub(crate) struct PyNotation(pub(crate) eqiora::language::Notation);
 
 #[pymethods]
 impl PyNotation {

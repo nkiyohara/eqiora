@@ -36,12 +36,12 @@ pub struct LocalSourceIdentityLimits {
 impl Default for LocalSourceIdentityLimits {
     fn default() -> Self {
         Self {
-            max_top_level_declarations: 65_536,
-            max_members_per_container: 65_536,
+            max_top_level_declarations: eqiora_lang::SourceAstFactory::MAX_CONTAINER_MEMBERS,
+            max_members_per_container: eqiora_lang::SourceAstFactory::MAX_CONTAINER_MEMBERS,
             max_total_members: 1_000_000,
-            max_expression_nodes: 1_000_000,
-            max_expression_depth: 256,
-            max_residuals_per_relation: 65_536,
+            max_expression_nodes: eqiora_lang::SourceAstFactory::MAX_EXPRESSION_NODES,
+            max_expression_depth: eqiora_lang::SourceAstFactory::MAX_EXPRESSION_DEPTH,
+            max_residuals_per_relation: eqiora_lang::SourceAstFactory::MAX_CONTAINER_MEMBERS,
             max_connection_members: 65_536,
             max_bindings_per_instance: 65_536,
             max_boundary_set_members: 65_536,

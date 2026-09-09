@@ -35,7 +35,7 @@ use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id, OntologyId, RawId};
 use eqiora_graph::{EdgeKind, Op, Transaction};
 use eqiora_lang::{
     ActivationSyntax, BinaryOp, BoundarySideSyntax, ConnectionSyntax, DomainSyntax, Expr, ExprKind,
-    ModelDraft, PortSyntax, SignalDirectionSyntax, TextRange, UnaryOp,
+    Module, PortSyntax, SignalDirectionSyntax, TextRange, UnaryOp,
 };
 use eqiora_schema::kernel::pure_operator::PureOperatorDefinition;
 use eqiora_schema::kernel::scalar_connection::{
@@ -178,8 +178,12 @@ impl CompiledModel {
 /// # Errors
 /// Returns graph-path diagnostics for invalid native declarations. No partial
 /// transaction is returned.
-pub fn lower_draft(draft: &ModelDraft) -> Result<CompiledModel, Vec<Diagnostic>> {
-    native::lower(draft)
+pub fn lower_module(
+    module: &Module,
+    entry: Option<&str>,
+    bindings: &[(&str, crate::StaticBindingValue<'_>)],
+) -> Result<CompiledModel, Vec<Diagnostic>> {
+    native::lower(module, entry, bindings)
 }
 
 /// Compiler-owned declaration form consumed by Kernel lowering.

@@ -129,12 +129,12 @@ impl PyIndexSet {
 }
 
 #[pyfunction]
-pub(crate) fn _nominal_type_source(
+pub(crate) fn _nominal_type(
     value_type: &PyValueType,
     spaces: Vec<PyRef<'_, PyFiniteSpace>>,
     sets: Vec<PyRef<'_, PyIndexSet>>,
     enums: Vec<PyRef<'_, super::enumeration::PyEnum>>,
-) -> PyResult<String> {
+) -> PyResult<crate::authoring::PyAstType> {
     let mut names = Vec::with_capacity(spaces.len() + sets.len() + enums.len());
     for space in spaces {
         names.push((space.value.id().erase(), name_path(&space.name)?));
@@ -155,6 +155,10 @@ pub(crate) fn _nominal_type_source(
             .find(|(candidate, _)| *candidate == id)
             .map(|(_, name)| name.clone())
     })
-    .map(|syntax| syntax.to_source())
+    // The handle resolves lexical ownership, not this module's canonical ID.
+    .and_then(|value| {
+        eqiora::language::SourceAstFactory::value_type(value.kind().clone(), value.range())
+    })
+    .map(|value| crate::authoring::PyAstType { value })
     .map_err(|error| PyValueError::new_err(error.to_string()))
 }

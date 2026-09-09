@@ -9,7 +9,7 @@ import eqiora
 
 def test_source_builder_static_slices_and_binders_retain_scope_and_edit_dependencies():
     q = eqiora.lang
-    source = q.Source()
+    source = eqiora.Module("main")
     sibling = source.component("Other")
     owner = source.model("BuilderSlices")
     integer = eqiora.ValueType.integer()
@@ -21,14 +21,14 @@ def test_source_builder_static_slices_and_binders_retain_scope_and_edit_dependen
     rows = owner.index_set("Rows", extent=3)
     # All three one-wide slices sum to 10, and data[stop] contributes 5.
     total = owner.sum(lambda i: data[q.ordinal(i):q.ordinal(i) + 1][0], over=rows)
-    owner.relation("emit", at=tick, left=result, right=total + data[stop] + data[0:stop][1])
+    owner.relation("emit", eqiora.lang.equation(result, total + data[stop] + data[0:stop][1]), at=tick)
     foreign = sibling.parameter("foreign", value_type=integer)
     sibling.set_default(foreign, 2)
-    with pytest.raises(q.SourceError, match="different"):
+    with pytest.raises(q.ModuleError, match="different"):
         data[stop:foreign]
     escaped = []
     owner.sum(lambda i: escaped.append(i) or 1, over=rows)
-    with pytest.raises(q.SourceError, match="binder"):
+    with pytest.raises(q.ModuleError, match="binder"):
         owner.let_alias("escape", data[q.ordinal(escaped[0]):2])
     compiled = eqiora.compile(source=source, entry="BuilderSlices")
     run = compiled.execution_session(end_time_s=0.1, max_step_s=0.1, inputs={})
@@ -41,7 +41,7 @@ def test_source_builder_static_slices_and_binders_retain_scope_and_edit_dependen
 @pytest.mark.parametrize("bound", (slice(None, 2), slice(0, None), slice(0, 2, 1),
                                    slice(False, 2), slice(0, 1.5), slice(-1, 2)))
 def test_source_builder_slice_bounds_are_raw_explicit_integers(bound):
-    with pytest.raises((TypeError, eqiora.lang.SourceError)):
+    with pytest.raises((TypeError, eqiora.lang.ModuleError)):
         eqiora.lang.array((2, 3, 5))[bound]
 
 
@@ -140,7 +140,7 @@ def test_native_field_parameter_expression_slices_match_source_types(domain):
     field = eqiora.Field("values", role=eqiora.FieldRole.Variable, value_type=kind)
     outputs = [eqiora.Field(name, role=eqiora.FieldRole.Variable, value_type=short)
                for name in ("field_cut", "parameter_cut", "expression_cut")]
-    native = eqiora.Model.define(
+    native = eqiora.compile(source=eqiora.Module(
         "Slices", data, field, *outputs,
         eqiora.Relation("copy", equations=[(field, data)]),
         eqiora.Relation("cuts", equations=[
@@ -148,7 +148,7 @@ def test_native_field_parameter_expression_slices_match_source_types(domain):
             (outputs[1], data[0:2]),
             (outputs[2], (-field)[0:2]),
         ]),
-    )
+    ))
     literal = "[" + ", ".join(
         str(value) if domain == "integer" else f"{value} [V]"
         for value in values) + "]"
@@ -199,8 +199,8 @@ def test_invalid_python_slices_reject_without_mutating_declarations(bound):
     output = eqiora.Field("result", role=eqiora.FieldRole.Variable,
                           value_type=eqiora.ValueType.array(eqiora.ValueType.integer(), 2))
     with pytest.raises((TypeError, ValueError, OverflowError, eqiora.ValidationError)):
-        eqiora.Model.define("InvalidSlice", parameter, output,
-                            eqiora.Relation("cut", equations=[(output, parameter[bound])]))
+        eqiora.compile(source=eqiora.Module("InvalidSlice", parameter, output,
+                            eqiora.Relation("cut", equations=[(output, parameter[bound])])))
     assert parameter.value == (2, 3, 5)
     assert parameter.value_type == kind
 

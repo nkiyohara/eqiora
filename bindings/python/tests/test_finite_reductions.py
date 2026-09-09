@@ -8,7 +8,7 @@ q = eqiora.lang
 
 
 def owner_and_rows():
-    source = q.Source()
+    source = eqiora.Module("main")
     owner = source.model("Reduction")
     return source, owner, owner.index_set("Rows", extent=3)
 
@@ -23,7 +23,7 @@ def test_reduction_callback_is_called_once_and_body_is_symbolic():
     assert len(seen) == 1
     observed = owner.field("observed", role=eqiora.FieldRole.Variable,
                            value_type=eqiora.ValueType.integer())
-    owner.relation("observe", left=observed, right=result)
+    owner.relation("observe", eqiora.lang.equation(observed, result))
     assert "sum((ordinal(i) + 1) * (ordinal(i) + 1), over = (i in Rows))" in source.to_eqi()
     with pytest.raises(AttributeError):
         seen[0].anything = 1
@@ -37,7 +37,7 @@ def test_finite_reduction_source_file_and_sampled_execution(operation, tmp_path)
     tick = owner.clock("tick", period_s=1)
     out = owner.output("result", value_type=eqiora.ValueType.integer(), at=tick)
     reduced = getattr(owner, operation)(lambda i: (q.ordinal(i) + 1) * (q.ordinal(i) + 1), over=rows)
-    owner.relation("emit", at=tick, left=out, right=reduced)
+    owner.relation("emit", eqiora.lang.equation(out, reduced), at=tick)
     model = eqiora.compile(source=source, entry="Reduction")
     path = tmp_path / "reduction.eqi"
     source.write_eqi(path)
@@ -52,8 +52,7 @@ def test_reduction_product_preserves_physical_units():
     source, owner, rows = owner_and_rows()
     tick = owner.clock("tick", period_s=1)
     observed = owner.output("volume", value_type=eqiora.ValueType.real(eqiora.Dimension(length=3)), at=tick)
-    owner.relation("volume_value", at=tick, left=observed,
-                   right=owner.product(lambda i: q.quantity(2, eqiora.units.m), over=rows))
+    owner.relation("volume_value", eqiora.lang.equation(observed, owner.product(lambda i: q.quantity(2, eqiora.units.m), over=rows)), at=tick)
     model = eqiora.compile(source=source, entry="Reduction")
     session = model.execution_session(end_time_s=0.1, max_step_s=0.1, inputs={})
     assert session.advance_ticks(1) == 1
@@ -81,9 +80,9 @@ def test_escaped_binders_cannot_be_hidden_by_expression_construction(wrap):
     escaped = []
     owner.sum(lambda i: escaped.append(i) or 1, over=rows)
     value = wrap(escaped[0])
-    with pytest.raises(q.SourceError, match="binder"):
+    with pytest.raises(q.ModuleError, match="binder"):
         owner.let_alias("escaped", value)
-    with pytest.raises(q.SourceError, match="binder"):
+    with pytest.raises(q.ModuleError, match="binder"):
         owner.sum(lambda i: value, over=rows)
 
 
@@ -93,9 +92,9 @@ def test_declaration_sinks_reject_free_binders_before_mutation(sink):
     parameter = owner.parameter("p", value_type=eqiora.ValueType.integer())
     escaped = []
     owner.sum(lambda i: escaped.append(i) or 1, over=rows)
-    with pytest.raises(q.SourceError, match="binder"):
+    with pytest.raises(q.ModuleError, match="binder"):
         if sink == "relation":
-            owner.relation("bad", left=parameter, right=q.ordinal(escaped[0]))
+            owner.relation("bad", eqiora.lang.equation(parameter, q.ordinal(escaped[0])))
         elif sink == "initial":
             owner.initial(left=parameter, right=q.ordinal(escaped[0]))
         else:
@@ -108,16 +107,16 @@ def test_reduction_rejects_foreign_set_body_and_name_capture():
     sibling = source.component("Sibling")
     foreign = sibling.index_set("Rows", extent=3)
     p = sibling.parameter("p", value_type=eqiora.ValueType.integer())
-    with pytest.raises(q.SourceError, match="index set"):
+    with pytest.raises(q.ModuleError, match="index set"):
         owner.sum(lambda i: 1, over=foreign)
-    with pytest.raises(q.SourceError, match="Component"):
+    with pytest.raises(q.ModuleError, match="Component"):
         owner.sum(lambda i: p, over=rows)
-    with pytest.raises(q.SourceError, match="capture"):
+    with pytest.raises(q.ModuleError, match="capture"):
         owner.sum(lambda i: 1, over=rows, name="Rows")
-    with pytest.raises(q.SourceError, match="capture"):
+    with pytest.raises(q.ModuleError, match="capture"):
         owner.sum(lambda i: owner.sum(lambda j: q.ordinal(j), over=rows), over=rows)
     owner.sum(lambda i: 1, over=rows)
-    with pytest.raises(q.SourceError, match="capture"):
+    with pytest.raises(q.ModuleError, match="capture"):
         owner.let_alias("i", 1)
 
 
@@ -128,7 +127,7 @@ def test_reduction_bounds_and_callback_failure_leave_scope_usable():
     with pytest.raises(RuntimeError, match="body failed"):
         owner.sum(fail, over=rows)
     owner.let_alias("ok", owner.sum(lambda i: 1, over=rows))
-    with pytest.raises(q.SourceError, match="limit"):
+    with pytest.raises(q.ModuleError, match="limit"):
         owner.sum(lambda i: q.array([q.ordinal(i)] * 4096), over=rows)
 
 
@@ -138,7 +137,7 @@ def test_nested_reduction_executes_without_capturing_inner_index():
     out = owner.output("result", value_type=eqiora.ValueType.integer(), at=tick)
     nested = owner.sum(lambda i: owner.sum(lambda j: q.ordinal(i) + q.ordinal(j),
                        over=rows, name="j"), over=rows)
-    owner.relation("emit", at=tick, left=out, right=nested)
+    owner.relation("emit", eqiora.lang.equation(out, nested), at=tick)
     model = eqiora.compile(source=source, entry="Reduction")
     session = model.execution_session(end_time_s=0.1, max_step_s=0.1, inputs={})
     assert session.advance_ticks(1) == 1
@@ -152,13 +151,13 @@ def test_reduction_allows_local_parameter_capture_and_rejects_runtime_index():
     owner.set_default(p, 1)
     owner.let_alias("total", owner.sum(lambda i: p * (q.ordinal(i) + 1), over=rows))
     out = owner.field("result", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
-    owner.relation("emit", left=out, right=q.array((1, 2, 3))[p])
+    owner.relation("emit", eqiora.lang.equation(out, q.array((1, 2, 3))[p]))
     eqiora.compile(source=source, entry="Reduction")
-    runtime_source = q.Source()
+    runtime_source = eqiora.Module("main")
     runtime = runtime_source.model("RuntimeIndex")
     index = runtime.field("index", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.integer())
     result = runtime.field("result", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
-    runtime.relation("emit", left=result, right=q.array((1, 2, 3))[index])
+    runtime.relation("emit", eqiora.lang.equation(result, q.array((1, 2, 3))[index]))
     with pytest.raises(eqiora.ValidationError) as error:
         eqiora.compile(source=runtime_source, entry="RuntimeIndex")
     assert any("depends on an unknown or runtime value" in diagnostic.message for diagnostic in error.value.diagnostics)
@@ -168,8 +167,8 @@ def test_reduction_expansion_rejects_out_of_bounds_index():
     source, owner, rows = owner_and_rows()
     out = owner.field("result", role=eqiora.FieldRole.Variable,
                       value_type=eqiora.ValueType.integer())
-    owner.relation("emit", left=out, right=owner.sum(
-        lambda i: q.array((1, 2))[q.ordinal(i)], over=rows))
+    owner.relation("emit", eqiora.lang.equation(out, owner.sum(
+        lambda i: q.array((1, 2))[q.ordinal(i)], over=rows)))
     with pytest.raises(eqiora.ValidationError) as error:
         eqiora.compile(source=source, entry="Reduction")
     assert any("index" in diagnostic.message.lower() for diagnostic in error.value.diagnostics)
@@ -183,7 +182,7 @@ def test_completed_inner_reduction_keeps_its_scope_after_outer_callback_failure(
         raise RuntimeError("outer failed")
     with pytest.raises(RuntimeError, match="outer failed"):
         owner.sum(fail, over=rows, name="i")
-    with pytest.raises(q.SourceError, match="capture"):
+    with pytest.raises(q.ModuleError, match="capture"):
         owner.let_alias("j", 1)
     # The completed inner expression remains usable, and the failed outer name is free.
     owner.let_alias("i", 1)

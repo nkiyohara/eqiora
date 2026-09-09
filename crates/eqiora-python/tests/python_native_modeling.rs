@@ -8,9 +8,9 @@ use pyo3::types::{PyAnyMethods, PyDict, PyDictMethods, PyModule};
 fn python_rational_dimensions_preserve_exact_equality_and_native_authoring() -> PyResult<()> {
     Python::initialize();
     Python::attach(|py| {
-        let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
+        let native = public_module(py)?;
         let locals = PyDict::new(py);
-        locals.set_item("eqiora", native.bind(py))?;
+        locals.set_item("eqiora", &native)?;
         py.run(
             c_str!(
                 r#"
@@ -36,7 +36,7 @@ for invalid in [0.5, 1.0, True, (1, 2), None, 2147483648, -2147483648,
 field = eqiora.Field("psi", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real(wave))
 assert field.dimension == wave
 balance = eqiora.Relation("balance", equations=[(field, 0)])
-model = eqiora.Model.define("wave", field, balance)
+model = eqiora.compile(source=eqiora.Module("wave", field, balance))
 "#
             ),
             Some(&locals),
@@ -49,9 +49,9 @@ model = eqiora.Model.define("wave", field, balance)
 fn python_native_parameters_lower_complex_scalars_and_shaped_zero() -> PyResult<()> {
     Python::initialize();
     Python::attach(|py| {
-        let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
+        let native = public_module(py)?;
         let locals = PyDict::new(py);
-        locals.set_item("eqiora", native.bind(py))?;
+        locals.set_item("eqiora", &native)?;
         py.run(
             c_str!(
                 r#"
@@ -60,7 +60,7 @@ for value_type, value in [(scalar, 2.0), (eqiora.ValueType.array(scalar, 3), 0.0
     coefficient = eqiora.Parameter("coefficient", value_type=value_type, value=value)
     field = eqiora.Field("state", role=eqiora.FieldRole.Variable, value_type=value_type)
     relation = eqiora.Relation("balance", equations=[(field - coefficient, 0)])
-    model = eqiora.Model.define("typed_parameter", coefficient, field, relation)
+    model = eqiora.compile(source=eqiora.Module("typed_parameter", coefficient, field, relation))
     assert coefficient.value_type == value_type
     assert eqiora.Model.from_bytes(model.to_bytes()).digest == model.digest
 "#
@@ -75,9 +75,9 @@ for value_type, value in [(scalar, 2.0), (eqiora.ValueType.array(scalar, 3), 0.0
 fn python_physical_domains_preserve_complete_scalar_types() -> PyResult<()> {
     Python::initialize();
     Python::attach(|py| {
-        let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
+        let native = public_module(py)?;
         let locals = PyDict::new(py);
-        locals.set_item("eqiora", native.bind(py))?;
+        locals.set_item("eqiora", &native)?;
         py.run(c_str!(r#"
 voltage = eqiora.ValueType.complex(eqiora.Dimension(mass=1, length=2, time=-3, current=-1))
 current = eqiora.ValueType.complex(eqiora.Dimension(current=1))
@@ -87,7 +87,7 @@ assert domain.through_type == current
 left = eqiora.ConservingPort("left", domain=domain)
 right = eqiora.ConservingPort("right", domain=domain)
 relation = eqiora.Relation("balance", equations=[(residual, 0) for residual in ([eqiora.across(left) - eqiora.across(right), eqiora.through(left) + eqiora.through(right)])])
-model = eqiora.Model.define("complex_physical", domain, left, right, relation, eqiora.connect(left, right))
+model = eqiora.compile(source=eqiora.Module("complex_physical", domain, left, right, relation, eqiora.connect(left, right)))
 assert eqiora.Model.from_bytes(model.to_bytes()).digest == model.digest
 "#), Some(&locals), None)
     })
@@ -97,8 +97,8 @@ assert eqiora.Model.from_bytes(model.to_bytes()).digest == model.digest
 fn python_native_modeling_crosses_only_shared_rust_contracts() -> PyResult<()> {
     Python::initialize();
     Python::attach(|py| {
-        let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
-        let module = native.bind(py);
+        let native = public_module(py)?;
+        let module = &native;
         let locals = PyDict::new(py);
         locals.set_item("eqiora", module)?;
 
@@ -115,7 +115,7 @@ flow = eqiora.Relation(
     "flow",
     equations=[(eqiora.derivative(x) + rate * x, 0)],
 )
-scalar_model = eqiora.Model.define("decay", x, rate, flow, eqiora.Initial((x, 1.0)))
+scalar_model = eqiora.compile(source=eqiora.Module("decay", x, rate, flow, eqiora.Initial((x, 1.0))))
 
 voltage = eqiora.Dimension(mass=1, length=2, time=-3, current=-1)
 current = eqiora.Dimension(current=1)
@@ -137,7 +137,7 @@ component = eqiora.Relation(
     ])],
 )
 connection = eqiora.connect(left, right, tap)
-physical_model = eqiora.Model.define(
+physical_model = eqiora.compile(source=eqiora.Module(
     "physical_pair",
     electrical,
     left,
@@ -145,7 +145,7 @@ physical_model = eqiora.Model.define(
     tap,
     component,
     connection,
-)
+))
 
 interval = eqiora.Domain.box("interval", (0.0, 1.0))
 lower_end = interval.boundary(
@@ -170,7 +170,7 @@ source_scale = eqiora.Parameter(
     value_type=eqiora.ValueType.real(eqiora.Dimension(length=-2)),
     value=1.0,
 )
-spatial_model = eqiora.Model.define(
+spatial_model = eqiora.compile(source=eqiora.Module(
     "native_poisson",
     source_scale,
     upper_end,
@@ -193,7 +193,7 @@ spatial_model = eqiora.Model.define(
         domain=lower_end,
         equations=[(eqiora.trace(potential), 0)],
     ),
-)
+))
 "#
             ),
             None,
@@ -307,7 +307,7 @@ model source_physical() {
 included = eqiora.Field("x", role=eqiora.FieldRole.Variable)
 same_named_foreign = eqiora.Field("x", role=eqiora.FieldRole.Variable)
 relation = eqiora.Relation("flow", equations=[(same_named_foreign, 0)])
-rejected_model = eqiora.Model.define("foreign_symbol", included, relation)
+rejected_model = eqiora.compile(source=eqiora.Module("foreign_symbol", included, relation))
 "#
             ),
             "EQ0603",
@@ -332,7 +332,7 @@ duration = eqiora.Parameter(
     value=1.0,
 )
 invalid = eqiora.Relation("invalid", equations=[(temperature + duration, 0)])
-rejected_model = eqiora.Model.define("dimension_mismatch", temperature, duration, invalid)
+rejected_model = eqiora.compile(source=eqiora.Module("dimension_mismatch", temperature, duration, invalid))
 "#
             ),
             "EQ0603",
@@ -364,7 +364,7 @@ equal_but_foreign = eqiora.PhysicalDomain(
 left = eqiora.ConservingPort("left", domain=left_domain)
 foreign = eqiora.ConservingPort("foreign", domain=equal_but_foreign)
 bad_connection = eqiora.connect(left, foreign)
-rejected_model = eqiora.Model.define(
+rejected_model = eqiora.compile(source=eqiora.Module(
     "nominal_domain_mismatch",
     left_domain,
     equal_but_foreign,
@@ -373,7 +373,7 @@ rejected_model = eqiora.Model.define(
     eqiora.Relation("left_owner", equations=[(eqiora.across(left), 0)]),
     eqiora.Relation("foreign_owner", equations=[(eqiora.across(foreign), 0)]),
     bad_connection,
-)
+))
 "#
             ),
             "EQ0603",
@@ -398,13 +398,13 @@ electrical = eqiora.PhysicalDomain(
 left = eqiora.ConservingPort("left", domain=electrical)
 omitted = eqiora.ConservingPort("omitted", domain=electrical)
 bad_connection = eqiora.connect(left, omitted)
-rejected_model = eqiora.Model.define(
+rejected_model = eqiora.compile(source=eqiora.Module(
     "omitted_connection_member",
     electrical,
     left,
     eqiora.Relation("left_owner", equations=[(eqiora.across(left), 0)]),
     bad_connection,
-)
+))
 "#
             ),
             "EQ0603",
@@ -426,7 +426,7 @@ field = eqiora.Field(
     domain=same_named_foreign,
 
 )
-rejected_model = eqiora.Model.define("foreign_domain", included, field)
+rejected_model = eqiora.compile(source=eqiora.Module("foreign_domain", included, field))
 "#
             ),
             "EQ0603",
@@ -446,7 +446,7 @@ relation = eqiora.Relation(
     domain=same_named_foreign,
     equations=[(1.0, 0)],
 )
-rejected_model = eqiora.Model.define("foreign_relation_domain", included, relation)
+rejected_model = eqiora.compile(source=eqiora.Module("foreign_relation_domain", included, relation))
 "#
             ),
             "EQ0603",
@@ -466,7 +466,7 @@ lower = same_named_foreign.boundary(
     axis=0,
     side=eqiora.BoundarySide.Lower,
 )
-rejected_model = eqiora.Model.define("foreign_parent", included, lower)
+rejected_model = eqiora.compile(source=eqiora.Module("foreign_parent", included, lower))
 "#
             ),
             "EQ0603",
@@ -487,13 +487,13 @@ invalid = eqiora.Relation(
     domain=interval,
     equations=[(eqiora.trace(field), 0)],
 )
-rejected_model = eqiora.Model.define(
+rejected_model = eqiora.compile(source=eqiora.Module(
     "support_mismatch",
     interval,
 
     field,
     invalid,
-)
+))
 "#
             ),
             "EQ0603",
@@ -565,4 +565,40 @@ fn assert_rejected_without_model(
     }
     assert!(diagnostic.getattr("source_span")?.is_none());
     Ok(())
+}
+
+fn public_module(py: Python<'_>) -> PyResult<Bound<'_, PyModule>> {
+    let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
+    let package_directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../bindings/python/python/eqiora")
+        .canonicalize()?;
+    let locals = PyDict::new(py);
+    locals.set_item("native", native.bind(py))?;
+    locals.set_item("package_directory", package_directory.to_string_lossy())?;
+    py.run(
+        c_str!(
+            r#"
+import importlib.util
+import pathlib
+import sys
+
+package_path = pathlib.Path(package_directory)
+spec = importlib.util.spec_from_file_location(
+    "eqiora",
+    package_path / "__init__.py",
+    submodule_search_locations=[str(package_path)],
+)
+package = importlib.util.module_from_spec(spec)
+sys.modules["eqiora"] = package
+sys.modules["eqiora._eqiora"] = native
+spec.loader.exec_module(package)
+"#
+        ),
+        None,
+        Some(&locals),
+    )?;
+    Ok(locals
+        .get_item("package")?
+        .expect("public package must load")
+        .cast_into::<PyModule>()?)
 }

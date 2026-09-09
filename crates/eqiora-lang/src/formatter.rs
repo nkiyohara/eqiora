@@ -29,6 +29,12 @@ use helpers::{format_boundary_port_selector, format_scalar_physical, write_inden
 use property::format_properties;
 use relation::{format_relation, format_relation_family};
 
+pub(crate) fn expression_source(expression: &crate::Expr) -> String {
+    let mut output = comments::Output::default();
+    format_expression(expression, 0, &mut output);
+    output.finish()
+}
+
 /// Canonically format syntax and the comment trivia owned by each declaration.
 #[must_use]
 pub fn format(document: &Document) -> String {

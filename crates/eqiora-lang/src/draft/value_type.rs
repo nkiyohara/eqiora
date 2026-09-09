@@ -174,8 +174,8 @@ mod tests {
                 eqiora_core::ValueLiteral::from_real(value_type.clone(), 0.0).unwrap(),
             );
             assert_eq!(parameter.value_type(), &value_type);
-            let draft = ModelDraft::new("M", [parameter.into()]).unwrap();
-            let native = draft.native_ast();
+            let draft = Module::new("M", [parameter.into()]).unwrap();
+            let native = draft;
             let Item::Parameter(parameter) = &native.model().items()[0] else {
                 panic!("Parameter");
             };
@@ -206,7 +206,7 @@ mod tests {
             "large",
             eqiora_core::ValueLiteral::from_real(oversized, 0.0).unwrap(),
         );
-        assert!(ModelDraft::new("M", [parameter.into()]).is_err());
+        assert!(Module::new("M", [parameter.into()]).is_err());
     }
 
     #[test]
@@ -223,8 +223,8 @@ mod tests {
         let field = DraftField::new("channels", value.clone(), crate::FieldRoleSyntax::Variable);
         assert_eq!(field.value_type(), &value);
         assert_eq!(field.role(), crate::FieldRoleSyntax::Variable);
-        let draft = ModelDraft::new("M", [field.into()]).unwrap();
-        let native = draft.native_ast();
+        let draft = Module::new("M", [field.into()]).unwrap();
+        let native = draft;
         let document =
             SourceAstFactory::document(Vec::new(), vec![], vec![], vec![native.model().clone()])
                 .unwrap();
@@ -252,6 +252,6 @@ mod tests {
             scalar.array(65_537).unwrap(),
             crate::FieldRoleSyntax::Variable,
         );
-        assert!(ModelDraft::new("M", [oversized.into()]).is_err());
+        assert!(Module::new("M", [oversized.into()]).is_err());
     }
 }

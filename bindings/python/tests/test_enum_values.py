@@ -19,8 +19,8 @@ def test_native_enum_values_edit_and_replay_preserve_nominal_identity():
     assert heating != foreign.member("Heating")
     parameter = eqiora.Parameter("mode", value_type=mode.value_type, value=heating)
     observed = eqiora.Field("observed", role=eqiora.FieldRole.Variable)
-    model = eqiora.Model.define("NativeEnum", mode, parameter, observed,
-                               eqiora.Relation("observe", equations=[(observed, 0)]))
+    model = eqiora.compile(source=eqiora.Module("NativeEnum", mode, parameter, observed,
+                               eqiora.Relation("observe", equations=[(observed, 0)])))
     reference = model.parameter("mode")
     assert reference.value == heating and reference.value_type == mode.value_type
     for current in (model, eqiora.Model.from_bytes(model.to_bytes())):
@@ -46,7 +46,7 @@ def test_native_enum_values_edit_and_replay_preserve_nominal_identity():
 
 
 def enum_source():
-    source = q.Source()
+    source = eqiora.Module("main")
     mode = source.enum("Mode", members=MEMBERS, doc="Declared operating modes.")
     owner = source.model("Controller")
     tick = owner.clock("tick", period_s=1)
@@ -55,10 +55,10 @@ def enum_source():
     output = owner.output("observed", value_type=mode.value_type, at=tick)
     level = owner.output("level", value_type=eqiora.ValueType.real(), at=tick)
     owner.initial((q.pre(memory), mode.member("Fault")))
-    owner.relation("remember", at=tick, left=q.next(memory), right=drive)
-    owner.relation("observe", at=tick, left=output, right=q.pre(memory))
-    owner.relation("classify", at=tick, left=level, right=q.case(drive, [
-        (mode.member("Heating"), 2), (mode.member("Cooling"), -3), (mode.member("Fault"), 0)]))
+    owner.relation("remember", eqiora.lang.equation(q.next(memory), drive), at=tick)
+    owner.relation("observe", eqiora.lang.equation(output, q.pre(memory)), at=tick)
+    owner.relation("classify", eqiora.lang.equation(level, q.case(drive, [
+        (mode.member("Heating"), 2), (mode.member("Cooling"), -3), (mode.member("Fault"), 0)])), at=tick)
     return source, mode
 
 
@@ -88,13 +88,13 @@ def test_source_enum_case_file_execution_and_checkpoint_preserve_values(tmp_path
 
 
 def test_enum_case_authoring_preserves_foreign_capture_and_closed_patterns():
-    source = q.Source()
+    source = eqiora.Module("main")
     mode = source.enum("Mode", members=MEMBERS)
     owner = source.model("Owner")
-    foreign_source = q.Source()
+    foreign_source = eqiora.Module("main")
     foreign = foreign_source.enum("Mode", members=MEMBERS)
     expression = q.case(mode.member("Heating"), [(foreign.member("Heating"), 1)])
-    with pytest.raises(q.SourceError, match="(?i)source|foreign"):
+    with pytest.raises(q.ModuleError, match="(?i)module|foreign"):
         owner.let_alias("foreign", expression)
     with pytest.raises(TypeError, match="patterns"):
         q.case(mode.member("Heating"), [("Mode.Heating", 1)])
@@ -106,25 +106,24 @@ def test_enum_case_authoring_preserves_foreign_capture_and_closed_patterns():
 
 @pytest.mark.parametrize("labels", [("Heating",), ("Heating", "Heating", "Fault")])
 def test_compiler_rejects_nonexhaustive_or_duplicate_case_arms(labels):
-    source = q.Source()
+    source = eqiora.Module("main")
     mode = source.enum("Mode", members=MEMBERS)
     owner = source.model("InvalidCase")
     observed = owner.field("observed", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
-    owner.relation("observe", left=observed,
-                   right=q.case(mode.member("Heating"), [(mode.member(label), 1) for label in labels]))
-    with pytest.raises(eqiora.ValidationError, match="(?i)case|arm|exhaustive|duplicate|member"):
+    with pytest.raises((q.ModuleError, eqiora.ValidationError), match="(?i)case|arm|exhaustive|duplicate|member"):
+        owner.relation("observe", eqiora.lang.equation(observed, q.case(mode.member("Heating"), [(mode.member(label), 1) for label in labels])))
         eqiora.compile(source=source, entry="InvalidCase")
 
 
 def test_source_enum_parameter_binding_requires_exact_compiled_declaration(tmp_path):
-    source = q.Source()
+    source = eqiora.Module("main")
     mode = source.enum("Mode", members=MEMBERS)
     owner = source.model("Configured")
     parameter = owner.parameter("mode", value_type=mode.value_type)
     owner.set_default(parameter, mode.member("Heating"))
     observed = owner.field("observed", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
-    owner.relation("observe", left=observed, right=q.case(parameter, [
-        (mode.member("Heating"), 2), (mode.member("Cooling"), -3), (mode.member("Fault"), 0)]))
+    owner.relation("observe", eqiora.lang.equation(observed, q.case(parameter, [
+        (mode.member("Heating"), 2), (mode.member("Cooling"), -3), (mode.member("Fault"), 0)])))
     original = eqiora.compile(source=source, entry="Configured")
     declaration = original.enum("Mode")
     cooling = declaration.member("Cooling")
@@ -140,12 +139,12 @@ def test_source_enum_parameter_binding_requires_exact_compiled_declaration(tmp_p
 
 
 def test_compiler_rejects_same_source_foreign_enum_case_pattern():
-    source = q.Source()
+    source = eqiora.Module("main")
     mode = source.enum("Mode", members=MEMBERS)
     foreign = source.enum("Foreign", members=MEMBERS)
     owner = source.model("ForeignCase")
     observed = owner.field("observed", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
-    owner.relation("observe", left=observed, right=q.case(mode.member("Heating"), [
-        (foreign.member(label), 1) for label in MEMBERS]))
+    owner.relation("observe", eqiora.lang.equation(observed, q.case(mode.member("Heating"), [
+        (foreign.member(label), 1) for label in MEMBERS])))
     with pytest.raises(eqiora.ValidationError, match="(?i)enum|case|pattern|nominal|member"):
         eqiora.compile(source=source, entry="ForeignCase")

@@ -1019,13 +1019,13 @@ fn native_lowering_replaces_synthetic_ranges_with_declaration_paths() {
             ),
         )],
     );
-    let draft = ModelDraft::new(
+    let draft = Module::new(
         "thermal",
         [temperature.into(), duration.into(), relation.into()],
     )
     .unwrap();
 
-    let diagnostics = lower_draft(&draft).unwrap_err();
+    let diagnostics = lower_module(&draft, None, &[]).unwrap_err();
     assert_eq!(diagnostics[0].code(), codes::LANGUAGE_TYPE_ERROR);
     assert_eq!(
         diagnostics[0].graph_path().unwrap().to_string(),
@@ -1059,8 +1059,8 @@ fn native_field_types_survive_direct_lowering() {
         &domain,
         [(field.expression(), field.expression())],
     );
-    let draft = ModelDraft::new("M", [domain.into(), field.into(), relation.into()]).unwrap();
-    let compiled = lower_draft(&draft).unwrap();
+    let draft = Module::new("M", [domain.into(), field.into(), relation.into()]).unwrap();
+    let compiled = lower_module(&draft, None, &[]).unwrap();
     let (transaction, _, _) = compiled.into_parts();
     let field = transaction
         .ops()
@@ -1162,7 +1162,7 @@ model resistor() {
             ),
         ],
     );
-    let draft = ModelDraft::new(
+    let draft = Module::new(
         "resistor",
         [
             electrical.into(),
@@ -1175,7 +1175,7 @@ model resistor() {
         ],
     )
     .unwrap();
-    let native_model = lower_draft(&draft).unwrap();
+    let native_model = lower_module(&draft, None, &[]).unwrap();
 
     assert_eq!(
         normalized_physical_semantics(&source_model),
@@ -1220,7 +1220,7 @@ fn native_physical_projection_is_insensitive_to_declaration_and_net_permutation(
             ),
         ],
     );
-    let forward = ModelDraft::new(
+    let forward = Module::new(
         "permuted",
         [
             electrical.clone().into(),
@@ -1231,7 +1231,7 @@ fn native_physical_projection_is_insensitive_to_declaration_and_net_permutation(
         ],
     )
     .unwrap();
-    let reversed = ModelDraft::new(
+    let reversed = Module::new(
         "permuted",
         [
             eqiora_lang::DraftConservingConnection::new([&negative, &positive]).into(),
@@ -1244,8 +1244,8 @@ fn native_physical_projection_is_insensitive_to_declaration_and_net_permutation(
     .unwrap();
 
     assert_eq!(
-        normalized_physical_semantics(&lower_draft(&forward).unwrap()),
-        normalized_physical_semantics(&lower_draft(&reversed).unwrap())
+        normalized_physical_semantics(&lower_module(&forward, None, &[]).unwrap()),
+        normalized_physical_semantics(&lower_module(&reversed, None, &[]).unwrap())
     );
 }
 

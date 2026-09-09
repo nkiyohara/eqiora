@@ -2,16 +2,16 @@ import eqiora
 import pytest
 
 
-def model_with_collisions():
-    source = eqiora.lang.Source()
+def model_with_collisions(*, parsed=False):
+    source = eqiora.Module("main")
     model = source.model("Main")
     left = model.field("left", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
     right = model.field("right", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
-    model.relation("left_law", left=left, right=0)
-    model.relation("right_law", left=right, right=0)
+    model.relation("left_law", eqiora.lang.equation(left, 0))
+    model.relation("right_law", eqiora.lang.equation(right, 0))
     model.set_notation("left", eqiora.lang.Notation(r"@{x_i}"))
     model.set_notation("right", eqiora.lang.Notation(r"@{\mathbf{x_i}}"))
-    return eqiora.compile(source=source)
+    return eqiora.compile(source=eqiora.Module.parse("main", source.to_eqi()) if parsed else source)
 
 
 def test_full_model_labels_and_subviews_share_exact_occurrences():
@@ -29,7 +29,11 @@ def test_full_model_labels_and_subviews_share_exact_occurrences():
         selected = model.notation_labels(profile, identities=[full[1].identity, full[1].identity])
         assert len(selected) == 1
         assert selected[0].label == next(entry.label for entry in rendered if entry.identity == full[1].identity)
-    assert all(entry.definition_span is not None and entry.instance_span is not None for entry in full)
+    assert all(entry.definition_span is None and entry.instance_span is None for entry in full)
+    parsed = model_with_collisions(parsed=True)
+    assert parsed.structural_fingerprint == model.structural_fingerprint
+    assert all(entry.definition_span is not None and entry.instance_span is not None
+               for entry in parsed.notation_labels())
     with pytest.raises(AttributeError):
         full[0].label = "changed"
     with pytest.raises(ValueError, match="outside this Model scope"):

@@ -1,18 +1,43 @@
 //! Native declarations enter the ordinary complete-document compiler pipeline.
 use super::*;
 
-pub(super) fn lower(draft: &ModelDraft) -> Result<CompiledModel, Vec<Diagnostic>> {
-    let native = draft.native_ast();
-    let mut compiled =
-        crate::hierarchy::selected::native_document(&native).map_err(|diagnostics| {
+impl CompiledModel {
+    pub(crate) fn retain_source_files(mut self, keep: impl Fn(&str) -> bool) -> Self {
+        if let Some(provenance) = self.provenance.take() {
+            let provenance = provenance.retain_source_files(&keep);
+            if !provenance.is_empty() {
+                self.provenance = Some(provenance);
+            }
+        }
+        self.notation.retain_source_files(keep);
+        self
+    }
+}
+
+pub(super) fn lower(
+    draft: &Module,
+    entry: Option<&str>,
+    bindings: &[(&str, crate::StaticBindingValue<'_>)],
+) -> Result<CompiledModel, Vec<Diagnostic>> {
+    let native = draft;
+    let mut compiled = crate::hierarchy::selected::native_document(native, entry, bindings)
+        .map_err(|diagnostics| {
             diagnostics
                 .into_iter()
-                .map(|diagnostic| crate::diagnostics::native_diagnostic(draft, &native, diagnostic))
+                .map(|diagnostic| {
+                    if native.source_file().is_none() {
+                        crate::diagnostics::native_diagnostic(native, diagnostic)
+                    } else {
+                        diagnostic
+                    }
+                })
                 .collect::<Vec<_>>()
         })?;
     // Synthetic native ranges are not authored source provenance.
-    compiled.provenance = None;
-    compiled.notation.clear_source_locations();
+    if native.source_file().is_none() {
+        compiled.provenance = None;
+        compiled.notation.clear_source_locations();
+    }
     Ok(compiled)
 }
 
@@ -46,7 +71,7 @@ mod tests {
                 ),
             )],
         );
-        let draft = ModelDraft::new(
+        let draft = Module::new(
             "Native",
             [
                 DraftDeclaration::FiniteSpace {
@@ -64,8 +89,8 @@ mod tests {
             ],
         )
         .unwrap();
-        let first = lower(&draft).unwrap();
-        let second = lower(&draft).unwrap();
+        let first = lower(&draft, None, &[]).unwrap();
+        let second = lower(&draft, None, &[]).unwrap();
         assert_ne!(first.model(), second.model());
         assert_ne!(
             first.symbols().get("observed"),

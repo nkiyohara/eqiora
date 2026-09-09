@@ -1,30 +1,33 @@
 //! Projection into the shared source AST, with synthetic ranges for diagnostics.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use eqiora_core::GraphPath;
 
-use super::{DraftDeclaration, DraftPortReference, connection_path, value_type};
+use super::{DraftDeclaration, connection_path, value_type};
 use crate::ast::{
     ActivationSyntax, ConnectionDecl, ConnectionSyntax, DomainDecl, DomainSyntax, Equation, Expr,
     ExprKind, FieldDecl, Item, ModelDecl, NamePath, ParameterDecl, PortDecl, PortSyntax,
     RelationDecl, TextRange, VisibilitySyntax,
 };
 
-/// Synthetic AST plus paths that recover native declaration context.
-#[doc(hidden)]
-#[derive(Debug)]
-pub struct NativeModelAst {
-    document: crate::Document,
-    nominal_ids: HashMap<String, eqiora_core::RawId>,
-    paths: HashMap<TextRange, GraphPath>,
+/// Immutable compilation module over the same declaration and expression AST
+/// produced by the parser. Native nominal identities and diagnostic paths are
+/// explicit authoring metadata, not a second semantic graph.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Module {
+    document: Arc<crate::Document>,
+    nominal_ids: Arc<HashMap<String, eqiora_core::RawId>>,
+    paths: Arc<HashMap<TextRange, GraphPath>>,
+    source_file: Option<(Arc<str>, usize)>,
 }
 
-impl super::ModelDraft {
+impl super::ModelDeclarations {
     /// Build the private compiler bridge without formatting or parsing source.
     #[doc(hidden)]
     #[must_use]
-    pub fn native_ast(&self) -> NativeModelAst {
+    fn into_module(self) -> Module {
         let mut ranges = RangeAllocator::default();
         let mut paths = HashMap::new();
         let mut items = Vec::with_capacity(self.declarations.len());
@@ -264,7 +267,7 @@ impl super::ModelDraft {
         let model = ModelDecl {
             signature: Vec::new(),
             comments: Default::default(),
-            visibility: VisibilitySyntax::Private,
+            visibility: VisibilitySyntax::Public,
             name: self.name.clone(),
             items,
             range,
@@ -273,10 +276,11 @@ impl super::ModelDraft {
             crate::SourceAstFactory::document(enumerations, vec![], vec![], vec![model])
                 .expect("native model document");
         document.finite_spaces = finite_spaces;
-        NativeModelAst {
-            document,
-            nominal_ids,
-            paths,
+        Module {
+            document: Arc::new(document),
+            nominal_ids: Arc::new(nominal_ids),
+            paths: Arc::new(paths),
+            source_file: None,
         }
     }
 }
@@ -300,20 +304,58 @@ impl RangeAllocator {
     }
 }
 
-pub(super) fn physical_accessor_ast(
-    member: &str,
-    reference: &DraftPortReference,
-    path: &GraphPath,
-    ranges: &mut RangeAllocator,
-    paths: &mut HashMap<TextRange, GraphPath>,
-) -> ExprKind {
-    ExprKind::Path(NamePath::from_parsed_segments(
-        vec![reference.name.clone(), member.to_owned()],
-        ranges.allocate(path, paths),
-    ))
-}
+impl Module {
+    /// Close immutable native declarations into one module containing a Model.
+    ///
+    /// # Errors
+    /// Rejects malformed declarations, omitted exact references and invalid values.
+    pub fn new(
+        name: impl Into<String>,
+        declarations: impl IntoIterator<Item = super::DraftDeclaration>,
+    ) -> Result<Self, Vec<eqiora_core::Diagnostic>> {
+        super::ModelDeclarations::new(name, declarations).map(|value| value.into_module())
+    }
 
-impl NativeModelAst {
+    /// Own a complete checked AST, including imports and multiple declarations.
+    /// Semantic and resource admission remains with the shared compiler.
+    #[must_use]
+    pub fn from_document(document: crate::Document) -> Self {
+        Self {
+            document: Arc::new(document),
+            nominal_ids: Arc::default(),
+            paths: Arc::default(),
+            source_file: None,
+        }
+    }
+
+    /// Parse an authored source unit, preserving its real UTF-8 coordinates.
+    ///
+    /// # Errors
+    /// Returns the ordinary parser diagnostics without a partial module.
+    pub fn parse(file: &str, source: &str) -> Result<Self, Vec<eqiora_core::Diagnostic>> {
+        let mut module = Self::from_document(crate::parse(file, source).into_document()?);
+        module.source_file = Some((Arc::from(file), source.len()));
+        Ok(module)
+    }
+
+    /// Original file label only when the AST was parsed from actual UTF-8 source.
+    #[must_use]
+    pub fn source_file(&self) -> Option<&str> {
+        self.source_file.as_ref().map(|(file, _)| file.as_ref())
+    }
+
+    /// Original input byte count, including unbound comments, for parsed modules.
+    #[must_use]
+    pub fn source_bytes(&self) -> Option<usize> {
+        self.source_file.as_ref().map(|(_, bytes)| *bytes)
+    }
+
+    /// Whether this module carries exact native-declaration provenance.
+    #[must_use]
+    pub fn has_native_metadata(&self) -> bool {
+        !self.paths.is_empty()
+    }
+
     /// Source-shaped model consumed by the shared compiler lowerer.
     #[must_use]
     pub fn model(&self) -> &ModelDecl {

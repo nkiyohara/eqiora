@@ -10,7 +10,7 @@ q = eqiora.lang
 
 
 def coupled_source(domain, *, reverse=False):
-    source = q.Source()
+    source = eqiora.Module("main")
     owner = source.model("CoupledArrays")
     tick = owner.clock("tick", period_s=1)
     scalar = eqiora.ValueType.integer() if domain == "integer" else eqiora.ValueType.real()
@@ -30,7 +30,7 @@ def coupled_source(domain, *, reverse=False):
         ("observe_b", seen_b, q.pre(b)),
     ]
     for name, left, right in reversed(equations) if reverse else equations:
-        owner.relation(name, at=tick, left=left, right=right)
+        owner.relation(name, q.equation(left, right), at=tick)
     return source, seed
 
 
@@ -79,7 +79,7 @@ def test_coupled_array_updates_are_simultaneous_and_resume_exactly(domain, tmp_p
 
 
 def overflow_source():
-    source = q.Source()
+    source = eqiora.Module("main")
     owner = source.model("AtomicArrays")
     tick = owner.clock("tick", period_s=1)
     real = eqiora.ValueType.array(eqiora.ValueType.real(), 2)
@@ -90,12 +90,10 @@ def overflow_source():
     seen_count = owner.output("seen_count", value_type=integer, at=tick)
     owner.initial((q.pre(safe), q.array((1.0, 2.0))),
                   (q.pre(count), q.array((4, 2**63 - 2))))
-    owner.relation("safe_update", at=tick, left=q.next(safe),
-                   right=q.array((q.pre(safe)[0] + 0.5, q.pre(safe)[1] - 0.25)))
-    owner.relation("counter_update", at=tick, left=q.next(count),
-                   right=q.array((q.pre(count)[0] + 1, q.pre(count)[1] + 1)))
-    owner.relation("observe_safe", at=tick, left=seen_safe, right=q.pre(safe))
-    owner.relation("observe_count", at=tick, left=seen_count, right=q.pre(count))
+    owner.relation("safe_update", q.equation(q.next(safe), q.array((q.pre(safe)[0] + 0.5, q.pre(safe)[1] - 0.25))), at=tick)
+    owner.relation("counter_update", q.equation(q.next(count), q.array((q.pre(count)[0] + 1, q.pre(count)[1] + 1))), at=tick)
+    owner.relation("observe_safe", q.equation(seen_safe, q.pre(safe)), at=tick)
+    owner.relation("observe_count", q.equation(seen_count, q.pre(count)), at=tick)
     return source
 
 

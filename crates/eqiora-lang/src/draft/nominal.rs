@@ -2,7 +2,7 @@
 
 use super::*;
 
-impl ModelDraft {
+impl ModelDeclarations {
     pub(super) fn validate_enum_type(
         &self,
         value: &ValueType,

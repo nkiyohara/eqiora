@@ -9,7 +9,7 @@ use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora::kernel::{ActivationDef, ExprDagBuilder, FieldDef, KernelNode, RelationDef, SymbolRef};
 use eqiora::language::{
     DraftConservingConnection, DraftConservingPort, DraftExpression, DraftParameter,
-    DraftPhysicalDomain, DraftRelation, ModelDraft,
+    DraftPhysicalDomain, DraftRelation, Module,
 };
 use eqiora::ontology::{Model, OntologyId};
 use eqiora::sem::{KernelProgram, PhysicalUnknown};
@@ -78,7 +78,7 @@ fn compile_fixture(reverse_insertion: bool) -> Fixture {
     }
 }
 
-fn native_parallel_dc_draft() -> ModelDraft {
+fn native_parallel_dc_draft() -> Module {
     let voltage = DimExponents::from_integers([1, 2, -3, -1, 0, 0, 0]).expect("bounded dimension");
     let current = DimExponents::from_integers([0, 0, 0, 1, 0, 0, 0]).expect("bounded dimension");
     let resistance =
@@ -210,7 +210,7 @@ fn native_parallel_dc_draft() -> ModelDraft {
         &resistor_four_negative,
     ]);
 
-    ModelDraft::new(
+    Module::new(
         "parallel_dc_network",
         vec![
             electrical.into(),
@@ -647,7 +647,7 @@ fn source_parallel_dc_roundtrips_and_reaccepts_analytic_solution() {
 #[test]
 fn native_parallel_dc_crosses_the_current_wire_and_matches_source_acceptance() {
     let draft = native_parallel_dc_draft();
-    let native = eqiora::api::ModelDocument::define(&draft)
+    let native = eqiora::api::ModelDocument::compile_module(&draft, None, &[])
         .expect("native physical draft through current authoring");
     let source = eqiora::api::ModelDocument::compile("parallel-dc.eqi", SOURCE)
         .expect("source physical model through the current wire");

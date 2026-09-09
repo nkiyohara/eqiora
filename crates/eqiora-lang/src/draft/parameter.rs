@@ -89,7 +89,7 @@ mod tests {
             DraftSpatialDomain::boundary("wall", &body, 0, crate::BoundarySideSyntax::Lower);
         for frame in [&body, &boundary] {
             let parameter = DraftParameter::new("coefficient", coefficient()).with_frame(frame);
-            let draft = ModelDraft::new(
+            let draft = Module::new(
                 "M",
                 [
                     body.clone().into(),
@@ -98,7 +98,7 @@ mod tests {
                 ],
             )
             .unwrap();
-            let rendered = crate::format(draft.native_ast().document());
+            let rendered = crate::format(draft.document());
             assert!(rendered.contains(&format!(
                 "tensor_value(frame = {}, components = [[2, 3], [5, 7]])",
                 frame.name()
@@ -110,7 +110,7 @@ mod tests {
             );
         }
         let foreign = DraftSpatialDomain::cartesian_box("body", [(0.0, 1.0); 2]);
-        let error = ModelDraft::new(
+        let error = Module::new(
             "M",
             [
                 body.clone().into(),
@@ -126,7 +126,7 @@ mod tests {
                 .any(|e| e.message().contains("foreign or omitted"))
         );
         assert!(
-            ModelDraft::new(
+            Module::new(
                 "M",
                 [body.into(), DraftParameter::new("a", coefficient()).into()]
             )
@@ -134,7 +134,7 @@ mod tests {
         );
         let one_d = DraftSpatialDomain::cartesian_box("line", [(0.0, 1.0)]);
         assert!(
-            ModelDraft::new(
+            Module::new(
                 "M",
                 [
                     one_d.clone().into(),

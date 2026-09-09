@@ -565,20 +565,6 @@ fn deferred_admission() -> Diagnostic {
 
 #[pymethods]
 impl PyModel {
-    /// Define a model from immutable native declarations.
-    #[staticmethod]
-    #[pyo3(signature = (name, *declarations))]
-    fn define(
-        py: Python<'_>,
-        name: String,
-        declarations: &Bound<'_, pyo3::types::PyTuple>,
-    ) -> PyResult<Self> {
-        panic_boundary(py, || {
-            let document = crate::modeling::define_model(py, name, declarations)?;
-            Self::from_document(py, document)
-        })
-    }
-
     /// Exact canonical, versioned compiled Model artifact bytes.
     fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         panic_boundary(py, || {

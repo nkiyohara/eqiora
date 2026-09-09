@@ -113,7 +113,7 @@ fn equations(
         expression(scope, &mut equation.right, visit);
     }
 }
-fn expression(
+pub(crate) fn expression(
     scope: Option<&str>,
     value: &mut Expr,
     visit: &mut impl FnMut(Option<&str>, &mut Expr),

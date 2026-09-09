@@ -7,8 +7,8 @@ import eqiora
 
 def native_model(name, *declarations):
     observed = eqiora.Field("observed", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
-    return eqiora.Model.define(name, *declarations, observed,
-                               eqiora.Relation("observe", equations=[(observed, 0)]))
+    return eqiora.compile(source=eqiora.Module(name, *declarations, observed,
+                               eqiora.Relation("observe", equations=[(observed, 0)])))
 
 
 VALUES = (-(2**63), -(2**53 + 1), 0, 2**53, 2**53 + 1, 2**53 + 2, 2**63 - 1)
@@ -48,12 +48,12 @@ def test_integer_creation_source_read_edit_and_replay_preserve_every_bit(value):
 
 def test_integer_source_builder_and_external_binding_preserve_adjacent_values(tmp_path):
     q = eqiora.lang
-    source = q.Source()
+    source = eqiora.Module("main")
     owner = source.model("Selected")
     count = owner.parameter("count", value_type=eqiora.ValueType.integer())
     owner.set_default(count, 2**53 + 1)
     observed = owner.field("observed", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
-    owner.relation("observe", left=observed, right=q.to_real(count))
+    owner.relation("observe", eqiora.lang.equation(observed, q.to_real(count)))
     text = source.to_eqi()
     assert "9007199254740993" in text
     authored = eqiora.compile(source=source, entry="Selected")
@@ -110,7 +110,7 @@ def test_untyped_native_parameter_keeps_real_default():
 
 def test_integer_source_functions_retain_exact_values_and_explicit_conversion():
     q = eqiora.lang
-    source = q.Source()
+    source = eqiora.Module("main")
     owner = source.model("Arithmetic")
     count = owner.parameter("count", value_type=eqiora.ValueType.integer())
     owner.set_default(count, 2**53 + 1)
@@ -125,7 +125,7 @@ def test_integer_source_functions_retain_exact_values_and_explicit_conversion():
     rounded = owner.parameter("rounded", value_type=eqiora.ValueType.real())
     owner.set_default(rounded, q.to_real(count))
     observed = owner.field("observed", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
-    owner.relation("observe", left=observed, right=rounded)
+    owner.relation("observe", eqiora.lang.equation(observed, rounded))
     model = eqiora.compile(source=source, entry="Arithmetic")
     assert model.parameter("adjacent").value == 2**53 + 2
     assert model.parameter("quotient").value == -2
@@ -136,16 +136,16 @@ def test_integer_source_functions_retain_exact_values_and_explicit_conversion():
 
 def test_integer_function_authoring_retains_lexical_ownership_and_bounds():
     q = eqiora.lang
-    source = q.Source()
+    source = eqiora.Module("main")
     left = source.component("Left")
     right = source.component("Right")
     a = left.parameter("n", value_type=eqiora.ValueType.integer())
     b = right.parameter("n", value_type=eqiora.ValueType.integer())
     for function in (q.quotient, q.remainder):
-        with pytest.raises(q.SourceError, match="owners"):
+        with pytest.raises(q.ModuleError, match="owners"):
             function(a, b)
     for function in (q.to_integer, q.to_real):
-        with pytest.raises(q.SourceError, match="owner|Component"):
+        with pytest.raises(q.ModuleError, match="owner|Component"):
             right.let_alias("foreign", function(a))
 
 
@@ -153,7 +153,7 @@ def test_integer_sampled_state_output_and_resume_preserve_adjacent_values(tmp_pa
     from fractions import Fraction
 
     q = eqiora.lang
-    source = q.Source()
+    source = eqiora.Module("main")
     owner = source.model("ExactTicks")
     tick = owner.clock("tick", period_s=1)
     kind = eqiora.ValueType.integer()
@@ -161,8 +161,8 @@ def test_integer_sampled_state_output_and_resume_preserve_adjacent_values(tmp_pa
     observed = owner.output("observed", value_type=kind, at=tick)
     initial = 2**53 + 1
     owner.initial(left=q.pre(memory), right=initial)
-    owner.relation("increment", at=tick, left=q.next(memory), right=q.pre(memory) + 1)
-    owner.relation("observe", at=tick, left=observed, right=q.pre(memory))
+    owner.relation("increment", eqiora.lang.equation(q.next(memory), q.pre(memory) + 1), at=tick)
+    owner.relation("observe", eqiora.lang.equation(observed, q.pre(memory)), at=tick)
     model = eqiora.compile(source=source, entry="ExactTicks")
     path = tmp_path / "exact_ticks.eqi"
     source.write_eqi(path)
@@ -184,7 +184,7 @@ def test_integer_sampled_state_output_and_resume_preserve_adjacent_values(tmp_pa
 
 def test_explicit_initial_authoring_rejects_invalid_forms_without_mutation():
     q = eqiora.lang
-    source = q.Source()
+    source = eqiora.Module("main")
     owner = source.model("InitialSides")
     other = source.component("Other")
     memory = owner.field("memory", value_type=eqiora.ValueType.integer(), role=eqiora.FieldRole.State)
@@ -194,11 +194,11 @@ def test_explicit_initial_authoring_rejects_invalid_forms_without_mutation():
             owner.initial(**kwargs)
     with pytest.raises(TypeError, match="combined"):
         owner.initial((memory, 0), left=memory, right=1)
-    with pytest.raises(q.SourceError, match="Component"):
+    with pytest.raises(q.ModuleError, match="Component"):
         owner.initial(left=memory, right=foreign)
     owner.initial(left=q.pre(memory), right=2**53 + 1, doc="Exact initial assignment.")
     text = source.to_eqi()
     assert text.count("  initial {") == 1
     assert "/// Exact initial assignment.\n  initial {\n    pre(memory) = 9007199254740993;" in text
-    with pytest.raises(q.SourceError, match="frozen"):
+    with pytest.raises(q.ModuleError, match="frozen"):
         owner.initial(left=memory, right=0)

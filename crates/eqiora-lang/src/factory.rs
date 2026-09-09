@@ -9,14 +9,15 @@ mod dimension_rewrite;
 mod document;
 mod domain_validation;
 mod expression;
-mod expression_visit;
+pub(crate) mod expression_visit;
 mod signature;
-use expression::validate_expression;
+pub(crate) use expression::validate_expression;
 mod enumeration;
 mod event;
 mod nominal;
 mod operator;
 mod property;
+mod property_declaration;
 mod relation;
 mod type_visit;
 pub(crate) mod value_literal;
@@ -75,6 +76,13 @@ impl std::error::Error for AstConstructionError {}
 pub struct SourceAstFactory;
 
 impl SourceAstFactory {
+    /// Maximum depth of one directly constructed expression tree.
+    pub const MAX_EXPRESSION_DEPTH: usize = 256;
+    /// Maximum expression nodes admitted by one compilation module.
+    pub const MAX_EXPRESSION_NODES: usize = 1_000_000;
+    /// Maximum declarations or equation members in one source container.
+    pub const MAX_CONTAINER_MEMBERS: usize = 65_536;
+
     /// Construct one nominal Connector declaration.
     ///
     /// # Errors

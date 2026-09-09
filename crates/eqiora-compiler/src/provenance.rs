@@ -357,6 +357,38 @@ pub struct ProvenanceMap {
 }
 
 impl ProvenanceMap {
+    pub(crate) fn retain_source_files(self, keep: impl Fn(&str) -> bool) -> Self {
+        let entries = self
+            .entries
+            .into_vec()
+            .into_iter()
+            .filter_map(|mut entry| {
+                entry.provenance.origins = entry
+                    .provenance
+                    .origins
+                    .into_vec()
+                    .into_iter()
+                    .filter(|origin| {
+                        keep(&origin.definition_span.file)
+                            && keep(&origin.instance_span.file)
+                            && origin.binding_spans.iter().all(|span| keep(&span.file))
+                    })
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice();
+                (!entry.provenance.origins.is_empty()).then_some(entry)
+            })
+            .collect::<Vec<_>>();
+        let mut graph_index = entries
+            .iter()
+            .enumerate()
+            .filter_map(|(index, entry)| entry.graph_id.map(|id| (id, index)))
+            .collect::<Vec<_>>();
+        graph_index.sort_unstable_by_key(|(id, _)| *id);
+        Self {
+            entries: entries.into_boxed_slice(),
+            graph_index: graph_index.into_boxed_slice(),
+        }
+    }
     /// Number of identities with source provenance.
     #[must_use]
     pub const fn len(&self) -> usize {

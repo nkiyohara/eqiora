@@ -12,7 +12,7 @@ use eqiora::realization::{
 use eqiora::solver::{ReductionPolicy, ScalarType};
 use eqiora::{
     DimExponents,
-    language::{DraftExpression, DraftField, DraftParameter, DraftRelation, ModelDraft},
+    language::{DraftExpression, DraftField, DraftParameter, DraftRelation, Module},
 };
 
 const POISSON: &str = include_str!("../../../verify/numerics/poisson-fem-fvm/models/poisson.eqi");
@@ -201,9 +201,8 @@ fn artifact_owner_replays_the_current_model_and_preserves_lineage() {
             eqiora::language::DecimalLiteral::from_f64(1.0).expect("finite fixture literal"),
         ),
     )]);
-    let draft =
-        ModelDraft::new("decay", [state.into(), rate.into(), flow.into(), initial]).unwrap();
-    let model = ModelDocument::define(&draft).expect("current Model");
+    let draft = Module::new("decay", [state.into(), rate.into(), flow.into(), initial]).unwrap();
+    let model = ModelDocument::compile_module(&draft, None, &[]).expect("current Model");
     let (realization, _) = resolved_realization(&model, 1);
     let artifact = AcceptedModelArtifact::from_program(model.program())
         .expect("current owner encodes the Model");

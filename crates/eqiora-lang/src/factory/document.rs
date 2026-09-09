@@ -9,6 +9,13 @@ use super::{
 };
 
 impl SourceAstFactory {
+    /// Append a checked enum declaration to an owned compilation module.
+    #[must_use]
+    pub fn with_enumeration(mut document: Document, declaration: crate::EnumDecl) -> Document {
+        document.enumerations.push(declaration);
+        document
+    }
+
     /// Construct one named flat model from already checked Item values.
     ///
     /// # Errors

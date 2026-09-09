@@ -221,7 +221,7 @@ fn package_component_uses_caller_geometry_common_plan_and_run() -> PyResult<()> 
                 r#"
 q = eqiora.lang
 u = eqiora.units
-source = q.Source()
+source = eqiora.Module('main')
 contract = source.property_contract("Diffusivity", value_type=eqiora.ValueType.real())
 release = source.property_release(
     "ReferenceDiffusivity",
@@ -241,15 +241,11 @@ top = law.boundary("top", parent=region)
 source_scale = law.parameter("source_scale", value_type=eqiora.ValueType.real(eqiora.Dimension(length=-2)))
 diffusivity = law.property("diffusivity", contract=contract)
 potential = law.field("potential", role=eqiora.FieldRole.Variable, on=region, value_type=eqiora.ValueType.real())
-law.relation(
-    "balance",
-    on=region,
-    right=0, left=-q.div(diffusivity * q.grad(potential)) - source_scale,
-)
-law.relation("left_value", on=left, right=0, left=q.trace(potential))
-law.relation("right_value", on=right, right=0, left=q.trace(potential))
-law.relation("bottom_value", on=bottom, right=0, left=q.trace(potential))
-law.relation("top_value", on=top, right=0, left=q.trace(potential))
+law.relation("balance", eqiora.lang.equation(-q.div(diffusivity * q.grad(potential)) - source_scale, 0), on=region)
+law.relation("left_value", eqiora.lang.equation(q.trace(potential), 0), on=left)
+law.relation("right_value", eqiora.lang.equation(q.trace(potential), 0), on=right)
+law.relation("bottom_value", eqiora.lang.equation(q.trace(potential), 0), on=bottom)
+law.relation("top_value", eqiora.lang.equation(q.trace(potential), 0), on=top)
 
 root = source.component("PoissonRectangle")
 root_region = root.volume("region", dimensions=2)
@@ -258,7 +254,7 @@ root_right = root.boundary("right", parent=root_region)
 root_bottom = root.boundary("bottom", parent=root_region)
 root_top = root.boundary("top", parent=root_region)
 root_source_scale = root.parameter("source_scale", value_type=eqiora.ValueType.real(eqiora.Dimension(length=-2)))
-root.instance('equation', component=law, bindings={region: root_region, left: root_left, right: root_right, bottom: root_bottom, top: root_top, source_scale: root_source_scale, diffusivity: release})
+root.instance('equation', component=law, bindings={'region': root_region, 'left': root_left, 'right': root_right, 'bottom': root_bottom, 'top': root_top, 'source_scale': root_source_scale, 'diffusivity': release})
 authored_source = source.to_eqi()
 "#
             ),

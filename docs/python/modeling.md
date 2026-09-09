@@ -2,7 +2,7 @@
 
 ## Native declarations
 
-Python declarations are immutable inputs to the same typed draft, validation,
+Python declarations are immutable inputs to the same Rust Module graph, validation,
 transaction, and canonical artifact path used by other Eqiora clients.
 Python does not implement a second model semantics.
 
@@ -19,7 +19,8 @@ flow = eqiora.Relation(
     "flow",
     equations=((eqiora.derivative(x) + rate * x, 0),),
 )
-model = eqiora.Model.define("decay", x, rate, eqiora.Initial((x, 1)), flow)
+module = eqiora.Module("decay", x, rate, eqiora.Initial((x, 1)), flow)
+model = eqiora.compile(source=module)
 ```
 
 `Field.value_type` holds its mathematical scalar domain, physical dimension and
@@ -94,22 +95,23 @@ response = eqiora.Field(
     "response", role=eqiora.FieldRole.Variable, domain=body, value_type=kind,
 )
 law = eqiora.Relation("law", equations=((response, coefficient),), domain=body)
-model = eqiora.Model.define("Coefficients", body, coefficient, response, law)
+module = eqiora.Module("Coefficients", body, coefficient, response, law)
+model = eqiora.compile(source=module)
 assert model.parameter("coefficient").value == ((2, 3), (5, 7))
 ```
 
-Include the frame Domain in `Model.define`; foreign or omitted declarations reject.
+Include the frame Domain in `Module`; foreign or omitted declarations reject.
 The Domain supplies the model-global Cartesian frame and ambient dimension, not
 Parameter support. Values retain real/imaginary components and axis order through
 inspection, edits, and replay. A channel array of tensors remains distinct from one
-spatial tensor. Python Source uses the same constructor as
+spatial tensor. Python Module authoring uses the same constructor as
 `q.tensor_value(frame=body, components=((2, 3), (5, 7)))`, where `body` is an exact
 `Component.volume` or `Component.boundary` handle from that Component. The resulting
 expression can supply a Parameter default through `Component.set_default`. Constructor
 components must be closed scalar expressions; referencing a named model value, including
 a Parameter alias, inside the constructor rejects.
 
-Indices are static exact nonnegative integers. Source-builder expressions may use a Parameter
+Indices are static exact nonnegative integers. Module expressions may use a Parameter
 with an exact compile-time value; changing a Parameter used by a compiled index, slice or
 extent requires recompilation.
 Typed value edits preserve the complete declared type and all components through replay.
@@ -129,7 +131,8 @@ population = eqiora.Parameter(
 )
 observed = eqiora.Field("observed", role=eqiora.FieldRole.Variable)
 relation = eqiora.Relation("observation", equations=((observed, 0),))
-model = eqiora.Model.define("Population", species, population, observed, relation)
+module = eqiora.Module("Population", species, population, observed, relation)
+model = eqiora.compile(source=module)
 assert model.parameter("population").value == (2, 9007199254740993)
 ```
 
@@ -138,12 +141,12 @@ ordered basis; `counts(species)` requires nonnegative components. Equal labels i
 another `FiniteSpace` do not establish the same type. `IndexSet("Rows", extent=3)`
 and `ValueType.index(rows)` similarly retain a distinct nominal identity and admit
 only ordinals from zero through two. Include each native declaration in
-`Model.define`. Nominal types need their declaration's lexical scope for source
+`Module`. Nominal types need their declaration's lexical scope for source
 rendering, so their standalone `to_eqi()` rejects.
 
-Python Source registers spaces with `source.space(...)` and constant-sized sets
+Python Module registers spaces with `source.space(...)` and constant-sized sets
 with `component.index_set(..., extent=3)`. Its `counts`, `coordinates`, and `index`
-constructors require handles from the owning Source or Component. The closed
+constructors require handles from the owning Module or Component. The closed
 `eqiora.lang.quotient`, `remainder`, `to_real`, `to_integer`, and `ordinal`
 expressions use the shared compiler's explicit conversion and arithmetic rules.
 Products, dual spaces, general maps, and dynamic indexing remain
@@ -177,31 +180,28 @@ nonzero literals in general expressions do not silently acquire units.
 A native Relation receives ordered `equations=((left, right), ...)` pairs.
 Use `(residual, 0)` for a numerical residual equation. Named `equal`, `not_equal`,
 `less`, `less_equal`, `greater`, and `greater_equal` functions produce predicates;
-`logical_not`, `logical_and`, and `logical_or` compose them. Python `==` retains
-handle identity, and symbolic Python truth testing rejects. Declarations and expressions
+`logical_not`, `logical_and`, and `logical_or` compose them. Symbolic Python equality,
+ordering, and truth testing reject. Declarations and expressions
 are frozen; validation and artifact creation happen atomically in Rust.
 
 ## Author Eqiora Language source
 
-`eqiora.lang.Source` is the equations-language route when a workflow should be
-fully Python-authored without creating a second equation semantics:
+`eqiora.Module` owns the shared equations-language graph for Python authoring:
 
 ```python
 import eqiora
 from eqiora import lang as q
 from eqiora import units as u
 
-source = q.Source()
+source = eqiora.Module("main")
 component = source.component("Diffusion")
 body = component.volume("body", dimensions=2)
 value = component.field("value", on=body, role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
 length = component.parameter("length", value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
 wave_number = component.let_alias("wave_number", q.math.pi / length)
 component.relation(
-    "balance",
+    "balance", q.equation(q.div(q.grad(value)), -(wave_number**2) * value),
     on=body,
-    left=q.div(q.grad(value)),
-    right=-(wave_number**2) * value,
 )
 
 text = source.to_eqi()
@@ -213,21 +213,22 @@ model = eqiora.compile(
 )
 ```
 
-Source Relations require an ordered `left=` and `right=` pair, including an
-explicit `right=0` for a residual equation. They emit `left = right;`; Python `==` is
-not overloaded. The Source draft owns exact supports and expressions, rejects
-foreign handles and resource-limit violations, and freezes on its first emission or compile.
+Module Relations receive an immutable `q.equation(left, right)`, including an
+explicit zero right operand for a residual equation. They emit `left = right;`;
+Python `==` does not construct an equation. The Module owns exact supports and
+expressions, rejects foreign handles and resource-limit violations, and freezes
+on its first emission or compile.
 It emits ordinary readable UTF-8 `.eqi`; `doc=` values become attached `///`
 documentation. A blank paragraph is emitted as an empty `///` line, keeping the
 block attached to its declaration. Documentation is bounded to 16,384 UTF-8 bytes.
 `write_eqi(path)` uses same-directory staging and atomic replacement, so an I/O
 failure does not publish a partly written source file.
 
-A Source can contain multiple Components within its existing declaration bound.
+A Module can contain multiple Components within its existing declaration bound.
 Use `parent.instance(...)` to bind a child's requirements explicitly, and select the
 entry with `eqiora.compile(source=source, entry="Parent", ...)` when the source
-contains multiple public Components. A Source containing property contracts still
-requires the exact Model Package compilation path described below.
+contains multiple public Components. Instance bindings and returned outputs use
+their declared names as string keys.
 
 `component.let_alias(name, expression)` declares a private immutable expression alias.
 Its type and spatial support are inferred; `value_type=` asserts the inferred type,
@@ -262,7 +263,7 @@ memory = component.field(
 component.initial(left=q.pre(memory), right=1)
 observed = component.let_alias("observed", memory, on=body, at=tick)
 component.relation(
-    "update", on=body, at=tick, left=q.next(memory), right=q.pre(memory),
+    "update", q.equation(q.next(memory), q.pre(memory)), on=body, at=tick,
 )
 ```
 
@@ -272,26 +273,28 @@ Component; foreign handles are rejected before changing a declaration. `q.pre` a
 `q.next` use the same Rust state-role and use-context checks as emitted source.
 This authoring path does not extend the execution backends' admitted spatial time models.
 
-Source values do not type-check or lower equations in Python. Direct compile
-materializes `source.to_eqi()` and enters the same Rust parser, type checker,
-lowerer, Geometry/support binder, and compiler used by a file path. Consequently,
-direct and emitted-file compilation with identical bindings have the same Model
-meaning and identity. Prose changes affect source bytes and package source-bundle
-identity, not the physical Model. Compiler failures retain the existing structured
-diagnostics.
-`q.math.pi` is one immutable, ownerless Source expression that emits exactly
+Module values do not type-check or lower equations in Python. Direct compile
+consumes the Rust Module graph without formatting or reparsing text, then uses
+the same type checker, lowerer and Geometry/support binder as parsed source.
+`to_eqi()` explicitly formats the module; `eqiora.Module.parse("main", text)`
+reconstructs it, with imports attached explicitly through `import_module`.
+Direct and emitted-file compilation with identical bindings can be compared by
+`structural_fingerprint`, not exact artifact identity. Prose changes affect source
+bytes and package source-bundle identity, not the physical Model. Constructed
+declarations report graph paths; parsed declarations retain real source spans.
+`q.math.pi` is one immutable, ownerless expression that emits exactly
 `math.pi`; `q.math.sin(expression)` emits the matching compiler-owned scalar
-operation. Composing either with a Source-owned expression adopts that Source's
-existing ownership. The top-level Source vocabulary is reserved for equation
+operation. Composing either with a Module-owned expression adopts that Module's
+existing ownership. The top-level `eqiora.lang` vocabulary is reserved for equation
 structure such as `q.grad` and `q.div`, while scalar functions and constants
 live under `q.math`. They are not Python numerical operations, and the native
 compiler remains the authority for their typing and value semantics.
 
-The same Source owner can emit the bounded constant property declarations used by
+The same Module owner can emit the bounded constant property declarations used by
 an exact Model Package:
 
 ```python
-source = q.Source()
+source = eqiora.Module("main")
 contract = source.property_contract("Diffusivity", value_type=eqiora.ValueType.real())
 release = source.property_release(
     "ReferenceDiffusivity",
@@ -307,10 +310,7 @@ law_body = law.volume("body", dimensions=2)
 diffusivity = law.property("diffusivity", contract=contract)
 value = law.field("value", on=law_body, role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
 law.relation(
-    "balance",
-    on=law_body,
-    left=-q.div(diffusivity * q.grad(value)),
-    right=0,
+    "balance", q.equation(-q.div(diffusivity * q.grad(value)), 0), on=law_body,
 )
 material = source.material_composition(
     "ReferenceMaterial",
@@ -321,7 +321,7 @@ root_body = root.volume("body", dimensions=2)
 root.instance(
     "equation",
     component=law,
-    bindings={law_body: root_body, diffusivity: material["diffusivity"]},
+    bindings={"body": root_body, "diffusivity": material["diffusivity"]},
 )
 source.write_eqi("src/property-diffusion.eqi")
 ```
@@ -331,10 +331,10 @@ selects a member explicitly, such as `diffusivity = ReferenceMaterial.diffusivit
 Compilation checks that every required property is supplied exactly once and
 that each release implements the required nominal contract.
 
-Contracts and releases authored in the same Source can compile locally through
+Contracts and releases authored in the same Module can compile locally through
 `eqiora.compile(source=source, entry=..., bindings=...)`. The shared Rust compiler
 checks each exact release or composition member against its nominal contract;
-a same-spelled handle from another Source is rejected before emission.
+a same-spelled handle from another Module is rejected before emission.
 
 To retain exact package provenance, emit the `.eqi` into a Model Package, lock
 it, and use `compile_package`. That route exposes the existing immutable
@@ -369,22 +369,26 @@ selection compares equal, but a separately constructed enum with the same spelli
 foreign. Strings, integers and Booleans are not enum values; `bool(heating)` rejects.
 Values cannot be ordered, used in arithmetic, or substituted for a numerical zero.
 
-The Source route authors symbolic members and complete cases through the same compiler:
+The Module route authors symbolic members and complete cases through the same compiler:
 
 ```python
 from eqiora import lang as q
 
-source = q.Source()
+source = eqiora.Module("main")
 mode = source.enum("Mode", members=("Heating", "Cooling", "Fault"))
 owner = source.model("Controller")
 tick = owner.clock("tick", period_s=1)
 drive = owner.input("drive", value_type=mode.value_type, at=tick)
 level = owner.output("level", value_type=eqiora.ValueType.real(), at=tick)
-owner.relation("classify", at=tick, left=level, right=q.case(drive, [
-    (mode.member("Heating"), 2),
-    (mode.member("Cooling"), -3),
-    (mode.member("Fault"), 0),
-]))
+owner.relation(
+    "classify",
+    q.equation(level, q.case(drive, [
+        (mode.member("Heating"), 2),
+        (mode.member("Cooling"), -3),
+        (mode.member("Fault"), 0),
+    ])),
+    at=tick,
+)
 model = eqiora.compile(source=source, entry="Controller")
 compiled_mode = model.enum("Mode")
 session = model.execution_session(
@@ -400,7 +404,7 @@ requires every member exactly once, rejects foreign declarations, and checks all
 types. There is no wildcard arm. Runtime selection is lazy; Python constructs the symbolic
 arms without using Python truthiness or retaining a callback in the Model.
 
-Source enum handles are authoring identities. After compilation, obtain runtime values
+Module enum handles are authoring identities. After compilation, obtain runtime values
 from `model.enum("Mode")`, not from a separately constructed native declaration.
 `Model.enum` also accepts an exact enum ID, which is useful after artifact replay when
 lexical names may be absent; a replayed declaration's `name` can be `None`.
@@ -1076,14 +1080,14 @@ component = eqiora.Relation(
     "component",
     equations=((eqiora.across(left), 0), (eqiora.through(right), 0)),
 )
-physical_model = eqiora.Model.define(
+physical_model = eqiora.compile(source=eqiora.Module(
     "physical_pair",
     electrical,
     left,
     right,
     component,
     eqiora.connect(left, right),
-)
+))
 ```
 
 The quantity names become the source members `left.voltage` and `right.current`.
@@ -1119,7 +1123,7 @@ source = eqiora.Parameter(
     value=1.0,
     value_type=eqiora.ValueType.real(eqiora.Dimension(length=-2)),
 )
-model = eqiora.Model.define(
+model = eqiora.compile(source=eqiora.Module(
     "poisson",
     interval,
     lower,
@@ -1141,11 +1145,11 @@ model = eqiora.Model.define(
         domain=upper,
         equations=((eqiora.trace(potential), 0),),
     ),
-)
+))
 ```
 
 `grad`, `div`, and `trace` are a closed adapter vocabulary over the shared
-draft. Shape, frame, dimension, support, and residual validity remain Kernel
+Module. Shape, frame, dimension, support, and residual validity remain Kernel
 decisions.
 
 ## Typed spatial Plan
@@ -1247,7 +1251,7 @@ rate = eqiora.Parameter(
     value=1.0,
     value_type=eqiora.ValueType.real(eqiora.Dimension(time=-1)),
 )
-native_model = eqiora.Model.define(
+native_model = eqiora.compile(source=eqiora.Module(
     "decay",
     x,
     rate,
@@ -1256,7 +1260,7 @@ native_model = eqiora.Model.define(
         "flow",
         equations=((eqiora.derivative(x) + rate * x, 0),),
     ),
-)
+))
 
 assert source_model != native_model
 assert source_model.digest != native_model.digest

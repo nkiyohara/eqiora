@@ -126,7 +126,26 @@ impl fmt::Display for LocalSourceIdentity {
     }
 }
 
-fn canonical_source_bytes(
+pub(crate) fn module_input_bytes(module: &eqiora_lang::Module) -> Result<usize, Diagnostic> {
+    let structural =
+        canonical_source_bytes(module.document(), LocalSourceIdentityLimits::default())?.len();
+    let docs = module
+        .document()
+        .doc_comments()
+        .map(|(_, doc)| doc.text().len());
+    let notations = module
+        .document()
+        .notations()
+        .map(|(_, notation)| notation.canonical().len());
+    let total = docs.chain(notations).try_fold(structural, |total, bytes| {
+        total
+            .checked_add(bytes)
+            .ok_or_else(|| source_identity_error("module input byte count overflows"))
+    })?;
+    Ok(total.max(module.source_bytes().unwrap_or(0)))
+}
+
+pub(crate) fn canonical_source_bytes(
     document: &Document,
     limits: LocalSourceIdentityLimits,
 ) -> Result<Vec<u8>, Diagnostic> {
