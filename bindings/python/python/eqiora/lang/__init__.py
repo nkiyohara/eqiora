@@ -1263,6 +1263,14 @@ class Component:
         self._supports.append((support, "volume", dimensions, doc_lines))
         return support
 
+    def complete_exterior(self, name: str, *, parent: Support, doc: str | None = None) -> BoundarySet:
+        """Require the complete exterior of one exact caller-bound volume."""
+        return _boundaries.complete_exterior(self, name, parent=parent, doc=doc)
+
+    def boundaries(self, *members: Support) -> BoundarySelectionSet:
+        """Select an explicit finite set of exact boundaries for an occurrence binding."""
+        return _boundaries.boundaries(self, *members)
+
     def boundary(
         self,
         name: str,
@@ -1447,8 +1455,12 @@ class Component:
             raise TypeError("relation requires equation(lhs, rhs)")
         at = self._activation(at)
         on = None if on is None else self._support(on)
+        if isinstance(on, BoundarySet):
+            raise ModuleError("a relation needs an individual boundary member, not a boundary set")
+        if isinstance(on, BoundaryMember) and at is not None:
+            raise ModuleError("boundary relation families require continuous activation")
         def admit(value: Expression | int | float | complex) -> Expression:
-            expression = _expression(value)
+            expression = _boundaries.close_expression(_expression(value), on)
             self._closed_expression(expression)
             if expression._owner is None:
                 return Expression(
@@ -1528,13 +1540,20 @@ class Component:
     def _qualified_name(self) -> str:
         return self._name
 
-    def port(self, name: str, *, connector: Connector, doc: str | None = None) -> Port:
-        """Declare a named physical endpoint using this Module's nominal Connector."""
-        return _connections.port(self, name, connector=connector, doc=doc)
+    def port(self, name: str, *, connector: Connector, on: Support | None = None,
+             doc: str | None = None) -> Port:
+        """Declare a nominal physical endpoint, optionally over an exact boundary."""
+        return _connections.port(self, name, connector=connector, on=on, doc=doc)
 
-    def connect(self, *ports: Port, doc: str | None = None) -> None:
-        """Declare one conserving physical net; the compiler owns compatibility and signs."""
-        _connections.connect(self, *ports, doc=doc)
+    def connect(self, *ports: Port, over: BoundaryMember | None = None,
+                doc: str | None = None) -> None:
+        """Declare a conserving physical net or explicit finite boundary family."""
+        _connections.connect(self, *ports, over=over, doc=doc)
+
+    def connect_periodic(self, first: FieldPort, second: FieldPort,
+                         *, doc: str | None = None) -> None:
+        """Identify exactly two field boundaries in a Model's spatial topology."""
+        _connections.connect(self, first, second, periodic=True, doc=doc)
 
     def instance(
         self, name: str, *, component: Component | ComponentRef,
@@ -1552,6 +1571,7 @@ class Component:
         handles = {}
         if isinstance(component, ComponentRef):
             signature = component._signature
+            handles.update(component._support_contracts)
         else:
             targets = (set(component._requirements)
                        | {item[0] for item in component._supports}
@@ -1576,12 +1596,12 @@ class Component:
             role = targets[target]
             if role in ("support", "clock"):
                 if role == "support":
-                    self._support(value)
+                    _boundaries.support_binding(self, handles.get(target), value, bindings)
                 else:
                     if not isinstance(value, Clock):
                         raise ModuleError("clock requirement needs an enclosing Clock")
                     self._clock(value)
-                expression = _Ast.name(value._name)
+                expression = _boundaries.support_expression(value) if role == "support" else _Ast.name(value._name)
             elif role == "property":
                 required_property = handles.get(target)
                 if (not isinstance(value, PropertyRelease) or value._owner is not self._owner
@@ -1599,6 +1619,9 @@ class Component:
             admitted_bindings.append((target, expression))
         outputs = (component._outputs if isinstance(component, ComponentRef)
                    else tuple(field._name for field, kind in component._causal.items() if kind == "output"))
+        physical = (_connections.instance_ports(self, component, _name(name), bindings)
+                    if isinstance(component, Component)
+                    else _imports.instance_ports(self, component, _name(name), bindings))
         documentation = _doc(doc)
         admitted = self._add_name(name)
         self._instances.append((admitted, component, tuple(admitted_bindings), documentation))
@@ -1607,8 +1630,7 @@ class Component:
                               self._component_token)
             for field in outputs
         }
-        if isinstance(component, Component):
-            exposed.update(_connections.instance_ports(self, component, admitted))
+        exposed.update(physical)
         return MappingProxyType(exposed)
 
     def set_notation(self, name: str, notation: Notation) -> None:
@@ -1626,15 +1648,17 @@ class Component:
             ordinal = allocate(doc, self._notations.get(name))
             declarations.append(factory(ordinal))
         for support, kind, detail, doc in self._supports:
-            add(support._name, doc, lambda n: _AstDeclaration.support(
-                support._name, detail if kind == "volume" else None,
-                detail._name if kind == "boundary" else None, n))
+            if kind == "complete_exterior":
+                add(support._name, doc, lambda n: _AstDeclaration.complete_exterior(
+                    support._name, detail._name, n))
+            else:
+                add(support._name, doc, lambda n: _AstDeclaration.support(
+                    support._name, detail if kind == "volume" else None,
+                    detail._name if kind == "boundary" else None, n))
         for port, doc in self._ports:
-            add(port._name, doc, lambda n: _AstDeclaration.scalar_port(
-                port._name, port._connector._name, n))
-        for ports, doc in self._connections:
-            add("", doc, lambda n: _AstDeclaration.conserving_connection(
-                [_Ast.name(port._name) for port in ports], n))
+            add(port._name, doc, lambda n: _boundaries.port_declaration(port, n))
+        for ports, over, periodic, doc in self._connections:
+            add("", doc, lambda n: _boundaries.connection_declaration(ports, over, periodic, n))
         for parameter, kind, doc in self._parameters:
             default = self._defaults.get(parameter)
             add(parameter._name, doc, lambda n: _AstDeclaration.parameter(
@@ -1672,10 +1696,8 @@ class Component:
             add("", doc, lambda n: _AstDeclaration.initial(
                 [(left._ast, right._ast) for left, right in equations], n))
         for name, support, pairs, clock, doc in self._relations:
-            add(name, doc, lambda n: _AstDeclaration.relation(
-                name, None if support is None else support._name,
-                None if clock is None else clock._name,
-                [(left._ast, right._ast) for left, right in pairs], n))
+            add(name, doc, lambda n: _boundaries.relation_declaration(
+                name, support, pairs, clock, n))
         for name, component, bindings, doc in self._instances:
             add(name, doc, lambda n: _AstDeclaration.instance(
                 name, component._qualified_name, bindings, n))
@@ -1689,14 +1711,19 @@ class Component:
 class ComponentRef:
     """Immutable reference to one public Component in an explicit import."""
 
-    __slots__ = ("_owner", "_name", "_qualified_name", "_outputs", "_signature")
+    __slots__ = ("_owner", "_name", "_qualified_name", "_outputs", "_signature",
+                 "_module", "_ports", "_support_contracts")
 
-    def __init__(self, token, owner, alias, name, signature):
+    def __init__(self, token, imported, name, signature, ports, supports):
         if token is not _CREATE:
             raise TypeError("Component references come from an explicit import")
-        object.__setattr__(self, "_owner", owner)
+        object.__setattr__(self, "_owner", imported._owner)
         object.__setattr__(self, "_name", name)
-        object.__setattr__(self, "_qualified_name", f"{alias}.{name}")
+        object.__setattr__(self, "_qualified_name", f"{imported._alias}.{name}")
+        object.__setattr__(self, "_module", imported)
+        object.__setattr__(self, "_ports", tuple(ports))
+        object.__setattr__(self, "_support_contracts", MappingProxyType({
+            name: (kind, parent, dimensions) for name, kind, parent, dimensions in supports}))
         object.__setattr__(self, "_signature", tuple(signature))
         object.__setattr__(self, "_outputs", tuple(name for name, role, _ in signature if role == "output"))
 
@@ -1725,8 +1752,13 @@ class ModuleRef:
 
     def component(self, name: str) -> ComponentRef:
         name = _name(name)
-        signature = self._target._freeze().component(name)
-        return ComponentRef(_CREATE, self._owner, self._alias, name, signature)
+        graph = self._target._freeze()
+        return ComponentRef(_CREATE, self, name, graph.component(name),
+                            graph.component_ports(name), graph.component_supports(name))
+
+    def connector(self, name: str) -> Connector:
+        """Refer to one public nominal connector in this exact imported Module."""
+        return _imports.connector(self, name)
 
 
 class Module:
@@ -1778,6 +1810,13 @@ class Module:
             return _nominal_type(value_type, [space for space, _ in self._spaces], [], [item._definition for item, _ in self._enums])
         except ValueError as error:
             raise ModuleError(str(error)) from error
+
+    def field_connector(self, name: str, *, trace: tuple[str, ValueType],
+                        flux: tuple[str, ValueType], spatial_vector: bool = False,
+                        doc: str | None = None) -> FieldConnector:
+        """Declare exact trace/flux types with parent-outward boundary duality."""
+        return _boundaries.field_connector(self, name, trace=trace, flux=flux,
+                                           spatial_vector=spatial_vector, doc=doc)
 
     def connector(self, name: str, *, across: tuple[str, ValueType],
                   through: tuple[str, ValueType], doc: str | None = None) -> Connector:
@@ -2090,9 +2129,15 @@ class Module:
         connectors = [
             (connector._name, *connector._across, *connector._through,
              allocate(connector._doc, self._notations.get(connector._name)))
-            for connector in self._connectors
+            for connector in self._connectors if not isinstance(connector, FieldConnector)
         ]
-        graph = _AstModule(definitions, operators, connectors)
+        field_connectors = [
+            (connector._name, *connector._across, *connector._through,
+             connector._spatial_vector,
+             allocate(connector._doc, self._notations.get(connector._name)))
+            for connector in self._connectors if isinstance(connector, FieldConnector)
+        ]
+        graph = _AstModule(definitions, operators, connectors, field_connectors)
         for enumeration, doc in self._enums:
             graph = graph.with_enum(enumeration.name, enumeration.members,
                                     allocate(doc, self._notations.get(enumeration.name)))
@@ -2169,9 +2214,17 @@ class Module:
 
 from . import _connections
 from ._connections import Connector, Port
+from . import _boundaries
+from ._boundaries import BoundarySet, BoundaryMember, BoundarySelectionSet, FieldConnector, FieldPort
+from . import _imports
 
 
 __all__ = [
+    "BoundarySet",
+    "BoundaryMember",
+    "BoundarySelectionSet",
+    "FieldConnector",
+    "FieldPort",
     "Connector",
     "Port",
     "Equation",

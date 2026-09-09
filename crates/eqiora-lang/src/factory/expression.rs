@@ -21,10 +21,12 @@ fn validate_expression_depth(expression: &Expr, depth: usize) -> Result<(), AstC
         ExprKind::Member { value, member } => {
             if !matches!(
                 value.kind(),
-                ExprKind::Index { .. } | ExprKind::Member { .. }
+                ExprKind::Index { .. }
+                    | ExprKind::Member { .. }
+                    | ExprKind::BoundaryPortSelection { .. }
             ) {
                 return Err(AstConstructionError::new(
-                    "member access requires an indexed component occurrence",
+                    "member access requires an indexed occurrence or selected boundary port",
                 ));
             }
             validate_identifier(member, "indexed occurrence member")?;

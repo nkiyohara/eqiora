@@ -6,6 +6,7 @@ use eqiora::language::{
 };
 use pyo3::prelude::*;
 
+use super::boundaries::FieldConnectorInput;
 use super::connections::{ConnectorInput, connectors};
 use super::declaration::PyAstType;
 use super::definition::{Definition, PyAstDefinition};
@@ -69,8 +70,14 @@ impl PyAstModule {
         definitions: Vec<PyRef<'_, PyAstDefinition>>,
         operators: Vec<OperatorInput<'_>>,
         connector_inputs: Vec<ConnectorInput<'_>>,
+        field_connector_inputs: Vec<FieldConnectorInput<'_>>,
     ) -> PyResult<Self> {
-        if definitions.len() + operators.len() + connector_inputs.len() > 256 {
+        if definitions.len()
+            + operators.len()
+            + connector_inputs.len()
+            + field_connector_inputs.len()
+            > 256
+        {
             return Err(syntax_error("module exceeds 256 definitions"));
         }
         let mut components = Vec::new();
@@ -109,9 +116,11 @@ impl PyAstModule {
                 .map_err(syntax_error)
             })
             .collect::<PyResult<_>>()?;
+        let mut connectors = connectors(connector_inputs)?;
+        connectors.extend(super::boundaries::connectors(field_connector_inputs)?);
         let document = Ast::document_with_pure_operators(
             Vec::new(),
-            connectors(connector_inputs)?,
+            connectors,
             components,
             operators,
             models,
@@ -203,6 +212,18 @@ impl PyAstModule {
                 Ok((item.name().to_owned(), role.to_owned(), required))
             })
             .collect::<PyResult<_>>()
+    }
+
+    fn connector_descriptor(&self, name: &str, public: bool) -> PyResult<(String, String, String)> {
+        super::imports::connector(&self.value, name, public)
+    }
+
+    fn component_ports(&self, name: &str) -> PyResult<Vec<super::imports::PortDescriptor>> {
+        super::imports::ports(&self.value, name)
+    }
+
+    fn component_supports(&self, name: &str) -> PyResult<Vec<super::imports::SupportDescriptor>> {
+        super::imports::supports(&self.value, name)
     }
 
     fn with_space(&self, name: String, labels: Vec<String>, ordinal: u32) -> PyResult<Self> {

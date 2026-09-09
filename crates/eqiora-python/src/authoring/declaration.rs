@@ -52,6 +52,43 @@ fn range(ordinal: u32) -> TextRange {
 #[pymethods]
 impl PyAstDeclaration {
     #[staticmethod]
+    fn complete_exterior(name: String, parent: String, ordinal: u32) -> PyResult<Self> {
+        super::boundaries::exterior(name, parent, ordinal)
+    }
+
+    #[staticmethod]
+    fn field_port(
+        name: String,
+        connector: &str,
+        support: String,
+        set: Option<String>,
+        ordinal: u32,
+    ) -> PyResult<Self> {
+        super::boundaries::port(name, connector, support, set, ordinal)
+    }
+
+    #[staticmethod]
+    fn boundary_connection(
+        ports: Vec<super::boundaries::Endpoint>,
+        binder: Option<(String, String)>,
+        periodic: bool,
+        ordinal: u32,
+    ) -> PyResult<Self> {
+        super::boundaries::connection(ports, binder, periodic, ordinal)
+    }
+
+    #[staticmethod]
+    fn boundary_relation(
+        name: String,
+        member: String,
+        set: String,
+        equations: Vec<(PyRef<'_, PyAstExpression>, PyRef<'_, PyAstExpression>)>,
+        ordinal: u32,
+    ) -> PyResult<Self> {
+        super::boundaries::relation(name, member, set, equations, ordinal)
+    }
+
+    #[staticmethod]
     fn scalar_port(name: String, connector: &str, ordinal: u32) -> PyResult<Self> {
         super::connections::port(name, connector, ordinal)
     }

@@ -1,10 +1,12 @@
 //! Thin Python construction over the compiler's owned module AST.
 
+mod boundaries;
 mod compile;
 mod connections;
 mod declaration;
 mod definition;
 mod expression;
+mod imports;
 mod module;
 pub(crate) use declaration::PyAstType;
 pub(crate) use expression::PyAstExpression;

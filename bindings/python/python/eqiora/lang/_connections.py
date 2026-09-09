@@ -84,9 +84,14 @@ def connector(module, name, *, across, through, doc=None):
     return value
 
 
-def port(component, name, *, connector, doc=None):
+def port(component, name, *, connector, on=None, doc=None):
+    from . import _boundaries
+    if isinstance(connector, _boundaries.FieldConnector):
+        return _boundaries.port(component, name, connector=connector, on=on, doc=doc)
     if not isinstance(connector, Connector) or connector._owner is not component._owner:
         raise ModuleError("port connector must belong to this Module")
+    if on is not None:
+        raise ModuleError("a scalar connector port cannot have a boundary support")
     documentation = _doc(doc)
     admitted = component._add_name(name)
     value = Port(_CREATE, component._component_token, admitted, connector)
@@ -94,24 +99,53 @@ def port(component, name, *, connector, doc=None):
     return value
 
 
-def connect(component, *ports, doc=None):
+def connect(component, *ports, over=None, periodic=False, doc=None):
+    from ._boundaries import BoundaryMember, FieldPort
     component._source._ensure_open()
     if not 2 <= len(ports) <= _MAX_DECLARATIONS:
         raise ModuleError("a connection needs between 2 and 256 physical ports")
     for port in ports:
         if not isinstance(port, Port) or port._owner is not component._component_token:
             raise ModuleError("connection endpoints must be physical ports of this Component")
+        if isinstance(port, FieldPort) and port._family is not None and port._selector is None:
+            raise ModuleError("connection needs an exact selection of every port family")
+        if isinstance(port, FieldPort) and isinstance(port._selector, BoundaryMember):
+            if port._selector is not over:
+                raise ModuleError("connection has a foreign or unbound boundary family member")
+    if over is not None:
+        if not isinstance(over, BoundaryMember):
+            raise ModuleError("connection family requires a boundary member binder")
+        component._support(over)
+        if any(not isinstance(port, FieldPort) for port in ports):
+            raise ModuleError("boundary connection families require field ports")
+    if periodic:
+        if component._kind != "model":
+            raise ModuleError("a spatial-periodic connection belongs only to a Model")
+        if len(ports) != 2 or over is not None:
+            raise ModuleError("a spatial-periodic connection requires exactly two fixed endpoints")
+        if any(not isinstance(port, FieldPort) for port in ports):
+            raise ModuleError("a spatial-periodic connection requires field boundary ports")
     documentation = _doc(doc)
     if component._declaration_count >= _MAX_DECLARATIONS:
         raise ModuleError("Component exceeds the 256-declaration limit")
     component._declaration_count += 1
-    component._connections.append((ports, documentation))
+    component._connections.append((ports, over, periodic, documentation))
 
 
-def instance_ports(component, target, name):
+def instance_ports(component, target, name, bindings):
     """Expose authored local physical endpoints with their occurrence identity."""
-    return {
-        port._name: Port(_CREATE, component._component_token,
-                         f"{name}.{port._name}", port._connector)
-        for port, _ in target._ports
-    }
+    from ._boundaries import FieldPort
+    result = {}
+    for port, _ in target._ports:
+        path = f"{name}.{port._name}"
+        if isinstance(port, FieldPort):
+            family = None
+            support = bindings.get(port._support._name)
+            if port._family is not None:
+                family = port._family[0], bindings[port._family[1]._name]
+            result[port._name] = FieldPort(_CREATE, component, path,
+                                            port._connector, support, family)
+        else:
+            result[port._name] = Port(_CREATE, component._component_token,
+                                      path, port._connector)
+    return result
