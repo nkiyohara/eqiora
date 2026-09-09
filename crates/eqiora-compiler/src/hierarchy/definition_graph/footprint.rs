@@ -245,18 +245,30 @@ fn complete_exterior_cardinality(
     range: TextRange,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<usize> {
-    let support = definition
-        .declaration
-        .signature()
-        .iter()
-        .find_map(|item| match item {
-            eqiora_lang::SignatureItem::Support(support) if support.name() == set => Some(support),
-            _ => None,
-        });
+    signature_complete_exterior_cardinality(
+        definition.file,
+        definition.declaration.signature(),
+        set,
+        range,
+        diagnostics,
+    )
+}
+
+fn signature_complete_exterior_cardinality(
+    file: &str,
+    signature: &[eqiora_lang::SignatureItem],
+    set: &str,
+    range: TextRange,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<usize> {
+    let support = signature.iter().find_map(|item| match item {
+        eqiora_lang::SignatureItem::Support(support) if support.name() == set => Some(support),
+        _ => None,
+    });
     let Some(support) = support else {
         diagnostics.push(source_error(
             codes::LANGUAGE_TYPE_ERROR,
-            definition.file,
+            file,
             range,
             format!("boundary family refers to unknown complete-exterior support `{set}`"),
         ));
@@ -265,29 +277,25 @@ fn complete_exterior_cardinality(
     let eqiora_lang::SupportSlotSyntax::CompleteExterior { parent } = support.syntax() else {
         diagnostics.push(source_error(
             codes::LANGUAGE_TYPE_ERROR,
-            definition.file,
+            file,
             range,
             format!("boundary family support `{set}` is not a complete exterior"),
         ));
         return None;
     };
     let parent_name = parent;
-    let parent = definition
-        .declaration
-        .signature()
-        .iter()
-        .find_map(|item| match item {
-            eqiora_lang::SignatureItem::Support(parent_support)
-                if parent_support.name() == parent_name =>
-            {
-                Some(parent_support)
-            }
-            _ => None,
-        });
+    let parent = signature.iter().find_map(|item| match item {
+        eqiora_lang::SignatureItem::Support(parent_support)
+            if parent_support.name() == parent_name =>
+        {
+            Some(parent_support)
+        }
+        _ => None,
+    });
     let Some(parent) = parent else {
         diagnostics.push(source_error(
             codes::LANGUAGE_TYPE_ERROR,
-            definition.file,
+            file,
             range,
             format!("complete exterior `{set}` refers to unknown parent support `{parent_name}`"),
         ));
@@ -296,7 +304,7 @@ fn complete_exterior_cardinality(
     let eqiora_lang::SupportSlotSyntax::Volume { ambient_dimension } = parent.syntax() else {
         diagnostics.push(source_error(
             codes::LANGUAGE_TYPE_ERROR,
-            definition.file,
+            file,
             range,
             format!("complete exterior `{set}` requires a volume parent support"),
         ));
@@ -307,7 +315,7 @@ fn complete_exterior_cardinality(
         None => {
             diagnostics.push(source_error(
                 codes::LANGUAGE_LOWERING_ERROR,
-                definition.file,
+                file,
                 range,
                 format!("complete exterior `{set}` member count overflows usize"),
             ));
@@ -371,8 +379,27 @@ pub(super) fn model_local_footprint(
             Item::RelationFamily(family) => checked_local_add(
                 &mut footprint.declarations,
                 families
-                    .members(Some(family.binder()), diagnostics)
-                    .saturating_mul(2),
+                    .extent(family.binder().set().as_str())
+                    .or_else(|| {
+                        signature_complete_exterior_cardinality(
+                            definition.file,
+                            definition.declaration.signature(),
+                            family.binder().set().as_str(),
+                            family.range(),
+                            diagnostics,
+                        )
+                    })
+                    .unwrap_or(0)
+                    .checked_mul(2)
+                    .unwrap_or_else(|| {
+                        diagnostics.push(source_error(
+                            codes::LANGUAGE_LOWERING_ERROR,
+                            definition.file,
+                            family.range(),
+                            "complete-exterior Relation-family declaration count overflows usize",
+                        ));
+                        0
+                    }),
                 definition.file,
                 family.range(),
                 "indexed Relation and Activation declarations",
@@ -428,7 +455,18 @@ pub(super) fn model_local_footprint(
             ),
             Item::RelationFamily(family) => families.equations(
                 family.relation().equations(),
-                families.members(Some(family.binder()), diagnostics),
+                families
+                    .extent(family.binder().set().as_str())
+                    .or_else(|| {
+                        signature_complete_exterior_cardinality(
+                            definition.file,
+                            definition.declaration.signature(),
+                            family.binder().set().as_str(),
+                            family.range(),
+                            diagnostics,
+                        )
+                    })
+                    .unwrap_or(0),
                 &mut footprint.expression_nodes,
                 diagnostics,
             ),
