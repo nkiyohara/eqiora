@@ -22,38 +22,78 @@ pub(super) fn validate(
                     ));
                     continue;
                 };
-                if instance.members().len() != record.members().len() {
+                let expression = instance.expression();
+                if expression.roots().len() != record.members().len() {
                     diagnostics.push(kernel_error(
                         owner,
                         "record instance must bind every declared member exactly once",
                     ));
                     continue;
                 }
-                let mut temporal_owner = None;
-                for ((_, expected_type), member) in record.members().iter().zip(instance.members())
-                {
-                    let (value_type, temporal) = match nodes.get(member) {
-                        Some(KernelNode::Parameter(parameter)) => {
-                            (parameter.value_type(), (None, BTreeSet::new()))
-                        }
-                        Some(KernelNode::Field(field)) => (
-                            field.value_type(),
-                            (
-                                Some(field.role()),
-                                edge_targets(edges, *member, EdgeKind::ClockedBy),
-                            ),
-                        ),
-                        _ => {
-                            diagnostics.push(kernel_error(
-                                owner,
-                                "record member requires its exact selected Field or Parameter",
-                            ));
-                            continue;
-                        }
-                    };
-                    if value_type != expected_type {
+                for node in expression.nodes() {
+                    if let ExprNode::Constant(value) = node {
+                        super::nominal_values::check_literal(owner, value, nodes, diagnostics);
+                    }
+                }
+                let inferred = TypedResidual::<()>::infer(
+                    expression.clone(),
+                    None,
+                    RootContract::ValueRoots,
+                    |symbol| {
+                        let value_type = match symbol {
+                            SymbolRef::Parameter(id) => match nodes.get(&id.erase()) {
+                                Some(KernelNode::Parameter(value)) => value.value_type(),
+                                _ => return Err(()),
+                            },
+                            SymbolRef::Field(id) => match nodes.get(&id.erase()) {
+                                Some(KernelNode::Field(value)) => value.value_type(),
+                                _ => return Err(()),
+                            },
+                            _ => return Err(()),
+                        };
+                        Ok(ExpressionType::new(value_type.clone(), None))
+                    },
+                );
+                let Ok(inferred) = inferred else {
+                    diagnostics.push(kernel_error(owner, "record member expression requires exact selected static Parameters or owned bus Fields and valid typed operations"));
+                    continue;
+                };
+                for ((_, expected_type), root) in record.members().iter().zip(expression.roots()) {
+                    if inferred
+                        .node_type(*root)
+                        .is_none_or(|value| &value.value_type != expected_type)
+                    {
                         diagnostics.push(kernel_error(owner, "record member disagrees with its declared type or ordered member identity"));
                     }
+                }
+                let has_fields = expression
+                    .nodes()
+                    .iter()
+                    .any(|node| matches!(node, ExprNode::Symbol(SymbolRef::Field(_))));
+                if !has_fields {
+                    continue;
+                }
+                let mut temporal_owner = None;
+                let mut seen = BTreeSet::new();
+                for root in expression.roots() {
+                    let Some(ExprNode::Symbol(SymbolRef::Field(member))) = expression.node(*root)
+                    else {
+                        diagnostics.push(kernel_error(owner, "record bus roots must be direct owned Fields; static members cannot mix with bus ownership"));
+                        continue;
+                    };
+                    let Some(KernelNode::Field(field)) = nodes.get(&member.erase()) else {
+                        continue;
+                    };
+                    if !seen.insert(member.erase()) {
+                        diagnostics.push(kernel_error(
+                            owner,
+                            "record bus requires distinct owned member Fields",
+                        ));
+                    }
+                    let temporal = (
+                        field.role(),
+                        edge_targets(edges, member.erase(), EdgeKind::ClockedBy),
+                    );
                     if temporal.1.len() > 1 || temporal.1.iter().any(|clock| !matches!(nodes.get(clock), Some(KernelNode::ClockDomain(value)) if matches!(value.kind(), ClockKind::Periodic { .. }))) {
                         diagnostics.push(kernel_error(owner, "record member requires at most one exact periodic ClockDomain"));
                     }
@@ -96,12 +136,14 @@ mod tests {
         .unwrap();
         let first = FieldDef::new(Id::new(), ty.clone(), FieldRole::State);
         let second = FieldDef::new(Id::new(), ty, FieldRole::State);
-        let instance = RecordInstanceDef::new(
-            Id::new(),
-            record.id(),
-            vec![first.id().erase(), second.id().erase()],
-        )
-        .unwrap();
+        let mut expression = eqiora_schema::kernel::ExprDagBuilder::new();
+        let roots = [
+            expression.symbol(SymbolRef::Field(first.id())).unwrap(),
+            expression.symbol(SymbolRef::Field(second.id())).unwrap(),
+        ];
+        let instance =
+            RecordInstanceDef::new(Id::new(), record.id(), expression.finish(roots).unwrap())
+                .unwrap();
         let instance_id = instance.id().erase();
         let clock = ClockDomainDef::periodic(
             Id::new(),
@@ -188,7 +230,12 @@ mod tests {
         let KernelNode::RecordInstance(instance) = nodes[&id].clone() else {
             panic!("instance")
         };
-        let member = instance.members()[0];
+        let Some(ExprNode::Symbol(SymbolRef::Field(member))) =
+            instance.expression().node(instance.expression().roots()[0])
+        else {
+            panic!("member")
+        };
+        let member = member.erase();
         nodes.insert(
             member,
             FieldDef::new(
