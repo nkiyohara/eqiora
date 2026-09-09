@@ -435,3 +435,40 @@ fn geometry_periodic_pair_rejects_nonopposite_and_stale_selections() {
         "{diagnostics:?}"
     );
 }
+
+#[test]
+fn exact_geometry_coincident_contract_retains_parent_and_selection_identity() {
+    let artifact = periodic_geometry();
+    let fixture = interface_program_with_geometry(
+        0.0,
+        ConnectionSemantics::Conserving,
+        true,
+        Some(3),
+        Some((&artifact, "left")),
+    )
+    .unwrap();
+    assert!(matches!(
+        fixture
+            .program
+            .compose_boundary_physical_junction(fixture.connection)
+            .unwrap()
+            .geometry(),
+        BoundaryJunctionGeometry::Coincident
+    ));
+    for (share_parent, selection) in [(false, "left"), (true, "right")] {
+        let errors = interface_program_with_geometry(
+            0.0,
+            ConnectionSemantics::Conserving,
+            share_parent,
+            None,
+            Some((&artifact, selection)),
+        )
+        .unwrap_err();
+        assert!(
+            errors.iter().any(|error| error
+                .message()
+                .contains("exact same-support primitive pair")),
+            "{errors:?}"
+        );
+    }
+}
