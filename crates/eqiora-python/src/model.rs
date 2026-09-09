@@ -20,6 +20,8 @@ use crate::geometry::PyGeometry;
 use crate::model_io::{self, DecodedModel};
 
 mod authored_formulation;
+mod notation;
+pub(crate) use notation::PyQuantityLabel;
 mod parameter_ref;
 pub(crate) use parameter_ref::PyModelParameterRef;
 
@@ -677,6 +679,17 @@ impl PyModel {
     #[getter]
     fn authored_formulations(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
         authored_formulation::project(py, self.document.as_ref())
+    }
+
+    /// Full-scope labels or an exact identity-selected subview, never re-resolved.
+    #[pyo3(signature = (profile="rich", *, identities=None))]
+    fn notation_labels(
+        &self,
+        py: Python<'_>,
+        profile: &str,
+        identities: Option<Vec<String>>,
+    ) -> PyResult<Py<PyTuple>> {
+        notation::project(self, py, profile, identities)
     }
 
     /// Alpha-normalized structural evidence, separate from exact artifact identity.

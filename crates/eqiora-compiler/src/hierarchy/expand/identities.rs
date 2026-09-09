@@ -7,6 +7,14 @@ impl RootExpansion<'_, '_> {
         registration: PortFamilyMemberRegistration<'_>,
         scope: &mut Scope,
     ) -> Result<(), Diagnostic> {
+        self.record_notation(
+            &registration.display_name,
+            registration.identity,
+            &SymbolKind::Port {
+                activation: eqiora_lang::ActivationSyntax::Continuous,
+                quantities: Some(registration.quantities.clone()),
+            },
+        );
         let symbol = FlatSymbol {
             internal_name: internal_name(registration.identity.full),
             display_name: registration.display_name.clone(),
@@ -74,6 +82,7 @@ impl RootExpansion<'_, '_> {
         kind: SymbolKind,
         scope: &mut Scope,
     ) -> Result<(), Diagnostic> {
+        self.record_notation(&display_name, identity, &kind);
         let internal_name = internal_name(identity.full);
         if matches!(kind, SymbolKind::Domain) {
             let key = identity.key.support_representation()?;
@@ -239,5 +248,47 @@ impl RootExpansion<'_, '_> {
             activation_key,
             activation_full,
         })
+    }
+}
+
+impl RootExpansion<'_, '_> {
+    pub(super) fn register_physical_port_occurrence(
+        &mut self,
+        identity: EntityIdentity,
+        display_name: String,
+        instance_path: InstancePath,
+        exposure_candidate: bool,
+        contract: Option<PhysicalExposureContractIdentity>,
+    ) -> Result<(), Diagnostic> {
+        let full = identity.full;
+        let internal_name = internal_name(full);
+        if self
+            .physical_ports_by_name
+            .insert(internal_name, full)
+            .is_some()
+        {
+            return Err(hierarchy_error(format!(
+                "duplicate flattened physical Port identity {full}"
+            )));
+        }
+        if self
+            .physical_ports
+            .insert(
+                full,
+                PhysicalPortOccurrence {
+                    identity,
+                    display_name,
+                    instance_path,
+                    exposure_candidate,
+                    contract,
+                },
+            )
+            .is_some()
+        {
+            return Err(hierarchy_error(format!(
+                "duplicate flattened physical Port occurrence {full}"
+            )));
+        }
+        Ok(())
     }
 }

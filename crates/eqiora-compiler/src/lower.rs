@@ -81,6 +81,7 @@ impl ModelSymbols {
 /// One typed model transaction ready for atomic Graph Federation commit.
 #[derive(Debug)]
 pub struct CompiledModel {
+    notation: crate::ModelNotation,
     model: OntologyId<Model>,
     transaction: Transaction,
     symbols: ModelSymbols,
@@ -90,6 +91,11 @@ pub struct CompiledModel {
 }
 
 impl CompiledModel {
+    /// Declaration labels resolved once against the complete elaborated Model.
+    #[must_use]
+    pub const fn notation(&self) -> &crate::ModelNotation {
+        &self.notation
+    }
     /// Typed Standard Ontology ModelView identifier.
     #[must_use]
     pub const fn model(&self) -> OntologyId<Model> {
@@ -108,9 +114,7 @@ impl CompiledModel {
         &self.transaction
     }
 
-    /// Source provenance for deterministic hierarchy elaboration.
-    ///
-    /// Legacy flat lowering has no elaboration sidecar and returns `None`.
+    /// Authored source provenance; native declarations have no source locations.
     #[must_use]
     pub const fn provenance(&self) -> Option<&ProvenanceMap> {
         self.provenance.as_ref()
@@ -145,10 +149,12 @@ impl CompiledModel {
         symbols: ModelSymbols,
         provenance: ProvenanceMap,
         physical_exposures: PhysicalExposureProjectionMap,
+        notation: crate::ModelNotation,
     ) -> Self {
         self.symbols = symbols;
         self.provenance = Some(provenance);
         self.physical_exposures = physical_exposures;
+        self.notation = notation;
         self
     }
 
@@ -953,6 +959,7 @@ pub(crate) fn lower_typed_model(
         .map(|name| (name.clone(), bindings[name].primary_id()))
         .collect();
     Ok(CompiledModel {
+        notation: crate::ModelNotation::default(),
         model: model_id,
         transaction,
         symbols: ModelSymbols::from_map(symbols),

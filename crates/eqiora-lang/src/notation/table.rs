@@ -188,7 +188,7 @@ impl NotationAtom {
             _ => return None,
         })
     }
-    pub(super) fn spelling(self) -> String {
+    pub(crate) fn spelling(self) -> String {
         match self {
             Self::Latin(letter) => letter.to_string(),
             Self::Digit(digit) => char::from(b'0' + digit).to_string(),
@@ -263,7 +263,7 @@ macro_rules! commands {
             pub(super) fn command(command: &str) -> Option<Self> {
                 Some(match command { $($command => Self::$variant,)+ _ => return None })
             }
-            pub(super) const fn spelling(self) -> &'static str {
+            pub(crate) const fn spelling(self) -> &'static str {
                 match self { $(Self::$variant => concat!("\\", $command),)+ }
             }
         }

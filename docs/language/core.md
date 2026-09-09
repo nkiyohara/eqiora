@@ -108,6 +108,46 @@ resolution as other packages.
 The parser retains source ranges and invalid fragments. Compilation publishes no partial
 Model when a source, type, or binding error remains.
 
+### Occurrence labels
+
+Compilation resolves declaration labels once over the complete Model. Two resistor
+instances may both declare `resistance @{R}`: their labels become `R_{left}` and
+`R_{right}`. Existing intrinsic scripts stay on the symbol; qualification extends
+the same lower-script node rather than emitting a second subscript.
+
+The resolver applies declared notation, explicit instance notation, the shortest
+distinguishing instance-path suffix, then declaration, connector-role and family-member
+qualifiers. If those still collide or exceed the generated-label budget, the exact
+resolved identity supplies a total deterministic fallback. Collision checks include
+rich, plain and speech profiles; losing boldface or a distinct Greek glyph must not
+make two quantities indistinguishable. Adding occurrences can change labels.
+
+```python
+labels = model.notation_labels("plain")
+for quantity in labels:
+    print(quantity.selector, quantity.role, quantity.label)
+detail = model.notation_labels("plain", identities=[labels[0].identity])
+```
+
+`QuantityLabel.identity` includes the full Model scope, declaration occurrence,
+connector role and exact family member. A repeated identity has one label, and
+subviews inherit it without recomputing collisions. Source definition and instance
+spans remain available even for constant-substituted parameters and eliminated
+public physical ports. A forwarded parameter's graph target can be shared while
+its declaration occurrences remain distinct.
+
+Rust callers inspect `CompiledModel::notation()` or `ModelDocument::notation()`;
+`ModelNotation::view` selects existing entries and `NotationProfile` chooses their
+projection. `NotationLabel` owns bounded structural qualification independently of
+source admission: at most 512 generated nodes and 16,384 emitted bytes per label,
+checked before output allocation. The source notation limits above are unchanged.
+
+Source/package recompilation retains authored labels. Bare canonical Model artifacts
+carry physical meaning, not presentation metadata, so reopening them produces
+exact-Kernel-identity labels with no invented source locations. Value edits preserve
+labels when the occurrence inventory is unchanged; structural edits rebuild their
+complete identity-only catalog. These are declaration labels, not equation rendering.
+
 ### Declaration documentation
 
 Place a contiguous block of `///` lines immediately before a declaration or

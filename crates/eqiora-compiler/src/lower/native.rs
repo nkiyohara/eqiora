@@ -12,6 +12,7 @@ pub(super) fn lower(draft: &ModelDraft) -> Result<CompiledModel, Vec<Diagnostic>
         })?;
     // Synthetic native ranges are not authored source provenance.
     compiled.provenance = None;
+    compiled.notation.clear_source_locations();
     Ok(compiled)
 }
 

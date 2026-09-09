@@ -33,7 +33,7 @@ impl SourceLocation {
         }
     }
 
-    fn span(&self) -> Span {
+    pub(super) fn span(&self) -> Span {
         span(&self.file, self.range)
     }
 }
@@ -171,6 +171,7 @@ pub(super) struct DisplayIdentity {
 }
 
 pub(super) struct ExpandedBlueprint {
+    notation_specs: Vec<crate::notation::NotationSpec>,
     model_name: String,
     model_source: SourceLocation,
     model_key: ModelViewKey,
@@ -214,17 +215,18 @@ impl ExpandedBlueprint {
     pub(super) fn new(
         model_name: String,
         model_source: SourceLocation,
-        model_key: ModelViewKey,
-        model_full: FullElaborationIdentity,
+        model_identity: (ModelViewKey, FullElaborationIdentity),
         items: Vec<FlatItemBlueprint>,
         display_symbols: BTreeMap<String, DisplayIdentity>,
         physical_exposures: Vec<PhysicalExposureProjectionBlueprint>,
+        notation_specs: Vec<crate::notation::NotationSpec>,
     ) -> Self {
         Self {
+            notation_specs,
             model_name,
             model_source,
-            model_key,
-            model_full,
+            model_key: model_identity.0,
+            model_full: model_identity.1,
             items,
             display_symbols,
             physical_exposures,
@@ -319,10 +321,31 @@ impl ExpandedBlueprint {
         let physical_exposures = self
             .physical_exposure_projections(&staged)
             .map_err(|error| vec![error])?;
+        let graph_ids = symbols
+            .values()
+            .filter_map(|raw| {
+                provenance
+                    .identity_for_graph_id(*raw)
+                    .map(|full| (full, *raw))
+            })
+            .collect::<BTreeMap<_, _>>();
+        let notation = crate::notation::ModelNotation::resolve(
+            self.notation_specs
+                .iter()
+                .cloned()
+                .map(|mut spec| {
+                    spec.graph_id = spec
+                        .graph_identity
+                        .and_then(|full| graph_ids.get(&full).copied());
+                    spec
+                })
+                .collect(),
+        );
         Ok(compiled.with_elaboration_metadata(
             ModelSymbols::from_map(symbols),
             provenance,
             physical_exposures,
+            notation,
         ))
     }
 
