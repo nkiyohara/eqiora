@@ -111,8 +111,22 @@ fn singular_poisson_ratios_fail_during_compilation() {
         (Assumption::PlaneStrain, 0.5),
         (Assumption::PlaneStress, 1.0),
     ] {
+        compile_root(&solid, &root_source(true, assumption, 0.25));
+        let error = prepare_package_release_v1(
+            root_sources(&solid, &root_source(true, assumption, poisson_ratio)),
+            std::slice::from_ref(&solid),
+        )
+        .expect_err("singular actual Component context must fail before publication");
+        let eqiora::package::PackagePreparationError::Diagnostics(diagnostics) = error else {
+            panic!("expected compiler diagnostics, got {error}");
+        };
         assert!(
-            compile_root_result(&solid, &root_source(true, assumption, poisson_ratio)).is_err()
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.code() == eqiora::diagnostic::codes::LANGUAGE_TYPE_ERROR
+                    && diagnostic.message() == "division by zero in static value"
+                    && diagnostic.source_span().is_some()
+            }),
+            "{diagnostics:?}"
         );
     }
 }

@@ -113,7 +113,7 @@ fn validate_definition_bodies_and_parameters(
             Ok(contexts) => contexts,
             Err(errors) => {
                 diagnostics.extend(errors);
-                BTreeMap::new()
+                return body_proofs;
             }
         }
     } else {

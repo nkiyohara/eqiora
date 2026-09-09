@@ -1,6 +1,58 @@
 use eqiora_compiler::compile;
 
 #[test]
+fn selected_closed_values_keep_target_units_without_relaxing_source_call_sites() {
+    let source = "public component Length(parameter value:m){relation r{value-value=0;}}";
+    let expressions = eqiora_lang::parse(
+        "inputs.eqi",
+        "model Inputs(){parameter literal:1=-2;parameter wrong:s=2[s];parameter general:1=1+1;}",
+    )
+    .into_document()
+    .unwrap();
+    let values = expressions.models()[0]
+        .items()
+        .iter()
+        .filter_map(|item| match item {
+            eqiora_lang::Item::Parameter(value) => Some(value.value()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    for (position, expression) in values.iter().enumerate() {
+        let compiled = eqiora_compiler::CompiledModel::compile_selected(
+            "closed.eqi",
+            source,
+            "Length",
+            &[(
+                "value",
+                eqiora_compiler::StaticBindingValue::Expression(expression),
+            )],
+        );
+        if position == 0 {
+            compiled.unwrap();
+        } else {
+            let errors = compiled.unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.message().contains("dimension")),
+                "{errors:?}"
+            );
+        }
+    }
+    let errors = compile(
+        "call.eqi",
+        &format!("{source} model M(){{instance length:Length(value=-2);}}"),
+    )
+    .unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message().contains("dimension")),
+        "{errors:?}"
+    );
+}
+
+#[test]
 fn concrete_instances_bind_independent_static_reduction_extents() {
     let source = "component Total(parameter n:integer,output y:1){indexset I=range(n);relation r{y=sum(to_real(ordinal(i)),over=(i in I));}} model M(){instance a:Total(n=2);instance b:Total(n=3);}";
     let models =

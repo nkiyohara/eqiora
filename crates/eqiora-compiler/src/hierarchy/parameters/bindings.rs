@@ -8,6 +8,7 @@ pub(super) struct Bindings {
     clocks: BTreeMap<String, Option<eqiora_schema::kernel::RationalTime>>,
     frames: BTreeMap<String, SpatialSupport<String>>,
     member: Option<String>,
+    closed: bool,
 }
 
 impl Bindings {
@@ -27,6 +28,7 @@ impl Bindings {
             clocks,
             frames,
             member: None,
+            closed: true,
         }
     }
 
@@ -47,6 +49,7 @@ impl Bindings {
             clocks: BTreeMap::new(),
             frames: BTreeMap::new(),
             member: instance.family().map(|family| family.member().to_owned()),
+            closed: false,
         };
         for binding in instance.bindings() {
             let Some(declaration) = declarations.get(binding.name()) else {
@@ -119,6 +122,25 @@ impl Bindings {
         expression: &Expr,
         target: ValueType,
     ) -> Result<SymbolicParameterValue, Diagnostic> {
+        if self.closed {
+            // Native selected-entry inputs are closed declared values, not source
+            // call-site expressions. Preserve their existing target-unit context.
+            let value = super::static_values::closed_value_with_frames(
+                &self.file,
+                expression,
+                target,
+                &mut |name| self.frames.get(name).cloned(),
+            )?;
+            return Ok(SymbolicParameterValue {
+                value_type: value.value_type().clone(),
+                expression: Some(LoweringExpression::literal(
+                    value.clone(),
+                    expression.range(),
+                )),
+                value: Some(value),
+                lineage: Some(ParameterLineage::Constant),
+            });
+        }
         let context = self.member.as_deref().map_or(
             ExpressionContext::Binding,
             ExpressionContext::IndexedBinding,
