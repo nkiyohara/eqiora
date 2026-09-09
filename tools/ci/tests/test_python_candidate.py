@@ -1072,10 +1072,20 @@ invalid candidate
         self.assertIn(
             Path("examples/python/coupled_scalar.py"), PYTHON_TEST_RESOURCES
         )
+        # Controls tests use the maintained adapter, but load the package from the wheel.
+        self.assertIn(
+            Path("examples/standard-sampled-components/src/main.eqi"),
+            PYTHON_TEST_RESOURCES,
+        )
+        self.assertIn(
+            Path("packages/Eqiora.Controls.Sampled/src/sampled.eqi"),
+            PYTHON_TEST_RESOURCES,
+        )
         # The installed Reference test executes displayed Python and its sources.
         reference = Path("docs/site/src/content/docs/reference")
         for relative in (
             reference / "standard-packages/continuum.mdx",
+            reference / "standard-packages/controls.mdx",
             reference / "language/_examples/clocked.eqi",
             Path("packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi"),
         ):
@@ -1101,6 +1111,9 @@ invalid candidate
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(relative, encoding="utf-8")
 
+            controls_manifest = Path("packages/Eqiora.Controls.Sampled/package.json")
+            (extracted / controls_manifest).write_text("{}", encoding="utf-8")
+
             tests, typecheck = prepare_base_consumer_tree(extracted, run_root)
 
             self.assertEqual(tests, run_root / "bindings/python/tests")
@@ -1109,6 +1122,8 @@ invalid candidate
             self.assertEqual(test_path.parents[3], run_root)
             for relative in files:
                 self.assertTrue((run_root / relative).is_file())
+            # The standalone source fixture cannot replace the installed bundle.
+            self.assertFalse((run_root / controls_manifest).exists())
 
 
 class CandidateProfileFanoutContractTests(unittest.TestCase):

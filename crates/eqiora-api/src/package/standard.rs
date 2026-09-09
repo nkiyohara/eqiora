@@ -11,16 +11,29 @@ pub(super) fn closure(
     name: &str,
     version: &str,
 ) -> Result<Vec<PackageReleaseV1>, PackagePreparationError> {
-    let mechanics = sources(
-        include_bytes!("../../../../packages/Eqiora.Mechanics.Interfaces/package.json"),
-        include_bytes!("../../../../packages/Eqiora.Mechanics.Interfaces/README.md"),
-        "src/interfaces.eqi",
-        include_bytes!("../../../../packages/Eqiora.Mechanics.Interfaces/src/interfaces.eqi"),
-    )?;
-    let mechanics = prepare_package_release_v1(mechanics, &[])?;
-    let mut releases = vec![mechanics];
+    let mut releases = Vec::new();
+    if matches!(
+        name,
+        "Eqiora.Mechanics.Interfaces"
+            | "Eqiora.Fluid.Incompressible"
+            | "Eqiora.Solid.LinearElasticity"
+    ) {
+        let mechanics = sources(
+            include_bytes!("../../../../packages/Eqiora.Mechanics.Interfaces/package.json"),
+            include_bytes!("../../../../packages/Eqiora.Mechanics.Interfaces/README.md"),
+            "src/interfaces.eqi",
+            include_bytes!("../../../../packages/Eqiora.Mechanics.Interfaces/src/interfaces.eqi"),
+        )?;
+        releases.push(prepare_package_release_v1(mechanics, &[])?);
+    }
     let source = match name {
         "Eqiora.Mechanics.Interfaces" => None,
+        "Eqiora.Controls.Sampled" => Some(sources(
+            include_bytes!("../../../../packages/Eqiora.Controls.Sampled/package.json"),
+            include_bytes!("../../../../packages/Eqiora.Controls.Sampled/README.md"),
+            "src/sampled.eqi",
+            include_bytes!("../../../../packages/Eqiora.Controls.Sampled/src/sampled.eqi"),
+        )?),
         "Eqiora.Fluid.Incompressible" => Some(sources(
             include_bytes!("../../../../packages/Eqiora.Fluid.Incompressible/package.json"),
             include_bytes!("../../../../packages/Eqiora.Fluid.Incompressible/README.md"),

@@ -1,0 +1,62 @@
+import Eqiora.Controls.Sampled.sampled as controls;
+
+// Local physical adapters own equations, not memory. The chosen scales are
+// explicit: 2 V and 0.5 m. Their output rates retain the required 1/s dimension.
+component VoltageScale(
+  clock tick: periodic,
+  input voltage: V at tick,
+  input slew: V / s at tick,
+  output value: 1 at tick,
+  output rate: 1 / s at tick
+) {
+  relation normalize at tick {
+    value = voltage / 2[V];
+    rate = slew / 2[V];
+  }
+}
+
+component PositionScale(
+  clock tick: periodic,
+  input position: m at tick,
+  input velocity: m / s at tick,
+  output value: 1 at tick,
+  output rate: 1 / s at tick
+) {
+  relation normalize at tick {
+    value = position / 0.5[m];
+    rate = velocity / 0.5[m];
+  }
+}
+
+model Main(
+  input voltage: V at tick,
+  input slew: V / s at tick,
+  input position: m at tick,
+  input velocity: m / s at tick,
+  output delayed_voltage: V at tick,
+  output voltage_before: V at tick,
+  output voltage_after: V at tick,
+  output delayed_position: m at tick,
+  output position_before: m at tick,
+  output position_after: m at tick
+) {
+  clock tick = periodic(0.25[s]);
+  instance volts: VoltageScale(tick = tick, voltage = voltage, slew = slew);
+  instance metres: PositionScale(tick = tick, position = position, velocity = velocity);
+  instance voltage_delay: controls.UnitDelay(tick = tick, initial_value = 10[V] / 2[V]);
+  instance voltage_integral: controls.DiscreteIntegrator(tick = tick, initial_value = 6[V] / 2[V]);
+  instance position_delay: controls.UnitDelay(tick = tick, initial_value = 2.5[m] / 0.5[m]);
+  instance position_integral: controls.DiscreteIntegrator(tick = tick, initial_value = 1.5[m] / 0.5[m]);
+  connect volts.value -> voltage_delay.u;
+  connect volts.rate -> voltage_integral.rate;
+  connect metres.value -> position_delay.u;
+  connect metres.rate -> position_integral.rate;
+  relation denormalize at tick {
+    delayed_voltage = 2[V] * voltage_delay.y;
+    voltage_before = 2[V] * voltage_integral.before;
+    voltage_after = 2[V] * voltage_integral.after;
+    delayed_position = 0.5[m] * position_delay.y;
+    position_before = 0.5[m] * position_integral.before;
+    position_after = 0.5[m] * position_integral.after;
+  }
+}

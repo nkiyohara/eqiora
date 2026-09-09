@@ -1,0 +1,4 @@
+[package]
+name = "org.example.SampledControls"
+version = "0.1.0"
+entry = "main"

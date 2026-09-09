@@ -11,6 +11,7 @@ Browse the `.eqi` declarations in the installed source checkout by physical purp
 | Purpose | Lookup |
 |---|---|
 | Impose a DC voltage, resistance or electrical reference potential | [Electrical components](/reference/standard-packages/electrical/) |
+| Delay a sample or integrate a scalar rate on a supplied clock | [Sampled controls](/reference/standard-packages/controls/) |
 | Express a small-strain elastic balance, clamp a boundary or leave it traction-free | [Continuum laws and boundaries](/reference/standard-packages/continuum/#elastic-balance-and-boundaries) |
 | Bind density, viscosity, velocity and pressure to an inertial Stokes law | [Inertial flow law](/reference/standard-packages/continuum/#inertial-flow-law) |
 
@@ -35,6 +36,7 @@ are listed for discovery, without implying a Python solve workflow for each.
 
 | Source module | Physical purpose |
 |---|---|
+| <ExactSourceLink kind="blob" path="packages/Eqiora.Controls.Sampled/src/sampled.eqi">Controls.Sampled</ExactSourceLink> | Supplied-clock UnitDelay and DiscreteIntegrator with explicit initial memory |
 | <ExactSourceLink kind="blob" path="packages/Eqiora.Electrical.Basic/src/basic.eqi">Electrical.Basic</ExactSourceLink> | Electrical Pin, ideal voltage source, resistor and ground |
 | <ExactSourceLink kind="blob" path="packages/Eqiora.Electrical.Circuits/src/circuits.eqi">Electrical.Circuits</ExactSourceLink> | A parallel DC circuit composed from Basic |
 | <ExactSourceLink kind="blob" path="packages/Eqiora.Electromechanical.DcDrive/src/drive.eqi">Electromechanical.DcDrive</ExactSourceLink> | Controlled source, permanent-magnet motor, inertial load and speed sensor |

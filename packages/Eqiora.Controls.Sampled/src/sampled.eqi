@@ -1,0 +1,31 @@
+/// Publish the previous sample and then retain the current input.
+public component UnitDelay(
+  clock tick: periodic,
+  parameter initial_value: 1,
+  input u: 1 at tick,
+  output y: 1 at tick
+) {
+  state memory: 1 at tick;
+  initial { pre(memory) = initial_value; }
+  relation update at tick {
+    y = pre(memory);
+    next(memory) = u;
+  }
+}
+
+/// Integrate the supplied rate once per tick, exposing both sides of the update.
+public component DiscreteIntegrator(
+  clock tick: periodic,
+  parameter initial_value: 1,
+  input rate: 1 / s at tick,
+  output before: 1 at tick,
+  output after: 1 at tick
+) {
+  state memory: 1 at tick;
+  initial { pre(memory) = initial_value; }
+  relation update at tick {
+    next(memory) = pre(memory) + period(tick) * rate;
+    before = pre(memory);
+    after = next(memory);
+  }
+}

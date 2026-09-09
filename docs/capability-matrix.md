@@ -518,7 +518,7 @@ below.
 | Enabled and triggered subsystems | 🟨 | ⬜ | ⬜ | ⬜ | Activation ingredients exist; complete reset/hold semantics remain |
 | Function-call subsystems | ⬜ | ⬜ | ⬜ | ⬜ | Deterministic invocation, reentrancy, and scheduling remain |
 | Data stores and scoped state | ⬜ | ⬜ | ⬜ | ⬜ | Explicit state ownership and concurrency semantics remain |
-| Delay and memory operators | 🟨 | 🟨 | 🟨 | ⬜ | `pre`/state ingredients exist; reusable semantics and initialization remain |
+| Sampled delay and discrete integration | ✅ | ✅ | ⬜ | ⬜ | Ordinary `Eqiora.Controls.Sampled` real-scalar components borrow the caller's exact clock and require explicit initial memory. UnitDelay exposes the prior sample; DiscreteIntegrator exposes before/after values of one memory update. Dimensionless storage and inverse-time rates compose with explicit voltage and displacement scales. Focused source, locked-package and installed-Python tests compare two periods against independent recurrences, preserve equation-order and restart behavior, and reject unit, initialization and foreign-clock errors. Generic Component types, implicit sample/hold and RateTransition are not provided by these blocks. |
 | Lookup tables and interpolation | ⬜ | ⬜ | ⬜ | ⬜ | 1D–nD policies, extrapolation, derivatives, and codegen remain |
 | Transfer functions and state space | ⬜ | ⬜ | ⬜ | ⬜ | Continuous/discrete MIMO library and conversion remain |
 | PID and control primitives | ⬜ | ⬜ | ⬜ | ⬜ | Anti-windup, bumpless transfer, tuning, and codegen remain |
