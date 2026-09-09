@@ -338,6 +338,10 @@ impl PyField {
             self.value.value_type()
         )
     }
+
+    fn __hash__(&self) -> usize {
+        std::ptr::from_ref(self) as usize
+    }
 }
 
 /// Immutable Parameter declaration owning a complete typed value.
@@ -470,6 +474,10 @@ impl PyParameter {
             self.value.value_type(),
             self.value.value()
         )
+    }
+
+    fn __hash__(&self) -> usize {
+        std::ptr::from_ref(self) as usize
     }
 }
 
@@ -684,6 +692,10 @@ impl PyExpression {
 
     fn __repr__(&self) -> &'static str {
         "Expression(<symbolic>)"
+    }
+
+    fn __hash__(&self) -> usize {
+        std::ptr::from_ref(self) as usize
     }
 }
 

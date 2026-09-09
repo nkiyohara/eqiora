@@ -45,10 +45,11 @@ pub(super) fn _compile_module(
                     .iter()
                     .map(|(name, value)| (name.as_str(), value.borrowed(authority.as_ref())))
                     .collect::<Vec<_>>();
-                if let [(name, module)] = units.as_slice() {
-                    if name == &root && module.document().imports().len() == 0 {
-                        return ModelDocument::compile_module(module, entry.as_deref(), &bindings);
-                    }
+                if let [(name, module)] = units.as_slice()
+                    && name == &root
+                    && module.document().imports().len() == 0
+                {
+                    return ModelDocument::compile_module(module, entry.as_deref(), &bindings);
                 }
                 let error = |message| {
                     vec![eqiora::Diagnostic::error(

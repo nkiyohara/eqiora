@@ -10,6 +10,14 @@ use super::declaration::PyAstType;
 use super::definition::{Definition, PyAstDefinition};
 use super::expression::{PyAstExpression, path, syntax_error};
 
+type OperatorInput<'py> = (
+    String,
+    Vec<(String, PyRef<'py, PyAstType>, u32)>,
+    PyRef<'py, PyAstType>,
+    PyRef<'py, PyAstExpression>,
+    u32,
+);
+
 #[pyclass(name = "_AstModule", module = "eqiora._eqiora", frozen, from_py_object)]
 #[derive(Clone)]
 pub(crate) struct PyAstModule {
@@ -58,13 +66,7 @@ impl PyAstModule {
     #[new]
     fn new(
         definitions: Vec<PyRef<'_, PyAstDefinition>>,
-        operators: Vec<(
-            String,
-            Vec<(String, PyRef<'_, PyAstType>, u32)>,
-            PyRef<'_, PyAstType>,
-            PyRef<'_, PyAstExpression>,
-            u32,
-        )>,
+        operators: Vec<OperatorInput<'_>>,
     ) -> PyResult<Self> {
         if definitions.len() + operators.len() > 256 {
             return Err(syntax_error("module exceeds 256 definitions"));
@@ -179,7 +181,7 @@ impl PyAstModule {
             .iter()
             .find(|value| value.name() == name && value.visibility() == VisibilitySyntax::Public)
             .ok_or_else(|| syntax_error("import requires one public Component"))?;
-        Ok(definition
+        definition
             .signature()
             .iter()
             .map(|item| {
@@ -198,7 +200,7 @@ impl PyAstModule {
                     !matches!(item, SignatureItem::Parameter(value) if value.default().is_some());
                 Ok((item.name().to_owned(), role.to_owned(), required))
             })
-            .collect::<PyResult<_>>()?)
+            .collect::<PyResult<_>>()
     }
 
     fn with_space(&self, name: String, labels: Vec<String>, ordinal: u32) -> PyResult<Self> {

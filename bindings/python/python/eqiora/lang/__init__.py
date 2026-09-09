@@ -1739,6 +1739,10 @@ class Module:
         self._enums: list[tuple[Enum, tuple[str, ...]]] = []
         self._frozen_text: str | None = None
 
+    def __repr__(self) -> str:
+        state = "frozen" if self._graph is not None else "open"
+        return f"Module({self._name!r}, state={state!r})"
+
     def _type_syntax(self, value_type: ValueType) -> str:
         try:
             return _nominal_type(value_type, [space for space, _ in self._spaces], [], [item._definition for item, _ in self._enums])

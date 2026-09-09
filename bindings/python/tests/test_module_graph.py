@@ -192,6 +192,25 @@ def test_native_symbolic_handles_never_produce_host_boolean(compare):
             compare(value)
 
 
+def test_native_symbolic_handles_remain_identity_keys():
+    field = q.Field("x", value_type=q.ValueType.real(), role=q.FieldRole.Variable)
+    parameter = q.Parameter("gain", value=2)
+    values = (field, parameter, field + parameter)
+    mapping = {value: index for index, value in enumerate(values)}
+    for index, value in enumerate(values):
+        assert hash(value) == hash(value)
+        assert mapping[value] == index
+        assert value in set(values)
+
+
+def test_module_repr_reports_name_and_state_without_freezing():
+    module = q.Module("main")
+    assert repr(module) == "Module('main', state='open')"
+    module.model("Main")
+    module.to_eqi()
+    assert repr(module) == "Module('main', state='frozen')"
+
+
 def test_imported_closed_native_module_retains_nominal_identity_and_rejects_mutation():
     mode = q.Enum("Mode", members=("On", "Off"))
     parameter = q.Parameter("mode", value_type=mode.value_type, value=mode.member("On"))

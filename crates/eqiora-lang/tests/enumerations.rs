@@ -382,7 +382,7 @@ fn native_model_enum_initialization_checks_exact_registry_without_copying_defini
         ],
     )
     .unwrap();
-    let ast = model.native_ast();
+    let ast = &model;
     assert_eq!(ast.nominal_identity("Mode"), Some(definition.id().erase()));
     assert_eq!(
         ast.document().enumerations()[0].tags()[0].as_str(),

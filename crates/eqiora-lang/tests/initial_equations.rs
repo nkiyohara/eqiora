@@ -20,7 +20,7 @@ fn native_initial_equations_share_source_ast_without_field_literals() {
         [state.into(), DraftDeclaration::Initial(vec![condition])],
     )
     .unwrap();
-    let native = draft.native_ast();
+    let native = &draft;
     let Item::Initial(initial) = &native.model().items()[1] else {
         panic!("initial equations keep their own owner");
     };

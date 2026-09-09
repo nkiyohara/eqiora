@@ -55,7 +55,7 @@ fn native_nominal_projection_requires_registered_exact_declaration_identity() {
         ],
     )
     .unwrap();
-    let native = draft.native_ast();
+    let native = &draft;
     assert_eq!(
         native.nominal_identity("Species"),
         Some(definition.id().erase())
