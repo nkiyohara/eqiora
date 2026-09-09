@@ -88,11 +88,8 @@ export const STAGES = [
   { id: 'mesh-and-boundaries', step: 3, title: 'Mesh and boundaries' },
   { id: 'submit-and-result', step: 4, title: 'Submit and result' },
   { id: 'pressure-visualization', step: 5, title: 'Pressure visualization' },
-  { id: 'verified-boundary', step: 6, title: 'Verification boundary' },
+  { id: 'reading-pressure', step: 6, title: 'Reading the pressure plot' },
 ] as const;
-
-export const SUPPORTED_STATEMENT =
-  'One presentation-only 2D steady incompressible Stokes exact-cylinder demonstration rendered through exact Geometry, typed Gmsh policy, and the root Result path; output counts, digests, numerical values, and pixels are not independently verified.';
 
 export const TABLE_SELECTORS = {
   generic: '.sl-markdown-content table:not(:where(.not-content *))',
@@ -113,7 +110,7 @@ export const TABLE_ROUTES = [
   { route: '/learn/mathematical-modeling/fields-spatial-domains/', tables: 1, direct: 1, component: 0 },
   { route: '/capabilities/', tables: 1, direct: 1, component: 0 },
   { route: '/evidence/', tables: 0, direct: 0, component: 0 },
-  { route: '/gallery/exact-cylinder-steady-stokes/', tables: 1, direct: 0, component: 1 },
+  { route: '/gallery/exact-cylinder-steady-stokes/', tables: 0, direct: 0, component: 0 },
   { route: '/reference/control-v2/', tables: 1, direct: 1, component: 0 },
   { route: '/reference/language/', tables: 1, direct: 1, component: 0 },
   { route: '/reference/language/declarations/', tables: 1, direct: 1, component: 0 },
@@ -463,26 +460,6 @@ export async function assertSemanticStages(page: Page): Promise<void> {
     await expect(emoji).toHaveCount(1);
     await expect(emoji).toHaveAttribute('aria-hidden', 'true');
   }
-}
-
-export async function assertSupportedStatement(page: Page): Promise<void> {
-  const statement = page.getByText(SUPPORTED_STATEMENT, { exact: true });
-  await expect(statement).toHaveCount(1);
-  await expect(statement).toBeVisible();
-  expect(
-    await statement.evaluate((element) =>
-      Boolean(
-        element.closest(
-          '.eq-claim-boundary__panel--supported[role="group"][aria-label="Supported"]',
-        ),
-      ),
-    ),
-  ).toBe(true);
-  expect(
-    await statement.evaluate((element) =>
-      Boolean(element.closest('.eq-claim-boundary__panel--not-claimed')),
-    ),
-  ).toBe(false);
 }
 
 export async function assertVisibleSourceFallback(page: Page): Promise<void> {

@@ -1,6 +1,6 @@
 ---
 title: "eqiora.meshing"
-description: "Public signatures and source-traced summaries for eqiora.meshing."
+description: "Functions, classes, and signatures for eqiora.meshing."
 ---
 
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
@@ -9,13 +9,9 @@ import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
 [← Python API index](/reference/python/)
 
-Immutable geometry-to-mesh planning owned by the native implementation.
+Plan and generate meshes from geometry.
 
-Module authority: <ExactSourceLink path="bindings/python/python/eqiora/meshing.py" kind="blob">bindings/python/python/eqiora/meshing.py</ExactSourceLink>
-
-Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/meshing.pyi" kind="blob">bindings/python/python/eqiora/meshing.pyi</ExactSourceLink>
-
-This module publishes **7** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+<ExactSourceLink path="bindings/python/python/eqiora/meshing.pyi" kind="blob">View source</ExactSourceLink>
 
 <a id="api-eqiora-meshing-AffineTriangleMesher"></a>
 
@@ -23,10 +19,8 @@ This module publishes **7** literal `__all__` spellings. Member entries below ar
 
 Select deterministic rectangle affine-triangle meshing.
 
-Every structured cell uses the provider-owned lower-left to upper-right
+Every structured cell uses the lower-left to upper-right
 diagonal; callers select only the positive subdivision counts.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/meshing/plan.rs" kind="blob">crates/eqiora-python/src/meshing/plan.rs::PyAffineTriangleMesher</ExactSourceLink>
 
 ```python
 @final
@@ -46,8 +40,6 @@ class AffineTriangleMesher:
 
 Select deterministic structured Cartesian meshing.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/meshing/plan.rs" kind="blob">crates/eqiora-python/src/meshing/plan.rs::PyCartesianMesher</ExactSourceLink>
-
 ```python
 @final
 class CartesianMesher:
@@ -63,8 +55,6 @@ class CartesianMesher:
 ## `GmshMesher`
 
 Select the exact external Gmsh provider.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/meshing/plan.rs" kind="blob">crates/eqiora-python/src/meshing/plan.rs::PyGmshMesher</ExactSourceLink>
 
 ```python
 @final
@@ -87,8 +77,6 @@ class GmshMesher:
 ## `Mesh`
 
 Immutable source-bound accepted mesh.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/meshing/mesh.rs" kind="blob">crates/eqiora-python/src/meshing/mesh.rs::PyMesh</ExactSourceLink>
 
 ```python
 @final
@@ -134,8 +122,6 @@ class Mesh:
 
 Complete provider plan bound to one exact geometry.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/meshing/plan.rs" kind="blob">crates/eqiora-python/src/meshing/plan.rs::PyMeshPlan</ExactSourceLink>
-
 ```python
 @final
 class MeshPlan:
@@ -152,8 +138,6 @@ class MeshPlan:
 
 Execute a resolved provider plan and publish its accepted mesh.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/meshing/mesh.rs" kind="blob">crates/eqiora-python/src/meshing/mesh.rs::generate</ExactSourceLink>
-
 ```python
 def generate(plan: MeshPlan, /) -> Mesh: ...
 ```
@@ -163,8 +147,6 @@ def generate(plan: MeshPlan, /) -> Mesh: ...
 ## `resolve`
 
 Resolve a provider plan for the exact supplied geometry.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/meshing/plan.rs" kind="blob">crates/eqiora-python/src/meshing/plan.rs::resolve</ExactSourceLink>
 
 ```python
 def resolve(geometry: Geometry, provider: AffineTriangleMesher | CartesianMesher | GmshMesher, /) -> MeshPlan: ...

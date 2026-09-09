@@ -1,4 +1,4 @@
-"""Read-only projections of accepted Eqiora spatial trajectories.
+"""Read spatial trajectories and derived fields.
 
 Authority: ``bindings/python/python/eqiora/trajectory.py``.
 """

@@ -1,4 +1,4 @@
-"""Composable read-only viewer for accepted Eqiora values.
+"""Compose read-only views of geometry, meshes, and fields.
 
 Authority: ``bindings/python/python/eqiora/viewer.py``.
 """

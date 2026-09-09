@@ -1,4 +1,4 @@
-"""Bounded exact geometry values owned by the native implementation.
+"""Construct exact geometry values and select regions and boundaries.
 
 Authority: ``bindings/python/python/eqiora/geometry.py``.
 """
@@ -8,7 +8,7 @@ from typing import final, overload
 
 @final
 class GeometryRegionHandle:
-    """Direct construction-owned handle to one exact region.
+    """Handle to one exact region returned by geometry construction.
 
     Authority: ``crates/eqiora-python/src/planar_operation.rs::PyGeometryRegionHandle``.
     """
@@ -19,7 +19,7 @@ class GeometryRegionHandle:
 
 @final
 class GeometryBoundaryHandle:
-    """Direct construction-owned handle to one exact boundary.
+    """Handle to one exact boundary returned by geometry construction.
 
     Authority: ``crates/eqiora-python/src/planar_operation.rs::PyGeometryBoundaryHandle``.
     """
@@ -153,7 +153,7 @@ class GeometryFaceHandle:
 
 @final
 class GeometryBuildReceipt:
-    """Read-only receipt from an admitted solid build.
+    """Read-only result of a solid build.
 
     Authority: ``crates/eqiora-python/src/cad_authored.rs::PyGeometryBuildReceipt``.
     """

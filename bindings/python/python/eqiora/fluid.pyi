@@ -1,4 +1,4 @@
-"""Narrow fluid applications composed by Eqiora's shared native layer.
+"""Configure incompressible flow and inspect its results.
 
 Authority: ``bindings/python/python/eqiora/fluid.py``.
 """
@@ -58,7 +58,7 @@ class IncompressibleScaling:
 
 @final
 class IncompressibleScales:
-    """Immutable effective 2D incompressible scales owned by a resolved Plan.
+    """Immutable effective 2D incompressible scales for a resolved Plan.
 
     Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyIncompressibleScales``.
     """

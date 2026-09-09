@@ -1,4 +1,4 @@
-"""Closed finite-element spatial policies.
+"""Finite-element discretization policies.
 
 Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyQ1``.
 """

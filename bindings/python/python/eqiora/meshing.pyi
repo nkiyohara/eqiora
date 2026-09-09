@@ -1,4 +1,4 @@
-"""Immutable geometry-to-mesh planning owned by the native implementation.
+"""Plan and generate meshes from geometry.
 
 Authority: ``bindings/python/python/eqiora/meshing.py``.
 """
@@ -14,7 +14,7 @@ from .geometry import Geometry, GeometrySelection
 class AffineTriangleMesher:
     """Select deterministic rectangle affine-triangle meshing.
 
-    Every structured cell uses the provider-owned lower-left to upper-right
+    Every structured cell uses the lower-left to upper-right
     diagonal; callers select only the positive subdivision counts.
 
     Authority: ``crates/eqiora-python/src/meshing/plan.rs::PyAffineTriangleMesher``.

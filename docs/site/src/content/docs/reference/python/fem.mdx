@@ -1,6 +1,6 @@
 ---
 title: "eqiora.fem"
-description: "Public signatures and source-traced summaries for eqiora.fem."
+description: "Functions, classes, and signatures for eqiora.fem."
 ---
 
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
@@ -9,21 +9,15 @@ import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
 [← Python API index](/reference/python/)
 
-Closed finite-element spatial policies.
+Finite-element discretization policies.
 
-Module authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/policy.rs" kind="blob">crates/eqiora-python/src/common_plan/policy.rs::PyQ1</ExactSourceLink>
-
-Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/fem.pyi" kind="blob">bindings/python/python/eqiora/fem.pyi</ExactSourceLink>
-
-This module publishes **4** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+<ExactSourceLink path="bindings/python/python/eqiora/fem.pyi" kind="blob">View source</ExactSourceLink>
 
 <a id="api-eqiora-fem-MiniP1"></a>
 
 ## `MiniP1`
 
 Mixed MINI velocity and continuous P1 pressure spatial policy.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/policy.rs" kind="blob">crates/eqiora-python/src/common_plan/policy.rs::PyMiniP1</ExactSourceLink>
 
 ```python
 @final
@@ -49,8 +43,6 @@ class MiniP1:
 
 Continuous simplex P1 Galerkin spatial policy.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/policy.rs" kind="blob">crates/eqiora-python/src/common_plan/policy.rs::PyP1</ExactSourceLink>
-
 ```python
 @final
 class P1:
@@ -73,8 +65,6 @@ class P1:
 
 Continuous tensor-product Q1 Galerkin spatial policy.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/policy.rs" kind="blob">crates/eqiora-python/src/common_plan/policy.rs::PyQ1</ExactSourceLink>
-
 ```python
 @final
 class Q1:
@@ -95,8 +85,6 @@ class Q1:
 ## `ScopedSpatialPolicy`
 
 One exact Model-Domain-bound spatial policy.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/policy.rs" kind="blob">crates/eqiora-python/src/common_plan/policy.rs::PyScopedSpatialBinding</ExactSourceLink>
 
 ```python
 @final

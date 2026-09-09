@@ -589,12 +589,12 @@ def module_route(module: str) -> str:
 
 def mdx_source_link(authority: str) -> str:
     path = authority.split("::", 1)[0]
-    return f'<ExactSourceLink path="{path}" kind="blob">{authority}</ExactSourceLink>'
+    return f'<ExactSourceLink path="{path}" kind="blob">View source</ExactSourceLink>'
 
 
 def markdown_source_link(authority: str) -> str:
     path = authority.split("::", 1)[0]
-    return f"[`{authority}`](../../{path})"
+    return f"[View source](../../{path})"
 
 
 def mdx_frontmatter(title: str, description: str) -> list[str]:
@@ -634,12 +634,10 @@ def render_mdx_export(
         target = modules[export.canonical]
         lines.extend(
             [
-                "**Module export.** This spelling exposes the documented public module "
+                "See module "
                 f"[`{export.canonical}`]({module_route(export.canonical)}).",
                 "",
                 target.documentation.summary,
-                "",
-                f"Authority: {mdx_source_link(target.documentation.authority)}",
                 "",
             ]
         )
@@ -648,12 +646,10 @@ def render_mdx_export(
         target = declarations[export.canonical]
         lines.extend(
             [
-                "**Canonical re-export.** This spelling resolves to "
+                "See "
                 f"[`{export.canonical}`]({module_route(target.module)}#{anchor(export.canonical)}).",
                 "",
                 target.documentation.summary,
-                "",
-                f"Authority: {mdx_source_link(target.documentation.authority)}",
                 "",
             ]
         )
@@ -663,7 +659,7 @@ def render_mdx_export(
         assert version is not None
         lines.extend(
             [
-                "**Version export.** The current value is intentionally not hard-coded in this generated page.",
+                "Installed Eqiora version.",
                 "",
                 "```python",
                 *assignment_signature(version),
@@ -677,8 +673,6 @@ def render_mdx_export(
     lines.extend(
         [
             declaration.documentation.summary,
-            "",
-            f"Authority: {mdx_source_link(declaration.documentation.authority)}",
             "",
             "```python",
             *declaration_signature(declaration),
@@ -698,7 +692,7 @@ def render_mdx_module(
     owned = [item for item in exports if item.module == module.spec.name]
     lines = mdx_frontmatter(
         module.spec.name,
-        f"Public signatures and source-traced summaries for {module.spec.name}.",
+        f"Functions, classes, and signatures for {module.spec.name}.",
     )
     lines.extend(
         [
@@ -706,13 +700,7 @@ def render_mdx_module(
             "",
             module.documentation.summary,
             "",
-            f"Module authority: {mdx_source_link(module.documentation.authority)}",
-            "",
-            f"Shipped stub: {mdx_source_link(module.spec.source.as_posix())}",
-            "",
-            f"This module publishes **{len(owned)}** literal `__all__` spellings. "
-            "Member entries below are exact signatures under documented owning types; "
-            "they do not imply member-level behavioral prose.",
+            mdx_source_link(module.spec.source.as_posix()),
             "",
         ]
     )
@@ -724,29 +712,12 @@ def render_mdx_module(
 def render_mdx_index(modules: tuple[ModuleData, ...], counts: dict[str, int]) -> str:
     lines = mdx_frontmatter(
         "Python API",
-        "Complete public Python surface and signature reference for one exact source commit.",
+        "Find Python modules, classes, functions, and their signatures.",
     )
     lines.extend(
         [
-            "This is the complete public **surface/signature reference** generated from the shipped type stubs. "
-            "It parses source without importing Eqiora or optional frameworks.",
-            "",
-            "> API presence is neither capability evidence nor maturity. Behavioral guidance remains bounded by each cited source and the linked verification guide.",
-            "",
-            "## Coverage",
-            "",
-            "| Surface | Exact count | Documentation boundary |",
-            "| --- | ---: | --- |",
-            f"| Public modules | {counts['modules']} | {counts['modules']}/{counts['modules']} reviewed module summaries |",
-            f"| Literal public spellings | {counts['qualified_exports']} | Every spelling is direct, a module/version export, or linked to its canonical target |",
-            f"| Canonical grouped declarations | {counts['grouped_declarations']} | {counts['grouped_declarations']}/{counts['grouped_declarations']} reviewed declaration summaries |",
-            f"| Public classes | {counts['classes']} | Owning-type summaries and exact signatures |",
-            f"| Top-level function syntax nodes | {counts['top_level_function_nodes']} | {counts['grouped_functions']} overload-grouped function names |",
-            f"| Non-dunder methods | {counts['non_dunder_method_nodes']} | **{counts['authoritative_member_summaries']} authoritative member summaries; {counts['signature_only_non_dunder_members']} signature-only under documented owning types** |",
-            f"| Dunder methods | {counts['dunder_method_nodes']} | Exact signatures; no individual narrative required |",
-            f"| Visible class assignments | {counts['visible_class_assignments']} | Exact typed/value signatures; no individual narrative required |",
-            "",
-            "The generator does not infer units, defaults, error behavior, ordering, complexity, backend support, portability, stability, or side effects from names and types.",
+            "Browse the modules below for classes, functions, and signatures. "
+            "Use [Get started](/get-started/) for installation and a first model.",
             "",
             "## Modules",
             "",
@@ -759,18 +730,6 @@ def render_mdx_index(modules: tuple[ModuleData, ...], counts: dict[str, int]) ->
             f"| [`{module.spec.name}`]({module_route(module.spec.name)}) | "
             f"{module.documentation.summary} |"
         )
-    lines.extend(
-        [
-            "",
-            "## Regenerate",
-            "",
-            "```console",
-            "python3 tools/docs/generate_python_api.py",
-            "python3 tools/docs/generate_python_api.py --check",
-            "```",
-            "",
-        ]
-    )
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -789,11 +748,9 @@ def render_markdown_export(
         target = modules[export.canonical]
         lines.extend(
             [
-                f"**Module export.** Continue to [`{export.canonical}`](#module-{export.canonical.replace('.', '-')}).",
+                f"See module [`{export.canonical}`](#module-{export.canonical.replace('.', '-')}).",
                 "",
                 target.documentation.summary,
-                "",
-                f"Authority: {markdown_source_link(target.documentation.authority)}",
                 "",
             ]
         )
@@ -802,11 +759,9 @@ def render_markdown_export(
         target = declarations[export.canonical]
         lines.extend(
             [
-                f"**Canonical re-export.** This spelling resolves to [`{export.canonical}`](#{anchor(export.canonical)}).",
+                f"See [`{export.canonical}`](#{anchor(export.canonical)}).",
                 "",
                 target.documentation.summary,
-                "",
-                f"Authority: {markdown_source_link(target.documentation.authority)}",
                 "",
             ]
         )
@@ -816,7 +771,7 @@ def render_markdown_export(
         assert version is not None
         lines.extend(
             [
-                "**Version export.** The current value is intentionally not hard-coded here.",
+                "Installed Eqiora version.",
                 "",
                 "```python",
                 *assignment_signature(version),
@@ -829,8 +784,6 @@ def render_markdown_export(
     lines.extend(
         [
             declaration.documentation.summary,
-            "",
-            f"Authority: {markdown_source_link(declaration.documentation.authority)}",
             "",
             "```python",
             *declaration_signature(declaration),
@@ -853,20 +806,20 @@ def render_markdown(
         "",
         "# Eqiora Python API",
         "",
-        "This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.",
+        "Browse the modules below for classes, functions, and signatures. "
+        "Start with the [Python guide](README.md) for installation and a first model.",
         "",
-        f"API presence is neither capability evidence nor maturity. All {counts['modules']} module summaries and all {counts['grouped_declarations']} canonical declaration summaries are source-traced; non-dunder member coverage remains **{counts['authoritative_member_summaries']} authoritative summaries and {counts['signature_only_non_dunder_members']} signature-only entries under documented owning types**.",
+        "## Modules",
         "",
-        f"Inventory: {counts['modules']} modules, {counts['qualified_exports']} literal public spellings, {counts['grouped_declarations']} canonical grouped declarations, {counts['method_nodes']} visible method signatures ({counts['non_dunder_method_nodes']} non-dunder and {counts['dunder_method_nodes']} dunder), and {counts['visible_class_assignments']} visible class assignments.",
-        "",
-        "Regenerate with:",
-        "",
-        "```console",
-        "python3 tools/docs/generate_python_api.py",
-        "python3 tools/docs/generate_python_api.py --check",
-        "```",
-        "",
+        "| Module | Summary |",
+        "| --- | --- |",
     ]
+    for module in module_data:
+        lines.append(
+            f"| [`{module.spec.name}`](#module-{module.spec.name.replace('.', '-')}) | "
+            f"{module.documentation.summary} |"
+        )
+    lines.append("")
     for module in module_data:
         lines.extend(
             [
@@ -876,9 +829,7 @@ def render_markdown(
                 "",
                 module.documentation.summary,
                 "",
-                f"Module authority: {markdown_source_link(module.documentation.authority)}",
-                "",
-                f"Shipped stub: [`{module.spec.source.as_posix()}`](../../{module.spec.source.as_posix()})",
+                markdown_source_link(module.spec.source.as_posix()),
                 "",
             ]
         )

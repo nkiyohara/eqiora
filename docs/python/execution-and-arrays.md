@@ -122,20 +122,17 @@ import numpy as np
 snapshot = np.from_dlpack(array)
 ```
 
-The snapshot never aliases immutable result evidence. Legacy capsule requests,
+The snapshot never aliases result arrays. Legacy capsule requests,
 non-CPU transfers, non-`None` streams, and `copy=False` fail closed because
 consumer enforcement of DLPack's advisory read-only flag is not universal.
 
 Differentiable-program inputs may arrive from a complete CPU:0 DLPack
 producer. Eqiora requests a no-transfer view, validates dtype, rank, length,
-byte order, alignment, and contiguity, then makes one documented owned staging
-copy before native execution. This is not a zero-copy execution-input claim.
-GPU streams, sparse/distributed arrays, and general Run inputs remain separate
-contracts.
+byte order, alignment, and contiguity, then copies the input before native execution.
 
 ## Fixed arrays in execution sessions
 
-The bounded reference `Model.execution_session` path accepts invariant real or exact
+`Model.execution_session` accepts invariant real or exact
 integer channel arrays through its existing typed input tables. For a Model with
 `drive: array<1, 2> at tick`, pass one complete tuple per tick:
 
@@ -153,5 +150,5 @@ integer components remain Python integers, including values above `2**53`.
 A failed tick commits neither a partial array nor another State update. Restart
 preserves the accepted clock position and previously absent or present outputs.
 The immutable Model fixes every extent. Scalar broadcasting, partial indexed
-writes, spatial tensors and complex execution are not admitted by this path.
+writes, spatial tensors and complex execution are unsupported in execution sessions.
 Input and retained output limits count scalar components, including nested arrays.

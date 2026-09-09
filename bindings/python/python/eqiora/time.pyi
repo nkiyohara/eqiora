@@ -1,4 +1,4 @@
-"""Closed temporal policies projected by the native Eqiora resolver.
+"""Time-integration policies for numerical plans.
 
 Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyBackwardEuler``.
 """

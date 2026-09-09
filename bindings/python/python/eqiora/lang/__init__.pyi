@@ -1,4 +1,4 @@
-"""Bounded Python authoring through the compiler-owned Eqiora Module graph.
+"""Author Eqiora Modules, Components, expressions, and equations in Python.
 
 Authority: ``bindings/python/python/eqiora/lang/__init__.py``.
 """
@@ -15,7 +15,7 @@ from .. import FieldRole, ValueType, FiniteSpace, IndexSet, _ModelDeclaration
 
 @final
 class Notation:
-    """Native-validated, immutable declaration notation; accepts one complete `@{...}` island.
+    """Validated, immutable declaration notation; accepts one complete `@{...}` island.
 
     Authority: ``crates/eqiora-python/src/notation.rs::PyNotation``.
     """
@@ -48,7 +48,7 @@ class Operator:
 
 @final
 class ModuleError(ValueError):
-    """Reject a structurally invalid bounded Module draft.
+    """Reject a structurally invalid Module draft.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::ModuleError``.
     """
@@ -95,7 +95,7 @@ class Equation:
     def __bool__(self) -> bool: ...
 
 def equation(lhs: object, rhs: object) -> Equation:
-    """Construct an explicit equality from typed expressions and admitted literals.
+    """Construct an explicit equality from typed expressions and literals.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::equation``.
     """
@@ -165,7 +165,7 @@ class Relation:
 
 @final
 class Component:
-    """Author one bounded public Component and an admitted exact instance binding.
+    """Author a public Component and bind an instance of it.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component``.
     """

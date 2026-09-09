@@ -2,19 +2,13 @@
 title: 4. Ordinary differential equations
 sidebar:
   order: 4
-description: Derive, run, and interpret one bounded first-order initial-value problem through the installed Eqiora source build.
+description: Derive, run, and interpret a first-order initial-value problem through the installed Eqiora source build.
 ---
 
-import { Aside, Code } from '@astrojs/starlight/components';
+import { Code } from '@astrojs/starlight/components';
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 import modelSource from '../../../../../../../examples/decay.eqi?raw';
 import programSource from '../../../../../../../examples/python/textbook_decay.py?raw';
-
-<Aside type="note" title="Chapter status">
-  This scalar decay example uses the source revision installed in
-  [Get started](/get-started/). A focused product test compares its three
-  observations with the independently derived closed form below.
-</Aside>
 
 ## State makes history matter
 
@@ -35,7 +29,7 @@ After this chapter, you should be able to:
   its exact `FieldRef`; and
 - diagnose a physically wrong sign that remains dimensionally consistent.
 
-## Derive the bounded problem
+## Derive the decay equation
 
 Let dimensionless state $x(t)$ decay with constant rate $k>0$:
 
@@ -87,21 +81,18 @@ The complete script uses the public compile → resolve → run path:
 <ExactSourceLink path="examples/python/textbook_decay.py" kind="blob">View the maintained run script</ExactSourceLink>.
 
 The program prints the time and computed value. Compare each value with
-$\exp(-t)$ independently. The focused installed-package test requires
-the absolute difference to remain at most $2\times10^{-8}$ for exactly these
-three samples. That is adequate for this lesson; it is not a tolerance for a
-different model, interval, backend, or method.
+$\exp(-t)$ independently. For this example, compare the three samples using
+an absolute tolerance of $2\times10^{-8}$. Reconsider that tolerance if you change the model, interval,
+backend, or method.
 
-## Observation boundary
+## Read the result
 
-The `Result` owns an immutable series selected by the exact field handle. This
-chapter observes only three scalar values. It does not inspect internal adaptive
-steps, infer values between requested times, or treat plotting choices as model
-meaning.
+Select the immutable result series with the field handle. It contains the
+three requested output times; the solver may take additional internal steps
+between them.
 
-The closed form supplies the comparison independently of the program's output.
-If the comparison fails, the expected expression is not replaced with the
-computed values; the model, realization, execution, and test are investigated.
+If the values differ from the closed form, inspect the equation sign, initial
+value, rate, and solver settings.
 
 ## Deliberate failure: the wrong sign still compiles
 

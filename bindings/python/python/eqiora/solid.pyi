@@ -1,4 +1,4 @@
-"""Typed structural intents, plans, and scientific evidence.
+"""Configure linear elasticity and inspect structural results.
 
 Authority: ``bindings/python/python/eqiora/solid.py``.
 """

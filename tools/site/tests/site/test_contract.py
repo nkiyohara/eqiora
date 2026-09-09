@@ -13,7 +13,6 @@ from fixture import (
     PRESSURE_ALT,
     REPOSITORY,
     SOURCE_SHA,
-    WITNESS_COPY,
     checker,
     make_fixture,
 )
@@ -54,7 +53,6 @@ class CompleteContractTests(unittest.TestCase):
             artifact, identities = make_fixture(root)
             case = artifact / "gallery/exact-cylinder-steady-stokes/index.html"
             raw = case.read_text(encoding="utf-8")
-            self.assertIn(WITNESS_COPY, raw)
             self.assertNotIn("104-triangle", raw)
             self.assertEqual(
                 checker.check_site(root, artifact, SOURCE_SHA, identities), []
@@ -70,24 +68,10 @@ class CompleteContractTests(unittest.TestCase):
                 "public navigation omits",
             ),
             (
-                "missing capability status meaning",
-                Path("capabilities/index.html"),
-                "Available",
-                "Present",
-                "capabilities landing omits",
-            ),
-            (
                 "maintained guide replaced by a wrapper",
                 Path("guides/modeling/index.html"),
                 "Native declarations",
                 "Read more on GitHub",
-                "omits maintained content",
-            ),
-            (
-                "current-source guide presented without availability",
-                Path("guides/differentiation/index.html"),
-                "Current-source Python API.",
-                "Installed Python API.",
                 "omits maintained content",
             ),
             (
@@ -146,10 +130,6 @@ class CompleteContractTests(unittest.TestCase):
             "fixed-mesh figure alt": (
                 PRESSURE_ALT,
                 PRESSURE_ALT.replace("current mesh", "fixed mesh"),
-            ),
-            "omitted Gmsh and interior-mesh boundary": (
-                WITNESS_COPY,
-                "The current Gmsh output is a fixed mesh and scientific oracle.",
             ),
         }
         for label, (accepted, mutant) in mutations.items():

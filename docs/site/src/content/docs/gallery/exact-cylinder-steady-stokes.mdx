@@ -1,24 +1,31 @@
 ---
 title: Exact-cylinder steady Stokes
-description: A six-stage static walkthrough of one fine-mesh 2D steady incompressible Stokes demonstration.
+description: Build a two-dimensional steady Stokes flow model and plot pressure around a cylinder.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 import NotebookStage from '../../../components/gallery/NotebookStage.astro';
-import ClaimBoundary from '../../../components/gallery/ClaimBoundary.astro';
 import ResultFigure from '../../../components/gallery/ResultFigure.astro';
 import ExactSourceLink from '../../../components/site/ExactSourceLink.astro';
 import geometryDiagram from '../../../assets/gallery/exact-cylinder-geometry.svg';
 import pressureImage from '../../../assets/gallery/exact-cylinder-pressure-presentation.png';
 
-**Static walkthrough · canonical Python source available**
-
 [Gallery](/gallery/)
 
-This page follows one current presentation from exact authored geometry to a
-common `Result`. It does not execute a notebook or solve in the browser. The
-checked-in source shows the installed workflow. Source links and evidence
-dossiers resolve through the exact site build revision; none follows a branch.
+Build a two-dimensional steady Stokes flow model, generate a mesh, and plot
+pressure around a cylinder. The figures show one run; they do not establish
+pressure accuracy or mesh convergence.
+
+## Before you begin
+
+Follow [Get started](/get-started/) to install Eqiora with the `gmsh` and
+`matplotlib` extras. From the matching repository checkout, run:
+
+```bash
+python examples/python/exact_cylinder_stokes.py --pressure-png pressure.png
+```
+
+The following stages explain the code and how to read the saved plot.
 
 <NotebookStage id="problem-setup" step={1} title="Problem setup" emoji="🧭">
 
@@ -34,12 +41,11 @@ Stokes flow.
   />
   <figcaption>
     Exact authored geometry and boundary names. The later demonstration mesh
-    approximates the circle with a policy-derived straight boundary; this diagram is explanatory,
-    not geometric evidence.
+    approximates the circle with straight boundary segments.
   </figcaption>
 </figure>
 
-The canonical Python composition authors that geometry explicitly:
+The Python composition authors that geometry explicitly:
 
 ```python
 geometry_graph = eqiora.geometry.GeometryGraph()
@@ -58,17 +64,16 @@ geometry = geometry_graph.build(
 )
 ```
 
-<ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob" fragment="L10-L24">Canonical Python geometry</ExactSourceLink>
+<ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob" fragment="L10-L24">Python geometry</ExactSourceLink>
 · <ExactSourceLink path="examples/python/exact_cylinder_geometry.py" kind="blob">exact geometry adapter</ExactSourceLink>
-· <ExactSourceLink path="verify/geometry/exact-circular-hole-geometry/README.md" kind="blob">registered exact-geometry dossier</ExactSourceLink>
-· <ExactSourceLink path="verify/interfaces/python-exact-circular-hole-geometry/README.md" kind="blob">Python exact-geometry composition dossier</ExactSourceLink>
+· <ExactSourceLink path="verify/geometry/exact-circular-hole-geometry/README.md" kind="blob">Geometry details</ExactSourceLink>
+· <ExactSourceLink path="verify/interfaces/python-exact-circular-hole-geometry/README.md" kind="blob">Python geometry details</ExactSourceLink>
 
 </NotebookStage>
 
 <NotebookStage id="model-definition" step={2} title="Eqiora model definition" emoji="🧩">
 
-The accepted source spelling is easiest to read by first naming the Cauchy
-stress. With velocity $\boldsymbol{u}$, pressure $p$, dynamic viscosity
+Start with the Cauchy stress. With velocity $\boldsymbol{u}$, pressure $p$, dynamic viscosity
 $\mu$, identity tensor $\boldsymbol{I}$, and force potential $\phi$:
 
 $$
@@ -84,8 +89,7 @@ $$
 
 Here $\mu=0.001\,\mathrm{kg}/(\mathrm{m}\,\mathrm{s})$,
 $\phi=0\,\mathrm{Pa}$, and pressure has source unit
-`kg/(m*s^2)`, displayed as pascals. This is a notation projection of the
-Eqiora source below, not a new formulation.
+`kg/(m*s^2)`, displayed as pascals. The equations below express this model in Eqiora.
 
 **Eqiora source form**
 
@@ -102,13 +106,11 @@ relation incompressibility on body {
 ```
 
 <ExactSourceLink path="packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi" kind="blob">Eqiora source form: packaged incompressible component</ExactSourceLink>
-· <ExactSourceLink path="verify/fluid/packaged-steady-stokes-2d/package-v0.1.0/src/incompressible.eqi" kind="blob">registered packaged incompressible source</ExactSourceLink>
-· <ExactSourceLink path="verify/fluid/packaged-steady-stokes-2d/README.md" kind="blob">registered packaged-Stokes dossier</ExactSourceLink>
-· <ExactSourceLink path="verify/fluid/packaged-steady-stokes-2d/models/direct.eqi" kind="blob">registered direct Stokes model source</ExactSourceLink>
+· <ExactSourceLink path="verify/fluid/packaged-steady-stokes-2d/package-v0.1.0/src/incompressible.eqi" kind="blob">Incompressible model example</ExactSourceLink>
+· <ExactSourceLink path="verify/fluid/packaged-steady-stokes-2d/README.md" kind="blob">Stokes model details</ExactSourceLink>
+· <ExactSourceLink path="verify/fluid/packaged-steady-stokes-2d/models/direct.eqi" kind="blob">Direct Stokes model example</ExactSourceLink>
 
-The application compiles the installed equations-only component against the
-same Python-authored Geometry used for meshing. The `.eqi` file does not carry
-a second concrete geometry authority:
+Compile the component with the geometry used for meshing:
 
 ```python
 model = eqiora.compile(
@@ -129,7 +131,7 @@ model = eqiora.compile(
 )
 ```
 
-<ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob" fragment="L33-L44">Eqiora source form: canonical Python compile path</ExactSourceLink>
+<ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob" fragment="L33-L44">Eqiora source form: Python compile path</ExactSourceLink>
 
 </NotebookStage>
 
@@ -168,15 +170,14 @@ relation lower_wall on y_lower { trace(velocity) = 0; }
 relation upper_wall on y_upper { trace(velocity) = 0; }
 ```
 
-**Accepted registered-case source form for the exact-hole closure**
+**Cylinder and wall condition**
 
 ```text
 walls_and_cylinder: trace(u) = [0, 0] m/s
 ```
 
 <ExactSourceLink path="examples/steady-flow-past-cylinder.eqi" kind="blob">Eqiora source form: application boundary relations</ExactSourceLink>
-The bounded realization requests at most 50 circular-boundary facets, then
-resolves and generates the source-bound mesh:
+Request at most 50 circular-boundary facets, then generate the mesh:
 
 ```python
 mesh_request = eqiora.meshing.GmshMesher(
@@ -189,29 +190,24 @@ mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
 mesh = eqiora.meshing.generate(mesh_plan)
 ```
 
-<Aside type="caution" title="Bounded Gmsh demonstration mesh">
+<Aside type="note" title="Mesh size">
 
-`GmshMesher` derives its boundary subdivision directly from the exact Geometry
-and typed error/facet policy, applies the same 0.025 m global target used by the
-transient startup, then lets locked Gmsh 4.15.2 own the emitted
-straight-edged mesh. Output counts are deliberately not a public or scientific
-oracle. This walkthrough makes no mesh-convergence or PDE-convergence claim.
-
-The current Gmsh output is presentation input, not a fixed mesh or scientific oracle.
+Gmsh 4.15.2 generates straight-edged elements with a global target size of
+0.025 m. The boundary-error and facet settings control the circle approximation;
+the target size does not guarantee the length of every edge.
 
 </Aside>
 
-<ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob" fragment="L25-L32">Canonical Python mesh path</ExactSourceLink>
+<ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob" fragment="L25-L32">Python mesh path</ExactSourceLink>
 · <ExactSourceLink path="examples/python/exact_cylinder_mesh.py" kind="blob">plain Python mesh adapter</ExactSourceLink>
 
 </NotebookStage>
 
 <NotebookStage id="submit-and-result" step={4} title="Submit and result" emoji="▶">
 
-The root resolver combines the accepted `Model` and `Mesh` with typed spatial
-and linear-solve policies. Scaling is derived when `scaling=None`. The
-application runs the resulting common `Plan` directly and obtains one common
-`Result`.
+Combine the `Model` and `Mesh` with the MINI/P1 element and linear-solve
+settings. Scaling is derived when `scaling=None`. Run the resulting `Plan`
+to obtain a `Result`.
 
 ```python
 linear = eqiora.solve.Linear(
@@ -229,31 +225,14 @@ plan = eqiora.resolve(
 result = eqiora.run(plan)
 ```
 
-<ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob" fragment="L45-L57">Eqiora source form: canonical Python resolve/run path</ExactSourceLink>
-
-The real carriers in that composition are `Geometry`, `MeshPlan`, `Mesh`,
-`Model`, `Plan`, and `Result`. The common lifecycle exposes the following
-public identities:
-
-| Carrier boundary | Public identity |
-| --- | --- |
-| `Model` | `Result.model_digest` |
-| exact `Geometry` | `Plan.geometry_digest` |
-| authored correspondence | `Plan.correspondence_digest` |
-| `Mesh` | `Plan.mesh_digest` |
-| resolved numerical policy | `Plan.identity` |
-| `Result` | `Result.plan_key` |
-| pressure `FieldOutput` | `Result.output(Plan.capability.pressure)` |
-
-These names expose existing identity links; the page does not invent another
-aggregate digest or pretend that static documentation executed the run.
+<ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob" fragment="L45-L57">Eqiora source form: Python resolve/run path</ExactSourceLink>
 
 </NotebookStage>
 
 <NotebookStage id="pressure-visualization" step={5} title="Pressure visualization" emoji="🌡">
 
-The canonical plotting cell selects the pressure `FieldOutput` from the
-common `Result` and passes it to the general scalar-field adapter:
+The plotting cell selects the pressure `FieldOutput` from the
+`Result` and passes it to the general scalar-field adapter:
 
 ```python
 pressure = result.output(plan.capability.pressure)
@@ -271,24 +250,14 @@ pressure_figure = eqplot.plot_scalar_field(result, field=plan.capability.pressur
 
 </NotebookStage>
 
-<NotebookStage id="verified-boundary" step={6} title="Verification boundary" emoji="✅">
+<NotebookStage id="reading-pressure" step={6} title="Reading the pressure plot" emoji="📖">
 
-<ClaimBoundary
-  title="Verified boundary"
-  supported={[
-    'One presentation-only 2D steady incompressible Stokes exact-cylinder demonstration rendered through exact Geometry, typed Gmsh policy, and the root Result path; output counts, digests, numerical values, and pixels are not independently verified.',
-    'Exact Geometry and a typed Gmsh policy resolve to a source-owned Mesh whose complete named correspondence and provider lineage are retained.',
-    'The same Mesh enters the root Model → Plan → Run/Result lifecycle.',
-  ]}
-  notClaimed={[
-    'This is a bounded 2D steady Stokes demonstration, not a transient-flow, convergence, force-coefficient, or performance benchmark.',
-    'The current geometry and meshing path do not generalize to arbitrary providers, 3D, curved, boundary-layer, or adaptive meshes.',
-    'Rendered values and pixels are illustrative output rather than validation data.',
-  ]}
-/>
+Pressure is shown in pascals. Use the color scale to compare the pressure
+upstream and downstream of the cylinder. This steady Stokes model omits
+inertial effects, so use the transient example to explore evolving flow.
 
-[Read the human capability boundary](/capabilities/#exact-cylinder-steady-stokes)
-· [Find the checks behind this claim](/evidence/)
+[Explore related capabilities](/capabilities/#exact-cylinder-steady-stokes)
+· [Read the evidence](/evidence/)
 · <ExactSourceLink path="verify/geometry/exact-circular-hole-geometry/README.md" kind="blob">exact geometry</ExactSourceLink>
 · <ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob">View plain Python example</ExactSourceLink>
 

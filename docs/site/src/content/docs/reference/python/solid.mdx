@@ -1,6 +1,6 @@
 ---
 title: "eqiora.solid"
-description: "Public signatures and source-traced summaries for eqiora.solid."
+description: "Functions, classes, and signatures for eqiora.solid."
 ---
 
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
@@ -9,21 +9,15 @@ import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
 [← Python API index](/reference/python/)
 
-Typed structural intents, plans, and scientific evidence.
+Configure linear elasticity and inspect structural results.
 
-Module authority: <ExactSourceLink path="bindings/python/python/eqiora/solid.py" kind="blob">bindings/python/python/eqiora/solid.py</ExactSourceLink>
-
-Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/solid.pyi" kind="blob">bindings/python/python/eqiora/solid.pyi</ExactSourceLink>
-
-This module publishes **3** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+<ExactSourceLink path="bindings/python/python/eqiora/solid.pyi" kind="blob">View source</ExactSourceLink>
 
 <a id="api-eqiora-solid-ElasticityPlanView"></a>
 
 ## `ElasticityPlanView`
 
 Resolved linear-elasticity field roles.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/capability_view.rs" kind="blob">crates/eqiora-python/src/common_plan/capability_view.rs::PyElasticityPlanView</ExactSourceLink>
 
 ```python
 @final
@@ -39,8 +33,6 @@ class ElasticityPlanView:
 ## `LinearElasticityEvidence`
 
 Scientific evidence selected from an accepted structural result.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/elasticity.rs" kind="blob">crates/eqiora-python/src/elasticity.rs::PyLinearElasticityEvidence</ExactSourceLink>
 
 ```python
 @final
@@ -66,8 +58,6 @@ class LinearElasticityEvidence:
 ## `linear_elasticity_evidence`
 
 Select typed linear-elasticity evidence from its result.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/elasticity.rs" kind="blob">crates/eqiora-python/src/elasticity.rs::linear_elasticity_evidence</ExactSourceLink>
 
 ```python
 def linear_elasticity_evidence(result: Result, /) -> LinearElasticityEvidence: ...

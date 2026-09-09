@@ -2,9 +2,8 @@
 
 ## Native declarations
 
-Python declarations are immutable inputs to the same Rust Module graph, validation,
-transaction, and canonical artifact path used by other Eqiora clients.
-Python does not implement a second model semantics.
+Define fields, parameters, initial conditions, and equations in Python, then
+compile them into an immutable Model.
 
 ```python
 import eqiora
@@ -28,7 +27,7 @@ component roles. `FieldRole.Variable` declares an algebraic unknown;
 `FieldRole.State` declares evolution or history independently of support.
 Omitted types are dimensionless real scalars. `Initial` supplies simultaneous
 ordered left/right equation pairs for fresh initialization; the Field stores no initial literal.
-Fresh scalar ODE and admitted index-one DAE initialization checks the initial and
+Fresh scalar ODE and supported index-one DAE initialization checks the initial and
 regular equations together. Missing state data, contradictory constraints, or an
 unsupported initialization profile reject; this is not a general high-index DAE
 solver. Restart uses an accepted State/history without reapplying these equations.
@@ -54,8 +53,7 @@ Dimensions accept exact rational exponents, for example
 `eqiora.Dimension(length=Fraction(-1, 2))` with `Fraction` imported from `fractions`.
 Initial equations follow expression typing: nonzero dimensioned constants need
 an explicit compatible quantity. A scalar is not broadcast into a vector, tensor,
-or array initial state. Distributed execution retains its admitted explicit
-initial-data owner; a declaration alone does not establish executable initialization.
+or array initial state. Distributed execution requires explicit initial data.
 
 The same `value_type=` objects apply to `Parameter`,
 `eqiora.lang.Component.field`, and `eqiora.lang.Component.parameter`.
@@ -150,7 +148,7 @@ constructors require handles from the owning Module or Component. The closed
 `eqiora.lang.quotient`, `remainder`, `to_real`, `to_integer`, and `ordinal`
 expressions use the shared compiler's explicit conversion and arithmetic rules.
 Products, dual spaces, general maps, and dynamic indexing remain
-outside this bounded discrete profile.
+unsupported for these discrete fields.
 
 Finite scalar reductions bind one symbolic index through `Component.sum`, `Component.product`,
 `Component.min` or `Component.max`:
@@ -220,7 +218,7 @@ expressions, rejects foreign handles and resource-limit violations, and freezes
 on its first emission or compile.
 It emits ordinary readable UTF-8 `.eqi`; `doc=` values become attached `///`
 documentation. A blank paragraph is emitted as an empty `///` line, keeping the
-block attached to its declaration. Documentation is bounded to 16,384 UTF-8 bytes.
+block attached to its declaration. Documentation is limited to 16,384 UTF-8 bytes.
 `write_eqi(path)` uses same-directory staging and atomic replacement, so an I/O
 failure does not publish a partly written source file.
 
@@ -271,7 +269,7 @@ The optional `phase_s` defaults to zero. Initial equations are simultaneous, and
 clock's first tick follows initialization. Clock handles belong to their declaring
 Component; foreign handles are rejected before changing a declaration. `q.pre` and
 `q.next` use the same Rust state-role and use-context checks as emitted source.
-This authoring path does not extend the execution backends' admitted spatial time models.
+Check the spatial and time methods supported by your execution backend before running the model.
 
 Module values do not type-check or lower equations in Python. Direct compile
 consumes the Rust Module graph without formatting or reparsing text, then uses
@@ -282,15 +280,14 @@ Direct and emitted-file compilation with identical bindings can be compared by
 `structural_fingerprint`, not exact artifact identity. Prose changes affect source
 bytes and package source-bundle identity, not the physical Model. Constructed
 declarations report graph paths; parsed declarations retain real source spans.
-`q.math.pi` is one immutable, ownerless expression that emits exactly
-`math.pi`; `q.math.sin(expression)` emits the matching compiler-owned scalar
-operation. Composing either with a Module-owned expression adopts that Module's
-existing ownership. The top-level `eqiora.lang` vocabulary is reserved for equation
+`q.math.pi` is an immutable expression that emits exactly
+`math.pi`; `q.math.sin(expression)` emits the matching scalar
+operation. Use these expressions with fields and parameters from your Module. The top-level `eqiora.lang` vocabulary is reserved for equation
 structure such as `q.grad` and `q.div`, while scalar functions and constants
 live under `q.math`. They are not Python numerical operations, and the native
 compiler remains the authority for their typing and value semantics.
 
-The same Module owner can emit the bounded constant property declarations used by
+A Module can emit the constant property declarations used by
 an exact Model Package:
 
 ```python
@@ -338,17 +335,16 @@ a same-spelled handle from another Module is rejected before emission.
 
 To retain exact package provenance, emit the `.eqi` into a Model Package, lock
 it, and use `compile_package`. That route exposes the existing immutable
-`property_bindings` inspection. Local compilation does not synthesize package
-lineage, and Python does not normalize or evaluate the property itself.
+`property_bindings` inspection. Local compilation does not retain package provenance.
 
 The complete current vocabulary and steady-cylinder Component are shown in
 [`examples/python/steady_cylinder_source.py`](../../examples/python/steady_cylinder_source.py).
-The baseline slice has one public Component, public volume/parent-boundary
+The source authoring API supports one public Component, public volume/parent-boundary
 supports and parameters, typed scalar, spatial-vector/tensor and channel-array
 continuum fields, continuous residual Relations, structural SI units, constants,
 coordinates, arithmetic,
 powers, gradient, divergence, trace, normal contraction, symmetric part, and
-isotropic lift. The package-oriented extension admits multiple scalar contracts
+isotropic lift. Package authoring supports multiple scalar contracts
 and constant releases, one material composition, one consumer plus one root
 Component, and complete direct or composed bindings.
 
@@ -543,7 +539,7 @@ publishes the already validated bytes, without selecting or downloading again.
 If the manifest or lock changed after preview, create a fresh proposal. The CLI's
 `eqiora package preview .` prints the same canonical proposed lock as JSON without
 installing packages or writing a lock. `package update` performs a fresh explicit
-preview and commit through the same native owner.
+preview and commit through the same API.
 
 Ordinary reopen, compile and run use the existing exact lock. Adding a newer
 candidate does not advance it; fetch only materializes its selected content.
@@ -554,7 +550,7 @@ identity or the accepted semantic edge.
 ### Explicit Git sources
 
 On Linux, add a public HTTPS repository or an explicit absolute/`./`/`../` local
-repository path through the same project owner:
+repository path through the project API:
 
 ```python
 resolution = eqiora.add_git_dependency(
@@ -595,8 +591,8 @@ local Git repositories. HTTPS is unauthenticated, with redirects and credential
 helpers disabled; userinfo, query strings and fragments are rejected. Unsupported
 containment environments fail instead of running an uncontained fetch.
 
-The shared Rust owner opens manifest-relative paths without following symbolic
-links, discovers bounded `.eqi` inventories, generates each closed package
+The package builder opens manifest-relative paths without following symbolic
+links, finds `.eqi` files, generates each closed package
 manifest, prepares the exact graph leaf-first, and publishes the lock only
 after the complete closure is installed.
 An optional package-root `README.md` is retained as documentation in the exact
@@ -625,8 +621,7 @@ Concurrent project writes are rejected; retry after the other operation finishes
 ## Compile one exact locked package Model or Component
 
 Python can bind an existing content-addressed package's public Component to
-caller-owned Geometry and produce the same ordinary immutable `Model` used by
-local source compilation. Here `support_bindings` explicitly maps every support
+Geometry and produce an immutable `Model`. Here `support_bindings` explicitly maps every support
 name in the selected signature to a Geometry selection; each boundary maps to
 `(boundary_selection, parent_selection)`:
 
@@ -655,31 +650,24 @@ for binding in model.property_bindings:
 The caller selects one explicit store directory and supplies the exact bytes
 from `ResolutionRecordV1.canonical_json()`. The required `entry=` names the
 selected public Model or Component. `bindings=` explicitly supplies its required
-signature inputs, with `geometry=` authenticating any Geometry selections. Rust
-verifies the complete locked closure and uses the same compiler-owned graph
-for both declaration kinds.
+signature inputs, with `geometry=` authenticating any Geometry selections. Eqiora verifies the complete locked dependency graph.
 Human-formatted, reordered, newline-terminated, duplicate-key, or
 store-mismatched resolution bytes fail closed. Missing or ambiguous support
 bindings fail instead of matching Geometry by bounds, coordinates, or digest.
 
-`package_compilation_digest` is read-only lineage for the accepted compilation.
+`package_compilation_digest` identifies the package compilation.
 When the package binds an exact typed constant property release, `property_bindings` is
-an immutable projection of the compiler-owned optional composition, contract, release, consuming
-Component, requirement, complete value type and coherent-SI value, validity, citation, and license. It
-is inspection metadata beside the compilation, not a second property evaluator.
+read-only metadata about the contract, release, consuming Component, value type,
+coherent-SI value, validity, citation, and license.
 The resulting `Model` enters ordinary `eqiora.resolve(model, mesh=..., ...)` and
 `eqiora.run(plan)`; its `Plan` and `Run` retain the same digest. Bare Model JSON
 still carries Model/Geometry meaning but not the package sidecar, so replayed
 Models use the same resolver with `package_compilation_digest is None` and an
-empty `property_bindings` tuple. Package lineage persistence belongs to the
-symmetric Model artifact I/O work. This
-surface does not discover stores or lock files, access registries or networks,
-or add a Studio package workflow.
+empty `property_bindings` tuple. Supply the store and lock bytes explicitly; this function works locally.
 
 ## Check one exact package structurally
 
-An external package author can check the same locked closure without turning
-the check into a scientific or execution claim:
+Check that a locked package compiles and can be serialized and reopened:
 
 ```python
 report = eqiora.check_package_conformance(
@@ -701,19 +689,13 @@ and current Model boundaries, then returns immutable in-process facts only
 after package-compilation and Model identity agree. Rejections raise the
 existing structured `EqioraError` family and return no partial report.
 
-This is structural compatibility only. The conformance fixture deliberately
-includes scientifically false documentation that still passes: a report does
-not establish physical truth, well-posedness, realizability, solver support,
-accuracy, convergence, performance, or verified physics. It executes no
-package code or tests and supplies no registry, discovery, installation,
-publishing, signature, trust, badge, attestation, durable report wire,
-scientific-evidence lookup, execution workflow, or Studio surface.
+This check examines structural compatibility. Assess the equations and
+numerical results separately when deciding whether a package suits your problem.
 
 ## Authored CAD to exact geometry
 
-The first accepted path projects one closed authored-CAD history into its exact
-transverse Geometry. Python names the two native-owned sketch inputs and does
-not implement their operations:
+Construct a channel with a circular hole using a rectangle, a circle, and
+subtraction:
 
 ```python
 import eqiora
@@ -735,26 +717,15 @@ geometry = graph.build(
 
 assert geometry.selection_dimension("fluid") == 2
 assert geometry.selection_dimension("cylinder") == 1
-print(geometry.digest)
 ```
 
-Rust owns validation, graph binding, operation order, canonical ordering,
-bytes, and exact handle identity. Every coordinate and radius is a coherent-SI
-metre.
-The same `GeometryGraph` owns solid authoring through
-`graph.rectangle_extrusion(...)` and
-`graph.circular_through_cut(solid, ...)`, producing the existing exact
-canonical operations. The solid operation retains its explicit depth and CAD tolerances;
-none enter the derived 2D Geometry, whose classification tolerance is supplied
-separately. The circle remains centre-and-radius geometry, so chord count,
-mesh size, and approximation tolerance cannot enter it. A general Sketch,
-arbitrary planes or profiles, operation DAGs, general Booleans or sections,
-multiple holes, Model binding, solve, Result, Studio, and visualization remain
-separate slices. Installed Python exposes the common `Geometry` projection
-only through the accepted authored graph; it does not publish a demo-shaped
-constructor.
+Coordinates and radii use metres. `GeometryGraph` also provides
+`rectangle_extrusion(...)` and `circular_through_cut(solid, ...)` for solid
+authoring. The solid depth and CAD tolerances are separate from the derived
+2D geometry's classification tolerance. Meshing later approximates the circle
+with straight segments; its centre and radius remain unchanged.
 
-## Bounded Gmsh mesh
+## Generate a Gmsh mesh
 
 The matching meshing operation is an explicit typed provider choice:
 
@@ -768,34 +739,22 @@ request = eqiora.meshing.GmshMesher(
 plan = eqiora.meshing.resolve(geometry, request)
 mesh = eqiora.meshing.generate(plan)
 
-assert mesh.source_digest == geometry.digest
-print(mesh.digest)
 ```
 
-`resolve` is planning-only: it retains the exact source and derives the bounded
-subdivision receipt directly from Geometry and policy without launching Gmsh or
-constructing cells. `generate` then invokes exact Gmsh 4.15.2 once for that
-call, admits its MSH 4.1 linear triangles, and derives
-realized named selections through the geometry-to-mesh correspondence.
-`maximum_target_size=None` leaves the global characteristic-size ceiling to the
-provider; a finite positive value makes that ceiling caller-owned. The resolved
-value and its automatic/explicit ownership are retained in production lineage.
-It is a Gmsh characteristic target, not a guarantee on every realized edge.
-`canonical_bytes` and `digest` identify only the accepted inner simplicial
-mesh. The returned object retains source, correspondence, Mesh, and
-provider-production identities. Missing, wrong-version, failed, or invalid
-Gmsh output rejects without falling back to the retired spoke mesh.
+`resolve` plans the boundary subdivision without launching Gmsh. `generate`
+runs Gmsh 4.15.2 and returns a mesh of linear triangles with named selections.
+Missing Gmsh, a different version, or invalid output raises an error.
 
-This bounded operation supports the rectangle-with-circular-hole family and
-affine 2D triangles. It does not add caller-owned MSH import, paths, fields,
-multiple pieces, 3D, curved elements, repair, local or adaptive sizing, general Geometry
-matching, fixed output counts, or cross-platform byte identity.
+`maximum_target_size=None` lets Gmsh choose the global characteristic size.
+Set a finite positive value to choose it yourself; this target does not guarantee
+the length of every edge. This operation supports a rectangle with one circular
+hole and affine 2D triangles.
 
 ## Exact-cylinder steady Stokes result
 
 The first fluid application keeps the component's equations, fields,
 dimensions, Parameters, and abstract support names in the installed `.eqi`
-source. Python is the sole owner of concrete shape and size. `compile` checks
+source. Python defines the concrete shape and size. `compile` checks
 that exact Geometry selections close the selected public Component, derives
 Parameter dimensions from its declarations, and returns the ordinary immutable
 `Model` used by every resolver:
@@ -835,7 +794,7 @@ result = eqiora.run(plan)
 
 pressure = result.output(plan.capability.pressure)
 pressure_values = pressure.values("vertex")
-print(result.plan_key, pressure.coefficient_count("vertex"))
+print(pressure.coefficient_count("vertex"))
 print(result.solve)
 print(min(pressure_values), max(pressure_values))
 force = result.boundary_force(geometry.selection("cylinder"))
@@ -844,32 +803,22 @@ outlet = result.boundary_flux(geometry.selection("outlet"))
 print(force.on_domain, inlet.value + outlet.value)
 ```
 
-Freshly compiled and replayed Models use the same root resolver. The source or
-host path is not Model meaning; only the accepted source, concrete Geometry,
-and values enter identity. `compile` is keyword-only and accepts exactly one of
-`path=` or `source=`; `filename=` labels diagnostics only for `source=`.
-The Plan exposes the exact spaces, scales, solver tuple, backend, placement,
-and existing Realization bytes before a worker starts.
-The common `Result` exposes immutable velocity and pressure `FieldOutput`
-objects selected by exact Model-bound `FieldRef` values; each output retains
-the paired common `Mesh`.
-Field values and Mesh coordinates/connectivity lazily publish
-read-only NumPy views in matching mesh order. Exact `GeometrySelection` values
-select the supported boundary force and inlet/outlet flux observations directly
-from the Result. `eqiora.fluid.steady_stokes_evidence(result)` remains an
-optional verification projection over the same accepted observations.
+`compile` is keyword-only and accepts exactly one of `path=` or `source=`;
+`filename=` labels diagnostics when using `source=`.
 
-This operation admits only the checked exact-cylinder component, Geometry,
-mesh, MINI/P1 policy, and SparseLU request. It is not a general Model catalog,
-arbitrary Geometry/component closure, or general CFD authoring. Velocity
-projection, drag/lift, transient flow, and FSI remain separate slices. The
-runnable file is
+Select the velocity and pressure outputs with their field handles. Field values,
+mesh coordinates, and connectivity provide read-only NumPy views in matching
+mesh order. Use geometry selections to calculate cylinder force and inlet/outlet
+flux from the result.
+
+This example uses a 2D steady Stokes component, a channel with a circular hole,
+MINI/P1 elements, and SparseLU. The runnable file is
 [`examples/python/exact_cylinder_stokes.py`](../../examples/python/exact_cylinder_stokes.py).
 
 ## Exact-cylinder pressure rendering
 
 Install the Gmsh and Matplotlib adapters and ask the same runnable file to save
-the accepted pressure field:
+the pressure field:
 
 ```console
 uv venv --python 3.13 .venv
@@ -889,21 +838,18 @@ figure = eqplot.plot_scalar_field(result, field=pressure.field)
 figure.savefig("exact-cylinder-pressure.png")
 ```
 
-The adapter selects an exact Field from the common `Result`. It sends the
-co-indexed P1 pressure, paired Mesh coordinates, and explicit accepted triangle
-connectivity to Matplotlib and uses the Rust-owned pressure extrema in pascals.
-Gouraud shading is presentation interpolation of accepted vertex coefficients,
-not a new scientific field.
+The adapter plots P1 pressure using the mesh coordinates and triangle
+connectivity, with a scale in pascals. Gouraud shading interpolates the
+vertex values for display.
 
-Matplotlib remains optional and is not imported by base `eqiora`. This bounded
+Matplotlib remains optional and is not imported by base `eqiora`. This
 helper currently renders scalar vertex or cell fields as still images.
 
 ## Mixed-boundary structural result
 
-The installed package also carries the accepted mixed-boundary elasticity
-source. Python compiles it through the current `Model` path, resolves an
-explicit linear-elasticity intent before execution, and submits the resulting
-model-bound Plan through the ordinary Run path:
+The installed package also carries the mixed-boundary elasticity
+source. Compile the equations, select the numerical settings, and run the
+resulting Plan:
 
 ```python
 from importlib.resources import files
@@ -955,21 +901,12 @@ mesh = displacement.mesh
 evidence = eqiora.solid.linear_elasticity_evidence(result)
 ```
 
-The root `Plan` exposes the exact caller-owned mesh, Q1 spatial policy, linear
-solver policy, backend, and execution placement before a worker starts.
-Resolution admits only supported typed policy combinations and rejects other
-values instead of silently falling back.
+The Plan contains the mesh, Q1 elements, solver settings, and execution
+placement. Unsupported combinations raise an error.
 
-The common `Result` owns one immutable vector `FieldOutput` selected by the
-Plan's exact Model-bound `FieldRef`; `displacement.mesh` is its paired exact
-caller-generated `Mesh`. Output values, Mesh coordinates,
-and Q1 connectivity lazily publish memoized, read-only NumPy views in one
-co-indexed canonical order. The typed elasticity observation keeps the
-Plan identity, reference-CG solve summary, assembly counts, constrained reaction,
-integrated body force, and exact bounds outside the common result transport.
-Model, Geometry, correspondence, Mesh, Plan, and Result identity remain
-Rust-owned and relationally exact. Stress, strain, traction recovery,
-analytic error, other meshes, and general structural solving are not implied.
+Select the displacement field from the Result. Its values, mesh coordinates,
+and Q1 connectivity provide read-only NumPy views in matching order. This
+example uses small-strain linear elasticity.
 
 The optional still displays original and explicitly scaled deformed edges:
 
@@ -989,10 +926,8 @@ The complete runnable workflow is
 
 ## Fixed-mesh monolithic FSI result
 
-The fixed-reference FSI path uses the same root lifecycle as every common
-numerical Plan. Python authors the adjacent two-region `Geometry`, generates
-its authenticated common `Mesh`, compiles the equations-only Component, and
-then supplies exact Model-bound spatial scopes:
+Define adjacent fluid and solid regions, generate their mesh, and compile
+the FSI component. Select the elements for each domain:
 
 ```python
 model = eqiora.compile(
@@ -1040,13 +975,10 @@ result = eqiora.run(plan, state=state, steps=2, output_steps=(1, 2))
 evidence = eqiora.fsi.evidence(result)
 ```
 
-`DomainRef`, `InitialField`, `Plan`, `State`, `Run`, `Result`, and `Trajectory`
-are common types. The Model decides that this is FSI; `eqiora.resolve` admits
-only the complete `MiniP1@fluid + P1@solid` partition and binds the actual
-Model, Geometry, Mesh, correspondence, production lineage, four exact Fields,
-backward Euler policy, full coupled scaling receipt, MINRES provider, and host
-placement. `scaling=None` requests automatic coupled scales; a complete
-`IncompressibleScaling` value makes them manual.
+This FSI model requires MINI/P1 elements for the fluid and P1 elements for
+the solid, with Backward Euler time stepping and a MINRES solve.
+`scaling=None` chooses coupled scales automatically; supply a complete
+`IncompressibleScaling` value to choose them manually.
 
 Initial coefficients are immutable, exact-Field assignments in coherent SI.
 They must be complete and association-correct; pressure has no auxiliary
@@ -1056,9 +988,8 @@ while a foreign Model, Geometry, field, or state space is rejected.
 
 The complete runnable workflow is
 [`examples/python/fixed_reference_fsi.py`](../../examples/python/fixed_reference_fsi.py).
-It is one fixed-reference 2D affine-triangle monolithic formulation. It does not
-claim partitioned coupling, FVM/FEM transfer, ALE, remeshing, checkpointing,
-general multiphysics policy maps, or per-domain time and solve policies.
+It uses a fixed-reference 2D affine-triangle formulation: the mesh stays fixed
+while fluid and solid variables are solved together.
 
 ## Conserving connections
 
@@ -1098,8 +1029,8 @@ dimensions do not make separately constructed domains interchangeable.
 ## Spatial declarations
 
 Domain, boundary, Field support, and Relation support are
-exact frozen handles. Python does not infer support from names or reproduce
-the Semantic Kernel's dimensional and spatial checks.
+immutable handles. Use the same domain handles when declaring fields and
+relations; support is not inferred from names.
 
 ```python
 interval = eqiora.Domain.box("interval", (0.0, 1.0))
@@ -1148,19 +1079,16 @@ model = eqiora.compile(source=eqiora.Module(
 ))
 ```
 
-`grad`, `div`, and `trace` are a closed adapter vocabulary over the shared
-Module. Shape, frame, dimension, support, and residual validity remain Kernel
-decisions.
+Compilation checks the shape, frame, dimensions, and support of `grad`, `div`,
+`trace`, and the resulting relations.
 
 ## Typed spatial Plan
 
 Spatial execution uses the same root lifecycle as the examples above: author
 one concrete Geometry, resolve a typed meshing provider, compile an
 equations-only component with that Geometry, and call
-`eqiora.resolve(model, mesh=..., spatial=..., solve=...)`. The returned common
-`Plan` owns the exact Model, Mesh, and numerical policy identities; execution
-accepts only `eqiora.run(plan)` or `eqiora.submit(plan)`. Specialized scalar
-requests and model-plus-realization execution are absent.
+`eqiora.resolve(model, mesh=..., spatial=..., solve=...)`. Run the returned
+`Plan` with `eqiora.run(plan)` or `eqiora.submit(plan)`.
 
 The same resolved Plan can be moved as one exact local artifact without its
 producer process:
@@ -1172,12 +1100,12 @@ result = eqiora.run(portable)
 ```
 
 `.eqplan` contains exactly `plan.to_bytes()`. Reading re-resolves the Plan
-against the locally admitted provider identities and rejects unknown,
+against the locally available providers and rejects unknown,
 noncanonical, oversized, non-regular, symlinked, or wrongly suffixed inputs.
 Use it to move one exact Plan between local processes.
 
-Complete Results and spatial Trajectories use the same exact, type-owned file
-boundary. Reopening always requires the owning Plan:
+Save results and spatial trajectories to files. Reopening requires the Plan
+used to produce them:
 
 ```python
 result.write("run.eqresult")
@@ -1276,7 +1204,7 @@ IDs, package provenance, and artifact codec. It is comparison evidence, not a
 replacement for exact identity in execution, replay, provenance, or edits.
 
 
-Quantity inputs use the compiler-owned `eqiora.units` catalog. For example,
+Quantity inputs use the `eqiora.units` catalog. For example,
 `q.quantity(Decimal("998.2"), u.kg / u.m**3)` preserves the exact decimal input
 until compiler normalization. Import `Decimal` from Python's `decimal` module.
 Integer inputs retain their decimal digits. Float inputs use Python's shortest

@@ -1,11 +1,10 @@
 ---
 title: Transient cylinder-flow startup
-description: An explicitly unverified ten-step startup walkthrough through the ordinary Eqiora lifecycle.
+description: Run ten transient flow steps and inspect vorticity, force, and pressure around a cylinder.
 ---
 
 import { Aside, LinkButton } from '@astrojs/starlight/components';
 import NotebookStage from '../../../components/gallery/NotebookStage.astro';
-import ClaimBoundary from '../../../components/gallery/ClaimBoundary.astro';
 import ResultFigure from '../../../components/gallery/ResultFigure.astro';
 import ExactSourceLink from '../../../components/site/ExactSourceLink.astro';
 import poster from '../../../assets/gallery/transient-cylinder-startup-poster.png';
@@ -19,18 +18,23 @@ export const colabMinimumRelease = `0.1.0a${colabMinimumSerial}`;
 export const colabReady = colabRelease !== null && Number(colabRelease[1]) >= colabMinimumSerial;
 export const colabUrl = `https://colab.research.google.com/github/nkiyohara/eqiora/blob/${process.env.EQIORA_SITE_SOURCE_SHA}/examples/python/transient_cylinder_wake_colab.ipynb`;
 
-**Unverified product example · Python and Colab**
-
 [Gallery](/gallery/)
 
-This walkthrough executes ten accepted startup steps through the ordinary
-installed-Python lifecycle. It is deliberately not presented as a developed
-vortex street or a validated cylinder benchmark.
+Follow the first 0.1 seconds of a two-dimensional incompressible
+Navier–Stokes run around a cylinder. Ten steps reveal the near-cylinder startup
+change, too early to study periodic shedding. The plotted values have not been
+validated against a cylinder-flow benchmark.
 
-<NotebookStage id="startup-problem" step={1} title="One Geometry owner" emoji="🧭">
+## Before you begin
+
+Follow [Get started](/get-started/) and install the `gmsh` extra, or open the
+Colab notebook below. The complete Python source includes model compilation,
+the initial steady solve, and transient time stepping.
+
+<NotebookStage id="startup-problem" step={1} title="Define the channel and cylinder" emoji="🧭">
 
 Python authors the exact $2.2\,\mathrm{m}\times0.41\,\mathrm{m}$ channel and
-subtracts one exact circle. The resulting `Geometry` owns the `fluid`, `inlet`,
+subtracts one exact circle. The resulting `Geometry` names the `fluid`, `inlet`,
 `outlet`, `walls`, and `cylinder` selections used by meshing, compilation, and
 the Result observables.
 
@@ -48,8 +52,8 @@ geometry = graph.build(fluid, named_topology={...})
 
 <NotebookStage id="startup-model" step={2} title="Eqiora model definition" emoji="🧩">
 
-The equations-only `.eqi` source owns transient incompressible Navier–Stokes
-meaning and abstract support names. It does not carry a second concrete shape.
+The `.eqi` source defines transient incompressible Navier–Stokes equations
+and the support names to bind to the geometry.
 With velocity $\boldsymbol{u}$, density $\rho$, stress
 $\boldsymbol{\sigma}$, and force potential $\phi$, the momentum and
 incompressibility relations are
@@ -69,9 +73,8 @@ $$
 
 <NotebookStage id="startup-mesh" step={3} title="Planning, then mesh generation" emoji="🔷">
 
-The typed Gmsh request makes the global characteristic-size target explicit.
-`resolve` only plans; `generate` executes Gmsh and publishes the accepted common
-Mesh with correspondence and production lineage.
+Set the Gmsh characteristic-size target. `resolve` plans the mesh;
+`generate` executes Gmsh and returns it.
 
 ```python
 request = eqiora.meshing.GmshMesher(
@@ -84,21 +87,21 @@ mesh_plan = eqiora.meshing.resolve(geometry, request)
 mesh = eqiora.meshing.generate(mesh_plan)
 ```
 
-<Aside type="caution" title="A meshing choice, not convergence">
+<Aside type="caution" title="Choosing a mesh size">
 
-`0.025 m` is a Gmsh characteristic target. It is not a guarantee on every
-realized edge and does not establish mesh or PDE convergence.
+`0.025 m` is a Gmsh characteristic target, rather than the guaranteed length
+of every edge. Refine the mesh and time step before drawing quantitative
+conclusions from this short run.
 
 </Aside>
 
 </NotebookStage>
 
-<NotebookStage id="startup-run" step={4} title="Typed Plan, State, and Run" emoji="▶">
+<NotebookStage id="startup-run" step={4} title="Run ten time steps" emoji="▶">
 
-A steady MINI/P1 Result supplies a compatible nonzero initial State. The root
-resolver then combines the transient Model with typed spatial, Backward-Euler,
-Newton, linear, and scaling policies. One common call publishes all ten accepted
-startup outputs at $\Delta t=0.01\,\mathrm{s}$.
+A steady MINI/P1 result supplies the nonzero initial state. Combine the transient
+model with MINI/P1 elements, Backward Euler time stepping, Newton iteration,
+and linear-solve and scaling settings. Save ten startup outputs at $\Delta t=0.01\,\mathrm{s}$.
 
 ```python
 plan = eqiora.resolve(
@@ -122,18 +125,15 @@ result = eqiora.run(
 )}
 
 The Colab entry is published beginning with the <code>{colabMinimumRelease}</code>
-documentation build. It opens this exact GitHub notebook in the user's ephemeral
-runtime and does not
-depend on maintainer-owned Drive state.
+documentation build. It opens the notebook in your Colab runtime.
 
 </NotebookStage>
 
-<NotebookStage id="startup-observables" step={5} title="Typed Result observables" emoji="📐">
+<NotebookStage id="startup-observables" step={5} title="Inspect vorticity, force, and pressure" emoji="📐">
 
-The final accepted State derives cell-average vorticity, the signed intrinsic-2D
-cylinder action pair, and two continuous-P1 pressure samples. Each value remains
-bound to its exact State, Field, Mesh, selection or physical point, unit, and
-digest. The page reports no benchmark normalization or target value.
+At the final time step, calculate cell-average vorticity, the signed
+two-dimensional cylinder force, and pressure samples at the front and rear
+of the cylinder. Pressure samples use continuous-P1 interpolation.
 
 ```python
 accepted = result.trajectory.state(10)
@@ -146,15 +146,15 @@ rear_pressure = accepted.sample(plan.capability.pressure, at=(0.25, 0.2))
 <ResultFigure
   src={poster.src}
   alt="Final cell-average vorticity above its change from the first output, concentrated near the cylinder."
-  caption="Final absolute field and change from the first output at t = 0.1 s. Presentation only; the visible fields are not a benchmark or validation result."
+  caption="Final vorticity and change from the first output at t = 0.1 s."
   units="s⁻¹"
   sourcePath="tools/site/produce_transient_cylinder_startup_media.py"
-  sourceLabel="View the caller-owned media producer"
+  sourceLabel="View the media producer"
 />
 
 </NotebookStage>
 
-<NotebookStage id="startup-media" step={6} title="Accessible media and product boundary" emoji="🎞️">
+<NotebookStage id="startup-media" step={6} title="Read the startup sequence" emoji="🎞️">
 
 <figure class="eq-gallery-motion">
   <video
@@ -174,10 +174,10 @@ rear_pressure = accepted.sample(plan.capability.pressure, at=(0.25, 0.2))
     alt="The first vorticity output above its change by step 10, showing the strengthening of the near-cylinder layers."
   />
   <figcaption>
-    Ten actual accepted outputs, played at two frames per second so the subtle
+    Ten outputs, played at two frames per second so the subtle
     startup change remains legible. Motion is
     disabled when the browser requests reduced motion; the first/final still is
-    shown instead. Presentation only, not evidence.
+    shown instead.
   </figcaption>
 </figure>
 
@@ -186,27 +186,11 @@ rear_pressure = accepted.sample(plan.capability.pressure, at=(0.25, 0.2))
   The right-hand panel shows Δω relative to the first output at 0.01 seconds,
   using one fixed symmetric scale across the sequence. By 0.1 seconds, the
   near-cylinder layers have intensified and extended slightly downstream. The
-  sequence stays largely symmetric and attached. It does not
-  show, and must not be read as, periodic shedding or a developed vortex street.
+  sequence stays largely symmetric and attached.
 
 </div>
 
-<ClaimBoundary
-  title="Explicitly unverified product boundary"
-  supported={[
-    'One installed-Python channel-minus-circle composition reaches a ten-output transient Result through exact Geometry, typed meshing and numerical policies, root resolution, State, and Run.',
-    'Plain Python and Colab use the same public computational call order and final accepted State.',
-    'Caller-owned poster, video, reduced-motion still, and text describe vorticity from one coherent product lineage.',
-    'Cylinder force and pressure probes are typed Result observables; no displayed number is promoted to evidence.',
-  ]}
-  notClaimed={[
-    'This startup presentation is not DFG benchmark acceptance and establishes no developed wake, shedding frequency, force, pressure, balance, or separation value.',
-    'It makes no mesh/time convergence, performance, production-scale, 3D, turbulent, or advanced-meshing claim.',
-    'The animation supports inspection, not scientific inference from pixels.',
-  ]}
-/>
-
-[Read the human capability boundary](/capabilities/#transient-cylinder-startup)
+[Explore related capabilities](/capabilities/#transient-cylinder-startup)
 
 </NotebookStage>
 
@@ -215,5 +199,5 @@ rear_pressure = accepted.sample(plan.capability.pressure, at=(0.25, 0.2))
 Connect evolving state to the [ODE lesson](/learn/mathematical-modeling/ordinary-differential-equations/)
 and spatial flux to [conservation laws](/learn/mathematical-modeling/conservation-laws/).
 The [Python execution guide](/guides/execution-and-arrays/) explains run control,
-diagnostics and array ownership. Use the Python and Colab reproductions above
+diagnostics and arrays. Use the Python and Colab reproductions above
 for this exact transient model.

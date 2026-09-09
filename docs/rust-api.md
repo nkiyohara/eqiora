@@ -1,13 +1,12 @@
 # Rust API
 
-Use the `eqiora` crate as the application entry point. It exposes the same
-canonical Rust implementation used by the Python SDK; language-specific
-convenience APIs are not necessarily one-to-one.
+Use the `eqiora` crate to compile models, configure numerical plans, and run
+simulations from Rust.
 
 ## Install the alpha
 
-[`eqiora 0.1.0-alpha.7`](https://crates.io/crates/eqiora/0.1.0-alpha.7) and its
-34 publication dependencies are available on crates.io.
+[`eqiora 0.1.0-alpha.7`](https://crates.io/crates/eqiora/0.1.0-alpha.7) is available
+on crates.io.
 
 In a new Cargo project:
 
@@ -22,11 +21,9 @@ Or add this dependency to `Cargo.toml`:
 eqiora = "=0.1.0-alpha.7"
 ```
 
-The initial source-distribution smoke check passed on Linux x86-64 with Rust
-1.98.0 and default features, using an empty Cargo cache and registry-only dependencies. The workspace declares Rust 1.89 as its minimum supported
-version; the release packaging check uses Rust 1.98.0. Source distributions
-require a Rust toolchain and linker. This does not establish support for every
-platform or optional native backend.
+Building from source requires a Rust toolchain and linker. The minimum supported
+Rust version is 1.89. The alpha's default-feature installation was tested on
+Linux x86-64 with Rust 1.98.0.
 
 ## Build command-line tools from this checkout
 
@@ -37,21 +34,19 @@ enable it or pull in the CLI argument parser. From the repository root:
 cargo install --locked --path crates/eqiora --features cli
 ```
 
-This installs `eqiora` and `eqiora-mcp`. Repository test and site-build commands
-enable the feature explicitly when they need those binaries.
+This installs `eqiora` and `eqiora-mcp`.
 
 ## Compile a model
 
-The following example targets this checkout's current authoring contract. Use
-its `crates/eqiora` path dependency when trying the example; the published alpha
-artifacts above retain their released contracts. Put this in `src/main.rs`, then
-run `cargo run`:
+This example uses the current checkout's API. Set your dependency to
+`eqiora = { path = "/path/to/eqiora/crates/eqiora" }`, replacing the path with your
+checkout location. Put this in `src/main.rs`, then run `cargo run`:
 
 ```rust
 use eqiora::api::ModelDocument;
 
 fn main() {
-    let model = ModelDocument::compile(
+    let _model = ModelDocument::compile(
         "decay.eqi",
         r#"model decay {
             state x: 1;
@@ -64,41 +59,32 @@ fn main() {
     )
     .expect("the model must compile");
 
-    println!("model digest: {}", model.digest().expect("canonical digest"));
+    println!("Model compiled successfully.");
 }
 ```
 
-This example compiles and validates a model and reports its canonical identity.
-It does not integrate the ODE or assert a numerical solution. See the
-[capability matrix](capability-matrix.md) for the exact supported execution
-paths and their independently registered evidence.
+This example compiles the decay model and reports successful compilation. See
+the [capability matrix](capability-matrix.md) for available simulation workflows.
 
 ## Optional features
 
 The default feature is `package-filesystem`, which enables filesystem-backed
-model-package operations. The bounded Gmsh MSH parser is always available through
-`eqiora::io::gmsh`, including with default features disabled: common-Mesh admission
-also uses it to validate stored provider output. It does not require the external
-Gmsh executable; automatic mesh generation does.
+model-package operations. The Gmsh MSH parser is always available through
+`eqiora::io::gmsh`, including with default features disabled. Parsing an existing
+mesh needs no external Gmsh executable; automatic mesh generation requires it.
 
-| Feature | Purpose and boundary |
+| Feature | Purpose |
 | --- | --- |
 | `rayon`, `faer` | Optional threaded CPU and linear algebra integrations. |
 | `vtu`, `xdmf`, `hdf5` | Optional data-format operations; `hdf5` enables `xdmf` and the native HDF5 dependency. |
-| `cad-truck` | The bounded Rust-native CAD adapter. |
+| `cad-truck` | Rust-native CAD operations. |
 | `diffsol` | Optional adaptive integration backend. |
-| `mpi`, `cuda`, `mpi-cuda` | Environment-specific distributed/GPU adapters requiring their matching native setup and evidence. |
+| `mpi`, `cuda`, `mpi-cuda` | Environment-specific distributed/GPU adapters requiring the corresponding native libraries and hardware. |
 
 Enable only the features needed by the chosen supported path, for example
 `eqiora = { version = "=0.1.0-alpha.7", features = ["faer"] }`.
-Default-feature packaging is not verification of these optional environments.
 
 ## Compatibility
 
 This is an alpha, pre-1.0 API. Breaking corrections may appear in subsequent
 releases; pin the exact version and retain `Cargo.lock` when reproducing a result.
-Current Rust and
-Python APIs converge together without retaining obsolete aliases or compatibility
-shims unless an explicit stable interoperability promise requires them.
-Published release artifacts remain historical records. See the
-[pre-1.0 policy](development/ai-authored-platform-strategy.md#pre-10-api-convergence).

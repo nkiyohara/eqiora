@@ -82,10 +82,9 @@ test('mixed-boundary elasticity is a static source-traced second gallery surface
   await expect(page).toHaveURL(/\/gallery\/mixed-boundary-elasticity\/$/);
   await expect(
     page.getByRole('img', {
-      name: /Reference and deformed meshes for the bounded 2D mixed-boundary/i,
+      name: /Reference and deformed meshes for the 2D mixed-boundary/i,
     }),
   ).toBeVisible();
-  await expect(page.getByText('Presentation, not evidence.', { exact: true })).toBeVisible();
   await assertNoFakeExecutionControls(page);
   expect(external).toEqual([]);
 });

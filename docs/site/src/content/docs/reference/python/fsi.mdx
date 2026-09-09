@@ -1,6 +1,6 @@
 ---
 title: "eqiora.fsi"
-description: "Public signatures and source-traced summaries for eqiora.fsi."
+description: "Functions, classes, and signatures for eqiora.fsi."
 ---
 
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
@@ -9,21 +9,15 @@ import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
 [← Python API index](/reference/python/)
 
-Observation-only evidence for common FSI Results.
+Inspect fluid–structure interaction results.
 
-Module authority: <ExactSourceLink path="bindings/python/python/eqiora/fsi.py" kind="blob">bindings/python/python/eqiora/fsi.py</ExactSourceLink>
-
-Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/fsi.pyi" kind="blob">bindings/python/python/eqiora/fsi.pyi</ExactSourceLink>
-
-This module publishes **4** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+<ExactSourceLink path="bindings/python/python/eqiora/fsi.pyi" kind="blob">View source</ExactSourceLink>
 
 <a id="api-eqiora-fsi-FixedReferenceFsiPlanView"></a>
 
 ## `FixedReferenceFsiPlanView`
 
 Resolved field roles and scales for fixed-reference FSI.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/capability_view.rs" kind="blob">crates/eqiora-python/src/common_plan/capability_view.rs::PyFixedReferenceFsiPlanView</ExactSourceLink>
 
 ```python
 @final
@@ -50,8 +44,6 @@ class FixedReferenceFsiPlanView:
 
 Observation-only partition and per-State evidence for a common FSI Result.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/fsi_evidence.rs" kind="blob">crates/eqiora-python/src/fsi_evidence.rs::PyFsiEvidence</ExactSourceLink>
-
 ```python
 @final
 class FsiEvidence:
@@ -73,8 +65,6 @@ class FsiEvidence:
 ## `FsiStateEvidence`
 
 Numerical observations for one exact accepted common FSI State.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/fsi_evidence.rs" kind="blob">crates/eqiora-python/src/fsi_evidence.rs::PyFsiStateEvidence</ExactSourceLink>
 
 ```python
 @final
@@ -128,8 +118,6 @@ class FsiStateEvidence:
 ## `evidence`
 
 Select observation-only FSI evidence from an accepted common Result.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/fsi_evidence.rs" kind="blob">crates/eqiora-python/src/fsi_evidence.rs::evidence</ExactSourceLink>
 
 ```python
 def evidence(result: Result) -> FsiEvidence: ...

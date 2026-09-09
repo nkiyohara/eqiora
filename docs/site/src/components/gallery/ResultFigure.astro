@@ -1,10 +1,9 @@
 ---
 /**
- * ResultFigure — one semantic figure for an admitted result image: the exact
+ * ResultFigure — one semantic figure for a result image: the exact
  * image (no transform, crop, filter, or canvas rendering), its text
- * alternative, a visible caption, a units label, the visible boundary
- * "Presentation, not evidence.", and optionally one ordinary exact-source
- * anchor rendered through the site's ExactSourceLink provider.
+ * alternative, a visible caption, a units label, and an optional source
+ * link rendered through the site's ExactSourceLink provider.
  *
  * Props (component binding v1 + accepted provider binding successor v1/v2):
  *   src: string; alt: string; caption: string; units: string;
@@ -93,7 +92,6 @@ if (slotNames.length > 0) {
   </div>
   <figcaption class="eq-result-figure__caption">
     <span class="eq-result-figure__labels">
-      <span class="eq-chip eq-chip--accent">Presentation, not evidence.</span>
       <span class="eq-chip">Units: {units}</span>
     </span>
     <span class="eq-result-figure__text">{caption}</span>

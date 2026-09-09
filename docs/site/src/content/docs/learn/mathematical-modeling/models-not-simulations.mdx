@@ -5,15 +5,6 @@ sidebar:
 description: Separate physical assumptions and mathematical relations from numerical realization, execution, and observation.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
-import ReleaseIdentity from '@components/site/ReleaseIdentity.astro';
-
-<Aside type="note" title="Chapter status">
-  **Illustrative · source compiles · no simulation result.** The examples target
-  the current <ReleaseIdentity /> surface. This chapter checks the
-  model/realization boundary; it does not establish numerical accuracy,
-  stability, convergence, or physical validity.
-</Aside>
 
 ## Why this distinction matters
 
@@ -108,11 +99,10 @@ a particular physical system.
 | Record $x$ at selected times | Run / Observation | It chooses what one execution returns and exposes. |
 | Plot color and line width | Presentation | They do not change the mathematical problem. |
 
-The boundary is useful precisely because several realizations may implement
-the same model. Agreement between them would require a separate, explicit
-comparison; this chapter makes no such comparison.
+Several numerical methods can solve the same model. Choose a method when
+you are ready to run it; the equations above stay the same.
 
-## Observation boundary
+## Read the result
 
 An observation answers a question about a completed Result; it does not add a
 new relation to the Model. Because this chapter stops at compilation, there is

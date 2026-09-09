@@ -1,4 +1,4 @@
-"""Observation-only evidence for common FSI Results.
+"""Inspect fluid–structure interaction results.
 
 Authority: ``bindings/python/python/eqiora/fsi.py``.
 """

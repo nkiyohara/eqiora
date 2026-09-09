@@ -1,46 +1,29 @@
 ---
 title: Capabilities
-description: Human-readable boundaries for what Eqiora makes available, executes, checks, and verifies.
+description: Problems you can run with Eqiora, with examples and practical requirements.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
 import CapabilitySummary from '@components/site/CapabilitySummary.astro';
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
-This page answers **what can Eqiora do today, and how was that conclusion reached?**
-It is organized by problem family. The
-repository <ExactSourceLink path="docs/capability-matrix.md" kind="blob">capability
-matrix</ExactSourceLink> remains the maintained complete product map.
-
-## Status vocabulary
-
-These labels describe different facts; they are not a single maturity ladder.
-
-- **Available** — a user-visible contract or surface exists.
-- **Executable** — at least one described path runs end to end.
-- **Checked** — focused product tests exercise the stated behavior.
-- **Verified** — reproducible registered evidence supports the stated result.
-
-<Aside type="caution" title="Read the boundary, not only the label">
-  Every summary names the exact current path. Eqiora remains alpha software.
-</Aside>
+Browse the problems you can run today, then follow a guide or example for setup
+and execution. Eqiora is alpha software. The
+<ExactSourceLink path="docs/capability-matrix.md" kind="blob">capability matrix</ExactSourceLink>
+provides detailed implementation, verification, and maturity status.
 
 ## At a glance
 
-| Problem family | Current public boundary | Status |
-| --- | --- | --- |
-| Foundations and numerics | Bounded Cartesian and affine-triangle Poisson paths | Verified |
-| Fluid | Exact-cylinder steady Stokes product path | Checked |
-| Fluid | Transient cylinder-flow startup presentation | Executable |
-| Solid | Bounded mixed-boundary linear elasticity | Verified |
-| Thermal | Passive-scalar temperature transport only | Not available as a general thermal package |
-| Circuits and hybrid systems | Packaged DC motor and sampled controller | Verified |
-| Geometry and meshing | Exact circular-hole planar geometry | Verified |
-| Differentiation and optimization | Bounded spatial Poisson differentiation | Verified |
-| Execution | Common scalar first-order ODE lifecycle | Verified |
-| Interfaces | Local CLI compile and check | Verified |
-
-The summaries below state the current boundary, status basis, and main limits.
+| Problem family | What you can run |
+| --- | --- |
+| Scalar PDEs | Cartesian Poisson in 1D–3D and a 2D triangular finite-element example |
+| Fluid | 2D steady Stokes flow and transient cylinder-flow startup |
+| Solid | 2D mixed-boundary linear elasticity |
+| Thermal | Temperature transport as a passive scalar |
+| Circuits and hybrid systems | A packaged DC motor with a sampled controller |
+| Geometry and meshing | Planar geometry construction and Gmsh meshing |
+| Differentiation | Parameter derivatives of selected Poisson objectives |
+| Execution | Non-stiff scalar first-order ODEs |
+| Interfaces | Local source compilation and checking with the CLI |
 
 ## Foundations and numerics
 
@@ -48,13 +31,10 @@ The summaries below state the current boundary, status basis, and main limits.
   <CapabilitySummary
     id="stationary-scalar-elliptic"
     title="Stationary scalar elliptic PDE"
-    status="Verified"
-    outcome="Poisson problems run on generated Cartesian meshes in 1D–3D through finite elements or finite volumes; one fixed 2D triangular finite-element path is also covered."
-    boundary="Generated Cartesian meshes in 1D–3D and one fixed affine-triangle 2D path, within the formulations and solvers named by the matrix."
-    establishes="Bounded numerical execution and independently registered checks for the listed Poisson paths."
-    limits="Fixed Poisson formulations and the listed Cartesian or affine-triangle meshes."
+    outcome="Solve Poisson problems on generated Cartesian meshes in 1D–3D using finite elements or finite volumes. A fixed 2D triangular finite-element example is also available."
+    conditions="Choose the formulations and solvers listed for each mesh in the matrix."
     routeHref="/learn/mathematical-modeling/fields-spatial-domains/#a-spatial-equation-with-a-known-solution"
-    routeLabel="Understand the Poisson checking problem"
+    routeLabel="Understand the Poisson problem"
     casePath="verify/numerics/poisson-fem-fvm/case.toml"
   />
 </div>
@@ -64,26 +44,20 @@ The summaries below state the current boundary, status basis, and main limits.
 <div class="eq-capability-grid">
   <CapabilitySummary
     id="exact-cylinder-steady-stokes"
-    title="Exact-cylinder steady Stokes product path"
-    status="Checked"
-    outcome="One installed-Python path authors exact planar geometry, meshes it with Gmsh, resolves a steady Stokes plan, and publishes finite Result observations."
-    boundary="One 2D exact circular-hole geometry and the named Gmsh, MINI/P1, linear, and result-projection policies used by the walkthrough."
-    establishes="Focused product tests cover the current Geometry → Mesh → Plan → Run → Result lifecycle."
-    limits="One steady Stokes setup; convergence and force coefficients are not included."
+    title="Steady Stokes flow around a cylinder"
+    outcome="Construct a rectangle with a circular hole in Python, mesh it with Gmsh, solve steady Stokes flow, and inspect velocity and pressure."
+    conditions="The walkthrough uses a 2D MINI/P1 discretization and requires Gmsh."
     routeHref="/gallery/exact-cylinder-steady-stokes/"
-    routeLabel="Open the bounded Gallery walkthrough"
+    routeLabel="Open the walkthrough"
     casePath="verify/fluid/packaged-steady-stokes-2d/case.toml"
   />
   <CapabilitySummary
     id="transient-cylinder-startup"
-    title="Transient cylinder-flow startup presentation"
-    status="Executable"
-    outcome="One bounded installed-Python startup path advances accepted states and exposes typed vorticity, force, and pressure observations for caller-owned media."
-    boundary="The fixed exact-cylinder setup, policies, time window, and serial execution shown in the Gallery page."
-    establishes="The bounded lifecycle produces accepted observations suitable for an illustrative walkthrough."
-    limits="A short startup interval, not a developed-wake benchmark."
+    title="Transient cylinder-flow startup"
+    outcome="Advance a cylinder-flow startup simulation and plot vorticity, force, and pressure observations."
+    conditions="The example uses a fixed 2D geometry and serial execution over a short startup interval."
     routeHref="/gallery/transient-cylinder-startup/"
-    routeLabel="Open the illustrative Gallery walkthrough"
+    routeLabel="Open the startup example"
   />
 </div>
 
@@ -93,13 +67,10 @@ The summaries below state the current boundary, status basis, and main limits.
   <CapabilitySummary
     id="mixed-boundary-elasticity"
     title="Mixed-boundary linear elasticity"
-    status="Verified"
-    outcome="One bounded 2D linear-elasticity problem executes through direct and exact-package authoring to the same common result."
-    boundary="A Cartesian Q1 realization with complete trace-zero sides, zero weak traction, and the registered manufactured mixed-boundary case."
-    establishes="The registered case checks direct/package equivalence, convergence, traction recovery, reaction balance, and fail-closed binding."
-    limits="Linear small-strain behavior on the listed 2D Cartesian realization."
+    outcome="Solve a 2D linear-elasticity problem and inspect displacement, traction, and reaction balance."
+    conditions="The example uses small-strain elasticity on a Cartesian Q1 mesh, with zero-displacement sides and zero weak traction on the remaining sides."
     routeHref="/gallery/mixed-boundary-elasticity/"
-    routeLabel="Open the bounded Gallery walkthrough"
+    routeLabel="Open the walkthrough"
     casePath="verify/solid/mixed-boundary-elasticity-2d/case.toml"
   />
 </div>
@@ -117,11 +88,8 @@ transport rows in the complete matrix</ExactSourceLink>.
   <CapabilitySummary
     id="dc-motor-controller"
     title="Packaged DC motor and sampled controller"
-    status="Verified"
-    outcome="One serial model combines an ideal linear DC motor, viscous load, and proportional sampled controller."
-    boundary="Exactly three packages, scalar electrical and rotational coordinates, one 10 ms clock, host-serial f64, dense Newton, and backward Euler."
-    establishes="Registered evidence checks package composition, continuous and sampled semantics, typed physical observations, and the bounded trajectory."
-    limits="Ideal linear devices and one fixed-rate sampled controller on the serial host path."
+    outcome="Combine an ideal linear DC motor, a viscous load, and a proportional sampled controller."
+    conditions="The three-package example uses scalar electrical and rotational coordinates, a 10 ms clock, serial f64 execution, dense Newton, and backward Euler."
     routeHref="/reference/standard-packages/#browse-the-distributed-sources"
     routeLabel="Find electrical and drive declarations"
     casePath="verify/hybrid/packaged-dc-motor-controller/case.toml"
@@ -133,12 +101,9 @@ transport rows in the complete matrix</ExactSourceLink>.
 <div class="eq-capability-grid">
   <CapabilitySummary
     id="exact-circular-hole-geometry"
-    title="Exact circular-hole planar geometry"
-    status="Verified"
-    outcome="Python authors one axis-aligned rectangle minus one strictly interior exact circle with complete named region and boundary membership."
-    boundary="One tolerance-free planar geometry family and its bounded Gmsh realization path."
-    establishes="Registered cases check canonical geometry identity, named membership, Python projection, and fail-closed replay."
-    limits="One planar rectangle-minus-circle family with its named boundaries."
+    title="Planar geometry and named boundaries"
+    outcome="Construct an axis-aligned rectangle minus a strictly interior circle and select its regions and boundaries by name."
+    conditions="The example meshes this planar geometry with Gmsh."
     routeHref="/gallery/exact-cylinder-steady-stokes/"
     routeLabel="See the geometry in a Gallery walkthrough"
     casePath="verify/geometry/planar-circular-hole-geometry-v2/case.toml"
@@ -150,12 +115,9 @@ transport rows in the complete matrix</ExactSourceLink>.
 <div class="eq-capability-grid">
   <CapabilitySummary
     id="spatial-poisson-differentiation"
-    title="Bounded spatial Poisson differentiation"
-    status="Verified"
-    outcome="Selected Poisson objectives expose parameter derivatives through the admitted differentiation paths."
-    boundary="The exact FEM/FVM formulations, scalar parameters, objectives, and host reference environments named by the registered case."
-    establishes="Registered comparisons include independently evaluated centered finite differences for the bounded derivative claims."
-    limits="The listed Poisson objectives, scalar parameters, and host paths."
+    title="Spatial Poisson differentiation"
+    outcome="Compute parameter derivatives of selected Poisson objectives."
+    conditions="The available examples use scalar parameters, FEM or FVM formulations, and host CPU execution."
     routeHref="/guides/differentiation/"
     routeLabel="Read the Python differentiation guide"
     casePath="verify/differentiation/spatial-poisson-fem-fvm/case.toml"
@@ -167,12 +129,9 @@ transport rows in the complete matrix</ExactSourceLink>.
 <div class="eq-capability-grid">
   <CapabilitySummary
     id="common-ode-lifecycle"
-    title="Common first-order ODE lifecycle"
-    status="Verified"
-    outcome="Canonical scalar first-order models resolve without a mesh and run through the common Python Plan, State, Run, and Trajectory lifecycle."
-    boundary="Admitted non-stiff scalar problems using exact field-bound tolerances, Diffsol Tsitouras 5(4), and strictly increasing requested output times."
-    establishes="Registered interface and time cases check execution, immutable field-selected series, replay, and retained model lineage."
-    limits="Non-stiff scalar first-order models with requested output times."
+    title="First-order ODE execution"
+    outcome="Resolve scalar first-order models without a mesh, initialize their state, run them, and read field-selected time series in Python."
+    conditions="This path uses Diffsol Tsitouras 5(4) for non-stiff problems. Supply positive field-specific tolerances and strictly increasing output times."
     routeHref="/guides/execution-and-arrays/"
     routeLabel="Read the execution and arrays guide"
     casePath="verify/interfaces/python-common-ode-lifecycle/case.toml"
@@ -184,20 +143,16 @@ transport rows in the complete matrix</ExactSourceLink>.
 <div class="eq-capability-grid">
   <CapabilitySummary
     id="cli-compile-check"
-    title="Local CLI compile and check"
-    status="Verified"
-    outcome="The installed `eqiora check` command compiles and checks one local Eqiora Model source file and returns bounded diagnostics."
-    boundary="The exact command, help, exit behavior, source size, diagnostic envelope, and local-file contract documented by the CLI reference."
-    establishes="Registered interface checks bind the current command surface and its compile/check behavior."
-    limits="One local source file per invocation; compilation and checking only."
+    title="Local CLI compilation and checking"
+    outcome="Use eqiora check to compile and check a local Model source file and read its diagnostics."
+    conditions="Each invocation accepts one local source file. The CLI reference lists input limits and exit codes."
     routeHref="/reference/cli/"
-    routeLabel="Open the exact CLI reference"
+    routeLabel="Open the CLI reference"
     casePath="verify/interfaces/cli-compile-check/case.toml"
   />
 </div>
 
-## Checking a claim
+## Further details
 
-See [Checking a claim](/evidence/) to find the underlying manifests and run a
-selected check. The repository's capability matrix records implementation and
-verification independently.
+See [Evidence](/evidence/) for the case manifests and instructions to reproduce a
+selected check.

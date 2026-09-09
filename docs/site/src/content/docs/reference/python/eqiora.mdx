@@ -1,6 +1,6 @@
 ---
 title: "eqiora"
-description: "Public signatures and source-traced summaries for eqiora."
+description: "Functions, classes, and signatures for eqiora."
 ---
 
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
@@ -9,31 +9,23 @@ import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
 [← Python API index](/reference/python/)
 
-Python ergonomics over Eqiora's canonical Rust implementation.
+Model authoring, numerical plans, execution, and results.
 
-Module authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.py" kind="blob">bindings/python/python/eqiora/__init__.py</ExactSourceLink>
-
-Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/__init__.pyi" kind="blob">bindings/python/python/eqiora/__init__.pyi</ExactSourceLink>
-
-This module publishes **125** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+<ExactSourceLink path="bindings/python/python/eqiora/__init__.pyi" kind="blob">View source</ExactSourceLink>
 
 <a id="api-eqiora-Module"></a>
 
 ## `Module`
 
-**Canonical re-export.** This spelling resolves to [`eqiora.lang.Module`](/reference/python/lang/#api-eqiora-lang-Module).
+See [`eqiora.lang.Module`](/reference/python/lang/#api-eqiora-lang-Module).
 
 Own a compiler-backed module graph and freeze declarations on emission or compilation.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py::Module</ExactSourceLink>
 
 <a id="api-eqiora-equal"></a>
 
 ## `equal`
 
 Author a typed equal predicate.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/predicates.rs" kind="blob">crates/eqiora-python/src/modeling/predicates.rs::equal</ExactSourceLink>
 
 ```python
 def equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
@@ -45,8 +37,6 @@ def equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 
 Author a typed not equal predicate.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/predicates.rs" kind="blob">crates/eqiora-python/src/modeling/predicates.rs::not_equal</ExactSourceLink>
-
 ```python
 def not_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 ```
@@ -56,8 +46,6 @@ def not_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 ## `less`
 
 Author a typed less predicate.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/predicates.rs" kind="blob">crates/eqiora-python/src/modeling/predicates.rs::less</ExactSourceLink>
 
 ```python
 def less(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
@@ -69,8 +57,6 @@ def less(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 
 Author a typed less equal predicate.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/predicates.rs" kind="blob">crates/eqiora-python/src/modeling/predicates.rs::less_equal</ExactSourceLink>
-
 ```python
 def less_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 ```
@@ -80,8 +66,6 @@ def less_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 ## `greater`
 
 Author a typed greater predicate.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/predicates.rs" kind="blob">crates/eqiora-python/src/modeling/predicates.rs::greater</ExactSourceLink>
 
 ```python
 def greater(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
@@ -93,8 +77,6 @@ def greater(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 
 Author a typed greater equal predicate.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/predicates.rs" kind="blob">crates/eqiora-python/src/modeling/predicates.rs::greater_equal</ExactSourceLink>
-
 ```python
 def greater_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 ```
@@ -104,8 +86,6 @@ def greater_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: 
 ## `logical_not`
 
 Author a typed logical not predicate.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/predicates.rs" kind="blob">crates/eqiora-python/src/modeling/predicates.rs::logical_not</ExactSourceLink>
 
 ```python
 def logical_not(value: _ExpressionLike) -> Expression: ...
@@ -117,8 +97,6 @@ def logical_not(value: _ExpressionLike) -> Expression: ...
 
 Author a typed logical and predicate.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/predicates.rs" kind="blob">crates/eqiora-python/src/modeling/predicates.rs::logical_and</ExactSourceLink>
-
 ```python
 def logical_and(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 ```
@@ -129,8 +107,6 @@ def logical_and(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ..
 
 Author a typed logical or predicate.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/predicates.rs" kind="blob">crates/eqiora-python/src/modeling/predicates.rs::logical_or</ExactSourceLink>
-
 ```python
 def logical_or(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 ```
@@ -139,7 +115,7 @@ def logical_or(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 
 ## `__version__`
 
-**Version export.** The current value is intentionally not hard-coded in this generated page.
+Installed Eqiora version.
 
 ```python
 __version__: str
@@ -150,8 +126,6 @@ __version__: str
 ## `Array`
 
 Immutable dense one-dimensional CPU `float64` result buffer.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/array.rs" kind="blob">crates/eqiora-python/src/array.rs::PyArrayBuffer</ExactSourceLink>
 
 ```python
 @final
@@ -192,8 +166,6 @@ class Array:
 
 Fresh-compile authored scalar primal Formulation inspection.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/model/authored_formulation.rs" kind="blob">crates/eqiora-python/src/model/authored_formulation.rs</ExactSourceLink>
-
 ```python
 @final
 class AuthoredFormulation:
@@ -219,8 +191,6 @@ class AuthoredFormulation:
 
 Closed orientation of one Cartesian boundary domain.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling.rs" kind="blob">crates/eqiora-python/src/modeling.rs::PyBoundarySide</ExactSourceLink>
-
 ```python
 @final
 class BoundarySide:
@@ -236,8 +206,6 @@ class BoundarySide:
 
 Failure reporting cancellation of an Eqiora operation.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/error.rs" kind="blob">crates/eqiora-python/src/error.rs::CancellationError</ExactSourceLink>
-
 ```python
 class CancellationError(EqioraError):
     ...
@@ -248,8 +216,6 @@ class CancellationError(EqioraError):
 ## `CapabilityError`
 
 Failure caused by an adapter lacking a required capability.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/error.rs" kind="blob">crates/eqiora-python/src/error.rs::CapabilityError</ExactSourceLink>
 
 ```python
 class CapabilityError(EqioraError):
@@ -262,8 +228,6 @@ class CapabilityError(EqioraError):
 
 Failure caused by an incompatible versioned or persisted value.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/error.rs" kind="blob">crates/eqiora-python/src/error.rs::CompatibilityError</ExactSourceLink>
-
 ```python
 class CompatibilityError(EqioraError):
     ...
@@ -274,8 +238,6 @@ class CompatibilityError(EqioraError):
 ## `Connection`
 
 Immutable anonymous conserving connection declaration.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling.rs" kind="blob">crates/eqiora-python/src/modeling.rs::PyConnection</ExactSourceLink>
 
 ```python
 @final
@@ -288,8 +250,6 @@ class Connection:
 ## `ClockDomain`
 
 An immutable standalone nominal clock with exact rational seconds.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/clock.rs" kind="blob">crates/eqiora-python/src/clock.rs::PyClockDomain</ExactSourceLink>
 
 ```python
 @final
@@ -308,8 +268,6 @@ class ClockDomain:
 ## `ExecutionSession`
 
 Reference execution through fully stabilized boundaries with explicit input tables.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/execution_session.rs" kind="blob">crates/eqiora-python/src/execution_session.rs::PyExecutionSession</ExactSourceLink>
 
 ```python
 @final
@@ -335,8 +293,6 @@ class ExecutionSession:
 
 An immutable in-memory reference checkpoint bound to its complete Model.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/execution_session.rs" kind="blob">crates/eqiora-python/src/execution_session.rs::PyExecutionCheckpoint</ExactSourceLink>
-
 ```python
 @final
 class ExecutionCheckpoint:
@@ -348,8 +304,6 @@ class ExecutionCheckpoint:
 ## `ConservingPort`
 
 Immutable scalar conserving-port declaration.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling.rs" kind="blob">crates/eqiora-python/src/modeling.rs::PyConservingPort</ExactSourceLink>
 
 ```python
 @final
@@ -367,8 +321,6 @@ class ConservingPort:
 
 Accepted reason for linear-solve convergence.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/realization.rs" kind="blob">crates/eqiora-python/src/realization.rs::PyConvergenceReason</ExactSourceLink>
-
 ```python
 @final
 class ConvergenceReason:
@@ -384,8 +336,6 @@ class ConvergenceReason:
 
 Source of the derivative action used by an occurrence.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/differentiation.rs" kind="blob">crates/eqiora-python/src/differentiation.rs::PyDerivativeImplementation</ExactSourceLink>
-
 ```python
 @final
 class DerivativeImplementation:
@@ -399,8 +349,6 @@ class DerivativeImplementation:
 ## `Diagnostic`
 
 Immutable lossless projection of a current Rust diagnostic.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/error.rs" kind="blob">crates/eqiora-python/src/error.rs::PyDiagnostic</ExactSourceLink>
 
 ```python
 @final
@@ -427,8 +375,6 @@ class Diagnostic:
 
 Immutable accepted evaluation at one numerical parameter point.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/differentiation.rs" kind="blob">crates/eqiora-python/src/differentiation.rs::PyDifferentiableEvaluation</ExactSourceLink>
-
 ```python
 @final
 class DifferentiableEvaluation:
@@ -444,8 +390,6 @@ class DifferentiableEvaluation:
 ## `DifferentiableJvp`
 
 Accepted primary field and its forward tangent.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/differentiation.rs" kind="blob">crates/eqiora-python/src/differentiation.rs::PyDifferentiableJvp</ExactSourceLink>
 
 ```python
 @final
@@ -464,8 +408,6 @@ class DifferentiableJvp:
 
 Accepted complete primary field from a primal evaluation.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/differentiation.rs" kind="blob">crates/eqiora-python/src/differentiation.rs::PyDifferentiablePrimal</ExactSourceLink>
-
 ```python
 @final
 class DifferentiablePrimal:
@@ -480,8 +422,6 @@ class DifferentiablePrimal:
 ## `DifferentiableProgram`
 
 Immutable program over one fixed input-coordinate set.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/differentiation.rs" kind="blob">crates/eqiora-python/src/differentiation.rs::PyDifferentiableProgram</ExactSourceLink>
 
 ```python
 @final
@@ -517,8 +457,6 @@ class DifferentiableProgram:
 
 Accepted primary field and its reverse input cotangent.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/differentiation.rs" kind="blob">crates/eqiora-python/src/differentiation.rs::PyDifferentiableVjp</ExactSourceLink>
-
 ```python
 @final
 class DifferentiableVjp:
@@ -534,9 +472,7 @@ class DifferentiableVjp:
 
 ## `CompleteEvaluationMap`
 
-Complete native batch retaining every accepted occurrence and linearization.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/differentiation/batch/results.rs" kind="blob">crates/eqiora-python/src/differentiation/batch/results.rs::PyCompleteEvaluationMap</ExactSourceLink>
+Batch retaining every accepted occurrence and linearization.
 
 ```python
 @final
@@ -558,8 +494,6 @@ class CompleteEvaluationMap:
 ## `EvaluationMapPlan`
 
 Frozen complete points; planning validates metadata without solving.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/differentiation/batch.rs" kind="blob">crates/eqiora-python/src/differentiation/batch.rs::PyEvaluationMapPlan</ExactSourceLink>
 
 ```python
 @final
@@ -592,8 +526,6 @@ class EvaluationMapPlan:
 
 Inspectable failed or cancelled prefix, never a complete primal or product.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/differentiation/batch/results.rs" kind="blob">crates/eqiora-python/src/differentiation/batch/results.rs::PyEvaluationMapTerminalReport</ExactSourceLink>
-
 ```python
 @final
 class EvaluationMapTerminalReport:
@@ -616,9 +548,7 @@ class EvaluationMapTerminalReport:
 
 ## `EvaluationMapCancellation`
 
-Cooperative native cancellation between ordered occurrences.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/differentiation/batch.rs" kind="blob">crates/eqiora-python/src/differentiation/batch.rs::PyEvaluationMapCancellation</ExactSourceLink>
+Cooperative cancellation between ordered occurrences.
 
 ```python
 @final
@@ -633,9 +563,7 @@ class EvaluationMapCancellation:
 
 ## `EvaluationMapJvp`
 
-Native mapped JVPs in explicit point/seed order, preserving member evidence.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/differentiation/batch/products.rs" kind="blob">crates/eqiora-python/src/differentiation/batch/products.rs::PyEvaluationMapJvp</ExactSourceLink>
+Mapped JVPs in explicit point/seed order, with per-member reports.
 
 ```python
 @final
@@ -659,9 +587,7 @@ class EvaluationMapJvp:
 
 ## `EvaluationMapVjp`
 
-Native mapped VJPs; globally shared cotangents sum over point axes.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/differentiation/batch/products.rs" kind="blob">crates/eqiora-python/src/differentiation/batch/products.rs::PyEvaluationMapVjp</ExactSourceLink>
+Mapped VJPs; globally shared cotangents sum over point axes.
 
 ```python
 @final
@@ -692,8 +618,6 @@ class EvaluationMapVjp:
 ## `DifferentiationEvidence`
 
 Typed in-memory provenance for one differentiation occurrence.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/differentiation.rs" kind="blob">crates/eqiora-python/src/differentiation.rs::PyDifferentiationEvidence</ExactSourceLink>
 
 ```python
 @final
@@ -730,8 +654,6 @@ class DifferentiationEvidence:
 
 Primal, JVP, or VJP occurrence kind.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/differentiation.rs" kind="blob">crates/eqiora-python/src/differentiation.rs::PyDifferentiationMode</ExactSourceLink>
-
 ```python
 @final
 class DifferentiationMode:
@@ -748,8 +670,6 @@ class DifferentiationMode:
 
 SI base-dimension exponents in M, L, T, I, Θ, N, J order.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling.rs" kind="blob">crates/eqiora-python/src/modeling.rs::PyDimension</ExactSourceLink>
-
 ```python
 @final
 class Dimension:
@@ -765,8 +685,6 @@ class Dimension:
 ## `ValueType`
 
 Exact scalar domain, dimension, channel axes and spatial frame.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/value_type.rs" kind="blob">crates/eqiora-python/src/modeling/value_type.rs::PyValueType</ExactSourceLink>
 
 ```python
 @final
@@ -813,8 +731,6 @@ class ValueType:
 
 An exact closed enum declaration; replay may have no retained lexical name.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/enumeration.rs" kind="blob">crates/eqiora-python/src/modeling/enumeration.rs::PyEnum</ExactSourceLink>
-
 ```python
 @final
 class Enum:
@@ -836,8 +752,6 @@ class Enum:
 
 An immutable nominal enum member without numeric or Boolean coercion.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/enumeration.rs" kind="blob">crates/eqiora-python/src/modeling/enumeration.rs::PyEnumValue</ExactSourceLink>
-
 ```python
 @final
 class EnumValue:
@@ -853,8 +767,6 @@ class EnumValue:
 ## `FiniteSpace`
 
 Exact nominal ordered basis, distinct from a numerical discretization space.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/nominal.rs" kind="blob">crates/eqiora-python/src/modeling/nominal.rs::PyFiniteSpace</ExactSourceLink>
 
 ```python
 @final
@@ -874,8 +786,6 @@ class FiniteSpace:
 
 An exact nominal zero-based set with a positive constant integer extent.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling/nominal.rs" kind="blob">crates/eqiora-python/src/modeling/nominal.rs::PyIndexSet</ExactSourceLink>
-
 ```python
 @final
 class IndexSet:
@@ -892,9 +802,7 @@ class IndexSet:
 
 ## `DomainRef`
 
-Exact canonical Domain selected from one immutable Model.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/model.rs" kind="blob">crates/eqiora-python/src/model.rs::PyModelDomainRef</ExactSourceLink>
+Domain selected from an immutable Model.
 
 ```python
 @final
@@ -912,8 +820,6 @@ class DomainRef:
 ## `Domain`
 
 Immutable draft-local Cartesian volume or oriented boundary.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling.rs" kind="blob">crates/eqiora-python/src/modeling.rs::PyDomain</ExactSourceLink>
 
 ```python
 @final
@@ -941,8 +847,6 @@ class Domain:
 
 Base failure for an Eqiora operation rejected with diagnostics.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/error.rs" kind="blob">crates/eqiora-python/src/error.rs::EqioraError</ExactSourceLink>
-
 ```python
 class EqioraError(Exception):
     category: str
@@ -953,9 +857,7 @@ class EqioraError(Exception):
 
 ## `ExecutionError`
 
-Failure of an admitted execution.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/error.rs" kind="blob">crates/eqiora-python/src/error.rs::ExecutionError</ExactSourceLink>
+Failure during execution.
 
 ```python
 class ExecutionError(EqioraError):
@@ -967,8 +869,6 @@ class ExecutionError(EqioraError):
 ## `Expression`
 
 Immutable symbolic expression whose shape and support Rust infers.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling.rs" kind="blob">crates/eqiora-python/src/modeling.rs::PyExpression</ExactSourceLink>
 
 ```python
 @final
@@ -991,8 +891,6 @@ class Expression:
 ## `Field`
 
 Immutable typed field declaration.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling.rs" kind="blob">crates/eqiora-python/src/modeling.rs::PyField</ExactSourceLink>
 
 ```python
 @final
@@ -1027,8 +925,6 @@ class Field:
 
 Immutable coefficients for one exact Model Field on one exact Mesh.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/result/field_output.rs" kind="blob">crates/eqiora-python/src/result/field_output.rs::PyFieldOutput</ExactSourceLink>
-
 ```python
 @final
 class FieldOutput:
@@ -1053,9 +949,7 @@ class FieldOutput:
 
 ## `FieldRef`
 
-Exact canonical field selected from one immutable model.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/model.rs" kind="blob">crates/eqiora-python/src/model.rs::PyModelFieldRef</ExactSourceLink>
+Field selected from an immutable model.
 
 ```python
 @final
@@ -1073,8 +967,6 @@ class FieldRef:
 ## `FormulationView`
 
 Effective mathematical form selected between Model and Realization.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/capability_view.rs" kind="blob">crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationView</ExactSourceLink>
 
 ```python
 @final
@@ -1100,8 +992,6 @@ class FormulationView:
 
 Closed mathematical Formulation families accepted by exact override.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/capability_view.rs" kind="blob">crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationKind</ExactSourceLink>
-
 ```python
 @final
 class FormulationKind:
@@ -1116,9 +1006,7 @@ class FormulationKind:
 
 ## `FormulationSelectionMode`
 
-Whether resolution selected or admitted an exact Formulation.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/capability_view.rs" kind="blob">crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationSelectionMode</ExactSourceLink>
+Whether a Formulation was selected automatically or supplied explicitly.
 
 ```python
 @final
@@ -1136,8 +1024,6 @@ class FormulationSelectionMode:
 
 Immutable exact-Field-bound coherent-SI initial coefficients.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/trajectory.rs" kind="blob">crates/eqiora-python/src/trajectory.rs::PyInitialField</ExactSourceLink>
-
 ```python
 @final
 class InitialField:
@@ -1152,8 +1038,6 @@ class InitialField:
 
 Internal failure that does not expose implementation details.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/error.rs" kind="blob">crates/eqiora-python/src/error.rs::InternalError</ExactSourceLink>
-
 ```python
 class InternalError(EqioraError):
     ...
@@ -1163,9 +1047,7 @@ class InternalError(EqioraError):
 
 ## `LinearSolveSummary`
 
-Bounded projection of an independently accepted linear-solve report.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/realization.rs" kind="blob">crates/eqiora-python/src/realization.rs::PyLinearSolveSummary</ExactSourceLink>
+Linear-solve convergence report.
 
 ```python
 @final
@@ -1210,8 +1092,6 @@ class LinearSolveSummary:
 
 Whether an accepted linearization was established or reused.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/differentiation.rs" kind="blob">crates/eqiora-python/src/differentiation.rs::PyLinearizationState</ExactSourceLink>
-
 ```python
 @final
 class LinearizationState:
@@ -1226,8 +1106,6 @@ class LinearizationState:
 ## `MathReference`
 
 Exact semantic targets shared by every mathematical presentation profile.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/model/rendering.rs" kind="blob">crates/eqiora-python/src/model/rendering.rs::PyMathReference</ExactSourceLink>
 
 ```python
 @final
@@ -1251,8 +1129,6 @@ Immutable equation or type presentation with accessible text and exact reference
 
 If `used_fallback` is true, `text` is plain text rather than rich markup.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/model/rendering.rs" kind="blob">crates/eqiora-python/src/model/rendering.rs::PyMathRendering</ExactSourceLink>
-
 ```python
 @final
 class MathRendering:
@@ -1275,9 +1151,7 @@ class MathRendering:
 
 ## `Model`
 
-Immutable canonical model artifact, admitted when semantically closed.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/model.rs" kind="blob">crates/eqiora-python/src/model.rs::PyModel</ExactSourceLink>
+Immutable model artifact with all semantic references resolved.
 
 ```python
 @final
@@ -1330,8 +1204,6 @@ class Model:
 
 Identity fields for one package in a conformance report.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.py" kind="blob">bindings/python/python/eqiora/__init__.py::check_package_conformance</ExactSourceLink>
-
 ```python
 class PackageConformancePackage(NamedTuple):
     name: str
@@ -1345,8 +1217,6 @@ class PackageConformancePackage(NamedTuple):
 ## `PackageConformanceReport`
 
 Structural-conformance report for one locked package closure.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.py" kind="blob">bindings/python/python/eqiora/__init__.py::check_package_conformance</ExactSourceLink>
 
 ```python
 class PackageConformanceReport(NamedTuple):
@@ -1377,8 +1247,6 @@ Immutable complete typed parameter declaration.
 Nonzero spatial values require an explicit frame Domain registered in the
 native Model. This is a uniform coefficient, not a distributed Field.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling.rs" kind="blob">crates/eqiora-python/src/modeling.rs::PyParameter</ExactSourceLink>
-
 ```python
 @final
 class Parameter:
@@ -1408,9 +1276,7 @@ class Parameter:
 
 ## `ParameterRef`
 
-Exact canonical parameter selected from one immutable model.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/model.rs" kind="blob">crates/eqiora-python/src/model.rs::PyModelParameterRef</ExactSourceLink>
+Parameter selected from an immutable model.
 
 ```python
 @final
@@ -1433,8 +1299,6 @@ class ParameterRef:
 
 Immutable nominal scalar physical domain with explicitly named quantities.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling.rs" kind="blob">crates/eqiora-python/src/modeling.rs::PyPhysicalDomain</ExactSourceLink>
-
 ```python
 @final
 class PhysicalDomain:
@@ -1455,9 +1319,7 @@ class PhysicalDomain:
 
 ## `PropertyBinding`
 
-Exact package-owned typed constant property binding inspection.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/model.rs" kind="blob">crates/eqiora-python/src/model.rs::PyPropertyBinding</ExactSourceLink>
+Inspect a typed constant property binding in a package.
 
 ```python
 @final
@@ -1490,8 +1352,6 @@ class PropertyBinding:
 
 Immutable label for one exact occurrence in a full Model rendering scope.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/model/notation.rs" kind="blob">crates/eqiora-python/src/model/notation.rs::PyQuantityLabel</ExactSourceLink>
-
 ```python
 @final
 class QuantityLabel:
@@ -1522,13 +1382,11 @@ class QuantityLabel:
 
 ## `Plan`
 
-Immutable common numerical Plan owning an exact Model and applicable resources.
+Immutable numerical Plan containing a Model and its resources.
 
-The Model alone determines the admitted physics. `capability` exposes
+The Model determines the physics. `capability` exposes
 capability-specific field roles and policies through one closed typed view;
 `fields` remains the capability-neutral exact FieldRef inventory.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan.rs" kind="blob">crates/eqiora-python/src/common_plan.rs::PyPlan</ExactSourceLink>
 
 ```python
 @final
@@ -1590,8 +1448,6 @@ class Plan:
 
 Author-declared evolution role independent of spatial support.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling.rs" kind="blob">crates/eqiora-python/src/modeling.rs::PyFieldRole</ExactSourceLink>
-
 ```python
 @final
 class FieldRole:
@@ -1607,8 +1463,6 @@ class FieldRole:
 
 Simultaneous fresh-initialization equations with explicit sides.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling.rs" kind="blob">crates/eqiora-python/src/modeling.rs::PyInitial</ExactSourceLink>
-
 ```python
 @final
 class Initial:
@@ -1622,8 +1476,6 @@ class Initial:
 ## `Relation`
 
 Immutable continuous equations with explicit typed sides.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling.rs" kind="blob">crates/eqiora-python/src/modeling.rs::PyRelation</ExactSourceLink>
 
 ```python
 @final
@@ -1642,8 +1494,6 @@ class Relation:
 ## `Result`
 
 Accepted execution occurrence with typed output relationships.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/result.rs" kind="blob">crates/eqiora-python/src/result.rs::PyRunResult</ExactSourceLink>
 
 ```python
 @final
@@ -1685,9 +1535,7 @@ class Result:
 
 ## `Revision`
 
-Exact identity of one immutable canonical model artifact.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/model.rs" kind="blob">crates/eqiora-python/src/model.rs::PyRevision</ExactSourceLink>
+Identity of an immutable model artifact.
 
 ```python
 @final
@@ -1707,8 +1555,6 @@ class Revision:
 ## `ResolvedExecution`
 
 Exact scalar, layout, schedule, provider, and placement selected for execution.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/resolved_execution.rs" kind="blob">crates/eqiora-python/src/common_plan/resolved_execution.rs::PyResolvedExecution</ExactSourceLink>
 
 ```python
 @final
@@ -1736,8 +1582,6 @@ class ResolvedExecution:
 
 Scalar-valued Fields resolved from one Model.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/capability_view.rs" kind="blob">crates/eqiora-python/src/common_plan/capability_view.rs::PyScalarPlanView</ExactSourceLink>
-
 ```python
 @final
 class ScalarPlanView:
@@ -1755,9 +1599,7 @@ class ScalarPlanView:
 
 ## `Run`
 
-Awaitable owner of one native execution occurrence.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.py" kind="blob">bindings/python/python/eqiora/__init__.py::Run</ExactSourceLink>
+Awaitable handle for one execution occurrence.
 
 ```python
 class Run(Generic[_RunResultT]):
@@ -1795,9 +1637,7 @@ class Run(Generic[_RunResultT]):
 
 ## `RunStatus`
 
-Monotone public state of one native execution occurrence.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/execution/evidence.rs" kind="blob">crates/eqiora-python/src/execution/evidence.rs::PyRunStatus</ExactSourceLink>
+Monotone state of one execution occurrence.
 
 ```python
 @final
@@ -1819,8 +1659,6 @@ class RunStatus:
 ## `Series`
 
 Read-only field-local sampled series in SI units.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/result.rs" kind="blob">crates/eqiora-python/src/result.rs::PySeries</ExactSourceLink>
 
 ```python
 @final
@@ -1845,9 +1683,7 @@ class Series:
 
 ## `State`
 
-Accepted physical state owned by one exact common Plan.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/trajectory.rs" kind="blob">crates/eqiora-python/src/trajectory.rs::PyState</ExactSourceLink>
+Physical state associated with one Plan.
 
 ```python
 @final
@@ -1900,8 +1736,6 @@ class State:
 
 Exact accepted common transient boundary where cancellation terminated.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/execution/evidence.rs" kind="blob">crates/eqiora-python/src/execution/evidence.rs::PyCommonTransientRunCancellation</ExactSourceLink>
-
 ```python
 @final
 class TransientRunCancellation:
@@ -1918,8 +1752,6 @@ class TransientRunCancellation:
 ## `TransientRunProgress`
 
 Last fully accepted common transient step boundary.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/execution/evidence.rs" kind="blob">crates/eqiora-python/src/execution/evidence.rs::PyCommonTransientRunProgress</ExactSourceLink>
 
 ```python
 @final
@@ -1938,8 +1770,6 @@ class TransientRunProgress:
 
 Alpha-normalized comparison evidence, not exact model identity.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/model.rs" kind="blob">crates/eqiora-python/src/model.rs::PyStructuralSemanticFingerprint</ExactSourceLink>
-
 ```python
 @final
 class StructuralSemanticFingerprint:
@@ -1957,8 +1787,6 @@ class StructuralSemanticFingerprint:
 
 Failure caused by a model or request violating a typed contract.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/error.rs" kind="blob">crates/eqiora-python/src/error.rs::ValidationError</ExactSourceLink>
-
 ```python
 class ValidationError(EqioraError):
     ...
@@ -1969,8 +1797,6 @@ class ValidationError(EqioraError):
 ## `ValueEdit`
 
 Immutable exact-base value edit prepared by the Rust facade.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/model.rs" kind="blob">crates/eqiora-python/src/model.rs::PyValueEdit</ExactSourceLink>
 
 ```python
 @final
@@ -1991,19 +1817,15 @@ class ValueEdit:
 
 ## `View`
 
-**Canonical re-export.** This spelling resolves to [`eqiora.viewer.View`](/reference/python/viewer/#api-eqiora-viewer-View).
+See [`eqiora.viewer.View`](/reference/python/viewer/#api-eqiora-viewer-View).
 
 Disposable typed viewer scene; its transport is private and unstable.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/viewer.py" kind="blob">bindings/python/python/eqiora/viewer.py::View</ExactSourceLink>
 
 <a id="api-eqiora-across"></a>
 
 ## `across`
 
 Return the across variable of a scalar conserving port.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling.rs" kind="blob">crates/eqiora-python/src/modeling.rs::across</ExactSourceLink>
 
 ```python
 def across(port: ConservingPort) -> Expression: ...
@@ -2015,8 +1837,6 @@ def across(port: ConservingPort) -> Expression: ...
 
 Check one exact locked package closure by deterministic replay.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/package.rs" kind="blob">crates/eqiora-python/src/package.rs::_check_package_conformance</ExactSourceLink>
-
 ```python
 def check_package_conformance(store_root: str | os.PathLike[str], resolution_bytes: bytes, *, entry_model: str, profile: str) -> PackageConformanceReport: ...
 ```
@@ -2027,8 +1847,6 @@ def check_package_conformance(store_root: str | os.PathLike[str], resolution_byt
 
 Compile one source and its optional exact Geometry closure.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.py" kind="blob">bindings/python/python/eqiora/__init__.py::compile</ExactSourceLink>
-
 ```python
 def compile(*, path: str | PathLike[str] | None=None, source: str | Module | None=None, filename: str | None=None, geometry: geometry.Geometry | None=None, bindings: dict[str, _TypedValue | ClockDomain | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection]] | None=None, entry: str | None=None) -> Model: ...
 ```
@@ -2037,9 +1855,7 @@ def compile(*, path: str | PathLike[str] | None=None, source: str | Module | Non
 
 ## `compile_package`
 
-Compile one locked Model or one Component against caller-owned Geometry.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/package.rs" kind="blob">crates/eqiora-python/src/package.rs::compile_package</ExactSourceLink>
+Compile one locked Model or one Component using the supplied Geometry.
 
 ```python
 def compile_package(store_root: str | PathLike[str], resolution: bytes, *, entry: str, geometry: geometry.Geometry | None=None, bindings: dict[str, _TypedValue | ClockDomain | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection]] | None=None) -> Model: ...
@@ -2051,8 +1867,6 @@ def compile_package(store_root: str | PathLike[str], resolution: bytes, *, entry
 
 Build an anonymous conserving connection declaration.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling.rs" kind="blob">crates/eqiora-python/src/modeling.rs::connect</ExactSourceLink>
-
 ```python
 def connect(*ports: ConservingPort) -> Connection: ...
 ```
@@ -2062,8 +1876,6 @@ def connect(*ports: ConservingPort) -> Connection: ...
 ## `derivative`
 
 Return the time derivative of a field.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling.rs" kind="blob">crates/eqiora-python/src/modeling.rs::derivative</ExactSourceLink>
 
 ```python
 def derivative(field: Field) -> Expression: ...
@@ -2075,8 +1887,6 @@ def derivative(field: Field) -> Expression: ...
 
 Return the spatial divergence of a symbolic expression.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling.rs" kind="blob">crates/eqiora-python/src/modeling.rs::div</ExactSourceLink>
-
 ```python
 def div(value: _ExpressionLike) -> Expression: ...
 ```
@@ -2087,8 +1897,6 @@ def div(value: _ExpressionLike) -> Expression: ...
 
 Return the spatial gradient of a symbolic expression.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling.rs" kind="blob">crates/eqiora-python/src/modeling.rs::grad</ExactSourceLink>
-
 ```python
 def grad(value: _ExpressionLike) -> Expression: ...
 ```
@@ -2097,21 +1905,17 @@ def grad(value: _ExpressionLike) -> Expression: ...
 
 ## `lang`
 
-**Module export.** This spelling exposes the documented public module [`eqiora.lang`](/reference/python/lang/).
+See module [`eqiora.lang`](/reference/python/lang/).
 
-Bounded Python authoring through the compiler-owned Eqiora Module graph.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.py" kind="blob">bindings/python/python/eqiora/lang/__init__.py</ExactSourceLink>
+Author Eqiora Modules, Components, expressions, and equations in Python.
 
 <a id="api-eqiora-units"></a>
 
 ## `units`
 
-**Module export.** This spelling exposes the documented public module [`eqiora.units`](/reference/python/units/).
+See module [`eqiora.units`](/reference/python/units/).
 
-Compiler-owned unit catalog for deterministic Source quantity authoring.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/units.py" kind="blob">bindings/python/python/eqiora/units.py</ExactSourceLink>
+Unit catalog for authoring Source quantities.
 
 <a id="api-eqiora-resolve"></a>
 
@@ -2124,8 +1928,6 @@ resolved Plan retains the exact caller Model and every applicable caller
 resource. Spatial paths retain their exact Mesh without regeneration;
 structural no-Mesh ODE paths reject spatial resources.
 
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.py" kind="blob">bindings/python/python/eqiora/__init__.py::resolve</ExactSourceLink>
-
 ```python
 def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None=None, formulation: FormulationKind | None=None, solve: solve.Linear | solve.Newton | None=None, scaling: fluid.IncompressibleScaling | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | None=None) -> Plan: ...
 ```
@@ -2135,8 +1937,6 @@ def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | f
 ## `ProjectUpdate`
 
 A validated selection that can be inspected and committed once.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/package/update.rs" kind="blob">crates/eqiora-python/src/package/update.rs::PyProjectUpdate</ExactSourceLink>
 
 ```python
 class ProjectUpdate:
@@ -2156,8 +1956,6 @@ class ProjectUpdate:
 
 Preview the validated selection without installing or publishing it.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/package/update.rs" kind="blob">crates/eqiora-python/src/package/update.rs::preview_local_project</ExactSourceLink>
-
 ```python
 def preview_local_project(project_root: str | PathLike[str]) -> ProjectUpdate: ...
 ```
@@ -2167,8 +1965,6 @@ def preview_local_project(project_root: str | PathLike[str]) -> ProjectUpdate: .
 ## `resolve_local_project`
 
 Resolve a local package project, write `eqiora.lock`, and populate a store.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/package.rs" kind="blob">crates/eqiora-python/src/package.rs::resolve_local_project</ExactSourceLink>
 
 ```python
 def resolve_local_project(project_root: str | PathLike[str], store_root: str | PathLike[str]) -> bytes: ...
@@ -2180,8 +1976,6 @@ def resolve_local_project(project_root: str | PathLike[str], store_root: str | P
 
 Add or replace a dependency request and publish its exact selection.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/package.rs" kind="blob">crates/eqiora-python/src/package.rs::add_local_dependency</ExactSourceLink>
-
 ```python
 def add_local_dependency(project_root: str | PathLike[str], store_root: str | PathLike[str], name: str, *, version: str, path: str) -> bytes: ...
 ```
@@ -2192,8 +1986,6 @@ def add_local_dependency(project_root: str | PathLike[str], store_root: str | Pa
 
 Remove a direct dependency and publish the validated manifest and lock.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/package.rs" kind="blob">crates/eqiora-python/src/package.rs::remove_local_dependency</ExactSourceLink>
-
 ```python
 def remove_local_dependency(project_root: str | PathLike[str], store_root: str | PathLike[str], name: str) -> bytes: ...
 ```
@@ -2202,9 +1994,7 @@ def remove_local_dependency(project_root: str | PathLike[str], store_root: str |
 
 ## `run`
 
-Execute one steady or explicitly bounded transient common Plan synchronously.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.py" kind="blob">bindings/python/python/eqiora/__init__.py::run</ExactSourceLink>
+Execute a steady Plan or a transient Plan with a specified time interval synchronously.
 
 ```python
 def run(plan: Plan, *, state: State | None=None, until_s: float | None=None, output_times_s: tuple[float, ...] | None=None, steps: int | None=None, output_steps: tuple[int, ...] | None=None) -> Result: ...
@@ -2214,9 +2004,7 @@ def run(plan: Plan, *, state: State | None=None, until_s: float | None=None, out
 
 ## `submit`
 
-Submit one steady or explicitly bounded transient common Plan.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/__init__.py" kind="blob">bindings/python/python/eqiora/__init__.py::submit</ExactSourceLink>
+Submit a steady Plan or a transient Plan with a specified time interval.
 
 ```python
 def submit(plan: Plan, *, state: State | None=None, until_s: float | None=None, output_times_s: tuple[float, ...] | None=None, steps: int | None=None, output_steps: tuple[int, ...] | None=None) -> Run[Result]: ...
@@ -2228,8 +2016,6 @@ def submit(plan: Plan, *, state: State | None=None, until_s: float | None=None, 
 
 Return the through variable of a scalar conserving port.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling.rs" kind="blob">crates/eqiora-python/src/modeling.rs::through</ExactSourceLink>
-
 ```python
 def through(port: ConservingPort) -> Expression: ...
 ```
@@ -2240,8 +2026,6 @@ def through(port: ConservingPort) -> Expression: ...
 
 Return the boundary trace of a symbolic expression.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling.rs" kind="blob">crates/eqiora-python/src/modeling.rs::trace</ExactSourceLink>
-
 ```python
 def trace(value: _ExpressionLike) -> Expression: ...
 ```
@@ -2250,129 +2034,103 @@ def trace(value: _ExpressionLike) -> Expression: ...
 
 ## `diff`
 
-**Module export.** This spelling exposes the documented public module [`eqiora.diff`](/reference/python/diff/).
+See module [`eqiora.diff`](/reference/python/diff/).
 
-Accepted implicit differentiation over exact Eqiora programs.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/diff.py" kind="blob">bindings/python/python/eqiora/diff.py</ExactSourceLink>
+Implicit differentiation of Eqiora programs.
 
 <a id="api-eqiora-fem"></a>
 
 ## `fem`
 
-**Module export.** This spelling exposes the documented public module [`eqiora.fem`](/reference/python/fem/).
+See module [`eqiora.fem`](/reference/python/fem/).
 
-Closed finite-element spatial policies.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/policy.rs" kind="blob">crates/eqiora-python/src/common_plan/policy.rs::PyQ1</ExactSourceLink>
+Finite-element discretization policies.
 
 <a id="api-eqiora-fluid"></a>
 
 ## `fluid`
 
-**Module export.** This spelling exposes the documented public module [`eqiora.fluid`](/reference/python/fluid/).
+See module [`eqiora.fluid`](/reference/python/fluid/).
 
-Narrow fluid applications composed by Eqiora's shared native layer.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/fluid.py" kind="blob">bindings/python/python/eqiora/fluid.py</ExactSourceLink>
+Configure incompressible flow and inspect its results.
 
 <a id="api-eqiora-formulation"></a>
 
 ## `formulation`
 
-**Module export.** This spelling exposes the documented public module [`eqiora.formulation`](/reference/python/formulation/).
+See module [`eqiora.formulation`](/reference/python/formulation/).
 
-Mathematical Formulation requests and resolved-selection inspection.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/formulation.py" kind="blob">bindings/python/python/eqiora/formulation.py</ExactSourceLink>
+Choose a mathematical formulation and inspect the resolved choice.
 
 <a id="api-eqiora-fsi"></a>
 
 ## `fsi`
 
-**Module export.** This spelling exposes the documented public module [`eqiora.fsi`](/reference/python/fsi/).
+See module [`eqiora.fsi`](/reference/python/fsi/).
 
-Observation-only evidence for common FSI Results.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/fsi.py" kind="blob">bindings/python/python/eqiora/fsi.py</ExactSourceLink>
+Inspect fluid–structure interaction results.
 
 <a id="api-eqiora-fvm"></a>
 
 ## `fvm`
 
-**Module export.** This spelling exposes the documented public module [`eqiora.fvm`](/reference/python/fvm/).
+See module [`eqiora.fvm`](/reference/python/fvm/).
 
-Closed finite-volume spatial policies.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/policy.rs" kind="blob">crates/eqiora-python/src/common_plan/policy.rs::PyCellCenteredTpfa</ExactSourceLink>
+Finite-volume discretization policies.
 
 <a id="api-eqiora-geometry"></a>
 
 ## `geometry`
 
-**Module export.** This spelling exposes the documented public module [`eqiora.geometry`](/reference/python/geometry/).
+See module [`eqiora.geometry`](/reference/python/geometry/).
 
-Bounded exact geometry values owned by the native implementation.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/geometry.py" kind="blob">bindings/python/python/eqiora/geometry.py</ExactSourceLink>
+Construct exact geometry values and select regions and boundaries.
 
 <a id="api-eqiora-meshing"></a>
 
 ## `meshing`
 
-**Module export.** This spelling exposes the documented public module [`eqiora.meshing`](/reference/python/meshing/).
+See module [`eqiora.meshing`](/reference/python/meshing/).
 
-Immutable geometry-to-mesh planning owned by the native implementation.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/meshing.py" kind="blob">bindings/python/python/eqiora/meshing.py</ExactSourceLink>
+Plan and generate meshes from geometry.
 
 <a id="api-eqiora-solid"></a>
 
 ## `solid`
 
-**Module export.** This spelling exposes the documented public module [`eqiora.solid`](/reference/python/solid/).
+See module [`eqiora.solid`](/reference/python/solid/).
 
-Typed structural intents, plans, and scientific evidence.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/solid.py" kind="blob">bindings/python/python/eqiora/solid.py</ExactSourceLink>
+Configure linear elasticity and inspect structural results.
 
 <a id="api-eqiora-solve"></a>
 
 ## `solve`
 
-**Module export.** This spelling exposes the documented public module [`eqiora.solve`](/reference/python/solve/).
+See module [`eqiora.solve`](/reference/python/solve/).
 
-Closed algebraic solve policies.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/policy.rs" kind="blob">crates/eqiora-python/src/common_plan/policy.rs::PyLinear</ExactSourceLink>
+Linear and nonlinear solver policies.
 
 <a id="api-eqiora-time"></a>
 
 ## `time`
 
-**Module export.** This spelling exposes the documented public module [`eqiora.time`](/reference/python/time/).
+See module [`eqiora.time`](/reference/python/time/).
 
-Closed temporal policies projected by the native Eqiora resolver.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/common_plan/policy.rs" kind="blob">crates/eqiora-python/src/common_plan/policy.rs::PyBackwardEuler</ExactSourceLink>
+Time-integration policies for numerical plans.
 
 <a id="api-eqiora-trajectory"></a>
 
 ## `trajectory`
 
-**Module export.** This spelling exposes the documented public module [`eqiora.trajectory`](/reference/python/trajectory/).
+See module [`eqiora.trajectory`](/reference/python/trajectory/).
 
-Read-only projections of accepted Eqiora spatial trajectories.
-
-Authority: <ExactSourceLink path="bindings/python/python/eqiora/trajectory.py" kind="blob">bindings/python/python/eqiora/trajectory.py</ExactSourceLink>
+Read spatial trajectories and derived fields.
 
 <a id="api-eqiora-add_bundled_dependency"></a>
 
 ## `add_bundled_dependency`
 
 Add one exact bundled package through the shared manifest/lock transaction.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/package.rs" kind="blob">crates/eqiora-python/src/package.rs::add_bundled_dependency</ExactSourceLink>
 
 ```python
 def add_bundled_dependency(project_root: str | PathLike[str], store_root: str | PathLike[str], name: str, *, version: str) -> bytes: ...
@@ -2382,9 +2140,7 @@ def add_bundled_dependency(project_root: str | PathLike[str], store_root: str | 
 
 ## `add_git_dependency`
 
-Add an immutable Git package through the shared native project transaction.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/package.rs" kind="blob">crates/eqiora-python/src/package.rs::add_git_dependency</ExactSourceLink>
+Add an immutable Git package to the project.
 
 ```python
 def add_git_dependency(project_root: str | PathLike[str], store_root: str | PathLike[str], name: str, *, version: str, repository: str, revision: str) -> bytes: ...
@@ -2396,8 +2152,6 @@ def add_git_dependency(project_root: str | PathLike[str], store_root: str | Path
 
 Materialize the accepted lock from explicit sources without updating it.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/package.rs" kind="blob">crates/eqiora-python/src/package.rs::fetch_project</ExactSourceLink>
-
 ```python
 def fetch_project(project_root: str | PathLike[str], store_root: str | PathLike[str]) -> bytes: ...
 ```
@@ -2407,8 +2161,6 @@ def fetch_project(project_root: str | PathLike[str], store_root: str | PathLike[
 ## `open_project`
 
 Validate the current root and exact closure using only the supplied offline store.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/package.rs" kind="blob">crates/eqiora-python/src/package.rs::open_project</ExactSourceLink>
 
 ```python
 def open_project(project_root: str | PathLike[str], store_root: str | PathLike[str]) -> bytes: ...
@@ -2420,8 +2172,6 @@ def open_project(project_root: str | PathLike[str], store_root: str | PathLike[s
 
 Re-derive the exact lock from current explicit sources and requests.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/package.rs" kind="blob">crates/eqiora-python/src/package.rs::update_project</ExactSourceLink>
-
 ```python
 def update_project(project_root: str | PathLike[str], store_root: str | PathLike[str]) -> bytes: ...
 ```
@@ -2431,8 +2181,6 @@ def update_project(project_root: str | PathLike[str], store_root: str | PathLike
 ## `vendor_project`
 
 Copy the validated accepted closure to an explicit offline store.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/package.rs" kind="blob">crates/eqiora-python/src/package.rs::vendor_project</ExactSourceLink>
 
 ```python
 def vendor_project(project_root: str | PathLike[str], store_root: str | PathLike[str], destination: str | PathLike[str]) -> bytes: ...

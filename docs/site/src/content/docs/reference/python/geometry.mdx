@@ -1,6 +1,6 @@
 ---
 title: "eqiora.geometry"
-description: "Public signatures and source-traced summaries for eqiora.geometry."
+description: "Functions, classes, and signatures for eqiora.geometry."
 ---
 
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
@@ -9,21 +9,15 @@ import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
 [← Python API index](/reference/python/)
 
-Bounded exact geometry values owned by the native implementation.
+Construct exact geometry values and select regions and boundaries.
 
-Module authority: <ExactSourceLink path="bindings/python/python/eqiora/geometry.py" kind="blob">bindings/python/python/eqiora/geometry.py</ExactSourceLink>
-
-Shipped stub: <ExactSourceLink path="bindings/python/python/eqiora/geometry.pyi" kind="blob">bindings/python/python/eqiora/geometry.pyi</ExactSourceLink>
-
-This module publishes **9** literal `__all__` spellings. Member entries below are exact signatures under documented owning types; they do not imply member-level behavioral prose.
+<ExactSourceLink path="bindings/python/python/eqiora/geometry.pyi" kind="blob">View source</ExactSourceLink>
 
 <a id="api-eqiora-geometry-Geometry"></a>
 
 ## `Geometry`
 
 Immutable exact geometry produced by an accepted authored graph.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/geometry.rs" kind="blob">crates/eqiora-python/src/geometry.rs::PyGeometry</ExactSourceLink>
 
 ```python
 @final
@@ -51,9 +45,7 @@ class Geometry:
 
 ## `GeometryBoundaryHandle`
 
-Direct construction-owned handle to one exact boundary.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/planar_operation.rs" kind="blob">crates/eqiora-python/src/planar_operation.rs::PyGeometryBoundaryHandle</ExactSourceLink>
+Handle to one exact boundary returned by geometry construction.
 
 ```python
 @final
@@ -67,9 +59,7 @@ class GeometryBoundaryHandle:
 
 ## `GeometryBuildReceipt`
 
-Read-only receipt from an admitted solid build.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/cad_authored.rs" kind="blob">crates/eqiora-python/src/cad_authored.rs::PyGeometryBuildReceipt</ExactSourceLink>
+Read-only result of a solid build.
 
 ```python
 @final
@@ -113,8 +103,6 @@ class GeometryBuildReceipt:
 
 Exact solid-face handle bound to one graph session and revision.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/cad_authored.rs" kind="blob">crates/eqiora-python/src/cad_authored.rs::PyGeometryFaceHandle</ExactSourceLink>
-
 ```python
 @final
 class GeometryFaceHandle:
@@ -133,8 +121,6 @@ class GeometryFaceHandle:
 ## `GeometryGraph`
 
 Common owner of exact Cartesian, planar, and solid authoring operations.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/planar_operation.rs" kind="blob">crates/eqiora-python/src/planar_operation.rs::PyGeometryGraph</ExactSourceLink>
 
 ```python
 @final
@@ -167,8 +153,6 @@ Immutable result of one exact primitive or Boolean operation.
 `(x_lower, x_upper, y_lower, y_upper)`, a circle returns its sole curve,
 and subtract returns the four outer boundaries followed by the created cut.
 
-Authority: <ExactSourceLink path="crates/eqiora-python/src/planar_operation.rs" kind="blob">crates/eqiora-python/src/planar_operation.rs::PyGeometryOperation</ExactSourceLink>
-
 ```python
 @final
 class GeometryOperation:
@@ -183,9 +167,7 @@ class GeometryOperation:
 
 ## `GeometryRegionHandle`
 
-Direct construction-owned handle to one exact region.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/planar_operation.rs" kind="blob">crates/eqiora-python/src/planar_operation.rs::PyGeometryRegionHandle</ExactSourceLink>
+Handle to one exact region returned by geometry construction.
 
 ```python
 @final
@@ -200,8 +182,6 @@ class GeometryRegionHandle:
 ## `GeometrySelection`
 
 Immutable named selection bound to one exact Geometry revision.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/geometry.rs" kind="blob">crates/eqiora-python/src/geometry.rs::PyGeometrySelection</ExactSourceLink>
 
 ```python
 @final
@@ -222,8 +202,6 @@ class GeometrySelection:
 ## `GeometrySolidOperation`
 
 Immutable solid operation owned by one `GeometryGraph`.
-
-Authority: <ExactSourceLink path="crates/eqiora-python/src/cad_authored.rs" kind="blob">crates/eqiora-python/src/cad_authored.rs::PyGeometrySolidOperation</ExactSourceLink>
 
 ```python
 @final

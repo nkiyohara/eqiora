@@ -13,18 +13,16 @@ __all__ = (
 
 PRESSURE_ALT = "Steady Stokes pressure around a cylinder, with the current mesh and pressure scale in pascals."
 PRESSURE_CAPTION = "Steady Stokes pressure on a 0.025 m target mesh."
-PUBLIC_CLAIM = "One presentation-only 2D steady incompressible Stokes exact-cylinder demonstration rendered through exact Geometry, typed Gmsh policy, and the root Result path; output counts, digests, numerical values, and pixels are not independently verified."
-WITNESS_COPY = "The current Gmsh output is presentation input, not a fixed mesh or scientific oracle."
 REFERENCE_GUIDANCE = "Look up a declaration, find a physical building block, or inspect an API signature."
 MODELING_FOUNDATION_CHAPTERS = (
-    ("algebraic-relations-networks", "Algebraic relations and networks", "Illustrative"),
-    ("boundary-interface-conditions", "Boundary and interface conditions", "Illustrative"),
-    ("conservation-laws", "Conservation laws", "Illustrative"),
-    ("constitutive-laws", "Constitutive laws", "Illustrative"),
-    ("fields-spatial-domains", "Fields and spatial domains", "Illustrative"),
-    ("models-not-simulations", "Models are not simulations", "Illustrative"),
-    ("ordinary-differential-equations", "Ordinary differential equations", "independently derived closed form"),
-    ("quantities-dimensions-units", "Quantities, dimensions, and units", "Illustrative"),
+    ("algebraic-relations-networks", "Algebraic relations and networks"),
+    ("boundary-interface-conditions", "Boundary and interface conditions"),
+    ("conservation-laws", "Conservation laws"),
+    ("constitutive-laws", "Constitutive laws"),
+    ("fields-spatial-domains", "Fields and spatial domains"),
+    ("models-not-simulations", "Models are not simulations"),
+    ("ordinary-differential-equations", "Ordinary differential equations"),
+    ("quantities-dimensions-units", "Quantities, dimensions, and units"),
 )
 STAGES = (
     ("problem-setup", "1", "Problem setup"),
@@ -32,16 +30,11 @@ STAGES = (
     ("mesh-and-boundaries", "3", "Mesh and boundaries"),
     ("submit-and-result", "4", "Submit and result"),
     ("pressure-visualization", "5", "Pressure visualization"),
-    ("verified-boundary", "6", "Verification boundary"),
-)
-NONCLAIMS = (
-    "This is a bounded 2D steady Stokes demonstration, not a transient-flow, convergence, force-coefficient, or performance benchmark.",
-    "The current geometry and meshing path do not generalize to arbitrary providers, 3D, curved, boundary-layer, or adaptive meshes.",
-    "Rendered values and pixels are illustrative output rather than validation data.",
+    ("reading-pressure", "6", "Reading the pressure plot"),
 )
 ADMITTED_SOURCE_PATH = "examples/python/exact_cylinder_stokes.py"
 ADMITTED_SOURCE_FRAGMENT = "#L45-L57"
-ADMITTED_SOURCE_LABEL = "Eqiora source form: canonical Python resolve/run path"
+ADMITTED_SOURCE_LABEL = "Eqiora source form: Python resolve/run path"
 CASE_SOURCE_PATHS = (
     ADMITTED_SOURCE_PATH,
     "examples/python/exact_cylinder_geometry.py",
@@ -314,11 +307,6 @@ def _check_case(
                 break
     if any(item in page.visible_text for item in ("$$", "\\[", "\\]", "\\(", "\\)")):
         report("Cylinder route exposes raw target math delimiters")
-    expected_claim = PUBLIC_CLAIM if enhanced else "one" + PUBLIC_CLAIM[3:]
-    if expected_claim not in page.visible_text:
-        report("Cylinder route omits the exact bounded public claim")
-    if WITNESS_COPY not in page.visible_text:
-        report("Cylinder route omits the accepted exact Gmsh CLI 4.15.2 mesh witness")
     source_tokens = (
         (
             "relation momentum on body",
@@ -394,27 +382,6 @@ def _check_case(
             )
     if len(sentinels) != 1:
         report("Cylinder route must expose one uniquely labelled source-form sentinel")
-    if enhanced:
-        for phrase in NONCLAIMS:
-            if phrase not in page.visible_text:
-                report(f"Cylinder claim boundary omits {phrase!r}")
-    else:
-        legacy = (
-            "no arbitrary geometry or provider selection",
-            "no 3D, curved, boundary-layer, or adaptive meshing",
-            "no mesh/PDE convergence",
-            "no drag/lift coefficient, scaled or mesh-independent force, or DFG value",
-            "no transient or Navier–Stokes behavior",
-            "no vortex shedding",
-            "no performance claim",
-            "no cross-platform mesh-byte identity or byte-reproducible result",
-            "no pixel validation",
-            "API presence is neither verification nor maturity",
-        )
-        folded = page.visible_text.casefold()
-        for phrase in legacy:
-            if phrase.casefold() not in folded:
-                report(f"Cylinder claim boundary omits nonclaim {phrase!r}")
     hrefs = {href for href, _ in page.anchors}
     for relative in (*CASE_SOURCE_PATHS, *CASE_EVIDENCE_PATHS):
         expected = source_base + relative
@@ -501,17 +468,7 @@ def check_starlight_content(
     evidence_value = inspections.get(artifact / "evidence/index.html")
     if capabilities_value:
         capabilities = capabilities_value[1]
-        required = (
-            "Available",
-            "Executable",
-            "Checked",
-            "Verified",
-            "Exact boundary",
-            "What this establishes",
-            "Current limits",
-            "Thermal",
-            "Checking a claim",
-        )
+        required = ("Capabilities", "Thermal")
         for phrase in required:
             if phrase not in capabilities.visible_text:
                 errors.append(f"capabilities landing omits {phrase!r}")
@@ -527,21 +484,21 @@ def check_starlight_content(
         for phrase in ("Build a model", "Extend it through space", "Put it to use"):
             if phrase not in page.visible_text:
                 errors.append(f"learning path omits {phrase!r}")
-        for chapter_slug, chapter_title, _ in MODELING_FOUNDATION_CHAPTERS:
+        for chapter_slug, chapter_title in MODELING_FOUNDATION_CHAPTERS:
             destination = (f"/learn/mathematical-modeling/{chapter_slug}/", chapter_title)
             if destination not in page.anchors:
                 errors.append(f"learning path omits published lesson {chapter_title!r}")
     for slug, heading in (
         ("modeling", "Native declarations"),
         ("execution-and-arrays", "Structured failures"),
-        ("differentiation", "Framework-neutral accepted points"),
+        ("differentiation", "Evaluate a point and its derivatives"),
     ):
         guide_value = inspections.get(artifact / f"guides/{slug}/index.html")
         if guide_value:
-            for phrase in ("Current-source Python API.", "Canonical guide source", heading):
+            for phrase in ("View guide source", heading):
                 if phrase not in guide_value[1].visible_text:
                     errors.append(f"guide {slug!r} omits maintained content {phrase!r}")
-    for slug, title, status in MODELING_FOUNDATION_CHAPTERS:
+    for slug, title in MODELING_FOUNDATION_CHAPTERS:
         value = inspections.get(
             artifact / f"learn/mathematical-modeling/{slug}/index.html"
         )
@@ -550,7 +507,6 @@ def check_starlight_content(
         page = value[1]
         for phrase in (
             title,
-            status,
             "Learning outcomes",
             "Deliberate failure",
             "Exercises",

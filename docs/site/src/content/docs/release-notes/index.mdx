@@ -1,91 +1,73 @@
 ---
 title: Release notes
-description: Curated public release history and links to the authoritative changelog and release policy.
+description: New features, fixes, and migration changes in published Eqiora releases.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
-Eqiora's public alphas establish a coherent public identity and a bounded compatibility policy; they are not a stable-1.0 promise.
+Find new features and migration changes below. The
+<ExactSourceLink path="CHANGELOG.md" kind="blob">changelog</ExactSourceLink>
+contains the detailed release history. APIs may change during the pre-1.0 series.
 
-## 0.1.0a7 — reusable numerical meaning and execution ownership
+## 0.1.0a7 — equation authoring and reusable numerical setup
 
 [Eqiora 0.1.0a7](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a7)
-retains one admitted chain from recognized conservation or continuum meaning
-through formulation, material, mesh, realization, Plan, and Run. Reusable
-scalar conservation now spans Cartesian 1D–3D, while elasticity shares
-continuum kinematics and solid primitives.
+adds natural equation authoring to Python `Source` and infers dimensions for
+model-local aliases. Scalar conservation handling extends across Cartesian
+1D–3D models, and elasticity calculations share continuum and material operations.
+Runs prepare reusable execution data and Faer factorizations once, and
+cancellation makes the last accepted State available.
 
-Immutable execution structure, accepted actions, and reusable Faer
-factorization ownership are prepared once per Run. Python `Source` gains
-natural equation authoring, model-local aliases infer dimensions, cancellation
-exposes the last accepted State, and mesh generation converges on `MeshPlan`.
-Legacy physics-specific dimension aliases and duplicate Marimo/Jupyter paths
-are removed; Colab is the sole maintained hosted-notebook path.
+Mesh generation uses `MeshPlan`. Physics-specific dimension aliases and the
+Marimo/Jupyter example paths were removed; use derived dimensions and the
+maintained Colab examples when migrating.
 
-## 0.1.0a6 — authored scalar meaning and local artifact interchange
+## 0.1.0a6 — scalar properties and local file interchange
 
 [Eqiora 0.1.0a6](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a6)
-extends the ordinary language/compiler path with exact scalar property
-bindings, affine coefficients, authored scalar primal Formulations, directional
-Stokes correspondence, canonical `math.pi`, typed model-local `let`, and
-coherent derived-dimension aliases. Equivalent additive equation orientations
-retain one canonical residual meaning.
+adds scalar property bindings, affine coefficients, authored scalar primal
+Formulations, and directional Stokes correspondence. Language additions include
+`math.pi`, typed model-local `let`, and derived-dimension aliases. Equivalent
+additive equation orientations produce the same residual.
 
-Resolved Plans, complete Results, and complete Trajectories now have atomic
-local file I/O, and Rust exposes an exact common transient `RunRequest`.
-Cylinder presentation meshes and startup media are refined without widening
-their scientific claim. Cloud transport, a universal remote job format, and
-new scientific verification remain outside this release.
+Plans, Results, and Trajectories gain atomic local file I/O. Rust adds a common
+transient `RunRequest`. The cylinder examples use finer presentation meshes
+and clearer startup animations, and clean Colab Gmsh startup was fixed.
 
-## 0.1.0a5 — inspectable formulations and canonical execution artifacts
+## 0.1.0a5 — inspect formulations and save execution artifacts
 
 [Eqiora 0.1.0a5](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a5)
-converges the ordinary product path on one inspectable
-Model/Formulation/Realization boundary and one native common Plan. Resolved
-Plans, restartable States, complete Trajectories, and complete Results have
-bounded canonical artifacts with exact upstream identity checks.
+lets users inspect the effective Formulation selected for a Plan and save
+resolved Plans, restartable States, Trajectories, and Results. Loading checks
+that the supplied upstream objects match the saved artifact.
 
-Static scalar, elasticity, and Stokes execution publishes the common Result
-directly. The optional shared semantic `eqiora.View` V0-V3 presents 2D Geometry,
-Mesh, selections, and scalar Fields through installed Python. Studio
-integration, broader field/trajectory viewing, project archives,
-cloud transport, and new scientific claims remain outside this release.
+Static scalar, elasticity, and Stokes runs return the common Result. The optional
+`eqiora.View` viewer displays 2D Geometry, Mesh, selections, and scalar Fields
+from Python. Package compilation now binds a public Component to supplied
+Geometry and Parameters; older v1 compilation records are no longer decoded.
 
-## 0.1.0a4 — common Plan lifecycle and transient cylinder startup
+## 0.1.0a4 — common run workflow and cylinder startup
 
 [Eqiora 0.1.0a4](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a4)
-converges installed Python on `.eqi → eqiora.compile() → eqiora.resolve() →
-eqiora.run()` with caller-owned Geometry, Mesh, and typed numerical policies.
-It also publishes an accessible, GitHub-backed Colab gallery for a bounded
-transient cylinder startup. The gallery is explicitly unverified and makes no
-benchmark, convergence, developed-shedding, or validated-force claim.
+uses `.eqi → eqiora.compile() → eqiora.resolve() → eqiora.run()` with Geometry,
+Mesh, and numerical settings supplied by the application. It adds a Colab
+walkthrough of the first steps of transient flow around a cylinder. The
+packaged DC-drive example also runs in Studio.
 
-The Studio packaged DC-drive example remains executable, but its current a4
-compilation, Run, and binding lineage is explicitly unverified. The registered
-a3 case remains historical attribution rather than being silently promoted.
-
-## 0.1.0a3 — Gmsh-backed automatic meshing
+## 0.1.0a3 — Gmsh meshing
 
 [Eqiora 0.1.0a3](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a3)
-switches the bounded exact-cylinder Python workflow to Gmsh 4.15.2 and updates
-its Result and Gallery pressure image. Exact supported boundaries remain indexed
-by the capability matrix and case evidence.
+uses Gmsh 4.15.2 for the exact-cylinder Python workflow and updates its pressure
+output and Gallery image.
 
 ## 0.1.0a2 — second public alpha
 
 [Eqiora 0.1.0a2](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a2)
-is published with the current Python, CLI, MCP, Gallery, and evidence surfaces.
-Their exact boundaries remain indexed by the capability matrix and case evidence.
+expands the published Python, CLI, MCP, and Gallery interfaces. See the
+[capabilities](/capabilities/) for the available problem classes and environments.
 
 ## 0.1.0a1 — first public alpha
 
-The <ExactSourceLink path="CHANGELOG.md" kind="blob">repository changelog</ExactSourceLink> is the single maintained record of notable changes. It distinguishes additions, changes, and compatibility-relevant removals.
-
-Python packaging and candidate validation follow the <ExactSourceLink path="docs/development/python-release-policy.md" kind="blob">Python release policy</ExactSourceLink>. The [published release notes](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a1) bind the exact source, artifact manifest, support matrix, and limitations.
-
-<Aside type="note" title="Historical release text">
-  Version strings on this page describe released history. The current source identity is derived during the site build; this page does not author a release or a version bump.
-</Aside>
-
-For exact support at any revision, use the [capability matrix](/capabilities/) and [verification guide](/evidence/).
+[Eqiora 0.1.0a1](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a1)
+publishes the first Python package and its installation instructions. Each
+linked release retains its original downloads and detailed release notes.
