@@ -1444,7 +1444,7 @@ class PhysicalDomain:
 
 ### `eqiora.PropertyBinding`
 
-Inspect a typed constant property binding in a package.
+Inspect an exact constant, analytic or table release bound to a Model occurrence.
 
 ```python
 @final
