@@ -279,7 +279,11 @@ removal = "Fold the three mapped-product types only when an existing owner prese
 
 [[public_surface]]
 crate = "eqiora-artifact"
-ceiling = 141
+ceiling = 142
+# Analytic and exact table property integration:
+# decode_real_table authenticates resolved-array bytes, digest and bounded layout before common table
+# admission; Model replay and native callers share this artifact owner. Withdraw it if the existing
+# resolved-array decoder admits the complete table contract without a second decoder.
 reason = """
 The current Model and ModelTransaction envelopes own the single admitted wire
 epoch; validated content, canonical bytes, and digest derivation remain below
@@ -335,7 +339,12 @@ ceiling = 6
 
 [[public_surface]]
 crate = "eqiora-compiler"
-ceiling = 53
+ceiling = 54
+# Analytic and exact table property integration:
+# PropertyContractDescriptor carries admitted complete result/input ValueTypes, ordered names,
+# derivative profile and branch across the Python explicit-import boundary. AST spelling cannot
+# substitute for resolved dimensions or nominal identity. Withdraw it only when an existing admitted
+# declaration descriptor preserves these exact fields.
 reason = "#879 adds ModelNotation and ResolvedNotation for the one read-only full-model declaration-label projection, plus QuantityIdentity and QuantityRole for exact occurrence/role/family lookup including declarations eliminated from the physical graph. Native and Python consumers reuse existing elaboration identities and provenance through this owner; kernel SymbolRef cannot identify eliminated exposures or constant-substituted declarations."
 removal = "fold label key and role types only when an existing exact occurrence owner preserves role, family and full-model scope for retained and eliminated declarations; withdraw the catalog if declaration-label inspection is removed, and lower the measured count rather than retaining a second resolver"
 
@@ -430,7 +439,12 @@ ceiling = 45
 
 [[public_surface]]
 crate = "eqiora-lang"
-ceiling = 96
+ceiling = 98
+# Analytic and exact table property integration:
+# PropertySourceSyntax and PropertyTableSyntax retain the closed analytic/table alternatives and exact
+# asset, axis, dimensions and validity syntax for parser, native factory, formatter and compiler
+# consumers. Withdraw these two names only if an existing typed AST owner carries the same
+# alternatives and source ranges.
 # #879 adds NotationLabel/NotationProfile for checked generated suffix composition
 # and shared LaTeX/MathML/Unicode/plain/speech labels. Source Notation keeps
 # its admission bounds; native and Python callers use this one projection owner.
@@ -484,7 +498,15 @@ ceiling = 8
 
 [[public_surface]]
 crate = "eqiora-schema"
-ceiling = 98
+ceiling = 107
+# Analytic and exact table property integration:
+# PropertyDerivatives, PropertyMeaning and PropertyRelease retain the exact occurrence contract shared
+# by compiler, SEM, Model replay and fingerprinting. AcceptedRealTable, RealTableProfile and
+# ResolvedF64Array move immutable verified array/calculus meaning below the artifact layer.
+# MAX_TABLE_POINTS, TableError and exact_binary64 give compiler validity admission and artifact
+# resource checks the same bounded exact arithmetic owner; the table compiler itself is crate-private.
+# Withdraw these names only when existing shared owners preserve complete property identity, exact
+# table policy and arithmetic/budget rejection without parallel representations.
 # RFC 0091: ObservableDef, ObservableReduction and ObservableMeasure own typed declaration, execution or
 # exact reduction contracts shared by compiler/native/Python/replay consumers.
 # Withdraw these names only when accepted existing owners preserve exact identity,

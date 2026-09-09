@@ -94,7 +94,7 @@ pub fn exact_binary64(value: f64) -> Result<ExactRational, TableError> {
 ///
 /// # Errors
 /// Rejects malformed, unordered or excessive data and exact arithmetic overflow.
-pub fn linear_table(
+pub(crate) fn linear_table(
     axis: &[ExactRational],
     values: &[ExactRational],
     axis_dimension: DimExponents,

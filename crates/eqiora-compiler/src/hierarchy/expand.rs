@@ -282,48 +282,6 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         Ok(Some(name))
     }
 
-    fn record_physical_relation_owners(
-        &mut self,
-        file: &str,
-        range: eqiora_lang::TextRange,
-        relation: FullElaborationIdentity,
-        equations: &[LoweringEquation],
-    ) -> Result<(), Diagnostic> {
-        let mut names = BTreeSet::new();
-        if equations
-            .iter()
-            .flat_map(|equation| [&equation.left, &equation.right])
-            .any(|expression| !expression.collect_physical_port_names(&mut names))
-        {
-            return Err(source_error(
-                codes::LANGUAGE_LOWERING_ERROR,
-                file,
-                range,
-                "Relation expression is newer than physical ownership analysis",
-            ));
-        }
-        let mut selected = BTreeSet::new();
-        for name in names {
-            if let Some(port) = self.physical_ports_by_name.get(&name) {
-                selected.insert(*port);
-            }
-        }
-        for port in selected {
-            let owners = self.physical_owner_relations.entry(port).or_default();
-            owners.insert(relation);
-            if owners.len() > 1 {
-                let display = &self.physical_ports[&port].display_name;
-                return Err(source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    file,
-                    range,
-                    format!("physical Port `{display}` cannot have more than one owning Relation"),
-                ));
-            }
-        }
-        Ok(())
-    }
-
     pub(super) fn expand(self) -> Result<ExpandedBlueprint, Vec<Diagnostic>> {
         self.expand_bound(&[], &[], &BTreeMap::new())
     }
