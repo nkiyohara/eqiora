@@ -1,6 +1,6 @@
 ---
 title: Electrical components
-description: Voltage-source, resistor and ground contracts with a compile-checked circuit.
+description: An exact bundled voltage divider with 4 mA current and an 8 V midpoint.
 editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/standard-packages/electrical.mdx
 ---
 
@@ -12,7 +12,7 @@ import circuit from './_examples/electrical.eqi?raw';
 
 Canonical owner: <ExactSourceLink kind="blob" path="packages/Eqiora.Electrical.Basic/src/basic.eqi">Electrical.Basic / basic.eqi</ExactSourceLink>.
 Its `Pin` is a scalar-physical connector: across is voltage in V, through is
-outward current in A. The declaration spells dimensions in
+current into the component in A. The declaration spells dimensions in
 [SI base units](/reference/language/units/).
 
 | Declaration | Required parameter | Ports and mathematical contract |
@@ -23,29 +23,60 @@ outward current in A. The declaration spells dimensions in
 
 These are ideal, time-independent declarations. Ground fixes potential, not current.
 
-## One occurrence of each component
+## Grounded voltage divider
 
 <Code code={circuit} lang="eqiora" title="electrical.eqi" />
 
-The supplied source imposes 12 V across a 4-ohm resistor. The connections identify
-voltage nodes and close current conservation; `Ground` fixes the reference.
-`supply` and `resistance` are typed parameters rather than untyped instance numbers.
-See [Composition](/reference/language/composition/) for named bindings.
+The supply fixes 12 V across two series resistors, 1 kΩ and 2 kΩ.
+Ohm's law and current conservation give `12 / (1000 + 2000) = 0.004 A`;
+the midpoint is `0.004 * 2000 = 8 V` relative to ground.
+The session observes the named Ports through their across (voltage) and through
+(current into the component) roles. Observation adds no equation.
 
-After [installing the source checkout](/reference/standard-packages/#source-and-installation-boundary),
-save the example as `electrical.eqi` beside `eqiora-source` and compile:
+After [installing Eqiora](/get-started/#install-with-uv), save the source above
+as `electrical.eqi` and run:
 
 ```python
 from pathlib import Path
 import eqiora
 
-basic = Path("eqiora-source/packages/Eqiora.Electrical.Basic/src/basic.eqi")
-source = basic.read_text() + "\n" + Path("electrical.eqi").read_text()
-model = eqiora.compile(source=source, filename="electrical.eqi")
+project = Path("divider")
+(project / "src").mkdir(parents=True, exist_ok=True)
+(project / "src/main.eqi").write_text(Path("electrical.eqi").read_text())
+(project / "eqiora.toml").write_text(
+    '[package]\nname = "org.example.Divider"\nversion = "0.1.0"\nentry = "main"\n'
+)
+store = Path("package-store")
+store.mkdir(exist_ok=True)
+resolution = eqiora.add_bundled_dependency(
+    project, store, "Eqiora.Electrical.Basic", version="0.1.0"
+)
+model = eqiora.compile_package(store, resolution, entry="VoltageDivider")
+session = model.execution_session(end_time_s=1, max_step_s=1, inputs={})
+print(session.through("upper.positive"))   # approximately 0.004 A
+print(session.across("lower.positive"))  # approximately 8 V
+
+# Keep the exact closure for offline reopening.
+vendor = project / "vendor"
+vendor.mkdir(exist_ok=True)
+eqiora.vendor_project(project, store, vendor)
+resolution = eqiora.open_project(project, vendor)
+model = eqiora.compile_package(vendor, resolution, entry="VoltageDivider")
 ```
 
-All three definitions are exercised by this compilation. Changing a parameter's
-dimension or omitting its required binding produces a diagnostic.
+The distribution supplies the exact library source. The ordinary package lock
+contains the caller and `Eqiora.Electrical.Basic@0.1.0`; this operation requires
+no network fetch or provider installation. The reference execution session solves
+the algebraic circuit at initialization. Its horizon is an execution setting,
+not a resistance, voltage, or Model parameter.
+
+The final lines vendor the closure for offline use. After moving the project,
+open it from that vendored store and compile through the same API.
+
+The installed-package product test checks the analytic values, Model byte replay,
+and vendored reopening after deleting the original store. Removing the entire
+ground rejects execution. This is one bounded real-scalar, time-independent
+reference circuit; it makes no general nonlinear circuit solver claim.
 
 <ExactSourceLink kind="blob" path="docs/site/src/content/docs/reference/standard-packages/_examples/electrical.eqi">Example source</ExactSourceLink>
 · <ExactSourceLink kind="blob" path="packages/Eqiora.Electrical.Basic/README.md">Canonical declaration and package description</ExactSourceLink>

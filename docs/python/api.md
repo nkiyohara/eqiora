@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 19 module summaries and all 251 canonical declaration summaries are source-traced; non-dunder member coverage remains **22 authoritative summaries and 747 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 19 module summaries and all 251 canonical declaration summaries are source-traced; non-dunder member coverage remains **24 authoritative summaries and 747 signature-only entries under documented owning types**.
 
-Inventory: 19 modules, 289 literal public spellings, 251 canonical grouped declarations, 1003 visible method signatures (769 non-dunder and 234 dunder), and 76 visible class assignments.
+Inventory: 19 modules, 289 literal public spellings, 251 canonical grouped declarations, 1005 visible method signatures (771 non-dunder and 234 dunder), and 76 visible class assignments.
 
 Regenerate with:
 
@@ -331,6 +331,8 @@ class ExecutionSession:
     @property
     def next_tick(self) -> Fraction | None: ...
     def checkpoint(self) -> ExecutionCheckpoint: ...
+    def across(self, name: str) -> float | None: ...
+    def through(self, name: str) -> float | None: ...
     def field(self, name: str) -> _TypedValue | None: ...
     def output(self, name: str, tick_index: int) -> tuple[Fraction, _TypedValue] | None: ...
 ```

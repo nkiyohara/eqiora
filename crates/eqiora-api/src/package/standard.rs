@@ -25,6 +25,12 @@ pub(super) fn closure(name: &str) -> Result<Vec<PackageReleaseV1>, PackagePrepar
     }
     let source = match name {
         "Eqiora.Mechanics.Interfaces" => None,
+        "Eqiora.Electrical.Basic" => Some(sources(
+            include_bytes!("../../../../packages/Eqiora.Electrical.Basic/package.json"),
+            include_bytes!("../../../../packages/Eqiora.Electrical.Basic/README.md"),
+            "src/basic.eqi",
+            include_bytes!("../../../../packages/Eqiora.Electrical.Basic/src/basic.eqi"),
+        )?),
         "Eqiora.Controls.Sampled" => Some(sources(
             include_bytes!("../../../../packages/Eqiora.Controls.Sampled/package.json"),
             include_bytes!("../../../../packages/Eqiora.Controls.Sampled/README.md"),

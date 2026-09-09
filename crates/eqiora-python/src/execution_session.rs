@@ -10,6 +10,8 @@ use pyo3::types::{PyDict, PyList, PyTuple};
 
 use crate::{diagnostic_error, modeling::value_literal};
 
+mod physical;
+
 /// Mutable reference execution session bound to one exact compiled Model.
 #[pyclass(
     name = "ExecutionSession",
@@ -190,6 +192,16 @@ impl PyExecutionSession {
         PyExecutionCheckpoint {
             value: self.value.checkpoint(),
         }
+    }
+
+    /// Read accepted coherent-SI across value for an exact scalar physical Port.
+    fn across(&self, name: &str) -> PyResult<Option<f64>> {
+        physical::read(self, name, true)
+    }
+
+    /// Read accepted coherent-SI through value for an exact scalar physical Port.
+    fn through(&self, name: &str) -> PyResult<Option<f64>> {
+        physical::read(self, name, false)
     }
 
     fn field(&self, py: Python<'_>, name: &str) -> PyResult<Option<Py<PyAny>>> {

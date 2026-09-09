@@ -1,9 +1,15 @@
-// Append after the Eqiora.Electrical.Basic source from the same checkout.
-model ReferenceCircuit(parameter supply: kg * m ^ 2 / (s ^ 3 * A) = 12, parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2) = 4) {
-  instance source: IdealVoltageSource(voltage = supply);
-  instance resistor: Resistor(resistance = resistance);
-  instance ground: Ground();
+// I = 12 V / (1 kOhm + 2 kOhm) = 4 mA; midpoint = I * 2 kOhm = 8 V.
+import Eqiora.Electrical.Basic.basic as electrical;
 
-  connect source.positive, resistor.positive;
-  connect source.negative, resistor.negative, ground.terminal;
+/// Ideal 12 V divider with an explicit zero-voltage reference.
+model VoltageDivider() {
+  instance source: electrical.IdealVoltageSource(voltage = 12[V]);
+  instance upper: electrical.Resistor(resistance = 1[kOhm]);
+  instance lower: electrical.Resistor(resistance = 2[kOhm]);
+  instance ground: electrical.Ground();
+
+  connect source.positive, upper.positive;
+  connect upper.negative, lower.positive;
+  connect lower.negative, source.negative, ground.terminal;
+
 }
