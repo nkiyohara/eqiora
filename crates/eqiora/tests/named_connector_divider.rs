@@ -349,3 +349,100 @@ fn common_finite_lifecycle_accepts_eight_volts_and_rejects_stale_state() {
     wire["content"]["payload"]["values"][0] = serde_json::json!(999.0);
     assert!(CommonResult::from_bytes(&serde_json::to_vec(&wire).unwrap(), &resolved).is_err());
 }
+
+#[test]
+fn finite_plan_and_state_bind_exact_provider_library_releases() {
+    use eqiora::solver::{
+        LinearProblem, LinearSolution, ProviderLibrary, ReplicatedLinearExecution,
+        SolverCapabilities, SolverProvider,
+    };
+    use eqiora_numerics::{
+        CommonAlgebraicPlan, CommonAlgebraicState, CommonLinearRequest, CommonSolvePolicy,
+        ResolvedCommonPlan,
+    };
+
+    #[derive(Debug)]
+    struct AdmissionOnly(SolverProvider);
+    impl LinearSolverBackend for AdmissionOnly {
+        fn provider(&self) -> SolverProvider {
+            self.0
+        }
+        fn capabilities(&self) -> SolverCapabilities {
+            FaerLinearSolver.capabilities()
+        }
+        fn solve_with_execution(
+            &self,
+            _: &LinearProblem<'_>,
+            _: SolverPlan,
+            _: &dyn ReplicatedLinearExecution,
+        ) -> Result<LinearSolution, eqiora::Diagnostic> {
+            panic!("provider lineage rejection must precede numerical work")
+        }
+    }
+
+    let (program, _, _) = fixture(DIVIDER);
+    let model = eqiora::artifact::ModelEnvelope::from_program(&program).unwrap();
+    let provider = FaerLinearSolver.provider();
+    const FIRST_LIBRARIES: &[ProviderLibrary] = &[ProviderLibrary::new("test-library", "1")];
+    const SECOND_LIBRARIES: &[ProviderLibrary] = &[ProviderLibrary::new("test-library", "2")];
+    let first = AdmissionOnly(SolverProvider::new(
+        provider.id(),
+        provider.implementation_version(),
+        FIRST_LIBRARIES,
+    ));
+    let second = AdmissionOnly(SolverProvider::new(
+        provider.id(),
+        provider.implementation_version(),
+        SECOND_LIBRARIES,
+    ));
+    let resolve = |backend: &AdmissionOnly| {
+        let solver = SolverPlan::new(
+            LinearSolver::SparseLu,
+            1e-12,
+            1e-14,
+            NonZeroUsize::new(100).unwrap(),
+        )
+        .unwrap()
+        .with_preconditioner(eqiora::solver::PreconditionerPolicy::Identity)
+        .with_reduction(ReductionPolicy::Fast);
+        CommonAlgebraicPlan::resolve(
+            &model,
+            CommonSolvePolicy::Linear(
+                CommonLinearRequest::exact(solver, backend.provider()).unwrap(),
+            ),
+            backend,
+        )
+        .unwrap()
+    };
+    let first_plan = resolve(&first);
+    let second_plan = resolve(&second);
+    assert_ne!(first_plan.identity(), second_plan.identity());
+    let first_state = first_plan.initial_state().unwrap();
+    assert_ne!(
+        first_state.identity(),
+        second_plan.initial_state().unwrap().identity()
+    );
+    assert!(
+        CommonAlgebraicState::from_bytes(&first_state.to_bytes().unwrap(), &second_plan).is_err()
+    );
+    assert!(second_plan.run_result(&first_state, &second).is_err());
+
+    let time = eqiora::time::TimeBackendIdentity::new("eqiora.test.time", "1");
+    let first_plan = ResolvedCommonPlan::Algebraic(Box::new(first_plan));
+    let second_plan = ResolvedCommonPlan::Algebraic(Box::new(second_plan));
+    let bytes = first_plan.to_bytes().unwrap();
+    assert_eq!(
+        ResolvedCommonPlan::from_bytes(&bytes, &first, time).unwrap(),
+        first_plan
+    );
+    assert_eq!(
+        ResolvedCommonPlan::from_bytes(&second_plan.to_bytes().unwrap(), &second, time).unwrap(),
+        second_plan
+    );
+    assert!(ResolvedCommonPlan::from_bytes(&bytes, &second, time).is_err());
+    let canonical = String::from_utf8(bytes).unwrap();
+    let original = "[[\"test-library\",\"1\"]]";
+    assert_eq!(canonical.matches(original).count(), 1);
+    let substituted = canonical.replace(original, "[[\"test-library\",\"2\"]]");
+    assert!(ResolvedCommonPlan::from_bytes(substituted.as_bytes(), &second, time).is_err());
+}

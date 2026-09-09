@@ -149,15 +149,8 @@ impl CommonAlgebraicPlan {
         let reference = model.artifact_reference()?;
         let model_digest = reference.artifact().to_string();
         let mut bytes = model_digest.as_bytes().to_vec();
-        push_framed(&mut bytes, backend.provider().id().as_str().as_bytes());
-        push_framed(
-            &mut bytes,
-            backend.provider().implementation_version().as_bytes(),
-        );
-        bytes.extend_from_slice(&request.relative_tolerance().to_bits().to_be_bytes());
-        bytes.extend_from_slice(&request.absolute_tolerance().to_bits().to_be_bytes());
-        bytes.extend_from_slice(&(request.maximum_iterations().get() as u64).to_be_bytes());
-        let identity = finite_digest(b"eqiora.common-algebraic-plan/v1\0", &bytes);
+        push_framed(&mut bytes, &plan_artifact::linear_intent_bytes(request)?);
+        let identity = finite_digest(b"eqiora.common-algebraic-plan/v2\0", &bytes);
         Ok(Self {
             model: Arc::new(model.clone()),
             kernel,

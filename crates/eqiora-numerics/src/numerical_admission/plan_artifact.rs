@@ -860,17 +860,15 @@ fn spatial_request(plan: &ResolvedCommonPlan) -> Option<WireSpatialRequest> {
     }
 }
 
-fn solve_request(plan: &ResolvedCommonPlan) -> Option<WireSolve> {
-    let solver = plan.effective_solver()?;
-    let linear = WireLinearControls {
-        relative_tolerance: solver.relative_tolerance(),
-        absolute_tolerance: solver.absolute_tolerance(),
-        maximum_iterations: solver.maximum_iterations().get(),
-        intent: match plan.solver_planning_objective() {
-            Some(objective) => WireLinearIntent::ProgramControlled {
-                objective: objective.into(),
-            },
-            None => WireLinearIntent::Exact {
+pub(super) fn linear_intent_bytes(request: CommonLinearRequest) -> Result<Vec<u8>, Diagnostic> {
+    serde_json::to_vec(&WireLinearControls::from(request))
+        .map_err(|error| invalid(format!("cannot encode exact linear intent: {error}")))
+}
+
+impl From<CommonLinearRequest> for WireLinearControls {
+    fn from(request: CommonLinearRequest) -> Self {
+        let intent = match request.exact_request() {
+            Some((solver, provider)) => WireLinearIntent::Exact {
                 algorithm: match solver.algorithm() {
                     LinearSolver::ConjugateGradient => "conjugate-gradient",
                     LinearSolver::MinimumResidual => "minimum-residual",
@@ -888,30 +886,39 @@ fn solve_request(plan: &ResolvedCommonPlan) -> Option<WireSolve> {
                     ReductionPolicy::Fast => "fast",
                 }
                 .into(),
-                provider: plan
-                    .linear_solver_provider()
-                    .expect("spatial Plan owns its solver provider")
+                provider: provider.into(),
+            },
+            None => WireLinearIntent::ProgramControlled {
+                objective: request
+                    .objective()
+                    .expect("non-exact intent owns an objective")
                     .into(),
             },
-        },
-    };
-    match plan {
-        ResolvedCommonPlan::TransientFlow(plan) => Some(WireSolve::Newton {
-            linear,
-            nonlinear: WireNonlinearControls {
-                relative_tolerance: plan.nonlinear().relative_tolerance(),
-                absolute_tolerance: plan.nonlinear().absolute_tolerance(),
-                maximum_iterations: plan.nonlinear().maximum_iterations().get(),
-                maximum_line_search_steps: plan.nonlinear().maximum_line_search_steps(),
-            },
-        }),
-        ResolvedCommonPlan::Ode(_) => None,
-        ResolvedCommonPlan::Algebraic(_)
-        | ResolvedCommonPlan::Scalar(_)
-        | ResolvedCommonPlan::Elasticity(_)
-        | ResolvedCommonPlan::SteadyStokes(_)
-        | ResolvedCommonPlan::Fsi(_) => Some(WireSolve::Linear { linear }),
+        };
+        Self {
+            relative_tolerance: request.relative_tolerance(),
+            absolute_tolerance: request.absolute_tolerance(),
+            maximum_iterations: request.maximum_iterations().get(),
+            intent,
+        }
     }
+}
+
+fn solve_request(plan: &ResolvedCommonPlan) -> Option<WireSolve> {
+    Some(match plan.canonical_solve_request()? {
+        CommonSolvePolicy::Linear(request) => WireSolve::Linear {
+            linear: request.into(),
+        },
+        CommonSolvePolicy::Newton { linear, nonlinear } => WireSolve::Newton {
+            linear: linear.into(),
+            nonlinear: WireNonlinearControls {
+                relative_tolerance: nonlinear.relative_tolerance(),
+                absolute_tolerance: nonlinear.absolute_tolerance(),
+                maximum_iterations: nonlinear.maximum_iterations().get(),
+                maximum_line_search_steps: nonlinear.maximum_line_search_steps(),
+            },
+        },
+    })
 }
 
 fn scaling_request(plan: &ResolvedCommonPlan) -> Option<WireScalingRequest> {
