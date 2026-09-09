@@ -217,32 +217,34 @@ fn cli_command() -> clap::Command {
                         command
                     }
                 }))
-                .subcommands(["lock", "update", "fetch", "vendor"].map(|name| {
-                    let command = Command::new(name)
-                        .disable_help_flag(true)
-                        .disable_version_flag(true)
-                        .arg(
-                            Arg::new("project-path")
-                                .value_parser(clap::builder::OsStringValueParser::new())
-                                .num_args(1),
-                        )
-                        .arg(
-                            Arg::new("store-path")
-                                .long("store")
-                                .value_parser(clap::builder::OsStringValueParser::new())
-                                .num_args(1),
-                        );
-                    if name == "vendor" {
-                        command.arg(
-                            Arg::new("destination")
-                                .long("destination")
-                                .required(true)
-                                .value_parser(clap::builder::OsStringValueParser::new()),
-                        )
-                    } else {
-                        command
-                    }
-                }))
+                .subcommands(
+                    ["lock", "update", "preview", "fetch", "vendor"].map(|name| {
+                        let command = Command::new(name)
+                            .disable_help_flag(true)
+                            .disable_version_flag(true)
+                            .arg(
+                                Arg::new("project-path")
+                                    .value_parser(clap::builder::OsStringValueParser::new())
+                                    .num_args(1),
+                            )
+                            .arg(
+                                Arg::new("store-path")
+                                    .long("store")
+                                    .value_parser(clap::builder::OsStringValueParser::new())
+                                    .num_args(1),
+                            );
+                        if name == "vendor" {
+                            command.arg(
+                                Arg::new("destination")
+                                    .long("destination")
+                                    .required(true)
+                                    .value_parser(clap::builder::OsStringValueParser::new()),
+                            )
+                        } else {
+                            command
+                        }
+                    }),
+                )
                 .subcommand(
                     Command::new("check")
                         .disable_help_flag(true)
@@ -335,6 +337,18 @@ fn package_path(value: Option<&OsString>) -> Option<std::path::PathBuf> {
 #[cfg(feature = "package-filesystem")]
 fn run_package_command(package: &clap::ArgMatches) -> CommandResult {
     match package.subcommand() {
+        Some(("preview", args)) => {
+            let Some(project) = package_path(args.get_one::<OsString>("project-path")) else {
+                return invalid_command_line();
+            };
+            let proposal = LockedPackage::preview_local_package_project_v1(project)
+                .map_err(|error| CommandError::Package(error.to_string()))?;
+            let mut bytes = proposal
+                .lock_bytes()
+                .map_err(|error| CommandError::Package(error.to_string()))?;
+            bytes.push(b'\n');
+            Ok(OracleOutcome::stdout(0, bytes))
+        }
         Some((operation @ ("add" | "remove"), args)) => {
             let (Some(project), Some(store), Some(name)) = (
                 package_path(args.get_one::<OsString>("project-path")),

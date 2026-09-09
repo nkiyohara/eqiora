@@ -31,9 +31,10 @@ Lifecycle events are emitted as one JSON object per line on stderr, leaving
 stdout exclusively for LSP framing.
 
 Files opened under the same initialization workspace folder are analyzed as one
-module graph. When that folder contains `eqiora.toml`, the server loads its exact
-local package graph from disk, including unopened sources, without writing a lock
-or package store. Open model sources override their disk content until they are
+module graph. When that folder contains `eqiora.toml`, the server reads its explicit
+local candidate sources, including unopened files, without writing a lock or store.
+An existing lock fixes the selected versions and authored requests during analysis;
+changing a request requires an explicit project update. Open model sources override their disk content until they are
 closed, so hover and definition navigation stay current after full-document
 changes. Workspace analysis runs on one background worker, coalesces pending
 edits, and prevents superseded results from publishing diagnostics. An editor

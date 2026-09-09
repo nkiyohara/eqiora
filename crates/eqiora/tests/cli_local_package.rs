@@ -249,7 +249,7 @@ fn cli_locks_and_checks_the_same_local_package_project_offline() {
 
     write(
         project.join("eqiora.toml"),
-        "[package]\nname = \"org.example.Root\"\nversion = \"1.0.0\"\nentry = \"main\"\n\n[dependencies.\"org.example.Library\"]\nversion = \"1.0.0\"\npath = \"../dependency\"\n",
+        "[package]\nname = \"org.example.Root\"\nversion = \"1.0.0\"\nentry = \"main\"\n\n[dependencies.\"org.example.Library\"]\nversion = \"1.0.0\"\nsources = [{ path = \"../dependency\" }]\n",
     );
     write(
         project.join("src/main.eqi"),
@@ -362,4 +362,62 @@ fn cli_locks_and_checks_the_same_local_package_project_offline() {
         fs::read(project.join("eqiora.lock")).expect("reread accepted lock"),
         accepted_lock
     );
+}
+
+#[test]
+fn cli_preview_and_update_share_the_native_request_selection_proposal() {
+    let fixture = TestDirectory::create();
+    let project = fixture.0.join("project");
+    let store = fixture.0.join("store");
+    fs::create_dir(&store).unwrap();
+    write(
+        project.join("eqiora.toml"),
+        "[package]\nname='Root'\nversion='1.0.0'\nentry='main'\n[dependencies.Library]\nversion='1'\nsources=[{path='../old'}, {path='../new'}]\n",
+    );
+    write(
+        project.join("src/main.eqi"),
+        "model Main() { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
+    );
+    for (path, version) in [("old", "1.9.0"), ("new", "1.10.0")] {
+        write(
+            fixture.0.join(path).join("eqiora.toml"),
+            &format!("[package]\nname='Library'\nversion='{version}'\nentry='main'\n"),
+        );
+        write(
+            fixture.0.join(path).join("src/main.eqi"),
+            "public model Shared() {}",
+        );
+    }
+    let native =
+        eqiora::api::package::PackagedModelDocument::preview_local_package_project_v1(&project)
+            .unwrap();
+    let expected = native.lock_bytes().unwrap();
+    let preview = Command::new(env!("CARGO_BIN_EXE_eqiora"))
+        .args(["package", "preview"])
+        .arg(&project)
+        .output()
+        .unwrap();
+    assert!(
+        preview.status.success(),
+        "{}",
+        String::from_utf8_lossy(&preview.stderr)
+    );
+    assert_eq!(preview.stdout, [expected.as_slice(), b"\n"].concat());
+    assert!(!project.join("eqiora.lock").exists());
+    let update = Command::new(env!("CARGO_BIN_EXE_eqiora"))
+        .args(["package", "update"])
+        .arg(&project)
+        .arg("--store")
+        .arg(&store)
+        .output()
+        .unwrap();
+    assert!(
+        update.status.success(),
+        "{}",
+        String::from_utf8_lossy(&update.stderr)
+    );
+    assert_eq!(fs::read(project.join("eqiora.lock")).unwrap(), expected);
+    let lock: serde_json::Value = serde_json::from_slice(&expected).unwrap();
+    assert_eq!(lock["requests"][0]["request"], "1");
+    assert_eq!(lock["requests"][0]["selected"], "1.10.0");
 }

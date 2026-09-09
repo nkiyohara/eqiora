@@ -1,6 +1,8 @@
 use super::*;
 use std::process::Command;
 
+mod version_requests;
+
 fn command(repo: &Path, args: &[&str]) -> String {
     let output = Command::new("/usr/bin/git")
         .args([
@@ -69,8 +71,8 @@ fn git_relative_repository_is_resolved_from_its_declaring_manifest() {
     );
     fs::rename(repo, outer.join("repository")).unwrap();
     let manifest = fs::read_to_string(outer.join(PROJECT_MANIFEST)).unwrap();
-    fs::write(outer.join(PROJECT_MANIFEST), format!("{manifest}\n[dependencies.\"org.example.Git\"]\nversion=\"1.0.0\"\ngit={{repository=\"./repository\",rev=\"refs/heads/main\"}}\n")).unwrap();
-    fs::write(project.join(PROJECT_MANIFEST), "[package]\nname=\"org.example.Root\"\nversion=\"1.0.0\"\nentry=\"main\"\n[dependencies.\"org.example.Outer\"]\nversion=\"1.0.0\"\npath=\"outer\"\n").unwrap();
+    fs::write(outer.join(PROJECT_MANIFEST), format!("{manifest}\n[dependencies.\"org.example.Git\"]\nversion=\"1.0.0\"\nsources = [{{ git = {{repository=\"./repository\",rev=\"refs/heads/main\"}} }}]\n")).unwrap();
+    fs::write(project.join(PROJECT_MANIFEST), "[package]\nname=\"org.example.Root\"\nversion=\"1.0.0\"\nentry=\"main\"\n[dependencies.\"org.example.Outer\"]\nversion=\"1.0.0\"\nsources = [{ path = \"outer\" }]\n").unwrap();
     fs::write(
         project.join("src/main.eqi"),
         "import org.example.Outer.main as outer; model Main() {}",
@@ -128,7 +130,7 @@ fn git_retains_complete_repository_local_closure_for_offline_compile() {
         &[],
     );
     let manifest = fs::read_to_string(repo.join(PROJECT_MANIFEST)).unwrap();
-    fs::write(repo.join(PROJECT_MANIFEST), format!("{manifest}\n[dependencies.\"org.example.Inner\"]\nversion=\"1.0.0\"\npath=\"dependency\"\n")).unwrap();
+    fs::write(repo.join(PROJECT_MANIFEST), format!("{manifest}\n[dependencies.\"org.example.Inner\"]\nversion=\"1.0.0\"\nsources = [{{ path = \"dependency\" }}]\n")).unwrap();
     fs::write(
         repo.join("src/main.eqi"),
         "import org.example.Inner.main as inner; public model Shared() { parameter gain: 1 = 2; relation law { gain - 2 = 0; } }",
@@ -362,7 +364,7 @@ fn git_rejects_missing_closure_path_escape_gitlinks_and_large_expansion() {
     let accepted = fs::read(project.join(PROJECT_LOCK)).unwrap();
     let manifest = fs::read_to_string(repo.join(PROJECT_MANIFEST)).unwrap();
     for path in ["missing", "../outside"] {
-        fs::write(repo.join(PROJECT_MANIFEST), format!("{manifest}\n[dependencies.\"org.example.Missing\"]\nversion=\"1.0.0\"\npath=\"{path}\"\n")).unwrap();
+        fs::write(repo.join(PROJECT_MANIFEST), format!("{manifest}\n[dependencies.\"org.example.Missing\"]\nversion=\"1.0.0\"\nsources = [{{ path = \"{path}\" }}]\n")).unwrap();
         command(&repo, &["add", "."]);
         command(&repo, &["commit", "-m", "invalid closure"]);
         assert!(

@@ -74,6 +74,17 @@ impl<'de> Deserialize<'de> for QualifiedName {
 pub struct ExactVersion(String);
 
 impl ExactVersion {
+    /// Compare SemVer precedence, deliberately ignoring build metadata.
+    /// Exact identity ordering remains separate from candidate preference.
+    #[must_use]
+    pub fn precedence_cmp(&self, other: &Self) -> std::cmp::Ordering {
+        semver::Version::parse(self.as_str())
+            .expect("admitted exact version")
+            .cmp_precedence(
+                &semver::Version::parse(other.as_str()).expect("admitted exact version"),
+            )
+    }
+
     pub fn parse(value: impl Into<String>) -> Result<Self, ContractError> {
         let value = value.into();
         let parsed = semver::Version::parse(&value).map_err(|error| {

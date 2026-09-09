@@ -1,8 +1,7 @@
-//! Exact, offline model-package identity and resolution.
+//! Typed model-package requests, exact identities, and offline resolution.
 //!
-//! This crate owns a typed package family. It deliberately does not define a
-//! universal plugin payload, perform version selection, access a registry, or
-//! invoke compiler semantics.
+//! This crate owns package contracts and request matching. Project acquisition,
+//! candidate selection, and compiler admission belong to the API layer.
 
 mod canonical;
 mod digest;
@@ -27,6 +26,7 @@ mod run_binding;
 mod semantic;
 mod source;
 mod store;
+mod version_request;
 
 pub use digest::{
     PackageCompilationDigest, PackageExecutionBindingDigest, PackageRunBindingDigest,
@@ -61,6 +61,7 @@ pub use semantic::{
 };
 pub use source::{PackageSourcesV1, SourceBundleIdentityV1, SourceBundleV1, SourceFileV1};
 pub use store::{InMemoryPackageStore, PackageStore, StoreError};
+pub use version_request::VersionRequest;
 
 /// Errors produced while constructing or decoding closed package contracts.
 #[derive(Clone, Debug, Eq, PartialEq)]

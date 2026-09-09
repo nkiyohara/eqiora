@@ -152,6 +152,8 @@ EXPECTED_EQIORA_ALL = [
     "lang",
     "units",
     "resolve",
+    "ProjectUpdate",
+    "preview_local_project",
     "resolve_local_project",
     "add_local_dependency",
     "remove_local_dependency",

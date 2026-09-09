@@ -20,9 +20,11 @@ impl PackagedModelDocument {
                 name.to_owned(),
                 LocalProjectDependency {
                     version: version.to_owned(),
-                    path: None,
-                    bundled: true,
-                    git: None,
+                    sources: vec![LocalDependencySource {
+                        path: None,
+                        bundled: true,
+                        git: None,
+                    }],
                 },
             );
             Ok(true)
@@ -49,6 +51,8 @@ impl PackagedModelDocument {
             LocalProjectOverrides {
                 allow_git: true,
                 locked_git: Some(lock.git.clone()),
+                locked_requests: Some(lock.requests.clone()),
+                locked_versions: Some(lock.versions()),
                 ..Default::default()
             },
         )?;
@@ -61,12 +65,7 @@ impl PackagedModelDocument {
         let actual =
             ResolutionRecordV1::from_exact_releases(&prepared.root.release, &dependencies)?;
         require_lock(&lock.resolution, &actual)?;
-        let actual_lock = lock::ProjectLock::new(actual, prepared.git)?;
-        if actual_lock.bytes()? != lock.bytes()? {
-            return Err(git::error(
-                "Git selections differ from accepted project lock",
-            ));
-        }
+        lock::require_requests(&lock.requests, &prepared.requests)?;
         install(
             &store_root.into(),
             dependencies
@@ -129,6 +128,8 @@ fn open(
     let mut overrides = LocalProjectOverrides {
         offline: true,
         locked_git: Some(lock.git.clone()),
+        locked_requests: Some(lock.requests.clone()),
+        locked_versions: Some(lock.versions()),
         ..Default::default()
     };
     retain_releases(&mut overrides.prepared, &dependencies)?;

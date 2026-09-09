@@ -270,7 +270,11 @@ removal = "Fold regeneration only into an accepted edit result preserving exact 
 
 [[public_surface]]
 crate = "eqiora-api"
-ceiling = 116
+ceiling = 117
+# #900 ProjectUpdate gives native, CLI and Python consumers one frozen, validated
+# selection to inspect and commit through the existing stale-checked transaction.
+# Fold it only when an existing result retains the same authored requests, exact
+# candidate bytes and one-shot publication without a parallel selection path.
 # Same two #1019 policy owners and deletion condition as the facade above;
 # no duplicate execution implementation or provider/worker registry is added.
 reason = "RunRequest owns common transient request meaning; versioned ML Dataset roles and splits remain in eqiora-artifact. Ordered maps own repeated accepted occurrences and terminal reports. Three first-order product types separate borrowed grid/sharing admission, forward records and reverse shared sums with mapped covectors. Native Q1/TPFA callers reuse the accepted point actions through these owners. Five sampling types keep interval admission, frozen values, full request identity, generator version and explicit coupling separate from Program identity and numerical execution. They serve direct and mapped native callers through one deterministic sampler, not a probability framework. Regeneration and editor snapshots retain their distinct immutable results."
@@ -457,7 +461,9 @@ removal = "the FEM form-compiler lane replaces per-physics entry points with ins
 
 [[public_surface]]
 crate = "eqiora-package"
-ceiling = 55
+ceiling = 56
+reason = "#900 VersionRequest shares canonical authored-request admission and matching between candidate selection and lock validation; ExactVersion remains the distinct immutable selected release identity."
+removal = "fold VersionRequest only when an existing owner preserves authored-versus-selected meaning and the same request and lock admission without duplicate interpretation, then lower the measured count"
 
 [[public_surface]]
 crate = "eqiora-python"

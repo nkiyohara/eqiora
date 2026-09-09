@@ -1,6 +1,6 @@
 //! Linux resource limits apply to Git and its inherited process group.
 
-use std::io::Read;
+use std::io::{Read, Write};
 use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -21,7 +21,36 @@ pub(super) fn run(
     args: &[&str],
     deadline: Instant,
 ) -> Result<Vec<u8>, PackagePreparationError> {
-    run_executable(home, repo, args, deadline, "/usr/bin/git")
+    run_executable(home, repo, args, deadline, "/usr/bin/git", None)
+}
+
+pub(super) fn check_commit(
+    home: &Path,
+    repo: &Path,
+    commit: &str,
+    deadline: Instant,
+) -> Result<bool, PackagePreparationError> {
+    if !super::super::is_commit(commit) {
+        return Err(error("invalid immutable commit probe"));
+    }
+    let input = format!("{commit}\n");
+    let output = run_executable(
+        home,
+        repo,
+        &["cat-file", "--batch-check=%(objectname) %(objecttype)"],
+        deadline,
+        "/usr/bin/git",
+        Some(input.as_bytes()),
+    )?;
+    if output == format!("{commit} missing\n").as_bytes() {
+        return Ok(false);
+    }
+    if output == format!("{commit} commit\n").as_bytes() {
+        return Ok(true);
+    }
+    Err(error(
+        "immutable commit probe returned an invalid object response",
+    ))
 }
 
 fn run_executable(
@@ -30,7 +59,11 @@ fn run_executable(
     args: &[&str],
     deadline: Instant,
     executable: &str,
+    input: Option<&[u8]>,
 ) -> Result<Vec<u8>, PackagePreparationError> {
+    if input.is_some_and(|bytes| bytes.len() > 64) {
+        return Err(error("contained Git input exceeds 64 bytes"));
+    }
     let mut command = Command::new("/usr/bin/prlimit");
     command
         .args([
@@ -92,7 +125,11 @@ fn run_executable(
         .env("GIT_TEMPLATE_DIR", home)
         .env("GIT_OPTIONAL_LOCKS", "0")
         .env("LC_ALL", "C")
-        .stdin(Stdio::null())
+        .stdin(if input.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .process_group(0);
@@ -103,6 +140,14 @@ fn run_executable(
         i32::try_from(child.id()).map_err(|_| error("invalid Git process group"))?,
     )
     .ok_or_else(|| error("invalid Git process group"))?;
+    if let Some(input) = input {
+        let written = child.stdin.take().expect("piped stdin").write_all(input);
+        if written.is_err() {
+            let _ = rustix::process::kill_process_group(pid, rustix::process::Signal::KILL);
+            let _ = child.wait();
+            return Err(error("cannot provide contained Git input"));
+        }
+    }
     let overflow = Arc::new(AtomicBool::new(false));
     let read = |mut stream: Box<dyn Read + Send>, flag: Arc<AtomicBool>, limit: u64| {
         std::thread::spawn(move || {
@@ -161,6 +206,25 @@ mod tests {
     use std::os::unix::fs::PermissionsExt;
 
     #[test]
+    fn commit_absence_requires_a_successful_bounded_batch_response() {
+        let fixture =
+            crate::package::local_directory::tests::TestDirectory::create("git-commit-probe");
+        run(
+            &fixture.0,
+            &fixture.0,
+            &["init", "--bare", "."],
+            Instant::now() + DEADLINE,
+        )
+        .unwrap();
+        let missing = "ab".repeat(20);
+        assert!(
+            !check_commit(&fixture.0, &fixture.0, &missing, Instant::now() + DEADLINE).unwrap()
+        );
+        assert!(check_commit(&fixture.0, &fixture.0, &missing, Instant::now()).is_err());
+        assert!(check_commit(&fixture.0, &fixture.0, "HEAD", Instant::now() + DEADLINE).is_err());
+    }
+
+    #[test]
     fn contained_process_rejects_deadline_output_and_memory_excess_without_leaking_stderr() {
         let fixture =
             crate::package::local_directory::tests::TestDirectory::create("git-containment");
@@ -181,6 +245,7 @@ mod tests {
                 &[],
                 deadline,
                 script.to_str().unwrap(),
+                None,
             )
             .unwrap_err()
             .to_string();

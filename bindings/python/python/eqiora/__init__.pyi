@@ -1657,6 +1657,30 @@ def compile_package(
 
     ...
 
+class ProjectUpdate:
+    """A validated selection that can be inspected and committed once.
+
+    Authority: ``crates/eqiora-python/src/package/update.rs::PyProjectUpdate``.
+    """
+
+    @property
+    def resolution(self) -> bytes: ...
+    @property
+    def lock(self) -> bytes: ...
+    @property
+    def explanation(self) -> str: ...
+    def __repr__(self) -> str: ...
+    def commit(self, store_root: str | PathLike[str]) -> bytes:
+        """Publish the frozen selection; a consumed proposal needs a fresh preview."""
+        ...
+
+def preview_local_project(project_root: str | PathLike[str]) -> ProjectUpdate:
+    """Preview the validated selection without installing or publishing it.
+
+    Authority: ``crates/eqiora-python/src/package/update.rs::preview_local_project``.
+    """
+    ...
+
 def resolve_local_project(
     project_root: str | PathLike[str],
     store_root: str | PathLike[str],
@@ -1676,7 +1700,7 @@ def add_local_dependency(
     version: str,
     path: str,
 ) -> bytes:
-    """Add or replace an exact dependency and publish the manifest and lock.
+    """Add or replace a dependency request and publish its exact selection.
 
     Authority: ``crates/eqiora-python/src/package.rs::add_local_dependency``.
     """
@@ -1956,6 +1980,8 @@ __all__ = [
     "lang",
     "units",
     "resolve",
+    "ProjectUpdate",
+    "preview_local_project",
     "resolve_local_project",
     "add_local_dependency",
     "remove_local_dependency",

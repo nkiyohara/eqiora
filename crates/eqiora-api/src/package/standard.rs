@@ -7,10 +7,7 @@ use eqiora_package::{
 
 use super::{PackagePreparationError, prepare_package_release_v1};
 
-pub(super) fn closure(
-    name: &str,
-    version: &str,
-) -> Result<Vec<PackageReleaseV1>, PackagePreparationError> {
+pub(super) fn closure(name: &str) -> Result<Vec<PackageReleaseV1>, PackagePreparationError> {
     let mut releases = Vec::new();
     if matches!(
         name,
@@ -52,7 +49,7 @@ pub(super) fn closure(
         )?),
         _ => {
             return Err(PackagePreparationError::LocalDirectoryGraph(format!(
-                "distribution has no bundled package `{name}@{version}`"
+                "distribution has no bundled package `{name}`"
             )));
         }
     };
@@ -63,9 +60,9 @@ pub(super) fn closure(
         .last()
         .expect("nonempty bundled closure")
         .package_identity()?;
-    if identity.name.as_str() != name || identity.version.as_str() != version {
+    if identity.name.as_str() != name {
         return Err(PackagePreparationError::LocalDirectoryGraph(format!(
-            "bundled package request `{name}@{version}` differs from exact shipped release `{}@{}`",
+            "bundled package name `{name}` differs from exact shipped release `{}@{}`",
             identity.name, identity.version
         )));
     }

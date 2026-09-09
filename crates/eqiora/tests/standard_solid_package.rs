@@ -137,7 +137,7 @@ entry = "main"
 
 [dependencies."Eqiora.Solid"]
 version = "0.4.0"
-path = "solid"
+sources = [{ path = "solid" }]
 "#,
     )
     .expect("write project manifest");

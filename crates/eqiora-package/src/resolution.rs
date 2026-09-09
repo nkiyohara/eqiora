@@ -183,12 +183,10 @@ impl ResolutionRecordV1 {
                     pair[0].identity.name
                 )));
             }
-            if pair[0].identity.name == pair[1].identity.name
-                && pair[0].identity.version == pair[1].identity.version
-            {
+            if pair[0].identity.name == pair[1].identity.name {
                 return Err(ContractError::new(format!(
-                    "ambiguous package identity `{}@{}` has multiple semantic digests",
-                    pair[0].identity.name, pair[0].identity.version
+                    "ambiguous package identity `{}`: one canonical name requires one exact release ({} and {})",
+                    pair[0].identity.name, pair[0].identity.version, pair[1].identity.version
                 )));
             }
         }
@@ -931,6 +929,32 @@ mod tests {
                 vec![ResolutionEdgeV1::new(first, second),],
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    fn exact_graph_rejects_multiple_versions_of_one_canonical_name() {
+        let release = release("org.example.Root", vec![], "model Main() {}\n");
+        let first = release.package_identity().unwrap();
+        let second = ModelPackageIdentityV1::new(
+            first.name.clone(),
+            crate::ExactVersion::parse("2.0.0").unwrap(),
+            first.semantic_digest,
+        );
+        let source = release.source_digest().unwrap();
+        let error = ResolutionRecordV1::new(
+            first.clone(),
+            vec![
+                ResolutionNodeV1::new(first.clone(), source),
+                ResolutionNodeV1::new(second.clone(), source),
+            ],
+            vec![ResolutionEdgeV1::new(first, second)],
+        )
+        .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("one canonical name requires one exact release")
         );
     }
 }

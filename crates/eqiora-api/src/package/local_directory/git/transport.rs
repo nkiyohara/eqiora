@@ -43,6 +43,17 @@ pub(super) fn fetch(
     locked: Option<&str>,
     declaring: &Path,
 ) -> Result<Fetched, PackagePreparationError> {
+    candidate(source, locked, declaring)?
+        .ok_or_else(|| error("explicit Git source does not contain the accepted immutable commit"))
+}
+
+/// A missing requested commit is an acquisition miss, not a rejected tree.
+/// Every object/storage/path/source validation failure remains an error.
+pub(super) fn candidate(
+    source: &GitSource,
+    locked: Option<&str>,
+    declaring: &Path,
+) -> Result<Option<Fetched>, PackagePreparationError> {
     available()?;
     let deadline = std::time::Instant::now() + process::DEADLINE;
     let scratch = std::env::var_os("TMPDIR")
@@ -140,6 +151,11 @@ pub(super) fn fetch(
             &["fsck", "--full", "--strict", "--no-reflogs"],
             deadline,
         )?;
+        if let Some(commit) = locked
+            && !process::check_commit(&home, &repo, commit, deadline)?
+        {
+            return Ok(None);
+        }
         revision
     };
     // Recheck bounded stored inventory; hard per-file limits already apply during Git execution.
@@ -217,7 +233,7 @@ pub(super) fn fetch(
             .and_then(|()| fs::write(output, bytes))
             .map_err(|_| error("cannot materialize validated Git source"))?;
     }
-    Ok(fetched)
+    Ok(Some(fetched))
 }
 
 fn charge(budget: &mut (usize, usize), bytes: usize) -> Result<(), PackagePreparationError> {
