@@ -154,9 +154,12 @@ fn lower_and_solve(
         ),
         (10, 10)
     );
+    // The only nonzero right-hand side is the 12 V source, so its norm is 12.
+    // Request 1.2e-12 residual accuracy, strictly inside the independent 1e-11
+    // semantic oracle; a 1e-12 relative request would instead permit 1.2e-11.
     let plan = SolverPlan::new(
         LinearSolver::BiConjugateGradientStabilized,
-        1.0e-12,
+        1.0e-13,
         1.0e-14,
         NonZeroUsize::new(100).expect("nonzero iterations"),
     )
@@ -460,8 +463,16 @@ fn exact_package_boundary_partitions_have_one_model_and_one_solution() {
             );
         }
     }
-    assert!(nary_solution.reference_residual_norm() <= RESIDUAL_TOLERANCE);
-    assert!(partitioned_solution.reference_residual_norm() <= RESIDUAL_TOLERANCE);
+    assert!(
+        nary_solution.reference_residual_norm() <= RESIDUAL_TOLERANCE,
+        "N-ary reference residual {} exceeds {RESIDUAL_TOLERANCE}",
+        nary_solution.reference_residual_norm()
+    );
+    assert!(
+        partitioned_solution.reference_residual_norm() <= RESIDUAL_TOLERANCE,
+        "partitioned reference residual {} exceeds {RESIDUAL_TOLERANCE}",
+        partitioned_solution.reference_residual_norm()
+    );
     assert_eq!(nary_solution.values(), partitioned_solution.values());
 }
 
