@@ -244,24 +244,20 @@ fn encode_node(
         }
         KernelNode::RecordInstance(instance) => {
             encoder.u8(14)?;
-            encoder.len(instance.members().len())?;
             push_reference(
                 references,
                 vec![6],
                 lookup(ids, instance.definition().erase(), "record declaration")?,
                 budget,
             )?;
-            for (index, member) in instance.members().iter().enumerate() {
-                let mut label = Encoder::new(16);
-                label.u8(7)?;
-                label.len(index)?;
-                push_reference(
-                    references,
-                    label.finish()?,
-                    lookup(ids, *member, "record member")?,
-                    budget,
-                )?;
-            }
+            encode_expression(
+                &mut encoder,
+                instance.expression(),
+                4,
+                ids,
+                references,
+                budget,
+            )?;
         }
         KernelNode::Enum(definition) => {
             encoder.u8(12)?;
