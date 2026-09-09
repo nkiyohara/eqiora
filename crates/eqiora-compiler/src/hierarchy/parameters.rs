@@ -202,11 +202,8 @@ impl<'a> SymbolicParameterResolver<'a> {
         resolve_frame: &mut dyn FnMut(&str) -> Option<SpatialSupport<String>>,
         record_contexts: (&RecordContext, &RecordContext),
     ) -> Result<Self, Vec<Diagnostic>> {
-        let declarations = records::expand(
-            declaration_file,
-            parameter_declarations(component),
-            record_contexts.0,
-        )?;
+        let declarations =
+            parameter_declaration_leaves(declaration_file, component, record_contexts.0)?;
         let frames = frames::instance_frames(declaration_file, component, instance, resolve_frame)?;
         let bindings = bindings::Bindings::freeze(
             binding_file,

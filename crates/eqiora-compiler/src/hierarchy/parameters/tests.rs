@@ -36,6 +36,7 @@ parameter offset: m = 2;
         "parameters.eqi",
         component(&document, "Symbolic"),
         |_| None,
+        &RecordContext::default(),
     )
     .expect("open typed interface resolves");
 
@@ -66,6 +67,7 @@ fn required_private_parameter_has_no_symbolic_witness() {
         "parameters.eqi",
         component(&document, "Invalid"),
         |_| None,
+        &RecordContext::default(),
     )
     .expect_err("private required Parameter is uninhabitable");
 
@@ -97,9 +99,13 @@ instance child: Child(base = length, exponent = 2);
             _ => None,
         })
         .expect("nested instance exists");
-    let parent_parameters =
-        resolve_component_parameters_symbolically("parameters.eqi", parent, |_| None)
-            .expect("parent interface resolves");
+    let parent_parameters = resolve_component_parameters_symbolically(
+        "parameters.eqi",
+        parent,
+        |_| None,
+        &RecordContext::default(),
+    )
+    .expect("parent interface resolves");
     resolve_instance_parameters_symbolically(
         "parameters.eqi",
         "parameters.eqi",
@@ -108,6 +114,7 @@ instance child: Child(base = length, exponent = 2);
         &parent_parameters,
         &mut |_| None,
         &mut |_| None,
+        (&RecordContext::default(), &RecordContext::default()),
     )
     .expect("actual binding context validates the definition edge");
 }
@@ -129,9 +136,13 @@ instance missing: Child();
     );
     let parent = component(&document, "Parent");
     let child = component(&document, "Child");
-    let parent_parameters =
-        resolve_component_parameters_symbolically("parameters.eqi", parent, |_| None)
-            .expect("parent interface resolves");
+    let parent_parameters = resolve_component_parameters_symbolically(
+        "parameters.eqi",
+        parent,
+        |_| None,
+        &RecordContext::default(),
+    )
+    .expect("parent interface resolves");
     let instances = parent
         .items()
         .iter()
@@ -165,6 +176,7 @@ instance missing: Child();
             &parent_parameters,
             &mut |_| None,
             &mut |_| None,
+            (&RecordContext::default(), &RecordContext::default()),
         )
         .expect_err("invalid binding fails closed");
         assert!(
@@ -192,6 +204,7 @@ fn ten_thousand_parameter_chains_and_cycles_are_iterative() {
         "parameters.eqi",
         component(&chain_document, "Chain"),
         |_| None,
+        &RecordContext::default(),
     )
     .expect("deep acyclic graph resolves without recursive calls");
     assert_eq!(parameters.len(), COUNT);
@@ -219,6 +232,7 @@ fn ten_thousand_parameter_chains_and_cycles_are_iterative() {
         "parameters.eqi",
         component(&cycle_document, "Cycle"),
         |_| None,
+        &RecordContext::default(),
     )
     .expect_err("one large SCC fails without recursive calls");
     assert_eq!(diagnostics.len(), 1);
@@ -239,6 +253,7 @@ fn parameter_self_loop_has_one_source_spanned_type_diagnostic() {
         "parameters.eqi",
         component(&document, "Loop"),
         |_| None,
+        &RecordContext::default(),
     )
     .expect_err("self dependency is a cycle");
 
@@ -280,12 +295,14 @@ component Ordered() {
         "parameters.eqi",
         component(&forward, "Ordered"),
         |_| None,
+        &RecordContext::default(),
     )
     .expect("forward declarations resolve");
     let reverse = resolve_component_parameters_symbolically(
         "parameters.eqi",
         component(&reverse, "Ordered"),
         |_| None,
+        &RecordContext::default(),
     )
     .expect("reverse declarations resolve");
     assert_eq!(forward, reverse);

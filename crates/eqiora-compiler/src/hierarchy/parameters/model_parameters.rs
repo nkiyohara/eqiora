@@ -103,9 +103,12 @@ mod tests {
         let model = model(
             "model M(clock tick: periodic, parameter twice: s = 2 * dt, parameter dt: s = period(tick)) { parameter four: s = 2 * twice; }",
         );
-        let symbolic = resolve_model_parameters_symbolically("period.eqi", &model, |name| {
-            (name == "tick").then_some(None)
-        })
+        let symbolic = resolve_model_parameters_symbolically(
+            "period.eqi",
+            &model,
+            |name| (name == "tick").then_some(None),
+            &RecordContext::default(),
+        )
         .unwrap();
         assert_eq!(
             symbolic["twice"].value_type.dimension(),
@@ -117,6 +120,7 @@ mod tests {
             &model,
             |name| (name == "tick").then_some(Some(RationalTime::new(1, 8).unwrap())),
             BTreeMap::new(),
+            &RecordContext::default(),
         )
         .unwrap();
         assert_eq!(
@@ -174,17 +178,26 @@ mod tests {
         ] {
             let model = model(source);
             assert!(
-                resolve_model_parameters_symbolically("period.eqi", &model, |name| (name
-                    == "tick")
-                    .then_some(None))
+                resolve_model_parameters_symbolically(
+                    "period.eqi",
+                    &model,
+                    |name| (name == "tick").then_some(None),
+                    &RecordContext::default()
+                )
                 .is_err(),
                 "{source}"
             );
         }
         let model = model("model M(clock tick: periodic, parameter dt: s = period(tick)) {}");
         assert!(
-            resolve_model_parameters("period.eqi", &model, |_| Some(None), BTreeMap::new())
-                .is_err()
+            resolve_model_parameters(
+                "period.eqi",
+                &model,
+                |_| Some(None),
+                BTreeMap::new(),
+                &RecordContext::default()
+            )
+            .is_err()
         );
     }
 }

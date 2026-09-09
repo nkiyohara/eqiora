@@ -34,7 +34,6 @@ pub(super) fn component_local_footprint(
     for item in definition.owned_items() {
         match item {
             ComponentItem::IndexSet(_)
-            | ComponentItem::Parameter(_)
             | ComponentItem::Port(_)
             | ComponentItem::Initial(_)
             | ComponentItem::Clock(_)
@@ -44,6 +43,16 @@ pub(super) fn component_local_footprint(
                 definition.file,
                 definition.declaration.range(),
                 "declaration",
+                diagnostics,
+            ),
+            ComponentItem::Parameter(parameter) => checked_local_add(
+                &mut declarations,
+                elaborator
+                    .record_for_type(&definition.namespace, parameter.value_type())
+                    .map_or(1, |record| 1 + record.definition.members().len()),
+                definition.file,
+                parameter.range(),
+                "Parameter record and members",
                 diagnostics,
             ),
             ComponentItem::Field(field) => checked_local_add(
@@ -352,6 +361,16 @@ pub(super) fn model_local_footprint(
     let mut footprint = LocalFootprint::default();
     for item in definition.owned_items() {
         match item {
+            Item::Parameter(parameter) => checked_local_add(
+                &mut footprint.declarations,
+                elaborator
+                    .record_for_type(&definition.namespace, parameter.value_type())
+                    .map_or(1, |record| 1 + record.definition.members().len()),
+                definition.file,
+                parameter.range(),
+                "Parameter record and members",
+                diagnostics,
+            ),
             Item::Field(field) => checked_local_add(
                 &mut footprint.declarations,
                 elaborator

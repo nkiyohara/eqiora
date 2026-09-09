@@ -5,6 +5,9 @@ use crate::record::BoundRecord;
 use eqiora_core::{Id, entity::kinds};
 use eqiora_lang::{Item, SignatureItem, ValueTypeSyntax, ValueTypeSyntaxKind};
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Clone, Debug, Default)]
 pub(in crate::hierarchy) struct RecordContext {
     pub(in crate::hierarchy) visible: BTreeMap<String, BoundRecord>,

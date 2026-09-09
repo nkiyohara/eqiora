@@ -1,4 +1,5 @@
 use super::*;
+use crate::hierarchy::parameters::RecordContext;
 use crate::hierarchy::parameters::{ParameterLineage, SymbolicParameterValue};
 use crate::lower::LoweringExpression;
 use eqiora_core::{DimExponents, ScalarDomain, ValueType};
@@ -153,8 +154,13 @@ let f = z * y; let z = x * x; }";
         .into_document()
         .unwrap();
     let component = &document.components()[0];
-    let parameters =
-        resolve_component_parameters_symbolically("component.eqi", component, |_| None).unwrap();
+    let parameters = resolve_component_parameters_symbolically(
+        "component.eqi",
+        component,
+        |_| None,
+        &RecordContext::default(),
+    )
+    .unwrap();
     let mut symbolic = parameters.clone();
     resolve_component_lets("component.eqi", component, &mut symbolic, |_| None).unwrap();
     assert_eq!(
