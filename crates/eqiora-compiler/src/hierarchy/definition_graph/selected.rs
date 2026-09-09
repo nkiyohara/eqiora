@@ -87,6 +87,12 @@ fn model_values(
         |name| clocks::model(model.file, model.declaration, name),
         &parameters::RecordContext::model(elaborator, model),
     )?;
+    elaborator.bind_symbolic_properties(
+        &model.namespace,
+        model.file,
+        model.declaration.signature(),
+        &mut values,
+    )?;
     parameters::resolve_model_lets(model.file, model.declaration, &mut values, |name| {
         clocks::model(model.file, model.declaration, name)
     })?;
@@ -425,7 +431,7 @@ impl Selected<'_, '_, '_> {
                         ordinal as u32,
                     )
                     .map_err(|error| vec![error])?;
-                    let child_values = parameters::resolve_instance_parameters_symbolically(
+                    let mut child_values = parameters::resolve_instance_parameters_symbolically(
                         (child.file, file),
                         child.declaration,
                         &member,
@@ -436,6 +442,13 @@ impl Selected<'_, '_, '_> {
                             &parameters::RecordContext::component(self.elaborator, &child),
                             records,
                         ),
+                    )?;
+                    self.elaborator.bind_instance_property_values(
+                        &child,
+                        &member,
+                        (namespace, file),
+                        values,
+                        &mut child_values,
                     )?;
                     self.component(&child, child_values, depth + 1)?
                 };
@@ -485,6 +498,12 @@ impl Selected<'_, '_, '_> {
         {
             return Ok(summary.clone());
         }
+        self.elaborator.bind_symbolic_properties(
+            &component.namespace,
+            component.file,
+            component.declaration.signature(),
+            &mut values,
+        )?;
         parameters::resolve_component_lets(
             component.file,
             component.declaration,

@@ -4,6 +4,37 @@ use super::*;
 use std::sync::Arc;
 
 impl Scope {
+    pub(in crate::hierarchy) fn extend_properties(
+        &mut self,
+        properties: &BTreeMap<String, Arc<eqiora_schema::kernel::PropertyRelease>>,
+    ) {
+        for (name, release) in properties {
+            self.insert_property(name.clone(), release.clone());
+        }
+    }
+
+    pub(in crate::hierarchy) fn insert_property(
+        &mut self,
+        name: String,
+        release: Arc<eqiora_schema::kernel::PropertyRelease>,
+    ) {
+        if let Some(value) = release.meaning().constant_value() {
+            self.insert_parameter(
+                name.clone(),
+                super::super::parameters::ResolvedParameter {
+                    value: value.clone(),
+                    expression: LoweringExpression::property(
+                        release.clone(),
+                        Vec::new(),
+                        TextRange::default(),
+                    ),
+                    lineage: super::super::parameters::ParameterLineage::Constant,
+                },
+            );
+        }
+        self.properties.insert(name, release);
+    }
+
     pub(in crate::hierarchy) fn bind_properties(
         &mut self,
         elaborator: &Elaborator<'_>,
@@ -73,8 +104,7 @@ impl Scope {
                 .clone()
                 .for_requirement(component, requirement.name().to_owned())
                 .map_err(|error| vec![error])?;
-            self.properties
-                .insert(requirement.name().to_owned(), Arc::new(release));
+            self.insert_property(requirement.name().to_owned(), Arc::new(release));
         }
         Ok(())
     }

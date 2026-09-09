@@ -13,7 +13,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
     ) -> Result<ExpandedBlueprint, Vec<Diagnostic>> {
         let model = self.model.clone();
         let mut root_scope = Scope::external_root();
-        root_scope.properties = properties.clone();
+        root_scope.extend_properties(properties);
         root_scope.lexical_namespace = Some(component.namespace.clone());
         root_scope.reduction_terms_limit = self.elaborator.limits.max_parameter_terms;
         root_scope.set_pure_operators(self.elaborator.visible_pure_operators(&model.namespace));

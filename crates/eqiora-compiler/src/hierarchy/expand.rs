@@ -294,7 +294,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
     ) -> Result<ExpandedBlueprint, Vec<Diagnostic>> {
         let model = self.model.clone();
         let mut root_scope = Scope::default();
-        root_scope.properties = properties.clone();
+        root_scope.extend_properties(properties);
         root_scope.record_context =
             super::parameters::RecordContext::model(self.elaborator, &model);
         root_scope.reduction_terms_limit = self.elaborator.limits.max_parameter_terms;
