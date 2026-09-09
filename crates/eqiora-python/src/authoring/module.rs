@@ -20,6 +20,8 @@ type OperatorInput<'py> = (
     u32,
 );
 
+type PropertyContractInput<'py> = (Vec<(String, PyRef<'py, PyAstType>)>, String, Option<String>);
+
 #[pyclass(name = "_AstModule", module = "eqiora._eqiora", frozen, from_py_object)]
 #[derive(Clone)]
 pub(crate) struct PyAstModule {
@@ -330,7 +332,7 @@ impl PyAstModule {
         module: Option<&Self>,
         name: String,
         kind: &PyAstType,
-        profile: (Vec<(String, PyRef<'_, PyAstType>)>, String, Option<String>),
+        profile: PropertyContractInput<'_>,
         ordinal: u32,
     ) -> PyResult<Self> {
         let document = Ast::with_property_contract(
