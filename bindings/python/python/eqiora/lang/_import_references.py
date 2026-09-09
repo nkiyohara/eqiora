@@ -42,5 +42,3 @@ def same_declaration(left, right):
     if left_ref is not None and right_ref is not None:
         return left_ref._identity == right_ref._identity
     return left is right
-
-
