@@ -1,5 +1,4 @@
-use super::data::{Context, Data};
-use super::lowering::Terms;
+use crate::form_compiler::region::BoundRegionForm;
 
 #[cfg(test)]
 mod tests;
@@ -22,8 +21,7 @@ pub(super) fn derive(
     parent: RawId,
     dimension: usize,
     fields: &[(RawId, ValueType)],
-    rows: &[Terms],
-    coefficients: &BTreeMap<RawId, Data>,
+    volume: &BoundRegionForm,
 ) -> Result<Inventory, Diagnostic> {
     let mut boundaries = BTreeMap::new();
     let mut sides = BTreeSet::new();
@@ -85,7 +83,7 @@ pub(super) fn derive(
                 .enumerate()
                 .filter(|(_, (field, _))| equation_dependencies.contains(field))
                 .collect::<Vec<_>>();
-            let [(index, (field, _))] = matches.as_slice() else {
+            let [(_, (field, _))] = matches.as_slice() else {
                 return Err(super::invalid(
                     "boundary equation requires exactly one unknown Field",
                 ));
@@ -95,26 +93,14 @@ pub(super) fn derive(
                 relation,
                 *field,
                 dimension,
-                |dag, normal| {
-                    let Some(ExprNode::NormalComponent(flux)) = dag.node(normal) else {
-                        unreachable!()
-                    };
-                    let context = Context {
+                |_, normal| {
+                    volume.require_boundary_flux(
                         program,
-                        dag,
-                        owner: relation,
-                        dimension,
-                        coefficients,
-                    };
-                    let (trial, coefficient) = context.flux(*flux, 0)?;
-                    if trial != *field
-                        || !coefficient.same_coefficient(&rows[*index].diffusion[field])
-                    {
-                        return Err(super::invalid(
-                            "boundary flux differs from the exact volume constitutive coefficient",
-                        ));
-                    }
-                    Ok(())
+                        domain.id().erase(),
+                        relation,
+                        *field,
+                        normal,
+                    )
                 },
             )?;
             if matches!(law, ScalarExteriorLaw::Robin { .. }) {

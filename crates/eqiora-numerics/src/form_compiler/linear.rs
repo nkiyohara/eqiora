@@ -129,20 +129,6 @@ impl CompiledLinearBlockForm {
             rows.push(row);
             residual_types.push(value_type);
         }
-        let boundary = boundary::derive(program, domain, dimension, &fields, &rows, &coefficients)?;
-        let all_relations = roles
-            .relations
-            .keys()
-            .copied()
-            .chain(boundary.dependencies.keys().copied())
-            .collect();
-        continuous_activations(program, &all_relations)?;
-        let dependencies = roles
-            .relations
-            .iter()
-            .map(|(id, role)| (*id, role.dependencies.clone()))
-            .chain(boundary.dependencies)
-            .collect();
         let volume_rows = residuals
             .iter()
             .zip(rows)
@@ -159,7 +145,21 @@ impl CompiledLinearBlockForm {
                 forcing: row.constant.multiply(Data::constant(dimension, -1.0)),
             })
             .collect();
-        let volume = CompiledRegionForm::scalar(domain, dimension, roles, volume_rows)?;
+        let volume = CompiledRegionForm::scalar(domain, dimension, roles.clone(), volume_rows)?;
+        let boundary = boundary::derive(program, domain, dimension, &fields, &volume)?;
+        let all_relations = roles
+            .relations
+            .keys()
+            .copied()
+            .chain(boundary.dependencies.keys().copied())
+            .collect();
+        continuous_activations(program, &all_relations)?;
+        let dependencies = roles
+            .relations
+            .iter()
+            .map(|(id, role)| (*id, role.dependencies.clone()))
+            .chain(boundary.dependencies)
+            .collect();
         Ok(Self {
             domain,
             dimension,

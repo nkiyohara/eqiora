@@ -1,6 +1,7 @@
 use eqiora_core::Diagnostic;
 use eqiora_schema::kernel::{ExprId, ExprNode, SymbolRef};
 
+use super::flux::FluxTerm;
 use super::{Context, Data, Pairing, Row, Term, invalid};
 
 #[derive(Clone, Copy)]
@@ -18,6 +19,25 @@ pub(super) fn lower(
     depth: usize,
 ) -> Result<(), Diagnostic> {
     expression(context, id, coefficient, row, Position::Strong, depth)
+}
+
+pub(super) fn boundary_flux(
+    context: &Context<'_>,
+    id: ExprId,
+    row: &Row,
+) -> Result<Vec<FluxTerm>, Diagnostic> {
+    let mut boundary = row.clone();
+    boundary.terms.clear();
+    boundary.flux.clear();
+    expression(
+        context,
+        id,
+        Data::constant(context.dimension, 1.0),
+        &mut boundary,
+        Position::Flux,
+        0,
+    )?;
+    Ok(boundary.flux)
 }
 
 fn expression(
@@ -181,9 +201,9 @@ fn expression(
                     // Coordinate independence proves this value is uniform, not
                     // defined. Check the exact immutable Parameter point before
                     // erasing its gradient; role dependencies remain retained.
-                    coefficient
-                        .multiply(data)
-                        .evaluate(&vec![0.0; context.dimension])?;
+                    let value = coefficient.multiply(data);
+                    value.evaluate(&vec![0.0; context.dimension])?;
+                    row.flux.push(FluxTerm::Isotropic(value));
                     Ok(())
                 }
                 _ => Err(invalid("unsupported spatial forcing in region weak form")),
@@ -214,12 +234,22 @@ fn trial(
             ));
         }
     };
-    row.terms.push(Term {
+    let term = Term {
         positive_diffusion: false,
         trial: field,
         derivative,
         pairing,
         coefficient,
-    });
+    };
+    if matches!(
+        pairing,
+        Pairing::Gradient
+            | Pairing::SymmetricGradient
+            | Pairing::Divergence
+            | Pairing::TestDivergenceTrialValue
+    ) {
+        row.flux.push(FluxTerm::Trial(term.clone()));
+    }
+    row.terms.push(term);
     Ok(())
 }

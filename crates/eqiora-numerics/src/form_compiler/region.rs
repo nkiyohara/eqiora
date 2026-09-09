@@ -16,6 +16,7 @@ mod integration;
 mod scalar;
 pub(super) use integration::integrate_scalar;
 pub(super) use scalar::ScalarRow;
+mod flux;
 mod lowering;
 #[cfg(test)]
 mod tests;
@@ -36,6 +37,7 @@ struct Row {
     tested: RawId,
     value_type: ValueType,
     terms: Vec<Term>,
+    flux: Vec<flux::FluxTerm>,
     forcing: Vec<Data>,
 }
 
@@ -101,6 +103,7 @@ impl CompiledRegionForm {
                 tested,
                 value_type: value_type.clone(),
                 terms: Vec::new(),
+                flux: Vec::new(),
                 forcing: vec![Data::constant(dimension, 0.0); components(&value_type, dimension)?],
             };
             lowering::lower(&context, root, Data::constant(dimension, 1.0), &mut row, 0)?;

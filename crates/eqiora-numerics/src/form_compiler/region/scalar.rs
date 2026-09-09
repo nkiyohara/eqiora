@@ -42,6 +42,7 @@ impl CompiledRegionForm {
                     relation: row.relation,
                     tested: row.field,
                     value_type: row.residual_type,
+                    flux: vec![super::flux::FluxTerm::Trial(terms[0].clone())],
                     terms,
                     forcing: vec![row.forcing],
                 }
@@ -91,6 +92,9 @@ impl BoundRegionForm {
     ) -> Result<Self, Diagnostic> {
         let mut bound = self.clone();
         for row in &mut bound.form.rows {
+            for flux in &mut row.flux {
+                flux.bind_parameter_point(fields, values)?;
+            }
             for component in &mut row.forcing {
                 *component = component.bind_parameter_point(fields, values)?;
             }
