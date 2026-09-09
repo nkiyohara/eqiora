@@ -1,0 +1,161 @@
+//! Check the closed correspondence inventory without invoking its generator.
+//!
+//! Source recognition remains the caller's responsibility. This checker binds the
+//! resulting source roles; it does not establish regularity or reverse implication.
+//! Replay scans the ordered resources once and allocates no replacement certificate.
+
+use super::*;
+
+impl PrimalGalerkinCorrespondence {
+    pub(in crate::form_compiler) fn replay(
+        &self,
+        source: PrimalGalerkinSource<'_>,
+    ) -> Result<(), &'static str> {
+        if self.law.domain != source.domain
+            || self.law.unknown != source.unknown
+            || self.law.relations.first() != Some(&source.volume_relation)
+            || !self
+                .law
+                .relations
+                .iter()
+                .skip(1)
+                .copied()
+                .eq(source.boundaries.iter().map(|boundary| boundary.relation))
+        {
+            return Err("scalar Law identity or ordered boundary resources are stale");
+        }
+        if self.formulation.kind != FormulationKind::PrimalGalerkin
+            || self.formulation.trial != source.unknown
+            || self.formulation.test != source.unknown
+            || self.formulation.boundary_treatment
+                != BoundaryTreatment::CompleteHomogeneousEssential
+            || !matches!(
+                self.formulation.rules,
+                [
+                    FormulationRule::TestPairing,
+                    FormulationRule::DivergenceByParts,
+                    FormulationRule::HomogeneousEssentialDischarge,
+                    FormulationRule::SourcePairing,
+                ]
+            )
+        {
+            return Err("scalar effective Formulation or closed rule inventory is stale");
+        }
+
+        // The retained order is test introduction, parts, every essential trace,
+        // then source pairing. Requiring exhaustion rejects extra/missing terms.
+        let mut entries = self.entries.iter();
+        check_entry(
+            entries.next(),
+            TEST_PAIRING,
+            source.volume_relation,
+            source.root,
+            WeakTermSlot::TestPairing {
+                test: MatrixSlot::Test,
+            },
+            WeakSign::Positive,
+        )?;
+        check_entry(
+            entries.next(),
+            DIVERGENCE_BY_PARTS,
+            source.volume_relation,
+            source.divergence,
+            WeakTermSlot::Bilinear {
+                test: MatrixSlot::Test,
+                trial: MatrixSlot::Trial,
+            },
+            WeakSign::Positive,
+        )?;
+        for boundary in source.boundaries {
+            check_entry(
+                entries.next(),
+                HOMOGENEOUS_ESSENTIAL_DISCHARGE,
+                boundary.relation,
+                boundary.trace_node,
+                WeakTermSlot::Boundary {
+                    test: MatrixSlot::Test,
+                },
+                WeakSign::Negative,
+            )?;
+        }
+        check_entry(
+            entries.next(),
+            SOURCE_PAIRING,
+            source.volume_relation,
+            source.source,
+            WeakTermSlot::Linear {
+                test: MatrixSlot::Test,
+            },
+            WeakSign::Positive,
+        )?;
+        if entries.next().is_some() {
+            return Err("scalar correspondence has unconsumed entries");
+        }
+        Ok(())
+    }
+}
+
+fn check_entry(
+    entry: Option<&CertificateEntry>,
+    rule: &str,
+    relation: RawId,
+    node: ExprId,
+    slot: WeakTermSlot,
+    sign: WeakSign,
+) -> Result<(), &'static str> {
+    let Some(entry) = entry else {
+        return Err("scalar correspondence is missing a required entry");
+    };
+    if entry.rule_id != rule
+        || entry.relation != relation
+        || entry.source_node != node
+        || entry.slot != slot
+        || entry.sign != sign
+    {
+        return Err("scalar correspondence rule, source occurrence, role, or sign is stale");
+    }
+    Ok(())
+}
+
+impl IntegralConservativeCorrespondence {
+    pub(crate) fn replay(
+        &self,
+        source: IntegralConservativeSource<'_>,
+    ) -> Result<(), &'static str> {
+        if self.law.domain != source.domain
+            || self.law.velocity != source.velocity
+            || self.law.pressure != source.pressure
+            || self.law.source != source.source
+            || self.law.source_definition != source.source_definition
+            || self.law.momentum_relation != source.momentum_relation
+            || self.law.incompressibility_relation != source.incompressibility_relation
+            || self.law.boundary_relations != source.boundary_relations
+        {
+            return Err("conservative Law identity or ordered boundary resources are stale");
+        }
+        if self.formulation.kind != FormulationKind::IntegralConservative
+            || self.formulation.domain != source.domain
+            || self.formulation.momentum_unknown != source.velocity
+            || self.formulation.pressure_role != source.pressure
+            || self.formulation.boundary_treatment != BoundaryTreatment::ExplicitTraceFluxLaws
+            || !matches!(
+                self.formulation.rules,
+                [
+                    IntegralConservativeRule::ArbitrarySubdomainBalance,
+                    IntegralConservativeRule::TransientStorageIntegral,
+                    IntegralConservativeRule::PhysicalMomentumFlux,
+                    IntegralConservativeRule::PhysicalStressFlux,
+                    IntegralConservativeRule::BodySourceIntegral,
+                    IntegralConservativeRule::IncompressibilityFluxBalance,
+                    IntegralConservativeRule::ExplicitBoundaryLaw,
+                ]
+            )
+        {
+            return Err("conservative effective Formulation or closed rule inventory is stale");
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests;

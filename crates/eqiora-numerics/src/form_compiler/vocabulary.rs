@@ -4,6 +4,7 @@ use eqiora_core::RawId;
 use eqiora_schema::kernel::ExprId;
 
 mod mixed;
+mod replay;
 pub(crate) use mixed::{
     DirectionalProof, MixedBoundaryDisposition, MixedCertificateEntry, MixedFormulationRule,
     MixedGalerkinCorrespondence, MixedGalerkinSource, MixedNormalOrientation, MixedTermRole,
@@ -197,13 +198,6 @@ impl PrimalGalerkinCorrespondence {
             entries,
         }
     }
-
-    pub(super) fn replay(&self, source: PrimalGalerkinSource<'_>) -> Result<(), &'static str> {
-        if self != &Self::derive(source) {
-            return Err("Law identity, effective Formulation, or correspondence steps are stale");
-        }
-        Ok(())
-    }
 }
 
 /// Closed mathematical transformations from conservative differential Laws
@@ -314,15 +308,5 @@ impl IntegralConservativeCorrespondence {
                 ],
             },
         }
-    }
-
-    pub(crate) fn replay(
-        &self,
-        source: IntegralConservativeSource<'_>,
-    ) -> Result<(), &'static str> {
-        if self != &Self::derive(source) {
-            return Err("conservative Law identity or effective integral Formulation is stale");
-        }
-        Ok(())
     }
 }
