@@ -257,7 +257,7 @@ fn derived_record_member_keeps_parameter_expression_and_decoder_budgets() {
     let expression = definition(&mut original, "record-instance")["expression"].clone();
     let roots = expression["roots"].as_array().unwrap();
     let derived = &expression["nodes"][roots[3].as_u64().unwrap() as usize];
-    assert_eq!(derived["kind"], "mul");
+    assert_eq!(derived["op"], "mul");
     assert_eq!(
         program
             .nodes()
