@@ -7,8 +7,15 @@ use eqiora_schema::kernel::GeometryDigest;
 ///
 /// The L4 composition owner constructs these only after the common Geometry
 /// owner proves revision membership and parent topology.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum ExternalGeometrySupportBinding {
+    /// An explicit finite exterior of one exactly bound parent region.
+    CompleteExterior {
+        slot: String,
+        geometry: GeometryDigest,
+        parent_slot: String,
+        members: Vec<ExternalGeometryBoundaryMember>,
+    },
     /// A full-dimensional named region.
     Region {
         /// Public Component support slot.
@@ -30,7 +37,15 @@ pub(crate) enum ExternalGeometrySupportBinding {
         entity_set: String,
         /// Public Component slot naming the exact parent region.
         parent_slot: String,
+        /// Derived only from exact primitive Geometry topology.
+        embedding: Option<eqiora_schema::kernel::CartesianBoundaryEmbedding>,
     },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct ExternalGeometryBoundaryMember {
+    pub(crate) entity_set: String,
+    pub(crate) embedding: Option<eqiora_schema::kernel::CartesianBoundaryEmbedding>,
 }
 
 impl ExternalGeometrySupportBinding {
@@ -57,12 +72,14 @@ impl ExternalGeometrySupportBinding {
         geometry: GeometryDigest,
         entity_set: impl Into<String>,
         parent_slot: impl Into<String>,
+        embedding: Option<eqiora_schema::kernel::CartesianBoundaryEmbedding>,
     ) -> Self {
         Self::Boundary {
             slot: slot.into(),
             geometry,
             entity_set: entity_set.into(),
             parent_slot: parent_slot.into(),
+            embedding,
         }
     }
 
@@ -70,23 +87,16 @@ impl ExternalGeometrySupportBinding {
     #[must_use]
     pub(crate) fn slot(&self) -> &str {
         match self {
-            Self::Region { slot, .. } | Self::Boundary { slot, .. } => slot,
+            Self::Region { slot, .. }
+            | Self::Boundary { slot, .. }
+            | Self::CompleteExterior { slot, .. } => slot,
         }
     }
 
-    /// Exact Geometry identity.
-    #[must_use]
-    pub(crate) const fn geometry(&self) -> GeometryDigest {
+    pub(crate) fn allocated_support_count(&self) -> usize {
         match self {
-            Self::Region { geometry, .. } | Self::Boundary { geometry, .. } => *geometry,
-        }
-    }
-
-    /// Exact named Geometry entity set.
-    #[must_use]
-    pub(crate) fn entity_set(&self) -> &str {
-        match self {
-            Self::Region { entity_set, .. } | Self::Boundary { entity_set, .. } => entity_set,
+            Self::CompleteExterior { members, .. } => members.len(),
+            _ => 1,
         }
     }
 }
@@ -179,6 +189,12 @@ pub enum StaticBindingValue<'a> {
     Value(&'a eqiora_core::ValueLiteral),
     /// An existing nominal clock; its identity is preserved.
     Clock(&'a eqiora_schema::kernel::ClockDomainDef),
+    /// Explicit finite boundary selections forming the complete exterior of an exact parent.
+    CompleteExterior {
+        geometry: &'a eqiora_geometry::CanonicalGeometryV1,
+        members: &'a [&'a eqiora_geometry::NamedEntitySet],
+        parent: &'a eqiora_geometry::NamedEntitySet,
+    },
     /// An authoritative Geometry selection and, for a boundary, its exact parent.
     GeometrySupport {
         geometry: &'a eqiora_geometry::CanonicalGeometryV1,

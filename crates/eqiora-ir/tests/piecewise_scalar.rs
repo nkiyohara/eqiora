@@ -237,3 +237,53 @@ fn extrema_use_point_bound_selection_derivatives_and_reject_ties() {
             .is_err()
     );
 }
+
+#[test]
+fn sine_direct_and_retained_operator_share_values_and_first_derivatives() {
+    let d = DimExponents::DIMENSIONLESS;
+    for retained in [false, true] {
+        let mut b = ExprDagBuilder::new();
+        let x = b.symbol(SymbolRef::Parameter(Id::new())).unwrap();
+        let root = if retained {
+            let mut c = CalculusBuilder::new([class(d)], class(d)).unwrap();
+            let input = formal(&mut c, 0);
+            let root = c
+                .push(CalculusNode::UnaryMath(UnaryMathFunction::Sin, input))
+                .unwrap();
+            b.pure_operator(&c.finish(root).unwrap(), [x]).unwrap()
+        } else {
+            b.unary_math(UnaryMathFunction::Sin, x).unwrap()
+        };
+        let ir = ScalarOperatorIr::lower(&b.finish([root]).unwrap()).unwrap();
+        // Taylor series at zero establishes these exact values and slopes;
+        // pi/2 has binary64 argument error, bounded here by four ulps at one.
+        for (point, expected, slope) in [
+            (0., 0., 1.),
+            (std::f64::consts::FRAC_PI_2, 1., 0.),
+            (-std::f64::consts::FRAC_PI_2, -1., 0.),
+        ] {
+            let inputs = [real(d, point)];
+            let got = ir
+                .evaluate_typed(&[root], &mut |_| Some(inputs[0].clone()))
+                .unwrap();
+            assert!((value(&got[0]) - expected).abs() <= 4. * f64::EPSILON);
+            let linear = ir
+                .linearize_typed(&inputs, &[DifferentiationRole::Unknown])
+                .unwrap();
+            let mut tangent = [0.];
+            linear
+                .jvp(RelationTangent::Unknown(&[1.]), &mut tangent)
+                .unwrap();
+            assert!((tangent[0] - slope).abs() <= 4. * f64::EPSILON);
+            let mut adjoint = [0.];
+            linear
+                .vjp(&[1.], RelationCotangent::Unknown(&mut adjoint))
+                .unwrap();
+            assert!((adjoint[0] - slope).abs() <= 4. * f64::EPSILON);
+        }
+        assert!(
+            ir.evaluate_typed(&[root], &mut |_| Some(real(voltage(), 1.)))
+                .is_err()
+        );
+    }
+}

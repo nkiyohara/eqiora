@@ -308,7 +308,8 @@ def compile(
     if isinstance(source, Module):
         if path is not None or filename is not None:
             raise TypeError("a Module owns its logical paths; path/filename are text-only")
-        return _compile_module(source._name, source._units(), entry=entry,
+        return _compile_module((source._package, source._name), source._units(),
+                               source._dependencies(), entry=entry,
                                geometry=geometry, bindings=bindings)
     return _compile(
         path=path,

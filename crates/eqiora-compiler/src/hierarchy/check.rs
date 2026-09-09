@@ -390,6 +390,32 @@ fn validate_definition_bodies_and_parameters(
             occurrences_valid = false;
             diagnostics.extend(errors);
         }
+        let mut model_boundary_sets = BTreeMap::new();
+        match super::supports::signature_support_interface(definition.file, definition.signature())
+        {
+            Ok(interface) => {
+                for (name, contract) in interface.complete_exteriors() {
+                    match symbolic_complete_exterior_set(
+                        definition.file,
+                        name,
+                        contract,
+                        definition.range(),
+                    ) {
+                        Ok(set) => {
+                            model_boundary_sets.insert(name.to_owned(), set);
+                        }
+                        Err(error) => {
+                            occurrences_valid = false;
+                            diagnostics.push(error);
+                        }
+                    }
+                }
+            }
+            Err(errors) => {
+                occurrences_valid = false;
+                diagnostics.extend(errors);
+            }
+        }
         let model_fields = model_supports
             .as_ref()
             .map(|supports| {
@@ -495,7 +521,7 @@ fn validate_definition_bodies_and_parameters(
                     occurrences_valid = false;
                     continue;
                 };
-                let support_bindings = match resolve_instance_support_bindings(
+                let support_bindings = match super::supports::resolve_definition_support_bindings(
                     definition.file,
                     child.declaration,
                     child_supports,
@@ -520,6 +546,17 @@ fn validate_definition_bodies_and_parameters(
                             dimensions,
                             ..
                         } => {
+                            if let Some((axis, side)) = elaborator
+                                .selected_boundary_sides
+                                .get(&(key.clone(), identity.clone()))
+                            {
+                                return Some(CartesianDomain::Boundary {
+                                    exact_parent: parent.clone(),
+                                    ambient_dimension: *dimensions,
+                                    axis: *axis,
+                                    side: *side,
+                                });
+                            }
                             let declaration = definition.declaration.items().iter().find_map(
                                 |item| match item {
                                     Item::Domain(domain) if domain.name() == identity => {
@@ -544,7 +581,12 @@ fn validate_definition_bodies_and_parameters(
                         }
                         eqiora_schema::kernel::typing::SpatialSupport::Interface { .. } => None,
                     },
-                    |_| None,
+                    |name| model_boundary_sets.get(name).cloned(),
+                    |name| {
+                        !elaborator.selected_models.contains(key) && definition.signature().iter().any(|item| {
+                        matches!(item, eqiora_lang::SignatureItem::Support(slot) if slot.name() == name && matches!(slot.syntax(), eqiora_lang::SupportSlotSyntax::Boundary { .. }))
+                    })
+                    },
                     &mut complete_exterior_budget,
                 ) {
                     Ok(bindings) => Some(bindings),

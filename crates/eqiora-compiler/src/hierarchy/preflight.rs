@@ -134,6 +134,9 @@ impl DefinitionKey {
 }
 
 pub(super) struct Elaborator<'a> {
+    pub(super) selected_models: BTreeSet<DefinitionKey>,
+    pub(super) selected_boundary_sides:
+        BTreeMap<(DefinitionKey, String), (usize, eqiora_schema::kernel::BoundarySide)>,
     pub(super) selected_component: Option<(DefinitionKey, super::parameters::SymbolicParameterMap)>,
     pub(super) notations: BTreeMap<(String, u32, u32), eqiora_lang::Notation>,
     pub(super) native: BTreeMap<DefinitionNamespace, &'a eqiora_lang::Module>,
@@ -225,6 +228,8 @@ impl<'a> Elaborator<'a> {
                 native.and_then(|native| native.nominal_identity(name))
             })?;
         let elaborator = Self {
+            selected_boundary_sides: BTreeMap::new(),
+            selected_models: BTreeSet::new(),
             selected_component: None,
             notations: notation::index(file, document),
             native: native
@@ -316,6 +321,8 @@ impl<'a> Elaborator<'a> {
             })
             .collect();
         let elaborator = Self {
+            selected_boundary_sides: BTreeMap::new(),
+            selected_models: BTreeSet::new(),
             selected_component: None,
             notations: analysis
                 .units
@@ -387,7 +394,29 @@ impl<'a> Elaborator<'a> {
 
     /// Check the selected Model against its actual static bindings while retaining
     /// the authored source namespace and every unselected definition.
-    pub(super) fn bind_selected_model(&mut self, model: ModelDefinition<'a>) {
+    pub(super) fn bind_selected_model(
+        &mut self,
+        model: ModelDefinition<'a>,
+        supports: &[crate::external::ExternalGeometrySupportBinding],
+    ) {
+        let key = DefinitionKey {
+            namespace: model.namespace.clone(),
+            name: model.name().to_owned(),
+        };
+        self.selected_models.insert(key.clone());
+        for support in supports {
+            if let crate::external::ExternalGeometrySupportBinding::Boundary {
+                slot,
+                embedding: Some(embedding),
+                ..
+            } = support
+            {
+                self.selected_boundary_sides.insert(
+                    (key.clone(), slot.clone()),
+                    (embedding.normal_axis(), embedding.side()),
+                );
+            }
+        }
         self.models.insert(
             DefinitionKey {
                 namespace: model.namespace.clone(),

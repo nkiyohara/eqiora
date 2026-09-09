@@ -183,12 +183,15 @@ fn local_document_in(
             &prepared,
             &parameters::RecordContext::model(&elaborator, &model),
         )?;
-        elaborator.bind_selected_model(preflight::ModelDefinition {
-            namespace: model.namespace,
-            file: model.file,
-            owned_interfaces: preflight::owned_model_items(&selected_bound),
-            declaration: &selected_bound,
-        });
+        elaborator.bind_selected_model(
+            preflight::ModelDefinition {
+                namespace: model.namespace,
+                file: model.file,
+                owned_interfaces: preflight::owned_model_items(&selected_bound),
+                declaration: &selected_bound,
+            },
+            prepared.supports(),
+        );
     }
     if let Some(entry) = entry
         && !bindings.is_empty()
@@ -278,18 +281,59 @@ pub(crate) fn resolved(
     entry: &str,
     bindings: &[(&str, StaticBindingValue<'_>)],
 ) -> Result<CompiledModel, Vec<Diagnostic>> {
-    let elaborator = Elaborator::new_resolved(&hierarchy.analysis, HierarchyLimits::default())?;
+    let mut elaborator = Elaborator::new_resolved(&hierarchy.analysis, HierarchyLimits::default())?;
+    let context = PropertyScope {
+        units: &hierarchy.analysis.units,
+        aliases: &hierarchy.analysis.aliases,
+        local_namespace: None,
+    };
+    let selected_bound;
+    let selected_checked;
+    let checked = if let Some(model) = elaborator
+        .find_entry_model(entry)
+        .map_err(|message| vec![hierarchy_error(message)])?
+    {
+        let signature = authored_signature(&context, &model.namespace, model.name(), true)
+            .unwrap_or_else(|| model.signature());
+        let prepared = prepare(
+            &parameters::RecordContext::model(&elaborator, &model),
+            model.file,
+            model.name(),
+            signature,
+            bindings,
+            |requirement, value| {
+                property(&context, &model.namespace, model.file, requirement, value)
+            },
+        )?;
+        selected_bound = bind_model(
+            &elaborator,
+            model.declaration,
+            &prepared,
+            &parameters::RecordContext::model(&elaborator, &model),
+        )?;
+        elaborator.bind_selected_model(
+            preflight::ModelDefinition {
+                namespace: model.namespace,
+                file: model.file,
+                owned_interfaces: preflight::owned_model_items(&selected_bound),
+                declaration: &selected_bound,
+            },
+            prepared.supports(),
+        );
+        // Resolve every deferred topology obligation of the selected definition
+        // against the same validated support context used by occurrence allocation.
+        selected_checked = check::validate(&elaborator)?;
+        &selected_checked
+    } else {
+        &hierarchy.checked
+    };
     compile(
         &elaborator,
-        &hierarchy.checked,
+        checked,
         entry,
         bindings,
         &preflight::DefinitionNamespace::Resolved(hierarchy.analysis.root.clone()),
-        &PropertyScope {
-            units: &hierarchy.analysis.units,
-            aliases: &hierarchy.analysis.aliases,
-            local_namespace: None,
-        },
+        &context,
     )
 }
 
@@ -351,7 +395,13 @@ fn compile(
         size.declarations = checked_external_footprint(
             "declarations",
             size.declarations,
-            prepared.supports().len() + prepared.clocks.len() + prepared.parameters().len(),
+            prepared
+                .supports()
+                .iter()
+                .map(ExternalGeometrySupportBinding::allocated_support_count)
+                .sum::<usize>()
+                + prepared.clocks.len()
+                + prepared.parameters().len(),
             limits.max_declarations,
         )?;
         return RootExpansion::new(elaborator, definition, size)
@@ -471,6 +521,7 @@ fn prepare(
     ) -> Result<eqiora_core::ValueLiteral, Vec<Diagnostic>>,
 ) -> Result<ExternalComponentBinding, Vec<Diagnostic>> {
     use std::collections::{BTreeMap, BTreeSet};
+    crate::external_compile::validate_selected_bindings(file, name, bindings)?;
     let fail = |range, message| {
         vec![source_error(
             codes::LANGUAGE_TYPE_ERROR,
@@ -543,6 +594,54 @@ fn prepare(
             }
             (
                 SignatureItem::Support(slot),
+                StaticBindingValue::CompleteExterior {
+                    geometry,
+                    members,
+                    parent,
+                },
+            ) => {
+                let eqiora_lang::SupportSlotSyntax::CompleteExterior {
+                    parent: parent_slot,
+                } = slot.syntax()
+                else {
+                    return Err(fail(
+                        slot.range(),
+                        "CompleteExterior binding does not match the selected support contract"
+                            .to_owned(),
+                    ));
+                };
+                let group = geometry_groups
+                    .entry(geometry.digest_bytes())
+                    .or_insert_with(|| (geometry, Vec::new()));
+                // The finite members remain individual exact selections; no union is constructed.
+                for selection in members {
+                    group
+                        .1
+                        .push((name, selection, Some((parent_slot.as_str(), parent))));
+                }
+                if members.is_empty() {
+                    return Err(fail(
+                        slot.range(),
+                        "complete-exterior binding has no members".to_owned(),
+                    ));
+                }
+                supports.push(ExternalGeometrySupportBinding::CompleteExterior {
+                    slot: name.to_owned(),
+                    geometry: eqiora_schema::kernel::GeometryDigest::new(geometry.digest_bytes()),
+                    parent_slot: parent_slot.clone(),
+                    members: members
+                        .iter()
+                        .map(
+                            |selection| crate::external::ExternalGeometryBoundaryMember {
+                                entity_set: selection.name().to_owned(),
+                                embedding: geometry.cartesian_boundary_embedding(selection, parent),
+                            },
+                        )
+                        .collect(),
+                });
+            }
+            (
+                SignatureItem::Support(slot),
                 StaticBindingValue::GeometrySupport {
                     geometry,
                     selection,
@@ -582,11 +681,12 @@ fn prepare(
                     .1
                     .push((name, selection, parent_binding));
                 supports.push(match parent_binding {
-                    Some((parent_slot, _)) => ExternalGeometrySupportBinding::boundary(
+                    Some((parent_slot, parent)) => ExternalGeometrySupportBinding::boundary(
                         name,
                         digest,
                         selection.name(),
                         parent_slot,
+                        geometry.cartesian_boundary_embedding(selection, parent),
                     ),
                     None => ExternalGeometrySupportBinding::region(
                         name,

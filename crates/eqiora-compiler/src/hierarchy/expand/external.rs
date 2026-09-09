@@ -76,8 +76,36 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         scope: &mut Scope,
         supports: &[ExternalGeometrySupportBinding],
     ) -> Result<(), Diagnostic> {
-        let mut regions = BTreeMap::new();
+        let mut singular = Vec::new();
+        let mut member_slots = BTreeSet::new();
         for support in supports {
+            if let ExternalGeometrySupportBinding::CompleteExterior {
+                slot,
+                geometry,
+                parent_slot,
+                members,
+            } = support
+            {
+                for member in members {
+                    if !member_slots.insert(exterior_member_slot(slot, &member.entity_set)) {
+                        continue;
+                    }
+                    singular.push(ExternalGeometrySupportBinding::boundary(
+                        exterior_member_slot(slot, &member.entity_set),
+                        *geometry,
+                        member.entity_set.clone(),
+                        parent_slot.clone(),
+                        member.embedding.clone(),
+                    ));
+                }
+            } else {
+                singular.push(support.clone());
+            }
+        }
+        // Existing singular bindings allocate first so exact aliases keep their public identity.
+        singular.sort_by_key(|support| support.slot().starts_with('@'));
+        let mut regions = BTreeMap::new();
+        for support in &singular {
             let ExternalGeometrySupportBinding::Region {
                 slot,
                 geometry,
@@ -87,7 +115,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             else {
                 continue;
             };
-            let key = (support.geometry(), support.entity_set().to_owned());
+            let key = (*geometry, entity_set.clone());
             if let Some((symbol, spatial)) = regions.get(&key) {
                 self.alias_external_support(scope, slot, symbol, spatial)?;
                 continue;
@@ -124,11 +152,13 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             });
         }
         let mut boundaries = BTreeMap::new();
-        for support in supports {
+        for support in &singular {
             let ExternalGeometrySupportBinding::Boundary {
                 slot,
+                geometry,
                 entity_set,
                 parent_slot,
+                embedding,
                 ..
             } = support
             else {
@@ -148,7 +178,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     ),
                 ));
             };
-            let key = (support.geometry(), support.entity_set().to_owned(), parent);
+            let key = (*geometry, entity_set.clone(), parent);
             if let Some((symbol, spatial)) = boundaries.get(&key) {
                 self.alias_external_support(scope, slot, symbol, spatial)?;
                 continue;
@@ -181,9 +211,14 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             );
             self.boundary_parents.insert(identity.full, parent);
             // Exact external Geometry owns the boundary metric and orientation;
-            // retain the boundary contract while deferring Cartesian embedding
-            // validation to Geometry-aware semantic lowering.
-            self.boundary_embeddings.insert(identity.full, None);
+            // primitive embeddings also feed the existing complete-exterior proof.
+            // Other geometry remains subject to Geometry-aware semantic lowering.
+            self.boundary_embeddings
+                .insert(identity.full, embedding.clone());
+            if let Some(embedding) = embedding {
+                self.boundary_sides
+                    .insert(identity.full, (embedding.normal_axis(), embedding.side()));
+            }
             self.items.push(FlatItemBlueprint::Domain {
                 name: internal_name,
                 contract: LoweringDomainContract::ExternalGeometryBoundary {
@@ -193,6 +228,60 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 range: self.model.range(),
                 identity,
             });
+        }
+        for support in supports {
+            let ExternalGeometrySupportBinding::CompleteExterior {
+                slot,
+                parent_slot,
+                members,
+                ..
+            } = support
+            else {
+                continue;
+            };
+            let Some(SpatialSupport::Volume {
+                domain: parent,
+                dimensions,
+            }) = scope.spatial_support(parent_slot)
+            else {
+                return Err(hierarchy_error(
+                    "complete-exterior binding has no exact volume parent",
+                ));
+            };
+            let resolved = members
+                .iter()
+                .map(|member| {
+                    let name = exterior_member_slot(slot, &member.entity_set);
+                    let symbol = scope
+                        .symbol(&name)
+                        .expect("allocated exact exterior member");
+                    (symbol.internal_name.clone(), symbol.full_identity)
+                })
+                .collect();
+            let set = super::super::supports::external_complete_exterior_set(
+                self.model.file,
+                slot,
+                *parent,
+                *dimensions,
+                resolved,
+                |identity| {
+                    let SpatialSupport::Boundary {
+                        parent, dimensions, ..
+                    } = scope.spatial_support_by_identity(*identity)?
+                    else {
+                        return None;
+                    };
+                    let (axis, side) = self.boundary_sides.get(identity)?;
+                    Some(CartesianDomain::Boundary {
+                        exact_parent: *parent,
+                        ambient_dimension: *dimensions,
+                        axis: *axis,
+                        side: *side,
+                    })
+                },
+                &mut self.complete_exterior_memberships,
+            )?;
+            scope.insert_boundary_set(slot.clone(), set);
         }
         Ok(())
     }
@@ -339,4 +428,8 @@ fn time_expression(
         range,
     )
     .map_err(|error| hierarchy_error(error.message()))
+}
+
+fn exterior_member_slot(slot: &str, entity_set: &str) -> String {
+    format!("@exterior/{slot}/{entity_set}")
 }

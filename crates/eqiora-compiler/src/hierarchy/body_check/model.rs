@@ -116,6 +116,16 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                         SymbolContract::Support(contract.support().clone()),
                     );
                 }
+                for (name, contract) in supports.complete_exteriors() {
+                    if let Some(parent) = supports.get(contract.parent_slot()) {
+                        self.scope.symbols.insert(
+                            name.to_owned(),
+                            SymbolContract::CompleteExterior {
+                                parent: parent.support().clone(),
+                            },
+                        );
+                    }
+                }
                 match super::super::field_slots::signature_field_interface(
                     self.scope.file,
                     signature,
@@ -504,6 +514,27 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                 }
                 Item::Relation(declaration) => self.validate_relation(declaration),
                 Item::RelationFamily(family) => {
+                    if !self
+                        .scope
+                        .index_sets
+                        .contains_key(family.binder().set().as_str())
+                    {
+                        match self.scope.boundary_family_scope(family.binder()) {
+                            Ok(active) => {
+                                if let Err(errors) =
+                                    super::expression::validate_relation_family_expression(
+                                        &self.scope,
+                                        family,
+                                        &active,
+                                    )
+                                {
+                                    self.diagnostics.extend(errors);
+                                }
+                            }
+                            Err(error) => self.diagnostics.push(error),
+                        }
+                        continue;
+                    }
                     match super::indexed::extent(&self.scope, family.binder()) {
                         Ok(extent) => {
                             for ordinal in 0..extent {

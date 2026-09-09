@@ -13,6 +13,27 @@ from os import PathLike
 from typing import Final, Literal, final, overload
 from .. import FieldRole, ValueType, FiniteSpace, IndexSet, _ModelDeclaration
 
+class Connector:
+    """Immutable nominal scalar across/through declaration owned by one Module.
+
+    Authority: ``bindings/python/python/eqiora/lang/_connections.py::Connector``.
+    """
+
+class Port:
+    """Immutable physical endpoint exposing its declared named quantities.
+
+    Use member(name) when a declared name overlaps a Python attribute.
+
+    Authority: ``bindings/python/python/eqiora/lang/_connections.py::Port``.
+    """
+    def __getattr__(self, name: str) -> Expression: ...
+    def member(self, name: str) -> Expression:
+        """Select an exact declared quantity, including Python attribute names.
+
+        Authority: ``bindings/python/python/eqiora/lang/_connections.py::Port.member``.
+        """
+        ...
+
 @final
 class Notation:
     """Validated, immutable declaration notation; accepts one complete `@{...}` island.
@@ -145,7 +166,6 @@ class Clock:
 
     ...
 
-@final
 class Support:
     """Identify one volume or parent-boundary declaration in its exact Module.
 
@@ -153,6 +173,43 @@ class Support:
     """
 
     ...
+
+@final
+class BoundarySet(Support):
+    """An exact complete exterior requirement with a declared parent volume.
+
+    Authority: ``bindings/python/python/eqiora/lang/_boundaries.py::BoundarySet``.
+    """
+    def member(self, name: str) -> BoundaryMember: ...
+
+@final
+class BoundaryMember(Support):
+    """A lexical member of one exact complete exterior.
+
+    Authority: ``bindings/python/python/eqiora/lang/_boundaries.py::BoundaryMember``.
+    """
+
+@final
+class BoundarySelectionSet:
+    """An explicit finite set of exact boundary handles sharing one parent.
+
+    Authority: ``bindings/python/python/eqiora/lang/_boundaries.py::BoundarySelectionSet``.
+    """
+
+@final
+class FieldConnector(Connector):
+    """A nominal field trace/flux pair with exact shape and frame.
+
+    Authority: ``bindings/python/python/eqiora/lang/_boundaries.py::FieldConnector``.
+    """
+
+@final
+class FieldPort(Port):
+    """An exact field boundary endpoint or finite port family.
+
+    Authority: ``bindings/python/python/eqiora/lang/_boundaries.py::FieldPort``.
+    """
+    def __getitem__(self, boundary: Support) -> FieldPort: ...
 
 @final
 class PropertyContract:
@@ -271,6 +328,9 @@ class Component:
         parent: Support,
         doc: str | None = None,
     ) -> Support: ...
+    def complete_exterior(self, name: str, *, parent: Support,
+                          doc: str | None = None) -> BoundarySet: ...
+    def boundaries(self, *members: Support) -> BoundarySelectionSet: ...
     @overload
     def parameter(self, name: str, *, value_type: Record, doc: str | None = None) -> RecordParameter: ...
     @overload
@@ -316,7 +376,7 @@ class Component:
         self,
         name: str,
         equality: Equation,
-        *,
+        *additional_equalities: Equation,
         on: Support | None = None,
         at: Clock | Event | None = None,
         doc: str | None = None,
@@ -329,10 +389,26 @@ class Component:
         right: Expression,
         doc: str | None = None,
     ) -> None: ...
+    def port(self, name: str, *, connector: Connector, on: Support | None = None,
+             doc: str | None = None) -> Port | FieldPort:
+        """Declare a named physical endpoint using this Module's nominal Connector.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.port``.
+        """
+        ...
+    def connect(self, *ports: Port, over: BoundaryMember | None = None,
+                doc: str | None = None) -> None:
+        """Declare one conserving physical net; the compiler owns compatibility and signs.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.connect``.
+        """
+        ...
+    def connect_periodic(self, first: FieldPort, second: FieldPort,
+                         *, doc: str | None = None) -> None: ...
     def instance(
         self, name: str, *, component: Component | ComponentRef,
         bindings: Mapping[str, object], doc: str | None = None,
-    ) -> Mapping[str, Expression]: ...
+    ) -> Mapping[str, Expression | Port]: ...
     def clock_requirement(self, name: str, *, doc: str | None = None) -> Clock: ...
     def field_requirement(
         self, name: str, *, value_type: ValueType, role: FieldRole,
@@ -366,6 +442,12 @@ class ModuleRef:
     """
 
     def component(self, name: str) -> ComponentRef: ...
+    def connector(self, name: str) -> Connector | FieldConnector:
+        """Refer to one public nominal connector in the exact imported Module.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::ModuleRef.connector``.
+        """
+        ...
 
 @final
 class Module:
@@ -378,6 +460,16 @@ class Module:
         """Attach notation to an existing top-level declaration."""
         ...
 
+    def connector(self, name: str, *, across: tuple[str, ValueType],
+                  through: tuple[str, ValueType], doc: str | None = None) -> Connector:
+        """Declare a nominal scalar physical connector with named across/through quantities.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::Module.connector``.
+        """
+        ...
+    def field_connector(self, name: str, *, trace: tuple[str, ValueType],
+                        flux: tuple[str, ValueType], spatial_vector: bool = False,
+                        doc: str | None = None) -> FieldConnector: ...
     def operator(self, name: str, *, inputs: Mapping[str, ValueType], result_type: ValueType,
                  body: Callable[..., object], doc: str | None = None) -> Operator:
         """Declare a closed real-scalar operator from one symbolic callback invocation."""
@@ -400,9 +492,9 @@ class Module:
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Module.space``.
         """
         ...
-    def __init__(self, name: str, *declarations: _ModelDeclaration) -> None: ...
+    def __init__(self, name: str, *declarations: _ModelDeclaration, package: str = "eqiora.local_project") -> None: ...
     @classmethod
-    def parse(cls, name: str, source: str) -> Module:
+    def parse(cls, name: str, source: str, *, package: str = "eqiora.local_project") -> Module:
         """Parse one source unit; attach its exact imports explicitly before compilation."""
         ...
     def import_module(
@@ -694,6 +786,13 @@ __all__ = [
 
     "Clock",
     "Component",
+    "Connector",
+    "BoundarySet",
+    "BoundaryMember",
+    "BoundarySelectionSet",
+    "FieldConnector",
+    "FieldPort",
+    "Port",
     "ComponentRef",
     "Equation",
     "equation",

@@ -1,7 +1,7 @@
 //! Bounded adaptation to the compiler's single static signature binding owner.
 
 use eqiora::compiler::StaticBindingValue;
-use eqiora::geometry::CanonicalGeometryV1;
+use eqiora::geometry::{CanonicalGeometryV1, NamedEntitySet};
 use eqiora::kernel::ClockDomainDef;
 use eqiora::language::Expr;
 use pyo3::exceptions::{PyTypeError, PyValueError};
@@ -11,14 +11,15 @@ use pyo3::types::{PyDict, PyString, PyTuple};
 use crate::clock::PyClockDomain;
 use crate::geometry::PyGeometrySelection;
 
-pub(crate) enum OwnedBinding {
+pub(crate) enum OwnedBinding<'g> {
     Expression(Expr),
     Value(eqiora::ValueLiteral),
     Clock(ClockDomainDef),
     Support(String, Option<String>),
+    CompleteExterior(Vec<&'g NamedEntitySet>, &'g NamedEntitySet),
 }
 
-impl OwnedBinding {
+impl OwnedBinding<'_> {
     pub(crate) fn borrowed<'a>(
         &'a self,
         geometry: Option<&'a CanonicalGeometryV1>,
@@ -41,6 +42,11 @@ impl OwnedBinding {
                     }),
                 }
             }
+            Self::CompleteExterior(members, parent) => StaticBindingValue::CompleteExterior {
+                geometry: geometry.expect("support extraction checks exact authority"),
+                members,
+                parent,
+            },
         }
     }
 }
@@ -60,10 +66,10 @@ fn selection(value: &Bound<'_, PyAny>, geometry: Option<&CanonicalGeometryV1>) -
         .ok_or_else(|| PyValueError::new_err("Geometry selection is absent from its authority"))
 }
 
-pub(crate) fn extract(
+pub(crate) fn extract<'g>(
     bindings: Option<&Bound<'_, PyDict>>,
-    geometry: Option<&CanonicalGeometryV1>,
-) -> PyResult<Vec<(String, OwnedBinding)>> {
+    geometry: Option<&'g CanonicalGeometryV1>,
+) -> PyResult<Vec<(String, OwnedBinding<'g>)>> {
     let Some(bindings) = bindings else {
         return Ok(Vec::new());
     };
@@ -97,6 +103,34 @@ pub(crate) fn extract(
                 OwnedBinding::Support(
                     selection(&pair.get_item(0)?, geometry)?,
                     Some(selection(&pair.get_item(1)?, geometry)?),
+                )
+            } else if pair.len() == 2
+                && pair.get_item(0)?.is_instance_of::<PyTuple>()
+                && pair.get_item(1)?.is_instance_of::<PyGeometrySelection>()
+            {
+                let member_values = pair.get_item(0)?;
+                let member_values = member_values.cast::<PyTuple>()?;
+                if member_values.is_empty() || member_values.len() > 256 {
+                    return Err(PyValueError::new_err(
+                        "complete exterior requires between 1 and 256 exact boundary selections",
+                    ));
+                }
+                let parent = selection(&pair.get_item(1)?, geometry)?;
+                let authority = geometry.expect("parent selection checks exact authority");
+                let members = member_values
+                    .iter()
+                    .map(|member| {
+                        let name = selection(&member, geometry)?;
+                        Ok(authority
+                            .entity_set(&name)
+                            .expect("validated immutable selection"))
+                    })
+                    .collect::<PyResult<Vec<_>>>()?;
+                OwnedBinding::CompleteExterior(
+                    members,
+                    authority
+                        .entity_set(&parent)
+                        .expect("validated immutable parent"),
                 )
             } else {
                 OwnedBinding::Expression(

@@ -8,7 +8,7 @@ use eqiora_geometry::{CanonicalGeometryV1, NamedEntitySet};
 use eqiora_lang::TextRange;
 use std::collections::BTreeMap;
 
-fn validate_selected_bindings(
+pub(crate) fn validate_selected_bindings(
     file: &str,
     entry: &str,
     bindings: &[(&str, crate::StaticBindingValue<'_>)],
@@ -26,6 +26,25 @@ fn validate_selected_bindings(
     observe_external_name(file, "entry", entry, limits, &mut total)?;
     for (name, value) in bindings {
         observe_external_name(file, "binding", name, limits, &mut total)?;
+        if let crate::StaticBindingValue::CompleteExterior {
+            members, parent, ..
+        } = value
+        {
+            if members.len()
+                > crate::hierarchy::CompleteExteriorLimits::default().max_members_per_set
+            {
+                return Err(vec![source_error(
+                    codes::LANGUAGE_LOWERING_ERROR,
+                    file,
+                    TextRange::default(),
+                    "complete-exterior member count exceeds resource limit",
+                )]);
+            }
+            observe_external_name(file, "Geometry parent", parent.name(), limits, &mut total)?;
+            for member in *members {
+                observe_external_name(file, "Geometry member", member.name(), limits, &mut total)?;
+            }
+        }
         if let crate::StaticBindingValue::GeometrySupport {
             selection, parent, ..
         } = value

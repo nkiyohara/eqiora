@@ -203,19 +203,31 @@ fn compile_external_component_from_definition<'a>(
     let declarations = checked_external_footprint(
         "declarations",
         summary.declarations(),
-        binding.supports().len(),
+        binding
+            .supports()
+            .iter()
+            .map(crate::external::ExternalGeometrySupportBinding::allocated_support_count)
+            .sum::<usize>(),
         limits.max_declarations,
     )?;
     checked_external_footprint(
         "staged identities",
         summary.staged_identities(),
-        binding.supports().len(),
+        binding
+            .supports()
+            .iter()
+            .map(crate::external::ExternalGeometrySupportBinding::allocated_support_count)
+            .sum::<usize>(),
         limits.identity.max_staged_identities,
     )?;
     checked_external_footprint(
         "provenance entries",
         summary.provenance_entries(),
-        binding.supports().len(),
+        binding
+            .supports()
+            .iter()
+            .map(crate::external::ExternalGeometrySupportBinding::allocated_support_count)
+            .sum::<usize>(),
         limits.provenance.max_entries,
     )?;
 

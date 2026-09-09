@@ -6,6 +6,8 @@ use eqiora::language::{
 };
 use pyo3::prelude::*;
 
+use super::boundaries::FieldConnectorInput;
+use super::connections::{ConnectorInput, connectors};
 use super::declaration::PyAstType;
 use super::definition::{Definition, PyAstDefinition};
 use super::expression::{PyAstExpression, path, syntax_error};
@@ -59,6 +61,21 @@ impl PyAstModule {
 
 #[pymethods]
 impl PyAstModule {
+    #[staticmethod]
+    fn namespace(package: &str, name: &str) -> PyResult<String> {
+        let package = eqiora::package::QualifiedName::parse(package)
+            .map_err(|error| syntax_error(error.to_string()))?;
+        let namespace = eqiora::compiler::CompilationNamespaceId::new([package.as_str()])
+            .map_err(|error| syntax_error(error.message()))?;
+        eqiora::compiler::ResolvedSourceUnit::new(
+            namespace,
+            format!("src/{}.eqi", name.replace('.', "/")),
+            "",
+        )
+        .map_err(|error| syntax_error(error.message()))?;
+        Ok(package.as_str().to_owned())
+    }
+
     fn same_graph(&self, other: &Self) -> bool {
         self.value == other.value
     }
@@ -67,8 +84,15 @@ impl PyAstModule {
     fn new(
         definitions: Vec<PyRef<'_, PyAstDefinition>>,
         operators: Vec<OperatorInput<'_>>,
+        connector_inputs: Vec<ConnectorInput<'_>>,
+        field_connector_inputs: Vec<FieldConnectorInput<'_>>,
     ) -> PyResult<Self> {
-        if definitions.len() + operators.len() > 256 {
+        if definitions.len()
+            + operators.len()
+            + connector_inputs.len()
+            + field_connector_inputs.len()
+            > 256
+        {
             return Err(syntax_error("module exceeds 256 definitions"));
         }
         let mut components = Vec::new();
@@ -107,9 +131,11 @@ impl PyAstModule {
                 .map_err(syntax_error)
             })
             .collect::<PyResult<_>>()?;
+        let mut connectors = connectors(connector_inputs)?;
+        connectors.extend(super::boundaries::connectors(field_connector_inputs)?);
         let document = Ast::document_with_pure_operators(
             Vec::new(),
-            Vec::new(),
+            connectors,
             components,
             operators,
             models,
@@ -201,6 +227,18 @@ impl PyAstModule {
                 Ok((item.name().to_owned(), role.to_owned(), required))
             })
             .collect::<PyResult<_>>()
+    }
+
+    fn connector_descriptor(&self, name: &str, public: bool) -> PyResult<(String, String, String)> {
+        super::imports::connector(&self.value, name, public)
+    }
+
+    fn component_ports(&self, name: &str) -> PyResult<Vec<super::imports::PortDescriptor>> {
+        super::imports::ports(&self.value, name)
+    }
+
+    fn component_supports(&self, name: &str) -> PyResult<Vec<super::imports::SupportDescriptor>> {
+        super::imports::supports(&self.value, name)
     }
 
     fn with_space(&self, name: String, labels: Vec<String>, ordinal: u32) -> PyResult<Self> {

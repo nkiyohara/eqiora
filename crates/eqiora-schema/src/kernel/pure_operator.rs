@@ -530,9 +530,6 @@ impl CalculusBuilder {
         }
         let result_rank = self.result_rank();
         match &node {
-            CalculusNode::UnaryMath(function, _) if *function != super::UnaryMathFunction::Sqrt => {
-                return Err(PureOperatorError::FormalTypeMismatch);
-            }
             CalculusNode::FormalComponent { formal, axes } => {
                 let Some(rule) = self.formals.get(usize::from(*formal)) else {
                     return Err(PureOperatorError::InvalidFormal(*formal));

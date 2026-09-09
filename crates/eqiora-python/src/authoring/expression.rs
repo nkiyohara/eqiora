@@ -113,6 +113,35 @@ impl PyAstExpression {
         })
     }
 
+    fn boundary_port(&self, member: &str, target: &str) -> PyResult<Self> {
+        Self::build(&[self], 1, || {
+            let port = match self.value.kind() {
+                ExprKind::Name(name) => path(name)?,
+                ExprKind::Path(path) => path.clone(),
+                _ => {
+                    return Err(syntax_error(
+                        "boundary selection requires a named port family",
+                    ));
+                }
+            };
+            Ok(ExprKind::BoundaryPortSelection {
+                port: Box::new(port),
+                selector: Box::new(
+                    Ast::boundary_port_selector(member, target, RANGE).map_err(syntax_error)?,
+                ),
+            })
+        })
+    }
+
+    fn member(&self, member: &str) -> PyResult<Self> {
+        Self::build(&[self], 1, || {
+            Ok(ExprKind::Member {
+                value: Box::new(self.value.clone()),
+                member: member.to_owned(),
+            })
+        })
+    }
+
     fn unary(&self, operator: &str) -> PyResult<Self> {
         let op = match operator {
             "-" => UnaryOp::Neg,

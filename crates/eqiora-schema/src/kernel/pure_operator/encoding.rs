@@ -63,12 +63,10 @@ pub(super) fn canonical_definition_bytes(definition: &PureOperatorDefinition) ->
             }
             CalculusNode::UnaryMath(function, value) => {
                 bytes.push(12);
-                assert_eq!(
-                    *function,
-                    super::super::UnaryMathFunction::Sqrt,
-                    "checked scalar calculus function"
-                );
-                bytes.push(0);
+                bytes.push(match function {
+                    super::super::UnaryMathFunction::Sqrt => 0,
+                    super::super::UnaryMathFunction::Sin => 1,
+                });
                 bytes.extend_from_slice(&value.index().to_be_bytes());
             }
             CalculusNode::FormalComponent { formal, axes } => {

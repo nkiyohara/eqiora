@@ -30,7 +30,8 @@ impl ModelDocument {
     ) -> Result<Self, Vec<Diagnostic>> {
         let mut geometries = Vec::new();
         for (_, binding) in bindings {
-            if let StaticBindingValue::GeometrySupport { geometry, .. } = binding
+            if let StaticBindingValue::GeometrySupport { geometry, .. }
+            | StaticBindingValue::CompleteExterior { geometry, .. } = binding
                 && !geometries.contains(geometry)
             {
                 geometries.push(*geometry);

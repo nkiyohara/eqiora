@@ -231,6 +231,12 @@ impl RootExpansion<'_, '_> {
                     });
                 }
                 Item::RelationFamily(family) => {
+                    if scope.boundary_set(family.binder().set().as_str()).is_some()
+                        && scope.index_set(family.binder().set().as_str()).is_none()
+                    {
+                        self.add_model_boundary_relations(family, scope)?;
+                        continue;
+                    }
                     self.add_indexed_relations(
                         family,
                         scope,
@@ -327,6 +333,75 @@ impl RootExpansion<'_, '_> {
             ports,
             range: self.model.range(),
         });
+        Ok(())
+    }
+}
+
+impl RootExpansion<'_, '_> {
+    fn add_model_boundary_relations(
+        &mut self,
+        family: &eqiora_lang::RelationFamilyDecl,
+        scope: &Scope,
+    ) -> Result<(), Diagnostic> {
+        let set = scope
+            .boundary_set(family.binder().set().as_str())
+            .ok_or_else(|| {
+                hierarchy_error("Model Relation family has no resolved complete-exterior binding")
+            })?;
+        let declaration = family.relation();
+        for side in set.witness().sides() {
+            let boundary = *side.boundary();
+            let member = set.member(&boundary).ok_or_else(|| {
+                hierarchy_error("complete-exterior witness has no identity-keyed member locator")
+            })?;
+            let identity = self.boundary_family_relation_identity(
+                &self.root_path,
+                definition_path(
+                    &self.model.namespace,
+                    "model",
+                    self.model.name(),
+                    declaration.name(),
+                ),
+                boundary,
+                EntitySourceOrigin {
+                    definition: SourceLocation::new(self.model.file, family.range()),
+                    instance: SourceLocation::new(self.model.file, self.model.range()),
+                    bindings: boundary_family_bindings(
+                        scope.occurrence_bindings(),
+                        self.model.file,
+                        member.source_range(),
+                    ),
+                },
+            )?;
+            self.register_family_relation_display(
+                boundary_family_display("", declaration.name(), side.axis(), side.side()),
+                &identity,
+            )?;
+            let equations = rewrite_equations(
+                self.model.file,
+                declaration.equations(),
+                scope,
+                Some(ActiveBoundaryMember::new(
+                    family.binder().member(),
+                    boundary,
+                )),
+            )?;
+            self.record_physical_relation_owners(
+                self.model.file,
+                family.range(),
+                identity.entity.full,
+                &equations,
+            )?;
+            self.items.push(FlatItemBlueprint::Relation {
+                initial: false,
+                name: internal_name(identity.entity.full),
+                activation: eqiora_lang::ActivationSyntax::Continuous,
+                domain: Some(member.target().to_owned()),
+                equations,
+                range: family.range(),
+                identity,
+            });
+        }
         Ok(())
     }
 }
