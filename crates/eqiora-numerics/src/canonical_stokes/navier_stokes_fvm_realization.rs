@@ -27,7 +27,7 @@ use super::{
     IncompressibleFlowScaleProfile2d, TransientIncompressibleNavierStokesCartesianModel2d,
     TransientNavierStokesRun2d,
 };
-use crate::cartesian_fvm_geometry::cartesian_fvm_geometry_2d;
+use crate::cartesian_fvm_geometry::cartesian_fvm_geometry;
 use crate::cartesian_incompressible::{
     CellCenteredPressureField2d, CellCenteredVelocityField2d, CollocatedPoint2d,
     PreparedCartesianIncompressibleOperator2d, solve_collocated_step_2d,
@@ -72,7 +72,7 @@ impl CellCenteredNavierStokesInitialState2d {
         previous_face_volume_fluxes: Vec<f64>,
     ) -> Result<Self, Diagnostic> {
         Self::require_state_header(time, &velocity, &pressure, gauge_multiplier)?;
-        let (_, facets) = cartesian_fvm_geometry_2d(velocity.mesh())?;
+        let (_, facets) = cartesian_fvm_geometry::<2>(velocity.mesh())?;
         Self::new_with_facet_count(
             model,
             time,
@@ -761,7 +761,7 @@ pub(crate) fn prepare_resolved_transient_navier_stokes_cell_centered_run_2d<'a>(
             "supplied Cartesian mesh bounds differ from the exact transient Model domain",
         ));
     }
-    let (normalized_cells, normalized_facets) = cartesian_fvm_geometry_2d(&normalized_mesh)?;
+    let (normalized_cells, normalized_facets) = cartesian_fvm_geometry::<2>(&normalized_mesh)?;
     if normalized_facets.is_empty() {
         return Err(invalid_realization(
             "collocated generated mesh must contain physical facets",

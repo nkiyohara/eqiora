@@ -14,7 +14,7 @@ const DIMENSION: usize = 2;
 
 pub(super) fn accept_collocated_step(
     mesh: &CartesianMesh,
-    cells: &[crate::cartesian_fvm_geometry::CartesianCellMetrics2d],
+    cells: &[crate::cartesian_fvm_geometry::CartesianCellMetrics<2>],
     operator: &CartesianIncompressibleOperator2d,
     accepted: &CollocatedPoint2d,
     residual: &CollocatedResidual2d,

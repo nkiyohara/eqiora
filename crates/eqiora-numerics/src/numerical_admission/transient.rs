@@ -675,7 +675,7 @@ impl CommonTransientFlowPlan {
                     invalid("Cartesian transient Mesh omitted two-dimensional cells")
                 })?;
                 let facet_count =
-                    crate::cartesian_fvm_geometry::cartesian_fvm_geometry_2d(&mesh_data)?
+                    crate::cartesian_fvm_geometry::cartesian_fvm_geometry::<2>(&mesh_data)?
                         .1
                         .len();
                 CommonStateKind::CellCentered(Box::new(

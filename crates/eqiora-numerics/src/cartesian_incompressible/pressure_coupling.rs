@@ -5,9 +5,9 @@ use eqiora_core::{Diagnostic, GraphPath};
 use eqiora_meshing::MeshEntity;
 
 #[cfg(test)]
-use crate::cartesian_fvm_geometry::cartesian_fvm_geometry_2d;
+use crate::cartesian_fvm_geometry::cartesian_fvm_geometry;
 use crate::cartesian_fvm_geometry::{
-    CartesianCellMetrics2d, CartesianFacetAdjacency2d, CartesianFacetMetrics2d,
+    CartesianCellMetrics, CartesianFacetAdjacency, CartesianFacetMetrics,
 };
 use eqiora_meshing::CartesianMesh;
 
@@ -62,14 +62,14 @@ impl MomentumWeightedPressureCoupling2d {
     #[cfg(test)]
     pub(crate) fn new(mesh: &CartesianMesh) -> Result<Self, Diagnostic> {
         require_supported_mesh(mesh)?;
-        let (cells, geometry_facets) = cartesian_fvm_geometry_2d(mesh)?;
+        let (cells, geometry_facets) = cartesian_fvm_geometry::<2>(mesh)?;
         Self::from_geometry(mesh, &cells, &geometry_facets)
     }
 
     pub(crate) fn from_geometry(
         mesh: &CartesianMesh,
-        cells: &[CartesianCellMetrics2d],
-        geometry_facets: &[CartesianFacetMetrics2d],
+        cells: &[CartesianCellMetrics<2>],
+        geometry_facets: &[CartesianFacetMetrics<2>],
     ) -> Result<Self, Diagnostic> {
         let axis_counts = require_supported_mesh(mesh)?;
         let mut gradient_stencils = Vec::with_capacity(cells.len());
@@ -126,7 +126,7 @@ impl MomentumWeightedPressureCoupling2d {
         let mut facets = Vec::with_capacity(geometry_facets.len());
         for facet in geometry_facets.iter().copied() {
             let pressure_facet = match facet.adjacency {
-                CartesianFacetAdjacency2d::Interior {
+                CartesianFacetAdjacency::Interior {
                     lower,
                     upper,
                     center_distance,
@@ -145,7 +145,7 @@ impl MomentumWeightedPressureCoupling2d {
                         measure: facet.measure,
                     }
                 }
-                CartesianFacetAdjacency2d::Boundary { .. } => PressureCorrectionFacet::Boundary,
+                CartesianFacetAdjacency::Boundary { .. } => PressureCorrectionFacet::Boundary,
             };
             facets.push(pressure_facet);
         }
@@ -496,14 +496,14 @@ mod tests {
         let operator = MomentumWeightedPressureCoupling2d::new(&mesh).unwrap();
         let diagonals = vec![[5.0, 7.0]; 6];
         let previous_velocity = vec![[0.0, 0.0]; 6];
-        let (_, facets) = cartesian_fvm_geometry_2d(&mesh).unwrap();
+        let (_, facets) = cartesian_fvm_geometry::<2>(&mesh).unwrap();
         let interior = facets
             .iter()
-            .position(|facet| matches!(facet.adjacency, CartesianFacetAdjacency2d::Interior { .. }))
+            .position(|facet| matches!(facet.adjacency, CartesianFacetAdjacency::Interior { .. }))
             .unwrap();
         let boundary = facets
             .iter()
-            .position(|facet| matches!(facet.adjacency, CartesianFacetAdjacency2d::Boundary { .. }))
+            .position(|facet| matches!(facet.adjacency, CartesianFacetAdjacency::Boundary { .. }))
             .unwrap();
         let mut history = vec![0.0; facets.len()];
         history[interior] = 0.25;

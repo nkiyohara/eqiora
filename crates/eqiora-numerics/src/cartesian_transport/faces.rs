@@ -12,14 +12,14 @@ use super::reconstruction::{AffineFaceTrace, FaceReconstructor, ReconstructionSu
 use crate::canonical_transport::{
     ScalarTransportCartesianBoundary, ScalarTransportCartesianModel2d,
 };
-use crate::cartesian_fvm_geometry::{CartesianFacetAdjacency2d, cartesian_fvm_geometry_2d};
+use crate::cartesian_fvm_geometry::{CartesianFacetAdjacency, cartesian_fvm_geometry};
 use eqiora_meshing::CartesianMesh;
 
 const DIMENSION: usize = 2;
 pub(super) type BoundaryRoles2d = BTreeMap<(usize, BoundarySide), ScalarTransportBoundaryRole>;
 
 pub(super) fn cell_geometry(mesh: &CartesianMesh) -> Result<(Vec<[f64; 2]>, Vec<f64>), Diagnostic> {
-    let (cells, _) = cartesian_fvm_geometry_2d(mesh)?;
+    let (cells, _) = cartesian_fvm_geometry::<2>(mesh)?;
     let mut centers = Vec::with_capacity(cells.len());
     let mut measures = Vec::with_capacity(cells.len());
     for cell in cells {
@@ -47,7 +47,7 @@ pub(super) fn transport_faces(
 > {
     let mut reconstructor =
         FaceReconstructor::new(model, mesh, centers, previous, scheme, duration)?;
-    let (_, facets) = cartesian_fvm_geometry_2d(mesh)?;
+    let (_, facets) = cartesian_fvm_geometry::<2>(mesh)?;
     let mut faces = Vec::with_capacity(facets.len());
     let mut role_by_side = BTreeMap::new();
     for facet in facets {
@@ -61,7 +61,7 @@ pub(super) fn transport_faces(
             ));
         }
         match facet.adjacency {
-            CartesianFacetAdjacency2d::Interior {
+            CartesianFacetAdjacency::Interior {
                 lower,
                 upper,
                 center_distance,
@@ -85,7 +85,7 @@ pub(super) fn transport_faces(
                     )?,
                 });
             }
-            CartesianFacetAdjacency2d::Boundary {
+            CartesianFacetAdjacency::Boundary {
                 cell,
                 side,
                 center_distance,
