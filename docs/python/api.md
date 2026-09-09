@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 19 module summaries and all 247 canonical declaration summaries are source-traced; non-dunder member coverage remains **20 authoritative summaries and 744 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 19 module summaries and all 251 canonical declaration summaries are source-traced; non-dunder member coverage remains **22 authoritative summaries and 747 signature-only entries under documented owning types**.
 
-Inventory: 19 modules, 284 literal public spellings, 247 canonical grouped declarations, 991 visible method signatures (764 non-dunder and 227 dunder), and 76 visible class assignments.
+Inventory: 19 modules, 289 literal public spellings, 251 canonical grouped declarations, 1003 visible method signatures (769 non-dunder and 234 dunder), and 76 visible class assignments.
 
 Regenerate with:
 
@@ -1279,8 +1279,6 @@ Authority: [`crates/eqiora-python/src/model.rs::PyModel`](../../crates/eqiora-py
 @final
 class Model:
     @staticmethod
-    def define(name: str, *declarations: _ModelDeclaration) -> Model: ...
-    @staticmethod
     def from_bytes(data: bytes) -> Model: ...
     @staticmethod
     def read(path: str | PathLike[str]) -> Model: ...
@@ -1321,6 +1319,16 @@ class Model:
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 ```
+
+<a id="api-eqiora-Module"></a>
+
+### `eqiora.Module`
+
+**Canonical re-export.** This spelling resolves to [`eqiora.lang.Module`](#api-eqiora-lang-Module).
+
+Own a compiler-backed module graph and freeze declarations on emission or compilation.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::Module`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 <a id="api-eqiora-PackageConformancePackage"></a>
 
@@ -2028,7 +2036,7 @@ Compile one source and its optional exact Geometry closure.
 Authority: [`bindings/python/python/eqiora/__init__.py::compile`](../../bindings/python/python/eqiora/__init__.py)
 
 ```python
-def compile(*, path: str | PathLike[str] | None=None, source: str | lang.Source | None=None, filename: str | None=None, geometry: geometry.Geometry | None=None, bindings: dict[str, _TypedValue | ClockDomain | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection]] | None=None, entry: str | None=None) -> Model: ...
+def compile(*, path: str | PathLike[str] | None=None, source: str | Module | None=None, filename: str | None=None, geometry: geometry.Geometry | None=None, bindings: dict[str, _TypedValue | ClockDomain | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection]] | None=None, entry: str | None=None) -> Model: ...
 ```
 
 <a id="api-eqiora-compile_package"></a>
@@ -2097,7 +2105,7 @@ def grad(value: _ExpressionLike) -> Expression: ...
 
 **Module export.** Continue to [`eqiora.lang`](#module-eqiora-lang).
 
-Bounded Python authoring for deterministic Eqiora Language source.
+Bounded Python authoring through the compiler-owned Eqiora Module graph.
 
 Authority: [`bindings/python/python/eqiora/lang/__init__.py`](../../bindings/python/python/eqiora/lang/__init__.py)
 
@@ -2714,7 +2722,7 @@ class GeometrySolidOperation:
 
 ## `eqiora.lang`
 
-Bounded Python authoring for deterministic Eqiora Language source.
+Bounded Python authoring through the compiler-owned Eqiora Module graph.
 
 Module authority: [`bindings/python/python/eqiora/lang/__init__.py`](../../bindings/python/python/eqiora/lang/__init__.py)
 
@@ -2871,14 +2879,59 @@ class Component:
     def let_alias(self, name: str, expression: Expression | int | float | complex, *, value_type: ValueType | None=None, on: Support | None=None, at: Clock | Event | None=None, doc: str | None=None) -> Expression: ...
     def property(self, name: str, *, contract: PropertyContract, doc: str | None=None) -> Expression: ...
     def field(self, name: str, *, on: Support | None=None, value_type: ValueType, role: FieldRole, at: Clock | None=None, doc: str | None=None) -> Expression: ...
-    def relation(self, name: str, *, on: Support | None=None, left: Expression | int | float | complex, right: Expression | int | float | complex, at: Clock | Event | None=None, doc: str | None=None) -> Relation: ...
+    def relation(self, name: str, equality: Equation, *, on: Support | None=None, at: Clock | Event | None=None, doc: str | None=None) -> Relation: ...
     def primal_form(self, relation: Relation, *, left: Expression, right: Expression, doc: str | None=None) -> None: ...
-    def instance(self, name: str, *, component: Component, bindings: Mapping[object, object], doc: str | None=None) -> Mapping[Expression, Expression]: ...
+    def instance(self, name: str, *, component: Component | ComponentRef, bindings: Mapping[str, object], doc: str | None=None) -> Mapping[str, Expression]: ...
     def clock_requirement(self, name: str, *, doc: str | None=None) -> Clock: ...
     def field_requirement(self, name: str, *, value_type: ValueType, role: FieldRole, on: Support | None=None, at: Clock | None=None, doc: str | None=None) -> Expression: ...
     def set_default(self, parameter: Expression, value: Expression | int | float | complex) -> None: ...
     def input(self, name: str, *, value_type: ValueType, on: Support | None=None, at: Clock | None=None, doc: str | None=None) -> Expression: ...
     def output(self, name: str, *, value_type: ValueType, on: Support | None=None, at: Clock | None=None, doc: str | None=None) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-ComponentRef"></a>
+
+### `eqiora.lang.ComponentRef`
+
+Immutable reference to one public Component in an explicit import.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::ComponentRef`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+@final
+class ComponentRef:
+    @property
+    def name(self) -> str: ...
+```
+
+<a id="api-eqiora-lang-Equation"></a>
+
+### `eqiora.lang.Equation`
+
+Immutable ordered mathematical equality, never a Python truth value.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::Equation`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+@final
+class Equation:
+    @property
+    def lhs(self) -> Expression: ...
+    @property
+    def rhs(self) -> Expression: ...
+    def __bool__(self) -> bool: ...
+```
+
+<a id="api-eqiora-lang-equation"></a>
+
+### `eqiora.lang.equation`
+
+Construct an explicit equality from typed expressions and admitted literals.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::equation`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+def equation(lhs: object, rhs: object) -> Equation: ...
 ```
 
 <a id="api-eqiora-lang-Expression"></a>
@@ -2902,6 +2955,12 @@ class Expression:
     def __rtruediv__(self, other: float | int, /) -> Expression: ...
     def __pow__(self, exponent: int, /) -> Expression: ...
     def __bool__(self) -> bool: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __ne__(self, other: object) -> bool: ...
+    def __lt__(self, other: object) -> bool: ...
+    def __le__(self, other: object) -> bool: ...
+    def __gt__(self, other: object) -> bool: ...
+    def __ge__(self, other: object) -> bool: ...
     def __neg__(self) -> Expression: ...
     def __getitem__(self, index: int | Expression | slice) -> Expression: ...
 ```
@@ -2910,7 +2969,7 @@ class Expression:
 
 ### `eqiora.lang.Enum`
 
-A closed enum declaration shared within its Source.
+A closed enum declaration shared within its Module.
 
 Authority: [`bindings/python/python/eqiora/lang/__init__.py::Enum`](../../bindings/python/python/eqiora/lang/__init__.py)
 
@@ -2944,7 +3003,7 @@ class Event:
 
 ### `eqiora.lang.MaterialComposition`
 
-Identify one immutable typed material composition in its exact Source.
+Identify one immutable typed material composition in its exact Module.
 
 Authority: [`bindings/python/python/eqiora/lang/__init__.py::MaterialComposition`](../../bindings/python/python/eqiora/lang/__init__.py)
 
@@ -2975,7 +3034,7 @@ class Notation:
 
 ### `eqiora.lang.Operator`
 
-An immutable typed operator declared by one Source; call with named arguments.
+An immutable typed operator declared by one Module; call with named arguments.
 
 Authority: [`bindings/python/python/eqiora/lang/__init__.py::Operator`](../../bindings/python/python/eqiora/lang/__init__.py)
 
@@ -2989,7 +3048,7 @@ class Operator:
 
 ### `eqiora.lang.PropertyContract`
 
-Identify one typed property contract in its exact Source.
+Identify one typed property contract in its exact Module.
 
 Authority: [`bindings/python/python/eqiora/lang/__init__.py::PropertyContract`](../../bindings/python/python/eqiora/lang/__init__.py)
 
@@ -3003,7 +3062,7 @@ class PropertyContract:
 
 ### `eqiora.lang.PropertyRelease`
 
-Identify one exact constant scalar release in its exact Source.
+Identify one exact constant scalar release in its exact Module.
 
 Authority: [`bindings/python/python/eqiora/lang/__init__.py::PropertyRelease`](../../bindings/python/python/eqiora/lang/__init__.py)
 
@@ -3017,7 +3076,7 @@ class PropertyRelease:
 
 ### `eqiora.lang.Relation`
 
-Identify one relation declaration in its exact Source.
+Identify one relation declaration in its exact Module.
 
 Authority: [`bindings/python/python/eqiora/lang/__init__.py::Relation`](../../bindings/python/python/eqiora/lang/__init__.py)
 
@@ -3027,22 +3086,25 @@ class Relation:
     ...
 ```
 
-<a id="api-eqiora-lang-Source"></a>
+<a id="api-eqiora-lang-Module"></a>
 
-### `eqiora.lang.Source`
+### `eqiora.lang.Module`
 
-Own a bounded Component hierarchy and freeze it on emission.
+Own a compiler-backed module graph and freeze declarations on emission or compilation.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::Source`](../../bindings/python/python/eqiora/lang/__init__.py)
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::Module`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 ```python
 @final
-class Source:
+class Module:
     def set_notation(self, name: str, notation: Notation) -> None: ...
     def operator(self, name: str, *, inputs: Mapping[str, ValueType], result_type: ValueType, body: Callable[..., object], doc: str | None=None) -> Operator: ...
     def enum(self, name: str, *, members: Sequence[str], doc: str | None=None) -> Enum: ...
     def space(self, name: str, *, labels: Sequence[str], doc: str | None=None) -> FiniteSpace: ...
-    def __init__(self) -> None: ...
+    def __init__(self, name: str, *declarations: _ModelDeclaration) -> None: ...
+    @classmethod
+    def parse(cls, name: str, source: str) -> Module: ...
+    def import_module(self, alias: str, module: Module | None=None, *, path: str | PathLike[str] | None=None) -> ModuleRef: ...
     def component(self, name: str, *, doc: str | None=None) -> Component: ...
     def model(self, name: str, *, doc: str | None=None) -> Component: ...
     def property_contract(self, name: str, *, value_type: ValueType, doc: str | None=None) -> PropertyContract: ...
@@ -3052,25 +3114,39 @@ class Source:
     def write_eqi(self, path: str | PathLike[str]) -> None: ...
 ```
 
-<a id="api-eqiora-lang-SourceError"></a>
+<a id="api-eqiora-lang-ModuleError"></a>
 
-### `eqiora.lang.SourceError`
+### `eqiora.lang.ModuleError`
 
-Reject a structurally invalid bounded Source draft.
+Reject a structurally invalid bounded Module draft.
 
-Authority: [`bindings/python/python/eqiora/lang/__init__.py::SourceError`](../../bindings/python/python/eqiora/lang/__init__.py)
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::ModuleError`](../../bindings/python/python/eqiora/lang/__init__.py)
 
 ```python
 @final
-class SourceError(ValueError):
+class ModuleError(ValueError):
     ...
+```
+
+<a id="api-eqiora-lang-ModuleRef"></a>
+
+### `eqiora.lang.ModuleRef`
+
+An explicit module import with immutable Component references.
+
+Authority: [`bindings/python/python/eqiora/lang/__init__.py::ModuleRef`](../../bindings/python/python/eqiora/lang/__init__.py)
+
+```python
+@final
+class ModuleRef:
+    def component(self, name: str) -> ComponentRef: ...
 ```
 
 <a id="api-eqiora-lang-Support"></a>
 
 ### `eqiora.lang.Support`
 
-Identify one volume or parent-boundary declaration in its exact Source.
+Identify one volume or parent-boundary declaration in its exact Module.
 
 Authority: [`bindings/python/python/eqiora/lang/__init__.py::Support`](../../bindings/python/python/eqiora/lang/__init__.py)
 
@@ -3156,7 +3232,7 @@ def grad(value: Expression) -> Expression: ...
 
 ### `eqiora.lang.integrate`
 
-Return one volume integral over an exact Source Support.
+Return one volume integral over an exact Module Support.
 
 Authority: [`bindings/python/python/eqiora/lang/__init__.py::integrate`](../../bindings/python/python/eqiora/lang/__init__.py)
 
@@ -3192,7 +3268,7 @@ def isotropic_lift(value: Expression) -> Expression: ...
 
 ### `eqiora.lang.math`
 
-Exact language constants used by Source expressions.
+Exact language constants used by Module expressions.
 
 Authority: [`bindings/python/python/eqiora/lang/__init__.py::math`](../../bindings/python/python/eqiora/lang/__init__.py)
 
@@ -3324,7 +3400,7 @@ def symmetric_part(value: Expression) -> Expression: ...
 
 ### `eqiora.lang.test`
 
-Return the test function associated with one Source Field.
+Return the test function associated with one Module Field.
 
 Authority: [`bindings/python/python/eqiora/lang/__init__.py::test`](../../bindings/python/python/eqiora/lang/__init__.py)
 

@@ -31,6 +31,7 @@ from . import fsi as fsi
 from . import fvm as fvm
 from . import geometry as geometry
 from . import lang as lang
+from .lang import Module as Module
 from . import units as units
 from . import meshing as meshing
 from . import solid as solid
@@ -876,11 +877,6 @@ class Model:
     """
 
     @staticmethod
-    def define(
-        name: str,
-        *declarations: _ModelDeclaration,
-    ) -> Model: ...
-    @staticmethod
     def from_bytes(data: bytes) -> Model: ...
     @staticmethod
     def read(path: str | PathLike[str]) -> Model: ...
@@ -1659,6 +1655,8 @@ _TypedValue = EnumValue | int | float | complex | list["_TypedValue"] | tuple["_
 
 _ModelDeclaration = (
     Enum
+    | FiniteSpace
+    | IndexSet
     | Domain
     | Initial
     | Field
@@ -1680,7 +1678,7 @@ def across(port: ConservingPort) -> Expression:
 def compile(
     *,
     path: str | PathLike[str] | None = None,
-    source: str | lang.Source | None = None,
+    source: str | Module | None = None,
     filename: str | None = None,
     geometry: geometry.Geometry | None = None,
     bindings: dict[str, _TypedValue | ClockDomain | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection]] | None = None,
@@ -1997,6 +1995,7 @@ __all__ = [
     "MathReference",
     "MathRendering",
     "Model",
+    "Module",
     "PackageConformancePackage",
     "PackageConformanceReport",
     "Parameter",
