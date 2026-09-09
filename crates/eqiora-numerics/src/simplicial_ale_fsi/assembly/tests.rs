@@ -25,6 +25,7 @@ const COMPONENTS: usize = 2;
 struct Fixture {
     mesh: SimplicialMesh,
     partition: FixedReferenceFsiPartition<2>,
+    layout: crate::simplicial_fsi::layout::FsiLayout<2>,
     boundary: AleFsiBoundary<2>,
     motion: P1HarmonicMeshMotionAction<2>,
     previous: AleFsiState<2>,
@@ -34,6 +35,7 @@ struct Fixture {
 struct Fixture3d {
     mesh: SimplicialMesh,
     partition: FixedReferenceFsiPartition<3>,
+    layout: crate::simplicial_fsi::layout::FsiLayout<3>,
     boundary: AleFsiBoundary<3>,
     motion: P1HarmonicMeshMotionAction<3>,
     previous: AleFsiState<3>,
@@ -46,12 +48,12 @@ fn analytic_global_jvp_matches_centered_full_reassembly() {
     let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
     let mut point = initial_point(
         &fixture.mesh,
-        &fixture.partition,
         &fixture.boundary,
         &fixture.motion,
         &fixture.previous,
         fixture.plan,
         &quadrature,
+        &fixture.layout,
     )
     .unwrap();
     for (index, value) in point.iter_mut().enumerate() {
@@ -128,12 +130,12 @@ fn sealed_harmonic_driver_columns_are_singletons_in_real_ale_patterns() {
     let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
     let point = initial_point(
         &fixture.mesh,
-        &fixture.partition,
         &fixture.boundary,
         &fixture.motion,
         &fixture.previous,
         fixture.plan,
         &quadrature,
+        &fixture.layout,
     )
     .unwrap();
     let assembled = assemble(&fixture, &point, &quadrature);
@@ -150,12 +152,12 @@ fn sealed_harmonic_driver_columns_are_singletons_in_real_ale_patterns() {
     let quadrature = simplex_duffy_gauss_legendre(3, 7).unwrap();
     let point = initial_point(
         &fixture.mesh,
-        &fixture.partition,
         &fixture.boundary,
         &fixture.motion,
         &fixture.previous,
         fixture.plan,
         &quadrature,
+        &fixture.layout,
     )
     .unwrap();
     let assembled = assemble_step_linearization(
@@ -168,6 +170,7 @@ fn sealed_harmonic_driver_columns_are_singletons_in_real_ale_patterns() {
         fixture.plan,
         &quadrature,
         &REFERENCE_ASSEMBLY_BACKEND,
+        &fixture.layout,
     )
     .unwrap();
     let pattern = build_structural_jacobian_pattern(
@@ -186,12 +189,12 @@ fn zero_solid_update_produces_an_exact_static_geometry_action() {
     let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
     let point = initial_point(
         &fixture.mesh,
-        &fixture.partition,
         &fixture.boundary,
         &fixture.motion,
         &fixture.previous,
         fixture.plan,
         &quadrature,
+        &fixture.layout,
     )
     .unwrap();
     let assembled = assemble(&fixture, &point, &quadrature);
@@ -221,12 +224,12 @@ fn degree_six_rule_is_rejected_before_ale_assembly() {
     assert!(
         initial_point(
             &fixture.mesh,
-            &fixture.partition,
             &fixture.boundary,
             &fixture.motion,
             &fixture.previous,
             fixture.plan,
             &triangle_duffy_gauss_legendre(4).unwrap(),
+            &fixture.layout,
         )
         .is_err()
     );
@@ -238,12 +241,12 @@ fn residual_only_rejects_nonfinite_and_wrong_shape_candidates() {
     let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
     let point = initial_point(
         &fixture.mesh,
-        &fixture.partition,
         &fixture.boundary,
         &fixture.motion,
         &fixture.previous,
         fixture.plan,
         &quadrature,
+        &fixture.layout,
     )
     .unwrap();
     let mut short = point.clone();
@@ -257,6 +260,7 @@ fn residual_only_rejects_nonfinite_and_wrong_shape_candidates() {
         &short,
         fixture.plan,
         &quadrature,
+        &fixture.layout,
     )
     .unwrap_err();
     assert!(
@@ -276,6 +280,7 @@ fn residual_only_rejects_nonfinite_and_wrong_shape_candidates() {
         &nonfinite,
         fixture.plan,
         &quadrature,
+        &fixture.layout,
     )
     .unwrap_err();
     assert!(finite_error.message().contains("finite"));
@@ -287,12 +292,12 @@ fn tetrahedral_assembly_has_typed_power_exactness_and_centered_jvp() {
     let degree_nine = simplex_duffy_gauss_legendre(3, 6).unwrap();
     let rejected = initial_point(
         &fixture.mesh,
-        &fixture.partition,
         &fixture.boundary,
         &fixture.motion,
         &fixture.previous,
         fixture.plan,
         &degree_nine,
+        &fixture.layout,
     )
     .unwrap_err();
     assert!(rejected.message().contains("at least 11"));
@@ -300,12 +305,12 @@ fn tetrahedral_assembly_has_typed_power_exactness_and_centered_jvp() {
     let quadrature = simplex_duffy_gauss_legendre(3, 7).unwrap();
     let mut point = initial_point(
         &fixture.mesh,
-        &fixture.partition,
         &fixture.boundary,
         &fixture.motion,
         &fixture.previous,
         fixture.plan,
         &quadrature,
+        &fixture.layout,
     )
     .unwrap();
     for (index, value) in point.iter_mut().enumerate() {
@@ -321,6 +326,7 @@ fn tetrahedral_assembly_has_typed_power_exactness_and_centered_jvp() {
         fixture.plan,
         &quadrature,
         &REFERENCE_ASSEMBLY_BACKEND,
+        &fixture.layout,
     )
     .unwrap();
     let residual_only = assemble_step_residual(
@@ -332,6 +338,7 @@ fn tetrahedral_assembly_has_typed_power_exactness_and_centered_jvp() {
         &point,
         fixture.plan,
         &quadrature,
+        &fixture.layout,
     )
     .unwrap();
     assert_eq!(
@@ -380,6 +387,7 @@ fn tetrahedral_assembly_has_typed_power_exactness_and_centered_jvp() {
             &shifted,
             fixture.plan,
             &quadrature,
+            &fixture.layout,
         )
         .unwrap()
     };
@@ -425,6 +433,7 @@ fn assemble(fixture: &Fixture, point: &[f64], quadrature: &QuadratureRule) -> St
         fixture.plan,
         quadrature,
         &REFERENCE_ASSEMBLY_BACKEND,
+        &fixture.layout,
     )
     .unwrap()
 }
@@ -439,6 +448,7 @@ fn residual(fixture: &Fixture, point: &[f64], quadrature: &QuadratureRule) -> Ve
         point,
         fixture.plan,
         quadrature,
+        &fixture.layout,
     )
     .unwrap()
 }
@@ -483,7 +493,18 @@ fn fixture() -> Fixture {
         vec![[0.0; COMPONENTS]; mesh.vertices().len()],
     )
     .unwrap();
+    let plan = step_plan();
+    let layout = crate::simplicial_fsi::test_model::planar_layout(
+        &crate::simplicial_fsi::test_model::adjacent_rectangles(),
+        &mesh,
+        &partition,
+        &crate::simplicial_fsi::FixedReferenceFsiBoundary::homogeneous_exterior(&mesh).unwrap(),
+        plan.fixed_reference_config(),
+        plan.linear_solver(),
+        true,
+    );
     Fixture {
+        layout,
         mesh,
         partition,
         boundary,
@@ -510,7 +531,18 @@ fn fixture_3d() -> Fixture3d {
         vec![[0.0; 3]; mesh.vertices().len()],
     )
     .unwrap();
+    let plan = step_plan_3d();
+    let layout = crate::simplicial_fsi::test_model::polyhedra::polyhedral_layout(
+        &crate::simplicial_fsi::test_model::polyhedra::tetrahedral_geometry(),
+        &mesh,
+        &partition,
+        &crate::simplicial_fsi::FixedReferenceFsiBoundary::homogeneous_exterior(&mesh).unwrap(),
+        plan.fixed_reference_config(),
+        plan.linear_solver(),
+        true,
+    );
     Fixture3d {
+        layout,
         mesh,
         partition,
         boundary,

@@ -2,10 +2,11 @@
 
 use std::sync::Arc;
 
+#[cfg(test)]
+use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_assembly::{
-    AssemblyBackend, AssemblyPacket, AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyReport,
-    AssemblyResult, AssemblyTarget, AssemblyTargetId, AssemblyWork, LinearSystem,
-    REFERENCE_ASSEMBLY_BACKEND, TargetAssemblyMap,
+    AssemblyPacket, AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyReport, AssemblyResult,
+    AssemblyTarget, AssemblyTargetId, AssemblyWork, LinearSystem, TargetAssemblyMap,
 };
 use eqiora_core::Diagnostic;
 use eqiora_meshing::{MeshEntity, MeshGeometry, MeshTopology, QuadratureRule, SimplicialMesh};
@@ -18,10 +19,9 @@ use super::acceptance::{
     require_pressure_closed_by_complete_operator, require_symmetric,
 };
 use super::api::{FixedReferenceFsiInterfaceAction, FixedReferenceFsiSolution};
-use super::contract::{
-    FixedReferenceFsiBoundary, FixedReferenceFsiState, FixedReferenceFsiStepConfig,
-    validate_problem,
-};
+#[cfg(test)]
+use super::contract::FixedReferenceFsiBoundary;
+use super::contract::{FixedReferenceFsiState, FixedReferenceFsiStepConfig, validate_problem};
 use super::element::{fluid_local, solid_local};
 use super::invalid;
 use super::layout::FsiLayout;
@@ -36,6 +36,12 @@ pub struct FinalizedFixedReferenceFsiStep<const D: usize> {
 }
 
 impl<const D: usize> FinalizedFixedReferenceFsiStep<D> {
+    pub(crate) fn free_field_dof(
+        &self,
+        key: crate::region_assembly::mapping::FieldDof,
+    ) -> Option<eqiora_assembly::DofId> {
+        self.state.layout.free_field_dof(key)
+    }
     pub(crate) fn canonical_system_arc(&self) -> Arc<CanonicalCsrSystemView> {
         Arc::clone(&self.canonical_system)
     }
@@ -95,13 +101,15 @@ impl<const D: usize> FinalizedFixedReferenceFsiStep<D> {
 /// # Errors
 /// Preserves generic fixed-reference admission and assembly diagnostics.
 #[allow(clippy::too_many_arguments)]
-pub fn finalize_fixed_reference_fsi_step_3d(
+#[cfg(test)]
+pub(crate) fn finalize_fixed_reference_fsi_step_3d(
     mesh: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<3>,
     boundary: &FixedReferenceFsiBoundary<3>,
     previous: &FixedReferenceFsiState<3>,
     config: FixedReferenceFsiStepConfig<3>,
     quadrature: &QuadratureRule,
+    layout: &FsiLayout<3>,
 ) -> Result<FinalizedFixedReferenceFsiStep<3>, Diagnostic> {
     finalize_fixed_reference_fsi_step_with_assembly(
         mesh,
@@ -111,6 +119,7 @@ pub fn finalize_fixed_reference_fsi_step_3d(
         config,
         quadrature,
         &REFERENCE_ASSEMBLY_BACKEND,
+        layout,
     )
 }
 
@@ -120,6 +129,7 @@ pub fn finalize_fixed_reference_fsi_step_3d(
 /// # Errors
 /// Preserves admission, local-action, and selected assembly diagnostics.
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 fn finalize_fixed_reference_fsi_step_with_assembly<const D: usize>(
     mesh: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
@@ -128,6 +138,7 @@ fn finalize_fixed_reference_fsi_step_with_assembly<const D: usize>(
     config: FixedReferenceFsiStepConfig<D>,
     quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend,
+    layout: &FsiLayout<D>,
 ) -> Result<FinalizedFixedReferenceFsiStep<D>, Diagnostic> {
     finalize_fixed_reference_fsi_step_with_packet_set(
         mesh,
@@ -138,10 +149,12 @@ fn finalize_fixed_reference_fsi_step_with_assembly<const D: usize>(
         quadrature,
         AssemblyPacketSetIdentityV1::Unbound,
         assembly,
+        layout,
     )
 }
 
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 pub(crate) fn finalize_fixed_reference_fsi_step_with_packet_set<const D: usize>(
     mesh: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
@@ -151,9 +164,17 @@ pub(crate) fn finalize_fixed_reference_fsi_step_with_packet_set<const D: usize>(
     quadrature: &QuadratureRule,
     packet_set: AssemblyPacketSetIdentityV1,
     assembly: &dyn AssemblyBackend,
+    layout: &FsiLayout<D>,
 ) -> Result<FinalizedFixedReferenceFsiStep<D>, Diagnostic> {
+    layout.require_boundary(boundary)?;
     let prepared = PreparedFixedReferenceFsiAssembly::new(
-        mesh, partition, boundary, previous, config, quadrature, packet_set,
+        mesh,
+        partition,
+        previous,
+        config,
+        quadrature,
+        packet_set,
+        layout.clone(),
     )?;
     let result = assembly.assemble(prepared.plan(), &prepared)?;
     let reactions = prepared.reactions(&prepared)?;
@@ -222,14 +243,17 @@ impl<'a, const D: usize> PreparedFixedReferenceFsiAssembly<'a, D> {
     pub(crate) fn new(
         mesh: &'a SimplicialMesh,
         partition: &'a FixedReferenceFsiPartition<D>,
-        boundary: &FixedReferenceFsiBoundary<D>,
         previous: &'a FixedReferenceFsiState<D>,
         config: FixedReferenceFsiStepConfig<D>,
         quadrature: &'a QuadratureRule,
         packet_set: AssemblyPacketSetIdentityV1,
+        layout: FsiLayout<D>,
     ) -> Result<Self, Diagnostic> {
+        let boundary = layout.boundary();
         validate_problem(mesh, partition, boundary, previous, config, quadrature)?;
-        let layout = FsiLayout::new(mesh, partition, boundary)?;
+        layout.require_reference(mesh, partition)?;
+        layout.require_boundary(boundary)?;
+        layout.require_scale(config.scale())?;
         let plan = AssemblyPlan::new(vec![
             AssemblyTarget::new(layout.reduced_size())?,
             AssemblyTarget::new(layout.full_size())?,
@@ -416,8 +440,8 @@ impl<const D: usize> AssemblyWork for PreparedFixedReferenceFsiAssembly<'_, D> {
                     &vertices,
                     self.previous,
                 )?;
-                let reduced = self.layout.solid_map(&vertices, true)?;
-                let full = self.layout.solid_map(&vertices, false)?;
+                let reduced = self.layout.solid_map(packet_index, &vertices, true)?;
+                let full = self.layout.solid_map(packet_index, &vertices, false)?;
                 AssemblyPacket::new(
                     local,
                     vec![
@@ -454,7 +478,8 @@ fn require_system_shape(
 /// # Errors
 /// Preserves all generic admission, assembly, solver, and acceptance diagnostics.
 #[allow(clippy::too_many_arguments)]
-pub fn solve_fixed_reference_fsi_step_3d(
+#[cfg(test)]
+pub(crate) fn solve_fixed_reference_fsi_step_3d(
     mesh: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<3>,
     boundary: &FixedReferenceFsiBoundary<3>,
@@ -462,9 +487,12 @@ pub fn solve_fixed_reference_fsi_step_3d(
     config: FixedReferenceFsiStepConfig<3>,
     quadrature: &QuadratureRule,
     solver: LinearSolveRequest<'_>,
+    layout: &FsiLayout<3>,
 ) -> Result<FixedReferenceFsiSolution<3>, Diagnostic> {
-    finalize_fixed_reference_fsi_step_3d(mesh, partition, boundary, previous, config, quadrature)?
-        .solve(solver)
+    finalize_fixed_reference_fsi_step_3d(
+        mesh, partition, boundary, previous, config, quadrature, layout,
+    )?
+    .solve(solver)
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -503,18 +531,8 @@ impl<const D: usize> FinalizedState<D> {
             &dimensionless_fluid_bubbles,
             &dimensionless_pressure,
         );
-        let vertex_velocity = dimensionless_vertex_velocity
-            .iter()
-            .map(|value| value.map(|component| component * self.config.scale().velocity()))
-            .collect::<Vec<_>>();
-        let fluid_bubbles = dimensionless_fluid_bubbles
-            .iter()
-            .map(|value| value.map(|component| component * self.config.scale().velocity()))
-            .collect::<Vec<_>>();
-        let pressure = dimensionless_pressure
-            .iter()
-            .map(|value| value * self.config.scale().pressure())
-            .collect::<Vec<_>>();
+        let (vertex_velocity, fluid_bubbles, pressure) =
+            self.layout.reconstruct_physical(&algebraic_values)?;
 
         let mut reduced_residual = apply_canonical(&canonical_system, &algebraic_values)?;
         for (value, rhs) in reduced_residual
@@ -538,7 +556,14 @@ impl<const D: usize> FinalizedState<D> {
         for (value, rhs) in full_residual.iter_mut().zip(self.full_system.rhs()) {
             *value -= rhs;
         }
-        let continuity_residual_norm = norm(&full_residual[self.layout.full_pressure_range()]);
+        let continuity_residual_norm = norm(
+            &self
+                .layout
+                .full_pressure_dofs()
+                .into_iter()
+                .map(|dof| full_residual[dof])
+                .collect::<Vec<_>>(),
+        );
         if continuity_residual_norm > residual_tolerance {
             return Err(invalid(format!(
                 "fixed-reference FSI incompressibility residual {continuity_residual_norm:e} exceeds {residual_tolerance:e}"

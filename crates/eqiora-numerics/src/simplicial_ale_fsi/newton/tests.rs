@@ -58,6 +58,7 @@ fn real_payload_prepares_each_structural_phase_once_and_reuses_after_failure() {
         &quadrature,
         &assembly,
         &DenseGeneralSolver,
+        &fixture.layout,
     )
     .unwrap();
     let expected = AleFsiRunPhaseCounts {
@@ -97,6 +98,7 @@ fn two_steps_close_the_complete_accepted_evidence_chain() {
         plan,
         &triangle_duffy_gauss_legendre(5).unwrap(),
         &DenseGeneralSolver,
+        &fixture.layout,
     )
     .unwrap();
 
@@ -149,6 +151,7 @@ fn one_tetrahedral_step_closes_every_three_dimensional_evidence_link() {
         plan,
         &degree_nine,
         &DenseGeneralSolver,
+        &fixture.layout,
     )
     .expect_err("degree-nine tetrahedral quadrature must fail before publication");
     assert!(rejected.message().contains("at least 11"));
@@ -167,6 +170,7 @@ fn one_tetrahedral_step_closes_every_three_dimensional_evidence_link() {
         plan,
         &quadrature,
         &DenseGeneralSolver,
+        &fixture.layout,
     )
     .unwrap();
 
@@ -230,6 +234,7 @@ fn unsupported_general_solver_fails_before_a_step_is_published() {
         step_plan(),
         &triangle_duffy_gauss_legendre(5).unwrap(),
         &REFERENCE_LINEAR_SOLVER,
+        &fixture.layout,
     )
     .unwrap_err();
     assert_eq!(error.code(), codes::INVALID_REALIZATION);
@@ -238,6 +243,7 @@ fn unsupported_general_solver_fails_before_a_step_is_published() {
 struct Fixture {
     mesh: SimplicialMesh,
     partition: FixedReferenceFsiPartition<2>,
+    layout: crate::simplicial_fsi::layout::FsiLayout<2>,
     boundary: AleFsiBoundary<2>,
     motion: P1HarmonicMeshMotionAction<2>,
     initial: AleFsiState<2>,
@@ -246,6 +252,7 @@ struct Fixture {
 struct Fixture3d {
     mesh: SimplicialMesh,
     partition: FixedReferenceFsiPartition<3>,
+    layout: crate::simplicial_fsi::layout::FsiLayout<3>,
     boundary: AleFsiBoundary<3>,
     motion: P1HarmonicMeshMotionAction<3>,
     initial: AleFsiState<3>,
@@ -288,7 +295,18 @@ fn fixture() -> Fixture {
         solid_displacement,
     )
     .unwrap();
+    let plan = step_plan();
+    let layout = crate::simplicial_fsi::test_model::planar_layout(
+        &crate::simplicial_fsi::test_model::adjacent_rectangles(),
+        &mesh,
+        &partition,
+        &crate::simplicial_fsi::FixedReferenceFsiBoundary::homogeneous_exterior(&mesh).unwrap(),
+        plan.fixed_reference_config(),
+        plan.linear_solver(),
+        true,
+    );
     Fixture {
+        layout,
         mesh,
         partition,
         boundary,
@@ -327,7 +345,18 @@ fn fixture_3d() -> Fixture3d {
         solid_displacement,
     )
     .unwrap();
+    let plan = step_plan_3d();
+    let layout = crate::simplicial_fsi::test_model::polyhedra::polyhedral_layout(
+        &crate::simplicial_fsi::test_model::polyhedra::tetrahedral_geometry(),
+        &mesh,
+        &partition,
+        &crate::simplicial_fsi::FixedReferenceFsiBoundary::homogeneous_exterior(&mesh).unwrap(),
+        plan.fixed_reference_config(),
+        plan.linear_solver(),
+        true,
+    );
     Fixture3d {
+        layout,
         mesh,
         partition,
         boundary,

@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use eqiora_assembly::{AssemblyMap, AssemblyPacketSetIdentityV1, TargetAssemblyMap};
+use eqiora_assembly::{AssemblyPacketSetIdentityV1, TargetAssemblyMap};
 use eqiora_core::{Diagnostic, RawId};
 use eqiora_meshing::{MeshEntity, MeshGeometry, QuadratureRule, SimplicialMesh};
 
@@ -14,8 +14,8 @@ use crate::simplicial_fsi::{
 };
 
 use super::super::validate::{
-    fluid_domain, fluid_pressure, fluid_velocity, invalid_realization, solid_displacement,
-    solid_domain, solid_velocity,
+    fluid_domain, fluid_velocity, invalid_realization, solid_displacement, solid_domain,
+    solid_velocity,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -58,35 +58,6 @@ pub(in super::super) fn prepare_cells(
             let maps = [true, false]
                 .into_iter()
                 .map(|reduced| {
-                    let source = if let Some(position) = partition.fluid_position(index) {
-                        prepared.layout().fluid_map(position, &vertices, reduced)?
-                    } else {
-                        prepared.layout().solid_map(&vertices, reduced)?
-                    };
-                    let mut equations = Vec::new();
-                    let mut unknowns = Vec::new();
-                    for field in form.fields() {
-                        let range = if field.field == fluid_velocity(model).erase() {
-                            0..2 * (vertices.len() + 1)
-                        } else if field.field == fluid_pressure(model).erase() {
-                            let start = 2 * (vertices.len() + 1);
-                            start..start + vertices.len()
-                        } else if field.field == solid_velocity(model).erase() {
-                            0..2 * vertices.len()
-                        } else {
-                            return Err(invalid_realization(
-                                "region Field has no resolved FSI DOFs",
-                            ));
-                        };
-                        if range.len() != field.range.len() || range.end > source.equations().len()
-                        {
-                            return Err(invalid_realization(
-                                "region Field range differs from resolved space",
-                            ));
-                        }
-                        equations.extend_from_slice(&source.equations()[range.clone()]);
-                        unknowns.extend_from_slice(&source.unknowns()[range]);
-                    }
                     let target = if reduced {
                         prepared.target_roles().reduced()
                     } else {
@@ -94,7 +65,7 @@ pub(in super::super) fn prepare_cells(
                     };
                     Ok(TargetAssemblyMap::new(
                         target,
-                        AssemblyMap::new(equations, unknowns)?,
+                        prepared.layout().cell_map(index, reduced)?,
                     ))
                 })
                 .collect::<Result<Vec<_>, Diagnostic>>()?;

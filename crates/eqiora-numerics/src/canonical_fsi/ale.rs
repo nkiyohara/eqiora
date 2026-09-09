@@ -26,6 +26,7 @@ use super::{
 /// needed by those choices.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AleFsiCartesianModel<const D: usize> {
+    pub(super) program: KernelProgram,
     model: OntologyId<Model>,
     semantic_revision: u64,
     fluid: TransientIncompressibleNavierStokesCartesianModel<D>,
@@ -162,6 +163,7 @@ fn lower_ale_fsi_cartesian<const D: usize>(
     )?;
 
     Ok(AleFsiCartesianModel {
+        program: program.clone(),
         model: program.model(),
         semantic_revision: program.revision().0,
         fluid: fluid.model,

@@ -371,41 +371,102 @@ pub(super) fn assert_exact_interface_bisection(
     target_mesh: &SimplicialMesh,
     target_current_coordinates: &[Vec<f64>],
 ) {
-    for (lower_y, upper_y) in [(0.0, 0.5), (0.5, 1.0)] {
-        let lower = find_vertex(source_mesh, [1.0, lower_y]);
-        let upper = find_vertex(source_mesh, [1.0, upper_y]);
-        let midpoint = find_vertex(target_mesh, [1.0, 0.5 * (lower_y + upper_y)]);
-        for axis in 0..COMPONENTS {
-            let lower_current =
-                source_mesh.vertices()[lower][axis] + source_displacement[lower][axis];
-            let upper_current =
-                source_mesh.vertices()[upper][axis] + source_displacement[upper][axis];
-            let exact_midpoint = 0.5 * lower_current + 0.5 * upper_current;
-            assert!(
-                is_exact_dyadic_midpoint(lower_current, upper_current, exact_midpoint),
-                "source interface edge {lower_y}..{upper_y} axis {axis} has no exactly representable binary64 midpoint: lower={lower_current:?}, upper={upper_current:?}, candidate={exact_midpoint:?}"
-            );
-            assert_eq!(
-                target_current_coordinates[midpoint][axis].to_bits(),
-                exact_midpoint.to_bits(),
-                "target interface bisection must use the exact source-edge binary64 midpoint"
-            );
+    // Material P1 trace is evaluated first; current geometry then adds X + d.
+    // An exact-real midpoint of already rounded current endpoints need not be
+    // representable. It is not the retained geometry-action contract.
+    let matches = |candidate: &[Vec<f64>]| {
+        for (lower_y, upper_y) in [(0.0, 0.5), (0.5, 1.0)] {
+            let lower = find_vertex(source_mesh, [1.0, lower_y]);
+            let upper = find_vertex(source_mesh, [1.0, upper_y]);
+            let midpoint = find_vertex(target_mesh, [1.0, 0.5 * (lower_y + upper_y)]);
+            let lower_current: [f64; COMPONENTS] = std::array::from_fn(|axis| {
+                source_mesh.vertices()[lower][axis] + source_displacement[lower][axis]
+            });
+            let upper_current: [f64; COMPONENTS] = std::array::from_fn(|axis| {
+                source_mesh.vertices()[upper][axis] + source_displacement[upper][axis]
+            });
+            if !(lower_current[1] < candidate[midpoint][1]
+                && candidate[midpoint][1] < upper_current[1])
+            {
+                return false;
+            }
+            for axis in 0..COMPONENTS {
+                if !midpoint_rounding_cell_contains(
+                    lower_current[axis],
+                    upper_current[axis],
+                    candidate[midpoint][axis],
+                ) {
+                    return false;
+                }
+                let expected = target_mesh.vertices()[midpoint][axis]
+                    + (0.5 * source_displacement[lower][axis]
+                        + 0.5 * source_displacement[upper][axis]);
+                if candidate[midpoint][axis].to_bits() != expected.to_bits() {
+                    return false;
+                }
+                for (source, material_y) in [(lower, lower_y), (upper, upper_y)] {
+                    let target = find_vertex(target_mesh, [1.0, material_y]);
+                    let endpoint =
+                        source_mesh.vertices()[source][axis] + source_displacement[source][axis];
+                    if candidate[target][axis].to_bits() != endpoint.to_bits() {
+                        return false;
+                    }
+                }
+            }
         }
+        true
+    };
+    assert!(
+        matches(target_current_coordinates),
+        "target interface must preserve the material P1 trace, certified rounded segment support, and every source breakpoint"
+    );
+    let midpoint = find_vertex(target_mesh, [1.0, 0.25]);
+    for axis in 0..COMPONENTS {
+        let mut wrong = target_current_coordinates.to_vec();
+        wrong[midpoint][axis] = wrong[midpoint][axis].next_up();
+        assert!(
+            !matches(&wrong),
+            "one-ULP support/interpolation drift must fail"
+        );
     }
 }
 
-fn is_exact_dyadic_midpoint(left: f64, right: f64, midpoint: f64) -> bool {
-    let terms = [dyadic(left), dyadic(right), dyadic(midpoint)];
+fn midpoint_rounding_cell_contains(left: f64, right: f64, midpoint: f64) -> bool {
+    let terms = [
+        left,
+        right,
+        midpoint.next_down(),
+        midpoint,
+        midpoint.next_up(),
+    ]
+    .map(dyadic);
     let minimum_exponent = terms
         .iter()
         .filter_map(|(mantissa, exponent)| (*mantissa != 0).then_some(*exponent))
         .min()
         .unwrap_or(0);
-    let align = |(mantissa, exponent): (i128, i32)| {
-        mantissa.checked_shl((exponent - minimum_exponent) as u32)
-    };
-    match (align(terms[0]), align(terms[1]), align(terms[2])) {
-        (Some(left), Some(right), Some(midpoint)) => left + right == 2 * midpoint,
+    let aligned = terms.map(|(mantissa, exponent)| {
+        if mantissa == 0 {
+            return Some(0);
+        }
+        let factor = 2_i128.checked_pow((exponent - minimum_exponent) as u32)?;
+        mantissa.checked_mul(factor)
+    });
+    match aligned {
+        [
+            Some(left),
+            Some(right),
+            Some(previous),
+            Some(midpoint),
+            Some(next),
+        ] => match (
+            previous.checked_add(midpoint),
+            left.checked_add(right),
+            midpoint.checked_add(next),
+        ) {
+            (Some(lower), Some(value), Some(upper)) => lower <= value && value <= upper,
+            _ => false,
+        },
         _ => false,
     }
 }

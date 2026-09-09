@@ -53,11 +53,11 @@ pub(crate) struct PreparedResolvedFixedReferenceFsiRun2d<'a> {
     mesh: &'a SimplicialMesh,
     partition: &'a FixedReferenceFsiPartition<2>,
     assembly: &'a dyn AssemblyBackend,
-    boundary: FixedReferenceFsiBoundary<2>,
     config: FixedReferenceFsiStepConfig<2>,
     quadrature: QuadratureRule,
     realization_graph: eqiora_realization::PortableRealizationGraph,
     block_system: DiscreteBlockSystem,
+    layout: crate::simplicial_fsi::layout::FsiLayout<2>,
     regions: std::collections::BTreeMap<
         eqiora_core::RawId,
         crate::form_compiler::region::BoundRegionForm,
@@ -65,6 +65,11 @@ pub(crate) struct PreparedResolvedFixedReferenceFsiRun2d<'a> {
 }
 
 impl PreparedResolvedFixedReferenceFsiRun2d<'_> {
+    #[cfg(test)]
+    pub(crate) fn layout(&self) -> &crate::simplicial_fsi::layout::FsiLayout<2> {
+        &self.layout
+    }
+
     /// Assemble and finalize one action against the immutable prepared structure.
     pub(crate) fn finalize(
         &self,
@@ -74,11 +79,11 @@ impl PreparedResolvedFixedReferenceFsiRun2d<'_> {
         let prepared = PreparedFixedReferenceFsiAssembly::new(
             self.mesh,
             self.partition,
-            &self.boundary,
             previous,
             self.config,
             &self.quadrature,
             AssemblyPacketSetIdentityV1::from_sha256(self.mesh_artifact.sha256()),
+            self.layout.clone(),
         )?;
         let work = regions::prepare_cells(
             self.model,
@@ -535,6 +540,7 @@ fn prepare_resolved_fixed_reference_fsi_run_2d_with_assembly<'a>(
     let block_system =
         block::fixed_reference_fsi_block_system(model, resolved, mesh_artifact, mesh, partition)?;
     let regions = regions::bind(model, resolved.plan())?;
+    let layout = regions::layout(model, &regions, mesh, partition, &boundary)?;
     Ok(PreparedResolvedFixedReferenceFsiRun2d {
         model,
         resolved,
@@ -542,12 +548,12 @@ fn prepare_resolved_fixed_reference_fsi_run_2d_with_assembly<'a>(
         mesh,
         partition,
         assembly,
-        boundary,
         config,
         quadrature,
         realization_graph,
         block_system,
         regions,
+        layout,
     })
 }
 

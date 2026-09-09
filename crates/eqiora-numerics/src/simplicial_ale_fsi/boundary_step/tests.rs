@@ -1,4 +1,6 @@
 use super::*;
+mod geometry;
+
 use crate::simplicial_fsi::{FixedReferenceFsiMaterial, FixedReferenceFsiScale};
 use eqiora_assembly::LocalUnknown;
 use eqiora_meshing::{CellId, FacetId, MeshQualityGate};
@@ -446,15 +448,13 @@ fn values(level: u8, ramp: usize) -> Vec<(VertexId, [f64; 2])> {
         })
         .collect()
 }
-fn oracle_mesh(
-    level: u8,
-) -> Result<
-    (
-        SimplicialMesh,
-        Vec<(MeshEntity, AleFsiExteriorFacetDisposition)>,
-    ),
-    Diagnostic,
-> {
+type OracleMesh = (
+    SimplicialMesh,
+    Vec<(MeshEntity, AleFsiExteriorFacetDisposition)>,
+    eqiora_geometry::PlanarRegion,
+);
+
+fn oracle_mesh(level: u8) -> Result<OracleMesh, Diagnostic> {
     let count = [539, 2057, 8030][level as usize];
     let mut rows = NODAL.iter().filter(|r| r.mesh == level).collect::<Vec<_>>();
     rows.sort_by_key(|r| r.y);
@@ -500,6 +500,7 @@ fn oracle_mesh(
         }
     }
     cells.push(vec![apex, b, a]);
+    let region = geometry::authored_region(&points, &boundary, split, apex);
     let mesh = SimplicialMesh::new(2, points, cells, MeshQualityGate::new(1e-15)?)?;
     let roles = exterior_facets(&mesh)?
         .into_iter()
@@ -522,7 +523,7 @@ fn oracle_mesh(
             )
         })
         .collect();
-    Ok((mesh, roles))
+    Ok((mesh, roles, region))
 }
 fn partition(mesh: &SimplicialMesh) -> Result<FixedReferenceFsiPartition<2>, Diagnostic> {
     let solid = mesh.cells().len() - 1;
@@ -655,7 +656,7 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
     let mesh_data = (0..3).map(oracle_mesh).collect::<Result<Vec<_>, _>>()?;
     let parts = mesh_data
         .iter()
-        .map(|(m, _)| partition(m))
+        .map(|(m, _, _)| partition(m))
         .collect::<Result<Vec<_>, _>>()?;
     let solvers = (0..3).map(|_| ReferenceLinearSolver).collect::<Vec<_>>();
     let motions = (0..3)
@@ -667,10 +668,28 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
+    // Topology, Fields, scales and quotient are constant across this schedule;
+    // only the boundary endpoint values change at each prepared action.
+    let map_plan = step_plan(1.0 / 4000.0)?;
+    let base_layouts = mesh_data
+        .iter()
+        .zip(&parts)
+        .map(|((mesh, _, region), part)| {
+            Ok(crate::simplicial_fsi::test_model::planar_layout(
+                region,
+                mesh,
+                part,
+                &FixedReferenceFsiBoundary::homogeneous_exterior(mesh)?,
+                map_plan.fixed_reference_config(),
+                map_plan.linear_solver(),
+                true,
+            ))
+        })
+        .collect::<Result<Vec<_>, Diagnostic>>()?;
     let mut body = String::new();
     let mut prepared_members = Vec::new();
     for &(name, level, schedule, stride, ramp, dt) in &members {
-        let (mesh, roles) = &mesh_data[level as usize];
+        let (mesh, roles, _) = &mesh_data[level as usize];
         let part = &parts[level as usize];
         let motion = &motions[level as usize];
         let previous = AleFsiBoundaryEndpointIdentity::new([level as u64, schedule, 0, 0], 0.0)?;
@@ -688,8 +707,8 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
             (prepared.previous_endpoint(), prepared.current_endpoint()),
             (previous, current)
         );
-        let layout = prepared.layout(mesh, part)?;
         let plan = step_plan(dt)?;
+        let layout = prepared.layout(&base_layouts[level as usize])?;
         let prior = zero_state(mesh, part, motion)?;
         let initial = prepared.reduce_initial_point(&prior, plan, &layout)?;
         let (primal, _, _) = layout.reconstruct_primal(&initial, part.fluid_cells().len())?;
@@ -801,9 +820,9 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
         1.0 / 4000.0,
         2.0,
     )?;
-    let layout = homogeneous.layout(mesh, part)?;
-    let prior = zero_state(mesh, part, motion)?;
     let plan = step_plan(1.0 / 4000.0)?;
+    let layout = homogeneous.layout(&base_layouts[0])?;
+    let prior = zero_state(mesh, part, motion)?;
     let initial = homogeneous.reduce_initial_point(&prior, plan, &layout)?;
     let (primal, _, _) = layout.reconstruct_primal(&initial, part.fluid_cells().len())?;
     let (direction, _, _) = layout
@@ -880,6 +899,7 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
         &QuadratureRule::point(),
         &eqiora_assembly::ReferenceAssemblyBackend,
         &solvers[2],
+        &base_layouts[2],
     )
     .expect_err("equal-ramp stale member must fail the expected-identity gate before solve");
     assert!(

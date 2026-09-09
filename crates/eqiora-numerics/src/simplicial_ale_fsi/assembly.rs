@@ -6,6 +6,12 @@
 //! the sealed harmonic action derives the latter.  Every Jacobian column
 //! follows that same composition analytically.
 
+mod fields;
+use fields::{
+    fluid_local_size, fluid_row_scales, local_pressure_coefficients, local_velocity_coefficients,
+    solid_local_size,
+};
+
 use std::sync::Arc;
 
 use eqiora_assembly::{
@@ -117,16 +123,19 @@ pub(super) fn prepare_ale_fsi_structure<const D: usize>(
     initial: &AleFsiState<D>,
     plan: AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
+    base_layout: &FsiLayout<D>,
 ) -> Result<PreparedAleFsiStructure<D>, Diagnostic> {
     #[cfg(test)]
     let mut phases = AleFsiStructuralPhaseCounts::default();
     boundary.validate_inputs(reference, partition, motion, initial, plan, quadrature)?;
+    base_layout.require_reference(reference, partition)?;
+    base_layout.require_scale(plan.scale())?;
     #[cfg(test)]
     {
         phases.authentication += 1;
         phases.quadrature += 1;
     }
-    let layout = Arc::new(boundary.layout(reference, partition)?);
+    let layout = Arc::new(boundary.layout(base_layout)?);
     #[cfg(test)]
     {
         phases.layout += 1;
@@ -174,8 +183,8 @@ pub(super) fn prepare_ale_fsi_structure<const D: usize>(
                 )
             }
             CellMaterial::Solid => (
-                layout.solid_map(&vertices, true)?,
-                layout.solid_map(&vertices, false)?,
+                layout.solid_map(cell_index, &vertices, true)?,
+                layout.solid_map(cell_index, &vertices, false)?,
                 None,
             ),
             CellMaterial::Unassigned => {
@@ -256,12 +265,12 @@ impl<const D: usize> PreparedAleFsiStructure<D> {
 #[allow(dead_code)]
 pub(super) fn initial_point<const D: usize>(
     reference: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition<D>,
     boundary: &AleFsiBoundary<D>,
     motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
     plan: AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
+    base_layout: &FsiLayout<D>,
 ) -> Result<Vec<f64>, Diagnostic> {
     let prepared = match PreparedAleFsiBoundaryStep::from_boundary(boundary) {
         Some(prepared) => prepared,
@@ -274,21 +283,30 @@ pub(super) fn initial_point<const D: usize>(
         )?,
     };
     initial_point_prepared(
-        reference, partition, &prepared, motion, previous, plan, quadrature,
+        reference,
+        &prepared,
+        motion,
+        previous,
+        plan,
+        quadrature,
+        base_layout,
     )
 }
 
 pub(super) fn initial_point_prepared<const D: usize>(
     reference: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition<D>,
     boundary: &PreparedAleFsiBoundaryStep<D>,
     motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
     plan: AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
+    base_layout: &FsiLayout<D>,
 ) -> Result<Vec<f64>, Diagnostic> {
+    let partition = base_layout.partition();
+    base_layout.require_reference(reference, partition)?;
+    base_layout.require_scale(plan.scale())?;
     boundary.validate_inputs(reference, partition, motion, previous, plan, quadrature)?;
-    let layout = boundary.layout(reference, partition)?;
+    let layout = boundary.layout(base_layout)?;
     boundary.reduce_initial_point(previous, plan, &layout)
 }
 
@@ -309,6 +327,7 @@ pub(super) fn assemble_step_linearization<const D: usize>(
     plan: AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend,
+    base_layout: &FsiLayout<D>,
 ) -> Result<StepAssembly<D>, Diagnostic> {
     let prepared_boundary = match PreparedAleFsiBoundaryStep::from_boundary(boundary) {
         Some(prepared) => prepared,
@@ -330,6 +349,7 @@ pub(super) fn assemble_step_linearization<const D: usize>(
         plan,
         quadrature,
         assembly,
+        base_layout,
     )
 }
 
@@ -344,9 +364,17 @@ pub(super) fn assemble_step_linearization_prepared<const D: usize>(
     plan: AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend,
+    base_layout: &FsiLayout<D>,
 ) -> Result<StepAssembly<D>, Diagnostic> {
     let structure = prepare_ale_fsi_structure(
-        reference, partition, boundary, motion, previous, plan, quadrature,
+        reference,
+        partition,
+        boundary,
+        motion,
+        previous,
+        plan,
+        quadrature,
+        base_layout,
     )?;
     let action =
         structure.prepare_action(reference, partition, boundary.clone(), previous, plan)?;
@@ -459,6 +487,7 @@ pub(super) fn assemble_step_residual<const D: usize>(
     candidate: &[f64],
     plan: AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
+    base_layout: &FsiLayout<D>,
 ) -> Result<Vec<f64>, Diagnostic> {
     let prepared_boundary = match PreparedAleFsiBoundaryStep::from_boundary(boundary) {
         Some(prepared) => prepared,
@@ -479,6 +508,7 @@ pub(super) fn assemble_step_residual<const D: usize>(
         candidate,
         plan,
         quadrature,
+        base_layout,
     )
 }
 
@@ -492,9 +522,17 @@ pub(super) fn assemble_step_residual_prepared<const D: usize>(
     candidate: &[f64],
     plan: AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
+    base_layout: &FsiLayout<D>,
 ) -> Result<Vec<f64>, Diagnostic> {
     let structure = prepare_ale_fsi_structure(
-        reference, partition, boundary, motion, previous, plan, quadrature,
+        reference,
+        partition,
+        boundary,
+        motion,
+        previous,
+        plan,
+        quadrature,
+        base_layout,
     )?;
     let action =
         structure.prepare_action(reference, partition, boundary.clone(), previous, plan)?;
@@ -1036,8 +1074,9 @@ pub(super) fn build_step_jacobian_pattern<const D: usize>(
     partition: &FixedReferenceFsiPartition<D>,
     boundary: &AleFsiBoundary<D>,
     motion: &P1HarmonicMeshMotionAction<D>,
+    base_layout: &FsiLayout<D>,
 ) -> Result<StructuralJacobianPattern, Diagnostic> {
-    let layout = FsiLayout::new(reference, partition, boundary)?;
+    let layout = base_layout.with_boundary(boundary)?;
     build_structural_jacobian_pattern(reference, partition, motion, &layout)
 }
 
@@ -1047,8 +1086,9 @@ pub(super) fn build_step_jacobian_pattern_prepared<const D: usize>(
     partition: &FixedReferenceFsiPartition<D>,
     boundary: &PreparedAleFsiBoundaryStep<D>,
     motion: &P1HarmonicMeshMotionAction<D>,
+    base_layout: &FsiLayout<D>,
 ) -> Result<StructuralJacobianPattern, Diagnostic> {
-    let layout = boundary.layout(reference, partition)?;
+    let layout = boundary.layout(base_layout)?;
     build_structural_jacobian_pattern(reference, partition, motion, &layout)
 }
 
@@ -1082,7 +1122,10 @@ fn build_structural_jacobian_pattern<const D: usize>(
                     layout.fluid_map(fluid_position, &vertices, true)?,
                 )
             }
-            CellMaterial::Solid => (solid_local_size::<D>(), layout.solid_map(&vertices, true)?),
+            CellMaterial::Solid => (
+                solid_local_size::<D>(),
+                layout.solid_map(cell_index, &vertices, true)?,
+            ),
             CellMaterial::Unassigned => {
                 return Err(invalid(format!(
                     "ALE FSI structural dependency cell {cell_index} has no material assignment"
@@ -1104,86 +1147,6 @@ fn build_structural_jacobian_pattern<const D: usize>(
         }
     }
     pattern.finish()
-}
-
-fn local_velocity_coefficients<const D: usize>(
-    vertices: &[MeshEntity],
-    vertex_values: &[[f64; D]],
-    bubble: [f64; D],
-) -> Result<Vec<[f64; D]>, Diagnostic> {
-    if vertices.len() != D + 1 {
-        return Err(invalid(format!(
-            "{D}D ALE FSI velocity closure must contain exactly {} vertices",
-            D + 1
-        )));
-    }
-    let mut coefficients = Vec::new();
-    coefficients
-        .try_reserve_exact(D + 2)
-        .map_err(|_| invalid("ALE FSI local velocity coefficient allocation failed"))?;
-    for vertex in vertices {
-        coefficients.push(
-            vertex_values.get(vertex.index()).copied().ok_or_else(|| {
-                invalid("ALE FSI velocity closure references a missing mesh vertex")
-            })?,
-        );
-    }
-    coefficients.push(bubble);
-    Ok(coefficients)
-}
-
-fn local_pressure_coefficients<const D: usize>(
-    vertices: &[MeshEntity],
-    partition: &FixedReferenceFsiPartition<D>,
-    pressure: &[f64],
-) -> Result<Vec<f64>, Diagnostic> {
-    let values = vertices
-        .iter()
-        .map(|vertex| {
-            let position = partition
-                .fluid_vertices()
-                .binary_search_by_key(&vertex.index(), |candidate| candidate.index())
-                .map_err(|_| {
-                    invalid("ALE FSI fluid cell vertex has no canonical pressure position")
-                })?;
-            pressure.get(position).copied().ok_or_else(|| {
-                invalid("ALE FSI pressure field differs from its partition ordering")
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    if values.len() != D + 1 {
-        return Err(invalid(format!(
-            "{D}D ALE FSI simplex pressure closure must contain {} vertices",
-            D + 1
-        )));
-    }
-    Ok(values)
-}
-
-fn fluid_row_scales<const D: usize>(plan: AleFsiStepPlan<D>) -> Vec<f64> {
-    let scale = plan.scale();
-    let power = scale.power();
-    (0..fluid_local_size::<D>())
-        .map(|row| {
-            if row < fluid_pressure_offset::<D>() {
-                scale.velocity() / power
-            } else {
-                scale.pressure() / power
-            }
-        })
-        .collect()
-}
-
-const fn fluid_pressure_offset<const D: usize>() -> usize {
-    (D + 2) * D
-}
-
-const fn fluid_local_size<const D: usize>() -> usize {
-    fluid_pressure_offset::<D>() + D + 1
-}
-
-const fn solid_local_size<const D: usize>() -> usize {
-    (D + 1) * D
 }
 
 fn local_point(map: &AssemblyMap, candidate: &[f64]) -> Result<Vec<f64>, Diagnostic> {

@@ -215,7 +215,9 @@ pub(super) fn require_pressure_closed_by_complete_operator<const D: usize>(
     layout: &FsiLayout<D>,
 ) -> Result<f64, Diagnostic> {
     let mut constant_pressure = vec![0.0; layout.reduced_size()];
-    constant_pressure[layout.reduced_pressure_range()].fill(1.0);
+    for dof in layout.reduced_pressure_dofs() {
+        constant_pressure[dof] = 1.0;
+    }
     let action = system.matrix().multiply(&constant_pressure)?;
     let action_norm = norm(&action);
     let matrix_scale = system
