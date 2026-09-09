@@ -3,12 +3,12 @@ import pytest
 
 
 def model_with_collisions():
-    source = eqiora.lang.Source()
+    source = eqiora.Module("main")
     model = source.model("Main")
     left = model.field("left", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
     right = model.field("right", role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
-    model.relation("left_law", left=left, right=0)
-    model.relation("right_law", left=right, right=0)
+    model.relation("left_law", eqiora.lang.equation(left, 0))
+    model.relation("right_law", eqiora.lang.equation(right, 0))
     model.set_notation("left", eqiora.lang.Notation(r"@{x_i}"))
     model.set_notation("right", eqiora.lang.Notation(r"@{\mathbf{x_i}}"))
     return eqiora.compile(source=source)

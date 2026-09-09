@@ -8,7 +8,7 @@ q = eqiora.lang
 
 
 def event_source(*, wrong_activation=False):
-    source = q.Source()
+    source = eqiora.Module("main")
     owner = source.model("Impact")
     velocity = owner.field("velocity", role=eqiora.FieldRole.State,
                            value_type=eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1)))
@@ -19,7 +19,7 @@ def event_source(*, wrong_activation=False):
     activation = owner.event("other", height, direction="falling") if wrong_activation else impact
     owner.initial((height, q.quantity(1, eqiora.units.m)),
                   (velocity, q.quantity(-1, eqiora.units.m / eqiora.units.s)))
-    owner.relation("reset", at=activation, left=q.next(velocity), right=-old)
+    owner.relation("reset", q.equation(q.next(velocity), -old), at=activation)
     return source
 
 
@@ -34,7 +34,7 @@ def test_event_and_alias_authoring_emits_exact_distinct_activation():
 
 @pytest.mark.parametrize("direction", ("any", "rising", "falling"))
 def test_event_requires_explicit_closed_direction_and_is_immutable(direction):
-    source = q.Source()
+    source = eqiora.Module("main")
     owner = source.model("Events")
     first = owner.event("first", 1, direction=direction)
     second = owner.event("second", 1, direction=direction)
@@ -46,80 +46,80 @@ def test_event_requires_explicit_closed_direction_and_is_immutable(direction):
     with pytest.raises(TypeError):
         owner.event("missing", 1)
     assert f"crossing(1, direction = {direction})" in source.to_eqi()
-    with pytest.raises(q.SourceError, match="frozen"):
+    with pytest.raises(q.ModuleError, match="frozen"):
         owner.event("late", 1, direction=direction)
 
 
 @pytest.mark.parametrize("direction", (None, True, "up", "", 1))
 def test_invalid_event_direction_does_not_reserve_a_name(direction):
-    owner = q.Source().model("Events")
-    with pytest.raises(q.SourceError, match="direction"):
+    owner = eqiora.Module("main").model("Events")
+    with pytest.raises(q.ModuleError, match="direction"):
         owner.event("bad", 1, direction=direction)
     owner.let_alias("bad", 1)
 
 
 @pytest.mark.parametrize("same_source", (True, False))
 def test_event_rejects_foreign_guard_and_activation_before_name_reservation(same_source):
-    source = q.Source()
+    source = eqiora.Module("main")
     owner = source.model("Local")
-    foreign = (source if same_source else q.Source()).component("Foreign")
+    foreign = (source if same_source else eqiora.Module("main")).component("Foreign")
     guard = foreign.parameter("guard", value_type=eqiora.ValueType.real())
     event = foreign.event("impact", guard, direction="any")
-    with pytest.raises(q.SourceError, match="Component"):
+    with pytest.raises(q.ModuleError, match="Component"):
         owner.event("bad", guard, direction="falling")
-    with pytest.raises(q.SourceError, match="event.*Component"):
-        owner.relation("bad", at=event, left=1, right=1)
-    with pytest.raises(q.SourceError, match="event.*Component"):
+    with pytest.raises(q.ModuleError, match="event.*Component"):
+        owner.relation("bad", q.equation(1, 1), at=event)
+    with pytest.raises(q.ModuleError, match="event.*Component"):
         owner.let_alias("bad", 1, at=event)
     owner.let_alias("bad", 1)
 
 
 def test_event_guard_rejects_foreign_constant_call_and_escaped_reduction_binder():
-    source = q.Source()
+    source = eqiora.Module("main")
     owner = source.model("Local")
-    foreign = q.Source()
+    foreign = eqiora.Module("main")
     constant = foreign.operator("constant", inputs={}, result_type=eqiora.ValueType.real(), body=lambda: 1)
-    with pytest.raises(q.SourceError, match="Source"):
+    with pytest.raises(q.ModuleError, match="Module"):
         owner.event("bad", constant(), direction="any")
     rows = owner.index_set("Rows", extent=2)
     escaped = []
     owner.sum(lambda i: escaped.append(i) or 1, over=rows)
-    with pytest.raises(q.SourceError, match="binder"):
+    with pytest.raises(q.ModuleError, match="binder"):
         owner.event("bad", q.ordinal(escaped[0]), direction="any")
     owner.let_alias("bad", 1)
 
 
 @pytest.mark.parametrize("method", ("field", "input", "output"))
 def test_event_is_not_a_periodic_field_or_port_clock(method):
-    owner = q.Source().model("Events")
+    owner = eqiora.Module("main").model("Events")
     event = owner.event("impact", 1, direction="any")
     arguments = {"value_type": eqiora.ValueType.real(), "at": event}
     if method == "field":
         arguments["role"] = eqiora.FieldRole.State
-    with pytest.raises(q.SourceError, match="clock"):
+    with pytest.raises(q.ModuleError, match="clock"):
         getattr(owner, method)("bad", **arguments)
     owner.let_alias("bad", 1)
 
 
 def test_event_cannot_satisfy_a_borrowed_periodic_clock_requirement():
-    source = q.Source()
+    source = eqiora.Module("main")
     child = source.component("Child")
     tick = child.clock_requirement("tick")
     owner = source.model("Events")
     event = owner.event("impact", 1, direction="any")
-    with pytest.raises(q.SourceError, match="Clock"):
-        owner.instance("bad", component=child, bindings={tick: event})
+    with pytest.raises(q.ModuleError, match="Clock"):
+        owner.instance("bad", component=child, bindings={'tick': event})
     owner.let_alias("bad", 1)
 
 
 def test_event_guard_budget_is_checked_before_reserving_the_event():
-    owner = q.Source().model("Events")
+    owner = eqiora.Module("main").model("Events")
     guard = q.quantity(1, eqiora.units.m)
     for _ in range(11):
         guard = guard + guard
     owner.event("first", guard, direction="any")  # 4095 authored nodes
     owner.event("second", 1, direction="any")
-    with pytest.raises(q.SourceError, match="node limit"):
+    with pytest.raises(q.ModuleError, match="node limit"):
         owner.event("bad", 1, direction="any")
     owner.let_alias("bad", 1)
 
