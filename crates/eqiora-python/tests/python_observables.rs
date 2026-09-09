@@ -10,13 +10,14 @@ fn python_result_observations_retain_types_rules_and_exact_state_lineage() -> Py
         locals.set_item("eqiora", public_module(py)?)?;
         py.run(c_str!(r#"
 import math
-linear = eqiora.solve.Linear(relative_tolerance=1e-12, absolute_tolerance=1e-14, maximum_iterations=100)
+linear = eqiora.solve.Linear(algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized, preconditioner=eqiora.solve.Preconditioner.Identity, reduction=eqiora.solve.Reduction.Reproducible, provider=eqiora.solve.SolverProvider.reference(), relative_tolerance=1e-12, absolute_tolerance=1e-14, maximum_iterations=100)
 finite = eqiora.compile(source="model M() { domain P = scalar_physical(across voltage: 1, through current: 1); port a: P; port b: P; connect a, b; relation voltage { a.voltage=2; } relation ground { b.current=0; } observable twice: 1=a.voltage+a.voltage; }")
 output = finite.observable("twice")
 assert isinstance(output, eqiora.ObservableRef)
 assert finite.observable(output.id) == output
 assert eqiora.Model.from_bytes(finite.to_bytes()).observable(output.id) == output
-plan = eqiora.resolve(finite, solve=linear)
+finite_linear = eqiora.solve.Linear(algorithm=eqiora.solve.LinearSolver.SparseLu, preconditioner=eqiora.solve.Preconditioner.Identity, reduction=eqiora.solve.Reduction.Fast, provider=eqiora.solve.SolverProvider.faer(), relative_tolerance=1e-12, absolute_tolerance=1e-14, maximum_iterations=100)
+plan = eqiora.resolve(finite, solve=finite_linear)
 assert isinstance(plan.capability, eqiora.solve.AlgebraicPlanView)
 assert plan.capability.unknown_count == 4
 result = eqiora.run(plan, state=eqiora.State.initial(plan))
@@ -86,7 +87,7 @@ for invalid in (lambda: result.observe(energy), lambda: result.observe(endpoint,
         pass
     else:
         raise AssertionError("invalid spatial observation policy or tangent was admitted")
-other_plan = eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=eqiora.solve.Linear(relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=100))
+other_plan = eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=eqiora.solve.Linear(algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized, preconditioner=eqiora.solve.Preconditioner.Identity, reduction=eqiora.solve.Reduction.Reproducible, provider=eqiora.solve.SolverProvider.reference(), relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=100))
 other_result = eqiora.run(other_plan)
 try:
     other_result.observe_state_jvp(energy, tangent, quadrature_points=2)

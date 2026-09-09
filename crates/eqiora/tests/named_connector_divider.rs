@@ -7,7 +7,9 @@ use eqiora::entity::kinds;
 use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore};
 use eqiora::kernel::KernelNode;
 use eqiora::sem::{KernelProgram, PhysicalUnknown};
-use eqiora::solver::{LinearSolveRequest, LinearSolver, ReductionPolicy, SolverPlan};
+use eqiora::solver::{
+    LinearSolveRequest, LinearSolver, LinearSolverBackend, ReductionPolicy, SolverPlan,
+};
 use eqiora::{Id, RawId};
 use eqiora_backend_faer::FaerLinearSolver;
 use eqiora_numerics::scalar::{lower_scalar_physical_affine, solve_scalar_physical_affine};
@@ -261,7 +263,21 @@ fn common_finite_lifecycle_accepts_eight_volts_and_rejects_stale_state() {
     let source = DIVIDER.replace("  connect source.positive", "  observable output: V = lower.positive.voltage - ground.terminal.voltage;\n  connect source.positive");
     let (program, symbols, _) = fixture(&source);
     let model = ModelEnvelope::from_program(&program).unwrap();
-    let request = CommonSolvePolicy::linear(1e-12, 1e-14, NonZeroUsize::new(100).unwrap()).unwrap();
+    let request = CommonSolvePolicy::Linear(
+        eqiora_numerics::CommonLinearRequest::exact(
+            SolverPlan::new(
+                LinearSolver::SparseLu,
+                1e-12,
+                1e-14,
+                NonZeroUsize::new(100).unwrap(),
+            )
+            .unwrap()
+            .with_preconditioner(eqiora::solver::PreconditionerPolicy::Identity)
+            .with_reduction(ReductionPolicy::Fast),
+            FaerLinearSolver.provider(),
+        )
+        .unwrap(),
+    );
     let plan = CommonAlgebraicPlan::resolve(&model, request, &FaerLinearSolver).unwrap();
     let state = plan.initial_state().unwrap();
     assert_eq!(
@@ -310,7 +326,21 @@ fn common_finite_lifecycle_accepts_eight_volts_and_rejects_stale_state() {
     assert_eq!(CommonResult::from_bytes(&bytes, &resolved).unwrap(), result);
     let changed = CommonAlgebraicPlan::resolve(
         &model,
-        CommonSolvePolicy::linear(1e-9, 1e-12, NonZeroUsize::new(100).unwrap()).unwrap(),
+        CommonSolvePolicy::Linear(
+            eqiora_numerics::CommonLinearRequest::exact(
+                SolverPlan::new(
+                    LinearSolver::SparseLu,
+                    1e-9,
+                    1e-12,
+                    NonZeroUsize::new(100).unwrap(),
+                )
+                .unwrap()
+                .with_preconditioner(eqiora::solver::PreconditionerPolicy::Identity)
+                .with_reduction(ReductionPolicy::Fast),
+                FaerLinearSolver.provider(),
+            )
+            .unwrap(),
+        ),
         &FaerLinearSolver,
     )
     .unwrap();

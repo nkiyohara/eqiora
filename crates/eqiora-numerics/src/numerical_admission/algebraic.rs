@@ -89,7 +89,7 @@ impl CommonAlgebraicPlan {
         }
         if request.objective().is_some() {
             return Err(invalid(
-                "finite affine Plan requires method-specific linear controls",
+                "finite affine Plan requires an exact SparseLU/Identity/Fast request",
             ));
         }
         let connection = kernel
@@ -132,13 +132,20 @@ impl CommonAlgebraicPlan {
                 "finite Plan requires one complete connected physical closure with no omitted Relations",
             ));
         }
-        let solver = request.resolve(LinearSolver::SparseLu, ReductionPolicy::Fast)?;
-        backend.capabilities().require_problem(
-            solver,
-            ScalarType::F64,
+        let linear = solver_planning::resolve_linear(
+            request,
             LinearOperatorProperties::General,
+            None,
+            backend,
         )?;
-        let linear = NativeLinearPolicy::exact(solver, backend)?;
+        if linear.solver.algorithm() != LinearSolver::SparseLu
+            || linear.solver.preconditioner() != PreconditionerPolicy::Identity
+            || linear.solver.reduction() != ReductionPolicy::Fast
+        {
+            return Err(invalid(
+                "finite affine Plan admits only exact SparseLU/Identity/Fast execution",
+            ));
+        }
         let reference = model.artifact_reference()?;
         let model_digest = reference.artifact().to_string();
         let mut bytes = model_digest.as_bytes().to_vec();
@@ -225,10 +232,11 @@ impl CommonAlgebraicPlan {
                 "finite Run requires its exact Plan-bound State and admitted provider",
             ));
         }
+        let checked_backend = self.linear.checked_backend(backend)?;
         let solution = solve_scalar_physical_affine_with_initial_guess(
             &self.problem,
             &state.values,
-            LinearSolveRequest::new(backend, self.linear.solver),
+            LinearSolveRequest::new(&checked_backend, self.linear.solver),
         )?;
         crate::CommonResult::from_algebraic(self, state, &solution)
     }

@@ -30,14 +30,7 @@ pub(super) fn resolve(
     let linear = solve
         .ok_or_else(|| PyTypeError::new_err("finite affine resolve requires solve=Linear(...)"))?
         .extract::<Py<PyLinear>>()?;
-    let (relative, absolute, iterations, objective) = linear.borrow(py).controls();
-    if objective.is_some() {
-        return Err(PyTypeError::new_err(
-            "finite affine resolve requires method-specific controls",
-        ));
-    }
-    let request = CommonSolvePolicy::linear(relative, absolute, iterations)
-        .map_err(|d| validation_error(py, &[d]))?;
+    let request = CommonSolvePolicy::Linear(linear.borrow(py).native);
     let native = eqiora_numerics::CommonAlgebraicPlan::resolve(
         model.borrow(py).artifact(),
         request,

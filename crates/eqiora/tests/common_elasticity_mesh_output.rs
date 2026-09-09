@@ -232,7 +232,9 @@ fn accepted() -> Accepted {
     .as_elasticity()
     .cloned()
     .expect("fixture retains its admitted elasticity Plan");
-    let result = plan.run_result(&eqiora::solver::REFERENCE_LINEAR_SOLVER).unwrap();
+    let result = plan
+        .run_result(&eqiora::solver::REFERENCE_LINEAR_SOLVER)
+        .unwrap();
     Accepted {
         document,
         geometry,

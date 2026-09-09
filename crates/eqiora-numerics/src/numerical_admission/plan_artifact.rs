@@ -477,8 +477,11 @@ impl WireResolvedCommonPlanV3 {
         let model_bytes = decode(&self.model_base64, "Model")?;
         let model = ModelEnvelope::from_json(&model_bytes, ModelDecoderLimits::default())?;
         if self.family == WirePlanFamily::Algebraic {
-            let Some(CommonSolvePolicy::Linear(request)) =
-                self.solve.as_ref().map(WireSolve::to_native).transpose()?
+            let Some(CommonSolvePolicy::Linear(request)) = self
+                .solve
+                .as_ref()
+                .map(|solve| solve.to_native(linear_backend))
+                .transpose()?
             else {
                 return Err(invalid("finite Plan requires linear controls"));
             };
