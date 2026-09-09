@@ -4,8 +4,9 @@ use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
 use eqiora_schema::kernel::{
     ActivationDef, BoundaryPhysicalConnector, ConnectionDef, DomainDef, DomainKind, EnumDef,
-    FieldDef, FiniteSpaceDef, GeometryDigest, IndexSetDef, KernelNode, ParameterDef, PortDef,
-    PortPayload, RecordDef, RecordInstanceDef, RelationDef, RepresentationDef,
+    FieldDef, FiniteSpaceDef, GeometryDigest, IndexSetDef, KernelNode, ObservableDef,
+    ObservableMeasure, ObservableReduction, ParameterDef, PortDef, PortPayload, RecordDef,
+    RecordInstanceDef, RelationDef, RepresentationDef,
 };
 use serde::{Deserialize, Serialize};
 
@@ -28,6 +29,11 @@ impl WireNode {
             KernelNode::RecordInstance(value) => WireNodeDefinition::RecordInstance {
                 definition: WireId::from_raw(value.definition().erase()),
                 expression: WireExpression::encode(value.expression())?,
+            },
+            KernelNode::Observable(value) => WireNodeDefinition::Observable {
+                value_type: WireValueType::encode(value.value_type())?,
+                expression: WireExpression::encode(value.expression())?,
+                reduction: WireObservableReduction::encode(value.reduction()),
             },
             KernelNode::Enum(value) => WireNodeDefinition::Enum {
                 members: value.members().to_vec(),
@@ -117,6 +123,17 @@ impl WireNode {
             )
             .map(Into::into)
             .map_err(|error| invalid_artifact(error.message())),
+            WireNodeDefinition::Observable {
+                value_type,
+                expression,
+                reduction,
+            } => ObservableDef::new(
+                self.id.typed::<kinds::Observable>()?,
+                value_type.decode()?,
+                expression.decode()?,
+                reduction.decode()?,
+            )
+            .map(Into::into),
             WireNodeDefinition::Enum { members } => {
                 EnumDef::new(self.id.typed::<kinds::Enum>()?, members.iter().cloned())
                     .map(Into::into)
@@ -210,7 +227,8 @@ impl WireNode {
 
     pub(crate) fn expression_node_count(&self) -> usize {
         match &self.definition {
-            WireNodeDefinition::Relation { expression, .. }
+            WireNodeDefinition::Observable { expression, .. }
+            | WireNodeDefinition::Relation { expression, .. }
             | WireNodeDefinition::RecordInstance { expression, .. } => expression.nodes.len(),
             WireNodeDefinition::Activation { activation } => activation.expression_node_count(),
             _ => 0,
@@ -219,7 +237,8 @@ impl WireNode {
 
     pub(crate) fn expression_root_count(&self) -> usize {
         match &self.definition {
-            WireNodeDefinition::Relation { expression, .. }
+            WireNodeDefinition::Observable { expression, .. }
+            | WireNodeDefinition::Relation { expression, .. }
             | WireNodeDefinition::RecordInstance { expression, .. } => expression.roots.len(),
             WireNodeDefinition::Activation { activation } => activation.expression_root_count(),
             _ => 0,
@@ -228,7 +247,8 @@ impl WireNode {
 
     pub(crate) fn pure_operator_counts(&self) -> Result<PureOperatorWireCounts, Diagnostic> {
         match &self.definition {
-            WireNodeDefinition::Relation { expression, .. }
+            WireNodeDefinition::Observable { expression, .. }
+            | WireNodeDefinition::Relation { expression, .. }
             | WireNodeDefinition::RecordInstance { expression, .. } => {
                 expression.pure_operator_counts()
             }
@@ -239,7 +259,8 @@ impl WireNode {
 
     pub(crate) fn validate_pure_operator_features(&self) -> Result<(), Diagnostic> {
         match &self.definition {
-            WireNodeDefinition::Relation { expression, .. }
+            WireNodeDefinition::Observable { expression, .. }
+            | WireNodeDefinition::Relation { expression, .. }
             | WireNodeDefinition::RecordInstance { expression, .. } => {
                 expression.validate_pure_operator_features()
             }
@@ -252,7 +273,8 @@ impl WireNode {
 
     pub(crate) fn canonicalize_pure_operator_definitions(&mut self) -> Result<(), Diagnostic> {
         match &mut self.definition {
-            WireNodeDefinition::Relation { expression, .. }
+            WireNodeDefinition::Observable { expression, .. }
+            | WireNodeDefinition::Relation { expression, .. }
             | WireNodeDefinition::RecordInstance { expression, .. } => {
                 expression.canonicalize_pure_operator_definitions()
             }
@@ -266,7 +288,8 @@ impl WireNode {
     pub(crate) fn literal_component_count(&self) -> Result<usize, Diagnostic> {
         match &self.definition {
             WireNodeDefinition::Parameter { value } => Ok(value.component_payload_count()),
-            WireNodeDefinition::Relation { expression, .. }
+            WireNodeDefinition::Observable { expression, .. }
+            | WireNodeDefinition::Relation { expression, .. }
             | WireNodeDefinition::RecordInstance { expression, .. } => {
                 expression.literal_component_count()
             }
@@ -300,6 +323,14 @@ impl WireNode {
             WireNodeDefinition::Field { value_type, .. }
             | WireNodeDefinition::SignalPort { value_type, .. } => value_type.ensure_limits(limits),
             WireNodeDefinition::Parameter { value } => value.ensure_limits(limits),
+            WireNodeDefinition::Observable {
+                value_type,
+                expression,
+                ..
+            } => {
+                value_type.ensure_limits(limits)?;
+                expression.ensure_value_shape_limits(limits)
+            }
             WireNodeDefinition::Relation { expression, .. }
             | WireNodeDefinition::RecordInstance { expression, .. } => {
                 expression.ensure_value_shape_limits(limits)
@@ -379,6 +410,16 @@ impl WireNode {
                 connector,
                 boundary,
             } => vec![connector, boundary],
+            WireNodeDefinition::Observable {
+                value_type,
+                expression,
+                reduction,
+            } => {
+                let mut references = expression.semantic_references();
+                references.extend(value_type.nominal_reference());
+                references.extend(reduction.domain());
+                references
+            }
             WireNodeDefinition::Relation { expression, .. } => expression.semantic_references(),
             WireNodeDefinition::Activation { activation } => activation.semantic_references(),
             WireNodeDefinition::Domain {
@@ -401,6 +442,11 @@ pub(crate) enum WireNodeDefinition {
     RecordInstance {
         definition: WireId,
         expression: WireExpression,
+    },
+    Observable {
+        value_type: WireValueType,
+        expression: WireExpression,
+        reduction: WireObservableReduction,
     },
     Enum {
         members: Vec<String>,
@@ -665,6 +711,53 @@ mod equation_tests {
             json["definition"]["expression"]["roots"] = serde_json::json!([]);
             let malformed: WireNode = serde_json::from_value(json).unwrap();
             assert!(malformed.decode().is_err());
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+pub(crate) enum WireObservableReduction {
+    Value,
+    VolumeIntegral { domain: WireId },
+    BoundaryIntegral { domain: WireId },
+}
+
+impl WireObservableReduction {
+    fn encode(value: ObservableReduction) -> Self {
+        match value {
+            ObservableReduction::Value => Self::Value,
+            ObservableReduction::SpatialIntegral {
+                domain,
+                measure: ObservableMeasure::Volume,
+            } => Self::VolumeIntegral {
+                domain: WireId::from_raw(domain.erase()),
+            },
+            ObservableReduction::SpatialIntegral {
+                domain,
+                measure: ObservableMeasure::Boundary,
+            } => Self::BoundaryIntegral {
+                domain: WireId::from_raw(domain.erase()),
+            },
+        }
+    }
+    fn decode(&self) -> Result<ObservableReduction, Diagnostic> {
+        Ok(match self {
+            Self::Value => ObservableReduction::Value,
+            Self::VolumeIntegral { domain } => ObservableReduction::SpatialIntegral {
+                domain: domain.typed()?,
+                measure: ObservableMeasure::Volume,
+            },
+            Self::BoundaryIntegral { domain } => ObservableReduction::SpatialIntegral {
+                domain: domain.typed()?,
+                measure: ObservableMeasure::Boundary,
+            },
+        })
+    }
+    fn domain(&self) -> Option<&WireId> {
+        match self {
+            Self::Value => None,
+            Self::VolumeIntegral { domain } | Self::BoundaryIntegral { domain } => Some(domain),
         }
     }
 }

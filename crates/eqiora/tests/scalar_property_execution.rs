@@ -679,14 +679,9 @@ fn resolve_scalar(document: &ModelDocument, geometry: &CanonicalGeometryV1) -> C
         None,
     )
     .unwrap()
-    .project(
-        |_| panic!("scalar consumer resolved as ODE"),
-        |plan| plan,
-        |_| panic!("scalar consumer resolved as elasticity"),
-        |_| panic!("scalar consumer resolved as Stokes"),
-        |_| panic!("scalar consumer resolved as transient flow"),
-        |_| panic!("scalar consumer resolved as FSI"),
-    )
+    .as_scalar()
+    .cloned()
+    .expect("fixture retains its admitted scalar Plan")
 }
 
 fn assert_same_scalar_result(left: &CommonResult, right: &CommonResult) {

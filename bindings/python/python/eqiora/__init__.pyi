@@ -503,6 +503,33 @@ class Parameter:
     def __bool__(self) -> bool: ...
 
 @final
+class Observable:
+    """Typed derived output, separate from solve unknowns.
+
+    Authority: ``crates/eqiora-python/src/modeling/observable.rs::PyObservable``.
+    """
+    def __new__(cls, name: str, *, value_type: ValueType, expression: _ExpressionLike) -> Self: ...
+    @property
+    def name(self) -> str: ...
+    @property
+    def value_type(self) -> ValueType: ...
+    @property
+    def expression(self) -> Expression: ...
+
+def integral(value: _ExpressionLike, measure: _ExpressionLike) -> Expression:
+    """Construct an Observable integral with an explicit Domain measure.
+
+    Authority: ``crates/eqiora-python/src/modeling/observable.rs::integral``.
+    """
+    ...
+def measure(domain: Domain) -> Expression:
+    """Select the exact Domain measure for an Observable integral.
+
+    Authority: ``crates/eqiora-python/src/modeling/observable.rs::measure``.
+    """
+    ...
+
+@final
 class PhysicalDomain:
     """Immutable nominal scalar physical domain with explicitly named quantities.
 
@@ -916,6 +943,7 @@ class Model:
         ...
     def parameter(self, selection: str) -> ParameterRef: ...
     def field(self, selection: str) -> FieldRef: ...
+    def observable(self, selection: str) -> ObservableRef: ...
     def domain(self, selection: str) -> DomainRef: ...
     def notation_labels(
         self, profile: Literal["latex", "mathml", "unicode", "plain", "speech"] = "latex", *,
@@ -1078,7 +1106,7 @@ class Plan:
     @property
     def formulation(self) -> FormulationView | None: ...
     @property
-    def capability(self) -> ScalarPlanView | time.OdePlanView | solid.ElasticityPlanView | fluid.IncompressibleFlowPlanView | fsi.FixedReferenceFsiPlanView: ...
+    def capability(self) -> ScalarPlanView | solve.AlgebraicPlanView | time.OdePlanView | solid.ElasticityPlanView | fluid.IncompressibleFlowPlanView | fsi.FixedReferenceFsiPlanView: ...
     @property
     def fields(self) -> tuple[FieldRef, ...]: ...
     @property
@@ -1543,6 +1571,57 @@ class Series:
     def __iter__(self) -> Iterator[tuple[float, float]]: ...
 
 @final
+class ObservableRef:
+    """Exact derived output selected from one immutable Model.
+
+    Authority: ``crates/eqiora-python/src/model/observable_ref.rs::PyObservableRef``.
+    """
+    @property
+    def model_digest(self) -> str: ...
+    @property
+    def id(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
+class Observation:
+    """Typed Result-owned evaluation with explicit effective quadrature.
+
+    ``quadrature_points`` counts Gauss–Legendre points per axis; a point
+    boundary uses exactly one point. Values are expressed in SI units.
+
+    Authority: ``crates/eqiora-python/src/result/observe.rs::PyObservation``.
+    """
+    @property
+    def value(self) -> _TypedValue: ...
+    @property
+    def value_type(self) -> ValueType: ...
+    @property
+    def result_identity(self) -> str: ...
+    @property
+    def observable_id(self) -> str: ...
+    @property
+    def evaluation_kind(self) -> Literal["value", "state-jvp"]: ...
+    @property
+    def quadrature(self) -> Literal["Point", "GaussLegendre"] | None: ...
+    @property
+    def quadrature_points(self) -> int | None: ...
+    @property
+    def quadrature_dimension(self) -> int | None: ...
+
+@final
+class ObservableStateTangent:
+    """Dimensioned coefficient variation bound to one exact accepted Result.
+
+    Omitted fields have zero variation. Coefficients follow the accepted field's
+    canonical vertex order, with units supplied explicitly by ``Dimension``.
+
+    Authority: ``crates/eqiora-python/src/result/observe.rs::PyObservableStateTangent``.
+    """
+    @property
+    def result_identity(self) -> str: ...
+
+@final
 class Result:
     """Accepted execution occurrence with typed output relationships.
 
@@ -1573,6 +1652,9 @@ class Result:
     def fields(self) -> list[Series]: ...
     @property
     def solve(self) -> LinearSolveSummary: ...
+    def observe(self, observable: ObservableRef, *, quadrature_points: int | None = None) -> Observation: ...
+    def observable_state_tangent(self, directions: dict[FieldRef, tuple[Dimension, Sequence[float]]]) -> ObservableStateTangent: ...
+    def observe_state_jvp(self, observable: ObservableRef, tangent: ObservableStateTangent, *, quadrature_points: int) -> Observation: ...
     def output(self, field: FieldRef, /) -> FieldOutput: ...
     def boundary_force(
         self, selection: geometry.GeometrySelection, /
@@ -1680,6 +1762,7 @@ _ModelDeclaration = (
     | Initial
     | Field
     | Parameter
+    | Observable
     | PhysicalDomain
     | ConservingPort
     | Relation
@@ -2018,6 +2101,12 @@ __all__ = [
     "PackageConformancePackage",
     "PackageConformanceReport",
     "Parameter",
+    "Observable",
+    "ObservableRef",
+    "Observation",
+    "ObservableStateTangent",
+    "integral",
+    "measure",
     "ParameterRef",
     "PhysicalDomain",
     "PropertyBinding",

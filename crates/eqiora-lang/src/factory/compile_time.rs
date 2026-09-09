@@ -51,6 +51,26 @@ impl SourceAstFactory {
         })
     }
 
+    /// Construct a model-level typed Observable declaration.
+    ///
+    /// # Errors
+    /// Returns an error for a non-finite value or malformed source shape.
+    pub fn observable(
+        name: impl Into<String>,
+        value_type: crate::ValueTypeSyntax,
+        value: Expr,
+        range: TextRange,
+    ) -> Result<crate::ObservableDecl, AstConstructionError> {
+        validate_expression(&value)?;
+        Ok(crate::ObservableDecl {
+            comments: Default::default(),
+            name: checked_identifier(name, "Observable")?,
+            value_type,
+            value,
+            range: checked_range(range)?,
+        })
+    }
+
     /// Construct a reusable immutable local expression alias.
     ///
     /// # Errors

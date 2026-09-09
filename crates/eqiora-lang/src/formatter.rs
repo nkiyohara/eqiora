@@ -272,6 +272,9 @@ fn format_component_item(
         ComponentItem::PortFamily(declaration) => {
             format_component_port_family(declaration, indent, output);
         }
+        ComponentItem::Observable(declaration) => {
+            compile_time::format_observable(declaration, indent, output)
+        }
         ComponentItem::Field(declaration) => format_field(declaration, indent, output),
         ComponentItem::Initial(declaration) => format_initial(declaration, indent, output),
         ComponentItem::Event(declaration) => format_event(declaration, indent, output),
@@ -340,6 +343,9 @@ fn format_item(item: &Item, indent: usize, output: &mut crate::formatter::commen
         }
         Item::Field(declaration) => format_field(declaration, indent, output),
         Item::Initial(declaration) => format_initial(declaration, indent, output),
+        Item::Observable(declaration) => {
+            compile_time::format_observable(declaration, indent, output)
+        }
         Item::Parameter(declaration) => format_parameter(declaration, indent, output),
         Item::Let(declaration) => format_let(declaration, indent, output),
         Item::Port(declaration) => {

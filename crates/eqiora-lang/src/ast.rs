@@ -3,6 +3,8 @@
 pub(crate) mod comments;
 mod compile_time;
 mod items;
+mod observable;
+pub use observable::ObservableDecl;
 pub(crate) mod nominal;
 mod signature;
 pub use items::{ComponentItem, Item};

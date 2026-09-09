@@ -122,6 +122,14 @@ pub(super) enum FlatItemBlueprint {
         range: TextRange,
         identity: EntityIdentity,
     },
+    Observable {
+        name: String,
+        value_type: eqiora_lang::ValueTypeSyntax,
+        value: crate::lower::LoweringExpression,
+        reduction: Option<String>,
+        range: TextRange,
+        identity: EntityIdentity,
+    },
     Event {
         name: String,
         guard: crate::lower::LoweringExpression,
@@ -159,6 +167,7 @@ impl FlatItemBlueprint {
             Self::Field { name, .. } => (2, name.clone()),
             Self::Parameter { name, .. } => (3, name.clone()),
             Self::Port { name, .. } => (4, name.clone()),
+            Self::Observable { name, .. } => (5, name.clone()),
             Self::Event { name, .. } => (5, name.clone()),
             Self::Clock { name, .. } => (5, name.clone()),
             Self::Relation { name, .. } => (6, name.clone()),
@@ -280,6 +289,7 @@ impl ExpandedBlueprint {
                 | FlatItemBlueprint::Field { identity, .. }
                 | FlatItemBlueprint::Parameter { identity, .. }
                 | FlatItemBlueprint::Port { identity, .. }
+                | FlatItemBlueprint::Observable { identity, .. }
                 | FlatItemBlueprint::Event { identity, .. }
                 | FlatItemBlueprint::RecordInstance { identity, .. } => {
                     allocator
@@ -483,6 +493,20 @@ impl ExpandedBlueprint {
                     contract: contract.clone(),
                     range: *range,
                 },
+                FlatItemBlueprint::Observable {
+                    name,
+                    value_type,
+                    value,
+                    reduction,
+                    range,
+                    ..
+                } => LoweringItem::Observable {
+                    name: name.clone(),
+                    value_type: value_type.clone(),
+                    value: value.clone(),
+                    reduction: reduction.clone(),
+                    range: *range,
+                },
                 FlatItemBlueprint::Event {
                     name,
                     guard,
@@ -594,6 +618,7 @@ impl ExpandedBlueprint {
                 | FlatItemBlueprint::Port { identity, .. }
                 | FlatItemBlueprint::Nominal { identity, .. }
                 | FlatItemBlueprint::Clock { identity, .. }
+                | FlatItemBlueprint::Observable { identity, .. }
                 | FlatItemBlueprint::Event { identity, .. }
                 | FlatItemBlueprint::RecordInstance { identity, .. } => {
                     insert_provenance(&mut builder, identity, staged)?;
@@ -626,6 +651,7 @@ struct AssignedLoweringIdentities {
     ports: BTreeMap<String, Id<kinds::Port>>,
     clocks: BTreeMap<String, Id<kinds::ClockDomain>>,
     events: BTreeMap<String, Id<kinds::Activation>>,
+    observables: BTreeMap<String, Id<kinds::Observable>>,
     relations: BTreeMap<String, (Id<kinds::Relation>, Id<kinds::Activation>)>,
     connections: VecDeque<Id<kinds::Connection>>,
 }
@@ -643,6 +669,7 @@ impl AssignedLoweringIdentities {
             ports: BTreeMap::new(),
             clocks: BTreeMap::new(),
             events: BTreeMap::new(),
+            observables: BTreeMap::new(),
             relations: BTreeMap::new(),
             connections: VecDeque::new(),
         };
@@ -676,6 +703,12 @@ impl AssignedLoweringIdentities {
                     result.ports.insert(
                         name.clone(),
                         staged.resolve::<kinds::Port>(identity.full)?.id(),
+                    );
+                }
+                FlatItemBlueprint::Observable { name, identity, .. } => {
+                    result.observables.insert(
+                        name.clone(),
+                        staged.resolve::<kinds::Observable>(identity.full)?.id(),
                     );
                 }
                 FlatItemBlueprint::Event { name, identity, .. } => {
@@ -755,6 +788,10 @@ impl LoweringIdentities for AssignedLoweringIdentities {
         self.clocks[name]
     }
 
+    fn observable(&mut self, name: &str) -> Id<kinds::Observable> {
+        self.observables[name]
+    }
+
     fn activation(&mut self, name: &str) -> Id<kinds::Activation> {
         self.events[name]
     }
@@ -785,6 +822,7 @@ fn resolve_entity_raw(
             .resolve::<kinds::Representation>(identity)?
             .id()
             .erase()),
+        EntityKind::Observable => Ok(staged.resolve::<kinds::Observable>(identity)?.id().erase()),
         EntityKind::Field => Ok(staged.resolve::<kinds::Field>(identity)?.id().erase()),
         EntityKind::Parameter => Ok(staged.resolve::<kinds::Parameter>(identity)?.id().erase()),
         EntityKind::Port => Ok(staged.resolve::<kinds::Port>(identity)?.id().erase()),

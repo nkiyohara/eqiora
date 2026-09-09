@@ -28,6 +28,9 @@ impl super::SourceAstFactory {
                         expression(scope, &mut value.value, &mut visit)
                     }
                     ComponentItem::Event(value) => expression(scope, &mut value.guard, &mut visit),
+                    ComponentItem::Observable(value) => {
+                        expression(scope, &mut value.value, &mut visit)
+                    }
                     ComponentItem::Relation(value) => {
                         equations(scope, &mut value.equations, &mut visit)
                     }
@@ -61,6 +64,7 @@ impl super::SourceAstFactory {
                         expression(scope, &mut value.value, &mut visit)
                     }
                     Item::Event(value) => expression(scope, &mut value.guard, &mut visit),
+                    Item::Observable(value) => expression(scope, &mut value.value, &mut visit),
                     Item::Relation(value) => equations(scope, &mut value.equations, &mut visit),
                     Item::RelationFamily(value) => {
                         equations(scope, &mut value.relation.equations, &mut visit)

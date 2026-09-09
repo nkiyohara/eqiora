@@ -987,6 +987,7 @@ class Component:
         "_parameters",
         "_properties",
         "_relations",
+        "_observables",
         "_source",
         "_supports",
     )
@@ -1031,6 +1032,7 @@ class Component:
                 Expression, Support, str, FieldRole, Clock | None, tuple[str, ...]
             ]
         ] = []
+        self._observables: list[tuple[str, Expression, str, tuple[str, ...]]] = []
         self._relations: list[
             tuple[str, Support | None, tuple[tuple[Expression, Expression], ...], Clock | Event | None, tuple[str, ...]]
         ] = []
@@ -1441,6 +1443,23 @@ class Component:
         self._causal[field] = "output"
         return field
 
+    def observable(
+        self, name: str, expression: Expression | int | float | complex, *,
+        value_type: ValueType, doc: str | None = None,
+    ) -> None:
+        """Declare a typed derived output without creating an expression symbol."""
+        value = _expression(expression)
+        self._closed_expression(value)
+        if value._owner is not None and value._owner is not self._component_token:
+            raise ModuleError("observable expression must belong to this Component")
+        if not isinstance(value_type, ValueType):
+            raise TypeError("value_type must be an eqiora.ValueType")
+        syntax, doc_lines = self._type_syntax(value_type), _doc(doc)
+        if sum(item[1]._nodes for item in self._observables) + value._nodes > _MAX_EXPRESSION_NODES:
+            raise ModuleError(f"Component observable expressions exceed the {_MAX_EXPRESSION_NODES}-node limit")
+        admitted = self._add_name(name)
+        self._observables.append((admitted, value, syntax, doc_lines))
+
     def relation(
         self,
         name: str,
@@ -1692,6 +1711,8 @@ class Component:
             add(name, doc, lambda n: _AstDeclaration.alias(
                 name, kind, None if support is None else support._name,
                 None if clock is None else clock._name, value._ast, n))
+        for name, value, kind, doc in self._observables:
+            add(name, doc, lambda n: _AstDeclaration.observable(name, kind, value._ast, n))
         for event, guard, direction, doc in self._events:
             add(event._name, doc, lambda n: _AstDeclaration.event(
                 event._name, guard._ast, direction, n))

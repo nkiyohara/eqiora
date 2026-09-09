@@ -38,6 +38,24 @@ pub(super) fn format_parameter(
     output.push_str(";\n");
 }
 
+pub(super) fn format_observable(
+    declaration: &crate::ObservableDecl,
+    indent: usize,
+    output: &mut crate::formatter::comments::Output,
+) {
+    write_indent(output, indent);
+    write!(
+        output,
+        "observable {}: ",
+        declaration.comments.named(&declaration.name)
+    )
+    .expect("String write");
+    super::value_type::format_value_type(&declaration.value_type, output);
+    output.push_str(" = ");
+    format_expression(&declaration.value, 0, output);
+    output.push_str(";\n");
+}
+
 pub(super) fn format_let(
     declaration: &NamedDefinitionDecl,
     indent: usize,

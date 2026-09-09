@@ -82,6 +82,9 @@ fn rewrite_component_item(item: &mut ComponentItem, rewrite: &mut impl FnMut(&Ex
         ComponentItem::PortFamily(declaration) => {
             rewrite_port(&mut declaration.port.syntax, rewrite);
         }
+        ComponentItem::Observable(declaration) => {
+            declaration.value_type.rewrite_dimension(rewrite);
+        }
         ComponentItem::Field(declaration) => {
             declaration.value_type.rewrite_dimension(rewrite);
         }
@@ -109,6 +112,9 @@ fn rewrite_item(item: &mut Item, rewrite: &mut impl FnMut(&Expr) -> Expr) {
                 across_type.rewrite_dimension(rewrite);
                 through_type.rewrite_dimension(rewrite);
             }
+        }
+        Item::Observable(declaration) => {
+            declaration.value_type.rewrite_dimension(rewrite);
         }
         Item::Field(declaration) => {
             declaration.value_type.rewrite_dimension(rewrite);

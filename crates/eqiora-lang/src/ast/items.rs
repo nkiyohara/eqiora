@@ -12,6 +12,8 @@ pub enum ComponentItem {
     Let(NamedDefinitionDecl),
     /// Scalar compile-time Parameter.
     Parameter(ComponentParameterDecl),
+    /// Private inspectable derived value.
+    Observable(ObservableDecl),
     /// Causal or conserving interface.
     Port(ComponentPortDecl),
     /// Field-physical Port family over one complete exterior.
@@ -50,6 +52,8 @@ pub enum Item {
     Initial(InitialDecl),
     /// Revision-local design value.
     Parameter(ParameterDecl),
+    /// Public named derived result.
+    Observable(ObservableDecl),
     /// Typed compile-time expression alias expanded before Kernel lowering.
     Let(NamedDefinitionDecl),
     /// Causal or conserving interface.

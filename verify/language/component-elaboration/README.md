@@ -46,11 +46,19 @@ solve that would add nondeterminism without adding a distinct claim.
 After elaboration, the selected closed subsystem from the hierarchical fixture
 is admitted as the 14-by-14 affine scalar physical problem proven above to be
 semantically identical to the explicit fixture. The problem is solved once by
-faer BiCGSTAB with identity preconditioning on one host worker, then accepted
+faer sparse LU with the exact canonical CSR source on one host worker, then accepted
 again through the original Relation and generated junction DAGs. The analytic
 oracle requires 12 V at the high junction, 6 A and 3 A through the two resistor
 positive terminals, -9 A at the source positive terminal, zero ground
 potential, and zero signed through sum at both junctions.
+
+This case owns exact component elaboration and the analytic 14-by-14 result,
+not iterative initial-guess robustness. Source-identity epochs can permute the
+canonical unknown order without changing these semantics. Sparse LU avoids the
+order-dependent BiCGSTAB breakdown encountered by the earlier all-ones starting
+vector; the analytic values, tolerances and original residual-DAG acceptance
+remain unchanged. The separate [`electrical.parallel-dc-network`](../../electrical/parallel-dc-network/README.md)
+case retains its explicit BiCGSTAB execution claim.
 
 Run:
 

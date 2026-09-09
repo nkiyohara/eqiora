@@ -94,7 +94,8 @@ pub(super) fn validate_fields(
                     &[(CommonFieldAssociation::Vertex, vec![vertices])],
                 )
         }
-        ResolvedCommonPlan::Ode(_)
+        ResolvedCommonPlan::Algebraic(_)
+        | ResolvedCommonPlan::Ode(_)
         | ResolvedCommonPlan::TransientFlow(_)
         | ResolvedCommonPlan::Fsi(_) => false,
     };
@@ -141,7 +142,10 @@ pub(super) fn require_family(
 ) -> Result<(), Diagnostic> {
     let matches = matches!(
         (plan, family),
-        (ResolvedCommonPlan::Scalar(_), WireResultFamily::Scalar)
+        (
+            ResolvedCommonPlan::Algebraic(_),
+            WireResultFamily::Algebraic
+        ) | (ResolvedCommonPlan::Scalar(_), WireResultFamily::Scalar)
             | (
                 ResolvedCommonPlan::Elasticity(_),
                 WireResultFamily::Elasticity

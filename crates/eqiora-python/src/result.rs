@@ -26,6 +26,7 @@ use crate::steady_stokes::PySteadyStokesEvidence;
 use crate::trajectory::{PyBoundaryFlux, PyBoundaryForce, PyState, PyTrajectory};
 
 mod field_output;
+mod observe;
 
 use field_output::FieldOutputBlock;
 pub(crate) use field_output::PyFieldOutput;
@@ -173,6 +174,38 @@ impl PyRunResult {
 
 #[pymethods]
 impl PyRunResult {
+    /// Evaluate one exact derived output; spatial reductions require points per axis.
+    #[pyo3(signature = (observable, *, quadrature_points=None))]
+    fn observe(
+        &self,
+        py: Python<'_>,
+        observable: &crate::model::PyObservableRef,
+        quadrature_points: Option<usize>,
+    ) -> PyResult<observe::PyObservation> {
+        self.observe_value(py, observable, quadrature_points)
+    }
+
+    /// Bind explicit SI dimensions and vertex coefficients to this exact Result.
+    fn observable_state_tangent(
+        &self,
+        py: Python<'_>,
+        directions: &Bound<'_, pyo3::types::PyDict>,
+    ) -> PyResult<observe::PyObservableStateTangent> {
+        self.bind_observable_tangent(py, directions)
+    }
+
+    /// Apply a bound field-state direction with Model parameters and geometry fixed.
+    #[pyo3(signature = (observable, tangent, *, quadrature_points))]
+    fn observe_state_jvp(
+        &self,
+        py: Python<'_>,
+        observable: &crate::model::PyObservableRef,
+        tangent: &observe::PyObservableStateTangent,
+        quadrature_points: usize,
+    ) -> PyResult<observe::PyObservation> {
+        self.observe_jvp(py, observable, tangent, quadrature_points)
+    }
+
     #[getter]
     fn model_id(&self) -> &str {
         self.identity.model_id()
@@ -705,7 +738,7 @@ pub(crate) fn materialize_common_result(
             "static common Result crossed a different Run Plan occurrence",
         ));
     }
-    let mesh = plan.mesh_handle(py);
+    let mesh = (result.field_count() > 0).then(|| plan.mesh_handle(py));
     let mut outputs = Vec::with_capacity(result.field_count());
     let mut lookup = BTreeMap::new();
     for field_index in 0..result.field_count() {
@@ -751,7 +784,9 @@ pub(crate) fn materialize_common_result(
             py,
             PyFieldOutput::new(
                 field,
-                mesh.clone_ref(py),
+                mesh.as_ref()
+                    .expect("spatial field owns mesh")
+                    .clone_ref(py),
                 dimension,
                 value_shape,
                 space,
@@ -765,7 +800,7 @@ pub(crate) fn materialize_common_result(
         .ok_or_else(|| PyRuntimeError::new_err("static common Result omitted solve evidence"))?;
     let solve = Py::new(py, solve)?;
     let (evidence, steady_stokes_observation) = match result.family_name() {
-        "scalar" => (None, None),
+        "algebraic" | "scalar" => (None, None),
         "elasticity" => (
             Some(StaticScientificEvidence::LinearElasticity(Py::new(
                 py,
@@ -811,6 +846,7 @@ fn capability_error(py: Python<'_>, message: &str) -> PyErr {
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    observe::register(module)?;
     module.add_class::<PySeries>()?;
     module.add_class::<PyFieldOutput>()?;
     module.add_class::<PyRunResult>()?;

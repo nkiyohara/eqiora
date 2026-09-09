@@ -38,6 +38,23 @@ pub(super) fn value(
     .resolve(expression, None)
 }
 
+pub(super) fn typed_value(
+    file: &str,
+    expression: &LoweringExpression,
+    bindings: &BTreeMap<String, Binding>,
+    support: Option<&SpatialSupport<RawId>>,
+    scalar_domain: ScalarDomain,
+) -> Result<LoweringExpression, Diagnostic> {
+    Resolver {
+        file,
+        bindings,
+        support,
+        anchors: HashMap::new(),
+        resolved: HashMap::new(),
+    }
+    .resolve(expression, Some(scalar_domain))
+}
+
 // Caches live for one equation: support and binding interpretation are fixed,
 // while one shared node may legitimately be used in different scalar contexts.
 struct Resolver<'a> {

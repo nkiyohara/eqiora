@@ -768,6 +768,7 @@ impl<'a> Elaborator<'a> {
                     ComponentItem::Parameter(value) => Some((value.name(), value.range())),
                     ComponentItem::Port(value) => Some((value.name(), value.range())),
                     ComponentItem::PortFamily(value) => Some((value.port().name(), value.range())),
+                    ComponentItem::Observable(value) => Some((value.name(), value.range())),
                     ComponentItem::Field(value) => Some((value.name(), value.range())),
                     ComponentItem::Clock(value) => Some((value.name(), value.range())),
                     ComponentItem::Event(value) => Some((value.name(), value.range())),
@@ -857,6 +858,7 @@ impl<'a> Elaborator<'a> {
                 let named = match item {
                     Item::Domain(value) => Some((value.name(), value.range())),
                     Item::Field(value) => Some((value.name(), value.range())),
+                    Item::Observable(value) => Some((value.name(), value.range())),
                     Item::Parameter(value) => Some((value.name(), value.range())),
                     Item::Let(value) => Some((value.name(), value.range())),
                     Item::Port(value) => Some((value.name(), value.range())),

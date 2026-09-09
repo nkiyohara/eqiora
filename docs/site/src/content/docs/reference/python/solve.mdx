@@ -82,6 +82,21 @@ class Linear:
     def __repr__(self) -> str: ...
 ```
 
+<a id="api-eqiora-solve-AlgebraicPlanView"></a>
+
+## `AlgebraicPlanView`
+
+Resolved finite affine solve with its exact unknown inventory.
+
+```python
+@final
+class AlgebraicPlanView:
+    @property
+    def kind(self) -> str: ...
+    @property
+    def unknown_count(self) -> int: ...
+```
+
 <a id="api-eqiora-solve-Newton"></a>
 
 ## `Newton`

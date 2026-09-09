@@ -25,6 +25,7 @@ const MAX_BYTES: usize = 256 * 1024 * 1024;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 enum WirePlanFamily {
+    Algebraic,
     Ode,
     Scalar,
     Elasticity,
@@ -186,7 +187,7 @@ impl ResolvedCommonPlan {
     #[must_use]
     pub fn canonical_method_request(&self) -> Option<CommonMethodRequest> {
         let mut request = match self {
-            Self::Ode(_) => return None,
+            Self::Algebraic(_) | Self::Ode(_) => return None,
             Self::Scalar(plan) => CommonMethodRequest::Uniform(match plan.admission.spatial {
                 NativeSpatialPolicy::ScalarQ1 => CommonSpatialPolicy::Q1,
                 NativeSpatialPolicy::ScalarTpfa => CommonSpatialPolicy::CellCenteredTpfa,
@@ -260,9 +261,11 @@ impl ResolvedCommonPlan {
                 linear,
             },
             Self::Ode(_) => unreachable!("ODE Plan has no effective linear solver"),
-            Self::Scalar(_) | Self::Elasticity(_) | Self::SteadyStokes(_) | Self::Fsi(_) => {
-                CommonSolvePolicy::Linear(linear)
-            }
+            Self::Algebraic(_)
+            | Self::Scalar(_)
+            | Self::Elasticity(_)
+            | Self::SteadyStokes(_)
+            | Self::Fsi(_) => CommonSolvePolicy::Linear(linear),
         })
     }
 
@@ -280,7 +283,11 @@ impl ResolvedCommonPlan {
         match self {
             Self::TransientFlow(plan) => Some(plan.temporal()),
             Self::Fsi(plan) => Some(plan.temporal()),
-            Self::Ode(_) | Self::Scalar(_) | Self::Elasticity(_) | Self::SteadyStokes(_) => None,
+            Self::Algebraic(_)
+            | Self::Ode(_)
+            | Self::Scalar(_)
+            | Self::Elasticity(_)
+            | Self::SteadyStokes(_) => None,
         }
     }
 
@@ -289,7 +296,8 @@ impl ResolvedCommonPlan {
     pub fn tsitouras45(&self) -> Option<&CommonTsitouras45> {
         match self {
             Self::Ode(plan) => Some(plan.temporal()),
-            Self::Scalar(_)
+            Self::Algebraic(_)
+            | Self::Scalar(_)
             | Self::Elasticity(_)
             | Self::SteadyStokes(_)
             | Self::TransientFlow(_)
@@ -377,6 +385,23 @@ impl WireResolvedCommonPlanV2 {
             ));
         }
         let ode = self.family == WirePlanFamily::Ode;
+        if self.family == WirePlanFamily::Algebraic {
+            if self.mesh_base64.is_some()
+                || self.spatial.is_some()
+                || self.realization_base64.is_some()
+                || self.temporal.is_some()
+                || self.scaling.is_some()
+                || self.requested_formulation.is_some()
+                || self.effective_formulation.is_some()
+                || self.authored_formulation_base64.is_some()
+                || !matches!(self.solve, Some(WireSolve::Linear { .. }))
+            {
+                return Err(invalid(
+                    "finite Plan has incompatible spatial or temporal roots",
+                ));
+            }
+            return Ok(());
+        }
         if ode
             != (self.mesh_base64.is_none()
                 && self.spatial.is_none()
@@ -416,6 +441,19 @@ impl WireResolvedCommonPlanV2 {
     ) -> Result<ResolvedCommonPlan, Diagnostic> {
         let model_bytes = decode(&self.model_base64, "Model")?;
         let model = ModelEnvelope::from_json(&model_bytes, ModelDecoderLimits::default())?;
+        if self.family == WirePlanFamily::Algebraic {
+            let Some(CommonSolvePolicy::Linear(request)) =
+                self.solve.as_ref().map(WireSolve::to_native).transpose()?
+            else {
+                return Err(invalid("finite Plan requires linear controls"));
+            };
+            return CommonAlgebraicPlan::resolve(
+                &model,
+                CommonSolvePolicy::Linear(request),
+                linear_backend,
+            )
+            .map(|plan| ResolvedCommonPlan::Algebraic(Box::new(plan)));
+        }
         if self.family == WirePlanFamily::Ode {
             let Some(WireTemporal::Tsitouras45 {
                 initial_step_s,
@@ -663,6 +701,7 @@ impl From<WireSolverObjective> for SolverPlanningObjective {
 
 fn family(plan: &ResolvedCommonPlan) -> WirePlanFamily {
     match plan {
+        ResolvedCommonPlan::Algebraic(_) => WirePlanFamily::Algebraic,
         ResolvedCommonPlan::Ode(_) => WirePlanFamily::Ode,
         ResolvedCommonPlan::Scalar(_) => WirePlanFamily::Scalar,
         ResolvedCommonPlan::Elasticity(_) => WirePlanFamily::Elasticity,
@@ -674,6 +713,7 @@ fn family(plan: &ResolvedCommonPlan) -> WirePlanFamily {
 
 fn plan_model_artifact(plan: &ResolvedCommonPlan) -> &ModelEnvelope {
     match plan {
+        ResolvedCommonPlan::Algebraic(plan) => plan.model_artifact(),
         ResolvedCommonPlan::Ode(plan) => plan.model_artifact(),
         ResolvedCommonPlan::Scalar(plan) => plan.admission.model(),
         ResolvedCommonPlan::Elasticity(plan) => plan.admission.model(),
@@ -685,7 +725,7 @@ fn plan_model_artifact(plan: &ResolvedCommonPlan) -> &ModelEnvelope {
 
 fn plan_authenticated_mesh(plan: &ResolvedCommonPlan) -> Option<AuthenticatedCommonMesh> {
     match plan {
-        ResolvedCommonPlan::Ode(_) => None,
+        ResolvedCommonPlan::Algebraic(_) | ResolvedCommonPlan::Ode(_) => None,
         ResolvedCommonPlan::Scalar(plan) => Some(AuthenticatedCommonMesh {
             resources: plan.admission.resources().clone(),
         }),
@@ -706,7 +746,7 @@ fn plan_authenticated_mesh(plan: &ResolvedCommonPlan) -> Option<AuthenticatedCom
 
 fn portable_graph(plan: &ResolvedCommonPlan) -> Option<&PortableRealizationGraph> {
     match plan {
-        ResolvedCommonPlan::Ode(_) => None,
+        ResolvedCommonPlan::Algebraic(_) | ResolvedCommonPlan::Ode(_) => None,
         ResolvedCommonPlan::Scalar(plan) => Some(plan.portable_realization()),
         ResolvedCommonPlan::Elasticity(plan) => Some(plan.portable_realization()),
         ResolvedCommonPlan::SteadyStokes(plan) => Some(plan.portable_realization()),
@@ -718,7 +758,7 @@ fn portable_graph(plan: &ResolvedCommonPlan) -> Option<&PortableRealizationGraph
 fn spatial_request(plan: &ResolvedCommonPlan) -> Option<WireSpatialRequest> {
     let uniform = |policy| WireSpatialRequest::Uniform { policy };
     match plan {
-        ResolvedCommonPlan::Ode(_) => None,
+        ResolvedCommonPlan::Algebraic(_) | ResolvedCommonPlan::Ode(_) => None,
         ResolvedCommonPlan::Scalar(plan) => Some(uniform(match plan.admission.spatial {
             NativeSpatialPolicy::ScalarQ1 => WireSpatialPolicy::Q1,
             NativeSpatialPolicy::ScalarTpfa => WireSpatialPolicy::CellCenteredTpfa,
@@ -765,7 +805,8 @@ fn solve_request(plan: &ResolvedCommonPlan) -> Option<WireSolve> {
             },
         }),
         ResolvedCommonPlan::Ode(_) => None,
-        ResolvedCommonPlan::Scalar(_)
+        ResolvedCommonPlan::Algebraic(_)
+        | ResolvedCommonPlan::Scalar(_)
         | ResolvedCommonPlan::Elasticity(_)
         | ResolvedCommonPlan::SteadyStokes(_)
         | ResolvedCommonPlan::Fsi(_) => Some(WireSolve::Linear { linear }),
@@ -777,7 +818,8 @@ fn scaling_request(plan: &ResolvedCommonPlan) -> Option<WireScalingRequest> {
         ResolvedCommonPlan::SteadyStokes(plan) => plan.scaling_receipt(),
         ResolvedCommonPlan::TransientFlow(plan) => plan.scaling_receipt(),
         ResolvedCommonPlan::Fsi(plan) => plan.scaling_receipt(),
-        ResolvedCommonPlan::Ode(_)
+        ResolvedCommonPlan::Algebraic(_)
+        | ResolvedCommonPlan::Ode(_)
         | ResolvedCommonPlan::Scalar(_)
         | ResolvedCommonPlan::Elasticity(_) => return None,
     };
@@ -813,7 +855,8 @@ fn temporal_request(plan: &ResolvedCommonPlan) -> Option<WireTemporal> {
         ResolvedCommonPlan::Fsi(plan) => Some(WireTemporal::BackwardEuler {
             step_s: plan.temporal().step().value(),
         }),
-        ResolvedCommonPlan::Scalar(_)
+        ResolvedCommonPlan::Algebraic(_)
+        | ResolvedCommonPlan::Scalar(_)
         | ResolvedCommonPlan::Elasticity(_)
         | ResolvedCommonPlan::SteadyStokes(_) => None,
     }

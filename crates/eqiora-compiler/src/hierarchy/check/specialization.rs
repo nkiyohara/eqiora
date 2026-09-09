@@ -24,6 +24,7 @@ pub(super) fn needs_context(
             return true;
         }
         let syntax = match item {
+            ComponentItem::Observable(value) => Some(value.value_type()),
             ComponentItem::Field(field) => Some(field.value_type()),
             ComponentItem::Parameter(parameter) => Some(parameter.value_type()),
             ComponentItem::Port(port) => match port.syntax() {

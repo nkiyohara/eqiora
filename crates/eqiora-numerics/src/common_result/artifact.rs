@@ -44,6 +44,7 @@ struct WireResultContent {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 enum WireResultFamily {
+    Algebraic,
     Scalar,
     Elasticity,
     SteadyStokes,
@@ -55,6 +56,12 @@ enum WireResultFamily {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 enum WireResultPayload {
+    Algebraic {
+        values: Vec<f64>,
+        solve: Box<WireSolve>,
+        state_identity: String,
+        reference_residual_norm: f64,
+    },
     Static {
         fields: Vec<WireField>,
         solve: Box<WireSolve>,
@@ -292,6 +299,17 @@ impl WireCommonResultV3 {
 impl WireResultContent {
     fn from_result(result: &CommonResult) -> Result<Self, Diagnostic> {
         let payload = match &result.payload {
+            CommonResultPayload::Algebraic {
+                values,
+                solve,
+                state_identity,
+                reference_residual_norm,
+            } => WireResultPayload::Algebraic {
+                values: values.clone(),
+                solve: Box::new(WireSolve::from_solve(solve)?),
+                state_identity: state_identity.clone(),
+                reference_residual_norm: *reference_residual_norm,
+            },
             CommonResultPayload::Static(payload) => WireResultPayload::Static {
                 fields: payload
                     .fields
@@ -324,6 +342,34 @@ impl WireResultContent {
         require_elapsed(self.elapsed_seconds)?;
         require_family(plan, self.family)?;
         let payload = match &self.payload {
+            WireResultPayload::Algebraic {
+                values,
+                solve,
+                state_identity,
+                reference_residual_norm,
+            } => {
+                let native = plan
+                    .as_algebraic()
+                    .ok_or_else(|| invalid("finite Result requires finite Plan"))?;
+                let solve = solve.replay()?;
+                require_plan_solver(plan, &solve)?;
+                if state_identity != native.initial_state()?.identity()
+                    || native
+                        .validate_values(values, solve.residual_target())?
+                        .to_bits()
+                        != reference_residual_norm.to_bits()
+                {
+                    return Err(invalid(
+                        "finite Result State or original residual evidence is inconsistent",
+                    ));
+                }
+                CommonResultPayload::Algebraic {
+                    values: values.clone(),
+                    solve: Box::new(solve),
+                    state_identity: state_identity.clone(),
+                    reference_residual_norm: *reference_residual_norm,
+                }
+            }
             WireResultPayload::Static {
                 fields,
                 solve,
@@ -332,7 +378,8 @@ impl WireResultContent {
             } => {
                 if matches!(
                     self.family,
-                    WireResultFamily::Ode
+                    WireResultFamily::Algebraic
+                        | WireResultFamily::Ode
                         | WireResultFamily::TransientFlow
                         | WireResultFamily::FixedReferenceFsi
                 ) {
@@ -361,7 +408,8 @@ impl WireResultContent {
             } => {
                 if matches!(
                     self.family,
-                    WireResultFamily::Scalar
+                    WireResultFamily::Algebraic
+                        | WireResultFamily::Scalar
                         | WireResultFamily::Elasticity
                         | WireResultFamily::SteadyStokes
                 ) {

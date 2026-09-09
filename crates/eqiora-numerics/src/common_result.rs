@@ -13,12 +13,15 @@ use crate::{CommonScalarPlan, CommonTrajectory, ResolvedCommonPlan};
 
 mod artifact;
 mod evidence;
+mod observe;
+pub use observe::{CommonObservableStateTangent, CommonObservation};
 
 use evidence::{CommonAssemblyEvidence, CommonSolveEvidence};
 
 /// Stable family of one accepted common Result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CommonResultFamily {
+    Algebraic,
     Scalar,
     Elasticity,
     SteadyStokes,
@@ -271,6 +274,12 @@ struct CommonStaticResultPayload {
 
 #[derive(Debug, Clone, PartialEq)]
 enum CommonResultPayload {
+    Algebraic {
+        values: Vec<f64>,
+        solve: Box<CommonSolveEvidence>,
+        state_identity: String,
+        reference_residual_norm: f64,
+    },
     Static(Box<CommonStaticResultPayload>),
     Trajectory {
         trajectory: CommonTrajectory,
@@ -289,6 +298,33 @@ pub struct CommonResult {
 }
 
 impl CommonResult {
+    pub(crate) fn from_algebraic(
+        plan: &crate::CommonAlgebraicPlan,
+        state: &crate::CommonAlgebraicState,
+        solution: &crate::physical_network::ScalarPhysicalAffineSolution,
+    ) -> Result<Self, Diagnostic> {
+        Self {
+            plan: ResolvedCommonPlan::Algebraic(Box::new(plan.clone())),
+            family: CommonResultFamily::Algebraic,
+            elapsed_seconds: 0.0,
+            identity: String::new(),
+            payload: CommonResultPayload::Algebraic {
+                values: solution.values().to_vec(),
+                solve: Box::new(CommonSolveEvidence::from_report(solution.report())),
+                state_identity: state.identity().to_owned(),
+                reference_residual_norm: solution.reference_residual_norm(),
+            },
+        }
+        .refresh_identity()
+    }
+    #[must_use]
+    pub fn finite_values(&self) -> Option<&[f64]> {
+        match &self.payload {
+            CommonResultPayload::Algebraic { values, .. } => Some(values),
+            _ => None,
+        }
+    }
+
     /// Accept the complete scalar Field inventory from one validated solve.
     pub(crate) fn accept_scalar(
         plan: CommonScalarPlan,
@@ -583,6 +619,7 @@ impl CommonResult {
     #[must_use]
     pub const fn family_name(&self) -> &'static str {
         match self.family {
+            CommonResultFamily::Algebraic => "algebraic",
             CommonResultFamily::Scalar => "scalar",
             CommonResultFamily::Elasticity => "elasticity",
             CommonResultFamily::SteadyStokes => "steady-stokes",
@@ -612,7 +649,7 @@ impl CommonResult {
     pub fn field_count(&self) -> usize {
         match &self.payload {
             CommonResultPayload::Static(payload) => payload.fields.len(),
-            CommonResultPayload::Trajectory { .. } => 0,
+            CommonResultPayload::Algebraic { .. } | CommonResultPayload::Trajectory { .. } => 0,
         }
     }
 
@@ -628,7 +665,7 @@ impl CommonResult {
                     field.space(),
                 )
             }),
-            CommonResultPayload::Trajectory { .. } => None,
+            CommonResultPayload::Algebraic { .. } | CommonResultPayload::Trajectory { .. } => None,
         }
     }
 
@@ -639,7 +676,7 @@ impl CommonResult {
                 .fields
                 .get(field)
                 .map_or(0, |field| field.blocks.len()),
-            CommonResultPayload::Trajectory { .. } => 0,
+            CommonResultPayload::Algebraic { .. } | CommonResultPayload::Trajectory { .. } => 0,
         }
     }
 
@@ -665,6 +702,7 @@ impl CommonResult {
 
     fn solve_evidence(&self, fsi_state: Option<usize>) -> Option<&CommonSolveEvidence> {
         match (&self.payload, fsi_state) {
+            (CommonResultPayload::Algebraic { solve, .. }, None) => Some(solve),
             (CommonResultPayload::Static(payload), None) => Some(&payload.solve),
             (CommonResultPayload::Trajectory { fsi: Some(fsi), .. }, Some(index)) => {
                 fsi.states.get(index).map(|state| &state.solve)
@@ -756,7 +794,7 @@ impl CommonResult {
     #[must_use]
     pub fn trajectory(&self) -> Option<&CommonTrajectory> {
         match &self.payload {
-            CommonResultPayload::Static(_) => None,
+            CommonResultPayload::Algebraic { .. } | CommonResultPayload::Static(_) => None,
             CommonResultPayload::Trajectory { trajectory, .. } => Some(trajectory),
         }
     }

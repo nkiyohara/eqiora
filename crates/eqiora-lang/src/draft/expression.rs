@@ -7,12 +7,14 @@ pub(super) enum NativeReference {
     EnumValue(eqiora_core::ValueLiteral),
     Value(DraftReference),
     Port(DraftPortReference),
+    Domain(DraftSpatialDomain),
 }
 #[derive(Debug, Clone, Copy)]
 pub(super) enum DraftExpressionReference<'a> {
     EnumValue(&'a eqiora_core::ValueLiteral),
     Value(&'a DraftReference),
     Port(&'a DraftPortReference),
+    Domain(&'a DraftSpatialDomain),
 }
 impl DraftExpression {
     pub(super) fn failed(message: &str) -> Self {
@@ -250,6 +252,7 @@ impl DraftExpression {
             NativeReference::EnumValue(value) => DraftExpressionReference::EnumValue(value),
             NativeReference::Value(value) => DraftExpressionReference::Value(value),
             NativeReference::Port(value) => DraftExpressionReference::Port(value),
+            NativeReference::Domain(value) => DraftExpressionReference::Domain(value),
         }));
     }
     /// Resolve native annotations into the shared lexical Expr graph.
@@ -321,5 +324,102 @@ impl From<&DraftConservingPort> for DraftPortReference {
             symbol: port.symbol.clone(),
             name: port.name.clone(),
         }
+    }
+}
+
+impl DraftExpression {
+    /// Dimensionless numeric literal.
+    #[must_use]
+    pub fn constant(value: crate::DecimalLiteral) -> Self {
+        Self::leaf(ExprKind::Number(value))
+    }
+
+    /// Construct a complex scalar without discarding either component.
+    #[must_use]
+    pub fn complex(real: f64, imaginary: f64) -> Self {
+        let values = [real, imaginary].map(crate::DecimalLiteral::from_f64);
+        match values {
+            [Ok(real), Ok(imaginary)] => Self::call(
+                "math.complex",
+                vec![Self::constant(real), Self::constant(imaginary)],
+            ),
+            _ => Self::failed("native expression contains a non-finite numeric literal"),
+        }
+    }
+
+    pub(super) fn reference(symbol: DraftSymbol, name: String, kind: DraftSymbolKind) -> Self {
+        let mut value = Self::leaf(ExprKind::Name(name.clone()));
+        value.references =
+            std::sync::Arc::new(vec![expression::NativeReference::Value(DraftReference {
+                symbol,
+                name,
+                kind,
+            })]);
+        value
+    }
+
+    /// Time derivative of one Field.
+    #[must_use]
+    pub fn derivative(field: &DraftField) -> Self {
+        Self::call(
+            "derivative",
+            vec![Self::reference(
+                field.symbol.clone(),
+                field.name.clone(),
+                DraftSymbolKind::Field,
+            )],
+        )
+    }
+
+    /// Read the across variable of one scalar conserving Port.
+    #[must_use]
+    pub fn across(port: &DraftConservingPort) -> Self {
+        Self::port_reference(port, &port.domain.across_name)
+    }
+
+    /// Read the through variable of one scalar conserving Port.
+    #[must_use]
+    pub fn through(port: &DraftConservingPort) -> Self {
+        Self::port_reference(port, &port.domain.through_name)
+    }
+
+    fn port_reference(port: &DraftConservingPort, member: &str) -> Self {
+        let reference = DraftPortReference::from(port);
+        let mut value = Self::leaf(ExprKind::Path(NamePath::from_parsed_segments(
+            vec![reference.name.clone(), member.to_owned()],
+            TextRange::default(),
+        )));
+        value.references = std::sync::Arc::new(vec![expression::NativeReference::Port(reference)]);
+        value
+    }
+
+    /// Spatial gradient of one expression.
+    #[must_use]
+    pub fn gradient(value: Self) -> Self {
+        Self::call("grad", vec![value])
+    }
+
+    /// Spatial divergence of one expression.
+    #[must_use]
+    pub fn divergence(value: Self) -> Self {
+        Self::call("div", vec![value])
+    }
+
+    /// Boundary trace of one expression.
+    #[must_use]
+    pub fn trace(value: Self) -> Self {
+        Self::call("trace", vec![value])
+    }
+
+    pub(super) fn binary(self, operator: BinaryOp, right: Self) -> Self {
+        Self::compose(vec![self, right], |mut values| {
+            let right = values.pop().expect("two operands");
+            let left = values.pop().expect("two operands");
+            ExprKind::Binary {
+                op: operator,
+                left: Box::new(left),
+                right: Box::new(right),
+            }
+        })
     }
 }

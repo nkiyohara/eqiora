@@ -249,3 +249,73 @@ connect lower2.negative,source.other_negative;
             .contains("unreferenced uniform shift")
     );
 }
+
+#[test]
+fn common_finite_lifecycle_accepts_eight_volts_and_rejects_stale_state() {
+    use eqiora::artifact::ModelEnvelope;
+    use eqiora::kernel::SymbolRef;
+    use eqiora_numerics::{
+        CommonAlgebraicPlan, CommonAlgebraicState, CommonResult, CommonSolvePolicy,
+        ResolvedCommonPlan,
+    };
+    let source = DIVIDER.replace("  connect source.positive", "  observable output: V = lower.positive.voltage - ground.terminal.voltage;\n  connect source.positive");
+    let (program, symbols, _) = fixture(&source);
+    let model = ModelEnvelope::from_program(&program).unwrap();
+    let request = CommonSolvePolicy::linear(1e-12, 1e-14, NonZeroUsize::new(100).unwrap()).unwrap();
+    let plan = CommonAlgebraicPlan::resolve(&model, request, &FaerLinearSolver).unwrap();
+    let state = plan.initial_state().unwrap();
+    assert_eq!(
+        CommonAlgebraicState::from_bytes(&state.to_bytes().unwrap(), &plan).unwrap(),
+        state
+    );
+    let result = plan.run_result(&state, &FaerLinearSolver).unwrap();
+    assert_eq!(plan.symbols().len(), 14, "Observable adds no solve unknown");
+    let observable = symbols
+        .get("output")
+        .unwrap()
+        .downcast::<kinds::Observable>()
+        .unwrap();
+    let observed = result.observe(&model, observable, None).unwrap();
+    assert!((observed.value().real_scalar_value().unwrap().value() - 8.0).abs() < 1e-10);
+    assert_eq!(observed.result_identity(), result.identity());
+    assert!(result.observe(&model, Id::new(), None).is_err());
+    assert!(
+        result
+            .observe(
+                &model,
+                observable,
+                Some(&eqiora::meshing::QuadratureRule::point())
+            )
+            .is_err()
+    );
+    let value = |name| {
+        let symbol = SymbolRef::Across(port(&symbols, name));
+        result.finite_values().unwrap()[plan
+            .symbols()
+            .iter()
+            .position(|candidate| *candidate == symbol)
+            .unwrap()]
+    };
+    // Kirchhoff + Ohm: 12 V * 2000 ohm / (1000 + 2000) ohm = 8 V.
+    assert!((value("lower.positive") - value("ground.terminal") - 8.0).abs() < 1e-10);
+    let resolved = ResolvedCommonPlan::Algebraic(Box::new(plan.clone()));
+    let replayed = ResolvedCommonPlan::from_bytes(
+        &resolved.to_bytes().unwrap(),
+        &FaerLinearSolver,
+        eqiora::time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+    )
+    .unwrap();
+    assert_eq!(replayed, resolved);
+    let bytes = result.to_bytes().unwrap();
+    assert_eq!(CommonResult::from_bytes(&bytes, &resolved).unwrap(), result);
+    let changed = CommonAlgebraicPlan::resolve(
+        &model,
+        CommonSolvePolicy::linear(1e-9, 1e-12, NonZeroUsize::new(100).unwrap()).unwrap(),
+        &FaerLinearSolver,
+    )
+    .unwrap();
+    assert!(changed.run_result(&state, &FaerLinearSolver).is_err());
+    let mut wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    wire["content"]["payload"]["values"][0] = serde_json::json!(999.0);
+    assert!(CommonResult::from_bytes(&serde_json::to_vec(&wire).unwrap(), &resolved).is_err());
+}

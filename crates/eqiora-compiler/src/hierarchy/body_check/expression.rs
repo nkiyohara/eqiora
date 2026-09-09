@@ -1,4 +1,6 @@
 mod aliases;
+mod observable;
+pub(super) use observable::validate_observable;
 mod channels;
 mod enumeration;
 mod integer;
@@ -518,6 +520,7 @@ impl ExpressionChecker<'_, '_, '_> {
             | SymbolContract::CompleteExterior { .. }
             | SymbolContract::Clock
             | SymbolContract::Event
+            | SymbolContract::Observable
             | SymbolContract::Relation => Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 self.scope.file,

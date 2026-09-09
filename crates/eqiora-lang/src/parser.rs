@@ -242,6 +242,8 @@ impl Parser<'_> {
             self.parse_initial().map(Item::Initial)
         } else if self.at_keyword("parameter") {
             self.parse_parameter().map(Item::Parameter)
+        } else if self.at_keyword("observable") {
+            self.parse_observable().map(Item::Observable)
         } else if self.at_keyword("indexset") {
             self.parse_index_set().map(Item::IndexSet)
         } else if self.at_keyword("let") {

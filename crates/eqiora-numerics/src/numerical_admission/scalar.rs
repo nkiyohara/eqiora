@@ -201,6 +201,8 @@ pub(super) fn resolve_common_scalar_portable(
     )
 }
 
+type ObservableSupport = (Vec<[f64; 2]>, Option<(usize, BoundarySide)>);
+
 impl CommonScalarPlan {
     /// Exact linear solver provider selected by this Plan.
     #[must_use]
@@ -702,5 +704,26 @@ fn scalar_operator_properties(spatial: NativeSpatialPolicy) -> LinearOperatorPro
         NativeSpatialPolicy::ScalarQ1 => LinearOperatorProperties::General,
         NativeSpatialPolicy::ScalarTpfa => LinearOperatorProperties::SymmetricPositiveDefinite,
         _ => unreachable!("scalar Plan owns a scalar discretization"),
+    }
+}
+
+impl CommonScalarPlan {
+    pub(crate) fn observation_program(&self) -> &KernelProgram {
+        self.admission.program()
+    }
+
+    pub(crate) fn observation_support(
+        &self,
+        domain: eqiora_core::RawId,
+    ) -> Result<ObservableSupport, Diagnostic> {
+        let RecognizedNativeModel::Scalar(equations) = self.admission.recognized_model() else {
+            return Err(invalid("Observable requires the exact scalar Plan support"));
+        };
+        let boundary = if domain == equations.form.domain() {
+            None
+        } else {
+            Some(equations.boundaries.iter().find_map(|(side, id)| (*id == domain).then_some(*side)).ok_or_else(|| invalid("Observable Domain is not the exact volume or boundary realized by this Plan"))?)
+        };
+        Ok((equations.bounds.clone(), boundary))
     }
 }

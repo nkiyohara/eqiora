@@ -24,6 +24,26 @@ impl Parser<'_> {
         })
     }
 
+    pub(super) fn parse_observable(&mut self) -> Option<crate::ObservableDecl> {
+        let start = self.expect_keyword("observable")?.range().start();
+        let name = self.declaration_name("declaration name")?.text().to_owned();
+        self.expect(TokenKind::Colon, "`:` before dimension")?;
+        let value_type = self.parse_value_type()?;
+        self.expect(TokenKind::Equal, "`=` before value")?;
+        let value = self.parse_expression(0)?;
+        let end = self
+            .expect(TokenKind::Semicolon, "`;` after declaration")?
+            .range()
+            .end();
+        Some(crate::ObservableDecl {
+            comments: Default::default(),
+            name,
+            value_type,
+            value,
+            range: TextRange::new(start, end),
+        })
+    }
+
     pub(super) fn parse_let(&mut self) -> Option<NamedDefinitionDecl> {
         let start = self.expect_keyword("let")?.range().start();
         let name = self.declaration_name("alias name")?.text().to_owned();

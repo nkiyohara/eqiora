@@ -487,6 +487,12 @@ impl PyRun {
             plan_ref.native(),
             request,
         ) {
+            (ResolvedCommonPlan::Algebraic(native), Some(CommonRunRequest::Algebraic(state))) => (
+                RunIdentity::from_common_algebraic(native),
+                NativeRunJob::Algebraic(native.clone(), state),
+                "eqiora-common-algebraic-run",
+                false,
+            ),
             (ResolvedCommonPlan::Ode(_), Some(CommonRunRequest::Ode(request))) => (
                 RunIdentity::from_common_ode(&request),
                 NativeRunJob::Ode(request),
@@ -563,6 +569,11 @@ impl PyRun {
                     "steady submit accepts Plan alone and no transient Run controls",
                 ));
             }
+            _ => {
+                return Err(PyTypeError::new_err(
+                    "finite Run requires its exact Plan-bound State",
+                ));
+            }
         };
         drop(plan_ref);
         Self::spawn(
@@ -608,6 +619,7 @@ impl PyRun {
 }
 
 enum CommonRunRequest {
+    Algebraic(eqiora_numerics::CommonAlgebraicState),
     Ode(Box<CommonOdeRunRequest>),
     Transient(Box<CommonTransientRunRequest>),
     Fsi(Box<CommonFsiRunRequest>),
@@ -792,7 +804,36 @@ pub(crate) fn submit_plan(
 ) -> PyResult<PyRun> {
     panic_boundary(py, || {
         let plan_ref = plan.borrow(py);
-        let request = if let Some(native_plan) = plan_ref.ode_native() {
+        let request = if let Some(native_plan) = plan_ref.native().as_algebraic() {
+            if until_s.is_some()
+                || output_times_s.is_some()
+                || steps.is_some()
+                || output_steps.is_some()
+            {
+                return Err(PyTypeError::new_err(
+                    "finite submit accepts only Plan and State",
+                ));
+            }
+            let state = state
+                .ok_or_else(|| {
+                    PyTypeError::new_err("finite submit requires state=State.initial(plan)")
+                })?
+                .borrow();
+            let native_state = state
+                .algebraic_native
+                .as_ref()
+                .ok_or_else(|| PyValueError::new_err("State is not finite algebraic"))?;
+            if native_state
+                != &native_plan
+                    .initial_state()
+                    .map_err(|d| validation_error(py, &[d]))?
+            {
+                return Err(PyValueError::new_err(
+                    "State belongs to a different finite Plan",
+                ));
+            }
+            Some(CommonRunRequest::Algebraic(native_state.clone()))
+        } else if let Some(native_plan) = plan_ref.ode_native() {
             let state = state.ok_or_else(|| {
                 PyTypeError::new_err("ODE submit requires state=State.initial(plan)")
             })?;

@@ -82,6 +82,7 @@ macro_rules! owners {
                     ComponentItem::Port(value) => $visit(value.range, &$($mutable)? value.comments),
                     ComponentItem::PortFamily(value) => $visit(value.port.range, &$($mutable)? value.port.comments),
                     ComponentItem::Field(value) => $visit(value.range, &$($mutable)? value.comments),
+                    ComponentItem::Observable(value) => $visit(value.range, &$($mutable)? value.comments),
                     ComponentItem::Initial(value) => $visit(value.range, &$($mutable)? value.comments),
                     ComponentItem::Event(value) => $visit(value.range, &$($mutable)? value.comments),
                     ComponentItem::Clock(value) => $visit(value.range, &$($mutable)? value.comments),
@@ -104,6 +105,7 @@ macro_rules! owners {
                     Item::IndexSet(value) => $visit(value.range, &$($mutable)? value.comments),
                     Item::Domain(value) => $visit(value.range, &$($mutable)? value.comments),
                     Item::Field(value) => $visit(value.range, &$($mutable)? value.comments),
+                    Item::Observable(value) => $visit(value.range, &$($mutable)? value.comments),
                     Item::Initial(value) => $visit(value.range, &$($mutable)? value.comments),
                     Item::Parameter(value) => $visit(value.range, &$($mutable)? value.comments),
                     Item::Let(value) => $visit(value.range, &$($mutable)? value.comments),
@@ -271,6 +273,7 @@ notation_owner!(
     crate::PureOperatorFormal,
     crate::RelationDecl,
     crate::EventDecl,
+    crate::ObservableDecl,
     crate::InstanceDecl,
     crate::ComponentPropertyDecl,
 );
@@ -279,6 +282,7 @@ impl Item {
     pub(crate) fn source_comments(&self) -> &SourceComments {
         match self {
             Self::Domain(node) => &node.comments,
+            Self::Observable(node) => &node.comments,
             Self::Field(node) => &node.comments,
             Self::Initial(node) => &node.comments,
             Self::Parameter(node) => &node.comments,
@@ -303,6 +307,7 @@ impl ComponentItem {
             Self::Parameter(node) => &node.comments,
             Self::Port(node) => &node.comments,
             Self::PortFamily(node) => &node.port.comments,
+            Self::Observable(node) => &node.comments,
             Self::Field(node) => &node.comments,
             Self::Initial(node) => &node.comments,
             Self::Event(node) => &node.comments,

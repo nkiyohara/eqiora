@@ -144,7 +144,19 @@ __all__ = [
     "Fast",
     "LowMemory",
     "Linear",
+    "AlgebraicPlanView",
     "Newton",
     "ResolvedLinear",
     "ResolvedNewton",
 ]
+
+@final
+class AlgebraicPlanView:
+    """Resolved finite affine solve with its exact unknown inventory.
+
+    Authority: ``crates/eqiora-python/src/common_plan/algebraic.rs::PyAlgebraicPlanView``.
+    """
+    @property
+    def kind(self) -> str: ...
+    @property
+    def unknown_count(self) -> int: ...

@@ -182,6 +182,55 @@ Use `(residual, 0)` for a numerical residual equation. Named `equal`, `not_equal
 ordering, and truth testing reject. Declarations and expressions
 are frozen; validation and artifact creation happen atomically in Rust.
 
+## Derived observables
+
+An `observable` retains a typed expression in Model meaning without adding a
+Field unknown or solving equation. Finite values and spatial integrals use the
+same declaration:
+
+```eqi
+observable output: V = lower.positive.voltage - ground.terminal.voltage;
+observable energy: J = integral(capacity * (temperature - reference), measure(body));
+observable outward_heat: W = integral(normal(-conductivity * grad(temperature)), measure(wall));
+```
+
+`integral(expression, measure(domain))` infers volume or surface measure from the exact Domain kind and retains the exact
+parent boundary. The output dimension includes that measure. Boundary Field
+values require `trace(field)`; oriented flux uses the existing outward `normal`
+operator. A same-sized foreign Domain does not substitute for the declared one.
+These reductions currently occur only at the root of an Observable expression.
+
+Native Python uses `eqiora.Observable(name, value_type=..., expression=...)`,
+`eqiora.integral(expression, eqiora.measure(domain))`. Include each declaration in its
+owning `Module`. The source graph checks both instantiated and unused Component
+bodies. A private Component Observable remains inspectable by exact qualified
+identity and does not become an exported Port or a value symbol in equations.
+
+Evaluation belongs to an accepted Result with the exact Model meaning. The
+initial spatial execution profile covers real scalar Q1 Fields on an authenticated
+Cartesian mesh, explicit traces, scalar expressions and oriented normal gradients.
+Spatial evaluation requires an explicit numerical quadrature rule; it never uses
+rendered values or output cadence as an integration authority. Its State JVP uses
+the same basis and quadrature for Field and normal-gradient variations, holding
+Parameters and Geometry fixed. Reduced-solve and geometry-shape sensitivities
+require separate admission.
+
+Select the declaration through its exact Model handle, then evaluate it on the
+accepted Result. For a Component instance named `definition`:
+
+```python
+energy = model.observable("definition.energy")
+observation = result.observe(energy, quadrature_points=2)
+value = observation.value
+lineage = observation.result_identity
+```
+
+`quadrature_points` selects Gauss–Legendre points per axis; a point boundary
+requires `1`. Finite values omit this argument. A State direction is created with
+`result.observable_state_tangent({field: (dimension, coefficients)})` and applied
+with `result.observe_state_jvp(energy, direction, quadrature_points=2)`. Its
+`evaluation_kind` is `"state-jvp"`, and a different Result cannot reuse that direction.
+
 ## Author Eqiora Language source
 
 `eqiora.Module` owns the shared equations-language graph for Python authoring:
@@ -1204,7 +1253,7 @@ assert same.revision == child.revision
 ```
 
 The canonical bytes still expose the persisted
-`eqiora.model-envelope/v22` schema, but callers do not select that suffix.
+`eqiora.model-envelope/v23` schema, but callers do not select that suffix.
 `.eqi` remains source text; `.eqmodel` is the canonical compiled Model artifact.
 Only the current schema is accepted; decoding never sniffs, retries, or silently
 migrates an older artifact.

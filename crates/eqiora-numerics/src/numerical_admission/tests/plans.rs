@@ -1,3 +1,4 @@
+mod observables;
 use super::*;
 
 const POISSON_INTERVAL: &str = r#"
@@ -137,14 +138,9 @@ fn resolve_scalar_box(
         None,
     )
     .unwrap()
-    .project(
-        |_| panic!("spatial Model resolved as no-Mesh ODE"),
-        |plan| plan,
-        |_| panic!("scalar Model resolved as elasticity"),
-        |_| panic!("scalar Model resolved as Stokes"),
-        |_| panic!("scalar Model resolved as transient flow"),
-        |_| panic!("scalar Model resolved as FSI"),
-    )
+    .as_scalar()
+    .cloned()
+    .expect("fixture retains its admitted scalar Plan")
 }
 
 #[test]
@@ -192,14 +188,9 @@ fn exercise_scalar_box(model: &ModelEnvelope, geometry: &CanonicalGeometryV1, ce
             ResolvedCommonPlan::Scalar(Box::new(plan.clone())),
             &ResolveOnlyBackend,
         )
-        .project(
-            |_| panic!("scalar Plan replayed as ODE"),
-            |plan| plan,
-            |_| panic!("scalar Plan replayed as elasticity"),
-            |_| panic!("scalar Plan replayed as Stokes"),
-            |_| panic!("scalar Plan replayed as transient flow"),
-            |_| panic!("scalar Plan replayed as FSI"),
-        );
+        .as_scalar()
+        .cloned()
+        .expect("fixture retains its admitted scalar Plan");
         assert_eq!(replayed.cells(), cells);
         let result = replayed.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
         let expected_shape = match spatial {
@@ -299,14 +290,10 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
             None,
         )
         .unwrap();
-        replay_plan(resolved, &ResolveOnlyBackend).project(
-            |_| panic!("spatial Model resolved as no-Mesh ODE"),
-            |plan| plan,
-            |_| panic!("scalar Model resolved as elasticity"),
-            |_| panic!("scalar Model resolved as another capability"),
-            |_| panic!("scalar Model resolved as transient capability"),
-            |_| panic!("scalar Model resolved as FSI"),
-        )
+        replay_plan(resolved, &ResolveOnlyBackend)
+            .as_scalar()
+            .cloned()
+            .expect("fixture retains its admitted scalar Plan")
     };
     let q1 = resolve_scalar(
         CommonMethodRequest::Uniform(CommonSpatialPolicy::Q1),
@@ -426,14 +413,10 @@ pub(super) fn common_elasticity_plan_consumes_exact_mesh_and_model_meaning() {
             None,
         )
         .unwrap();
-        replay_plan(resolved, &ResolveOnlyBackend).project(
-            |_| panic!("spatial Model resolved as no-Mesh ODE"),
-            |_| panic!("elasticity Model resolved as scalar"),
-            |plan| plan,
-            |_| panic!("elasticity Model resolved as Stokes"),
-            |_| panic!("elasticity Model resolved as transient flow"),
-            |_| panic!("elasticity Model resolved as FSI"),
-        )
+        replay_plan(resolved, &ResolveOnlyBackend)
+            .as_elasticity()
+            .cloned()
+            .expect("fixture retains its admitted elasticity Plan")
     };
     let plan = resolve_elasticity(&model);
     let repeat = resolve_elasticity(&model);

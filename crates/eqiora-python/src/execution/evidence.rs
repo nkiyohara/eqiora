@@ -123,6 +123,14 @@ pub(crate) struct RunIdentity {
 }
 
 impl RunIdentity {
+    pub(crate) fn from_common_algebraic(plan: &eqiora_numerics::CommonAlgebraicPlan) -> Self {
+        Self::from_static(
+            plan.model_id(),
+            plan.model_digest(),
+            plan.model_revision(),
+            plan.identity(),
+        )
+    }
     pub(crate) fn from_common_result(result: &eqiora_numerics::CommonResult) -> Option<Self> {
         if let Some(trajectory) = result.trajectory() {
             return Some(match trajectory {
@@ -138,6 +146,9 @@ impl RunIdentity {
             });
         }
         Some(match result.plan() {
+            eqiora_numerics::ResolvedCommonPlan::Algebraic(plan) => {
+                Self::from_common_algebraic(plan)
+            }
             eqiora_numerics::ResolvedCommonPlan::Scalar(plan) => Self::from_common_plan(plan),
             eqiora_numerics::ResolvedCommonPlan::Elasticity(plan) => {
                 Self::from_common_elasticity(plan)

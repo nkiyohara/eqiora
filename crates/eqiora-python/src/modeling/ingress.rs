@@ -40,6 +40,9 @@ pub(super) fn declaration_from_python(value: &Bound<'_, PyAny>) -> PyResult<Draf
     if let Ok(port) = value.extract::<PyRef<'_, PyConservingPort>>() {
         return Ok(port.value.clone().into());
     }
+    if let Ok(observable) = value.extract::<PyRef<'_, observable::PyObservable>>() {
+        return Ok(observable.value.clone().into());
+    }
     if let Ok(relation) = value.extract::<PyRef<'_, PyRelation>>() {
         return Ok(relation.value.clone().into());
     }

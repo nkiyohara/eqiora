@@ -180,14 +180,9 @@ fn transient_plan() -> CommonTransientFlowPlan {
         None,
     )
     .unwrap()
-    .project(
-        |_| panic!("transient fixture resolved as ODE"),
-        |_| panic!("transient fixture resolved as scalar"),
-        |_| panic!("transient fixture resolved as elasticity"),
-        |_| panic!("transient fixture resolved as steady Stokes"),
-        |plan| plan,
-        |_| panic!("transient fixture resolved as FSI"),
-    )
+    .as_transient_flow()
+    .cloned()
+    .expect("fixture retains its admitted transient_flow Plan")
 }
 
 fn decode_wire(wire: &serde_json::Value) -> Result<RunRequest, Diagnostic> {

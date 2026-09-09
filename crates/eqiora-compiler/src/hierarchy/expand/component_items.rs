@@ -118,6 +118,33 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         });
                     }
                 }
+                ComponentItem::Observable(declaration) => {
+                    let identity = identities.entities[declaration.name()].clone();
+                    let (value, reduction) =
+                        super::observable::rewrite(component.file, declaration.value(), scope)?;
+                    self.record_type_structure(
+                        &internal_name(identity.full),
+                        component.file,
+                        declaration.value_type(),
+                        &scope.symbolic_parameters(),
+                    )?;
+                    self.record_structural(
+                        &internal_name(identity.full),
+                        value.structural_parameters(),
+                    )?;
+                    self.items.push(FlatItemBlueprint::Observable {
+                        name: internal_name(identity.full),
+                        value_type: super::super::parameters::specialize_type(
+                            component.file,
+                            declaration.value_type(),
+                            &scope.symbolic_parameters(),
+                        )?,
+                        value,
+                        reduction,
+                        range: declaration.range(),
+                        identity,
+                    });
+                }
                 ComponentItem::Field(declaration) => {
                     if let Some(record) = self
                         .elaborator

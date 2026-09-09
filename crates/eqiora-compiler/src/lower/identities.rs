@@ -19,6 +19,8 @@ pub(crate) trait LoweringIdentities {
 
     fn clock(&mut self, name: &str) -> Id<kinds::ClockDomain>;
 
+    fn observable(&mut self, name: &str) -> Id<kinds::Observable>;
+
     fn activation(&mut self, name: &str) -> Id<kinds::Activation>;
 
     fn relation(&mut self, name: &str) -> (Id<kinds::Relation>, Id<kinds::Activation>);
@@ -56,6 +58,10 @@ impl LoweringIdentities for FreshLoweringIdentities {
     }
 
     fn clock(&mut self, _name: &str) -> Id<kinds::ClockDomain> {
+        Id::new()
+    }
+
+    fn observable(&mut self, _name: &str) -> Id<kinds::Observable> {
         Id::new()
     }
 

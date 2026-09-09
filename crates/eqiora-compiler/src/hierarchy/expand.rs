@@ -3,6 +3,7 @@ mod connections;
 mod identities;
 mod indexed_relations;
 mod model_scope;
+pub(super) mod observable;
 mod parameters;
 mod record_parameters;
 use std::collections::{BTreeMap, BTreeSet};
@@ -915,6 +916,34 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         ))]);
                     }
                 }
+                ComponentItem::Observable(declaration) => {
+                    let identity = self
+                        .entity_identity(
+                            &instance_path,
+                            definition_path(
+                                &component.namespace,
+                                "component",
+                                component.name(),
+                                declaration.name(),
+                            ),
+                            EntityKind::Observable,
+                            SourceLocation::new(component.file, declaration.range()),
+                            SourceLocation::new(instance_file, instance.range()),
+                            bindings.clone(),
+                        )
+                        .map_err(one_diagnostic)?;
+                    self.register_symbol(
+                        display_child(&display_prefix, declaration.name()),
+                        declaration.name(),
+                        &identity,
+                        SymbolKind::Observable,
+                        &mut scope,
+                    )
+                    .map_err(one_diagnostic)?;
+                    identities
+                        .entities
+                        .insert(declaration.name().to_owned(), identity);
+                }
                 ComponentItem::Event(_) | ComponentItem::Clock(_) => {
                     self.allocate_local_activation(
                         item,
@@ -1214,132 +1243,6 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         Ok(InstanceInterface::with_public_port_families(
             public_ports,
             public_port_families,
-        ))
-    }
-
-    fn component_port_syntax(
-        &mut self,
-        component: &ComponentDefinition<'d>,
-        declaration: &ComponentPortDecl,
-        scope: &Scope,
-    ) -> Result<(LoweringPortContract, Option<PhysicalPortMaterialization>), Diagnostic> {
-        match declaration.syntax() {
-            PortSyntax::Signal { .. } => Ok((
-                LoweringPortContract::Source(rewrite_model_port(
-                    component.file,
-                    declaration.syntax(),
-                    declaration.range(),
-                    scope,
-                )?),
-                None,
-            )),
-            PortSyntax::ScalarPhysicalConnector { connector } => {
-                let connector = self.elaborator.resolve_connector(
-                    &component.namespace,
-                    connector,
-                    component.file,
-                    declaration.range(),
-                )?;
-                let domain = self.connector_domain(connector, None)?;
-                Ok((
-                    LoweringPortContract::Source(PortSyntax::ScalarPhysical {
-                        domain: domain.internal_name,
-                    }),
-                    Some(PhysicalPortMaterialization {
-                        contract: PhysicalExposureContractIdentity::ScalarPhysical {
-                            connector: domain.full_identity,
-                        },
-                    }),
-                ))
-            }
-            PortSyntax::FieldPhysical { connector, support } => {
-                let exact_support = scope.spatial_support(support).ok_or_else(|| {
-                    source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        component.file,
-                        declaration.range(),
-                        format!("unresolved field-physical boundary support `{support}`"),
-                    )
-                })?;
-                let SpatialSupport::Boundary { dimensions, .. } = exact_support else {
-                    return Err(source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        component.file,
-                        declaration.range(),
-                        "field-physical Port `over` support must resolve to an exact boundary",
-                    ));
-                };
-                let boundary = scope.symbol(support).ok_or_else(|| {
-                    source_error(
-                        codes::LANGUAGE_LOWERING_ERROR,
-                        component.file,
-                        declaration.range(),
-                        "resolved boundary support has no flattened Domain symbol",
-                    )
-                })?;
-                let connector = self.elaborator.resolve_connector(
-                    &component.namespace,
-                    connector,
-                    component.file,
-                    declaration.range(),
-                )?;
-                let connector = self.connector_domain(connector, Some(*dimensions))?;
-                Ok((
-                    LoweringPortContract::BoundaryPhysical {
-                        connector: connector.internal_name.clone(),
-                        boundary: boundary.internal_name.clone(),
-                    },
-                    Some(PhysicalPortMaterialization {
-                        contract: PhysicalExposureContractIdentity::FieldBoundary {
-                            connector: connector.full_identity,
-                            boundary: boundary.full_identity,
-                        },
-                    }),
-                ))
-            }
-            _ => Err(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                component.file,
-                declaration.range(),
-                "component Port must be an explicit signal or nominal Connector interface",
-            )),
-        }
-    }
-
-    fn component_port_family_syntax(
-        &mut self,
-        component: &ComponentDefinition<'d>,
-        family: &ComponentPortFamilyDecl,
-        boundary: FullElaborationIdentity,
-        boundary_internal_name: &str,
-        dimensions: usize,
-    ) -> Result<(LoweringPortContract, PhysicalPortMaterialization), Diagnostic> {
-        let PortSyntax::FieldPhysical { connector, .. } = family.port().syntax() else {
-            return Err(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                component.file,
-                family.range(),
-                "boundary Port family requires a field-physical Connector",
-            ));
-        };
-        let connector = self.elaborator.resolve_connector(
-            &component.namespace,
-            connector,
-            component.file,
-            family.range(),
-        )?;
-        let connector = self.connector_domain(connector, Some(dimensions))?;
-        Ok((
-            LoweringPortContract::BoundaryPhysical {
-                connector: connector.internal_name.clone(),
-                boundary: boundary_internal_name.to_owned(),
-            },
-            PhysicalPortMaterialization {
-                contract: PhysicalExposureContractIdentity::FieldBoundary {
-                    connector: connector.full_identity,
-                    boundary,
-                },
-            },
         ))
     }
 

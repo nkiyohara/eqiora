@@ -40,6 +40,8 @@ impl Parser<'_> {
             self.parse_index_set().map(ComponentItem::IndexSet)
         } else if self.at_keyword("let") {
             self.parse_let().map(ComponentItem::Let)
+        } else if self.at_keyword("observable") {
+            self.parse_observable().map(ComponentItem::Observable)
         } else if self.at_keyword("variable") || self.at_keyword("state") {
             self.parse_field(true).map(ComponentItem::Field)
         } else if self.at_keyword("initial") {

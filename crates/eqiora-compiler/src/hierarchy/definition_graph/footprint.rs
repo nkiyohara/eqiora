@@ -37,6 +37,7 @@ pub(super) fn component_local_footprint(
             | ComponentItem::Port(_)
             | ComponentItem::Initial(_)
             | ComponentItem::Clock(_)
+            | ComponentItem::Observable(_)
             | ComponentItem::Event(_) => checked_local_add(
                 &mut declarations,
                 1,
@@ -196,6 +197,9 @@ pub(super) fn component_local_footprint(
             ),
             ComponentItem::Event(value) => {
                 families.expressions([value.guard()], 1, &mut expression_nodes, diagnostics)
+            }
+            ComponentItem::Observable(value) => {
+                families.expressions([value.value()], 1, &mut expression_nodes, diagnostics)
             }
             ComponentItem::Let(value) => {
                 families.expressions([value.value()], 1, &mut expression_nodes, diagnostics)
@@ -513,6 +517,12 @@ pub(super) fn model_local_footprint(
             ),
             Item::Event(value) => families.expressions(
                 [value.guard()],
+                1,
+                &mut footprint.expression_nodes,
+                diagnostics,
+            ),
+            Item::Observable(value) => families.expressions(
+                [value.value()],
                 1,
                 &mut footprint.expression_nodes,
                 diagnostics,

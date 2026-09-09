@@ -27,17 +27,17 @@ pub use ast::{
     ConnectorQuantitySyntax, ConnectorSyntax, DocComment, Document, DomainDecl, DomainSyntax,
     EnumDecl, Equation, EventDecl, ExactIntegerSyntax, Expr, ExprKind, FamilyBinderSyntax,
     FieldDecl, FieldRoleSyntax, FrameSyntax, InitialDecl, InstanceDecl, Item, ModelDecl, NamePath,
-    NamedBindingDecl, NamedDefinitionDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl,
-    PureOperatorFormal, PureValueClassSyntax, RecordDecl, RecordMemberDecl, ReductionOp,
-    RelationDecl, RelationFamilyDecl, SignalDirectionSyntax, SignatureItem, SupportSlotDecl,
-    SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, ValueTypeSyntax, ValueTypeSyntaxKind,
-    VisibilitySyntax,
+    NamedBindingDecl, NamedDefinitionDecl, ObservableDecl, ParameterDecl, PortDecl, PortSyntax,
+    PureOperatorDecl, PureOperatorFormal, PureValueClassSyntax, RecordDecl, RecordMemberDecl,
+    ReductionOp, RelationDecl, RelationFamilyDecl, SignalDirectionSyntax, SignatureItem,
+    SupportSlotDecl, SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, ValueTypeSyntax,
+    ValueTypeSyntaxKind, VisibilitySyntax,
 };
 pub use cartesian::CartesianCoordinateSyntax;
 pub use decimal::DecimalLiteral;
 pub use draft::{
     DraftConservingConnection, DraftConservingPort, DraftDeclaration, DraftExpression, DraftField,
-    DraftParameter, DraftPhysicalDomain, DraftRelation, Module,
+    DraftObservable, DraftParameter, DraftPhysicalDomain, DraftRelation, Module,
 };
 pub use draft_spatial::DraftSpatialDomain;
 pub use factory::{AstConstructionError, SourceAstFactory};
