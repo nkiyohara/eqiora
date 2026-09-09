@@ -63,6 +63,8 @@ impl WireId {
             };
         }
         Ok(match self.kind {
+            WireEntityKind::Record => typed!(kinds::Record),
+            WireEntityKind::RecordInstance => typed!(kinds::RecordInstance),
             WireEntityKind::Enum => typed!(kinds::Enum),
             WireEntityKind::FiniteSpace => typed!(kinds::FiniteSpace),
             WireEntityKind::IndexSet => typed!(kinds::IndexSet),
@@ -82,6 +84,8 @@ impl WireId {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub(crate) enum WireEntityKind {
+    Record,
+    RecordInstance,
     Enum,
     FiniteSpace,
     IndexSet,
@@ -99,6 +103,8 @@ pub(crate) enum WireEntityKind {
 impl WireEntityKind {
     pub(crate) fn encode(value: EntityKind) -> Self {
         match value {
+            EntityKind::Record => Self::Record,
+            EntityKind::RecordInstance => Self::RecordInstance,
             EntityKind::Enum => Self::Enum,
             EntityKind::FiniteSpace => Self::FiniteSpace,
             EntityKind::IndexSet => Self::IndexSet,

@@ -345,7 +345,9 @@ fn require_semantic_id(id: RawId, label: &str) -> Result<(), Diagnostic> {
 const fn is_wire_kernel_kind(kind: EntityKind) -> bool {
     matches!(
         kind,
-        EntityKind::Enum
+        EntityKind::Record
+            | EntityKind::RecordInstance
+            | EntityKind::Enum
             | EntityKind::FiniteSpace
             | EntityKind::IndexSet
             | EntityKind::Domain

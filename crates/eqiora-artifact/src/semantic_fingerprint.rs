@@ -230,6 +230,39 @@ fn encode_node(
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
     match node {
+        KernelNode::Record(definition) => {
+            encoder.u8(13)?;
+            encoder.len(definition.members().len())?;
+            for (index, (name, ty)) in definition.members().iter().enumerate() {
+                encoder.bytes(name.as_bytes())?;
+                encode_value_type(&mut encoder, ty)?;
+                let mut label = Encoder::new(16);
+                label.u8(5)?;
+                label.len(index)?;
+                type_reference(ty, label.finish()?, ids, references, budget)?;
+            }
+        }
+        KernelNode::RecordInstance(instance) => {
+            encoder.u8(14)?;
+            encoder.len(instance.members().len())?;
+            push_reference(
+                references,
+                vec![6],
+                lookup(ids, instance.definition().erase(), "record declaration")?,
+                budget,
+            )?;
+            for (index, member) in instance.members().iter().enumerate() {
+                let mut label = Encoder::new(16);
+                label.u8(7)?;
+                label.len(index)?;
+                push_reference(
+                    references,
+                    label.finish()?,
+                    lookup(ids, *member, "record member")?,
+                    budget,
+                )?;
+            }
+        }
         KernelNode::Enum(definition) => {
             encoder.u8(12)?;
             encoder.len(definition.members().len())?;
