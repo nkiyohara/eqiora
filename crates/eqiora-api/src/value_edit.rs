@@ -284,11 +284,20 @@ impl ModelDocument {
             self.program.model(),
             &geometries,
         )?;
+        // A value edit preserves the exact occurrence inventory. Structural edits
+        // need a new complete-scope catalog, not a stale subset of source labels.
+        let notation = (program.model() == self.program.model()
+            && program
+                .nodes()
+                .map(|node| node.id())
+                .eq(self.program.nodes().map(|node| node.id())))
+        .then(|| self.notation.clone());
         ModelDocument::from_store(
             store,
             program,
             self.aliases.clone(),
             self.geometry_authority.clone(),
+            notation,
         )
     }
 

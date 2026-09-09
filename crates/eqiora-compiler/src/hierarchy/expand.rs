@@ -52,6 +52,7 @@ mod model_items;
 mod model_lets;
 mod names;
 mod nominal;
+mod notation;
 
 use super::parameters::{ParameterLineage, ParameterResolver, ResolvedParameter};
 use super::preflight::{
@@ -158,6 +159,8 @@ struct ConnectorSpecializationKey {
 }
 
 pub(super) struct RootExpansion<'a, 'd> {
+    notation_specs: Vec<crate::notation::NotationSpec>,
+    instance_qualifiers: BTreeMap<Vec<String>, eqiora_lang::Notation>,
     elaborator: &'a Elaborator<'d>,
     model: ModelDefinition<'d>,
     namespace: IdentityNamespace,
@@ -204,6 +207,8 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             .try_reserve_exact(item_capacity)
             .map_err(|_| hierarchy_error("cannot reserve flat component expansion"))?;
         let mut expansion = Self {
+            notation_specs: Vec::new(),
+            instance_qualifiers: BTreeMap::new(),
             elaborator,
             model,
             namespace,
@@ -252,46 +257,6 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             *emitted = true;
         }
         Ok(Some(name))
-    }
-
-    fn register_physical_port_occurrence(
-        &mut self,
-        identity: EntityIdentity,
-        display_name: String,
-        instance_path: InstancePath,
-        exposure_candidate: bool,
-        contract: Option<PhysicalExposureContractIdentity>,
-    ) -> Result<(), Diagnostic> {
-        let full = identity.full;
-        let internal_name = internal_name(full);
-        if self
-            .physical_ports_by_name
-            .insert(internal_name, full)
-            .is_some()
-        {
-            return Err(hierarchy_error(format!(
-                "duplicate flattened physical Port identity {full}"
-            )));
-        }
-        if self
-            .physical_ports
-            .insert(
-                full,
-                PhysicalPortOccurrence {
-                    identity,
-                    display_name,
-                    instance_path,
-                    exposure_candidate,
-                    contract,
-                },
-            )
-            .is_some()
-        {
-            return Err(hierarchy_error(format!(
-                "duplicate flattened physical Port occurrence {full}"
-            )));
-        }
-        Ok(())
     }
 
     fn record_physical_relation_owners(
@@ -380,11 +345,11 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         Ok(ExpandedBlueprint::new(
             self.model.name().to_owned(),
             SourceLocation::new(self.model.file, self.model.range()),
-            self.model_key,
-            self.model_full,
+            (self.model_key, self.model_full),
             self.items,
             self.display_symbols,
             self.physical_exposures,
+            self.notation_specs,
         ))
     }
 
@@ -648,6 +613,10 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         display_prefix: String,
         parent_scope: &Scope,
     ) -> Result<InstanceInterface, Vec<Diagnostic>> {
+        if let Some(notation) = instance.notation() {
+            self.instance_qualifiers
+                .insert(instance_path.segments().to_vec(), notation.clone());
+        }
         let support_interface = component_support_interface(component.file, component.declaration)
             .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
         let boundary_sides = &self.boundary_sides;
@@ -868,6 +837,18 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 .insert(slot.clone(), (requirement.role, activation));
             scope.insert_field_type(slot, field_type);
         }
+        self.record_borrowed_fields(
+            ComponentOccurrence {
+                definition: &component,
+                instance,
+                instance_file,
+                instance_path: &instance_path,
+                display_prefix: &display_prefix,
+            },
+            &scope,
+            &bindings,
+        )
+        .map_err(one_diagnostic)?;
 
         for item in component
             .owned_items()
@@ -880,40 +861,19 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         {
             match item {
                 ComponentItem::Parameter(declaration) => {
-                    let resolved = parameters[declaration.name()].clone();
-                    if scope
-                        .insert_parameter(declaration.name().to_owned(), resolved.clone())
-                        .is_some()
-                    {
-                        return Err(vec![contextualize_diagnostic(
-                            hierarchy_error(format!(
-                                "duplicate flattened Parameter term `{}`",
-                                declaration.name()
-                            )),
-                            &instance_path,
-                        )]);
-                    }
-                    if let ParameterLineage::Parameter(full) = resolved.lineage {
-                        let display = display_child(&display_prefix, declaration.name());
-                        if self
-                            .display_symbols
-                            .insert(
-                                display.clone(),
-                                DisplayIdentity {
-                                    full,
-                                    kind: EntityKind::Parameter,
-                                },
-                            )
-                            .is_some()
-                        {
-                            return Err(vec![contextualize_diagnostic(
-                                hierarchy_error(format!(
-                                    "duplicate flattened display symbol `{display}`"
-                                )),
-                                &instance_path,
-                            )]);
-                        }
-                    }
+                    self.allocate_parameter(
+                        ComponentOccurrence {
+                            definition: &component,
+                            instance,
+                            instance_file,
+                            instance_path: &instance_path,
+                            display_prefix: &display_prefix,
+                        },
+                        declaration,
+                        &parameters,
+                        &bindings,
+                        &mut scope,
+                    )?;
                 }
                 ComponentItem::Port(declaration) => {
                     let identity = self

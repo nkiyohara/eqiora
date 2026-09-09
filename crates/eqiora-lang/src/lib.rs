@@ -16,6 +16,7 @@ mod factory;
 mod formatter;
 mod lexer;
 mod notation;
+mod notation_labels;
 mod parser;
 
 pub use ast::{
@@ -45,6 +46,7 @@ pub use notation::{
     Notation, NotationAccent, NotationAtom, NotationError, NotationMark, NotationNode,
     NotationStyle,
 };
+pub use notation_labels::{NotationLabel, NotationProfile};
 pub use parser::{ParseResult, parse};
 
 pub use ast_property::ComponentPropertyDecl;

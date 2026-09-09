@@ -30,6 +30,16 @@ fn notation_survives_package_reopening_but_does_not_change_physical_identity() {
     let first = compile(&plain);
     let second = compile(&annotated);
     assert_eq!(
+        second
+            .model()
+            .notation()
+            .iter()
+            .next()
+            .unwrap()
+            .render(eqiora_lang::NotationProfile::Rich),
+        r"\hat{x}"
+    );
+    assert_eq!(
         first.model().structural_fingerprint().unwrap(),
         second.model().structural_fingerprint().unwrap()
     );
@@ -39,6 +49,10 @@ fn notation_survives_package_reopening_but_does_not_change_physical_identity() {
     );
     // The package owns exact source bytes, not an alternative notation serializer.
     let reopened = PackageReleaseV1::from_json(&annotated.canonical_json().unwrap()).unwrap();
+    assert_eq!(
+        compile(&reopened).model().notation(),
+        second.model().notation()
+    );
     assert_eq!(
         reopened.source_digest().unwrap(),
         annotated.source_digest().unwrap()

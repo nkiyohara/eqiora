@@ -61,11 +61,11 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         Ok(ExpandedBlueprint::new(
             self.model.name().to_owned(),
             SourceLocation::new(self.model.file, self.model.range()),
-            self.model_key,
-            self.model_full,
+            (self.model_key, self.model_full),
             self.items,
             self.display_symbols,
             self.physical_exposures,
+            self.notation_specs,
         ))
     }
 

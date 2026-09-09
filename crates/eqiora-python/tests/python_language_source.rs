@@ -5,6 +5,41 @@ use pyo3::types::{PyDict, PyDictMethods, PyModule};
 const SHIPPED_SOURCE: &str = include_str!("../../../examples/steady-flow-past-cylinder.eqi");
 
 #[test]
+fn python_occurrence_labels_use_the_full_native_model_catalog() -> PyResult<()> {
+    Python::initialize();
+    Python::attach(|py| {
+        let module = public_module(py)?;
+        let locals = PyDict::new(py);
+        locals.set_item("eqiora", module)?;
+        py.run(c_str!(r"
+source = eqiora.lang.Source()
+model = source.model('Main')
+left = model.field('left', role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
+right = model.field('right', role=eqiora.FieldRole.Variable, value_type=eqiora.ValueType.real())
+model.relation('left_law', left=left, right=0)
+model.relation('right_law', left=right, right=0)
+model.set_notation('left', eqiora.lang.Notation(r'@{x_i}'))
+model.set_notation('right', eqiora.lang.Notation(r'@{\mathbf{x_i}}'))
+compiled = eqiora.compile(source=source)
+full = compiled.notation_labels()
+assert len(full) == 2
+assert all(isinstance(entry, eqiora.QuantityLabel) for entry in full)
+for profile in ['rich', 'plain', 'speech']:
+    entries = compiled.notation_labels(profile)
+    assert len({entry.label for entry in entries}) == 2
+    view = compiled.notation_labels(profile, identities=[full[0].identity]*2)
+    assert len(view) == 1
+    assert view[0].label == next(entry.label for entry in entries if entry.identity == full[0].identity)
+reopened = eqiora.Model.from_bytes(compiled.to_bytes())
+assert reopened.digest == compiled.digest
+assert len(reopened.notation_labels()) == 2
+assert all(entry.definition_span is None for entry in reopened.notation_labels())
+"), Some(&locals), Some(&locals))?;
+        Ok(())
+    })
+}
+
+#[test]
 fn python_notation_uses_the_typed_native_parser_and_preserves_compiled_identity() -> PyResult<()> {
     Python::initialize();
     Python::attach(|py| {

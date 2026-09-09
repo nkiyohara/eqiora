@@ -226,6 +226,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add("__version__", version)?;
     error::register(module)?;
     model::register(module)?;
+    module.add_class::<model::PyQuantityLabel>()?;
     module.add_class::<execution_session::PyExecutionSession>()?;
     module.add_class::<execution_session::PyExecutionCheckpoint>()?;
     module.add_class::<clock::PyClockDomain>()?;

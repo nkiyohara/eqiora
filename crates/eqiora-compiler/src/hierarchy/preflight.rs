@@ -1,4 +1,5 @@
 mod interfaces;
+mod notation;
 pub(crate) use interfaces::model_items as owned_model_items;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -133,6 +134,7 @@ impl DefinitionKey {
 }
 
 pub(super) struct Elaborator<'a> {
+    pub(super) notations: BTreeMap<(String, u32, u32), eqiora_lang::Notation>,
     pub(super) native: Option<&'a eqiora_lang::NativeModelAst>,
     pub(super) enumerations:
         BTreeMap<DefinitionNamespace, BTreeMap<String, crate::enumeration::BoundEnum>>,
@@ -221,6 +223,7 @@ impl<'a> Elaborator<'a> {
                 native.and_then(|native| native.nominal_identity(name))
             })?;
         let elaborator = Self {
+            notations: notation::index(file, document),
             native,
             enumerations: BTreeMap::from([(
                 namespace.clone(),
@@ -301,6 +304,11 @@ impl<'a> Elaborator<'a> {
             })
             .collect();
         let elaborator = Self {
+            notations: analysis
+                .units
+                .iter()
+                .flat_map(|unit| notation::index(&unit.file, &unit.document))
+                .collect(),
             native: None,
             enumerations: analysis
                 .units

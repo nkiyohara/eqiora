@@ -20,6 +20,7 @@ pub mod identity;
 mod lower;
 mod math;
 mod nominal;
+mod notation;
 pub mod projection;
 mod property;
 #[doc(hidden)]
@@ -38,6 +39,7 @@ pub use formulation::{
     AuthoredFormExpressionV1, AuthoredFormulationProjection, CompiledAuthoredFormulation,
 };
 pub use lower::{CompiledModel, ModelSymbols, lower_draft};
+pub use notation::{ModelNotation, QuantityIdentity, QuantityRole, ResolvedNotation};
 pub use resolved::{
     AnalyzedResolvedHierarchy, CanonicalDeclarationIdentity, CanonicalDeclarationKind,
     CompilationNamespaceId, ResolvedDependency, ResolvedHierarchyInput, ResolvedSourceUnit,

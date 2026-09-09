@@ -150,19 +150,13 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-compiler/src/hierarchy/expand.rs"
-ceiling = 2164
+ceiling = 2124
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-compiler/src/hierarchy/supports.rs"
 ceiling = 1285
-reason = "predates the predicate; not yet triaged"
-removal = "split by responsibility in the lane that next modifies it"
-
-[[file_lines]]
-path = "crates/eqiora-compiler/src/identity.rs"
-ceiling = 1401
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -340,7 +334,9 @@ ceiling = 6
 
 [[public_surface]]
 crate = "eqiora-compiler"
-ceiling = 49
+ceiling = 53
+reason = "#879 adds ModelNotation and ResolvedNotation for the one read-only full-model declaration-label projection, plus QuantityIdentity and QuantityRole for exact occurrence/role/family lookup including declarations eliminated from the physical graph. Native and Python consumers reuse existing elaboration identities and provenance through this owner; kernel SymbolRef cannot identify eliminated exposures or constant-substituted declarations."
+removal = "fold label key and role types only when an existing exact occurrence owner preserves role, family and full-model scope for retained and eliminated declarations; withdraw the catalog if declaration-label inspection is removed, and lower the measured count rather than retaining a second resolver"
 
 [[public_surface]]
 crate = "eqiora-core"
@@ -433,7 +429,12 @@ ceiling = 45
 
 [[public_surface]]
 crate = "eqiora-lang"
-ceiling = 91
+ceiling = 93
+# #879 adds NotationLabel/NotationProfile for checked generated suffix composition
+# and shared rich/plain/speech declaration-label projection. Source Notation keeps
+# its admission bounds; native and Python callers use this one projection owner.
+# Remove these types if an existing typed owner preserves generated-label bounds
+# and all profile distinctions without a parallel renderer, then lower the count.
 # #878 adds Notation/NotationError for bounded source and native admission, and
 # NotationNode/Atom/Style/Accent/Mark for typed, read-only declaration inspection.
 # No existing presentation AST owns this algebra. Lower this allowance if a shared

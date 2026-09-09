@@ -122,6 +122,7 @@ EXPECTED_EQIORA_ALL = [
     "ParameterRef",
     "PhysicalDomain",
     "PropertyBinding",
+    "QuantityLabel",
     "Plan",
     "FieldRole",
     "Initial",

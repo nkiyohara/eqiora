@@ -72,6 +72,7 @@ use eqiora_sem::KernelProgram;
 /// aliases used by client presentation layers.
 #[derive(Debug, Clone)]
 pub struct ModelDocument {
+    notation: eqiora_compiler::ModelNotation,
     program: KernelProgram,
     artifact: AcceptedModelArtifact,
     aliases: BTreeMap<String, RawId>,
@@ -90,6 +91,12 @@ impl PartialEq for ModelDocument {
 }
 
 impl ModelDocument {
+    /// Full-Model declaration labels, shared unchanged by every notation subview.
+    /// Bare artifact replay exposes exact-identity labels, not guessed source metadata.
+    #[must_use]
+    pub const fn notation(&self) -> &eqiora_compiler::ModelNotation {
+        &self.notation
+    }
     /// Compile exactly one source model with the current semantic vocabulary.
     ///
     /// # Errors
@@ -261,6 +268,7 @@ impl ModelDocument {
     ) -> Result<Self, Vec<Diagnostic>> {
         let aliases = aliases(compiled.symbols());
         let authored_formulations = compiled.authored_formulations().cloned().collect();
+        let notation = compiled.notation().clone();
         let model = compiled.model();
 
         // Every source/UI/language client crosses the same bounded,
@@ -277,7 +285,8 @@ impl ModelDocument {
             .iter()
             .map(|geometry| (*geometry).clone())
             .collect();
-        let mut document = Self::from_store(store, program, aliases, geometry_authority)?;
+        let mut document =
+            Self::from_store(store, program, aliases, geometry_authority, Some(notation))?;
         document.authored_formulations = authored_formulations;
         Ok(document)
     }
@@ -302,6 +311,7 @@ impl ModelDocument {
         )?;
         let program = KernelProgram::from_snapshot(&store.snapshot(), model)?;
         Ok(Self {
+            notation: eqiora_compiler::ModelNotation::from_kernel(program.model(), program.nodes()),
             program,
             artifact,
             aliases: BTreeMap::new(),
@@ -316,6 +326,7 @@ impl ModelDocument {
         program: KernelProgram,
         aliases: BTreeMap<String, RawId>,
         geometry_authority: Vec<eqiora_geometry::CanonicalGeometryV1>,
+        notation: Option<eqiora_compiler::ModelNotation>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let geometries = geometry_authority.iter().collect::<Vec<_>>();
         let program = KernelProgram::from_snapshot_with_geometry(
@@ -330,6 +341,9 @@ impl ModelDocument {
         let artifact = AcceptedModelArtifact::from_json(&bytes, ModelDecoderLimits::default())
             .map_err(single_diagnostic)?;
         let document = Self {
+            notation: notation.unwrap_or_else(|| {
+                eqiora_compiler::ModelNotation::from_kernel(program.model(), program.nodes())
+            }),
             program,
             artifact,
             aliases,
