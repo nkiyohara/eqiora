@@ -382,3 +382,56 @@ model Magnitude(){parameter x:V=-3;variable y:V;relation value{y=magnitude(x=x);
         );
     }
 }
+
+#[test]
+fn source_sine_and_retained_sine_replay_on_both_scalar_providers() {
+    use eqiora::artifact::{ModelDecoderLimits, ModelEnvelope};
+    for call in ["math.sin(x)", "wave(x=x)"] {
+        let source = format!(
+            "operator wave(input x:1):1=math.sin(x); model Wave(){{parameter x:1=math.pi/2;variable y:1;relation value{{y={call};}}}}"
+        );
+        let document = ModelDocument::compile("sine.eqi", &source).unwrap();
+        if call == "wave(x=x)" {
+            let (ir, _) = property_ir(&document);
+            let point = [real(DimExponents::DIMENSIONLESS, 0.)];
+            let linear = ir
+                .linearize_typed(&point, &[DifferentiationRole::Unknown])
+                .unwrap();
+            let mut tangent = [0.];
+            linear
+                .jvp(RelationTangent::Unknown(&[1.]), &mut tangent)
+                .unwrap();
+            assert_eq!(tangent, [1.]);
+        }
+        let artifact = ModelEnvelope::from_program(document.program()).unwrap();
+        let bytes = artifact.canonical_json().unwrap();
+        let reopened = ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default()).unwrap();
+        assert_eq!(reopened.canonical_json().unwrap(), bytes);
+        let program = reopened.to_program().unwrap();
+        let config = ReferenceConfig::new(0., 1.).unwrap();
+        for program in [document.program(), &program] {
+            for trajectory in [
+                Interpreter::new().run(program, config).unwrap(),
+                CpuExecutor::new()
+                    .run(&CpuProgram::lower(program).unwrap(), config)
+                    .unwrap(),
+            ] {
+                assert!(
+                    (trajectory
+                        .last_value(document.aliases()["y"])
+                        .unwrap()
+                        .value()
+                        - 1.)
+                        .abs()
+                        < 2e-12
+                );
+            }
+        }
+    }
+    for ty in ["V", "complex<1>"] {
+        let source = format!(
+            "operator wave(input x:{ty}):1=math.sin(x); model Wave(){{variable y:1;relation value{{y=0;}}}}"
+        );
+        assert!(ModelDocument::compile("invalid-sine.eqi", &source).is_err());
+    }
+}

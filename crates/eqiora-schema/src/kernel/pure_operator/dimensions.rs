@@ -211,10 +211,18 @@ fn prove(
             }
             CalculusNode::UnaryMath(function, value) => {
                 let mut value = get(*value)?;
-                if *function != super::super::UnaryMathFunction::Sqrt
-                    || value.domain != Some(ScalarDomain::Real)
-                {
+                if value.domain != Some(ScalarDomain::Real) {
                     return Err(PureOperatorError::FormalTypeMismatch);
+                }
+                if *function == super::super::UnaryMathFunction::Sin {
+                    if normalized(formals, &value.dimension)?
+                        != normalized(formals, &dimensionless(formals.len()))?
+                    {
+                        return Err(PureOperatorError::FormalTypeMismatch);
+                    }
+                    value.dimension = dimensionless(formals.len());
+                    proofs.push(value);
+                    continue;
                 }
                 value.dimension.fixed_dimension = value
                     .dimension

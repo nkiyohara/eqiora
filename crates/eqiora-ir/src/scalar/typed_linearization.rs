@@ -115,9 +115,10 @@ impl ScalarOperatorIr {
                 continue;
             }
             match node {
-                Instruction::Neg(a) | Instruction::PowI(a, _) | Instruction::Sqrt(a) => {
-                    pending.push(a)
-                }
+                Instruction::Neg(a)
+                | Instruction::PowI(a, _)
+                | Instruction::Sin(a)
+                | Instruction::Sqrt(a) => pending.push(a),
                 Instruction::Add(a, b)
                 | Instruction::Sub(a, b)
                 | Instruction::Mul(a, b)
@@ -144,6 +145,7 @@ impl ScalarOperatorIr {
             let node = match node {
                 Instruction::Neg(a) => Instruction::Neg(at(a)),
                 Instruction::PowI(a, n) => Instruction::PowI(at(a), n),
+                Instruction::Sin(a) => Instruction::Sin(at(a)),
                 Instruction::Sqrt(a) => Instruction::Sqrt(at(a)),
                 Instruction::Add(a, b) => Instruction::Add(at(a), at(b)),
                 Instruction::Sub(a, b) => Instruction::Sub(at(a), at(b)),
