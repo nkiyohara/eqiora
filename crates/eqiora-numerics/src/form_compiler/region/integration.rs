@@ -24,7 +24,7 @@ pub(super) fn integrate(
     terms: &[IntegralTerm<'_>],
     geometry: &AffineGeometryMap,
     quadrature: &QuadratureRule,
-    values: impl Fn(&[f64], &mut [f64], &mut [f64]) -> Result<(), Diagnostic>,
+    values: impl Fn(&[f64], &mut [f64], &mut [f64], &mut [f64]) -> Result<(), Diagnostic>,
 ) -> Result<LocalContribution, Diagnostic> {
     let dimension = reference.dimension();
     if fields.is_empty()
@@ -68,6 +68,7 @@ pub(super) fn integrate(
         forcing_offsets.push(forcing_offsets.last().unwrap() + components);
     }
     let mut forcing = vec![0.0; *forcing_offsets.last().unwrap()];
+    let mut isotropic_flux = vec![0.0; fields.len()];
     let inverse = geometry.inverse_jacobian()?;
     let mut physical = vec![0.0; dimension];
     for point in quadrature.points() {
@@ -92,10 +93,17 @@ pub(super) fn integrate(
             .collect::<Vec<_>>();
         coefficients.fill(0.0);
         forcing.fill(0.0);
-        values(&physical, &mut coefficients, &mut forcing)?;
+        isotropic_flux.fill(0.0);
+        values(
+            &physical,
+            &mut coefficients,
+            &mut forcing,
+            &mut isotropic_flux,
+        )?;
         if coefficients
             .iter()
             .chain(&forcing)
+            .chain(&isotropic_flux)
             .any(|value| !value.is_finite())
         {
             return Err(invalid("region coefficient or forcing is non-finite"));
@@ -106,6 +114,8 @@ pub(super) fn integrate(
                 for component in 0..*components {
                     rhs[offsets[row] + test * components + component] +=
                         weight * forcing[forcing_offsets[row] + component] * value;
+                    rhs[offsets[row] + test * components + component] -=
+                        weight * isotropic_flux[row] * gradients[row][test][component];
                 }
             }
         }
@@ -166,7 +176,7 @@ pub(in crate::form_compiler) fn integrate_scalar(
         }],
         geometry,
         quadrature,
-        |point, coefficient, forcing| {
+        |point, coefficient, forcing, _| {
             (coefficient[0], forcing[0]) = values(point)?;
             Ok(())
         },

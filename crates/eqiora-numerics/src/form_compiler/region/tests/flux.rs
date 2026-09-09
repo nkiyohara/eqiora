@@ -80,3 +80,110 @@ fn vector_stress_boundary_matches_complete_exact_operator_and_parameter_inventor
         .is_err()
     );
 }
+
+#[test]
+fn uniform_stress_weak_volume_and_oriented_facet_loads_cancel_exactly() {
+    let (_, form, ids) =
+        fixture("2*mu*symmetric_part(grad(u)) + lambda*isotropic_lift(div(u)) + isotropic_lift(p)");
+    let (mut fields, mut rows, _) = inputs(&form, false);
+    for field in &mut fields {
+        field.scale = DynQuantity::new(1.0, field.scale.dim());
+    }
+    for scale in rows.values_mut() {
+        *scale = DynQuantity::new(1.0, scale.dim());
+    }
+    let bound = form
+        .bind(ReferenceCell::simplex(2).unwrap(), &fields, &rows, None)
+        .unwrap();
+    let cell = geometry();
+    let volume = bound
+        .evaluate(
+            &cell,
+            &simplex_duffy_gauss_legendre(2, 2).unwrap(),
+            &BTreeMap::new(),
+        )
+        .unwrap();
+    // Independent weak action: area=1/2, p=3 and gradients (-1,-1),(1,0),(0,1).
+    // Known stress enters the left side; the assembled RHS has its negative.
+    let stress = [-1.5, -1.5, 1.5, 0.0, 0.0, 1.5];
+    for (rhs, stress) in volume.rhs().iter().zip(stress) {
+        close(*rhs, -stress);
+    }
+    let mut traction = [0.0; 6];
+    let mut wrong_normal = [0.0; 6];
+    use eqiora_meshing::{MeshEntity, MeshGeometry, MeshQualityGate, MeshTopology, SimplicialMesh};
+    let mesh = SimplicialMesh::new(
+        2,
+        vec![vec![0.0, 0.0], vec![1.0, 0.0], vec![0.0, 1.0]],
+        vec![vec![0, 1, 2]],
+        MeshQualityGate::new(0.05).unwrap(),
+    )
+    .unwrap();
+    let rule = simplex_duffy_gauss_legendre(1, 2).unwrap();
+    for index in 0..mesh.entity_count(1).unwrap() {
+        let entity = MeshEntity::new(1, index);
+        let facet = mesh.geometry_map(entity).unwrap();
+        let incident = mesh.incidence(entity, 2).unwrap();
+        let [incidence] = incident.as_slice() else {
+            panic!("one parent cell")
+        };
+        let local = bound
+            .evaluate_natural_facet(ids["u"], &cell, (&facet, *incidence), &rule, |_, normal| {
+                Ok(normal.iter().map(|normal| 3.0 * normal).collect())
+            })
+            .unwrap();
+        let reversed = bound
+            .evaluate_natural_facet(ids["u"], &cell, (&facet, *incidence), &rule, |_, normal| {
+                Ok(normal.iter().map(|normal| -3.0 * normal).collect())
+            })
+            .unwrap();
+        for i in 0..6 {
+            traction[i] += local.rhs()[i];
+            wrong_normal[i] += reversed.rhs()[i];
+        }
+    }
+    for i in 0..6 {
+        close(traction[i], stress[i]);
+        close(volume.rhs()[i] + traction[i], 0.0);
+    }
+    assert!(
+        volume
+            .rhs()
+            .iter()
+            .zip(wrong_normal)
+            .any(|(volume, boundary)| (volume + boundary).abs() > 1.0)
+    );
+    // For all-essential zero displacement, full residual reactions retain the
+    // known stress instead of reporting zero from its zero strong divergence.
+    use crate::region_assembly::{
+        PreparedRegionAssembly, RegionAssemblyCell, prepare_reaction_rows,
+    };
+    use eqiora_assembly::{
+        AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyTarget, TargetAssemblyMap,
+    };
+    let constraints =
+        crate::constrained_dofs::ConstrainedDofLayout::new(vec![Some(0.0); 6]).unwrap();
+    let plan = AssemblyPlan::new(vec![AssemblyTarget::new(6).unwrap()]).unwrap();
+    let target = plan.target_id(0).unwrap();
+    let work = PreparedRegionAssembly::new(
+        AssemblyPacketSetIdentityV1::from_sha256([73; 32]),
+        &plan,
+        vec![(bound, simplex_duffy_gauss_legendre(2, 2).unwrap())],
+        &[form.domain()],
+        vec![RegionAssemblyCell {
+            index: 0,
+            geometry: cell,
+            mappings: vec![TargetAssemblyMap::new(
+                target,
+                constraints.full_map(&(0..6).collect::<Vec<_>>()).unwrap(),
+            )],
+            previous: BTreeMap::new(),
+        }],
+        vec![],
+    )
+    .unwrap();
+    let reactions = prepare_reaction_rows(&work, target, 6, &[vec![0]], &(0..6).collect()).unwrap();
+    for (actual, expected) in reactions[0].residual(&[0.0; 6]).unwrap().iter().zip(stress) {
+        close(*actual, expected);
+    }
+}
