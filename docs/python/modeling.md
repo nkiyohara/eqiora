@@ -618,6 +618,48 @@ If a process stops during publication, locked compilation reads the previous
 accepted lock. The next explicit update recovers the saved pair before resolving.
 Concurrent project writes are rejected; retry after the other operation finishes.
 
+## Author exact boundary families
+
+`Module.field_connector` declares named trace and flux quantities. Their
+`ValueType`s determine shape and frame; `spatial_vector=True` uses the existing
+ambient-dimension-dependent spatial vector contract with scalar quantity types.
+`Component.port(..., connector=connector, on=boundary)` binds an individual port.
+
+Use `Component.complete_exterior("exterior", parent=body)` for an exact exterior
+signature requirement. Its `member("face")` handle scopes a boundary family:
+`Component.port(..., on=face)`, `relation(..., on=face)`, and
+`connect(..., over=face)` share that exact binder. Select family ports with
+`port[face]` before reading their named quantities. An ordinary instance binds
+an exterior with `Component.boundaries(left, right, bottom, top)`; the compiler
+checks exact parent identity, duplicate members, and completeness.
+
+When the selected root itself requires an exterior, supply its explicit
+Geometry selections and parent through the same `bindings` argument used by
+`compile` and `compile_package`:
+
+```python
+parent = geometry.selection("body")
+bindings = {
+    "body": parent,
+    "exterior": (
+        tuple(geometry.selection(name) for name in ("left", "right", "bottom", "top")),
+        parent,
+    ),
+}
+```
+
+These Geometry bindings retain the exact canonical revision across emitted
+source and artifact replay. Complete-exterior admission currently uses validated
+Cartesian box and planar rectangle primitive topology.
+`Component.connect_periodic(first, second)` on a Model declaration explicitly
+authors periodic topology; its endpoints must satisfy the compiler and Geometry periodic pairing contract.
+
+`ModuleRef.connector(name)` returns a public imported connector descriptor, and
+`ModuleRef.component(name)` retains its named physical port interfaces. Imported
+ports keep their declaring connector's nominal identity, including boundary
+family selection binders. A locally declared connector with equal quantity types
+is a distinct connector.
+
 ## Compile one exact locked package Model or Component
 
 Python can bind an existing content-addressed package's public Component to

@@ -179,3 +179,85 @@ def test_periodic_topology_is_explicit_and_model_scoped():
     second = root.port("second", connector=connector, on=upper)
     root.connect_periodic(first, second)
     assert "connect periodic first, second;" in module.to_eqi()
+
+
+def selected_exterior(*, component=False):
+    module = eqiora.Module("main")
+    root = module.component("Selected") if component else module.model("Selected")
+    body = root.volume("body", dimensions=2)
+    exterior = root.complete_exterior("exterior", parent=body)
+    member = exterior.member("face")
+    value = root.field("value", value_type=DISPLACEMENT,
+                       role=eqiora.FieldRole.Variable, on=body)
+    root.relation("interior", q.equation(value - value, 0), on=body)
+    root.relation("exterior_law", q.equation(q.trace(value) - q.trace(value), 0), on=member)
+    return module
+
+
+def exterior_bindings(geometry, names=NAMES):
+    parent = geometry.selection("body")
+    return {"body": parent,
+            "exterior": (tuple(geometry.selection(name) for name in names), parent)}
+
+
+@pytest.mark.parametrize("component", (False, True))
+def test_selected_root_complete_exterior_retains_exact_members_on_artifact_replay(component, tmp_path):
+    module = selected_exterior(component=component)
+    geometry = rectangle()
+    values = exterior_bindings(geometry)
+    direct = eqiora.compile(source=module, geometry=geometry, entry="Selected", bindings=values)
+    path = tmp_path / "selected.eqi"
+    module.write_eqi(path)
+    emitted = eqiora.compile(path=path, geometry=geometry, entry="Selected", bindings=values)
+    reordered = eqiora.compile(source=module, geometry=geometry, entry="Selected",
+                               bindings=exterior_bindings(geometry, tuple(reversed(NAMES))))
+    assert direct.to_bytes() == emitted.to_bytes() == reordered.to_bytes()
+    assert eqiora.Model.from_bytes(direct.to_bytes()).digest == direct.digest
+
+
+@pytest.mark.parametrize("names, message", ((NAMES[:-1], "missing Cartesian side"),
+                                           (("left", "left", "bottom", "top"), "more than once"),
+                                           (("body", "right", "bottom", "top"), "boundary")))
+def test_selected_root_exterior_rejects_incomplete_duplicate_and_volume_members(names, message):
+    geometry = rectangle()
+    with pytest.raises(eqiora.ValidationError) as error:
+        eqiora.compile(source=selected_exterior(), geometry=geometry, entry="Selected",
+                       bindings=exterior_bindings(geometry, names))
+    assert any(message.lower() in diagnostic.message.lower() for diagnostic in error.value.diagnostics)
+
+
+def test_selected_root_exterior_rejects_stale_members_and_parent_before_compilation():
+    geometry = rectangle()
+    other = rectangle(x_upper=2)
+    values = exterior_bindings(geometry)
+    members, parent = values["exterior"]
+    for binding in (((other.selection("left"), *members[1:]), parent),
+                    (members, other.selection("body"))):
+        values["exterior"] = binding
+        with pytest.raises(ValueError, match="different exact Geometry revision"):
+            eqiora.compile(source=selected_exterior(), geometry=geometry, entry="Selected", bindings=values)
+
+
+@pytest.mark.parametrize("count", (0, 257))
+def test_selected_root_exterior_adapter_bounds_explicit_member_tuple(count):
+    geometry = rectangle()
+    parent = geometry.selection("body")
+    values = {"body": parent, "exterior": ((geometry.selection("left"),) * count, parent)}
+    with pytest.raises(ValueError, match="between 1 and 256 exact boundary selections"):
+        eqiora.compile(source=selected_exterior(), geometry=geometry, entry="Selected", bindings=values)
+
+
+def test_local_support_binding_preserves_parent_and_dimension_before_reserving_instance_name():
+    module = eqiora.Module("main")
+    law = module.component("Law")
+    law_body = law.volume("body", dimensions=2)
+    law.boundary("face", parent=law_body)
+    root = module.model("Main")
+    body = root.volume("body", dimensions=2)
+    other = root.volume("other", dimensions=2)
+    volume3 = root.volume("volume3", dimensions=3)
+    face = root.boundary("face", parent=body)
+    for parent, message in ((other, "exact bound parent"), (volume3, "ambient dimension")):
+        with pytest.raises(q.ModuleError, match=message):
+            root.instance("child", component=law, bindings={"body": parent, "face": face})
+    root.instance("child", component=law, bindings={"body": body, "face": face})

@@ -112,7 +112,7 @@ public component Exterior(
     assert "mechanical[face in exterior]: parts.Boundary over face" in source
 
 
-def test_imported_boundary_families_compile_with_the_same_separate_geometry_after_source_roundtrip():
+def test_imported_boundary_families_compile_with_the_same_separate_geometry_after_source_roundtrip(tmp_path):
     library = authored_exterior(library=True)
     module = eqiora.Module("main")
     imported = module.import_module("parts", library)
@@ -134,3 +134,22 @@ def test_imported_boundary_families_compile_with_the_same_separate_geometry_afte
     replay = eqiora.compile(source=parsed_root, geometry=geometry, entry="Main", bindings=bindings(geometry))
     assert direct.to_bytes() == replay.to_bytes()
     assert eqiora.Model.from_bytes(replay.to_bytes()).digest == direct.digest
+
+    project = tmp_path / "project"
+    (project / "src").mkdir(parents=True)
+    (project / "eqiora.toml").write_text(
+        '[package]\nname="org.example.Exterior"\nversion="1.0.0"\nentry="main"\n')
+    module.write_eqi(project / "src/main.eqi")
+    library.write_eqi(project / "src/parts.eqi")
+    store = tmp_path / "store"
+    store.mkdir()
+    resolution = eqiora.update_project(project, store)
+    packaged = eqiora.compile_package(store, resolution, entry="Main", geometry=geometry,
+                                      bindings=bindings(geometry))
+    vendor = project / "vendor"
+    vendor.mkdir()
+    assert eqiora.vendor_project(project, store, vendor) == resolution
+    reopened = eqiora.compile_package(vendor, resolution, entry="Main", geometry=geometry,
+                                      bindings=bindings(geometry))
+    assert packaged.to_bytes() == reopened.to_bytes()
+    assert eqiora.Model.from_bytes(reopened.to_bytes()).digest == packaged.digest

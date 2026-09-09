@@ -235,6 +235,17 @@ def support_binding(component, required, value, bindings):
     if isinstance(required, BoundarySet):
         if bindings.get(required._parent._name) is not value._parent:
             raise ModuleError("complete exterior binding must preserve its exact bound parent")
+    else:
+        required_detail = next(detail for definition in component._source._components
+                               if definition._component_token is required._component
+                               for support, _, detail, _ in definition._supports
+                               if support is required)
+        actual_detail = next(detail for support, _, detail, _ in component._supports
+                             if support is value)
+        if required._kind == "volume" and required_detail != actual_detail:
+            raise ModuleError("volume binding must preserve the ambient dimension")
+        if required._kind == "boundary" and bindings.get(required_detail._name) is not actual_detail:
+            raise ModuleError("boundary binding must preserve its exact bound parent")
 
 
 def support_expression(value):

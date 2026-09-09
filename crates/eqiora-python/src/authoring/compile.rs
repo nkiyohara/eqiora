@@ -24,7 +24,8 @@ pub(super) fn _compile_module(
         let authority = geometry
             .as_ref()
             .map(|geometry| geometry.borrow(py).geometry().clone());
-        let values = crate::static_bindings::extract(bindings, authority.as_ref())?;
+        let binding_geometry = authority.as_ref();
+        let values = crate::static_bindings::extract(bindings, binding_geometry)?;
         if units.len() > 256 {
             return Err(pyo3::exceptions::PyValueError::new_err(
                 "module closure exceeds 256 units",
@@ -43,7 +44,7 @@ pub(super) fn _compile_module(
             .detach(move || {
                 let bindings = values
                     .iter()
-                    .map(|(name, value)| (name.as_str(), value.borrowed(authority.as_ref())))
+                    .map(|(name, value)| (name.as_str(), value.borrowed(binding_geometry)))
                     .collect::<Vec<_>>();
                 if let [(name, module)] = units.as_slice()
                     && name == &root

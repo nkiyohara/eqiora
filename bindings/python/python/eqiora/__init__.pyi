@@ -1700,7 +1700,7 @@ def compile(
     source: str | Module | None = None,
     filename: str | None = None,
     geometry: geometry.Geometry | None = None,
-    bindings: dict[str, _TypedValue | ClockDomain | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection]] | None = None,
+    bindings: dict[str, _TypedValue | ClockDomain | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection] | tuple[tuple[geometry.GeometrySelection, ...], geometry.GeometrySelection]] | None = None,
     entry: str | None = None,
 ) -> Model:
     """Compile one source and its optional exact Geometry closure.
@@ -1716,7 +1716,7 @@ def compile_package(
     *,
     entry: str,
     geometry: geometry.Geometry | None = None,
-    bindings: dict[str, _TypedValue | ClockDomain | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection]] | None = None,
+    bindings: dict[str, _TypedValue | ClockDomain | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection] | tuple[tuple[geometry.GeometrySelection, ...], geometry.GeometrySelection]] | None = None,
 ) -> Model:
     """Compile one locked Model or one Component using the supplied Geometry.
 
