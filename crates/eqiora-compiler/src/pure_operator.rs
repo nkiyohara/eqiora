@@ -132,7 +132,7 @@ fn compile_local(
                 }
                 if !matches!(
                     callee.as_str(),
-                    "component" | "rational" | "delta" | "math.sqrt"
+                    "component" | "rational" | "delta" | "math.sqrt" | "math.sin"
                 ) && crate::math::piecewise::arity(callee.as_str()).is_none()
                 {
                     callees.push((callee.clone(), expression.range()));
@@ -404,7 +404,7 @@ fn compile_expression(
             }
         }
         ExprKind::Call { callee, arguments }
-            if callee.as_str() == "math.sqrt"
+            if matches!(callee.as_str(), "math.sqrt" | "math.sin")
                 || crate::math::piecewise::arity(callee.as_str()).is_some() =>
         {
             let arguments = arguments.positional().ok_or_else(|| {
@@ -420,15 +420,22 @@ fn compile_expression(
                     compile_expression(file, argument, formals, sources, compiled, builder)
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            if callee.as_str() == "math.sqrt" {
+            if matches!(callee.as_str(), "math.sqrt" | "math.sin") {
                 let [value] = arguments.as_slice() else {
                     return Err(pure_error(
                         file,
                         expression.range(),
-                        "math.sqrt requires one operand",
+                        "unary mathematical function requires one operand",
                     ));
                 };
-                CalculusNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Sqrt, *value)
+                CalculusNode::UnaryMath(
+                    if callee.as_str() == "math.sin" {
+                        eqiora_schema::kernel::UnaryMathFunction::Sin
+                    } else {
+                        eqiora_schema::kernel::UnaryMathFunction::Sqrt
+                    },
+                    *value,
+                )
             } else {
                 return piecewise_calculus(
                     file,
