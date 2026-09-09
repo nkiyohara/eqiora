@@ -60,6 +60,10 @@ pub enum EntityKind {
     IndexSet,
     /// One nominal declaration of closed finite alternatives.
     Enum,
+    /// Nominal closed heterogeneous product declaration.
+    Record,
+    /// Occurrence of one exact closed product declaration.
+    RecordInstance,
     // --- Realization Graph ---
     /// Discrete function space realizing a field.
     Space,
@@ -146,6 +150,8 @@ impl EntityKind {
             | Self::Relation
             | Self::Activation
             | Self::Connection
+            | Self::Record
+            | Self::RecordInstance
             | Self::Enum
             | Self::IndexSet
             | Self::FiniteSpace
@@ -259,6 +265,14 @@ pub mod kinds {
     define_entity!(
         /// See [`super::EntityKind::IndexSet`].
         IndexSet in Semantic
+    );
+    define_entity!(
+        /// See [`super::EntityKind::Record`].
+        Record in Semantic
+    );
+    define_entity!(
+        /// See [`super::EntityKind::RecordInstance`].
+        RecordInstance in Semantic
     );
     define_entity!(
         /// See [`super::EntityKind::Enum`].

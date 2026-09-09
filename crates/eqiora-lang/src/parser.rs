@@ -20,6 +20,7 @@ mod nominal;
 mod notation;
 mod operator;
 mod property;
+mod record;
 mod recovery;
 mod relation;
 mod select;

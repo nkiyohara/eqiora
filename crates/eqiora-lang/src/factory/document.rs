@@ -109,6 +109,7 @@ impl SourceAstFactory {
             .map(|(name, expression, range)| Self::dimension_alias(name, expression, range))
             .collect::<Result<_, _>>()?;
         Ok(Document {
+            records: Vec::new(),
             comments: Default::default(),
             imports: Vec::new(),
             enumerations,
@@ -147,6 +148,7 @@ impl SourceAstFactory {
             ));
         }
         Ok(Document {
+            records: Vec::new(),
             comments: Default::default(),
             imports: Vec::new(),
             enumerations,
@@ -184,6 +186,7 @@ impl SourceAstFactory {
             ));
         }
         Ok(Document {
+            records: Vec::new(),
             comments: Default::default(),
             imports: Vec::new(),
             enumerations,
@@ -210,6 +213,7 @@ impl SourceAstFactory {
             ));
         }
         Ok(Document {
+            records: Vec::new(),
             comments: Default::default(),
             imports: Vec::new(),
             enumerations: Vec::new(),

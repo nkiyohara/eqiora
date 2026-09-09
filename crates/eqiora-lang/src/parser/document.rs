@@ -8,6 +8,7 @@ impl Parser<'_> {
     pub(super) fn parse_document(&mut self) -> Option<Document> {
         let mut imports = Vec::new();
         let mut enumerations = Vec::new();
+        let mut records = Vec::new();
         let mut dimensions = Vec::new();
         let mut finite_spaces = Vec::new();
         let mut property_contracts = Vec::new();
@@ -45,6 +46,14 @@ impl Parser<'_> {
                 }
                 if let Some(import) = self.parse_import(declaration_start) {
                     imports.push(import);
+                } else {
+                    self.recover_top_level();
+                }
+            } else if self.at_keyword("record") {
+                import_prefix_closed = true;
+                declarations_started = true;
+                if let Some(declaration) = self.parse_record(declaration_start, visibility) {
+                    records.push(declaration);
                 } else {
                     self.recover_top_level();
                 }
@@ -164,6 +173,7 @@ impl Parser<'_> {
             }
         }
         (!(imports.is_empty()
+            && records.is_empty()
             && enumerations.is_empty()
             && finite_spaces.is_empty()
             && dimensions.is_empty()
@@ -175,6 +185,7 @@ impl Parser<'_> {
             && pure_operators.is_empty()
             && models.is_empty()))
         .then_some(Document {
+            records,
             comments: Default::default(),
             imports,
             enumerations,

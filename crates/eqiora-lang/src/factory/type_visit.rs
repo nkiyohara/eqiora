@@ -10,6 +10,11 @@ impl super::SourceAstFactory {
         document: &mut Document,
         mut visit: impl FnMut(Option<&str>, &mut ValueTypeSyntax),
     ) {
+        for record in &mut document.records {
+            for member in &mut record.members {
+                visit(None, &mut member.value_type);
+            }
+        }
         for contract in &mut document.property_contracts {
             visit(None, &mut contract.value_type);
         }

@@ -612,6 +612,10 @@ pub enum KernelNode {
     IndexSet(super::IndexSetDef),
     /// One closed nominal enum declaration.
     Enum(super::EnumDef),
+    /// Closed nominal heterogeneous product declaration.
+    Record(super::RecordDef),
+    /// Ordered member bindings of one exact record occurrence.
+    RecordInstance(super::RecordInstanceDef),
     /// ClockDomain definition.
     ClockDomain(ClockDomainDef),
 }
@@ -632,6 +636,8 @@ impl KernelNode {
             Self::ClockDomain(value) => value.id().erase(),
             Self::FiniteSpace(value) => value.id().erase(),
             Self::Enum(value) => value.id().erase(),
+            Self::Record(value) => value.id().erase(),
+            Self::RecordInstance(value) => value.id().erase(),
             Self::IndexSet(value) => value.id().erase(),
         }
     }
@@ -651,6 +657,8 @@ impl KernelNode {
             Self::ClockDomain(_) => EntityKind::ClockDomain,
             Self::FiniteSpace(_) => EntityKind::FiniteSpace,
             Self::Enum(_) => EntityKind::Enum,
+            Self::Record(_) => EntityKind::Record,
+            Self::RecordInstance(_) => EntityKind::RecordInstance,
             Self::IndexSet(_) => EntityKind::IndexSet,
         }
     }

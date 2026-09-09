@@ -62,6 +62,7 @@ pub(crate) struct ImportDecl {
 pub struct Document {
     pub(crate) comments: super::comments::SourceComments,
     pub(crate) imports: Vec<ImportDecl>,
+    pub(crate) records: Vec<super::RecordDecl>,
     pub(crate) enumerations: Vec<super::EnumDecl>,
     pub(crate) finite_spaces: Vec<super::NamedDefinitionDecl>,
     pub(crate) dimensions: Vec<NamedDefinitionDecl>,
@@ -75,6 +76,12 @@ pub struct Document {
 }
 
 impl Document {
+    /// Closed record declarations in authored order.
+    #[must_use]
+    pub fn records(&self) -> &[super::RecordDecl] {
+        &self.records
+    }
+
     /// Module-level enum declarations in authored order.
     #[must_use]
     pub fn enumerations(&self) -> &[super::EnumDecl] {
