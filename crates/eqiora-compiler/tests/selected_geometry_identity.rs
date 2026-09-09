@@ -254,9 +254,14 @@ fn external_family_rejects_foreign_selection_and_parent_before_topology() {
 }
 
 fn selected_exterior_source() -> String {
-    EXTERIOR.replace("support left: boundary(parent = body), support right:", "support exterior: complete_exterior(parent = body), support left: boundary(parent = body), support right:")
-        .replace("boundaries(left, right, bottom, top)", "exterior")
-        .replace("component Wrapper", "public component Wrapper")
+    let source = EXTERIOR.replace("support left: boundary(parent = body), support right:", "support exterior: complete_exterior(parent = body), support left: boundary(parent = body), support right:")
+        .replace("boundaries(left, right, bottom, top)", "exterior");
+    source.replace("model M(", r#"public component ClosedExterior(support body: volume(ambient_dimension=2), support exterior: complete_exterior(parent=body)) {
+        instance a: Wrapper(body=body, exterior=exterior);
+        instance b: Wrapper(body=body, exterior=exterior);
+        connect [side in exterior] a.p[side=side], b.p[side=side];
+    }
+    model M("#)
 }
 
 #[test]
@@ -265,7 +270,7 @@ fn direct_selected_exterior_retains_exact_members_in_source_and_native() {
     let source = selected_exterior_source();
     let members = ["left", "right", "bottom", "top"].map(|name| geometry.entity_set(name).unwrap());
     let reversed = members.iter().rev().copied().collect::<Vec<_>>();
-    for entry in ["M", "Wrapper"] {
+    for entry in ["M", "ClosedExterior"] {
         let compile = |members| {
             let mut bindings = vec![
                 ("body", selection(&geometry, "body", None)),
