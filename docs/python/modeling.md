@@ -386,6 +386,44 @@ To retain exact package provenance, emit the `.eqi` into a Model Package, lock
 it, and use `compile_package`. That route exposes the existing immutable
 `property_bindings` inspection. Local compilation does not retain package provenance.
 
+### Exact analytic and table properties
+
+Contracts can declare ordered named real inputs and `first_partials` or
+`first_open_intervals` derivative profiles. Use `contract.input(name)` in an analytic
+release and apply the Component requirement with named arguments. Imported contracts and
+releases retain the exact public declaration identity through `ModuleRef.property_contract`
+and `ModuleRef.property_release`.
+
+The [maintained table example](../../bindings/python/tests/test_table_property_authoring.py)
+authors the complete offline package, its exact resolved array and citation/license documents,
+and two independent consumers. Its property declaration uses:
+
+```python
+source = eqiora.Module("main", package="org.example.PythonTable")
+temperature = eqiora.ValueType.real(eqiora.Dimension(temperature=1))
+conductivity = eqiora.ValueType.real(
+    eqiora.Dimension(mass=1, length=1, time=-3, temperature=-1)
+)
+contract = source.property_contract(
+    "Conductivity", value_type=conductivity, inputs={"temperature": temperature},
+    derivatives="first_open_intervals",
+)
+samples = source.property_table_release(
+    "Samples", implements=contract, data="conductivity_samples",
+    axis_unit=u.K, source_unit=u.kg * u.m / u.s**3 / u.K,
+    validity=(q.quantity(300, u.K), q.quantity(360, u.K)),
+    citation="synthetic_definition", license="repository_license",
+)
+```
+
+The full example writes `data/conductivity_samples.json` with exact points
+`(300, 10), (320, 14), (360, 18)` and both attribution files under `docs/` before
+`resolve_local_project` and `compile_package`. At 310 K and 340 K it checks Fourier
+fluxes −24 and −32 W/m² and conductances 1.2 and 1.6 W/K. Table values enforce the
+closed validity interval; active first derivatives reject knots and endpoints.
+The [independent derivation](../language/data-backed-property.md) states the arithmetic
+and non-claims. This local specimen is not a published standard package.
+
 The complete current vocabulary and steady-cylinder Component are shown in
 [`examples/python/steady_cylinder_source.py`](../../examples/python/steady_cylinder_source.py).
 The source authoring API supports one public Component, public volume/parent-boundary
@@ -771,14 +809,14 @@ store-mismatched resolution bytes fail closed. Missing or ambiguous support
 bindings fail instead of matching Geometry by bounds, coordinates, or digest.
 
 `package_compilation_digest` identifies the package compilation.
-When the package binds an exact typed constant property release, `property_bindings` is
-read-only metadata about the contract, release, consuming Component, value type,
-coherent-SI value, validity, citation, and license.
+`property_bindings` is read-only metadata about exact constant, analytic and table
+releases: contract, consuming Component, input names, derivative profile, value type,
+validity, citation and license. `normalized_value` is present only for constant releases.
 The resulting `Model` enters ordinary `eqiora.resolve(model, mesh=..., ...)` and
 `eqiora.run(plan)`; its `Plan` and `Run` retain the same digest. Bare Model JSON
 still carries Model/Geometry meaning but not the package sidecar, so replayed
-Models use the same resolver with `package_compilation_digest is None` and an
-empty `property_bindings` tuple. Supply the store and lock bytes explicitly; this function works locally.
+Models use the same resolver with `package_compilation_digest is None` while retaining
+the exact `property_bindings` carried by Model expression occurrences. Supply the store and lock bytes explicitly; this function works locally.
 
 ## Check one exact package structurally
 

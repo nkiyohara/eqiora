@@ -98,7 +98,7 @@ public property release Uniform: Displacement {
     root = source.model("Main")
     clock = root.clock("tick", period_s=1)
     occurrence = root.instance("travel", component=consumer,
-                               bindings={"tick": clock, "elapsed": 3, "displacement": measured})
+                               bindings={"tick": clock, "elapsed": q.quantity(3, u.s), "displacement": measured})
     observed = root.output("distance", value_type=length, at=clock)
     root.relation("observe", q.equation(observed, occurrence["distance"]), at=clock)
     model = eqiora.compile(source=source, entry="Main")
