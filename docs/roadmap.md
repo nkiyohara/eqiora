@@ -7,9 +7,9 @@ the [capability matrix](capability-matrix.md).
 
 ## Next release
 
-The [next release checkpoint](https://github.com/nkiyohara/eqiora/issues/1131)
-brings the language and Python APIs together around ordinary circuit, thermal,
-sampled-system, and property workflows. Its remaining work includes:
+The next release checkpoint brings the language and Python APIs together around
+ordinary circuit, thermal, sampled-system, and property workflows. Its remaining
+work includes:
 
 - records and enums for structured values and buses;
 - named connectors, exact boundaries, and component composition;
@@ -26,8 +26,7 @@ functionals need integration history that is independent of plotting cadence.
 These dependencies are part of the release work.
 
 The broader tensor, complex-number, and eigenproblem portfolio follows this
-checkpoint. The [GPU/XLA exploration](https://github.com/nkiyohara/eqiora/issues/1129)
-also follows the release.
+checkpoint. GPU/XLA exploration also follows the release.
 
 ## Implemented foundations
 
