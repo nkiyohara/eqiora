@@ -2173,12 +2173,12 @@ mod tests {
                 "  instance solid_y_upper_zero: ZeroVelocity2d(\n    body = solid, face = solid_y_upper\n  );\n  instance solid_z_lower_zero: ZeroVelocity2d(\n    body = solid, face = solid_z_lower\n  );\n  instance solid_z_upper_zero: ZeroVelocity2d(\n    body = solid, face = solid_z_upper\n  );",
             ),
             (
-                "  connect\n    fluid_boundary.mechanical[boundary = fluid_y_upper],\n    fluid_y_upper_zero.mechanical;",
-                "  connect\n    fluid_boundary.mechanical[boundary = fluid_y_upper],\n    fluid_y_upper_zero.mechanical;\n  connect\n    fluid_boundary.mechanical[boundary = fluid_z_lower],\n    fluid_z_lower_zero.mechanical;\n  connect\n    fluid_boundary.mechanical[boundary = fluid_z_upper],\n    fluid_z_upper_zero.mechanical;",
+                "  connect fluid_boundary.mechanical[boundary = fluid_y_upper],\n    fluid_y_upper_zero.mechanical;",
+                "  connect fluid_boundary.mechanical[boundary = fluid_y_upper],\n    fluid_y_upper_zero.mechanical;\n  connect fluid_boundary.mechanical[boundary = fluid_z_lower],\n    fluid_z_lower_zero.mechanical;\n  connect fluid_boundary.mechanical[boundary = fluid_z_upper],\n    fluid_z_upper_zero.mechanical;",
             ),
             (
-                "  connect\n    solid_boundary.mechanical[boundary = solid_y_upper],\n    solid_y_upper_zero.mechanical;",
-                "  connect\n    solid_boundary.mechanical[boundary = solid_y_upper],\n    solid_y_upper_zero.mechanical;\n  connect\n    solid_boundary.mechanical[boundary = solid_z_lower],\n    solid_z_lower_zero.mechanical;\n  connect\n    solid_boundary.mechanical[boundary = solid_z_upper],\n    solid_z_upper_zero.mechanical;",
+                "  connect solid_boundary.mechanical[boundary = solid_y_upper],\n    solid_y_upper_zero.mechanical;",
+                "  connect solid_boundary.mechanical[boundary = solid_y_upper],\n    solid_y_upper_zero.mechanical;\n  connect solid_boundary.mechanical[boundary = solid_z_lower],\n    solid_z_lower_zero.mechanical;\n  connect solid_boundary.mechanical[boundary = solid_z_upper],\n    solid_z_upper_zero.mechanical;",
             ),
         ] {
             replace_exactly(&mut source, from, to, 1);

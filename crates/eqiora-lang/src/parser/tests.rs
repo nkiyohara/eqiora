@@ -714,13 +714,16 @@ exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
         panic!("fourth component member is a Relation family");
     };
     assert_eq!(relation.relation().domain(), Some("boundary"));
-    let ExprKind::Call { arguments, .. } = relation.relation().equations()[0].left().kind() else {
-        panic!("family Relation residual contains flux selection");
+    let ExprKind::Member { value, member } = relation.relation().equations()[0].left().kind()
+    else {
+        panic!("family Relation equation reads a named Port quantity");
     };
+    assert_eq!(member, "traction");
     assert!(matches!(
-        arguments.positional().unwrap()[0].kind(),
-        ExprKind::BoundaryPortSelection { selector, .. }
-            if selector.member() == "boundary" && selector.target() == "boundary"
+        value.kind(),
+        ExprKind::BoundaryPortSelection { port, selector }
+            if port.as_str() == "mechanical"
+                && selector.member() == "boundary" && selector.target() == "boundary"
     ));
 
     let ComponentItem::BoundaryConnection(connection) = &component.items()[1] else {
