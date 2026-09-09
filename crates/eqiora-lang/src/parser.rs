@@ -184,21 +184,39 @@ impl Parser<'_> {
     ) -> Option<ConnectorDecl> {
         self.expect_keyword("connector")?;
         let name = self.expect_identifier("Connector name")?.text().to_owned();
-        self.expect(TokenKind::Equal, "`=` before Connector family")?;
-        let syntax = if self.at_keyword("scalar_physical") {
-            let (across_type, through_type) = self.parse_scalar_physical_types()?;
+        self.expect(TokenKind::LeftBrace, "`{` before Connector quantities")?;
+        let syntax = if self.at_keyword("across") {
+            self.bump();
+            let across_name = self
+                .expect_identifier("across quantity name")?
+                .text()
+                .to_owned();
+            self.expect(TokenKind::Colon, "`:` before across type")?;
+            let across_type = self.parse_value_type()?;
+            self.expect(TokenKind::Semicolon, "`;` after across quantity")?;
+            self.expect_keyword("through")?;
+            let through_name = self
+                .expect_identifier("through quantity name")?
+                .text()
+                .to_owned();
+            self.expect(TokenKind::Colon, "`:` before through type")?;
+            let through_type = self.parse_value_type()?;
+            self.expect(TokenKind::Semicolon, "`;` after through quantity")?;
+            if across_name == through_name {
+                self.error_previous("Connector quantity names must be distinct");
+                return None;
+            }
             ConnectorSyntax::ScalarPhysical {
+                across_name,
                 across_type,
+                through_name,
                 through_type,
             }
-        } else if self.at_keyword("field_physical") {
-            self.parse_field_physical_connector()?
         } else {
-            self.error_here("expected `scalar_physical(...)` or `field_physical(...)`");
-            return None;
+            self.parse_field_physical_connector()?
         };
         let end = self
-            .expect(TokenKind::Semicolon, "`;` after Connector")?
+            .expect(TokenKind::RightBrace, "`}` after Connector quantities")?
             .range()
             .end();
         Some(ConnectorDecl {
@@ -253,35 +271,50 @@ impl Parser<'_> {
 
     fn parse_scalar_physical_types(
         &mut self,
-    ) -> Option<(crate::ValueTypeSyntax, crate::ValueTypeSyntax)> {
+    ) -> Option<(
+        String,
+        crate::ValueTypeSyntax,
+        String,
+        crate::ValueTypeSyntax,
+    )> {
         self.expect_keyword("scalar_physical")?;
         self.expect(TokenKind::LeftParen, "`(` after `scalar_physical`")?;
         self.expect_keyword("across")?;
-        self.expect(TokenKind::Equal, "`=` after `across`")?;
+        let across_name = self
+            .expect_identifier("across quantity name")?
+            .text()
+            .to_owned();
+        self.expect(TokenKind::Colon, "`:` before across type")?;
         let across_type = self.parse_value_type()?;
         self.expect(TokenKind::Comma, "`,` between physical types")?;
         self.expect_keyword("through")?;
-        self.expect(TokenKind::Equal, "`=` after `through`")?;
+        let through_name = self
+            .expect_identifier("through quantity name")?
+            .text()
+            .to_owned();
+        self.expect(TokenKind::Colon, "`:` before through type")?;
         let through_type = self.parse_value_type()?;
         self.expect(TokenKind::RightParen, "`)` after physical types")?;
-        Some((across_type, through_type))
+        if across_name == through_name {
+            self.error_previous("physical quantity names must be distinct");
+            return None;
+        }
+        Some((across_name, across_type, through_name, through_type))
     }
 
     fn parse_field_physical_connector(&mut self) -> Option<ConnectorSyntax> {
-        self.expect_keyword("field_physical")?;
-        self.expect(TokenKind::LeftParen, "`(` after `field_physical`")?;
         let mut trace = None;
         let mut flux = None;
         let mut shape = None;
         let mut frame = None;
         let mut pairing = None;
+        let mut orientation = None;
 
-        while !self.at(TokenKind::RightParen) && !self.at(TokenKind::Eof) {
+        while !self.at(TokenKind::RightBrace) && !self.at(TokenKind::Eof) {
             let field = self
                 .expect_identifier("field-physical Connector field")?
                 .text()
                 .to_owned();
-            self.expect(TokenKind::Equal, "`=` after Connector field name")?;
             match field.as_str() {
                 "trace" => {
                     if trace.is_some() {
@@ -328,6 +361,14 @@ impl Parser<'_> {
                     self.expect_keyword("euclidean_boundary_duality")?;
                     pairing = Some(BoundaryPairingSyntax::EuclideanBoundaryDuality);
                 }
+                "orientation" => {
+                    if orientation.is_some() {
+                        self.error_previous("duplicate `orientation` Connector field");
+                        return None;
+                    }
+                    self.expect_keyword("parent_outward")?;
+                    orientation = Some(());
+                }
                 _ => {
                     self.error_previous(format!(
                         "unknown field-physical Connector field `{field}`"
@@ -335,22 +376,18 @@ impl Parser<'_> {
                     return None;
                 }
             }
-            if self.at(TokenKind::Comma) {
-                self.bump();
-                if self.at(TokenKind::RightParen) {
-                    self.error_here("trailing comma is not admitted in `field_physical(...)`");
-                    return None;
-                }
-            } else if !self.at(TokenKind::RightParen) {
-                self.error_here("expected `,` or `)` after Connector field");
-                return None;
-            }
+            self.expect(TokenKind::Semicolon, "`;` after Connector contract entry")?;
         }
-        self.expect(TokenKind::RightParen, "`)` after field-physical Connector")?;
-
+        self.require_connector_field(orientation, "orientation parent_outward")?;
+        let trace = self.require_connector_field(trace, "trace")?;
+        let flux = self.require_connector_field(flux, "flux")?;
+        if trace.name == flux.name {
+            self.error_previous("Connector quantity names must be distinct");
+            return None;
+        }
         Some(ConnectorSyntax::FieldPhysical {
-            trace: self.require_connector_field(trace, "trace")?,
-            flux: self.require_connector_field(flux, "flux")?,
+            trace,
+            flux,
             shape: self.require_connector_field(shape, "shape")?,
             frame: self.require_connector_field(frame, "frame")?,
             pairing: self.require_connector_field(pairing, "pairing")?,
@@ -574,43 +611,25 @@ impl Parser<'_> {
         self.expect(TokenKind::Colon, "`:` before Port contract")?;
         let syntax = if self.at_keyword("signal") {
             self.parse_signal_port_syntax()?
-        } else if self.at_keyword("conserving") {
-            self.bump();
-            if self.at_keyword("on") {
+        } else {
+            let connector = self.parse_name_path("physical Domain or Connector name")?;
+            if self.at_keyword("over") {
                 self.bump();
-                PortSyntax::ScalarPhysical {
-                    domain: self
-                        .expect_identifier("scalar physical Domain name")?
+                PortSyntax::FieldPhysical {
+                    connector,
+                    support: self
+                        .expect_identifier("boundary support name")?
                         .text()
                         .to_owned(),
                 }
-            } else {
-                let connector = self
-                    .at(TokenKind::Identifier)
-                    .then(|| self.parse_name_path("field-physical Connector name"))
-                    .flatten();
-                match connector {
-                    Some(connector) if self.at_keyword("over") => {
-                        self.bump();
-                        PortSyntax::FieldPhysical {
-                            connector,
-                            support: self
-                                .expect_identifier("boundary support name")?
-                                .text()
-                                .to_owned(),
-                        }
-                    }
-                    _ => {
-                        self.error_here(
-                            "conserving Port requires a physical Domain or boundary Connector",
-                        );
-                        return None;
-                    }
+            } else if connector.segments().count() == 1 {
+                PortSyntax::ScalarPhysical {
+                    domain: connector.as_str().to_owned(),
                 }
+            } else {
+                self.error_here("a model-local physical Domain requires a local declaration name");
+                return None;
             }
-        } else {
-            self.error_here("expected `signal` or `conserving` Port contract");
-            return None;
         };
         let end = self
             .expect(TokenKind::Semicolon, "`;` after Port declaration")?
@@ -642,16 +661,10 @@ impl Parser<'_> {
         self.expect(TokenKind::Colon, "`:` before component Port contract")?;
         let syntax = if self.at_keyword("signal") {
             self.parse_signal_port_syntax()?
-        } else if self.at_keyword("conserving") {
-            self.bump();
-            if self.at_keyword("on") {
+        } else {
+            let connector = self.parse_name_path("physical Connector name")?;
+            if self.at_keyword("over") {
                 self.bump();
-                PortSyntax::ScalarPhysicalConnector {
-                    connector: self.parse_name_path("scalar physical Connector name")?,
-                }
-            } else {
-                let connector = self.parse_name_path("field-physical Connector name")?;
-                self.expect_keyword("over")?;
                 PortSyntax::FieldPhysical {
                     connector,
                     support: self
@@ -659,10 +672,9 @@ impl Parser<'_> {
                         .text()
                         .to_owned(),
                 }
+            } else {
+                PortSyntax::ScalarPhysicalConnector { connector }
             }
-        } else {
-            self.error_here("expected `signal` or `conserving on Connector` Port contract");
-            return None;
         };
         let end = if terminated {
             self.expect(TokenKind::Semicolon, "`;` after component Port")?

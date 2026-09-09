@@ -15,18 +15,19 @@ const FORWARDED: &str = include_str!(
 );
 
 const FORWARDED_PERMUTED: &str = r#"
-public connector MechanicalBoundary = field_physical(
-  flux = traction: kg / (m * s ^ 2),
-  trace = displacement: m,
-  pairing = euclidean_boundary_duality,
-  frame = spatial,
-  shape = spatial_vector
-);
+public connector MechanicalBoundary {
+  flux traction: kg / (m * s ^ 2);
+  trace displacement: m;
+  pairing euclidean_boundary_duality;
+  frame spatial;
+  shape spatial_vector;
+  orientation parent_outward;
+}
 
 public component ExteriorWrapper(
   support exterior: complete_exterior(parent = body),
   support body: volume(ambient_dimension = 2),
-  port mechanical[boundary in exterior]: conserving MechanicalBoundary over boundary
+  port mechanical[boundary in exterior]: MechanicalBoundary over boundary
 ) {
 
   instance child: ExteriorLaw(
@@ -34,7 +35,7 @@ public component ExteriorWrapper(
     body = body
   );
 
-  connect conserving [boundary in exterior]
+  connect [boundary in exterior]
     mechanical[boundary = boundary],
     child.mechanical[boundary = boundary];
 }
@@ -42,25 +43,25 @@ public component ExteriorWrapper(
 public component BoundaryTerminal(
   support face: boundary(parent = body),
   support body: volume(ambient_dimension = 2),
-  port mechanical: conserving MechanicalBoundary over face
+  port mechanical: MechanicalBoundary over face
 ) {
 
   relation terminal_law on face {
-    trace(mechanical) - trace(mechanical) = 0;
-    flux(mechanical) - flux(mechanical) = 0;
+    mechanical.displacement - mechanical.displacement = 0;
+    mechanical.traction - mechanical.traction = 0;
   }
 }
 
 public component ExteriorLaw(
   support exterior: complete_exterior(parent = body),
   support body: volume(ambient_dimension = 2),
-  port mechanical[boundary in exterior]: conserving MechanicalBoundary over boundary
+  port mechanical[boundary in exterior]: MechanicalBoundary over boundary
 ) {
   relation boundary_law[boundary in exterior] on boundary {
-    trace(mechanical[boundary = boundary])
-      - trace(mechanical[boundary = boundary]) = 0;
-    flux(mechanical[boundary = boundary])
-      - flux(mechanical[boundary = boundary]) = 0;
+    mechanical[boundary = boundary].displacement
+      - mechanical[boundary = boundary].displacement = 0;
+    mechanical[boundary = boundary].traction
+      - mechanical[boundary = boundary].traction = 0;
   }
 
 }
@@ -93,13 +94,13 @@ model Main() {
     body = body
   );
 
-  connect conserving y_upper_terminal.mechanical,
+  connect y_upper_terminal.mechanical,
     wrapped.mechanical[boundary = y_upper];
-  connect conserving y_lower_terminal.mechanical,
+  connect y_lower_terminal.mechanical,
     wrapped.mechanical[boundary = y_lower];
-  connect conserving x_upper_terminal.mechanical,
+  connect x_upper_terminal.mechanical,
     wrapped.mechanical[boundary = x_upper];
-  connect conserving x_lower_terminal.mechanical,
+  connect x_lower_terminal.mechanical,
     wrapped.mechanical[boundary = x_lower];
 }
 "#;
@@ -277,11 +278,11 @@ fn complete_exterior_forwards_through_wrapper_pointwise_to_exact_root_selectors(
                     .expect("pointwise Connection provenance");
                 let has_family_origin = connection_provenance.origins().iter().any(|origin| {
                     source_text(FORWARDED, origin.definition_span())
-                        .contains("connect conserving [boundary in exterior]")
+                        .contains("connect [boundary in exterior]")
                 });
                 let has_root_origin = connection_provenance.origins().iter().any(|origin| {
                     source_text(FORWARDED, origin.definition_span())
-                        .contains("connect conserving wrapped.mechanical")
+                        .contains("connect wrapped.mechanical")
                 });
                 if has_family_origin && has_root_origin {
                     pointwise_connections += 1;

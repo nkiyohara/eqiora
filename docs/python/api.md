@@ -4,9 +4,9 @@
 
 This complete public surface/signature reference is generated deterministically from the shipped type stubs. It does not import Eqiora or an optional framework.
 
-API presence is neither capability evidence nor maturity. All 19 module summaries and all 241 canonical declaration summaries are source-traced; non-dunder member coverage remains **17 authoritative summaries and 714 signature-only entries under documented owning types**.
+API presence is neither capability evidence nor maturity. All 19 module summaries and all 241 canonical declaration summaries are source-traced; non-dunder member coverage remains **17 authoritative summaries and 716 signature-only entries under documented owning types**.
 
-Inventory: 19 modules, 278 literal public spellings, 241 canonical grouped declarations, 952 visible method signatures (731 non-dunder and 221 dunder), and 76 visible class assignments.
+Inventory: 19 modules, 278 literal public spellings, 241 canonical grouped declarations, 954 visible method signatures (733 non-dunder and 221 dunder), and 76 visible class assignments.
 
 Regenerate with:
 
@@ -1375,16 +1375,20 @@ class ParameterRef:
 
 ### `eqiora.PhysicalDomain`
 
-Immutable nominal scalar physical-domain declaration.
+Immutable nominal scalar physical domain with explicitly named quantities.
 
 Authority: [`crates/eqiora-python/src/modeling.rs::PyPhysicalDomain`](../../crates/eqiora-python/src/modeling.rs)
 
 ```python
 @final
 class PhysicalDomain:
-    def __new__(cls, name: str, *, across_type: ValueType, through_type: ValueType) -> Self: ...
+    def __new__(cls, name: str, *, across_name: str, across_type: ValueType, through_name: str, through_type: ValueType) -> Self: ...
     @property
     def name(self) -> str: ...
+    @property
+    def across_name(self) -> str: ...
+    @property
+    def through_name(self) -> str: ...
     @property
     def across_type(self) -> ValueType: ...
     @property

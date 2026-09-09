@@ -1,41 +1,38 @@
 model explicit_parallel_dc() {
-  domain electrical = scalar_physical(
-    across = kg * m ^ 2 / (s ^ 3 * A),
-    through = A
-  );
+  domain electrical = scalar_physical(across voltage: kg * m ^ 2 / (s ^ 3 * A), through current: A);
 
   parameter supply_voltage: kg * m ^ 2 / (s ^ 3 * A) = 12;
   parameter resistance_two: kg * m ^ 2 / (s ^ 3 * A ^ 2) = 2;
   parameter resistance_four: kg * m ^ 2 / (s ^ 3 * A ^ 2) = 4;
 
-  port source_positive: conserving on electrical;
-  port source_negative: conserving on electrical;
-  port resistor_two_positive: conserving on electrical;
-  port resistor_two_negative: conserving on electrical;
-  port resistor_four_positive: conserving on electrical;
-  port resistor_four_negative: conserving on electrical;
-  port ground_terminal: conserving on electrical;
+  port source_positive: electrical;
+  port source_negative: electrical;
+  port resistor_two_positive: electrical;
+  port resistor_two_negative: electrical;
+  port resistor_four_positive: electrical;
+  port resistor_four_negative: electrical;
+  port ground_terminal: electrical;
 
   relation voltage_source {
-    across(source_positive) - across(source_negative) - supply_voltage = 0;
-    through(source_positive) + through(source_negative) = 0;
+    source_positive.voltage - source_negative.voltage - supply_voltage = 0;
+    source_positive.current + source_negative.current = 0;
   }
   relation two_ohm_resistor {
-    across(resistor_two_positive)
-      - across(resistor_two_negative)
-      - resistance_two * through(resistor_two_positive) = 0;
-    through(resistor_two_positive) + through(resistor_two_negative) = 0;
+    resistor_two_positive.voltage
+      - resistor_two_negative.voltage
+      - resistance_two * resistor_two_positive.current = 0;
+    resistor_two_positive.current + resistor_two_negative.current = 0;
   }
   relation four_ohm_resistor {
-    across(resistor_four_positive)
-      - across(resistor_four_negative)
-      - resistance_four * through(resistor_four_positive) = 0;
-    through(resistor_four_positive) + through(resistor_four_negative) = 0;
+    resistor_four_positive.voltage
+      - resistor_four_negative.voltage
+      - resistance_four * resistor_four_positive.current = 0;
+    resistor_four_positive.current + resistor_four_negative.current = 0;
   }
   relation explicit_ground {
-    across(ground_terminal) = 0;
+    ground_terminal.voltage = 0;
   }
 
-  connect conserving source_positive, resistor_two_positive, resistor_four_positive;
-  connect conserving source_negative, resistor_two_negative, resistor_four_negative, ground_terminal;
+  connect source_positive, resistor_two_positive, resistor_four_positive;
+  connect source_negative, resistor_two_negative, resistor_four_negative, ground_terminal;
 }

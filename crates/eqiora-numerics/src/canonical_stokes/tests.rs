@@ -49,13 +49,14 @@ model steady_stokes() {
 "#;
 
 const PORT_COMPONENTS: &str = r#"
-public connector VelocityTractionBoundary = field_physical(
-  trace = velocity: m / s,
-  flux = traction: kg / (m * s ^ 2),
-  shape = spatial_vector,
-  frame = spatial,
-  pairing = euclidean_boundary_duality
-);
+public connector VelocityTractionBoundary {
+  trace velocity: m / s;
+  flux traction: kg / (m * s ^ 2);
+  shape spatial_vector;
+  frame spatial;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}
 
 public component NewtonianBoundary2d(
   support body: volume(ambient_dimension = 2),
@@ -63,15 +64,15 @@ public component NewtonianBoundary2d(
   variable velocity: vector<m / s, 2> on body,
   variable pressure: kg / (m * s ^ 2) on body,
   parameter dynamic_viscosity: kg / (m * s),
-  port mechanical: conserving VelocityTractionBoundary over face
+  port mechanical: VelocityTractionBoundary over face
 ) {
 
   relation interface on face {
-    trace(velocity) - trace(mechanical) = 0;
+    trace(velocity) - mechanical.velocity = 0;
     normal(
       2 * dynamic_viscosity * symmetric_part(grad(velocity))
       - isotropic_lift(pressure)
-    ) - flux(mechanical) = 0;
+    ) - mechanical.traction = 0;
   }
 }
 
@@ -79,11 +80,11 @@ public component NormalPressureTraction2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
   variable pressure: kg / (m * s ^ 2) on body,
-  port mechanical: conserving VelocityTractionBoundary over face
+  port mechanical: VelocityTractionBoundary over face
 ) {
 
   relation prescribed_traction on face {
-    flux(mechanical) - normal(isotropic_lift(pressure)) = 0;
+    mechanical.traction - normal(isotropic_lift(pressure)) = 0;
   }
 }
 "#;
@@ -256,12 +257,12 @@ fn port_closed_normal_pressure_source(terminal_operator: char) -> String {
     face = x_upper,
     pressure = ambient_pressure
   );
-  connect conserving fluid_boundary.mechanical, ambient_boundary.mechanical;"#;
+  connect fluid_boundary.mechanical, ambient_boundary.mechanical;"#;
     format!(
         "{}\n{}",
         PORT_COMPONENTS.replace(
-            "flux(mechanical) - normal(isotropic_lift(pressure))",
-            &format!("flux(mechanical) {terminal_operator} normal(isotropic_lift(pressure))"),
+            "mechanical.traction - normal(isotropic_lift(pressure))",
+            &format!("mechanical.traction {terminal_operator} normal(isotropic_lift(pressure))"),
         ),
         direct.replace(
             &direct_normal_pressure_relation("ambient_pressure", '+'),

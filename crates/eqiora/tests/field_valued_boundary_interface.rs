@@ -382,7 +382,7 @@ fn packaged_field_valued_boundary_interface() {
         "unexpected parent diagnostics: {wrong_parent:?}"
     );
 
-    let renamed_components = components_release(&COMPONENTS.replacen("velocity", "speed", 1));
+    let renamed_components = components_release(&COMPONENTS.replace("velocity", "speed"));
     assert_ne!(
         components.package_identity().expect("original identity"),
         renamed_components

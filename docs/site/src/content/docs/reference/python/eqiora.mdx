@@ -1367,16 +1367,20 @@ class ParameterRef:
 
 ## `PhysicalDomain`
 
-Immutable nominal scalar physical-domain declaration.
+Immutable nominal scalar physical domain with explicitly named quantities.
 
 Authority: <ExactSourceLink path="crates/eqiora-python/src/modeling.rs" kind="blob">crates/eqiora-python/src/modeling.rs::PyPhysicalDomain</ExactSourceLink>
 
 ```python
 @final
 class PhysicalDomain:
-    def __new__(cls, name: str, *, across_type: ValueType, through_type: ValueType) -> Self: ...
+    def __new__(cls, name: str, *, across_name: str, across_type: ValueType, through_name: str, through_type: ValueType) -> Self: ...
     @property
     def name(self) -> str: ...
+    @property
+    def across_name(self) -> str: ...
+    @property
+    def through_name(self) -> str: ...
     @property
     def across_type(self) -> ValueType: ...
     @property

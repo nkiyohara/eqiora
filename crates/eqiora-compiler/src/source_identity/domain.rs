@@ -54,7 +54,9 @@ pub(super) fn encode_domain(
             })
         }
         DomainSyntax::ScalarPhysical {
+            across_name,
             across_type,
+            through_name,
             through_type,
         } => {
             encoder.u16(3)?;
@@ -63,7 +65,9 @@ pub(super) fn encode_domain(
             })?;
             encoder.field(2, |encoder| {
                 super::value_type::encode_value_type(encoder, through_type, budget, 1)
-            })
+            })?;
+            encoder.field(3, |encoder| encode_name(encoder, across_name, budget))?;
+            encoder.field(4, |encoder| encode_name(encoder, through_name, budget))
         }
         _ => Err(source_identity_error(
             "Domain syntax is newer than source identity v1",

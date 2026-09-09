@@ -585,9 +585,18 @@ fn validate_pure_value_class(
 fn validate_connector_syntax(syntax: &ConnectorSyntax) -> Result<(), AstConstructionError> {
     match syntax {
         ConnectorSyntax::ScalarPhysical {
+            across_name,
             across_type,
+            through_name,
             through_type,
         } => {
+            validate_identifier(across_name, "across quantity")?;
+            validate_identifier(through_name, "through quantity")?;
+            if across_name == through_name {
+                return Err(AstConstructionError::new(
+                    "Connector quantity names must be distinct",
+                ));
+            }
             value_type::validate_syntax(across_type)?;
             value_type::validate_syntax(through_type)
         }
@@ -596,6 +605,11 @@ fn validate_connector_syntax(syntax: &ConnectorSyntax) -> Result<(), AstConstruc
         } => {
             validate_connector_quantity(trace, "trace")?;
             validate_connector_quantity(flux, "flux")?;
+            if trace.name == flux.name {
+                return Err(AstConstructionError::new(
+                    "Connector quantity names must be distinct",
+                ));
+            }
             validate_value_shape(shape)
         }
     }

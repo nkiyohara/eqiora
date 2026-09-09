@@ -41,33 +41,45 @@ model M() { parameter p: 1 = 1; }
 #[test]
 fn declaration_binding_and_anonymous_member_permutations_are_invariant() {
     let first = r#"
-connector Pin = scalar_physical(across = 1, through = A);
-connector Heat = scalar_physical(across = K, through = kg * m ^ 2 / (s ^ 3 * K));
-component Pair(parameter resistance: 1 = 2, parameter scale: 1 = 3, port positive: conserving on Pin, port negative: conserving on Pin) {
+connector Pin {
+  across voltage: 1;
+  through current: A;
+}
+connector Heat {
+  across potential: K;
+  through flow: kg * m ^ 2 / (s ^ 3 * K);
+}
+component Pair(parameter resistance: 1 = 2, parameter scale: 1 = 3, port positive: Pin, port negative: Pin) {
   instance inner: Library.Resistor(resistance = resistance, scale = scale);
-  relation law { across(positive) - across(negative) = 0; }
-  connect conserving positive, inner.positive, negative;
+  relation law { positive.voltage - negative.voltage = 0; }
+  connect positive, inner.positive, negative;
 }
 component Empty() {}
 model circuit() {
   instance right: Pair(scale = 4, resistance = 5);
   instance left: Pair(resistance = 2, scale = 3);
-  connect conserving left.positive, right.negative, right.positive;
+  connect left.positive, right.negative, right.positive;
 }
 model auxiliary() {}
 "#;
     let permuted = r#"
-connector Heat = scalar_physical(across = K, through = kg * m ^ 2 / (s ^ 3 * K));
-connector Pin = scalar_physical(across = 1, through = A);
+connector Heat {
+  across potential: K;
+  through flow: kg * m ^ 2 / (s ^ 3 * K);
+}
+connector Pin {
+  across voltage: 1;
+  through current: A;
+}
 component Empty() {}
-component Pair(port negative: conserving on Pin, port positive: conserving on Pin, parameter scale: 1 = 3, parameter resistance: 1 = 2) {
-  connect conserving negative, positive, inner.positive;
-  relation law { across(positive) - across(negative) = 0; }
+component Pair(port negative: Pin, port positive: Pin, parameter scale: 1 = 3, parameter resistance: 1 = 2) {
+  connect negative, positive, inner.positive;
+  relation law { positive.voltage - negative.voltage = 0; }
   instance inner: Library.Resistor(scale = scale, resistance = resistance);
 }
 model auxiliary() {}
 model circuit() {
-  connect conserving right.positive, left.positive, right.negative;
+  connect right.positive, left.positive, right.negative;
   instance left: Pair(scale = 3, resistance = 2);
   instance right: Pair(resistance = 5, scale = 4);
 }
@@ -155,20 +167,21 @@ body = body
 #[test]
 fn complete_exterior_family_records_are_order_independent_and_exact() {
     let source = r#"
-public connector MechanicalBoundary = field_physical(
-  trace = displacement: m,
-  flux = traction: kg / (m * s ^ 2),
-  shape = spatial_vector,
-  frame = spatial,
-  pairing = euclidean_boundary_duality
-);
+public connector MechanicalBoundary {
+  trace displacement: m;
+  flux traction: kg / (m * s ^ 2);
+  shape spatial_vector;
+  frame spatial;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}
 public component SurfaceLaw(support body: volume(ambient_dimension = 2), support exterior: complete_exterior(parent = body), port mechanical[boundary in exterior]:
-conserving MechanicalBoundary over boundary) {
+MechanicalBoundary over boundary) {
 
 
   relation carrier[boundary in exterior] on boundary {
-trace(mechanical[boundary = boundary])
-  - trace(mechanical[boundary = boundary]) = 0;
+mechanical[boundary = boundary].displacement
+  - mechanical[boundary = boundary].displacement = 0;
   }
 }
 model M() {
@@ -181,7 +194,7 @@ model M() {
 body = body,
 exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
   );
-  connect conserving
+  connect
 surface.mechanical[boundary = x_lower],
 surface.mechanical[boundary = x_upper];
 }
@@ -274,25 +287,23 @@ fn retired_scalar_shape_spelling_is_not_an_identity_alias() {
 
 #[test]
 fn conserving_fragments_have_definition_local_equivalence_identity() {
-    let component_nary = "component C() { connect conserving a, b, c; } model Empty() {}";
-    let component_chain =
-        "component C() { connect conserving a, b; connect conserving b, c; } model Empty() {}";
+    let component_nary = "component C() { connect a, b, c; } model Empty() {}";
+    let component_chain = "component C() { connect a, b; connect b, c; } model Empty() {}";
     assert_eq!(identity(component_nary), identity(component_chain));
 
-    let model_nary = "model M() { connect conserving a, b, c; }";
-    let model_chain = "model M() { connect conserving a, b; connect conserving b, c; }";
+    let model_nary = "model M() { connect a, b, c; }";
+    let model_chain = "model M() { connect a, b; connect b, c; }";
     assert_eq!(identity(model_nary), identity(model_chain));
 }
 
 #[test]
 fn duplicate_conserving_fragments_are_identity_idempotent() {
-    let component_once = "component C() { connect conserving a, b; } model Empty() {}";
-    let component_twice =
-        "component C() { connect conserving a, b; connect conserving b, a; } model Empty() {}";
+    let component_once = "component C() { connect a, b; } model Empty() {}";
+    let component_twice = "component C() { connect a, b; connect b, a; } model Empty() {}";
     assert_eq!(identity(component_once), identity(component_twice));
 
-    let model_once = "model M() { connect conserving a, b; }";
-    let model_twice = "model M() { connect conserving a, b; connect conserving b, a; }";
+    let model_once = "model M() { connect a, b; }";
+    let model_twice = "model M() { connect a, b; connect b, a; }";
     assert_eq!(identity(model_once), identity(model_twice));
 }
 
@@ -300,7 +311,7 @@ fn duplicate_conserving_fragments_are_identity_idempotent() {
 fn spatial_periodic_pair_identity_is_endpoint_order_invariant_but_not_conserving() {
     let lower_upper = "model M() { connect periodic lower.p, upper.p; }";
     let upper_lower = "model M() { connect periodic upper.p, lower.p; }";
-    let conserving = "model M() { connect conserving lower.p, upper.p; }";
+    let conserving = "model M() { connect lower.p, upper.p; }";
 
     assert_eq!(identity(lower_upper), identity(upper_lower));
     assert_ne!(identity(lower_upper), identity(conserving));
@@ -309,8 +320,7 @@ fn spatial_periodic_pair_identity_is_endpoint_order_invariant_but_not_conserving
 #[test]
 fn disjoint_conserving_and_signal_records_keep_the_legacy_bytes() {
     let document = document(
-        "component C() { connect conserving a, b; connect out -> in_b, in_a; connect conserving c, d; } \
-         model M() { connect conserving w, x; connect source -> sink_b, sink_a; connect conserving y, z; }",
+        "component C() { connect a, b; connect out -> in_b, in_a; connect c, d; } model M() { connect w, x; connect source -> sink_b, sink_a; connect y, z; }",
     );
     let limits = LocalSourceIdentityLimits::default();
 
@@ -353,9 +363,7 @@ fn disjoint_conserving_and_signal_records_keep_the_legacy_bytes() {
 
 #[test]
 fn normalized_conserving_sets_cannot_evade_connection_member_limits() {
-    let document = document(
-        "component C() { connect conserving a, b; connect conserving b, c; } model Empty() {}",
-    );
+    let document = document("component C() { connect a, b; connect b, c; } model Empty() {}");
     let limits = LocalSourceIdentityLimits {
         max_connection_members: 2,
         ..LocalSourceIdentityLimits::default()
@@ -428,12 +436,10 @@ fn interface_visibility_defaults_ports_bindings_and_domains_are_semantic() {
 #[test]
 fn package_visibility_is_semantic_and_private_is_the_canonical_default() {
     let private =
-        "connector Pin = scalar_physical(across = 1, through = A); component Resistor() {}";
-    let explicit_private = "private component Resistor() {} private connector Pin = scalar_physical(across = 1, through = A);";
-    let public_connector =
-        "component Resistor() {} public connector Pin = scalar_physical(across = 1, through = A);";
-    let public_component =
-        "public component Resistor() {} connector Pin = scalar_physical(across = 1, through = A);";
+        "connector Pin {\n  across voltage: 1;\n  through current: A;\n} component Resistor() {}";
+    let explicit_private = "private component Resistor() {} private connector Pin {\n  across voltage: 1;\n  through current: A;\n}";
+    let public_connector = "component Resistor() {} public connector Pin {\n  across voltage: 1;\n  through current: A;\n}";
+    let public_component = "public component Resistor() {} connector Pin {\n  across voltage: 1;\n  through current: A;\n}";
 
     assert_eq!(identity(private), identity(explicit_private));
     assert_ne!(identity(private), identity(public_connector));
@@ -481,8 +487,8 @@ fn negative_zero_is_normalized_to_positive_zero() {
 
 #[test]
 fn negative_zero_has_one_source_transaction_and_model_meaning() {
-    let positive = "connector Pin = scalar_physical(across = 1, through = 1); model m() { domain d = box(0, 1); variable x: 1 on d; initial { x = 0; } parameter p: 1 = 0; relation r on d { x + p + 0 = 0; } }";
-    let negative = "connector Pin = scalar_physical(across = 1, through = 1); model m() { domain d = box(-0, 1); variable x: 1 on d; initial { x = -0; } parameter p: 1 = -0; relation r on d { x + p + -0 = 0; } }";
+    let positive = "connector Pin {\n  across potential: 1;\n  through flow: 1;\n} model m() { domain d = box(0, 1); variable x: 1 on d; initial { x = 0; } parameter p: 1 = 0; relation r on d { x + p + 0 = 0; } }";
+    let negative = "connector Pin {\n  across potential: 1;\n  through flow: 1;\n} model m() { domain d = box(-0, 1); variable x: 1 on d; initial { x = -0; } parameter p: 1 = -0; relation r on d { x + p + -0 = 0; } }";
 
     assert_eq!(identity(positive), identity(negative));
     let mut positive = crate::compile("zero.eqi", positive).unwrap();

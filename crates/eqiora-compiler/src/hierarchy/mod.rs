@@ -39,6 +39,7 @@ mod parameters;
 pub(crate) use parameters::exact_signed_literal;
 mod physical_closure;
 mod preflight;
+mod quantity_member;
 mod scope;
 pub(crate) mod selected;
 mod supports;

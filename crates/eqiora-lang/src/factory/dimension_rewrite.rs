@@ -56,6 +56,7 @@ fn rewrite_connector(syntax: &mut ConnectorSyntax, rewrite: &mut impl FnMut(&Exp
         ConnectorSyntax::ScalarPhysical {
             across_type,
             through_type,
+            ..
         } => {
             across_type.rewrite_dimension(rewrite);
             through_type.rewrite_dimension(rewrite);
@@ -102,6 +103,7 @@ fn rewrite_item(item: &mut Item, rewrite: &mut impl FnMut(&Expr) -> Expr) {
             if let DomainSyntax::ScalarPhysical {
                 across_type,
                 through_type,
+                ..
             } = &mut declaration.syntax
             {
                 across_type.rewrite_dimension(rewrite);

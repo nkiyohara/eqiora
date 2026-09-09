@@ -90,32 +90,32 @@ fn nominally_distinct_equal_domains_remain_distinct_vertices() {
     let distinct = program(
         r#"
 model network() {
-  domain a = scalar_physical(across = 1, through = 1);
-  domain b = scalar_physical(across = 1, through = 1);
-  port a1: conserving on a;
-  port a2: conserving on a;
-  port b1: conserving on b;
-  port b2: conserving on b;
-  relation ra { across(a1) - across(a2) = 0; through(a1) + through(a2) = 0; }
-  relation rb { across(b1) - across(b2) = 0; through(b1) + through(b2) = 0; }
-  connect conserving a1, a2;
-  connect conserving b1, b2;
+  domain a = scalar_physical(across potential: 1, through flow: 1);
+  domain b = scalar_physical(across potential: 1, through flow: 1);
+  port a1: a;
+  port a2: a;
+  port b1: b;
+  port b2: b;
+  relation ra { a1.potential - a2.potential = 0; a1.flow + a2.flow = 0; }
+  relation rb { b1.potential - b2.potential = 0; b1.flow + b2.flow = 0; }
+  connect a1, a2;
+  connect b1, b2;
 }
 "#,
     );
     let shared = program(
         r#"
 model network() {
-  domain a = scalar_physical(across = 1, through = 1);
-  domain b = scalar_physical(across = 1, through = 1);
-  port a1: conserving on a;
-  port a2: conserving on a;
-  port b1: conserving on a;
-  port b2: conserving on a;
-  relation ra { across(a1) - across(a2) = 0; through(a1) + through(a2) = 0; }
-  relation rb { across(b1) - across(b2) = 0; through(b1) + through(b2) = 0; }
-  connect conserving a1, a2;
-  connect conserving b1, b2;
+  domain a = scalar_physical(across potential: 1, through flow: 1);
+  domain b = scalar_physical(across potential: 1, through flow: 1);
+  port a1: a;
+  port a2: a;
+  port b1: a;
+  port b2: a;
+  relation ra { a1.potential - a2.potential = 0; a1.flow + a2.flow = 0; }
+  relation rb { b1.potential - b2.potential = 0; b1.flow + b2.flow = 0; }
+  connect a1, a2;
+  connect b1, b2;
 }
 "#,
     );

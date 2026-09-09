@@ -60,9 +60,15 @@ impl Parser<'_> {
             if self.at(TokenKind::Dot) {
                 if !matches!(
                     left.kind(),
-                    ExprKind::Index { .. } | ExprKind::Member { .. }
+                    ExprKind::Index { .. }
+                        | ExprKind::Member { .. }
+                        | ExprKind::BoundaryPortSelection { .. }
+                        | ExprKind::Name(_)
+                        | ExprKind::Path(_)
                 ) {
-                    self.error_here("member access requires an indexed component occurrence");
+                    self.error_here(
+                        "member access requires a Port or indexed component occurrence",
+                    );
                     return None;
                 }
                 self.bump();

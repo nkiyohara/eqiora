@@ -1,6 +1,13 @@
 //! Closed predicate authoring over the shared typed Draft expression owner.
 use super::{PyExpression, expression_from_python};
+use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
+
+pub(super) fn symbolic_truth_error() -> PyErr {
+    PyTypeError::new_err(
+        "symbolic Eqiora values have no truth value; construct a Relation explicitly",
+    )
+}
 
 /// Author the equal predicate without Python host coercion.
 #[pyfunction]

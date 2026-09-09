@@ -236,9 +236,12 @@ fn workspace_cancellation_publishes_no_partial_snapshot() {
 fn workspace_uses_compiler_resolved_module_identities_and_locations() {
     let owner = CompilationNamespaceId::new(["editor_test"]).expect("namespace");
     let main = "// 🧪\nimport editor_test.library.parts as lib;\nmodel Main() { instance load: lib.Resistor(); }\n";
-    let library = r#"public connector Pin = scalar_physical(across = 1, through = A);
+    let library = r#"public connector Pin {
+  across voltage: 1;
+  through current: A;
+}
 public component Socket(
-  port terminal: conserving on Pin
+  port terminal: Pin
 ) { }
 public component Resistor() {}
 "#;

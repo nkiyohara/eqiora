@@ -169,8 +169,10 @@ fn native_draft_rejects_names_and_numbers_source_could_not_express() {
 fn physical_vocabulary_projects_only_to_existing_source_ast_forms() {
     let electrical = DraftPhysicalDomain::new(
         "electrical",
+        "voltage",
         eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage_dimension())
             .unwrap(),
+        "current",
         eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, current_dimension())
             .unwrap(),
     );
@@ -237,16 +239,21 @@ fn physical_vocabulary_projects_only_to_existing_source_ast_forms() {
         panic!("fifth item must be a Relation");
     };
     assert_eq!(relation.equations().len(), 2);
-    assert!(
-        relation
-            .equations()
-            .iter()
-            .map(|equation| equation.left())
-            .any(|residual| {
-                expression_contains_call(residual, "across")
-                    && expression_contains_call(residual, "through")
-            })
-    );
+    let mut quantities = std::collections::BTreeSet::new();
+    for equation in relation.equations() {
+        let _ = equation.left().rewrite_name_paths(|path| {
+            quantities.insert(path.as_str().to_owned());
+            None
+        });
+    }
+    for quantity in [
+        "positive.voltage",
+        "negative.voltage",
+        "positive.current",
+        "negative.current",
+    ] {
+        assert!(quantities.contains(quantity));
+    }
     let Item::Connection(connection) = &items[5] else {
         panic!("sixth item must be a Connection");
     };
@@ -265,15 +272,19 @@ fn physical_vocabulary_projects_only_to_existing_source_ast_forms() {
 fn draft_closure_rejects_foreign_domain_and_port_identity_before_rebinding_names() {
     let declared_domain = DraftPhysicalDomain::new(
         "electrical",
+        "voltage",
         eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage_dimension())
             .unwrap(),
+        "current",
         eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, current_dimension())
             .unwrap(),
     );
     let foreign_domain = DraftPhysicalDomain::new(
         "electrical",
+        "voltage",
         eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage_dimension())
             .unwrap(),
+        "current",
         eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, current_dimension())
             .unwrap(),
     );
@@ -319,15 +330,19 @@ fn draft_closure_rejects_foreign_domain_and_port_identity_before_rebinding_names
 fn draft_closure_rejects_invalid_connection_membership_atomically() {
     let electrical = DraftPhysicalDomain::new(
         "electrical",
+        "voltage",
         eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage_dimension())
             .unwrap(),
+        "current",
         eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, current_dimension())
             .unwrap(),
     );
     let other = DraftPhysicalDomain::new(
         "other",
+        "voltage",
         eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage_dimension())
             .unwrap(),
+        "current",
         eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, current_dimension())
             .unwrap(),
     );
@@ -381,8 +396,10 @@ fn draft_closure_rejects_invalid_connection_membership_atomically() {
 fn duplicate_names_are_rejected_across_physical_and_scalar_declarations() {
     let domain = DraftPhysicalDomain::new(
         "shared",
+        "voltage",
         eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage_dimension())
             .unwrap(),
+        "current",
         eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, current_dimension())
             .unwrap(),
     );
@@ -407,8 +424,10 @@ fn duplicate_names_are_rejected_across_physical_and_scalar_declarations() {
 fn anonymous_connection_diagnostic_paths_follow_membership_not_declaration_position() {
     let domain = DraftPhysicalDomain::new(
         "electrical",
+        "voltage",
         eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage_dimension())
             .unwrap(),
+        "current",
         eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, current_dimension())
             .unwrap(),
     );

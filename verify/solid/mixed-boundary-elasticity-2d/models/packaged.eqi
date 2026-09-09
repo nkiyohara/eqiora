@@ -45,8 +45,8 @@ model Main() {
     face = y_upper
   );
 
-  connect conserving boundary_law.mechanical[boundary = x_lower], fixed.mechanical;
-  connect conserving boundary_law.mechanical[boundary = x_upper], x_upper_free.mechanical;
-  connect conserving boundary_law.mechanical[boundary = y_lower], y_lower_free.mechanical;
-  connect conserving boundary_law.mechanical[boundary = y_upper], y_upper_free.mechanical;
+  connect boundary_law.mechanical[boundary = x_lower], fixed.mechanical;
+  connect boundary_law.mechanical[boundary = x_upper], x_upper_free.mechanical;
+  connect boundary_law.mechanical[boundary = y_lower], y_lower_free.mechanical;
+  connect boundary_law.mechanical[boundary = y_upper], y_upper_free.mechanical;
 }

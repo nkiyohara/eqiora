@@ -1,4 +1,9 @@
 {
+  "Connector": {
+    "prefix": "connector",
+    "body": ["connector ${1:Pin} {", "  across ${2:voltage}: ${3:V};", "  through ${4:current}: ${5:A};", "}"],
+    "description": "Declare a nominal scalar connector with named physical members"
+  },
   "Component": {
     "prefix": "component",
     "body": ["public component ${1:Name}() {", "  $0", "}"],

@@ -174,8 +174,8 @@ fn permuted_direct_source() -> String {
         .replace("left_boundary", "negative_body_law")
         .replace("right_boundary", "positive_body_law")
         .replace(
-            "connect conserving negative_body_law.mechanical[boundary = left_x_upper],\n    positive_body_law.mechanical[boundary = right_x_lower];",
-            "connect conserving positive_body_law.mechanical[boundary = right_x_lower],\n    negative_body_law.mechanical[boundary = left_x_upper];",
+            "connect negative_body_law.mechanical[boundary = left_x_upper],\n    positive_body_law.mechanical[boundary = right_x_lower];",
+            "connect positive_body_law.mechanical[boundary = right_x_lower],\n    negative_body_law.mechanical[boundary = left_x_upper];",
         )
 }
 
@@ -517,12 +517,12 @@ fn pair_rejects_same_side_and_non_binary_interface_connections() {
 
     let three_port = DIRECT_SOURCE
         .replace(
-            "  connect conserving left_boundary.mechanical[boundary = left_x_lower],",
-            "  instance interface_terminal: ZeroTraction2d(\n    body = right,\n    face = right_x_lower\n  );\n\n  connect conserving left_boundary.mechanical[boundary = left_x_lower],",
+            "  connect left_boundary.mechanical[boundary = left_x_lower],",
+            "  instance interface_terminal: ZeroTraction2d(\n    body = right,\n    face = right_x_lower\n  );\n\n  connect left_boundary.mechanical[boundary = left_x_lower],",
         )
         .replace(
-            "connect conserving left_boundary.mechanical[boundary = left_x_upper],\n    right_boundary.mechanical[boundary = right_x_lower];",
-            "connect conserving left_boundary.mechanical[boundary = left_x_upper],\n    right_boundary.mechanical[boundary = right_x_lower],\n    interface_terminal.mechanical;",
+            "connect left_boundary.mechanical[boundary = left_x_upper],\n    right_boundary.mechanical[boundary = right_x_lower];",
+            "connect left_boundary.mechanical[boundary = left_x_upper],\n    right_boundary.mechanical[boundary = right_x_lower],\n    interface_terminal.mechanical;",
         );
     let three_port = eqiora::api::ModelDocument::compile("three-port.eqi", &three_port)
         .expect("three-Port conserving junction remains kernel-valid");
@@ -571,12 +571,12 @@ fn reduced_integration_fails_before_an_spd_system_is_declared() {
 fn additional_live_port_relation_fails_before_pair_realization() {
     let source = DIRECT_SOURCE
         .replace(
-            "  connect conserving left_boundary.mechanical[boundary = left_x_lower],",
-            "  instance interface_terminal: ZeroTraction2d(\n    body = right,\n    face = right_x_lower\n  );\n\n  connect conserving left_boundary.mechanical[boundary = left_x_lower],",
+            "  connect left_boundary.mechanical[boundary = left_x_lower],",
+            "  instance interface_terminal: ZeroTraction2d(\n    body = right,\n    face = right_x_lower\n  );\n\n  connect left_boundary.mechanical[boundary = left_x_lower],",
         )
         .replace(
-            "connect conserving left_boundary.mechanical[boundary = left_x_upper],\n    right_boundary.mechanical[boundary = right_x_lower];",
-            "connect conserving left_boundary.mechanical[boundary = left_x_upper],\n    right_boundary.mechanical[boundary = right_x_lower],\n    interface_terminal.mechanical;",
+            "connect left_boundary.mechanical[boundary = left_x_upper],\n    right_boundary.mechanical[boundary = right_x_lower];",
+            "connect left_boundary.mechanical[boundary = left_x_upper],\n    right_boundary.mechanical[boundary = right_x_lower],\n    interface_terminal.mechanical;",
         );
     assert_ne!(source, DIRECT_SOURCE);
     let document = eqiora::api::ModelDocument::compile("additional-live-relation.eqi", &source)
@@ -595,12 +595,12 @@ fn constrained_interface_endpoint_is_not_mislabeled_as_coupling_equilibrium() {
         .replace("face = left_y_lower", "face = left_x_lower")
         .replace("face = swap_face", "face = left_y_lower")
         .replace(
-            "connect conserving left_boundary.mechanical[boundary = left_x_lower],\n    fixed.mechanical;",
-            "connect conserving left_boundary.mechanical[boundary = left_x_lower],\n    left_y_lower_free.mechanical;",
+            "connect left_boundary.mechanical[boundary = left_x_lower],\n    fixed.mechanical;",
+            "connect left_boundary.mechanical[boundary = left_x_lower],\n    left_y_lower_free.mechanical;",
         )
         .replace(
-            "connect conserving left_boundary.mechanical[boundary = left_y_lower],\n    left_y_lower_free.mechanical;",
-            "connect conserving left_boundary.mechanical[boundary = left_y_lower],\n    fixed.mechanical;",
+            "connect left_boundary.mechanical[boundary = left_y_lower],\n    left_y_lower_free.mechanical;",
+            "connect left_boundary.mechanical[boundary = left_y_lower],\n    fixed.mechanical;",
         );
     let document = eqiora::api::ModelDocument::compile("interface-endpoint-support.eqi", &source)
         .expect("supported interface endpoint remains valid model meaning");

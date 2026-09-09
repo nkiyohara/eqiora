@@ -1,5 +1,7 @@
 //! Affine numerical realization of one canonical scalar physical subsystem.
 
+mod gauge;
+
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, GraphPath, Id};
@@ -193,6 +195,7 @@ pub fn lower_scalar_physical_affine(
         append_affine_group(&mut storage, residual.dag(), &selected_symbols, &bindings)?;
     }
     storage.finish()?;
+    gauge::reject_unreferenced_across_groups(program, composed.unknowns(), &storage)?;
     let canonical_system = CanonicalCsrSystemView::new(&storage, LinearOperatorProperties::General)
         .map_err(|diagnostic| {
             affine_error(format!(

@@ -69,12 +69,20 @@ pub fn format(document: &Document) -> String {
         if connector.visibility == VisibilitySyntax::Public {
             output.push_str("public ");
         }
-        write!(output, "connector {} = ", connector.name).expect("String write");
+        writeln!(output, "connector {} {{", connector.name).expect("String write");
         match &connector.syntax {
             ConnectorSyntax::ScalarPhysical {
+                across_name,
                 across_type,
+                through_name,
                 through_type,
-            } => format_scalar_physical(across_type, through_type, &mut output),
+            } => {
+                write!(output, "  across {across_name}: ").expect("String write");
+                value_type::format_value_type(across_type, &mut output);
+                write!(output, ";\n  through {through_name}: ").expect("String write");
+                value_type::format_value_type(through_type, &mut output);
+                output.push_str(";\n");
+            }
             ConnectorSyntax::FieldPhysical {
                 trace,
                 flux,
@@ -82,27 +90,27 @@ pub fn format(document: &Document) -> String {
                 frame,
                 pairing,
             } => {
-                output.push_str("field_physical(\n  trace = ");
+                output.push_str("  trace ");
                 write!(output, "{}: ", trace.name).expect("String write");
                 format_expression(&trace.dimension, 0, &mut output);
-                output.push_str(",\n  flux = ");
+                output.push_str(";\n  flux ");
                 write!(output, "{}: ", flux.name).expect("String write");
                 format_expression(&flux.dimension, 0, &mut output);
-                output.push_str(",\n  shape = ");
+                output.push_str(";\n  shape ");
                 format_value_shape(shape, &mut output);
-                output.push_str(",\n  frame = ");
+                output.push_str(";\n  frame ");
                 output.push_str(match frame {
                     FrameSyntax::Invariant => "invariant",
                     FrameSyntax::Spatial => "spatial",
                 });
-                output.push_str(",\n  pairing = ");
+                output.push_str(";\n  pairing ");
                 output.push_str(match pairing {
                     BoundaryPairingSyntax::EuclideanBoundaryDuality => "euclidean_boundary_duality",
                 });
-                output.push_str("\n)");
+                output.push_str(";\n  orientation parent_outward;\n");
             }
         }
-        output.push_str(";\n");
+        output.push_str("}\n");
         output.end();
     }
     for operator in &document.pure_operators {
@@ -257,9 +265,17 @@ fn format_item(item: &Item, indent: usize, output: &mut crate::formatter::commen
                     output.push(')');
                 }
                 DomainSyntax::ScalarPhysical {
+                    across_name,
                     across_type,
+                    through_name,
                     through_type,
-                } => format_scalar_physical(across_type, through_type, output),
+                } => format_scalar_physical(
+                    across_name,
+                    across_type,
+                    through_name,
+                    through_type,
+                    output,
+                ),
             }
             output.push_str(";\n");
         }
@@ -368,13 +384,13 @@ fn format_port_syntax(syntax: &PortSyntax, output: &mut crate::formatter::commen
             }
         }
         PortSyntax::ScalarPhysical { domain } => {
-            write!(output, "conserving on {domain}").expect("String write");
+            write!(output, "{domain}").expect("String write");
         }
         PortSyntax::ScalarPhysicalConnector { connector } => {
-            write!(output, "conserving on {connector}").expect("String write");
+            write!(output, "{connector}").expect("String write");
         }
         PortSyntax::FieldPhysical { connector, support } => {
-            write!(output, "conserving {connector} over {support}").expect("String write");
+            write!(output, "{connector} over {support}").expect("String write");
         }
     }
 }
@@ -452,7 +468,7 @@ fn format_connection(
             }
         }
         ConnectionSyntax::Conserving => {
-            output.push_str("connect conserving ");
+            output.push_str("connect ");
             if let Some(binder) = &declaration.binder {
                 format_boundary_family_binder(binder, output);
                 output.push(' ');
@@ -474,7 +490,7 @@ fn format_boundary_connection(
 ) {
     write_indent(output, indent);
     output.push_str(match declaration.syntax {
-        ConnectionSyntax::Conserving => "connect conserving",
+        ConnectionSyntax::Conserving => "connect",
         ConnectionSyntax::SpatialPeriodic => "connect periodic",
         ConnectionSyntax::Signal => "connect",
     });

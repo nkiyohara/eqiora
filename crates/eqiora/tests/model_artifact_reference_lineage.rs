@@ -22,15 +22,12 @@ model scalar_physical_with_spatial_field() {
   domain interval = box(0, 1);
   domain lower_end = boundary(interval, axis = 0, side = lower);
   domain upper_end = boundary(interval, axis = 0, side = upper);
-  domain electrical = scalar_physical(
-    across = kg * m ^ 2 / (s ^ 3 * A),
-    through = A
-  );
+  domain electrical = scalar_physical(across voltage: kg * m ^ 2 / (s ^ 3 * A), through current: A);
 
 
   variable potential: 1 on interval;
-  port terminal_a: conserving on electrical;
-  port terminal_b: conserving on electrical;
+  port terminal_a: electrical;
+  port terminal_b: electrical;
 
   relation balance on interval {
     -div(grad(potential)) = 0;
@@ -38,32 +35,33 @@ model scalar_physical_with_spatial_field() {
   relation lower_value on lower_end { trace(potential) = 0; }
   relation upper_value on upper_end { trace(potential) = 0; }
   relation ideal_link {
-    across(terminal_a) - across(terminal_b) = 0;
-    through(terminal_a) + through(terminal_b) = 0;
+    terminal_a.voltage - terminal_b.voltage = 0;
+    terminal_a.current + terminal_b.current = 0;
   }
 
-  connect conserving terminal_a, terminal_b;
+  connect terminal_a, terminal_b;
 }
 "#;
 
 const FIELD_BOUNDARY: &str = r#"
-public connector MechanicalBoundary = field_physical(
-  trace = velocity: m / s,
-  flux = traction: kg / (m * s ^ 2),
-  shape = spatial_vector,
-  frame = spatial,
-  pairing = euclidean_boundary_duality
-);
+public connector MechanicalBoundary {
+  trace velocity: m / s;
+  flux traction: kg / (m * s ^ 2);
+  shape spatial_vector;
+  frame spatial;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}
 
 public component BoundarySide(
   support body: volume(ambient_dimension = 2),
   support interface: boundary(parent = body),
-  port mechanical: conserving MechanicalBoundary over interface
+  port mechanical: MechanicalBoundary over interface
 ) {
 
   relation carrier on interface {
-    trace(mechanical) - trace(mechanical) = 0;
-    flux(mechanical) - flux(mechanical) = 0;
+    mechanical.velocity - mechanical.velocity = 0;
+    mechanical.traction - mechanical.traction = 0;
   }
 }
 
@@ -85,7 +83,7 @@ model field_boundary_with_spatial_field() {
     interface = left
   );
 
-  connect conserving side_a.mechanical, side_b.mechanical;
+  connect side_a.mechanical, side_b.mechanical;
 
   relation balance on area { -div(grad(potential)) = 0; }
   relation left_value on left { trace(potential) = 0; }

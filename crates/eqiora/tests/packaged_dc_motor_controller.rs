@@ -584,15 +584,15 @@ fn invalid_root_diagnostics(root_source: &str) -> Vec<Diagnostic> {
 #[test]
 fn incompatible_connector_families_fail_before_model_exposure() {
     let same_dimension_connector = r#"
-connector OtherFlange = scalar_physical(
-  across = 1 / s,
-  through = kg * m ^ 2 / s ^ 2
-);
+connector OtherFlange {
+  across potential: 1 / s;
+  through flow: kg * m ^ 2 / s ^ 2;
+}
 
 component OtherAnchor(
-  port shaft: conserving on OtherFlange
+  port shaft: OtherFlange
 ) {
-  relation law { through(shaft) = 0; }
+  relation law { shaft.flow = 0; }
 }
 "#;
     let nominal_mismatch = ROOT_SOURCE
@@ -602,8 +602,8 @@ component OtherAnchor(
             "  instance ground: electrical.Ground();\n  instance other: OtherAnchor();",
         )
         .replace(
-            "connect conserving motor.shaft, load.shaft, sensor.shaft;",
-            "connect conserving motor.shaft, load.shaft, sensor.shaft, other.shaft;",
+            "connect motor.shaft, load.shaft, sensor.shaft;",
+            "connect motor.shaft, load.shaft, sensor.shaft, other.shaft;",
         );
     let diagnostics = invalid_root_diagnostics(&nominal_mismatch);
     assert!(
@@ -615,7 +615,7 @@ component OtherAnchor(
 
     let causal_as_conserving = ROOT_SOURCE.replace(
         "connect controller.command -> source.command;",
-        "connect conserving controller.command, source.command;",
+        "connect controller.command, source.command;",
     );
     let diagnostics = invalid_root_diagnostics(&causal_as_conserving);
     assert!(
@@ -626,7 +626,7 @@ component OtherAnchor(
     );
 
     let conserving_as_causal = ROOT_SOURCE.replace(
-        "connect conserving source.positive, motor.positive;",
+        "connect source.positive, motor.positive;",
         "connect source.positive -> motor.positive;",
     );
     let diagnostics = invalid_root_diagnostics(&conserving_as_causal);

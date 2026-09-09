@@ -58,9 +58,13 @@ impl RootExpansion<'_, '_> {
                             }
                         }
                         DomainSyntax::ScalarPhysical {
+                            across_name,
                             across_type,
+                            through_name,
                             through_type,
                         } => DomainSyntax::ScalarPhysical {
+                            across_name: across_name.clone(),
+                            through_name: through_name.clone(),
                             across_type: across_type.clone(),
                             through_type: through_type.clone(),
                         },

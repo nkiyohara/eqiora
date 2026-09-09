@@ -1,10 +1,13 @@
-connector Pin = scalar_physical(across = 1, through = 1);
+connector Pin {
+  across potential: 1;
+  through flow: 1;
+}
 
 component Broken(
-  port terminal: conserving on Pin
+  port terminal: Pin
 ) {
-  relation first { across(terminal) = 0; }
-  relation second { through(terminal) = 0; }
+  relation first { terminal.potential = 0; }
+  relation second { terminal.flow = 0; }
 }
 
 model Main() {}

@@ -8,6 +8,6 @@ public component ParallelDc(
   instance source: basic.IdealVoltageSource(voltage = supply_voltage);
   instance resistor_two: basic.Resistor(resistance = resistance_two);
 
-  connect conserving ground.terminal, resistor_four.negative, resistor_two.negative, source.negative;
-  connect conserving resistor_four.positive, resistor_two.positive, source.positive;
+  connect ground.terminal, resistor_four.negative, resistor_two.negative, source.negative;
+  connect resistor_four.positive, resistor_two.positive, source.positive;
 }

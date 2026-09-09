@@ -39,6 +39,7 @@ use crate::dimensions::lower_dimension;
 use super::super::preflight::{
     ComponentDefinition, DefinitionKey, DefinitionNamespace, Elaborator,
 };
+use super::super::scope::PhysicalMemberNames;
 use super::{PhysicalConnectionFragment, ResolvedPhysicalEndpoint};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,11 +62,13 @@ pub(super) enum PortContract {
     },
     Physical {
         nominal: PhysicalNominal,
+        quantities: PhysicalMemberNames,
         across_type: eqiora_core::ValueType,
         through_type: eqiora_core::ValueType,
     },
     BoundaryPhysical {
         nominal: PhysicalNominal,
+        quantities: PhysicalMemberNames,
         connector: BoundaryPhysicalConnector,
         support: SpatialSupport<String>,
     },
@@ -132,7 +135,10 @@ impl BoundaryPortFamilyContract {
             ));
         }
         let PortContract::BoundaryPhysical {
-            nominal, connector, ..
+            nominal,
+            connector,
+            quantities,
+            ..
         } = &self.port
         else {
             return Err(source_error(
@@ -144,6 +150,7 @@ impl BoundaryPortFamilyContract {
         };
         Ok(PortContract::BoundaryPhysical {
             nominal: nominal.clone(),
+            quantities: quantities.clone(),
             connector: connector.clone(),
             support,
         })
@@ -192,8 +199,9 @@ impl PortContract {
 pub(super) enum DomainContract {
     Spatial(SpatialSupport<String>),
     Physical {
-        across_type: eqiora_core::ValueType,
-        through_type: eqiora_core::ValueType,
+        quantities: PhysicalMemberNames,
+        /// Complete across/through types; indirection keeps spatial entries small.
+        types: Box<(eqiora_core::ValueType, eqiora_core::ValueType)>,
     },
 }
 
@@ -940,6 +948,10 @@ fn boundary_port_contract(
         )]
     })?;
     Ok(PortContract::BoundaryPhysical {
+        quantities: PhysicalMemberNames::Boundary {
+            trace: trace.name().to_owned(),
+            flux: flux.name().to_owned(),
+        },
         nominal: PhysicalNominal::BoundaryConnector {
             definition: DefinitionKey {
                 namespace: connector_definition.namespace,

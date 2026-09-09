@@ -1,8 +1,11 @@
-connector Pin = scalar_physical(across = 1, through = 1);
+connector Pin {
+  across potential: 1;
+  through flow: 1;
+}
 
 component OpenPair(
-  port a: conserving on Pin,
-  port b: conserving on Pin
+  port a: Pin,
+  port b: Pin
 ) {
 }
 
@@ -10,10 +13,10 @@ model Main() {
   instance closed: OpenPair();
   instance open: OpenPair();
   relation closed_owner {
-    across(closed.a) + across(closed.b) = 0;
+    closed.a.potential + closed.b.potential = 0;
   }
   relation open_owner {
-    across(open.a) + across(open.b) = 0;
+    open.a.potential + open.b.potential = 0;
   }
-  connect conserving closed.a, closed.b;
+  connect closed.a, closed.b;
 }

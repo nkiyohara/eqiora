@@ -1,9 +1,12 @@
-connector Pin = scalar_physical(across = 1, through = 1);
+connector Pin {
+  across potential: 1;
+  through flow: 1;
+}
 
 component Terminal(
-  port p: conserving on Pin
+  port p: Pin
 ) {
-  relation owner { across(p) = 0; }
+  relation owner { p.potential = 0; }
 }
 
 model Network() {
@@ -11,6 +14,6 @@ model Network() {
   instance b: Terminal();
   instance c: Terminal();
   instance d: Terminal();
-  connect conserving a.p, b.p;
-  connect conserving c.p, d.p;
+  connect a.p, b.p;
+  connect c.p, d.p;
 }

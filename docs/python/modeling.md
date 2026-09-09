@@ -995,7 +995,9 @@ voltage = eqiora.Dimension(mass=1, length=2, time=-3, current=-1)
 current = eqiora.Dimension(current=1)
 electrical = eqiora.PhysicalDomain(
     "electrical",
+    across_name="voltage",
     across_type=eqiora.ValueType.real(voltage),
+    through_name="current",
     through_type=eqiora.ValueType.real(current),
 )
 left = eqiora.ConservingPort("left", domain=electrical)
@@ -1014,8 +1016,10 @@ physical_model = eqiora.Model.define(
 )
 ```
 
-Equal names and dimensions do not make separately constructed domains
-interchangeable.
+The quantity names become the source members `left.voltage` and `right.current`.
+The native `eqiora.across` and `eqiora.through` functions select physical roles,
+so renaming a quantity does not change the connection law. Equal names and
+dimensions do not make separately constructed domains interchangeable.
 
 ## Spatial declarations
 

@@ -2,6 +2,17 @@
 
 use super::*;
 
+impl From<&DraftConservingPort> for DraftPortReference {
+    fn from(port: &DraftConservingPort) -> Self {
+        Self {
+            symbol: port.symbol.clone(),
+            name: port.name.clone(),
+            across_name: port.domain.across_name.clone(),
+            through_name: port.domain.through_name.clone(),
+        }
+    }
+}
+
 impl DraftExpression {
     /// Project an authored expression into the shared AST with synthetic ranges.
     #[doc(hidden)]
@@ -105,10 +116,10 @@ impl DraftExpression {
                 }]),
             },
             DraftExpressionKind::Across(reference) => {
-                physical_accessor_ast("across", reference, path, ranges, paths)
+                physical_accessor_ast(&reference.across_name, reference, path, ranges, paths)
             }
             DraftExpressionKind::Through(reference) => {
-                physical_accessor_ast("through", reference, path, ranges, paths)
+                physical_accessor_ast(&reference.through_name, reference, path, ranges, paths)
             }
             DraftExpressionKind::SpatialCall { operator, value } => ExprKind::Call {
                 callee: NamePath::single(

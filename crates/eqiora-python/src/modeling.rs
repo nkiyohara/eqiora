@@ -20,6 +20,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyComplex, PyInt, PyList, PyModule, PyTuple};
 
 use crate::diagnostic_error;
+use predicates::symbolic_truth_error;
 
 /// SI base-dimension exponents in M,L,T,I,Theta,N,J order.
 #[pyclass(
@@ -466,7 +467,7 @@ impl PyParameter {
     }
 }
 
-/// Immutable nominal scalar physical Domain declaration.
+/// Immutable nominal scalar physical Domain with explicitly named quantities.
 #[pyclass(
     name = "PhysicalDomain",
     module = "eqiora._eqiora",
@@ -481,12 +482,20 @@ pub(crate) struct PyPhysicalDomain {
 #[pymethods]
 impl PyPhysicalDomain {
     #[new]
-    #[pyo3(signature = (name, *, across_type, through_type))]
-    fn new(name: String, across_type: &PyValueType, through_type: &PyValueType) -> Self {
+    #[pyo3(signature = (name, *, across_name, across_type, through_name, through_type))]
+    fn new(
+        name: String,
+        across_name: String,
+        across_type: &PyValueType,
+        through_name: String,
+        through_type: &PyValueType,
+    ) -> Self {
         Self {
             value: DraftPhysicalDomain::new(
                 name,
+                across_name,
                 across_type.value.clone(),
+                through_name,
                 through_type.value.clone(),
             ),
         }
@@ -495,6 +504,16 @@ impl PyPhysicalDomain {
     #[getter]
     fn name(&self) -> &str {
         self.value.name()
+    }
+
+    #[getter]
+    fn across_name(&self) -> &str {
+        self.value.across_name()
+    }
+
+    #[getter]
+    fn through_name(&self) -> &str {
+        self.value.through_name()
     }
 
     #[getter]
@@ -513,9 +532,11 @@ impl PyPhysicalDomain {
 
     fn __repr__(&self) -> String {
         format!(
-            "PhysicalDomain({:?}, across_type={:?}, through_type={:?})",
+            "PhysicalDomain({:?}, across_name={:?}, across_type={:?}, through_name={:?}, through_type={:?})",
             self.name(),
+            self.value.across_name(),
             self.value.across_type(),
+            self.value.through_name(),
             self.value.through_type()
         )
     }
@@ -947,12 +968,6 @@ fn binary(
 
 fn expression_type_error() -> PyErr {
     PyTypeError::new_err("expected an Expression, Field, Parameter, or real/complex number")
-}
-
-fn symbolic_truth_error() -> PyErr {
-    PyTypeError::new_err(
-        "symbolic Eqiora values have no truth value; construct a Relation explicitly",
-    )
 }
 
 fn equation_pairs(values: &Bound<'_, PyAny>) -> PyResult<Vec<(DraftExpression, DraftExpression)>> {

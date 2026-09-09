@@ -82,25 +82,18 @@ model Main() {
     body = solid_domain, face = solid_y_upper
   );
 
-  connect conserving
-    fluid_boundary.mechanical[boundary = fluid_x_lower],
+  connect fluid_boundary.mechanical[boundary = fluid_x_lower],
     fluid_x_lower_zero.mechanical;
-  connect conserving
-    fluid_boundary.mechanical[boundary = fluid_y_lower],
+  connect fluid_boundary.mechanical[boundary = fluid_y_lower],
     fluid_y_lower_zero.mechanical;
-  connect conserving
-    fluid_boundary.mechanical[boundary = fluid_y_upper],
+  connect fluid_boundary.mechanical[boundary = fluid_y_upper],
     fluid_y_upper_zero.mechanical;
-  connect conserving
-    solid_boundary.mechanical[boundary = solid_x_upper],
+  connect solid_boundary.mechanical[boundary = solid_x_upper],
     solid_x_upper_zero.mechanical;
-  connect conserving
-    solid_boundary.mechanical[boundary = solid_y_lower],
+  connect solid_boundary.mechanical[boundary = solid_y_lower],
     solid_y_lower_zero.mechanical;
-  connect conserving
-    solid_boundary.mechanical[boundary = solid_y_upper],
+  connect solid_boundary.mechanical[boundary = solid_y_upper],
     solid_y_upper_zero.mechanical;
-  connect conserving
-    fluid_boundary.mechanical[boundary = fluid_x_upper],
+  connect fluid_boundary.mechanical[boundary = fluid_x_upper],
     solid_boundary.mechanical[boundary = solid_x_lower];
 }

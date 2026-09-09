@@ -6,6 +6,6 @@ model Main() {
   instance resistor_four: electrical.Resistor(resistance = 4[kg * m ^ 2 / (s ^ 3 * A ^ 2)]);
   instance ground: electrical.Ground();
 
-  connect conserving source.positive, resistor_two.positive, resistor_four.positive;
-  connect conserving source.negative, resistor_two.negative, resistor_four.negative, ground.terminal;
+  connect source.positive, resistor_two.positive, resistor_four.positive;
+  connect source.negative, resistor_two.negative, resistor_four.negative, ground.terminal;
 }

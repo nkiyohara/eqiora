@@ -1,19 +1,20 @@
-public connector MechanicalBoundary = field_physical(
-  trace = velocity: m / s,
-  flux = traction: kg / (m * s ^ 2),
-  shape = spatial_vector,
-  frame = spatial,
-  pairing = euclidean_boundary_duality
-);
+public connector MechanicalBoundary {
+  trace velocity: m / s;
+  flux traction: kg / (m * s ^ 2);
+  shape spatial_vector;
+  frame spatial;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}
 
 public component InterfaceSide2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
-  port mechanical: conserving MechanicalBoundary over face
+  port mechanical: MechanicalBoundary over face
 ) {
   relation retain_interface_port on face {
-    trace(mechanical) = 0;
-    flux(mechanical) = 0;
+    mechanical.velocity = 0;
+    mechanical.traction = 0;
   }
 }
 
@@ -39,5 +40,5 @@ model Main() {
     face = solid_x_lower
   );
 
-  connect conserving fluid_side.mechanical, solid_side.mechanical;
+  connect fluid_side.mechanical, solid_side.mechanical;
 }

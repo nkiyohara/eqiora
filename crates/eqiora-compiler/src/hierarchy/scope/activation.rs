@@ -93,7 +93,7 @@ impl Scope {
                     _ => None,
                 }?;
                 Some(match &symbol.kind {
-                    SymbolKind::Port(activation) => declared(activation),
+                    SymbolKind::Port { activation, .. } => declared(activation),
                     SymbolKind::Field => DependencyActivation::Continuous,
                     _ => DependencyActivation::Static,
                 })

@@ -326,7 +326,7 @@ model Poisson() {
             ),
             (
                 "conserving families",
-                "model M() { domain d = scalar_physical(across = 1, through = 1); port causal: signal input 1; port physical: conserving on d; connect conserving causal, physical; }",
+                "model M() { domain d = scalar_physical(across potential: 1, through flow: 1); port causal: signal input 1; port physical: d; connect causal, physical; }",
                 "cannot mix",
             ),
         ];
@@ -349,19 +349,20 @@ model Poisson() {
     #[test]
     fn root_exact_boundary_selection_is_deferred_to_occurrence_expansion() {
         let source = r#"
-public connector BoundaryScalar = field_physical(
-  trace = value: 1,
-  flux = flux: 1,
-  shape = [],
-  frame = invariant,
-  pairing = euclidean_boundary_duality
-);
-component BoundaryLaw(support body: volume(ambient_dimension = 1), support exterior: complete_exterior(parent = body), port boundary[side in exterior]: conserving BoundaryScalar over side) {
+public connector BoundaryScalar {
+  trace value: 1;
+  flux flux: 1;
+  shape [];
+  frame invariant;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}
+component BoundaryLaw(support body: volume(ambient_dimension = 1), support exterior: complete_exterior(parent = body), port boundary[side in exterior]: BoundaryScalar over side) {
 
 
   
 }
-component BoundaryTerminal(support body: volume(ambient_dimension = 1), support face: boundary(parent = body), port boundary: conserving BoundaryScalar over face) {
+component BoundaryTerminal(support body: volume(ambient_dimension = 1), support face: boundary(parent = body), port boundary: BoundaryScalar over face) {
 
 
   
@@ -378,7 +379,7 @@ model M() {
     body = body,
     face = lower
   );
-  connect conserving law.boundary[side = lower], environment.boundary;
+  connect law.boundary[side = lower], environment.boundary;
 }
 "#;
         validate_model(source, "M")

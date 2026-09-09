@@ -85,8 +85,10 @@ fn native_parallel_dc_draft() -> ModelDraft {
         DimExponents::from_integers([1, 2, -3, -2, 0, 0, 0]).expect("bounded dimension");
     let electrical = DraftPhysicalDomain::new(
         "electrical",
+        "voltage",
         eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage)
             .expect("valid scalar type"),
+        "current",
         eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, current)
             .expect("valid scalar type"),
     );

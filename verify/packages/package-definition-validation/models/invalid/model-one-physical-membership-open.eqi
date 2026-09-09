@@ -1,16 +1,19 @@
-connector Pin = scalar_physical(across = 1, through = 1);
+connector Pin {
+  across potential: 1;
+  through flow: 1;
+}
 
 component OpenTriple(
-  port a: conserving on Pin,
-  port b: conserving on Pin,
-  port c: conserving on Pin
+  port a: Pin,
+  port b: Pin,
+  port c: Pin
 ) {
 }
 
 model Main() {
   instance triple: OpenTriple();
   relation owner {
-    across(triple.a) + across(triple.b) + across(triple.c) = 0;
+    triple.a.potential + triple.b.potential + triple.c.potential = 0;
   }
-  connect conserving triple.a, triple.b;
+  connect triple.a, triple.b;
 }

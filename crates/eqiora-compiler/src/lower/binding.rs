@@ -99,6 +99,7 @@ pub(super) fn bind_domain(
         DomainSyntax::ScalarPhysical {
             across_type,
             through_type,
+            ..
         } => Ok(DomainContract::ScalarPhysical {
             across_type: crate::value_types::lower_scalar_type(file, across_type)?,
             through_type: crate::value_types::lower_scalar_type(file, through_type)?,

@@ -35,18 +35,22 @@ impl Ids {
             }
         }
         let source = r#"
-public connector Mechanical = field_physical(
-  trace = velocity: m / s, flux = traction: kg / (m * s ^ 2),
-  shape = spatial_vector, frame = spatial, pairing = euclidean_boundary_duality
-);
+public connector Mechanical {
+  trace velocity: m / s;
+  flux traction: kg / (m * s ^ 2);
+  shape spatial_vector;
+  frame spatial;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}
 public component Side(
   support body: volume(ambient_dimension = DIM),
   support face: boundary(parent = body),
-  port mechanical: conserving Mechanical over face,
+  port mechanical: Mechanical over face,
 ) {
   relation retain on face {
-    trace(mechanical) = 0;
-    flux(mechanical) = 0;
+    mechanical.velocity = 0;
+    mechanical.traction = 0;
   }
 }
 model Main() {
@@ -63,7 +67,7 @@ model Main() {
   relation solid_relation on solid { solid_velocity = 0; displacement = 0; }
   instance left: Side(body = fluid, face = fluid_face);
   instance right: Side(body = solid, face = solid_face);
-  connect conserving left.mechanical, right.mechanical;
+  connect left.mechanical, right.mechanical;
 }
 "#
         .replace("BOUNDARIES", &boundaries)

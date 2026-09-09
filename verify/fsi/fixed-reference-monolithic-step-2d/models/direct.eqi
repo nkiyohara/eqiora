@@ -1,18 +1,19 @@
-public connector VelocityTractionBoundary = field_physical(
-  trace = velocity: m / s,
-  flux = traction: kg / (m * s ^ 2),
-  shape = spatial_vector,
-  frame = spatial,
-  pairing = euclidean_boundary_duality
-);
+public connector VelocityTractionBoundary {
+  trace velocity: m / s;
+  flux traction: kg / (m * s ^ 2);
+  shape spatial_vector;
+  frame spatial;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}
 
 public component ZeroVelocity2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
-  port mechanical: conserving VelocityTractionBoundary over face
+  port mechanical: VelocityTractionBoundary over face
 ) {
   relation prescribed_velocity on face {
-    trace(mechanical) = 0;
+    mechanical.velocity = 0;
   }
 }
 
@@ -22,15 +23,15 @@ public component NewtonianMechanicalInterface2d(
   variable velocity: vector<m / s, 2> on body,
   variable pressure: kg / (m * s ^ 2) on body,
   parameter dynamic_viscosity: kg / (m * s),
-  port mechanical[boundary in exterior]: conserving VelocityTractionBoundary over boundary
+  port mechanical[boundary in exterior]: VelocityTractionBoundary over boundary
 ) {
   relation boundary_interface[boundary in exterior] on boundary {
     trace(velocity)
-      - trace(mechanical[boundary = boundary]) = 0;
+      - mechanical[boundary = boundary].velocity = 0;
     normal(
       2 * dynamic_viscosity * symmetric_part(grad(velocity))
       - isotropic_lift(pressure)
-    ) - flux(mechanical[boundary = boundary]) = 0;
+    ) - mechanical[boundary = boundary].traction = 0;
   }
 }
 
@@ -41,15 +42,15 @@ public component ElastodynamicMechanicalInterface2d(
   variable velocity: vector<m / s, 2> on body,
   parameter mu: kg / (m * s ^ 2),
   parameter lambda: kg / (m * s ^ 2),
-  port mechanical[boundary in exterior]: conserving VelocityTractionBoundary over boundary
+  port mechanical[boundary in exterior]: VelocityTractionBoundary over boundary
 ) {
   relation boundary_interface[boundary in exterior] on boundary {
     trace(velocity)
-      - trace(mechanical[boundary = boundary]) = 0;
+      - mechanical[boundary = boundary].velocity = 0;
     normal(
       2 * mu * symmetric_part(grad(displacement))
       + lambda * isotropic_lift(div(displacement))
-    ) - flux(mechanical[boundary = boundary]) = 0;
+    ) - mechanical[boundary = boundary].traction = 0;
   }
 }
 
@@ -148,25 +149,18 @@ model Main() {
     body = solid, face = solid_y_upper
   );
 
-  connect conserving
-    fluid_boundary.mechanical[boundary = fluid_x_lower],
+  connect fluid_boundary.mechanical[boundary = fluid_x_lower],
     fluid_x_lower_zero.mechanical;
-  connect conserving
-    fluid_boundary.mechanical[boundary = fluid_y_lower],
+  connect fluid_boundary.mechanical[boundary = fluid_y_lower],
     fluid_y_lower_zero.mechanical;
-  connect conserving
-    fluid_boundary.mechanical[boundary = fluid_y_upper],
+  connect fluid_boundary.mechanical[boundary = fluid_y_upper],
     fluid_y_upper_zero.mechanical;
-  connect conserving
-    solid_boundary.mechanical[boundary = solid_x_upper],
+  connect solid_boundary.mechanical[boundary = solid_x_upper],
     solid_x_upper_zero.mechanical;
-  connect conserving
-    solid_boundary.mechanical[boundary = solid_y_lower],
+  connect solid_boundary.mechanical[boundary = solid_y_lower],
     solid_y_lower_zero.mechanical;
-  connect conserving
-    solid_boundary.mechanical[boundary = solid_y_upper],
+  connect solid_boundary.mechanical[boundary = solid_y_upper],
     solid_y_upper_zero.mechanical;
-  connect conserving
-    fluid_boundary.mechanical[boundary = fluid_x_upper],
+  connect fluid_boundary.mechanical[boundary = fluid_x_upper],
     solid_boundary.mechanical[boundary = solid_x_lower];
 }

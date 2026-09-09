@@ -81,7 +81,7 @@ fn python_physical_domains_preserve_complete_scalar_types() -> PyResult<()> {
         py.run(c_str!(r#"
 voltage = eqiora.ValueType.complex(eqiora.Dimension(mass=1, length=2, time=-3, current=-1))
 current = eqiora.ValueType.complex(eqiora.Dimension(current=1))
-domain = eqiora.PhysicalDomain("electrical", across_type=voltage, through_type=current)
+domain = eqiora.PhysicalDomain("electrical", across_name="voltage", across_type=voltage, through_name="current", through_type=current)
 assert domain.across_type == voltage
 assert domain.through_type == current
 left = eqiora.ConservingPort("left", domain=domain)
@@ -122,6 +122,8 @@ current = eqiora.Dimension(current=1)
 electrical = eqiora.PhysicalDomain(
     "electrical",
     across_type=eqiora.ValueType.real(voltage),
+    across_name="voltage",
+    through_name="current",
     through_type=eqiora.ValueType.real(current),
 )
 left = eqiora.ConservingPort("left", domain=electrical)
@@ -222,18 +224,15 @@ model source_decay() {
             "source-physical.eqi",
             r#"
 model source_physical() {
-  domain pin = scalar_physical(
-    across = kg * m ^ 2 / (s ^ 3 * A),
-    through = A
-  );
-  port a: conserving on pin;
-  port b: conserving on pin;
-  port c: conserving on pin;
+  domain pin = scalar_physical(across voltage: kg * m ^ 2 / (s ^ 3 * A), through current: A);
+  port a: pin;
+  port b: pin;
+  port c: pin;
   relation law {
-    across(a) - across(c) = 0;
-    through(b) + through(c) = 0;
+    a.voltage - c.voltage = 0;
+    b.current + c.current = 0;
   }
-  connect conserving a, b, c;
+  connect a, b, c;
 }
 "#,
         )
@@ -350,11 +349,15 @@ voltage = eqiora.Dimension(mass=1, length=2, time=-3, current=-1)
 current = eqiora.Dimension(current=1)
 left_domain = eqiora.PhysicalDomain(
     "electrical_left",
+    across_name="voltage",
+    through_name="current",
     across_type=eqiora.ValueType.real(voltage),
     through_type=eqiora.ValueType.real(current),
 )
 equal_but_foreign = eqiora.PhysicalDomain(
     "electrical_foreign",
+    across_name="voltage",
+    through_name="current",
     across_type=eqiora.ValueType.real(voltage),
     through_type=eqiora.ValueType.real(current),
 )
@@ -387,6 +390,8 @@ voltage = eqiora.Dimension(mass=1, length=2, time=-3, current=-1)
 current = eqiora.Dimension(current=1)
 electrical = eqiora.PhysicalDomain(
     "electrical",
+    across_name="voltage",
+    through_name="current",
     across_type=eqiora.ValueType.real(voltage),
     through_type=eqiora.ValueType.real(current),
 )

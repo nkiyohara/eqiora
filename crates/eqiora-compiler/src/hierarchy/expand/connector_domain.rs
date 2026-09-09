@@ -3,6 +3,72 @@
 use super::*;
 
 impl<'a, 'd> RootExpansion<'a, 'd> {
+    pub(super) fn port_quantities(
+        &self,
+        syntax: &PortSyntax,
+        namespace: &DefinitionNamespace,
+        file: &str,
+        range: eqiora_lang::TextRange,
+    ) -> Result<Option<PhysicalMemberNames>, Diagnostic> {
+        match syntax {
+            PortSyntax::Signal { .. } => Ok(None),
+            PortSyntax::ScalarPhysicalConnector { connector }
+            | PortSyntax::FieldPhysical { connector, .. } => {
+                let definition = self
+                    .elaborator
+                    .resolve_connector(namespace, connector, file, range)?;
+                PhysicalMemberNames::from_connector(definition.syntax())
+                    .map(Some)
+                    .ok_or_else(|| {
+                        source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            file,
+                            range,
+                            "Connector has no physical quantities",
+                        )
+                    })
+            }
+            PortSyntax::ScalarPhysical { domain } => self
+                .model
+                .owned_items()
+                .find_map(|item| {
+                    let Item::Domain(declaration) = item else {
+                        return None;
+                    };
+                    if declaration.name() != domain {
+                        return None;
+                    }
+                    let DomainSyntax::ScalarPhysical {
+                        across_name,
+                        through_name,
+                        ..
+                    } = declaration.syntax()
+                    else {
+                        return None;
+                    };
+                    Some(PhysicalMemberNames::Scalar {
+                        across: across_name.clone(),
+                        through: through_name.clone(),
+                    })
+                })
+                .map(Some)
+                .ok_or_else(|| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        range,
+                        format!("`{domain}` is not an exact scalar physical Domain"),
+                    )
+                }),
+            _ => Err(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                file,
+                range,
+                "unknown Port contract",
+            )),
+        }
+    }
+
     pub(super) fn connector_domain(
         &mut self,
         connector: ConnectorDefinition<'d>,
@@ -14,7 +80,9 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         };
         let (shape, contract) = match connector.syntax() {
             ConnectorSyntax::ScalarPhysical {
+                across_name,
                 across_type,
+                through_name,
                 through_type,
             } => {
                 crate::value_types::lower_scalar_type(connector.file, across_type)?;
@@ -22,8 +90,10 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 (
                     ValueShape::scalar(),
                     LoweringDomainContract::Source(DomainSyntax::ScalarPhysical {
+                        across_name: across_name.clone(),
                         across_type: across_type.clone(),
                         through_type: through_type.clone(),
+                        through_name: through_name.clone(),
                     }),
                 )
             }

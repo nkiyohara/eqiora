@@ -429,7 +429,7 @@ fn entity_symbols_are_ordered_and_exact() {
 
 #[test]
 fn executable_compile_still_requires_a_model_entry() {
-    let source = "public component Resistor() {} public connector Pin = scalar_physical(across = 1, through = A);";
+    let source = "public component Resistor() {} public connector Pin {\n  across voltage: 1;\n  through current: A;\n}";
     let diagnostics = compile("library.eqi", source)
         .expect_err("a declarations-only library is not an executable model");
 
@@ -514,11 +514,11 @@ fn resistance_dimension() -> DimExponents {
 fn staged_identity_source_controls_every_lowered_identity() {
     let source = r#"
 model assigned() {
-  domain electrical = scalar_physical(across = 1, through = 1);
-  port positive: conserving on electrical;
-  port negative: conserving on electrical;
-  relation equal { across(positive) - across(negative) = 0; }
-  connect conserving positive, negative;
+  domain electrical = scalar_physical(across potential: 1, through flow: 1);
+  port positive: electrical;
+  port negative: electrical;
+  relation equal { positive.potential - negative.potential = 0; }
+  connect positive, negative;
 }
 "#;
     let document = parse("assigned.eqi", source)
@@ -573,11 +573,29 @@ model assigned() {
         name: "equal".into(),
         activation: ActivationSyntax::Continuous,
         domain: None,
-        equations: relation
-            .equations()
-            .iter()
-            .map(LoweringEquation::from_source)
-            .collect(),
+        // This unit exercises staged Kernel IDs, below lexical source lookup.
+        // The frontend already resolves the two declared members to these roles.
+        equations: vec![LoweringEquation::rewritten(
+            &relation.equations()[0],
+            LoweringExpression::binary(
+                eqiora_lang::BinaryOp::Sub,
+                LoweringExpression::call(
+                    "across".to_owned(),
+                    LoweringExpression::name("positive".to_owned(), relation.range()),
+                    relation.range(),
+                ),
+                LoweringExpression::call(
+                    "across".to_owned(),
+                    LoweringExpression::name("negative".to_owned(), relation.range()),
+                    relation.range(),
+                ),
+                relation.range(),
+            ),
+            LoweringExpression::number(
+                eqiora_lang::DecimalLiteral::parse("0").unwrap(),
+                relation.range(),
+            ),
+        )],
         initial: false,
         range: relation.range(),
     });
@@ -1060,24 +1078,52 @@ fn native_field_types_survive_direct_lowering() {
 fn source_and_native_physical_models_lower_to_the_same_normalized_semantics() {
     let source = r#"
 model resistor() {
-  domain electrical = scalar_physical(across = kg * m ^ 2 / (s ^ 3 * A), through = A);
-  port positive: conserving on electrical;
-  port negative: conserving on electrical;
-  port tap: conserving on electrical;
+  domain electrical = scalar_physical(across voltage: kg * m ^ 2 / (s ^ 3 * A), through current: A);
+  port positive: electrical;
+  port negative: electrical;
+  port tap: electrical;
   parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2) = 2[kg * m ^ 2 / (s ^ 3 * A ^ 2)];
   relation law {
-    across(positive) - across(negative) - resistance * through(positive) = 0;
-    through(positive) + through(negative) + through(tap) = 0;
+    positive.voltage - negative.voltage - resistance * positive.current = 0;
+    positive.current + negative.current + tap.current = 0;
   }
-  connect conserving positive, negative, tap;
+  connect positive, negative, tap;
 }
 "#;
     let source_model = compile("resistor.eqi", source).unwrap().remove(0);
+    let renamed = compile(
+        "resistor.eqi",
+        &source
+            .replace("voltage", "potential")
+            .replace("current", "flow"),
+    )
+    .unwrap()
+    .remove(0);
+    // Quantity spelling participates in authored identity, not the role-valued
+    // laws, complete types, nominal domain references, or connection membership.
+    assert_ne!(source_model.model(), renamed.model());
+    assert_eq!(
+        normalized_physical_semantics(&source_model),
+        normalized_physical_semantics(&renamed)
+    );
+    let documented = compile(
+        "resistor.eqi",
+        &format!("/// A documented resistor.\n{}", source.trim_start()),
+    )
+    .unwrap()
+    .remove(0);
+    assert_eq!(source_model.model(), documented.model());
+    assert_eq!(
+        normalized_physical_semantics(&source_model),
+        normalized_physical_semantics(&documented)
+    );
 
     let electrical = eqiora_lang::DraftPhysicalDomain::new(
         "electrical",
+        "voltage",
         eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage_dimension())
             .expect("admitted numeric scalar type"),
+        "current",
         eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, current_dimension())
             .expect("admitted numeric scalar type"),
     );
@@ -1144,8 +1190,10 @@ model resistor() {
 fn native_physical_projection_is_insensitive_to_declaration_and_net_permutation() {
     let electrical = eqiora_lang::DraftPhysicalDomain::new(
         "electrical",
+        "voltage",
         eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, voltage_dimension())
             .expect("admitted numeric scalar type"),
+        "current",
         eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, current_dimension())
             .expect("admitted numeric scalar type"),
     );
@@ -1203,31 +1251,31 @@ fn native_physical_projection_is_insensitive_to_declaration_and_net_permutation(
 fn direct_flat_physical_fragments_normalize_before_kernel_lowering() {
     let nary = r#"
 model network() {
-  domain physical = scalar_physical(across = 1, through = 1);
-  port a: conserving on physical;
-  port b: conserving on physical;
-  port c: conserving on physical;
+  domain physical = scalar_physical(across potential: 1, through flow: 1);
+  port a: physical;
+  port b: physical;
+  port c: physical;
   relation owner {
-    across(a) - across(b) = 0;
-    across(b) - across(c) = 0;
-    through(a) + through(b) + through(c) = 0;
+    a.potential - b.potential = 0;
+    b.potential - c.potential = 0;
+    a.flow + b.flow + c.flow = 0;
   }
-  connect conserving a, b, c;
+  connect a, b, c;
 }
 "#;
     let chain = r#"
 model network() {
-  domain physical = scalar_physical(across = 1, through = 1);
-  port a: conserving on physical;
-  port b: conserving on physical;
-  port c: conserving on physical;
+  domain physical = scalar_physical(across potential: 1, through flow: 1);
+  port a: physical;
+  port b: physical;
+  port c: physical;
   relation owner {
-    across(a) - across(b) = 0;
-    across(b) - across(c) = 0;
-    through(a) + through(b) + through(c) = 0;
+    a.potential - b.potential = 0;
+    b.potential - c.potential = 0;
+    a.flow + b.flow + c.flow = 0;
   }
-  connect conserving a, b;
-  connect conserving b, c;
+  connect a, b;
+  connect b, c;
 }
 "#;
     let nary = compile("nary.eqi", nary).unwrap().remove(0);
@@ -1258,16 +1306,18 @@ model network() {
 }
 
 #[test]
-fn compiler_rejects_untyped_conserving_markers() {
-    for marker in ["A", "1", "m / s"] {
-        let source =
-            format!("model M() {{ port p: conserving {marker}; relation r {{ p = 0; }} }}");
+fn physical_ports_require_nominal_declarations_not_value_types() {
+    for (marker, expected) in [
+        ("A", "unresolved scalar physical Domain `A`"),
+        ("1", "physical Domain or Connector name"),
+        ("m / s", "`;` after Port declaration"),
+    ] {
+        let source = format!("model M() {{ port p: {marker}; relation r {{ p = 0; }} }}");
         let errors = compile("marker.eqi", &source).unwrap_err();
         assert!(
-            errors.iter().any(|error| error
-                .message()
-                .contains("requires a physical Domain or boundary Connector")
-                && error.source_span().is_some()),
+            errors
+                .iter()
+                .any(|error| error.message().contains(expected) && error.source_span().is_some()),
             "{errors:?}"
         );
     }
@@ -1277,13 +1327,13 @@ fn compiler_rejects_untyped_conserving_markers() {
 fn compiler_rejects_dimension_coincidence_across_nominal_domains() {
     let source = r#"
 model crossed_types() {
-  domain electrical_a = scalar_physical(across = kg * m ^ 2 / (s ^ 3 * A), through = A);
-  domain electrical_b = scalar_physical(across = kg * m ^ 2 / (s ^ 3 * A), through = A);
-  port a: conserving on electrical_a;
-  port b: conserving on electrical_b;
-  relation owner_a { across(a) = 0; }
-  relation owner_b { across(b) = 0; }
-  connect conserving a, b;
+  domain electrical_a = scalar_physical(across voltage: kg * m ^ 2 / (s ^ 3 * A), through current: A);
+  domain electrical_b = scalar_physical(across voltage: kg * m ^ 2 / (s ^ 3 * A), through current: A);
+  port a: electrical_a;
+  port b: electrical_b;
+  relation owner_a { a.voltage = 0; }
+  relation owner_b { b.voltage = 0; }
+  connect a, b;
 }
 "#;
     let diagnostics = compile("crossed-types.eqi", source)
@@ -1315,7 +1365,7 @@ fn flat_lowering_consumes_the_shared_scalar_connection_contract() {
         ),
         (
             "mixed conserving families",
-            "model m() { domain d = scalar_physical(across = 1, through = 1); port causal: signal input 1; port physical: conserving on d; connect conserving causal, physical; }",
+            "model m() { domain d = scalar_physical(across potential: 1, through flow: 1); port causal: signal input 1; port physical: d; connect causal, physical; }",
             "cannot mix",
         ),
     ];
@@ -1335,8 +1385,8 @@ fn compiler_rejects_non_physical_domains_and_unqualified_physical_ports() {
     let wrong_domain = r#"
 model wrong_domain() {
   domain space = box(0, 1);
-  port p: conserving on space;
-  relation owner { across(p) = 0; }
+  port p: space;
+  relation owner { p.potential = 0; }
 }
 "#;
     let diagnostics = compile("wrong-domain.eqi", wrong_domain)
@@ -1347,36 +1397,38 @@ model wrong_domain() {
 
     let unqualified = r#"
 model unqualified() {
-  domain electrical = scalar_physical(across = 1, through = 1);
-  port p: conserving on electrical;
+  domain electrical = scalar_physical(across potential: 1, through flow: 1);
+  port p: electrical;
   relation owner { p = 0; }
 }
 "#;
     let diagnostics = compile("unqualified.eqi", unqualified)
-        .expect_err("physical variables require an explicit accessor");
+        .expect_err("physical variables require an explicit declared member");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.source_span().is_some()
-            && diagnostic.message().contains("must be read as `across(p)`")
+            && diagnostic
+                .message()
+                .contains("requires a declared quantity member")
     }));
 }
 
 #[test]
-fn physical_accessors_require_one_bare_physical_port_name() {
+fn retired_physical_role_calls_are_rejected_at_source_lookup() {
     let malformed = r#"
 model malformed() {
-  domain electrical = scalar_physical(across = 1, through = 1);
-  port p: conserving on electrical;
+  domain electrical = scalar_physical(across potential: 1, through flow: 1);
+  port p: electrical;
   relation owner { across(p + 1) = 0; }
 }
 "#;
     let diagnostics =
-        compile("malformed.eqi", malformed).expect_err("accessor structure remains explicit");
+        compile("malformed.eqi", malformed).expect_err("retired accessor is not a pure operator");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.source_span().is_some()
                 && diagnostic
                     .message()
-                    .contains("requires one scalar physical Port selection")
+                    .contains("unresolved pure operator `across`")
         }),
         "{diagnostics:?}"
     );
@@ -1394,7 +1446,7 @@ model signal_accessor() {
             diagnostic.source_span().is_some()
                 && diagnostic
                     .message()
-                    .contains("`p` is not compatible with `through(...)`")
+                    .contains("unresolved pure operator `through`")
         }),
         "{diagnostics:?}"
     );
@@ -1637,8 +1689,8 @@ fn declaration_literals_inherit_units_but_general_expressions_and_bindings_do_no
 fn source_physical_domains_and_connectors_keep_complex_scalar_types() {
     use eqiora_schema::kernel::DomainKind;
     for source in [
-        "model M() { domain electrical = scalar_physical(across = complex<V>, through = complex<A>); port p: conserving on electrical; port n: conserving on electrical; relation r { across(p) - across(n) = 0; through(p) + through(n) = 0; } connect conserving p, n; }",
-        "connector Pin = scalar_physical(across = complex<V>, through = complex<A>); component C(port p: conserving on Pin) {  relation r { across(p) = 0; through(p) = 0; } } model M() { instance a: C(); instance b: C(); connect conserving a.p, b.p; }",
+        "model M() { domain electrical = scalar_physical(across potential: complex<V>, through flow: complex<A>); port p: electrical; port n: electrical; relation r { p.potential - n.potential = 0; p.flow + n.flow = 0; } connect p, n; }",
+        "connector Pin {\n  across potential: complex<V>;\n  through flow: complex<A>;\n} component C(port p: Pin) {  relation r { p.potential = 0; p.flow = 0; } } model M() { instance a: C(); instance b: C(); connect a.p, b.p; }",
     ] {
         let document = eqiora_lang::parse("physical.eqi", source)
             .into_document()
@@ -1679,11 +1731,11 @@ fn source_physical_domains_and_connectors_keep_complex_scalar_types() {
         for declaration in ["domain", "connector"] {
             let source = if declaration == "domain" {
                 format!(
-                    "model M() {{ domain electrical = scalar_physical(across = {kind}, through = A); }}"
+                    "model M() {{ domain electrical = scalar_physical(across voltage: {kind}, through current: A); }}"
                 )
             } else {
                 format!(
-                    "connector Pin = scalar_physical(across = {kind}, through = A); model M() {{ variable x: 1; }}"
+                    "connector Pin {{\n  across voltage: {kind};\n  through current: A;\n}} model M() {{ variable x: 1; }}"
                 )
             };
             let errors = compile("physical-shape.eqi", &source).unwrap_err();

@@ -231,17 +231,18 @@ fn family_expansion_arithmetic_fails_before_symbolic_members_are_allocated() {
     let overflowing_dimension = usize::MAX / 2 + 1;
     let source = format!(
         r#"
-public connector BoundaryScalar = field_physical(
-  trace = value: 1,
-  flux = flux: 1,
-  shape = [],
-  frame = invariant,
-  pairing = euclidean_boundary_duality
-);
+public connector BoundaryScalar {{
+  trace value: 1;
+  flux flux: 1;
+  shape [];
+  frame invariant;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}}
 public component OverflowingFamily(
   support body: volume(ambient_dimension = {overflowing_dimension}),
   support exterior: complete_exterior(parent = body),
-  port boundary[member in exterior]: conserving BoundaryScalar over member
+  port boundary[member in exterior]: BoundaryScalar over member
 ) {{
 }}
 model Main() {{}}

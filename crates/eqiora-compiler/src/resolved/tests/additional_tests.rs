@@ -17,7 +17,7 @@ fn canonical_declarations_ignore_files_formatting_and_input_order() {
                 &package,
                 "parts.connector",
                 "a/connector.eqi",
-                "public connector Pin = scalar_physical(across = 1, through = 1);",
+                "public connector Pin {\n  across potential: 1;\n  through flow: 1;\n}",
             ),
         ],
         vec![],
@@ -31,7 +31,7 @@ fn canonical_declarations_ignore_files_formatting_and_input_order() {
                 &package,
                 "parts.connector",
                 "elsewhere/pin.eqi",
-                "// relocated\npublic connector Pin=scalar_physical(across=1,through=1);",
+                "// relocated\npublic connector Pin {\n  across potential: 1;\n  through flow: 1;\n}",
             ),
             module_unit(
                 &package,

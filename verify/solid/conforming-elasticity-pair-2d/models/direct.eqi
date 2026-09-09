@@ -1,10 +1,11 @@
-public connector QuasistaticMechanicalBoundary = field_physical(
-  trace = displacement: m,
-  flux = traction: kg / (m * s ^ 2),
-  shape = spatial_vector,
-  frame = spatial,
-  pairing = euclidean_boundary_duality
-);
+public connector QuasistaticMechanicalBoundary {
+  trace displacement: m;
+  flux traction: kg / (m * s ^ 2);
+  shape spatial_vector;
+  frame spatial;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}
 
 public component IsotropicMechanicalInterface2d(
   support body: volume(ambient_dimension = 2),
@@ -12,35 +13,35 @@ public component IsotropicMechanicalInterface2d(
   variable displacement: vector<m, 2> on body,
   parameter mu: kg / (m * s ^ 2),
   parameter lambda: kg / (m * s ^ 2),
-  port mechanical[boundary in exterior]: conserving QuasistaticMechanicalBoundary over boundary
+  port mechanical[boundary in exterior]: QuasistaticMechanicalBoundary over boundary
 ) {
   relation boundary_interface[boundary in exterior] on boundary {
     trace(displacement)
-      - trace(mechanical[boundary = boundary]) = 0;
+      - mechanical[boundary = boundary].displacement = 0;
     normal(
       2 * mu * symmetric_part(grad(displacement))
       + lambda * isotropic_lift(div(displacement))
-    ) - flux(mechanical[boundary = boundary]) = 0;
+    ) - mechanical[boundary = boundary].traction = 0;
   }
 }
 
 public component FixedDisplacement2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
-  port mechanical: conserving QuasistaticMechanicalBoundary over face
+  port mechanical: QuasistaticMechanicalBoundary over face
 ) {
   relation prescribed_displacement on face {
-    trace(mechanical) = 0;
+    mechanical.displacement = 0;
   }
 }
 
 public component ZeroTraction2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
-  port mechanical: conserving QuasistaticMechanicalBoundary over face
+  port mechanical: QuasistaticMechanicalBoundary over face
 ) {
   relation prescribed_traction on face {
-    flux(mechanical) = 0;
+    mechanical.traction = 0;
   }
 }
 
@@ -135,18 +136,18 @@ model Main() {
     face = right_y_upper
   );
 
-  connect conserving left_boundary.mechanical[boundary = left_x_lower],
+  connect left_boundary.mechanical[boundary = left_x_lower],
     fixed.mechanical;
-  connect conserving left_boundary.mechanical[boundary = left_y_lower],
+  connect left_boundary.mechanical[boundary = left_y_lower],
     left_y_lower_free.mechanical;
-  connect conserving left_boundary.mechanical[boundary = left_y_upper],
+  connect left_boundary.mechanical[boundary = left_y_upper],
     left_y_upper_free.mechanical;
-  connect conserving right_boundary.mechanical[boundary = right_x_upper],
+  connect right_boundary.mechanical[boundary = right_x_upper],
     right_x_upper_free.mechanical;
-  connect conserving right_boundary.mechanical[boundary = right_y_lower],
+  connect right_boundary.mechanical[boundary = right_y_lower],
     right_y_lower_free.mechanical;
-  connect conserving right_boundary.mechanical[boundary = right_y_upper],
+  connect right_boundary.mechanical[boundary = right_y_upper],
     right_y_upper_free.mechanical;
-  connect conserving left_boundary.mechanical[boundary = left_x_upper],
+  connect left_boundary.mechanical[boundary = left_x_upper],
     right_boundary.mechanical[boundary = right_x_lower];
 }

@@ -7,7 +7,7 @@ fn model_and_component_index_families_share_ordered_syntax_and_native_factories(
     let body = r#"
   /// One equation per exact member.
   relation law[i in Stages] on body at tick { cell[index(Stages, ordinal(i))].value = ordinal(i); }
-  connect conserving [j in Links] cell[index(Stages, ordinal(j))].negative, cell[index(Stages, ordinal(j) + 1)].positive;
+  connect [j in Links] cell[index(Stages, ordinal(j))].negative, cell[index(Stages, ordinal(j) + 1)].positive;
   connect [i in Stages] cell[index(Stages, ordinal(i))].output -> sink[index(Stages, ordinal(i))].input;
 "#;
     for declaration in ["model M()", "component C()"] {
@@ -76,20 +76,32 @@ fn model_and_component_index_families_share_ordered_syntax_and_native_factories(
             format(&parse("again.eqi", &rendered).into_document().unwrap()),
             rendered
         );
-        assert!(rendered.contains("connect conserving [j in Links]"));
+        assert!(rendered.contains("connect [j in Links]"));
         assert!(rendered.contains("connect [i in Stages]"));
     }
 }
 
 #[test]
 fn binder_clauses_reject_duplicates_reordering_and_periodic_identifications() {
+    let valid = parse(
+        "conserving.eqi",
+        "model M() { connect [i in Stages] a, b; }",
+    )
+    .into_document()
+    .expect("a comma-separated indexed connection is conserving");
+    let Item::Connection(connection) = &valid.models()[0].items()[0] else {
+        panic!("indexed conserving connection");
+    };
+    assert_eq!(connection.syntax(), ConnectionSyntax::Conserving);
+    assert_eq!(connection.binder().unwrap().member(), "i");
+    assert_eq!(connection.binder().unwrap().set().as_str(), "Stages");
     for source in [
         "relation r on body[i in Stages] { 0 = 0; }",
         "relation r[i in Stages][j in Links] { 0 = 0; }",
         "relation r[i in Stages] at tick on body { 0 = 0; }",
-        "connect conserving [i in Stages][j in Links] a, b;",
+        "connect [i in Stages][j in Links] a, b;",
         "connect periodic [i in Stages] a, b;",
-        "connect [i in Stages] a, b;",
+        "connect a, b [i in Stages];",
     ] {
         assert!(
             parse("bad.eqi", &format!("model M() {{ {source} }}"))
@@ -102,8 +114,7 @@ fn binder_clauses_reject_duplicates_reordering_and_periodic_identifications() {
 
 #[test]
 fn exact_boundary_selector_connections_keep_their_distinct_representation() {
-    let source =
-        "component C() { connect conserving [b in exterior] left.p[face = b], right.p[face = b]; }";
+    let source = "component C() { connect [b in exterior] left.p[face = b], right.p[face = b]; }";
     let document = parse("boundary.eqi", source).into_document().unwrap();
     let ComponentItem::BoundaryConnection(connection) = &document.components()[0].items()[0] else {
         panic!("boundary selection")

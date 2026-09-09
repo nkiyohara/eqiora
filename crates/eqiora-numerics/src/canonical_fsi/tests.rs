@@ -10,13 +10,14 @@ use super::{
 use crate::canonical_boundary::PhysicalBoundaryDisposition;
 
 const SOURCE: &str = r#"
-public connector VelocityTractionBoundary = field_physical(
-  trace = velocity: m / s,
-  flux = traction: kg / (m * s ^ 2),
-  shape = spatial_vector,
-  frame = spatial,
-  pairing = euclidean_boundary_duality
-);
+public connector VelocityTractionBoundary {
+  trace velocity: m / s;
+  flux traction: kg / (m * s ^ 2);
+  shape spatial_vector;
+  frame spatial;
+  pairing euclidean_boundary_duality;
+  orientation parent_outward;
+}
 
 public component NewtonianInterface2d(
   support body: volume(ambient_dimension = 2),
@@ -24,15 +25,15 @@ public component NewtonianInterface2d(
   variable velocity: vector<m / s, 2> on body,
   variable pressure: kg / (m * s ^ 2) on body,
   parameter dynamic_viscosity: kg / (m * s),
-  port mechanical: conserving VelocityTractionBoundary over face
+  port mechanical: VelocityTractionBoundary over face
 ) {
 
   relation interface on face {
-    trace(velocity) - trace(mechanical) = 0;
+    trace(velocity) - mechanical.velocity = 0;
     normal(
       2 * dynamic_viscosity * symmetric_part(grad(velocity))
       - isotropic_lift(pressure)
-    ) - flux(mechanical) = 0;
+    ) - mechanical.traction = 0;
   }
 }
 
@@ -43,15 +44,15 @@ public component ElasticInterface2d(
   variable velocity: vector<m / s, 2> on body,
   parameter mu: kg / (m * s ^ 2),
   parameter lambda: kg / (m * s ^ 2),
-  port mechanical: conserving VelocityTractionBoundary over face
+  port mechanical: VelocityTractionBoundary over face
 ) {
 
   relation interface on face {
-    trace(velocity) - trace(mechanical) = 0;
+    trace(velocity) - mechanical.velocity = 0;
     normal(
       2 * mu * symmetric_part(grad(displacement))
       + lambda * isotropic_lift(div(displacement))
-    ) - flux(mechanical) = 0;
+    ) - mechanical.traction = 0;
   }
 }
 
@@ -128,7 +129,7 @@ model Main() {
     mu = mu,
     lambda = lambda
   );
-  connect conserving fluid_interface.mechanical, solid_interface.mechanical;
+  connect fluid_interface.mechanical, solid_interface.mechanical;
 }
 "#;
 

@@ -2,6 +2,70 @@
 use super::*;
 
 impl RootExpansion<'_, '_> {
+    pub(super) fn register_port_family_member(
+        &mut self,
+        registration: PortFamilyMemberRegistration<'_>,
+        scope: &mut Scope,
+    ) -> Result<(), Diagnostic> {
+        let symbol = FlatSymbol {
+            internal_name: internal_name(registration.identity.full),
+            display_name: registration.display_name.clone(),
+            full_identity: registration.identity.full,
+            kind: SymbolKind::Port {
+                activation: eqiora_lang::ActivationSyntax::Continuous,
+                quantities: Some(registration.quantities),
+            },
+        };
+        scope.insert_port_family_member(
+            registration.file,
+            registration.range,
+            registration.family_name.to_owned(),
+            registration.selector_member,
+            registration.boundary,
+            symbol.clone(),
+        )?;
+        if self
+            .display_symbols
+            .insert(
+                registration.display_name,
+                DisplayIdentity {
+                    full: registration.identity.full,
+                    kind: EntityKind::Port,
+                },
+            )
+            .is_some()
+        {
+            return Err(hierarchy_error(format!(
+                "duplicate flattened display symbol `{}`",
+                symbol.display_name
+            )));
+        }
+        Ok(())
+    }
+
+    pub(super) fn register_family_relation_display(
+        &mut self,
+        display_name: String,
+        identity: &RelationIdentity,
+    ) -> Result<(), Diagnostic> {
+        if self
+            .display_symbols
+            .insert(
+                display_name.clone(),
+                DisplayIdentity {
+                    full: identity.entity.full,
+                    kind: EntityKind::Relation,
+                },
+            )
+            .is_some()
+        {
+            return Err(hierarchy_error(format!(
+                "duplicate flattened display symbol `{display_name}`"
+            )));
+        }
+        Ok(())
+    }
+
     pub(super) fn register_symbol(
         &mut self,
         display_name: String,

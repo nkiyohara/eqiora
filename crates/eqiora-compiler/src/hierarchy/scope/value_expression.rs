@@ -13,6 +13,43 @@ pub(in crate::hierarchy) fn rewrite_expression_with_boundary_member(
             expression.range(),
         ));
     }
+    if let Some((port, member)) = super::super::quantity_member::split(expression) {
+        let symbol = match port.kind() {
+            ExprKind::Name(name) => NamePath::from_segments([name.as_str()], port.range())
+                .ok()
+                .and_then(|path| scope.resolve_symbol(&path)),
+            ExprKind::Path(path) => scope.resolve_symbol(path),
+            ExprKind::Member { .. } => scope.indexed_port(file, &port).ok(),
+            ExprKind::BoundaryPortSelection { port, selector } => {
+                resolve_boundary_family_selection(file, port, selector, scope, active).ok()
+            }
+            _ => None,
+        };
+        if let Some(FlatSymbol {
+            internal_name,
+            kind:
+                SymbolKind::Port {
+                    quantities: Some(quantities),
+                    ..
+                },
+            ..
+        }) = symbol
+        {
+            let role = quantities.role(member).ok_or_else(|| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    expression.range(),
+                    format!("Port has no declared quantity `{member}`"),
+                )
+            })?;
+            return Ok(LoweringExpression::call(
+                role.to_owned(),
+                LoweringExpression::name(internal_name.clone(), port.range()),
+                expression.range(),
+            ));
+        }
+    }
     let lowered = match expression.kind() {
         ExprKind::Case { value, arms } => {
             let value = rewrite_expression_with_boundary_member(file, value, scope, active)?;

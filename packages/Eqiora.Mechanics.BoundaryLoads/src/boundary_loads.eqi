@@ -4,10 +4,10 @@ public component NormalPressureTraction2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
   variable pressure: kg / (m * s ^ 2) on body,
-  port mechanical: conserving mechanics.VelocityTractionBoundary over face
+  port mechanical: mechanics.VelocityTractionBoundary over face
 ) {
   relation prescribed_traction on face {
-    flux(mechanical)
+    mechanical.traction
       - normal(isotropic_lift(pressure)) = 0;
   }
 }

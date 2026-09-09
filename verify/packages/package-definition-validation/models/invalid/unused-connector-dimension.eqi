@@ -1,3 +1,6 @@
-public connector Broken = scalar_physical(across = mystery, through = A);
+public connector Broken {
+  across voltage: mystery;
+  through current: A;
+}
 
 model Empty() {}

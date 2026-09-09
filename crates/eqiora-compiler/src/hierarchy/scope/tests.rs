@@ -28,7 +28,10 @@ fn port(name: &str, value: u8) -> FlatSymbol {
         internal_name: name.to_owned(),
         display_name: name.to_owned(),
         full_identity: identity(value),
-        kind: SymbolKind::Port(eqiora_lang::ActivationSyntax::Continuous),
+        kind: SymbolKind::Port {
+            activation: eqiora_lang::ActivationSyntax::Continuous,
+            quantities: None,
+        },
     }
 }
 

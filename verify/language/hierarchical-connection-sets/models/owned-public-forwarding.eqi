@@ -1,21 +1,24 @@
-connector Pin = scalar_physical(across = 1, through = 1);
+connector Pin {
+  across potential: 1;
+  through flow: 1;
+}
 
 component Leaf(
-  port p: conserving on Pin
+  port p: Pin
 ) {
-  relation owner { across(p) = 0; }
+  relation owner { p.potential = 0; }
 }
 
 component OwnedWrapper(
-  port p: conserving on Pin
+  port p: Pin
 ) {
   instance leaf: Leaf();
-  relation public_owner { across(p) = 0; }
-  connect conserving p, leaf.p;
+  relation public_owner { p.potential = 0; }
+  connect p, leaf.p;
 }
 
 model Network() {
   instance left: OwnedWrapper();
   instance right: Leaf();
-  connect conserving left.p, right.p;
+  connect left.p, right.p;
 }

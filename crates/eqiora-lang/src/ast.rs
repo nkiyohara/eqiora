@@ -133,8 +133,12 @@ impl ConnectorDecl {
 pub enum ConnectorSyntax {
     /// Scalar acausal connector with complete across and through types.
     ScalarPhysical {
+        /// Declared member exposing the across quantity.
+        across_name: String,
         /// Complete scalar type of the across variable.
         across_type: ValueTypeSyntax,
+        /// Declared member exposing the through quantity.
+        through_name: String,
         /// Complete scalar type of the through variable.
         through_type: ValueTypeSyntax,
     },
@@ -575,8 +579,12 @@ pub enum DomainSyntax {
     /// One nominal scalar conserving domain. The declaration identity, not
     /// dimension coincidence, determines Port compatibility.
     ScalarPhysical {
+        /// Declared member exposing the across quantity.
+        across_name: String,
         /// Complete scalar type of the across variable.
         across_type: ValueTypeSyntax,
+        /// Declared member exposing the through quantity.
+        through_name: String,
         /// Complete scalar type of the through variable.
         through_type: ValueTypeSyntax,
     },
@@ -715,7 +723,7 @@ pub enum PortSyntax {
     },
     /// Executable scalar conserving Port, nominally typed by one Domain.
     /// In the flat source slice, a Relation that reads this Port with
-    /// `across(...)` or `through(...)` is its owner: lowering emits both
+    /// its declared quantity member is its owner: lowering emits both
     /// `DependsOn` and `HasPort`. Cross-component physical observation is not
     /// inferred from an accessor.
     ScalarPhysical {

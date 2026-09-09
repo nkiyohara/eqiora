@@ -8,21 +8,24 @@ use std::collections::{BTreeMap, BTreeSet};
 
 // Same local across/through convention as component-elaboration's DC fixture.
 const DEFINITIONS: &str = r#"
-connector Pin = scalar_physical(across = V, through = A);
-component VoltageSource(parameter voltage: V, port positive: conserving on Pin, port negative: conserving on Pin) {
+connector Pin {
+  across voltage: V;
+  through current: A;
+}
+component VoltageSource(parameter voltage: V, port positive: Pin, port negative: Pin) {
   relation law {
-    across(positive) - across(negative) - voltage = 0;
-    through(positive) + through(negative) = 0;
+    positive.voltage - negative.voltage - voltage = 0;
+    positive.current + negative.current = 0;
   }
 }
-component Resistor(parameter resistance: Ohm, port positive: conserving on Pin, port negative: conserving on Pin) {
+component Resistor(parameter resistance: Ohm, port positive: Pin, port negative: Pin) {
   relation law {
-    across(positive) - across(negative) - resistance * through(positive) = 0;
-    through(positive) + through(negative) = 0;
+    positive.voltage - negative.voltage - resistance * positive.current = 0;
+    positive.current + negative.current = 0;
   }
 }
-component Ground(port terminal: conserving on Pin) {
-  relation law { across(terminal) = 0; }
+component Ground(port terminal: Pin) {
+  relation law { terminal.voltage = 0; }
 }
 "#;
 
@@ -46,18 +49,18 @@ fn source(indexed: bool, permuted: bool) -> String {
         }
     };
     let mut fragments = vec![
-        format!("connect conserving supply.positive, {}.positive;", cell(0)),
+        format!("connect supply.positive, {}.positive;", cell(0)),
         format!(
-            "connect conserving supply.negative, {}.negative, ground.terminal;",
+            "connect supply.negative, {}.negative, ground.terminal;",
             cell(2)
         ),
     ];
     if indexed {
-        fragments.push("connect conserving [j in Links] cell[index(Stages, ordinal(j))].negative, cell[index(Stages, ordinal(j) + 1)].positive;".into());
+        fragments.push("connect [j in Links] cell[index(Stages, ordinal(j))].negative, cell[index(Stages, ordinal(j) + 1)].positive;".into());
     } else {
         for i in 0..2 {
             fragments.push(format!(
-                "connect conserving {}.negative, {}.positive;",
+                "connect {}.negative, {}.positive;",
                 cell(i),
                 cell(i + 1)
             ));
