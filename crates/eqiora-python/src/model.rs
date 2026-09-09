@@ -551,7 +551,7 @@ impl PyModel {
         })
     }
 
-    /// Exact package-owned property bindings, absent without package lineage.
+    /// Exact release bindings retained on Model expression occurrences.
     #[getter]
     fn property_bindings(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
         let bindings = self
